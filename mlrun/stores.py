@@ -21,7 +21,7 @@ from os import path, remove, environ
 import shlex
 from argparse import ArgumentParser
 import boto3
-from urllib.parse import urlparse, ParseResult
+from urllib.parse import urlparse, ParseResult, urlunparse
 from shutil import copyfile
 
 
@@ -53,19 +53,19 @@ def put_data(url, data):
     url2repo(url).put(data)
 
 
-def url2repo(url='', secrets={}):
+def url2repo(url='', secrets_func=None):
     if '://' not in url:
         return FileRepo(url)
     p = urlparse(url)
     scheme = p.scheme.lower()
     if scheme == 's3':
-        return S3Repo(p, secrets)
+        return S3Repo(p, secrets_func)
     elif scheme == 'git':
-        return GitRepo(p, secrets)
+        return GitRepo(p, secrets_func)
     elif scheme == 'http' or scheme == 'https':
-        return HttpRepo(p, secrets)
+        return HttpRepo(p, secrets_func)
     elif scheme == 'v3io' or scheme == 'v3ios':
-        return V3ioRepo(p, secrets)
+        return V3ioRepo(p, secrets_func)
     else:
         raise ValueError('unsupported repo scheme ({})'.format(scheme))
 
@@ -75,6 +75,10 @@ class ExternalRepo:
         self.urlobj = urlobj
         self.kind = ''
 
+    @property
+    def path(self):
+        return urlunparse(self.urlobj)
+
     def get(self):
         pass
 
@@ -82,7 +86,10 @@ class ExternalRepo:
         pass
 
     def download(self, target_path):
-        pass
+        text = self.get()
+        with open(target_path, 'w') as fp:
+            fp.write(text)
+            fp.close()
 
     def upload(self, src_path):
         pass
@@ -90,34 +97,40 @@ class ExternalRepo:
 
 class FileRepo(ExternalRepo):
     def __init__(self, path=''):
-        self.path = path
+        self._path = path
         self.kind = 'file'
 
+    @property
+    def path(self):
+        return self._path
+
     def get(self):
-        with open(self.path, 'r') as fp:
+        with open(self._path, 'r') as fp:
             return fp.read()
 
     def put(self, data):
-        with open(self.path, 'w') as fp:
+        with open(self._path, 'w') as fp:
             fp.write(data)
             fp.close()
 
     def download(self, target_path):
-        copyfile(self.path, target_path)
+        if self._path == target_path:
+            return
+        copyfile(self._path, target_path)
 
     def upload(self, src_path):
-        copyfile(src_path, self.path)
+        copyfile(src_path, self._path)
 
 
 class S3Repo(ExternalRepo):
-    def __init__(self, urlobj: ParseResult, secrets={}):
+    def __init__(self, urlobj: ParseResult, secrets_func=None):
         self.kind = 's3'
         self.bucket = urlobj.hostname
         self.key = urlobj.path[1:]
         region = None
 
-        access_key = urlobj.username or secrets.get('AWS_ACCESS_KEY_ID')
-        secret_key = urlobj.password or secrets.get('AWS_SECRET_ACCESS_KEY')
+        access_key = urlobj.username or secrets_func('AWS_ACCESS_KEY_ID')
+        secret_key = urlobj.password or secrets_func('AWS_SECRET_ACCESS_KEY')
 
         if access_key or secret_key:
             self.s3 = boto3.resource('s3', region_name=region,
@@ -173,7 +186,7 @@ def http_upload(url, file_path, headers=None, auth=None):
 
 
 class HttpRepo(ExternalRepo):
-    def __init__(self, urlobj: ParseResult, secrets={}):
+    def __init__(self, urlobj: ParseResult, secrets_func=None):
         self.kind = 'http'
         host = urlobj.hostname
         if urlobj.port:
@@ -195,7 +208,7 @@ class HttpRepo(ExternalRepo):
 
 
 class V3ioRepo(ExternalRepo):
-    def __init__(self, urlobj: ParseResult, secrets={}):
+    def __init__(self, urlobj: ParseResult, secrets_func=None):
         self.kind = 'v3io'
         host = urlobj.hostname or environ.get('V3IO_API')
         if urlobj.port:
@@ -203,8 +216,8 @@ class V3ioRepo(ExternalRepo):
         self.url = 'http://{}{}'.format(host, urlobj.path)
 
         token = environ.get('V3IO_ACCESS_KEY')
-        username = urlobj.username or secrets.get('V3IO_USERNAME') or environ.get('V3IO_USERNAME')
-        password = urlobj.password or secrets.get('V3IO_PASSWORD') or environ.get('V3IO_PASSWORD')
+        username = urlobj.username or secrets_func('V3IO_USERNAME') or environ.get('V3IO_USERNAME')
+        password = urlobj.password or secrets_func('V3IO_PASSWORD') or environ.get('V3IO_PASSWORD')
 
         self.headers = None
         self.auth = None
@@ -225,7 +238,7 @@ class V3ioRepo(ExternalRepo):
 
 
 class GitRepo(ExternalRepo):
-    def __init__(self, urlobj: ParseResult, secrets={}):
+    def __init__(self, urlobj: ParseResult, secrets_func=None):
         self.kind = 'git'
         host = urlobj.hostname or 'github.com'
         if urlobj.port:

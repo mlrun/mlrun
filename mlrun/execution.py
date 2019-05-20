@@ -23,11 +23,12 @@ class KFPClientCtx(object):
 
         self._parameters = {}
         self._input_artifacts = {}
+        self._data_in_path = ''
         self._data_out_path = ''
 
-        self._secrets_key = ''
-        self._secrets_blob = None
+        self._secrets_function = None
         self._secrets = {}
+        self._rundb_class = None
 
         self._outputs = {}
         self._output_artifacts = {}
@@ -46,9 +47,9 @@ class KFPClientCtx(object):
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
         if spec:
-            self._parameters = meta.get('parameters', self._parameters)
-            self._input_artifacts = meta.get('input_artifacts', self._input_artifacts)
-            self._data_out_path = meta.get('_data_out_path', self._data_out_path)
+            self._parameters = spec.get('parameters', self._parameters)
+            self._input_artifacts = spec.get('input_artifacts', self._input_artifacts)
+            self._data_out_path = spec.get('_data_out_path', self._data_out_path)
 
     def _set_from_json(self, data):
         attrs = json.loads(data)
@@ -66,24 +67,25 @@ class KFPClientCtx(object):
     def annotations(self):
         return self._annotations
 
-    def get_param(self, key, default=None):
+    def get_or_set_param(self, key, default=None):
         if key not in self._parameters:
             self._parameters[key] = default
             return default
         return self._parameters[key]
 
     def get_secret(self, key):
-        return self._secrets[key]
+        if self._secrets_function:
+            return self._secrets_function(key)
+        return None
 
-    def artifact_path(self, key, default=None):
+    def input_artifact(self, key):
         if key not in self._input_artifacts:
-            return default
-        return self._input_artifacts[key]
-
-    def read_artifact(self, key, default=None):
-        url = self.get_artifact_path(key, default)
-        repo = stores.url2repo(url, self._secrets)
-        return repo.get()
+            url = path.join(self._data_in_path, key)
+            self._input_artifacts[key] = url
+        else:
+            url = self._input_artifacts[key]
+        repo = stores.url2repo(url, self._secrets_function)
+        return repo
 
     def log_output(self, key, value):
         self._outputs[key] = value
@@ -125,8 +127,9 @@ class KFPClientCtx(object):
                 'spec':
                    {'parameters': self._parameters,
                     'input_artifacts': self._input_artifacts,
+                    'data_in_path': self._data_out_path,
                     'data_out_path': self._data_out_path},
-                'status':
+        'status':
                    {'state': self.state,
                     'outputs': self._outputs,
                     'output_artifacts': artifacts,
@@ -172,8 +175,8 @@ class KFPArtifact(object):
             self.target_path = path.join(run._data_out_path, localpath)
         self.atype = atype
 
-    def upload(self, secrets={}):
-        repo = stores.url2repo(self.target_path, self._secrets)
+    def upload(self, secrets_func=None):
+        repo = stores.url2repo(self.target_path, self.secrets_func)
         repo.upload(self.localpath)
 
     def to_dict(self):

@@ -17,25 +17,29 @@ class KFPClientCtx(object):
         self._reset_attrs()
 
     def _reset_attrs(self):
+        self._project = ''
         self.owner = ''
         self._labels = {}
         self._annotations = {}
 
         self._parameters = {}
         self._input_artifacts = {}
-        self._data_in_path = ''
-        self._data_out_path = ''
+        self._default_in_path = ''
+        self._default_out_path = ''
 
-        self._secrets_function = None
-        self._secrets = {}
-        self._rundb_class = None
+        # runtime db/storage service interfaces
+        self._secrets_store = None
+        self._rundb = None
+        self._logger = None
+        self._matrics_db = None
+        self._data_stores = {}
 
         self._outputs = {}
         self._output_artifacts = {}
         self._metrics = {}
-        self.state = 'created'
-        self.start_time = datetime.now()
-        self.last_update = datetime.now()
+        self._state = 'created'
+        self._start_time = datetime.now()
+        self._last_update = datetime.now()
 
     def _set_from_dict(self, attrs={}):
         meta = attrs.get('metadata')
@@ -74,17 +78,17 @@ class KFPClientCtx(object):
         return self._parameters[key]
 
     def get_secret(self, key):
-        if self._secrets_function:
-            return self._secrets_function(key)
+        if self._secrets_store:
+            return self._secrets_store.get(key)
         return None
 
     def input_artifact(self, key):
         if key not in self._input_artifacts:
-            url = path.join(self._data_in_path, key)
+            url = path.join(self._default_in_path, key)
             self._input_artifacts[key] = url
         else:
             url = self._input_artifacts[key]
-        repo = stores.url2repo(url, self._secrets_function)
+        repo = stores.url2repo(url, self._secrets_store)
         return repo
 
     def log_output(self, key, value):
@@ -130,11 +134,11 @@ class KFPClientCtx(object):
                     'data_in_path': self._data_out_path,
                     'data_out_path': self._data_out_path},
         'status':
-                   {'state': self.state,
+                   {'state': self._state,
                     'outputs': self._outputs,
                     'output_artifacts': artifacts,
                     'metrics': metrics,
-                    'start_time': str(self.start_time),
+                    'start_time': str(self._start_time),
                     'last_update': str(self.last_update)},
                 }
 
@@ -176,7 +180,7 @@ class KFPArtifact(object):
         self.atype = atype
 
     def upload(self, secrets_func=None):
-        repo = stores.url2repo(self.target_path, self.secrets_func)
+        repo = stores.url2repo(self.target_path, self._secrets_store)
         repo.upload(self.localpath)
 
     def to_dict(self):

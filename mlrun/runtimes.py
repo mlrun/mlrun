@@ -26,4 +26,3 @@ class LocalRuntime(KFPClientCtx):
             self._secrets_function = self._secrets.get
 
         self._parameters = {**parameters, **self._parameters}
-        self._input_artifacts = {**artifacts, **self._input_artifacts}

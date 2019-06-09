@@ -3,7 +3,9 @@ from os import path
 import yaml, json
 from datetime import datetime
 
-from mlrun import stores
+from .data.artifacts import ArtifactManager
+from .data.datastore import StoreManager
+from .secrets import SecretsStore
 
 
 class KFPClientCtx(object):
@@ -14,7 +16,15 @@ class KFPClientCtx(object):
         self.name = name
         self.parent = parent
         self.parent_type = parent_type
+        self._secrets_manager = SecretsStore()
+        self._data_stores = StoreManager(self._secrets_manager)
+        self._artifacts_manager = ArtifactManager(self._data_stores, self.uid)
         self._reset_attrs()
+
+        # runtime db service interfaces
+        self._rundb = None
+        self._logger = None
+        self._matrics_db = None
 
     def _reset_attrs(self):
         self._project = ''
@@ -23,19 +33,8 @@ class KFPClientCtx(object):
         self._annotations = {}
 
         self._parameters = {}
-        self._input_artifacts = {}
-        self._default_in_path = ''
-        self._default_out_path = ''
-
-        # runtime db/storage service interfaces
-        self._secrets_store = None
-        self._rundb = None
-        self._logger = None
-        self._matrics_db = None
-        self._data_stores = {}
 
         self._outputs = {}
-        self._output_artifacts = {}
         self._metrics = {}
         self._state = 'created'
         self._start_time = datetime.now()
@@ -52,8 +51,9 @@ class KFPClientCtx(object):
         spec = attrs.get('spec')
         if spec:
             self._parameters = spec.get('parameters', self._parameters)
-            self._input_artifacts = spec.get('input_artifacts', self._input_artifacts)
-            self._data_out_path = spec.get('_data_out_path', self._data_out_path)
+            self._secrets_manager.from_dict(spec)
+            self._data_stores.from_dict(spec)
+            self._artifacts_manager.from_dict(spec)
 
     def _set_from_json(self, data):
         attrs = json.loads(data)
@@ -78,18 +78,12 @@ class KFPClientCtx(object):
         return self._parameters[key]
 
     def get_secret(self, key):
-        if self._secrets_store:
-            return self._secrets_store.get(key)
+        if self._secrets_manager:
+            return self._secrets_manager.get(key)
         return None
 
     def input_artifact(self, key):
-        if key not in self._input_artifacts:
-            url = path.join(self._default_in_path, key)
-            self._input_artifacts[key] = url
-        else:
-            url = self._input_artifacts[key]
-        repo = stores.url2repo(url, self._secrets_store)
-        return repo
+        return self._artifacts_manager.get_input_artifact(key)
 
     def log_output(self, key, value):
         self._outputs[key] = value
@@ -112,38 +106,38 @@ class KFPClientCtx(object):
         for k, v in keyvals.items():
             self.log_metric(k, v, timestamp)
 
-    def log_artifact(self, key, localpath='', body=None, target_path='', atype=''):
-        artifact = KFPArtifact(self, localpath, body, target_path, atype)
-        # TBD uploads
-        self._output_artifacts[key] = artifact
+    def log_artifact(self, key, body=None, target_path='', atype=''):
+        self._artifacts_manager.log_artifact(key, target_path, body, atype)
+
+    def commit(self, message=''):
+        pass
 
     def to_dict(self):
         metrics = {k: v.to_dict() for (k, v) in self._metrics.items()}
-        artifacts = {k: v.to_dict() for k, v in self._output_artifacts.items()}
-        return {'metadata':
-                   {'name': self.name,
-                    'uid': self.uid,
-                    'parent': self.parent,
-                    'parent_type': self.parent_type,
-                    'owner': self.owner,
-                    'labels': self._labels,
-                    'annotations': self._annotations},
-                'spec':
-                   {'parameters': self._parameters,
-                    'input_artifacts': self._input_artifacts,
-                    'data_in_path': self._data_out_path,
-                    'data_out_path': self._data_out_path},
-        'status':
-                   {'state': self._state,
-                    'outputs': self._outputs,
-                    'output_artifacts': artifacts,
-                    'metrics': metrics,
-                    'start_time': str(self._start_time),
-                    'last_update': str(self.last_update)},
-                }
+        struct = {
+            'metadata':
+                {'name': self.name,
+                 'uid': self.uid,
+                 'parent': self.parent,
+                 'parent_type': self.parent_type,
+                 'owner': self.owner,
+                 'labels': self._labels,
+                 'annotations': self._annotations},
+            'spec':
+                {'parameters': self._parameters},
+            'status':
+                {'state': self._state,
+                 'outputs': self._outputs,
+                 'metrics': metrics,
+                 'start_time': str(self._start_time),
+                 'last_update': str(self._last_update)},
+            }
+        self._data_stores.to_dict(struct['spec'])
+        self._artifacts_manager.to_dict(struct['spec'])
+        return struct
 
     def to_yaml(self):
-        return yaml.dump(self.to_dict())
+        return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
 
     def to_json(self):
         return json.dumps(self.to_dict())
@@ -165,28 +159,5 @@ class KFPMetric(object):
             'labels': self.labels,
             'xvalues': self.xvalues,
             'yvalues': self.yvalues,
-        }
-
-
-class KFPArtifact(object):
-
-    def __init__(self, run, localpath='', body=None, target_path='', atype=''):
-        self.run = run
-        self.localpath = localpath
-        if target_path:
-            self.target_path = target_path
-        else:
-            self.target_path = path.join(run._data_out_path, localpath)
-        self.atype = atype
-
-    def upload(self, secrets_func=None):
-        repo = stores.url2repo(self.target_path, self._secrets_store)
-        repo.upload(self.localpath)
-
-    def to_dict(self):
-        return {
-            'localpath': self.localpath,
-            'target_path': self.target_path,
-            'atype': self.atype,
         }
 

@@ -6,30 +6,45 @@ from urllib.parse import urlparse
 import boto3
 import requests
 
+STORE_MANAGER_KEY = 'data_stores'
+
+def parseurl(url):
+    p = urlparse(url)
+    schema = p.scheme.lower()
+    endpoint = p.hostname
+    if p.port:
+        endpoint += ':{}'.format(p.port)
+    return schema, endpoint, p.path
 
 class StoreManager:
-    def __init__(self, secrets=None, stores={}):
+    def __init__(self, secrets=None):
         self._stores = {}
         self._secrets = secrets
-        self._from_dict(stores)
 
-    # todo: read stores from input spec
-    def _from_dict(self, stores={}):
-        pass
+    def from_dict(self, struct: dict):
+        stor_list = struct.get(STORE_MANAGER_KEY)
+        if stor_list and isinstance(stor_list, list):
+            for stor in stor_list:
+                schema, endpoint, subpath = parseurl(stor.get('url'))
+                new_stor = DataStore(self, stor['name'], schema, endpoint)
+                new_stor.subpath = subpath
+                new_stor.secret_pfx = stor.get('secret_pfx')
+                new_stor.options = stor.get('options', {})
+                new_stor.from_spec = True
+                self._stores[stor['name']] = new_stor
+
+    def to_dict(self, struct):
+        struct[STORE_MANAGER_KEY] = [stor.to_dict() for stor in self._stores.values() if stor.from_spec]
 
     def secret(self, key):
         self._secrets.get(key)
 
-    def add_store(self, store):
+    def _add_store(self, store):
         self._stores[store.name] = store
 
     def get_or_create_store(self, url):
         store = None
-        p = urlparse(url)
-        schema = p.scheme.lower()
-        endpoint = p.hostname
-        if p.port:
-            endpoint += ':{}'.format(p.port)
+        schema, endpoint, subpath = parseurl(url)
 
         if not schema and endpoint:
             if endpoint in self._stores.keys():
@@ -39,12 +54,12 @@ class StoreManager:
 
         storekey = '{}://{}'.format(schema, endpoint)
         if storekey in self._stores.keys():
-            return self._stores[storekey], p.path
+            return self._stores[storekey], subpath
 
         store = self._schema_to_store(schema)
         new_store = store(self, storekey, endpoint)
         self._stores[storekey] = new_store
-        return new_store, p.path
+        return new_store, subpath
 
     def _schema_to_store(self, schema):
         if not schema or schema == 'file':
@@ -56,14 +71,15 @@ class StoreManager:
 
 
 class DataStore:
-    def __init__(self, parent: StoreManager, name, endpoint=''):
+    def __init__(self, parent: StoreManager, name, kind, endpoint=''):
         self._parent = parent
-        self.kind = ''
+        self.kind = kind
         self.name = name
         self.endpoint = endpoint
         self.subpath = ''
         self.secret_pfx = ''
         self.options = {}
+        self.from_spec = False
 
     def _join(self, key):
         return path.join(self.subpath, key)
@@ -90,11 +106,18 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
+    def to_dict(self):
+        return {
+                'name': self.name,
+                'url': '{}://{}/{}'.format(self.kind, self.endpoint, self.subpath),
+                'secret_pfx': self.secret_pfx,
+                'options': self.options,
+            }
+
 
 class FileStore(DataStore):
     def __init__(self, parent: StoreManager, name, endpoint=''):
-        super().__init__(parent, name, endpoint)
-        self.kind = 'file'
+        super().__init__(parent, name, 'file', endpoint)
 
     @property
     def url(self):
@@ -121,8 +144,7 @@ class FileStore(DataStore):
 
 class S3Store(DataStore):
     def __init__(self, parent: StoreManager, name, endpoint=''):
-        super().__init__(parent, name, endpoint)
-        self.kind = 's3'
+        super().__init__(parent, name, 's3', endpoint)
         region = None
 
         access_key = self._secret('AWS_ACCESS_KEY_ID')
@@ -183,8 +205,7 @@ def http_upload(url, file_path, headers=None, auth=None):
 
 class HttpStore(DataStore):
     def __init__(self, parent: StoreManager, name, endpoint=''):
-        super().__init__(parent, name, endpoint)
-        self.kind = 'http'
+        super().__init__(parent, name, 'http', endpoint)
         self.auth = None
 
     def upload(self, key, src_path):
@@ -199,8 +220,7 @@ class HttpStore(DataStore):
 
 class V3ioStore(DataStore):
     def __init__(self, parent: StoreManager, name, endpoint=''):
-        super().__init__(parent, name, endpoint)
-        self.kind = 'v3io'
+        super().__init__(parent, name, 'v3io', endpoint)
         self.endpoint = self.endpoint or environ.get('V3IO_API')
 
         token = self._secret('V3IO_ACCESS_KEY') or environ.get('V3IO_ACCESS_KEY')

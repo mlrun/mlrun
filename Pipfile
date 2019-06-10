@@ -6,6 +6,9 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
+requests = ">=2.20.1"
+boto3 = ">=1.9"
+pyyaml = ">=5.1.0"
 
 [requires]
 python_version = "3.6"

@@ -4,7 +4,7 @@ from os import environ
 import requests
 import yaml
 
-from mlrun.execution import MLClientCtx
+from .execution import MLClientCtx
 
 
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True):

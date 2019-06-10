@@ -1,5 +1,5 @@
 from os import path
-from .datastore import StoreManager
+from mlrun.datastore import StoreManager
 
 INPUT_ARTIFACT_KEY = 'input_artifacts'
 OUTPUT_ARTIFACT_KEY = 'output_artifacts'

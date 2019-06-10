@@ -3,8 +3,8 @@ from os import path
 import yaml, json
 from datetime import datetime
 
-from .data import ArtifactManager
-from .data import StoreManager
+from .artifacts import ArtifactManager
+from .datastore import StoreManager
 from .secrets import SecretsStore
 
 

@@ -1,3 +1,4 @@
+import json
 import uuid
 from os import environ
 
@@ -33,7 +34,7 @@ def remote_run(url, spec={}):
         resp = requests.put(url, json=json.dumps(spec))
     except OSError as err:
         print('ERROR: %s', str(err))
-        raise OSError('error: cannot run function at url {}'.format(verb, api_url))
+        raise OSError('error: cannot run function at url {}'.format(url))
 
     if not resp.ok:
         print('bad resp!!')

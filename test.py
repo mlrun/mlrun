@@ -1,6 +1,6 @@
 import json
 import os
-from mlrun.runtimes import LocalRuntime, get_or_create_ctx
+from mlrun.runtimes import get_or_create_ctx
 
 
 def my_func(ctx):
@@ -9,6 +9,7 @@ def my_func(ctx):
 
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}\n')
+    print('file\n{}\n'.format(ctx.input_artifact('infile.txt').get()))
 
     ctx.log_output('accuracy', p1 * 2)
     ctx.log_metric('loss', 7)

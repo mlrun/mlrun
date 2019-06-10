@@ -79,7 +79,7 @@ class DataArtifact:
 
     def get(self):
         if self._store:
-            self._store.get(self._path)
+            return self._store.get(self._path)
 
     def download(self, target_path):
         if self._store:

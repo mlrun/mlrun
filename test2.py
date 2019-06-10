@@ -1,6 +1,6 @@
 import json
 import os
-from mlrun.runtimes import LocalRuntime
+from mlrun import get_or_create_ctx
 
 
 def my_func(ctx):
@@ -19,6 +19,6 @@ def my_func(ctx):
 
 
 if __name__ == "__main__":
-    ex = LocalRuntime('mytask')
+    ex = get_or_create_ctx('mytask')
     my_func(ex)
     print(ex.to_yaml())

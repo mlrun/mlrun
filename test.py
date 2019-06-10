@@ -1,6 +1,7 @@
 import json
 import os
-from mlrun.runtimes import LocalRuntime
+from mlrun.runtimes import LocalRuntime, get_or_create_ctx
+
 
 def my_func(ctx):
     p1 = ctx.get_or_set_param('p1', 1)
@@ -11,12 +12,13 @@ def my_func(ctx):
 
     ctx.log_output('accuracy', p1 * 2)
     ctx.log_metric('loss', 7)
-    ctx.log_artifact('chart', 'chart.png')
+    ctx.log_artifact('chart.png')
 
 
-ex = LocalRuntime('mytask')
+ex = get_or_create_ctx('mytask')
 my_func(ex)
 
-ex = LocalRuntime('task2', parameters={'p1':8})
+spec = {'spec': {'parameters':{'p1':8}}}
+ex = get_or_create_ctx('task2', spec=spec)
 my_func(ex)
 print(ex.to_yaml())

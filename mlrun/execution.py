@@ -8,10 +8,10 @@ from .data.datastore import StoreManager
 from .secrets import SecretsStore
 
 
-class KFPClientCtx(object):
+class MLClientCtx(object):
     """Execution Client Context"""
 
-    def __init__(self, uid, name, parent_type='', parent=''):
+    def __init__(self, name, uid, parent_type='', parent=''):
         self.uid = uid
         self.name = name
         self.parent = parent
@@ -40,7 +40,7 @@ class KFPClientCtx(object):
         self._start_time = datetime.now()
         self._last_update = datetime.now()
 
-    def _set_from_dict(self, attrs={}):
+    def from_dict(self, attrs={}):
         meta = attrs.get('metadata')
         if meta:
             self.parent = meta.get('parent', self.parent)

@@ -1,28 +1,26 @@
-import json
-import os
 import uuid
-import getpass
 from os import environ
 
-from mlrun.execution import KFPClientCtx
+import yaml
+
+from mlrun.execution import MLClientCtx
 
 
-class LocalRuntime(KFPClientCtx):
+def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True):
 
-    def __init__(self, name, uid='', parameters={}, artifacts={}):
-        uid = uid or uuid.uuid4().hex
-        KFPClientCtx.__init__(self, uid, name)
-        self.parent_type = 'local'
-        self.owner = getpass.getuser()
+    if event:
+        spec = event.body
+        uid = uid or event.id
 
-        config = environ.get('MLRUN_EXEC_CONFIG')
-        if config:
-            attrs = json.loads(config)
-            self._set_from_dict(attrs)
+    config = environ.get('MLRUN_EXEC_CONFIG')
+    if with_env and config:
+        spec = config
 
-        secrets = environ.get('MLRUN_EXEC_SECRETS')
-        if secrets:
-            self._secrets = json.loads(secrets)
-            self._secrets_function = self._secrets.get
+    uid = uid or uuid.uuid4().hex
+    if spec and not isinstance(spec, dict):
+        spec = yaml.safe_load(spec)
 
-        self._parameters = {**parameters, **self._parameters}
+    ctx = MLClientCtx(name, uid)
+    if spec:
+        ctx.from_dict(spec)
+    return ctx

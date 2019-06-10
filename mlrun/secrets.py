@@ -12,7 +12,7 @@ class SecretsStore:
         src_list = struct.get(SECRET_SOURCE_KEY)
         if src_list and isinstance(src_list, list):
             for src in src_list:
-                self._add_source(src['kind'], src.get('source'), src.get('prefix'))
+                self._add_source(src['kind'], src.get('source'), src.get('prefix', ''))
 
     def to_dict(self, struct):
         pass

@@ -18,8 +18,8 @@ class ArtifactManager:
         self.output_artifacts = {}
 
     def from_dict(self, struct: dict):
-        self.in_path = struct.get('default_input_path')
-        self.out_path = struct.get('default_output_path')
+        self.in_path = struct.get('default_input_path', self.in_path)
+        self.out_path = struct.get('default_output_path', self.out_path)
         in_list = struct.get(INPUT_ARTIFACT_KEY)
         if in_list and isinstance(in_list, list):
             for item in in_list:

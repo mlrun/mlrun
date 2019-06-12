@@ -17,7 +17,7 @@ class SecretsStore:
     def to_dict(self, struct):
         pass
 
-    def _add_source(self, kind, source={}, prefix=''):
+    def _add_source(self, kind, source='', prefix=''):
 
         if kind == 'inline':
             for k, v in source.items():
@@ -31,8 +31,12 @@ class SecretsStore:
                     self._secrets[prefix + k] = str(v)
 
         elif kind == 'env':
-            for k, v in environ.items():
-                self._secrets[prefix + k] = str(v)
+            for key in source.split(','):
+                k = key.strip()
+                self._secrets[prefix + k] = environ.get(k)
 
     def get(self, key):
         return self._secrets.get(key)
+
+    def get_all(self):
+        return self._secrets

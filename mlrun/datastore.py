@@ -37,7 +37,7 @@ class StoreManager:
         struct[STORE_MANAGER_KEY] = [stor.to_dict() for stor in self._stores.values() if stor.from_spec]
 
     def secret(self, key):
-        self._secrets.get(key)
+        return self._secrets.get(key)
 
     def _add_store(self, store):
         self._stores[store.name] = store
@@ -45,10 +45,12 @@ class StoreManager:
     def get_or_create_store(self, url):
         store = None
         schema, endpoint, subpath = parseurl(url)
+        if subpath.startswith('/'):
+            subpath = subpath[1:]
 
         if not schema and endpoint:
             if endpoint in self._stores.keys():
-                return self._stores[endpoint], p.path
+                return self._stores[endpoint], subpath
             else:
                 raise ValueError('no such store ({})'.format(endpoint))
 

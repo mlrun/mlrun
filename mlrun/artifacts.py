@@ -8,8 +8,8 @@ OUTPUT_ARTIFACT_KEY = 'output_artifacts'
 class ArtifactManager:
 
     def __init__(self, stores: StoreManager,
-                 runmeta, in_path='', out_path=''):
-        self.runmeta = runmeta
+                 getmeta, in_path='', out_path=''):
+        self._getmeta_function = getmeta
         self.in_path = in_path
         self.out_path = out_path
 

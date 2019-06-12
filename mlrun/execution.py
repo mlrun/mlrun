@@ -18,15 +18,13 @@ class MLClientCtx(object):
         self.parent_type = parent_type
         self._secrets_manager = SecretsStore()
         self._data_stores = StoreManager(self._secrets_manager)
-        self._artifacts_manager = ArtifactManager(self._data_stores, self.uid)
-        self._reset_attrs()
+        self._artifacts_manager = ArtifactManager(self._data_stores, self._get_meta)
 
         # runtime db service interfaces
         self._rundb = None
         self._logger = None
         self._matrics_db = None
 
-    def _reset_attrs(self):
         self._project = ''
         self.owner = ''
         self._labels = {}
@@ -40,9 +38,14 @@ class MLClientCtx(object):
         self._start_time = datetime.now()
         self._last_update = datetime.now()
 
+    def _get_meta(self):
+        return {'name': self.name, 'type': self.parent_type, 'parent': self.parent, 'uid': self.uid}
+
     def from_dict(self, attrs={}):
         meta = attrs.get('metadata')
         if meta:
+            self.uid = meta.get('uid', self.uid)
+            self.name = meta.get('name', self.name)
             self.parent = meta.get('parent', self.parent)
             self.parent_type = meta.get('parent_type', self.parent_type)
             self.owner = meta.get('owner', self.owner)
@@ -61,17 +64,17 @@ class MLClientCtx(object):
 
     @property
     def parameters(self):
-        return self._parameters
+        return self._parameters.copy()
 
     @property
     def labels(self):
-        return self._labels
+        return self._labels.copy()
 
     @property
     def annotations(self):
-        return self._annotations
+        return self._annotations.copy()
 
-    def get_or_set_param(self, key, default=None):
+    def get_param(self, key, default=None):
         if key not in self._parameters:
             self._parameters[key] = default
             return default

@@ -4,11 +4,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+pytest = "*"
 
 [packages]
 requests = ">=2.20.1"
 boto3 = ">=1.9"
 pyyaml = ">=5.1.0"
+click = ">=7.0"
 
 [requires]
 python_version = "3.6"

@@ -19,7 +19,11 @@ def my_func(ctx):
 ex = get_or_create_ctx('mytask')
 my_func(ex)
 
-spec = {'spec': {'parameters':{'p1':8}}}
+spec = {'spec': {
+    'parameters':{'p1':8},
+    'secret_sources': [{'kind':'file', 'source': 'secrets.txt'}],
+    'input_artifacts': [{'key':'infile.txt', 'path':'s3://yarons-tests/infile.txt'}],
+}}
 ex = get_or_create_ctx('task2', spec=spec)
 my_func(ex)
 print(ex.to_yaml())

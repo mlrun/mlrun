@@ -14,18 +14,31 @@ def main():
 
 @main.command()
 @click.argument("file", type=click.File())
-@click.option('--params', '-p', default='', help='parameters')
-@click.option('--artifact', '-a', multiple=True, help='input artifact')
+@click.option('--param', '-p', default='', multiple=True,
+              help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
+@click.option('--in-artifact', '-i', multiple=True, help='input artifact')
+@click.option('--out-artifact', '-o', multiple=True, help='output artifact')
 @click.option('--secrets', '-s', default='', help='secrets file')
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
-def run(file, params, artifact, secrets):
+def run(file, param, in_artifact, out_artifact, secrets):
     """Execute a task and inject parameters."""
 
     spec_dict = {}
-    if params:
-        spec_dict['parameters'] = literal_eval(params)
-    if artifact:
-        spec_dict['input_artifacts'] = line2keylist(artifact)
+    if param:
+        params_dict = {}
+        for param in param:
+            i = param.find('=')
+            if i == -1:
+                continue
+            key, value = param[:i].strip(), param[i + 1:].strip()
+            if key is None:
+                raise ValueError(f'cannot find param key in line ({param})')
+            params_dict[key] = literal_eval(value)
+        spec_dict['parameters'] = params_dict
+    if in_artifact:
+        spec_dict['input_artifacts'] = line2keylist(in_artifact)
+    if out_artifact:
+        spec_dict['output_artifacts'] = line2keylist(out_artifact)
     if secrets:
         spec_dict['secret_sources'] = [{'kind':'file', 'source': secrets}]
 
@@ -46,7 +59,7 @@ def line2keylist(lines: list, keyname='key', valname='path'):
         if key is None:
             raise ValueError('cannot find key in line (key=value)')
         value = path.expandvars(value)
-        out += {keyname: key, valname: value}
+        out += [{keyname: key, valname: value}]
     return out
 
 

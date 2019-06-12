@@ -141,7 +141,10 @@ class FileStore(DataStore):
         copyfile(fullpath, target_path)
 
     def upload(self, key, src_path):
-        copyfile(src_path, self._join(key))
+        fullpath = self._join(key)
+        if fullpath == src_path:
+            return
+        copyfile(src_path, fullpath)
 
 
 class S3Store(DataStore):

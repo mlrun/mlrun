@@ -109,8 +109,8 @@ class MLClientCtx(object):
         for k, v in keyvals.items():
             self.log_metric(k, v, timestamp)
 
-    def log_artifact(self, key, body=None, target_path='', atype=''):
-        self._artifacts_manager.log_artifact(key, target_path, body, atype)
+    def log_artifact(self, key, body=None, target_path='', atype='', source_path=''):
+        self._artifacts_manager.log_artifact(key, target_path, body, atype, source_path)
 
     def commit(self, message=''):
         pass
@@ -136,7 +136,7 @@ class MLClientCtx(object):
                  'last_update': str(self._last_update)},
             }
         self._data_stores.to_dict(struct['spec'])
-        self._artifacts_manager.to_dict(struct['spec'])
+        self._artifacts_manager.to_dict(struct)
         return struct
 
     def to_yaml(self):

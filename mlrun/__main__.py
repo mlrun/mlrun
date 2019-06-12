@@ -19,11 +19,17 @@ def main():
 @click.option('--in-artifact', '-i', multiple=True, help='input artifact')
 @click.option('--out-artifact', '-o', multiple=True, help='output artifact')
 @click.option('--secrets', '-s', default='', help='secrets file')
+@click.option('--uid', help='unique run ID')
+@click.option('--name', help='run name')
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
-def run(file, param, in_artifact, out_artifact, secrets):
+def run(file, param, in_artifact, out_artifact, secrets, uid, name):
     """Execute a task and inject parameters."""
 
-    spec_dict = {}
+    meta = {'parent_type': 'local', 'owner': getpass.getuser()}
+    set_item(meta, uid, 'uid')
+    set_item(meta, name, 'name')
+
+    spec = {}
     if param:
         params_dict = {}
         for param in param:
@@ -34,19 +40,25 @@ def run(file, param, in_artifact, out_artifact, secrets):
             if key is None:
                 raise ValueError(f'cannot find param key in line ({param})')
             params_dict[key] = literal_eval(value)
-        spec_dict['parameters'] = params_dict
-    if in_artifact:
-        spec_dict['input_artifacts'] = line2keylist(in_artifact)
-    if out_artifact:
-        spec_dict['output_artifacts'] = line2keylist(out_artifact)
-    if secrets:
-        spec_dict['secret_sources'] = [{'kind':'file', 'source': secrets}]
+        spec['parameters'] = params_dict
 
-    if spec_dict:
-        meta = {'parent_type': 'local', 'owner': getpass.getuser()}
-        os.environ['MLRUN_EXEC_CONFIG'] = json.dumps({'spec': spec_dict})
+    set_item(spec, in_artifact, 'input_artifacts', line2keylist(in_artifact))
+    set_item(spec, out_artifact, 'output_artifacts', line2keylist(out_artifact))
+    set_item(spec, secrets, 'secret_sources', [{'kind':'file', 'source': secrets}])
+
+    struct = {'metadata': meta, 'spec': spec}
+
+    os.environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
 
     exec(file.read())
+
+
+def set_item(struct, item, key, value=None):
+    if item:
+        if value:
+            struct[key] = value
+        else:
+            struct[key] = item
 
 
 def line2keylist(lines: list, keyname='key', valname='path'):

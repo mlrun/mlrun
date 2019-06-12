@@ -4,8 +4,8 @@ from mlrun import get_or_create_ctx
 
 
 def my_func(ctx):
-    p1 = ctx.get_or_set_param('p1', 1)
-    p2 = ctx.get_or_set_param('p2', 'a-string')
+    p1 = ctx.get_param('p1', 1)
+    p2 = ctx.get_param('p2', 'a-string')
 
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}')

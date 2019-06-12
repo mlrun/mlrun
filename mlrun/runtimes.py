@@ -28,10 +28,10 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True):
     return ctx
 
 
-def remote_run(url, spec={}):
+def remote_run(url, struct={}):
 
     try:
-        resp = requests.put(url, json=json.dumps(spec))
+        resp = requests.put(url, json=json.dumps(struct))
     except OSError as err:
         print('ERROR: %s', str(err))
         raise OSError('error: cannot run function at url {}'.format(url))

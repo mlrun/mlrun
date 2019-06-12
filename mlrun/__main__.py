@@ -1,10 +1,11 @@
 from os import path
-
 import click
 import json
 import os
 from ast import literal_eval
 import getpass
+from .runtimes import remote_run
+from .secrets import SecretsStore
 
 
 
@@ -13,7 +14,7 @@ def main():
     pass
 
 @main.command()
-@click.argument("file", type=click.File())
+@click.argument("file", type=str)
 @click.option('--param', '-p', default='', multiple=True,
               help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
 @click.option('--in-artifact', '-i', multiple=True, help='input artifact')
@@ -48,9 +49,20 @@ def run(file, param, in_artifact, out_artifact, secrets, uid, name):
 
     struct = {'metadata': meta, 'spec': spec}
 
-    os.environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
+    if '://' in file:
+        secrets = SecretsStore()
+        secrets.from_dict(spec)
+        spec['secret_sources'] = secrets.to_serial()
+        print(struct)
+        remote_run(file, struct)
+    else:
+        os.environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
+        try:
+            with open(file) as fp:
+                exec(fp.read())
+        except FileNotFoundError as err:
+            print(err)
 
-    exec(file.read())
 
 
 def set_item(struct, item, key, value=None):

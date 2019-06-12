@@ -19,7 +19,7 @@ def test_noparams():
 
     result = ex.to_dict()
     assert result['status']['outputs'].get('accuracy') == 2, 'failed to run'
-    assert result['spec']['output_artifacts'][0].get('key') == 'chart.png', 'failed to run'
+    assert result['status']['output_artifacts'][0].get('key') == 'chart.png', 'failed to run'
 
 
 spec = {'spec': {
@@ -35,5 +35,5 @@ def test_with_params():
 
     result = ex.to_dict()
     assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
-    assert result['spec']['output_artifacts'][0].get('key') == 'chart.png', 'failed to run'
+    assert result['status']['output_artifacts'][0].get('key') == 'chart.png', 'failed to run'
 

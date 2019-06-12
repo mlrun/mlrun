@@ -38,6 +38,9 @@ class SecretsStore:
     def get(self, key):
         return self._secrets.get(key)
 
+    def get_all(self):
+        return self._secrets.copy()
+
     def to_serial(self):
         # todo: use encryption
         return [{'kind': 'inline', 'source': self._secrets.copy()}]

@@ -1,8 +1,8 @@
 import json
 from os import path
 from urllib.parse import urlparse
+from .datastore import StoreManager
 
-from mlrun import stores
 
 
 def get_run_db(url='', secrets_func=None):
@@ -27,16 +27,14 @@ class FileRunDB(RunDBInterface):
 
     def __init__(self, dirpath, secrets_func=None):
         self.dirpath = dirpath
-        self._secrets_func = secrets_func
+        self._datastore = StoreManager(secrets_func).get_or_create_store(dirpath)
 
     def store(self, execution, elements=[]):
         data = execution.to_json()
         filepath = path.join(self.dirpath, execution.uid)
-        repo = stores.url2repo(filepath, self._secrets_func)
-        repo.put(data)
+        self._datastore.put(data)
 
     def read(self, uid):
         filepath = path.join(self.dirpath, uid)
-        repo = stores.url2repo(filepath, self._secrets_func)
-        data = repo.get()
+        data = self._datastore.get()
         return json.loads(data)

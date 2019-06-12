@@ -51,7 +51,7 @@ def my_func(ctx):
     ctx.log_output('accuracy', p1 * 2)
     for i in range(1,4):
         ctx.log_metric('loss', 2*i, i)
-    ctx.log_artifact('chart', 'chart.png')
+    ctx.log_artifact('chart.png')
 
 
 if __name__ == "__main__":
@@ -94,7 +94,7 @@ def handler(context, event):
     ctx.log_output('accuracy', p1 * 2)
     for i in range(1,4):
         ctx.log_metric('loss', 2*i, i)
-    ctx.log_artifact('chart', 'chart.png')
+    ctx.log_artifact('chart.png')
 
     return ctx.to_yaml()
 ```

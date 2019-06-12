@@ -19,11 +19,12 @@ def main():
               help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
 @click.option('--in-artifact', '-i', multiple=True, help='input artifact')
 @click.option('--out-artifact', '-o', multiple=True, help='output artifact')
+@click.option('--out-path', help='output path/url (prefix) for artifact')
 @click.option('--secrets', '-s', default='', help='secrets file')
 @click.option('--uid', help='unique run ID')
 @click.option('--name', help='run name')
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
-def run(file, param, in_artifact, out_artifact, secrets, uid, name):
+def run(file, param, in_artifact, out_artifact, out_path, secrets, uid, name):
     """Execute a task and inject parameters."""
 
     meta = {'parent_type': 'local', 'owner': getpass.getuser()}
@@ -44,6 +45,7 @@ def run(file, param, in_artifact, out_artifact, secrets, uid, name):
         spec['parameters'] = params_dict
 
     set_item(spec, in_artifact, 'input_artifacts', line2keylist(in_artifact))
+    set_item(spec, out_path, 'default_output_path')
     set_item(spec, out_artifact, 'output_artifacts', line2keylist(out_artifact))
     set_item(spec, secrets, 'secret_sources', [{'kind':'file', 'source': secrets}])
 

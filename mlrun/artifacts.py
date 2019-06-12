@@ -105,7 +105,7 @@ class InputArtifact(DataArtifact):
 
     def __init__(self, parent: ArtifactManager, key, realpath=''):
         if not realpath:
-            realpath = path.join(parent.in_path, key)
+            realpath = uxjoin(parent.in_path, key)
         super().__init__(parent, key, realpath)
         self._init_store()
 
@@ -114,7 +114,7 @@ class OutputArtifact(DataArtifact):
 
     def __init__(self, parent, key, target_path='', atype='', source_path=''):
         if not target_path:
-            target_path = path.join(parent.out_path, key)
+            target_path = uxjoin(parent.out_path, key)
         super().__init__(parent, key, target_path)
         self._init_store()
         self.atype = atype
@@ -127,3 +127,9 @@ class OutputArtifact(DataArtifact):
             'atype': self.atype,
             'source_path': self.source_path,
         }
+
+
+def uxjoin(base, path):
+    if base:
+        return '{}/{}'.format(base, path)
+    return path

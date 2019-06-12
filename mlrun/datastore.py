@@ -26,7 +26,7 @@ class StoreManager:
         if stor_list and isinstance(stor_list, list):
             for stor in stor_list:
                 schema, endpoint, subpath = parseurl(stor.get('url'))
-                new_stor = DataStore(self, stor['name'], schema, endpoint)
+                new_stor = self._schema_to_store(schema)(self, schema, stor['name'], endpoint)
                 new_stor.subpath = subpath
                 new_stor.secret_pfx = stor.get('secret_pfx')
                 new_stor.options = stor.get('options', {})
@@ -58,16 +58,19 @@ class StoreManager:
         if storekey in self._stores.keys():
             return self._stores[storekey], subpath
 
-        store = self._schema_to_store(schema)
-        new_store = store(self, storekey, endpoint)
-        self._stores[storekey] = new_store
-        return new_store, subpath
+        store = self._schema_to_store(schema)(self, schema, storekey, endpoint)
+        self._stores[storekey] = store
+        return store, subpath
 
     def _schema_to_store(self, schema):
         if not schema or schema == 'file':
             return FileStore
         elif schema == 's3':
             return S3Store
+        elif schema in ['v3io', 'v3ios']:
+            return V3ioStore
+        elif schema in ['http', 'https']:
+            return HttpStore
         else:
             raise ValueError('unsupported store scheme ({})'.format(schema))
 
@@ -84,7 +87,9 @@ class DataStore:
         self.from_spec = False
 
     def _join(self, key):
-        return path.join(self.subpath, key)
+        if self.subpath:
+            return '{}/{}'.format(self.subpath, key)
+        return key
 
     def _secret(self, key):
         return self._parent.secret(self.secret_pfx + key)
@@ -118,12 +123,15 @@ class DataStore:
 
 
 class FileStore(DataStore):
-    def __init__(self, parent: StoreManager, name, endpoint=''):
+    def __init__(self, parent: StoreManager, schema, name, endpoint=''):
         super().__init__(parent, name, 'file', endpoint)
 
     @property
     def url(self):
         return self.subpath
+
+    def _join(self, key):
+        return path.join(self.subpath, key)
 
     def get(self, key):
         with open(self._join(key), 'r') as fp:
@@ -148,8 +156,8 @@ class FileStore(DataStore):
 
 
 class S3Store(DataStore):
-    def __init__(self, parent: StoreManager, name, endpoint=''):
-        super().__init__(parent, name, 's3', endpoint)
+    def __init__(self, parent: StoreManager, schema, name, endpoint=''):
+        super().__init__(parent, name, schema, endpoint)
         region = None
 
         access_key = self._secret('AWS_ACCESS_KEY_ID')
@@ -209,8 +217,8 @@ def http_upload(url, file_path, headers=None, auth=None):
 
 
 class HttpStore(DataStore):
-    def __init__(self, parent: StoreManager, name, endpoint=''):
-        super().__init__(parent, name, 'http', endpoint)
+    def __init__(self, parent: StoreManager, schema, name, endpoint=''):
+        super().__init__(parent, name, schema, endpoint)
         self.auth = None
 
     def upload(self, key, src_path):
@@ -224,8 +232,8 @@ class HttpStore(DataStore):
 
 
 class V3ioStore(DataStore):
-    def __init__(self, parent: StoreManager, name, endpoint=''):
-        super().__init__(parent, name, 'v3io', endpoint)
+    def __init__(self, parent: StoreManager, schema, name, endpoint=''):
+        super().__init__(parent, name, schema, endpoint)
         self.endpoint = self.endpoint or environ.get('V3IO_API')
 
         token = self._secret('V3IO_ACCESS_KEY') or environ.get('V3IO_ACCESS_KEY')
@@ -239,11 +247,18 @@ class V3ioStore(DataStore):
         elif username and password:
             self.headers = basic_auth_header(username, password)
 
+    @property
+    def url(self):
+        schema = 'http' if self.kind == 'v3io' else 'https'
+        return '{}://{}/'.format(schema, self.endpoint)
+
     def upload(self, key, src_path):
         http_upload(self.url + self._join(key), src_path, self.headers, None)
 
     def get(self, key):
+        print(self.url + self._join(key), self.headers)
         return http_get(self.url + self._join(key), self.headers, None)
 
     def put(self, key, data):
+        print(self.url + self._join(key), self.headers)
         http_put(self.url + self._join(key), data, self.headers, None)

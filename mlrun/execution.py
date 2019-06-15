@@ -1,3 +1,4 @@
+from copy import deepcopy
 from os import path
 
 import yaml, json
@@ -6,27 +7,25 @@ from datetime import datetime
 from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
+from .rundb import RunDBInterface
 
 
 class MLClientCtx(object):
     """Execution Client Context"""
 
-    def __init__(self, name, uid, parent_type='', parent=''):
+    def __init__(self, name, uid, rundb: RunDBInterface=None, autocommit=False):
         self.uid = uid
         self.name = name
-        self.parent = parent
-        self.parent_type = parent_type
         self._secrets_manager = SecretsStore()
         self._data_stores = StoreManager(self._secrets_manager)
         self._artifacts_manager = ArtifactManager(self._data_stores, self._get_meta)
 
         # runtime db service interfaces
-        self._rundb = None
+        self._rundb = rundb
         self._logger = None
         self._matrics_db = None
+        self._autocommit = autocommit
 
-        self._project = ''
-        self.owner = ''
         self._labels = {}
         self._annotations = {}
 
@@ -46,9 +45,6 @@ class MLClientCtx(object):
         if meta:
             self.uid = meta.get('uid', self.uid)
             self.name = meta.get('name', self.name)
-            self.parent = meta.get('parent', self.parent)
-            self.parent_type = meta.get('parent_type', self.parent_type)
-            self.owner = meta.get('owner', self.owner)
             self._annotations = meta.get('annotations', self._annotations)
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
@@ -64,19 +60,20 @@ class MLClientCtx(object):
 
     @property
     def parameters(self):
-        return self._parameters.copy()
+        return deepcopy(self._parameters)
 
     @property
     def labels(self):
-        return self._labels.copy()
+        return deepcopy(self._labels)
 
     @property
     def annotations(self):
-        return self._annotations.copy()
+        return deepcopy(self._annotations)
 
     def get_param(self, key, default=None):
         if key not in self._parameters:
             self._parameters[key] = default
+            self._update_db()
             return default
         return self._parameters[key]
 
@@ -90,14 +87,20 @@ class MLClientCtx(object):
 
     def log_output(self, key, value):
         self._outputs[key] = value
+        self._update_db()
 
     def log_outputs(self, outputs={}):
         for p in outputs.keys():
             self._outputs[p] = outputs[p]
+        self._update_db()
 
     def log_metric(self, key, value, timestamp=None):
+        self._log_metric(key, value, timestamp)
+        self._update_db()
+
+    def _log_metric(self, key, value, timestamp=None):
         if key not in self._metrics:
-            self._metrics[key] = KFPMetric()
+            self._metrics[key] = MLMetric()
         if not timestamp:
             timestamp = datetime.now()
         self._metrics[key].xvalues.append(str(timestamp))
@@ -108,12 +111,14 @@ class MLClientCtx(object):
             timestamp = datetime.now()
         for k, v in keyvals.items():
             self.log_metric(k, v, timestamp)
+        self._update_db()
 
     def log_artifact(self, key, body=None, target_path='', atype='', source_path=''):
         self._artifacts_manager.log_artifact(key, target_path, body, atype, source_path)
+        self._update_db()
 
     def commit(self, message=''):
-        pass
+        self._update_db(commit=True)
 
     def to_dict(self):
         metrics = {k: v.to_dict() for (k, v) in self._metrics.items()}
@@ -121,9 +126,6 @@ class MLClientCtx(object):
             'metadata':
                 {'name': self.name,
                  'uid': self.uid,
-                 'parent': self.parent,
-                 'parent_type': self.parent_type,
-                 'owner': self.owner,
                  'labels': self._labels,
                  'annotations': self._annotations},
             'spec':
@@ -145,12 +147,15 @@ class MLClientCtx(object):
     def to_json(self):
         return json.dumps(self.to_dict())
 
-    def _update_db(self, state='', outputs={}, artifacts={}, metrics={}):
+    def _update_db(self, state='', elements=[], commit=False):
         self.last_update = datetime.now()
-        # TBD call external DB/API
+        self._state = state or 'running'
+        if commit or self._autocommit:
+            if self._rundb:
+                self._rundb.store(self, elements, commit)
 
 
-class KFPMetric(object):
+class MLMetric(object):
 
     def __init__(self, labels={}):
         self.labels = labels

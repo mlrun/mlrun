@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
 ### Replacing Runtime Context Parameters form CLI
 
-`python -m mlrun run -p p1=5 -s secrets.txt -i infile.txt=s3://mybucket/infile.txt example2.py`
+`python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt example2.py`
 
 when running the command above:
 * the parameter `p1` will be overwritten with `5`
@@ -103,5 +103,5 @@ def handler(context, event):
 
 To execute the code remotely just substitute the file name with the function URL
 
-`python -m mlrun run -p p1=5 -s secrets.txt -i infile.txt=s3://mybucket/infile.txt http://<function-endpoint>`
+`python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt http://<function-endpoint>`
 

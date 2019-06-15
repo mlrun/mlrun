@@ -1,8 +1,10 @@
 import json
 from os import path
 from urllib.parse import urlparse
-from .datastore import StoreManager
 
+import yaml
+
+from .datastore import StoreManager
 
 
 def get_run_db(url='', secrets_func=None):
@@ -16,7 +18,7 @@ def get_run_db(url='', secrets_func=None):
 
 class RunDBInterface:
 
-    def store(self, execution, elements=[]):
+    def store(self, execution, elements=[], commit=False):
         pass
 
     def read(self, uid):
@@ -25,16 +27,21 @@ class RunDBInterface:
 
 class FileRunDB(RunDBInterface):
 
-    def __init__(self, dirpath, secrets_func=None):
+    def __init__(self, dirpath='', fullpath='', secrets_func=None):
+        self.fullpath = fullpath
         self.dirpath = dirpath
-        self._datastore = StoreManager(secrets_func).get_or_create_store(dirpath)
+        sm = StoreManager(secrets_func)
+        self._datastore, self._subpath = sm.get_or_create_store(fullpath or dirpath)
 
-    def store(self, execution, elements=[]):
-        data = execution.to_json()
-        filepath = path.join(self.dirpath, execution.uid)
-        self._datastore.put(data)
+    def store(self, execution, elements=[], commit=False):
+        data = execution.to_yaml()
+        filepath = self.fullpath or self._filepath(execution.uid)
+        self._datastore.put(filepath, data)
 
     def read(self, uid):
-        filepath = path.join(self.dirpath, uid)
-        data = self._datastore.get()
-        return json.loads(data)
+        filepath = self.fullpath or self._filepath(uid)
+        data = self._datastore.get(filepath)
+        return yaml.loads(data)
+
+    def _filepath(self, uid):
+        return path.join(self.dirpath, 'mlrun-{}.yaml'.format(uid))

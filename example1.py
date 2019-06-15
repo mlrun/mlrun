@@ -21,4 +21,3 @@ def my_func(ctx):
 if __name__ == "__main__":
     ex = get_or_create_ctx('mytask')
     my_func(ex)
-    print(ex.to_yaml())

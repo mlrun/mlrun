@@ -1,3 +1,5 @@
+from ast import literal_eval
+
 from .utils import list2dict
 from os import environ
 
@@ -20,6 +22,10 @@ class SecretsStore:
     def _add_source(self, kind, source='', prefix=''):
 
         if kind == 'inline':
+            if isinstance(source, str):
+                source = literal_eval(source)
+            if not isinstance(source, dict):
+                raise ValueError("inline secrets must be of type dict")
             for k, v in source.items():
                 self._secrets[prefix + k] = str(v)
 

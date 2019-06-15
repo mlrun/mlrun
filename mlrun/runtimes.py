@@ -6,9 +6,10 @@ import requests
 import yaml
 
 from .execution import MLClientCtx
+from .rundb import FileRunDB
 
 
-def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True):
+def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, save_to=''):
 
     if event:
         spec = event.body
@@ -22,13 +23,20 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True):
     if spec and not isinstance(spec, dict):
         spec = yaml.safe_load(spec)
 
-    ctx = MLClientCtx(name, uid)
+    rundb = None
+    autocommit = False
+    out = environ.get('MLRUN_META_FILEPATH', save_to)
+    if out:
+        autocommit = True
+    rundb = FileRunDB(fullpath=out)
+
+    ctx = MLClientCtx(name, uid, rundb=rundb, autocommit=autocommit)
     if spec:
         ctx.from_dict(spec)
     return ctx
 
 
-def remote_run(url, struct={}):
+def remote_run(url, struct={}, save_to='', secrets=None):
 
     try:
         resp = requests.put(url, json=json.dumps(struct))
@@ -38,5 +46,10 @@ def remote_run(url, struct={}):
 
     if not resp.ok:
         print('bad resp!!')
+        return None
 
-    print(resp.text)
+    if save_to:
+        rundb = FileRunDB(fullpath=save_to, secrets_func=secrets)
+        rundb.store(resp.json(), commit=True)
+
+    return resp.json()

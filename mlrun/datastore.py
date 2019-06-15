@@ -63,7 +63,7 @@ class StoreManager:
         return store, subpath
 
     def _schema_to_store(self, schema):
-        if not schema or schema == 'file':
+        if not schema or schema in ['file','c','d']:
             return FileStore
         elif schema == 's3':
             return S3Store
@@ -138,7 +138,10 @@ class FileStore(DataStore):
             return fp.read()
 
     def put(self, key, data):
-        with open(self._join(key), 'w') as fp:
+        mode = 'w'
+        if isinstance(data, bytes):
+            mode = 'wb'
+        with open(self._join(key), mode) as fp:
             fp.write(data)
             fp.close()
 

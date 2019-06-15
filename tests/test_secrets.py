@@ -24,5 +24,16 @@ def test_load():
     assert ss.get('abc') == 'def', 'failed on 1st env var secret'
     print(ss.get_all())
 
+def test_inline_str():
+    ss = SecretsStore()
+    spec = {
+        'secret_sources': [
+            {'kind': 'inline', 'source': "{'abc': 'def'}"},
+        ],
+    }
+
+    ss.from_dict(spec)
+    assert ss.get('abc') == 'def', 'failed on 1st env var secret'
+
 
 

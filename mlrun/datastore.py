@@ -138,7 +138,9 @@ class FileStore(DataStore):
             return fp.read()
 
     def put(self, key, data):
-        makedirs(path.dirname(self._join(key)), exist_ok=True)
+        dir = path.dirname(self._join(key))
+        if dir:
+            makedirs(dir, exist_ok=True)
         mode = 'w'
         if isinstance(data, bytes):
             mode = 'wb'

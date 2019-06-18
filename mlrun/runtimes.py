@@ -6,7 +6,6 @@ from tempfile import mktemp
 
 import requests
 import yaml
-from py._builtin import execfile
 
 from .execution import MLClientCtx
 from .rundb import get_run_db
@@ -43,9 +42,9 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, save_t
 def run_start(url, struct={}, save_to=''):
     # todo: add runtimes, e.g. Horovod, Pipelines workflow
     if '://' in url:
-        remote_run(url, struct, save_to)
+        return remote_run(url, struct, save_to)
     else:
-        local_run(url, struct, save_to)
+        return local_run(url, struct, save_to)
 
 
 def local_run(url, struct={}, save_to=''):
@@ -63,7 +62,7 @@ def local_run(url, struct={}, save_to=''):
     out = run(cmd, stdout=PIPE, stderr=PIPE)
     if out.returncode != 0:
         print(out.stderr.decode('utf-8'), file=stderr)
-    print(out.stdout.decode('utf-8'))
+        print(out.stdout.decode('utf-8'))
 
     try:
         if is_tmp:

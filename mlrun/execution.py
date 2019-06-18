@@ -7,21 +7,26 @@ from datetime import datetime
 from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
-from .rundb import RunDBInterface
+from .rundb import get_run_db
 
 
 class MLClientCtx(object):
     """Execution Client Context"""
 
-    def __init__(self, name, uid, rundb: RunDBInterface=None, autocommit=False):
+    def __init__(self, name, uid, rundb: '', autocommit=False):
         self.uid = uid
         self.name = name
+        self.project = ''
         self._secrets_manager = SecretsStore()
         self._data_stores = StoreManager(self._secrets_manager)
         self._artifacts_manager = ArtifactManager(self._data_stores, self._get_meta)
 
         # runtime db service interfaces
-        self._rundb = rundb
+        self._rundb = None
+        if rundb:
+            self._rundb = get_run_db(rundb)
+            self._rundb.connect(self._secrets_manager)
+
         self._logger = None
         self._matrics_db = None
         self._autocommit = autocommit
@@ -45,6 +50,7 @@ class MLClientCtx(object):
         if meta:
             self.uid = meta.get('uid', self.uid)
             self.name = meta.get('name', self.name)
+            self.project = meta.get('project', self.project)
             self._annotations = meta.get('annotations', self._annotations)
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
@@ -126,6 +132,7 @@ class MLClientCtx(object):
             'metadata':
                 {'name': self.name,
                  'uid': self.uid,
+                 'project': self.project,
                  'labels': self._labels,
                  'annotations': self._annotations},
             'spec':
@@ -152,7 +159,7 @@ class MLClientCtx(object):
         self._state = state or 'running'
         if commit or self._autocommit:
             if self._rundb:
-                self._rundb.store(self, elements, commit)
+                self._rundb.store_run(self, elements, commit)
 
 
 class MLMetric(object):

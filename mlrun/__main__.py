@@ -6,7 +6,7 @@ from ast import literal_eval
 import getpass
 from tempfile import mktemp
 
-from .runtimes import remote_run
+from .runtimes import run_start
 from .secrets import SecretsStore
 
 @click.group()
@@ -25,16 +25,19 @@ def main():
 @click.option('--uid', help='unique run ID')
 @click.option('--name', help='run name')
 @click.option('--workflow', help='workflow name/id')
+@click.option('--project', help='project name/id')
 @click.option('--save-to', default='', help='save run results yaml to path/url')
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
-def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name, workflow, save_to):
+def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
+        workflow, project, save_to):
     """Execute a task and inject parameters."""
 
     meta = {}
     set_item(meta, uid, 'uid')
     set_item(meta, name, 'name')
+    set_item(meta, project, 'project')
 
-    labels = {'parent_type': 'local', 'owner': getpass.getuser()}
+    labels = {'runtime': 'local', 'owner': getpass.getuser()}
     set_item(labels, workflow, 'workflow')
     meta['labels'] = labels
 
@@ -58,31 +61,7 @@ def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid,
     set_item(spec, secrets, 'secret_sources', line2keylist(secrets, 'kind', 'source'))
 
     struct = {'metadata': meta, 'spec': spec}
-
-    if '://' in file:
-        secrets = SecretsStore()
-        secrets.from_dict(spec)
-        spec['secret_sources'] = secrets.to_serial()
-        print(struct)
-        remote_run(file, struct, save_to=save_to)
-    else:
-        os.environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
-        if not save_to:
-            save_to = mktemp('.yaml')
-            is_tmp = True
-        else:
-            is_tmp = False
-        os.environ['MLRUN_META_FILEPATH'] = save_to
-        try:
-            with open(file) as fp:
-                exec(fp.read())
-            with open(save_to) as fp:
-                print(fp.read())
-            if is_tmp:
-                os.remove(save_to)
-        except FileNotFoundError as err:
-            print(err)
-
+    print(run_start(file, struct, save_to=save_to))
 
 
 def set_item(struct, item, key, value=None):

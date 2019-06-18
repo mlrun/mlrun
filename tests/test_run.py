@@ -1,4 +1,4 @@
-from mlrun.runtimes import get_or_create_ctx
+from mlrun.runtimes import get_or_create_ctx, run_start
 
 def my_func(ctx):
     p1 = ctx.get_param('p1', 1)
@@ -37,3 +37,11 @@ def test_with_params():
     assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
     assert result['status']['output_artifacts'][0].get('key') == 'chart.png', 'failed to run'
 
+run_spec =  {'metadata':
+                 {'labels': {'runtime': 'local', 'owner': 'yaronh'}},
+             'spec':
+                 {'parameters': {'p1': 5}, 'input_artifacts': [{'key': 'infile.txt', 'path': 's3://yarons-tests/infile.txt'}], 'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+
+
+def test_runtime():
+    print(run_start('../example1.py', run_spec, 'a.yaml'))

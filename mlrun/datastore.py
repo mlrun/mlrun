@@ -1,5 +1,5 @@
 from base64 import b64encode
-from os import path, environ
+from os import path, environ, makedirs
 from shutil import copyfile
 from urllib.parse import urlparse
 
@@ -138,6 +138,7 @@ class FileStore(DataStore):
             return fp.read()
 
     def put(self, key, data):
+        makedirs(path.dirname(self._join(key)), exist_ok=True)
         mode = 'w'
         if isinstance(data, bytes):
             mode = 'wb'

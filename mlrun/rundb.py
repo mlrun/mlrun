@@ -26,7 +26,7 @@ class RunDBInterface:
 
 class FileRunDB(RunDBInterface):
 
-    def __init__(self, dirpath='', format='.yaml'):
+    def __init__(self, dirpath='', format='.json'):
         self.format = format
         if dirpath.endswith('/'):
             self.fullpath = ''

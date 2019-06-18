@@ -44,4 +44,4 @@ run_spec =  {'metadata':
 
 
 def test_runtime():
-    print(run_start('../example1.py', run_spec, 'a.yaml'))
+    print(run_start('example1.py', run_spec, 'a.yaml'))

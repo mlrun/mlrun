@@ -7,6 +7,7 @@ from tempfile import mktemp
 import requests
 import yaml
 
+from .tomd import to_markdown
 from .execution import MLClientCtx
 from .rundb import get_run_db
 from .secrets import SecretsStore
@@ -39,18 +40,22 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, save_t
     return ctx
 
 
-def run_start(url, struct={}, save_to=''):
+def run_start(url, struct={}, save_to='', kfp=False):
     # todo: add runtimes, e.g. Horovod, Pipelines workflow
     if '://' in url:
-        return remote_run(url, struct, save_to)
+        resp = remote_run(url, struct, save_to)
     else:
-        return local_run(url, struct, save_to)
+        resp = local_run(url, struct, save_to)
+    if kfp:
+        write_kfpmeta(resp)
+    return resp
+
 
 
 def local_run(url, struct={}, save_to=''):
     environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
     if not save_to:
-        save_to = mktemp('.yaml')
+        save_to = mktemp('.json')
         is_tmp = True
     else:
         is_tmp = False
@@ -62,14 +67,15 @@ def local_run(url, struct={}, save_to=''):
     out = run(cmd, stdout=PIPE, stderr=PIPE)
     if out.returncode != 0:
         print(out.stderr.decode('utf-8'), file=stderr)
-        print(out.stdout.decode('utf-8'))
+    print(out.stdout.decode('utf-8'))
 
     try:
+        with open(save_to) as fp:
+            resp = fp.read()
+
         if is_tmp:
-            with open(save_to) as fp:
-                resp = fp.read()
             os.remove(save_to)
-            return resp
+        return resp
     except FileNotFoundError as err:
         print(err)
 
@@ -94,3 +100,26 @@ def remote_run(url, struct={}, save_to=''):
         rundb.store_run(resp.json(), commit=True)
 
     return resp.json()
+
+
+def write_kfpmeta(resp):
+    if not resp:
+        return
+    struct = json.loads(resp)
+    outputs = struct['status']['outputs']
+    metrics = {'metrics':
+                   [{'name': k, 'numberValue':v } for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
+    with open('/mlpipeline-metrics.json', 'w') as f:
+        json.dump(metrics, f)
+
+    text = to_markdown(resp)
+    print(text)
+    metadata = {
+        'outputs': [{
+            'type': 'markdown',
+            'storage': 'inline',
+            'source': text
+        }]
+    }
+    with open('/mlpipeline-ui-metadata.json', 'w') as f:
+        json.dump(metadata, f)

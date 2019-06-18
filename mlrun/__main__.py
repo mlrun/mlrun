@@ -27,9 +27,10 @@ def main():
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
 @click.option('--save-to', default='', help='save run results yaml to path/url')
+@click.option('--kfp', default=False,  help='running inside Kubeflow Piplines')
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
 def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
-        workflow, project, save_to):
+        workflow, project, save_to, kfp):
     """Execute a task and inject parameters."""
 
     meta = {}
@@ -61,7 +62,7 @@ def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid,
     set_item(spec, secrets, 'secret_sources', line2keylist(secrets, 'kind', 'source'))
 
     struct = {'metadata': meta, 'spec': spec}
-    print(run_start(file, struct, save_to=save_to))
+    print(run_start(file, struct, save_to=save_to, kfp=kfp))
 
 
 def set_item(struct, item, key, value=None):

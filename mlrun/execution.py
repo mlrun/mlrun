@@ -8,24 +8,28 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .rundb import get_run_db
+from .utils import uxjoin, run_keys
 
 
 class MLClientCtx(object):
     """Execution Client Context"""
 
-    def __init__(self, name, uid, rundb: '', autocommit=False):
+    def __init__(self, name, uid, rundb: '', autocommit=False, tmp=''):
         self.uid = uid
         self.name = name
-        self.project = ''
+        self._project = ''
+        self._tag = ''
         self._secrets_manager = SecretsStore()
         self._data_stores = StoreManager(self._secrets_manager)
-        self._artifacts_manager = ArtifactManager(self._data_stores, self._get_meta)
 
         # runtime db service interfaces
         self._rundb = None
         if rundb:
             self._rundb = get_run_db(rundb)
             self._rundb.connect(self._secrets_manager)
+        self._tmpfile = tmp
+        self._artifacts_manager = ArtifactManager(
+            self._data_stores, self, db=self._rundb)
 
         self._logger = None
         self._matrics_db = None
@@ -35,6 +39,8 @@ class MLClientCtx(object):
         self._annotations = {}
 
         self._parameters = {}
+        self._in_path = ''
+        self._objects = {}
 
         self._outputs = {}
         self._metrics = {}
@@ -43,26 +49,37 @@ class MLClientCtx(object):
         self._last_update = datetime.now()
 
     def _get_meta(self):
-        return {'name': self.name, 'type': self.parent_type, 'parent': self.parent, 'uid': self.uid}
+        return {'name': self.name, 'workflow': self._workflow, 'project': self._project, 'uid': self.uid}
 
     def from_dict(self, attrs={}):
         meta = attrs.get('metadata')
         if meta:
             self.uid = meta.get('uid', self.uid)
             self.name = meta.get('name', self.name)
-            self.project = meta.get('project', self.project)
+            self._project = meta.get('project', self._project)
+            self._tag = meta.get('tag', self._tag)
             self._annotations = meta.get('annotations', self._annotations)
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
         if spec:
-            self._parameters = spec.get('parameters', self._parameters)
             self._secrets_manager.from_dict(spec)
+            self._parameters = spec.get('parameters', self._parameters)
+            self._in_path = spec.get('default_input_path', self._in_path)
+            in_list = spec.get('input_objects')
+            if in_list and isinstance(in_list, list):
+                for item in in_list:
+                    self._set_object(item['key'], item.get('path'))
+
             self._data_stores.from_dict(spec)
             self._artifacts_manager.from_dict(spec)
 
     def _set_from_json(self, data):
         attrs = json.loads(data)
-        self._set_from_dict(attrs)
+        self.from_dict(attrs)
+
+    @property
+    def project(self):
+        return self._project
 
     @property
     def parameters(self):
@@ -88,8 +105,18 @@ class MLClientCtx(object):
             return self._secrets_manager.get(key)
         return None
 
-    def input_artifact(self, key):
-        return self._artifacts_manager.get_input_artifact(key)
+    def _set_object(self, key, realpath=''):
+        if not realpath:
+            realpath = uxjoin(self._in_path, key)
+        object = self._data_stores.object(key, realpath)
+        self._objects[key] = object
+        return object
+
+    def get_object(self, key, realpath=''):
+        if key not in self._objects:
+            return self._set_object(key, realpath)
+        else:
+            return self._objects[key]
 
     def log_output(self, key, value):
         self._outputs[key] = value
@@ -119,8 +146,8 @@ class MLClientCtx(object):
             self.log_metric(k, v, timestamp)
         self._update_db()
 
-    def log_artifact(self, key, body=None, target_path='', atype='', source_path=''):
-        self._artifacts_manager.log_artifact(key, target_path, body, atype, source_path)
+    def log_artifact(self, item, body=None, target_path=''):
+        self._artifacts_manager.log_artifact(item, body, target_path, self._tag)
         self._update_db()
 
     def commit(self, message=''):
@@ -132,11 +159,14 @@ class MLClientCtx(object):
             'metadata':
                 {'name': self.name,
                  'uid': self.uid,
-                 'project': self.project,
+                 'project': self._project,
+                 'tag': self._tag,
                  'labels': self._labels,
                  'annotations': self._annotations},
             'spec':
-                {'parameters': self._parameters},
+                {'parameters': self._parameters,
+                 run_keys.input_objects: [item.to_dict() for item in self._objects.values()],
+                 },
             'status':
                 {'state': self._state,
                  'outputs': self._outputs,
@@ -157,6 +187,12 @@ class MLClientCtx(object):
     def _update_db(self, state='', elements=[], commit=False):
         self.last_update = datetime.now()
         self._state = state or 'running'
+        if self._tmpfile:
+            data = self.to_json()
+            with open(self._tmpfile, 'w') as fp:
+                fp.write(data)
+                fp.close()
+
         if commit or self._autocommit:
             if self._rundb:
                 self._rundb.store_run(self, elements, commit)

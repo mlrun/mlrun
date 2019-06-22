@@ -35,8 +35,6 @@ checkout [example1](example1.py) and [example2](example2.py).
 ### Example Code
 
 ```python
-import json
-import os
 from mlrun import get_or_create_ctx
 
 def my_func(ctx):

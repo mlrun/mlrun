@@ -1,5 +1,5 @@
 import json
-from os import path
+from os import path, environ
 from urllib.parse import urlparse
 import yaml
 from .datastore import StoreManager
@@ -17,10 +17,19 @@ def get_run_db(url=''):
 
 class RunDBInterface:
 
+    def connect(self, secrets=None):
+        pass
+
     def store_run(self, execution, elements=[], commit=False):
         pass
 
     def read_run(self, uid):
+        pass
+
+    def store_artifact(self, artifact, tag='', project=''):
+        pass
+
+    def read_artifact(self, key, tag='', project=''):
         pass
 
 
@@ -28,38 +37,48 @@ class FileRunDB(RunDBInterface):
 
     def __init__(self, dirpath='', format='.json'):
         self.format = format
-        if dirpath.endswith('/'):
-            self.fullpath = ''
-            self.dirpath = dirpath
-        else:
-            self.fullpath = dirpath
-            self.dirpath = ''
+        self.dirpath = dirpath
         self._datastore = None
         self._subpath = None
 
     def connect(self, secrets=None):
         sm =StoreManager(secrets)
-        self._datastore, self._subpath = sm.get_or_create_store(
-            self.fullpath or self.dirpath)
+        self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
 
     def store_run(self, execution, elements=[], commit=False):
         if self.format == '.yaml':
             data = execution.to_yaml()
         else:
             data = execution.to_json()
-        filepath = self.fullpath or self._filepath(execution.uid, execution.project)
+        filepath = self._filepath(execution.uid, execution.project, 'runs')
         self._datastore.put(filepath, data)
 
     def read_run(self, uid, project='default'):
-        filepath = self.fullpath or self._filepath(uid, project)
+        filepath = self._filepath(uid, project, 'runs')
         data = self._datastore.get(filepath)
         if self.format == '.yaml':
-            return yaml.loads(data)
+            return yaml.load(data)
         else:
             return json.loads(data)
 
-    def _filepath(self, uid, project):
-        if project:
-            return path.join(self.dirpath, '{}/{}{}'.format(project, uid, self.format))
+    def store_artifact(self, artifact, tag='', project=''):
+        if self.format == '.yaml':
+            data = artifact.to_yaml()
         else:
-            return path.join(self.dirpath, '{}{}'.format(uid, self.format))
+            data = artifact.to_json()
+        filepath = self._filepath(artifact.key, project, 'artifacts')
+        self._datastore.put(filepath, data)
+
+    def read_artifact(self, key, tag='', project=''):
+        filepath = self._filepath(key, project, 'artifacts')
+        data = self._datastore.get(filepath)
+        if self.format == '.yaml':
+            return yaml.load(data)
+        else:
+            return json.loads(data)
+
+    def _filepath(self, uid, project, table):
+        if project:
+            return path.join(self.dirpath, '{}/{}/{}{}'.format(table, project, uid, self.format))
+        else:
+            return path.join(self.dirpath, '{}/{}{}'.format(table, uid, self.format))

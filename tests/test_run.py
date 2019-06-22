@@ -6,7 +6,7 @@ def my_func(ctx):
 
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}\n')
-    print('file\n{}\n'.format(ctx.input_artifact('infile.txt').get()))
+    print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
 
     ctx.log_output('accuracy', p1 * 2)
     ctx.log_metric('loss', 7)
@@ -14,7 +14,7 @@ def my_func(ctx):
 
 
 def test_noparams():
-    ex = get_or_create_ctx('mytask')
+    ex = get_or_create_ctx('mytask', rundb='./')
     my_func(ex)
 
     result = ex.to_dict()
@@ -40,8 +40,8 @@ def test_with_params():
 run_spec =  {'metadata':
                  {'labels': {'runtime': 'local', 'owner': 'yaronh'}},
              'spec':
-                 {'parameters': {'p1': 5}, 'input_artifacts': [{'key': 'infile.txt', 'path': 's3://yarons-tests/infile.txt'}], 'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+                 {'parameters': {'p1': 5}, 'input_objects': [{'key': 'infile.txt', 'path': 's3://yarons-tests/infile.txt'}], 'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
 
 
 def test_runtime():
-    print(run_start('example1.py', run_spec, 'a.yaml'))
+    print(run_start('example1.py', run_spec))

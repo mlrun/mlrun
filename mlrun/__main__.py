@@ -1,4 +1,6 @@
 from os import path
+from pprint import pprint
+
 import click
 import json
 import os
@@ -8,6 +10,7 @@ from tempfile import mktemp
 
 from .runtimes import run_start
 from .secrets import SecretsStore
+from .utils import run_keys
 
 @click.group()
 def main():
@@ -37,6 +40,7 @@ def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid,
     set_item(meta, uid, 'uid')
     set_item(meta, name, 'name')
     set_item(meta, project, 'project')
+    set_item(meta, workflow, 'workflow')
 
     labels = {'runtime': 'local', 'owner': getpass.getuser()}
     set_item(labels, workflow, 'workflow')
@@ -55,14 +59,14 @@ def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid,
             params_dict[key] = literal_eval(value)
         spec['parameters'] = params_dict
 
-    set_item(spec, in_artifact, 'input_artifacts', line2keylist(in_artifact))
-    set_item(spec, in_path, 'default_input_path')
-    set_item(spec, out_path, 'default_output_path')
-    set_item(spec, out_artifact, 'output_artifacts', line2keylist(out_artifact))
-    set_item(spec, secrets, 'secret_sources', line2keylist(secrets, 'kind', 'source'))
+    set_item(spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))
+    set_item(spec, in_path, run_keys.input_path)
+    set_item(spec, out_path, run_keys.output_path)
+    set_item(spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
+    set_item(spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
 
     struct = {'metadata': meta, 'spec': spec}
-    print(run_start(file, struct, save_to=save_to, kfp=kfp))
+    pprint(run_start(file, struct, save_to=save_to, kfp=kfp))
 
 
 def set_item(struct, item, key, value=None):

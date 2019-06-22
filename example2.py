@@ -9,7 +9,7 @@ def my_func(ctx):
 
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}\n')
-    print('file\n{}\n'.format(ctx.input_artifact('infile.txt').get()))
+    print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
 
     ctx.log_output('accuracy', p1 * 2)
     ctx.log_metric('loss', 7)

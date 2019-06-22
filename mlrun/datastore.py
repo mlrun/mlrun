@@ -2,11 +2,10 @@ from base64 import b64encode
 from os import path, environ, makedirs
 from shutil import copyfile
 from urllib.parse import urlparse
-
+from .utils import run_keys
 import boto3
 import requests
 
-STORE_MANAGER_KEY = 'data_stores'
 
 def parseurl(url):
     p = urlparse(url)
@@ -22,7 +21,7 @@ class StoreManager:
         self._secrets = secrets
 
     def from_dict(self, struct: dict):
-        stor_list = struct.get(STORE_MANAGER_KEY)
+        stor_list = struct.get(run_keys.data_stores)
         if stor_list and isinstance(stor_list, list):
             for stor in stor_list:
                 schema, endpoint, subpath = parseurl(stor.get('url'))
@@ -34,13 +33,17 @@ class StoreManager:
                 self._stores[stor['name']] = new_stor
 
     def to_dict(self, struct):
-        struct[STORE_MANAGER_KEY] = [stor.to_dict() for stor in self._stores.values() if stor.from_spec]
+        struct[run_keys.data_stores] = [stor.to_dict() for stor in self._stores.values() if stor.from_spec]
 
     def secret(self, key):
         return self._secrets.get(key)
 
     def _add_store(self, store):
         self._stores[store.name] = store
+
+    def object(self, key, realpath=''):
+        store, ipath = self.get_or_create_store(realpath)
+        return DataItem(key, store, ipath, realpath)
 
     def get_or_create_store(self, url):
         store = None
@@ -120,6 +123,36 @@ class DataStore:
                 'secret_pfx': self.secret_pfx,
                 'options': self.options,
             }
+
+
+class DataItem:
+    def __init__(self, key, store, path, realpath=''):
+        self._store = store
+        self._key = key
+        self._realpath = realpath
+        self._path = path
+
+    @property
+    def url(self):
+        return self._realpath or self._key
+
+    def get(self):
+        return self._store.get(self._path)
+
+    def download(self, target_path):
+        self._store.download(self._path, target_path)
+
+    def put(self, data):
+        self._store.put(self._path, data)
+
+    def upload(self, src_path):
+        self._store.upload(self._path, src_path)
+
+    def to_dict(self):
+        return {
+            'key': self._key,
+            'path': self._realpath,
+        }
 
 
 class FileStore(DataStore):

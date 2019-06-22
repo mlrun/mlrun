@@ -1,135 +1,104 @@
-from os import path
-from mlrun.datastore import StoreManager
+import json
 
-INPUT_ARTIFACT_KEY = 'input_artifacts'
-OUTPUT_ARTIFACT_KEY = 'output_artifacts'
+import yaml
+
+from .datastore import StoreManager
+from .rundb import RunDBInterface
+from .utils import uxjoin, run_keys
+
+
 
 
 class ArtifactManager:
 
-    def __init__(self, stores: StoreManager,
-                 getmeta, in_path='', out_path=''):
-        self._getmeta_function = getmeta
-        self.in_path = in_path
+    def __init__(self, stores: StoreManager,execution=None,
+                 db: RunDBInterface = None,
+                 out_path=''):
+        self._execution = execution
         self.out_path = out_path
 
         self.data_stores = stores
+        self.artifact_db = db
         self.input_artifacts = {}
         self.output_artifacts = {}
         self.outputs_spec = {}
 
     def from_dict(self, struct: dict):
-        self.in_path = struct.get('default_input_path', self.in_path)
         self.out_path = struct.get('default_output_path', self.out_path)
-        in_list = struct.get(INPUT_ARTIFACT_KEY)
-        if in_list and isinstance(in_list, list):
-            for item in in_list:
-                artifact = InputArtifact(self, item['key'], item.get('path'))
-                self.input_artifacts[item['key']] = artifact
-
-        out_list = struct.get(OUTPUT_ARTIFACT_KEY)
+        out_list = struct.get(run_keys.output_artifacts)
         if out_list and isinstance(out_list, list):
             for item in out_list:
                 self.outputs_spec[item['key']] = item.get('path')
 
     def to_dict(self, struct):
-        struct['spec'][INPUT_ARTIFACT_KEY] = [item.to_dict() for item in self.input_artifacts.values()]
-        struct['spec'][OUTPUT_ARTIFACT_KEY] = [{'key':k, 'path':v} for k, v in self.outputs_spec.items()]
-        struct['spec']['default_input_path'] = self.in_path
-        struct['spec']['default_output_path'] = self.out_path
-        struct['status'][OUTPUT_ARTIFACT_KEY] = [item.to_dict() for item in self.output_artifacts.values()]
+        struct['spec'][run_keys.output_artifacts] = [{'key':k, 'path':v} for k, v in self.outputs_spec.items()]
+        struct['spec'][run_keys.output_path] = self.out_path
+        struct['status'][run_keys.output_artifacts] = [item.to_dict() for item in self.output_artifacts.values()]
 
-    def get_input_artifact(self, key):
-        if key not in self.input_artifacts:
-            artifact = InputArtifact(self, key)
-            self.input_artifacts[key] = artifact
+    def log_artifact(self, item, body=None, target_path='', tag=''):
+        if isinstance(item, str):
+            key = item
+            item = Artifact(key, body)
         else:
-            artifact = self.input_artifacts[key]
-        return artifact
+            key = item.key
+            target_path = target_path or item.target_path
 
-    def log_artifact(self, key, target_path='', body=None, atype='', source_path=''):
-        if key in self.outputs_spec:
+        if key in self.outputs_spec.keys():
             target_path = self.outputs_spec[key]
-        artifact = OutputArtifact(self, key, target_path, atype, source_path)
-        self.output_artifacts[key] = artifact
+        if not target_path:
+            target_path = uxjoin(self.out_path, key)
+        item.target_path = target_path
+
+        self.output_artifacts[key] = item
+        store, ipath = self.get_store(target_path)
+
+        body = body or item.get_body()
 
         if body:
-            artifact.put(body)
+            store.put(ipath, body)
         else:
-            artifact.upload(artifact.source_path)
+            store.upload(ipath, key)
+
+        if self.artifact_db:
+            self.artifact_db.store_artifact(item, tag, self._execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
 
 
-class DataArtifact:
+class Artifact:
 
-    def __init__(self, parent: ArtifactManager, key, realpath=''):
-        self._parent = parent
+    def __init__(self, key, body=None, target_path=''):
+        self.kind = ''
         self._key = key
-        self._realpath = realpath
+        self.target_path = target_path
         self._store = None
         self._path = ''
+        self._body = body
 
     @property
-    def url(self):
-        return self._realpath or self._key
+    def key(self):
+        return self._key
 
-    def _init_store(self):
-        self._store, self._path = self._parent.get_store(self._realpath)
-
-    def get(self):
-        if self._store:
-            return self._store.get(self._path)
-
-    def download(self, target_path):
-        if self._store:
-            self._store.download(self._path, target_path)
-
-    def put(self, data):
-        if self._store:
-            self._store.put(self._path, data)
-
-    def upload(self, src_path):
-        if self._store:
-            self._store.upload(self._path, src_path)
+    def get_body(self):
+        return self._body
 
     def to_dict(self):
         return {
             'key': self._key,
-            'path': self._realpath,
+            'path': self.target_path,
         }
 
+    def to_yaml(self):
+        return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
 
-class InputArtifact(DataArtifact):
-
-    def __init__(self, parent: ArtifactManager, key, realpath=''):
-        if not realpath:
-            realpath = uxjoin(parent.in_path, key)
-        super().__init__(parent, key, realpath)
-        self._init_store()
+    def to_json(self):
+        return json.dumps(self.to_dict())
 
 
-class OutputArtifact(DataArtifact):
-
-    def __init__(self, parent, key, target_path='', atype='', source_path=''):
-        if not target_path:
-            target_path = uxjoin(parent.out_path, key)
-        super().__init__(parent, key, target_path)
-        self._init_store()
-        self.atype = atype
-        self.source_path = source_path or key
-
-    def to_dict(self):
-        return {
-            'key': self._key,
-            'target_path': self._realpath,
-            'atype': self.atype,
-            'source_path': self.source_path,
-        }
 
 
-def uxjoin(base, path):
-    if base:
-        return '{}/{}'.format(base, path)
-    return path
+class Table(Artifact):
+    def __init__(self):
+        super().__init__()
+        self.kind = 'table'

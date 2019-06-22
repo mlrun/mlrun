@@ -1,9 +1,7 @@
 from ast import literal_eval
 
-from .utils import list2dict
+from .utils import list2dict, run_keys
 from os import environ
-
-SECRET_SOURCE_KEY = 'secret_sources'
 
 
 class SecretsStore:
@@ -11,7 +9,7 @@ class SecretsStore:
         self._secrets = {}
 
     def from_dict(self, struct: dict):
-        src_list = struct.get(SECRET_SOURCE_KEY)
+        src_list = struct.get(run_keys.secrets)
         if src_list and isinstance(src_list, list):
             for src in src_list:
                 self._add_source(src['kind'], src.get('source'), src.get('prefix', ''))

@@ -1,5 +1,3 @@
-import json
-import os
 from mlrun import get_or_create_ctx
 
 
@@ -10,7 +8,7 @@ def my_func(ctx):
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(ctx.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(ctx.input_artifact('infile.txt').get()))
+    print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
 
     ctx.log_output('accuracy', p1 * 2)
     for i in range(1,4):
@@ -21,3 +19,4 @@ def my_func(ctx):
 if __name__ == "__main__":
     ex = get_or_create_ctx('mytask')
     my_func(ex)
+    ex.commit('aa')

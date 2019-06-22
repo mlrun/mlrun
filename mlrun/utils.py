@@ -1,5 +1,14 @@
 from os import path
 
+class run_keys:
+    input_path = 'default_input_path'
+    output_path = 'default_output_path'
+    input_objects = 'input_objects'
+    output_artifacts = 'output_artifacts'
+    data_stores = 'data_stores'
+    secrets = 'secret_sources'
+
+
 def list2dict(lines: list):
     out = {}
     for line in lines:
@@ -14,3 +23,7 @@ def list2dict(lines: list):
     return out
 
 
+def uxjoin(base, path):
+    if base:
+        return '{}/{}'.format(base, path)
+    return path

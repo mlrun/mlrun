@@ -15,7 +15,7 @@ from sys import executable, stderr
 from subprocess import run, PIPE
 
 
-def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, save_to=''):
+def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
 
     if event:
         spec = event.body
@@ -30,11 +30,12 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, save_t
         spec = yaml.safe_load(spec)
 
     autocommit = False
-    out = environ.get('MLRUN_META_DBPATH', save_to)
+    tmp = environ.get('MLRUN_META_TMPFILE')
+    out = environ.get('MLRUN_META_DBPATH', rundb)
     if out:
         autocommit = True
 
-    ctx = MLClientCtx(name, uid, rundb=out, autocommit=autocommit)
+    ctx = MLClientCtx(name, uid, rundb=out, autocommit=autocommit, tmp=tmp)
     if spec:
         ctx.from_dict(spec)
     return ctx
@@ -54,11 +55,8 @@ def run_start(url, struct={}, save_to='', kfp=False):
 
 def local_run(url, struct={}, save_to=''):
     environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
-    if not save_to:
-        save_to = mktemp('.json')
-        is_tmp = True
-    else:
-        is_tmp = False
+    tmp = mktemp('.json')
+    environ['MLRUN_META_TMPFILE'] = tmp
     environ['MLRUN_META_DBPATH'] = save_to
 
     cmd = [
@@ -70,11 +68,9 @@ def local_run(url, struct={}, save_to=''):
     print(out.stdout.decode('utf-8'))
 
     try:
-        with open(save_to) as fp:
+        with open(tmp) as fp:
             resp = fp.read()
-
-        if is_tmp:
-            os.remove(save_to)
+        os.remove(tmp)
         return resp
     except FileNotFoundError as err:
         print(err)

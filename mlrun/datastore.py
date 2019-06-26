@@ -66,7 +66,7 @@ class StoreManager:
         return store, subpath
 
     def _schema_to_store(self, schema):
-        if not schema or schema in ['file','c','d']:
+        if not schema or schema in ['file', 'c', 'd']:
             return FileStore
         elif schema == 's3':
             return S3Store
@@ -101,19 +101,19 @@ class DataStore:
     def url(self):
         return '{}://{}/'.format(self.kind, self.endpoint)
 
-    def get(self, key):
+    def get(self, key, tag=''):
         pass
 
-    def put(self, key, data):
+    def put(self, key, data, tag=''):
         pass
 
-    def download(self, key, target_path):
-        text = self.get(key)
+    def download(self, key, target_path, tag=''):
+        text = self.get(key, tag)
         with open(target_path, 'w') as fp:
             fp.write(text)
             fp.close()
 
-    def upload(self, key, src_path):
+    def upload(self, key, src_path, tag=''):
         pass
 
     def to_dict(self):
@@ -126,33 +126,37 @@ class DataStore:
 
 
 class DataItem:
-    def __init__(self, key, store, path, realpath=''):
+    def __init__(self, key, store, path, realpath='', tag=''):
         self._store = store
         self._key = key
         self._realpath = realpath
         self._path = path
+        self._tag = tag
 
     @property
     def url(self):
         return self._realpath or self._key
 
     def get(self):
-        return self._store.get(self._path)
+        return self._store.get(self._path, self._tag)
 
     def download(self, target_path):
-        self._store.download(self._path, target_path)
+        self._store.download(self._path, target_path, self._tag)
 
     def put(self, data):
-        self._store.put(self._path, data)
+        self._store.put(self._path, data, self._tag)
 
     def upload(self, src_path):
-        self._store.upload(self._path, src_path)
+        self._store.upload(self._path, src_path, self._tag)
 
     def to_dict(self):
-        return {
+        out = {
             'key': self._key,
             'path': self._realpath,
         }
+        if self._tag:
+            out['tag'] = self._tag
+        return out
 
 
 class FileStore(DataStore):
@@ -166,11 +170,11 @@ class FileStore(DataStore):
     def _join(self, key):
         return path.join(self.subpath, key)
 
-    def get(self, key):
+    def get(self, key, tag=''):
         with open(self._join(key), 'r') as fp:
             return fp.read()
 
-    def put(self, key, data):
+    def put(self, key, data, tag=''):
         dir = path.dirname(self._join(key))
         if dir:
             makedirs(dir, exist_ok=True)
@@ -181,13 +185,13 @@ class FileStore(DataStore):
             fp.write(data)
             fp.close()
 
-    def download(self, key, target_path):
+    def download(self, key, target_path, tag=''):
         fullpath = self._join(key)
         if fullpath == target_path:
             return
         copyfile(fullpath, target_path)
 
-    def upload(self, key, src_path):
+    def upload(self, key, src_path, tag=''):
         fullpath = self._join(key)
         if fullpath == src_path:
             return
@@ -210,14 +214,14 @@ class S3Store(DataStore):
             # from env variables
             self.s3 = boto3.resource('s3', region_name=region)
 
-    def upload(self, key, src_path):
+    def upload(self, key, src_path, tag=''):
         self.s3.Object(self.endpoint, self._join(key)).put(Body=open(src_path, 'rb'))
 
-    def get(self, key):
+    def get(self, key, tag=''):
         obj = self.s3.Object(self.endpoint, self._join(key))
         return obj.get()['Body'].read()
 
-    def put(self, key, data):
+    def put(self, key, data, tag=''):
         self.s3.Object(self.endpoint, self._join(key)).put(Body=data)
 
 
@@ -260,13 +264,13 @@ class HttpStore(DataStore):
         super().__init__(parent, name, schema, endpoint)
         self.auth = None
 
-    def upload(self, key, src_path):
+    def upload(self, key, src_path, tag=''):
         raise ValueError('unimplemented')
 
-    def put(self, key, data):
+    def put(self, key, data, tag=''):
         raise ValueError('unimplemented')
 
-    def get(self, key):
+    def get(self, key, tag=''):
         return http_get(self.url + self._join(key), None, self.auth)
 
 
@@ -291,13 +295,13 @@ class V3ioStore(DataStore):
         schema = 'http' if self.kind == 'v3io' else 'https'
         return '{}://{}/'.format(schema, self.endpoint)
 
-    def upload(self, key, src_path):
+    def upload(self, key, src_path, tag=''):
         http_upload(self.url + self._join(key), src_path, self.headers, None)
 
-    def get(self, key):
+    def get(self, key, tag=''):
         print(self.url + self._join(key), self.headers)
         return http_get(self.url + self._join(key), self.headers, None)
 
-    def put(self, key, data):
+    def put(self, key, data, tag=''):
         print(self.url + self._join(key), self.headers)
         http_put(self.url + self._join(key), data, self.headers, None)

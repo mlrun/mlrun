@@ -48,8 +48,8 @@ class MLClientCtx(object):
         self._start_time = datetime.now()
         self._last_update = datetime.now()
 
-    def _get_meta(self):
-        return {'name': self.name, 'workflow': self._workflow, 'project': self._project, 'uid': self.uid}
+    def get_meta(self):
+        return {'name': self.name, 'labels': self.labels, 'project': self._project, 'uid': self.uid}
 
     def from_dict(self, attrs={}):
         meta = attrs.get('metadata')
@@ -80,6 +80,10 @@ class MLClientCtx(object):
     @property
     def project(self):
         return self._project
+
+    @property
+    def tag(self):
+        return self._tag or self.uid
 
     @property
     def parameters(self):

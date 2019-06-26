@@ -13,9 +13,11 @@ class ArtifactManager:
 
     def __init__(self, stores: StoreManager,execution=None,
                  db: RunDBInterface = None,
-                 out_path=''):
+                 out_path='',
+                 calc_hash=True):
         self._execution = execution
         self.out_path = out_path
+        self.calc_hash = calc_hash
 
         self.data_stores = stores
         self.artifact_db = db
@@ -60,7 +62,11 @@ class ArtifactManager:
             store.upload(ipath, key)
 
         if self.artifact_db:
-            self.artifact_db.store_artifact(item, tag, self._execution.project)
+            tag = tag or self._execution.tag
+            if not item.sources:
+                item.sources = self._execution.to_dict()['spec'][run_keys.input_objects]
+            item.execution = self._execution.get_meta()
+            self.artifact_db.store_artifact(key, item, tag, self._execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
@@ -75,6 +81,13 @@ class Artifact:
         self._store = None
         self._path = ''
         self._body = body
+        self.description = ''
+        self.format = ''
+        self.encoding = ''
+        self.sources = []
+        self.execution = None
+        self.hash = None
+        self.license = ''
 
     @property
     def key(self):
@@ -87,6 +100,10 @@ class Artifact:
         return {
             'key': self._key,
             'path': self.target_path,
+            'hash': self.hash,
+            'description': self.description,
+            'execution': self.execution,
+            'sources': self.sources,
         }
 
     def to_yaml(self):
@@ -102,3 +119,4 @@ class Table(Artifact):
     def __init__(self):
         super().__init__()
         self.kind = 'table'
+        self.schema = None

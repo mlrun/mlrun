@@ -44,18 +44,18 @@ def my_func(ctx):
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(ctx.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(ctx.input_artifact('infile.txt').get()))
+    print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
 
     ctx.log_output('accuracy', p1 * 2)
     for i in range(1,4):
         ctx.log_metric('loss', 2*i, i)
-    ctx.log_artifact('chart.png')
+    ctx.log_artifact('test.txt', body=b'abc is 123')
 
 
 if __name__ == "__main__":
     ex = get_or_create_ctx('mytask')
     my_func(ex)
-    print(ex.to_yaml())
+    ex.commit('aa')
 ```
 
 ### Replacing Runtime Context Parameters form CLI
@@ -103,3 +103,77 @@ To execute the code remotely just substitute the file name with the function URL
 
 `python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt http://<function-endpoint>`
 
+### Running Inside a KubeFlow Pipeline
+
+Running in a pipeline would be similar to running using the command line
+the extra flag `--kfp` instruct mlrun to save outputs and artifacts in a way which will be visible to KubeFlow
+
+```python
+def mlrun_run(p1, save_to):
+    """MLRun run"""
+    return dsl.ContainerOp(
+        name='mlrun',
+        image='v3io/mlrun',
+        command=['python','-m','mlrun','run','--kfp',
+                 '-p',f'p1={p1}',
+                 '--save-to',save_to,
+                 '--workflow','{{workflow.uid}}',
+                 'example1.py'],
+    )
+```
+
+You can use the function inside a DAG:
+
+```python
+@dsl.pipeline(
+    name='My MLRUN pipeline',
+    description='Shows how to use mlrun.'
+)
+def mlrun_pipeline(
+   save_to='./',
+   p1 = 5,
+):
+    mlrun = mlrun_run(p1, save_to)
+```
+
+### Example Output
+
+```yaml
+metadata:
+  name: mytask
+  uid: 497dba9bf1a942749f1605605e6f7eb7
+  project: ''
+  tag: ''
+  labels:
+    owner: root
+    workflow: 4e128362-9ac2-11e9-b64f-0a581ce6bde8
+  annotations: {}
+spec:
+  runtime:
+    kind: ''
+    command: example1.py
+  parameters:
+    p1: 6
+    p2: a-string
+  input_objects:
+  - key: infile.txt
+    path: infile.txt
+  data_stores: []
+  output_artifacts: []
+  default_output_path: ''
+status:
+  state: running
+  outputs:
+    accuracy: 12
+  metrics:
+    loss:
+      labels: {}
+      xvalues: ['1', '2', '3']
+      yvalues: [2, 4, 6]
+  start_time: '2019-06-29 23:04:57.553598'
+  last_update: '2019-06-29 23:04:57.553607'
+  output_artifacts:
+  - key: test.txt
+    description: ''
+
+```

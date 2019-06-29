@@ -1,6 +1,5 @@
 from mlrun import get_or_create_ctx
 
-
 def my_func(ctx):
     p1 = ctx.get_param('p1', 1)
     p2 = ctx.get_param('p2', 'a-string')

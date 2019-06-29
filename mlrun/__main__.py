@@ -8,6 +8,8 @@ from ast import literal_eval
 import getpass
 from tempfile import mktemp
 
+import yaml
+
 from .runtimes import run_start
 from .secrets import SecretsStore
 from .utils import run_keys
@@ -16,8 +18,8 @@ from .utils import run_keys
 def main():
     pass
 
-@main.command()
-@click.argument("file", type=str)
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("url", type=str)
 @click.option('--param', '-p', default='', multiple=True,
               help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
 @click.option('--in-artifact', '-i', multiple=True, help='input artifact')
@@ -30,11 +32,15 @@ def main():
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
 @click.option('--save-to', default='', help='save run results yaml to path/url')
+@click.option('--runtime', '-r', default='local', help='runtime environment e.g. local, remote, nuclio, mpi')
 @click.option('--kfp', default=False,  help='running inside Kubeflow Piplines')
+@click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
-def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
-        workflow, project, save_to, kfp):
+def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
+        workflow, project, save_to, runtime, kfp, run_args):
     """Execute a task and inject parameters."""
+
+    print(run_args)
 
     meta = {}
     set_item(meta, uid, 'uid')
@@ -42,11 +48,11 @@ def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid,
     set_item(meta, project, 'project')
     set_item(meta, workflow, 'workflow')
 
-    labels = {'runtime': 'local', 'owner': getpass.getuser()}
+    labels = {'owner': getpass.getuser()}
     set_item(labels, workflow, 'workflow')
     meta['labels'] = labels
 
-    spec = {}
+    spec = {'runtime': {'kind': runtime, 'command': url}}
     if param:
         params_dict = {}
         for param in param:
@@ -66,7 +72,9 @@ def run(file, param, in_artifact, out_artifact, in_path, out_path, secrets, uid,
     set_item(spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
 
     struct = {'metadata': meta, 'spec': spec}
-    pprint(run_start(file, struct, save_to=save_to, kfp=kfp))
+    resp = run_start(struct, save_to=save_to, kfp=kfp)
+    if resp:
+        print(yaml.dump(resp, default_flow_style=False, sort_keys=False))
 
 
 def set_item(struct, item, key, value=None):

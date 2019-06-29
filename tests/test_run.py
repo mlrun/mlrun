@@ -40,8 +40,8 @@ def test_with_params():
 run_spec =  {'metadata':
                  {'labels': {'runtime': 'local', 'owner': 'yaronh'}},
              'spec':
-                 {'parameters': {'p1': 5}, 'input_objects': [{'key': 'infile.txt', 'path': 's3://yarons-tests/infile.txt'}], 'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+                 {'parameters': {'p1': 5}, 'input_objects': [], 'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
 
 
 def test_runtime():
-    print(run_start('example1.py', run_spec))
+    print(run_start(run_spec, 'example1.py', save_to='./'))

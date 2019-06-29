@@ -7,7 +7,7 @@ from tempfile import mktemp
 import requests
 import yaml
 
-from .tomd import to_markdown
+from .tomarkdown import to_markdown
 from .execution import MLClientCtx
 from .rundb import get_run_db
 from .secrets import SecretsStore
@@ -41,74 +41,127 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     return ctx
 
 
-def run_start(url, struct={}, save_to='', kfp=False):
+def run_start(struct, runtime=None, args=[], save_to='', kfp=False, handler=None):
+
+    if isinstance(runtime, str):
+        if '://' in runtime:
+            runtime = RemoteRuntime(runtime, args)
+        else:
+            runtime = LocalRuntime(runtime, args)
+    elif struct and 'spec' in struct.keys() and 'runtime' in struct['spec'].keys():
+        kind = struct['spec']['runtime'].get('kind', '')
+        if kind in ['', 'local']:
+            runtime = LocalRuntime()
+        elif kind == 'remote':
+            runtime = RemoteRuntime()
+        else:
+            raise Exception('unsupported runtime - %s' % kind)
+
+    runtime.save_to = save_to
+    runtime.process_struct(struct)
+    resp = runtime.run()
+
     # todo: add runtimes, e.g. Horovod, Pipelines workflow
-    if '://' in url:
-        resp = remote_run(url, struct, save_to)
-    else:
-        resp = local_run(url, struct, save_to)
-    if kfp:
-        write_kfpmeta(resp)
-    return resp
 
-
-
-def local_run(url, struct={}, save_to=''):
-    environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
-    tmp = mktemp('.json')
-    environ['MLRUN_META_TMPFILE'] = tmp
-    environ['MLRUN_META_DBPATH'] = save_to
-
-    cmd = [
-        executable, url,
-    ]
-    out = run(cmd, stdout=PIPE, stderr=PIPE)
-    if out.returncode != 0:
-        print(out.stderr.decode('utf-8'), file=stderr)
-    print(out.stdout.decode('utf-8'))
-
-    try:
-        with open(tmp) as fp:
-            resp = fp.read()
-        os.remove(tmp)
-        return resp
-    except FileNotFoundError as err:
-        print(err)
-
-
-def remote_run(url, struct={}, save_to=''):
-    secrets = SecretsStore()
-    secrets.from_dict(struct['spec'])
-    struct['spec']['secret_sources'] = secrets.to_serial()
-    try:
-        resp = requests.put(url, json=json.dumps(struct))
-    except OSError as err:
-        print('ERROR: %s', str(err))
-        raise OSError('error: cannot run function at url {}'.format(url))
-
-    if not resp.ok:
-        print('bad resp!!')
-        return None
-
-    if save_to:
-        rundb = get_run_db(save_to)
-        rundb.connect(secrets)
-        rundb.store_run(resp.json(), commit=True)
-
-    return resp.json()
-
-
-def write_kfpmeta(resp):
     if not resp:
-        return
+        return {}
     struct = json.loads(resp)
+
+    if kfp:
+        write_kfpmeta(struct)
+    return struct
+
+
+class MLRuntime:
+    kind = ''
+    def __init__(self, command='', args=[]):
+        self.struct = None
+        self.command = command
+        self.args = args
+        self.save_to = ''
+
+    def process_struct(self, struct):
+        self.struct = struct
+        if 'spec' not in self.struct.keys():
+            self.struct['spec'] = {}
+        if 'runtime' not in self.struct['spec'].keys():
+            self.struct['spec']['runtime'] = {}
+
+        self.struct['spec']['runtime']['kind'] = self.kind
+        if self.command:
+            self.struct['spec']['runtime']['command'] = self.command
+        else:
+            self.command = self.struct['spec']['runtime'].get('command')
+        if self.args:
+            self.struct['spec']['runtime']['args'] = self.args
+        else:
+            self.args = self.struct['spec']['runtime'].get('args', [])
+
+    def run(self):
+        pass
+
+
+class LocalRuntime(MLRuntime):
+
+    def run(self):
+        environ['MLRUN_EXEC_CONFIG'] = json.dumps(self.struct)
+        tmp = mktemp('.json')
+        environ['MLRUN_META_TMPFILE'] = tmp
+        if self.save_to:
+            environ['MLRUN_META_DBPATH'] = self.save_to
+
+        cmd = [executable, self.command]
+        if self.args:
+            cmd += self.args
+        out = run(cmd, stdout=PIPE, stderr=PIPE)
+        if out.returncode != 0:
+            print(out.stderr.decode('utf-8'), file=stderr)
+        print(out.stdout.decode('utf-8'))
+
+        try:
+            with open(tmp) as fp:
+                resp = fp.read()
+            os.remove(tmp)
+            return resp
+        except FileNotFoundError as err:
+            print(err)
+
+
+class RemoteRuntime(MLRuntime):
+    kind = 'remote'
+    def run(self):
+        secrets = SecretsStore()
+        secrets.from_dict(self.struct['spec'])
+        self.struct['spec']['secret_sources'] = secrets.to_serial()
+        try:
+            resp = requests.put(self.command, json=json.dumps(self.struct))
+        except OSError as err:
+            print('ERROR: %s', str(err))
+            raise OSError('error: cannot run function at url {}'.format(self.command))
+
+        if not resp.ok:
+            print('bad resp!!')
+            return None
+
+        if self.save_to:
+            rundb = get_run_db(self.save_to)
+            rundb.connect(secrets)
+            rundb.store_run(resp.json(), commit=True)
+
+        return resp.json()
+
+
+KFPMETA_DIR = '/'
+
+
+def write_kfpmeta(struct):
     outputs = struct['status']['outputs']
     metrics = {'metrics':
                    [{'name': k, 'numberValue':v } for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
-    with open('/mlpipeline-metrics.json', 'w') as f:
+    with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
 
-    text = to_markdown(resp)
+    text = to_markdown(struct)
     print(text)
     metadata = {
         'outputs': [{
@@ -117,5 +170,5 @@ def write_kfpmeta(resp):
             'source': text
         }]
     }
-    with open('/mlpipeline-ui-metadata.json', 'w') as f:
+    with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
         json.dump(metadata, f)

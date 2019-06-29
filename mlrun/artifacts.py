@@ -4,7 +4,7 @@ import yaml
 
 from .datastore import StoreManager
 from .rundb import RunDBInterface
-from .utils import uxjoin, run_keys
+from .utils import uxjoin, run_keys, ModelObj
 
 
 
@@ -35,7 +35,7 @@ class ArtifactManager:
     def to_dict(self, struct):
         struct['spec'][run_keys.output_artifacts] = [{'key':k, 'path':v} for k, v in self.outputs_spec.items()]
         struct['spec'][run_keys.output_path] = self.out_path
-        struct['status'][run_keys.output_artifacts] = [item.to_dict() for item in self.output_artifacts.values()]
+        struct['status'][run_keys.output_artifacts] = [item.base_dict() for item in self.output_artifacts.values()]
 
     def log_artifact(self, item, body=None, target_path='', tag=''):
         if isinstance(item, str):
@@ -50,6 +50,7 @@ class ArtifactManager:
         if not target_path:
             target_path = uxjoin(self.out_path, key)
         item.target_path = target_path
+        item.tag = tag or item.tag or self._execution.tag
 
         self.output_artifacts[key] = item
         store, ipath = self.get_store(target_path)
@@ -62,21 +63,22 @@ class ArtifactManager:
             store.upload(ipath, key)
 
         if self.artifact_db:
-            tag = tag or self._execution.tag
             if not item.sources:
                 item.sources = self._execution.to_dict()['spec'][run_keys.input_objects]
             item.execution = self._execution.get_meta()
-            self.artifact_db.store_artifact(key, item, tag, self._execution.project)
+            self.artifact_db.store_artifact(key, item, item.tag, self._execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
 
 
-class Artifact:
+class Artifact(ModelObj):
+    _dict_fields = ['key', 'path', 'hash', 'description']
 
-    def __init__(self, key, body=None, target_path=''):
+    def __init__(self, key, body=None, target_path='', tag=''):
         self.kind = ''
         self._key = key
+        self.tag = tag
         self.target_path = target_path
         self._store = None
         self._path = ''
@@ -96,21 +98,12 @@ class Artifact:
     def get_body(self):
         return self._body
 
+    def base_dict(self):
+        return super().to_dict()
+
     def to_dict(self):
-        return {
-            'key': self._key,
-            'path': self.target_path,
-            'hash': self.hash,
-            'description': self.description,
-            'execution': self.execution,
-            'sources': self.sources,
-        }
+        return super().to_dict(self._dict_fields + ['execution', 'sources'])
 
-    def to_yaml(self):
-        return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
-
-    def to_json(self):
-        return json.dumps(self.to_dict())
 
 
 

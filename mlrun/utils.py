@@ -1,4 +1,8 @@
+import json
 from os import path
+
+import yaml
+
 
 class run_keys:
     input_path = 'default_input_path'
@@ -27,3 +31,30 @@ def uxjoin(base, path):
     if base:
         return '{}/{}'.format(base, path)
     return path
+
+
+class ModelObj:
+    _dict_fields = []
+
+    def to_dict(self, fields=None):
+        struct = {}
+        fields = fields or self._dict_fields
+        for t in fields:
+            val = getattr(self, t, None)
+            if val is not None:
+                if hasattr(val, 'to_dict'):
+                    struct[t] = val.to_dict()
+                else:
+                    struct[t] = val
+        return struct
+
+    #@classmethod
+    #def from_dict(cls, struct={}):
+    #    for key, val in struct.items():
+
+    def to_yaml(self):
+        return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
+
+    def to_json(self):
+        return json.dumps(self.to_dict())
+

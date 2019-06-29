@@ -38,6 +38,7 @@ class MLClientCtx(object):
         self._labels = {}
         self._annotations = {}
 
+        self._runtime = {}
         self._parameters = {}
         self._in_path = ''
         self._objects = {}
@@ -49,7 +50,11 @@ class MLClientCtx(object):
         self._last_update = datetime.now()
 
     def get_meta(self):
-        return {'name': self.name, 'labels': self.labels, 'project': self._project, 'uid': self.uid}
+        return {'name': self.name,
+                'labels': self.labels,
+                'start_time': str(self._start_time),
+                'project': self._project,
+                'uid': self.uid}
 
     def from_dict(self, attrs={}):
         meta = attrs.get('metadata')
@@ -63,6 +68,7 @@ class MLClientCtx(object):
         spec = attrs.get('spec')
         if spec:
             self._secrets_manager.from_dict(spec)
+            self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
             self._in_path = spec.get('default_input_path', self._in_path)
             in_list = spec.get('input_objects')
@@ -168,7 +174,8 @@ class MLClientCtx(object):
                  'labels': self._labels,
                  'annotations': self._annotations},
             'spec':
-                {'parameters': self._parameters,
+                {'runtime': self._runtime,
+                 'parameters': self._parameters,
                  run_keys.input_objects: [item.to_dict() for item in self._objects.values()],
                  },
             'status':

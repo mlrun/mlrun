@@ -53,6 +53,8 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     meta['labels'] = labels
 
     spec = {'runtime': {'kind': runtime, 'command': url}}
+    set_item(spec['runtime'], run_args, 'args', list(run_args))
+
     if param:
         params_dict = {}
         for param in param:

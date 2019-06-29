@@ -162,7 +162,6 @@ def write_kfpmeta(struct):
         json.dump(metrics, f)
 
     text = to_markdown(struct)
-    print(text)
     metadata = {
         'outputs': [{
             'type': 'markdown',

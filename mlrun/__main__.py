@@ -33,14 +33,12 @@ def main():
 @click.option('--project', help='project name/id')
 @click.option('--save-to', default='', help='save run results yaml to path/url')
 @click.option('--runtime', '-r', default='local', help='runtime environment e.g. local, remote, nuclio, mpi')
-@click.option('--kfp', default=False,  help='running inside Kubeflow Piplines')
+@click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
         workflow, project, save_to, runtime, kfp, run_args):
     """Execute a task and inject parameters."""
-
-    print(run_args)
 
     meta = {}
     set_item(meta, uid, 'uid')

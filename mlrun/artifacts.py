@@ -60,6 +60,7 @@ class ArtifactManager:
         store, ipath = self.get_store(target_path)
 
         body = body or item.get_body()
+        print('ZZZ', target_path, ipath, src_path, key)
 
         if body:
             store.put(ipath, body)

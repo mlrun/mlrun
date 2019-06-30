@@ -156,12 +156,15 @@ class MLClientCtx(object):
             self.log_metric(k, v, timestamp)
         self._update_db()
 
-    def log_artifact(self, item, body=None, target_path=''):
-        self._artifacts_manager.log_artifact(item, body, target_path, self._tag)
+    def log_artifact(self, item, body=None, src_path='', target_path=''):
+        self._artifacts_manager.log_artifact(item, body=body,
+                                             src_path=src_path,
+                                             target_path=target_path,
+                                             tag=self._tag)
         self._update_db()
 
     def commit(self, message=''):
-        self._update_db(commit=True)
+        self._update_db(commit=True, message=message)
 
     def to_dict(self):
         metrics = {k: v.to_dict() for (k, v) in self._metrics.items()}
@@ -195,7 +198,7 @@ class MLClientCtx(object):
     def to_json(self):
         return json.dumps(self.to_dict())
 
-    def _update_db(self, state='', elements=[], commit=False):
+    def _update_db(self, state='', elements=[], commit=False, message=''):
         self.last_update = datetime.now()
         self._state = state or 'running'
         if self._tmpfile:

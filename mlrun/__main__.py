@@ -31,13 +31,13 @@ def main():
 @click.option('--name', help='run name')
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
-@click.option('--save-to', default='', help='save run results yaml to path/url')
+@click.option('--rundb', default='', help='save run results to path or DB url')
 @click.option('--runtime', '-r', default='local', help='runtime environment e.g. local, remote, nuclio, mpi')
 @click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
-        workflow, project, save_to, runtime, kfp, run_args):
+        workflow, project, rundb, runtime, kfp, run_args):
     """Execute a task and inject parameters."""
 
     meta = {}
@@ -72,7 +72,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     set_item(spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
 
     struct = {'metadata': meta, 'spec': spec}
-    resp = run_start(struct, save_to=save_to, kfp=kfp)
+    resp = run_start(struct, rundb=rundb, kfp=kfp)
     if resp:
         print(yaml.dump(resp, default_flow_style=False, sort_keys=False))
 

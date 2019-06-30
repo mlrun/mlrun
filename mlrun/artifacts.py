@@ -1,4 +1,5 @@
 import json
+import os
 
 import yaml
 
@@ -37,7 +38,7 @@ class ArtifactManager:
         struct['spec'][run_keys.output_path] = self.out_path
         struct['status'][run_keys.output_artifacts] = [item.base_dict() for item in self.output_artifacts.values()]
 
-    def log_artifact(self, item, body=None, target_path='', tag=''):
+    def log_artifact(self, item, body=None, src_path='', target_path='', tag=''):
         if isinstance(item, str):
             key = item
             item = Artifact(key, body)
@@ -46,11 +47,12 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         if key in self.outputs_spec.keys():
-            target_path = self.outputs_spec[key]
+            target_path = self.outputs_spec[key] or target_path
         if not target_path:
             target_path = uxjoin(self.out_path, key)
         item.target_path = target_path
         item.tag = tag or item.tag or self._execution.tag
+        item.src_path = src_path
 
         self.output_artifacts[key] = item
         store, ipath = self.get_store(target_path)
@@ -60,7 +62,9 @@ class ArtifactManager:
         if body:
             store.put(ipath, body)
         else:
-            store.upload(ipath, key)
+            src_path = src_path or key
+            if os.path.isfile(src_path):
+                store.upload(ipath, src_path)
 
         if self.artifact_db:
             if not item.sources:
@@ -73,15 +77,14 @@ class ArtifactManager:
 
 
 class Artifact(ModelObj):
-    _dict_fields = ['key', 'path', 'hash', 'description']
+    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description']
 
-    def __init__(self, key, body=None, target_path='', tag=''):
+    def __init__(self, key, body=None, src_path='', target_path='', tag=''):
         self.kind = ''
         self._key = key
         self.tag = tag
         self.target_path = target_path
-        self._store = None
-        self._path = ''
+        self.src_path = src_path
         self._body = body
         self.description = ''
         self.format = ''
@@ -103,9 +106,6 @@ class Artifact(ModelObj):
 
     def to_dict(self):
         return super().to_dict(self._dict_fields + ['execution', 'sources'])
-
-
-
 
 
 class Table(Artifact):

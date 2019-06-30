@@ -7,6 +7,7 @@ from tempfile import mktemp
 import requests
 import yaml
 
+from .utils import run_keys
 from .tomarkdown import to_markdown
 from .execution import MLClientCtx
 from .rundb import get_run_db
@@ -41,7 +42,7 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     return ctx
 
 
-def run_start(struct, runtime=None, args=[], save_to='', kfp=False, handler=None):
+def run_start(struct, runtime=None, args=[], rundb='', kfp=False, handler=None):
 
     if isinstance(runtime, str):
         if '://' in runtime:
@@ -57,7 +58,7 @@ def run_start(struct, runtime=None, args=[], save_to='', kfp=False, handler=None
         else:
             raise Exception('unsupported runtime - %s' % kind)
 
-    runtime.save_to = save_to
+    runtime.rundb = rundb
     runtime.process_struct(struct)
     resp = runtime.run()
 
@@ -78,7 +79,7 @@ class MLRuntime:
         self.struct = None
         self.command = command
         self.args = args
-        self.save_to = ''
+        self.rundb = ''
 
     def process_struct(self, struct):
         self.struct = struct
@@ -107,8 +108,8 @@ class LocalRuntime(MLRuntime):
         environ['MLRUN_EXEC_CONFIG'] = json.dumps(self.struct)
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
-        if self.save_to:
-            environ['MLRUN_META_DBPATH'] = self.save_to
+        if self.rundb:
+            environ['MLRUN_META_DBPATH'] = self.rundb
 
         cmd = [executable, self.command]
         if self.args:
@@ -143,8 +144,8 @@ class RemoteRuntime(MLRuntime):
             print('bad resp!!')
             return None
 
-        if self.save_to:
-            rundb = get_run_db(self.save_to)
+        if self.rundb:
+            rundb = get_run_db(self.rundb)
             rundb.connect(secrets)
             rundb.store_run(resp.json(), commit=True)
 
@@ -171,3 +172,11 @@ def write_kfpmeta(struct):
     }
     with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
         json.dump(metadata, f)
+
+    for key, o in struct['status'][run_keys.output_artifacts].items():
+        try:
+            with open(f'/tmp/{key}', 'w') as fp:
+                fp.write(o[key].target_path)
+        except:
+            pass
+

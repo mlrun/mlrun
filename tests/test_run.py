@@ -10,7 +10,7 @@ def my_func(ctx):
 
     ctx.log_output('accuracy', p1 * 2)
     ctx.log_metric('loss', 7)
-    ctx.log_artifact('chart.png')
+    ctx.log_artifact('chart')
 
 
 def test_noparams():
@@ -19,7 +19,7 @@ def test_noparams():
 
     result = ex.to_dict()
     assert result['status']['outputs'].get('accuracy') == 2, 'failed to run'
-    assert result['status']['output_artifacts'][0].get('key') == 'chart.png', 'failed to run'
+    assert result['status']['output_artifacts'][0].get('key') == 'chart', 'failed to run'
 
 
 spec = {'spec': {
@@ -35,7 +35,7 @@ def test_with_params():
 
     result = ex.to_dict()
     assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
-    assert result['status']['output_artifacts'][0].get('key') == 'chart.png', 'failed to run'
+    assert result['status']['output_artifacts'][0].get('key') == 'chart', 'failed to run'
 
 run_spec =  {'metadata':
                  {'labels': {'runtime': 'local', 'owner': 'yaronh'}},
@@ -44,4 +44,4 @@ run_spec =  {'metadata':
 
 
 def test_runtime():
-    print(run_start(run_spec, 'example1.py', save_to='./'))
+    print(run_start(run_spec, 'example1.py', rundb='./'))

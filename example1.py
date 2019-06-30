@@ -12,7 +12,7 @@ def my_func(ctx):
     ctx.log_output('accuracy', p1 * 2)
     for i in range(1,4):
         ctx.log_metric('loss', 2*i, i)
-    ctx.log_artifact('test.txt', body=b'abc is 123')
+    ctx.log_artifact('test', body=b'abc is 123')
 
 
 if __name__ == "__main__":

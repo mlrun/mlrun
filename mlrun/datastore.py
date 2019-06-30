@@ -299,9 +299,7 @@ class V3ioStore(DataStore):
         http_upload(self.url + self._join(key), src_path, self.headers, None)
 
     def get(self, key, tag=''):
-        print(self.url + self._join(key), self.headers)
         return http_get(self.url + self._join(key), self.headers, None)
 
     def put(self, key, data, tag=''):
-        print(self.url + self._join(key), self.headers)
         http_put(self.url + self._join(key), data, self.headers, None)

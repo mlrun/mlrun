@@ -162,7 +162,9 @@ def write_kfpmeta(struct):
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
 
-    text = to_markdown(struct)
+    text = yaml.dump(struct, default_flow_style=False, sort_keys=False)
+    text = "# Run Report\n```yaml\n" + text + "```\n"
+
     metadata = {
         'outputs': [{
             'type': 'markdown',
@@ -173,10 +175,11 @@ def write_kfpmeta(struct):
     with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
         json.dump(metadata, f)
 
-    for key, o in struct['status'][run_keys.output_artifacts].items():
+    for output in struct['status'][run_keys.output_artifacts]:
         try:
+            key = output["key"]
             with open(f'/tmp/{key}', 'w') as fp:
-                fp.write(o[key].target_path)
+                fp.write(output["target_path"])
         except:
             pass
 

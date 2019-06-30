@@ -27,7 +27,7 @@ class ArtifactManager:
         self.outputs_spec = {}
 
     def from_dict(self, struct: dict):
-        self.out_path = struct.get('default_output_path', self.out_path)
+        self.out_path = struct.get(run_keys.output_path, self.out_path)
         out_list = struct.get(run_keys.output_artifacts)
         if out_list and isinstance(out_list, list):
             for item in out_list:
@@ -47,9 +47,11 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         if key in self.outputs_spec.keys():
+            print('YYYY', key, self.outputs_spec[key],target_path)
             target_path = self.outputs_spec[key] or target_path
         if not target_path:
             target_path = uxjoin(self.out_path, key)
+        print('XXXX', target_path, item.target_path, item)
         item.target_path = target_path
         item.tag = tag or item.tag or self._execution.tag
         item.src_path = src_path

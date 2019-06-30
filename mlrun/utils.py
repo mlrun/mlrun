@@ -29,7 +29,9 @@ def list2dict(lines: list):
 
 def uxjoin(base, path):
     if base:
-        return '{}/{}'.format(base, path)
+        if not base.endswith('/'):
+            base += '/'
+        return '{}{}'.format(base, path)
     return path
 
 

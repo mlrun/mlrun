@@ -47,11 +47,9 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         if key in self.outputs_spec.keys():
-            print('YYYY', key, self.outputs_spec[key],target_path)
             target_path = self.outputs_spec[key] or target_path
         if not target_path:
             target_path = uxjoin(self.out_path, key)
-        print('XXXX', target_path, item.target_path, item)
         item.target_path = target_path
         item.tag = tag or item.tag or self._execution.tag
         item.src_path = src_path
@@ -60,7 +58,6 @@ class ArtifactManager:
         store, ipath = self.get_store(target_path)
 
         body = body or item.get_body()
-        print('ZZZ', target_path, ipath, src_path, key)
 
         if body:
             store.put(ipath, body)

@@ -7,8 +7,7 @@ from tempfile import mktemp
 import requests
 import yaml
 
-from .utils import run_keys
-from .tomarkdown import to_markdown
+from .kfp import write_kfpmeta
 from .execution import MLClientCtx
 from .rundb import get_run_db
 from .secrets import SecretsStore
@@ -150,36 +149,4 @@ class RemoteRuntime(MLRuntime):
             rundb.store_run(resp.json(), commit=True)
 
         return resp.json()
-
-
-KFPMETA_DIR = '/'
-
-
-def write_kfpmeta(struct):
-    outputs = struct['status']['outputs']
-    metrics = {'metrics':
-                   [{'name': k, 'numberValue':v } for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
-    with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
-        json.dump(metrics, f)
-
-    text = yaml.dump(struct, default_flow_style=False, sort_keys=False)
-    text = "# Run Report\n```yaml\n" + text + "```\n"
-
-    metadata = {
-        'outputs': [{
-            'type': 'markdown',
-            'storage': 'inline',
-            'source': text
-        }]
-    }
-    with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
-        json.dump(metadata, f)
-
-    for output in struct['status'][run_keys.output_artifacts]:
-        try:
-            key = output["key"]
-            with open(f'/tmp/{key}', 'w') as fp:
-                fp.write(output["target_path"])
-        except:
-            pass
 

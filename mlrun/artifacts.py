@@ -1,3 +1,4 @@
+import json
 import os
 #import pandas as pd
 from .datastore import StoreManager
@@ -77,7 +78,7 @@ class ArtifactManager:
 
 class Artifact(ModelObj):
 
-    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description']
+    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description', 'viewer']
     kind = ''
 
     def __init__(self, key, body=None, src_path='', target_path='', tag='', viewer=''):
@@ -87,7 +88,6 @@ class Artifact(ModelObj):
         self.src_path = src_path
         self._body = body
         self.description = ''
-        self.format = ''
         self.viewer = viewer
         self.encoding = ''
         self.sources = []
@@ -107,6 +107,53 @@ class Artifact(ModelObj):
 
     def to_dict(self):
         return super().to_dict(self._dict_fields + ['execution', 'sources'])
+
+
+chart_template = '''
+<html>
+  <head>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+      google.charts.load('current', {'packages':['corechart']});
+      google.charts.setOnLoadCallback(drawChart);
+      function drawChart() {
+        var data = google.visualization.arrayToDataTable($data$);
+        var options = $opts$;
+        var chart = new google.visualization.$chart$(document.getElementById('chart_div'));
+        chart.draw(data, options);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="chart_div" style="width: 100%; height: 500px;"></div>
+  </body>
+</html>
+'''
+
+class ChartArtifact(Artifact):
+    kind = 'chart'
+
+    def __init__(self, key, data=[], src_path='', target_path='', tag='',
+                         viewer='chart', options={}):
+        super().__init__(key, None, src_path, target_path, tag, viewer)
+        self.header = []
+        self._rows = []
+        if data:
+            self.header = data[0]
+            self._rows = data[1:]
+        self.options = options
+        self.chart = 'LineChart'
+
+    def add_row(self, row):
+        self._rows += [row]
+
+    def get_body(self):
+        if not self.options.get('title'):
+            self.options['title'] = self.key
+        data = [self.header] + self._rows
+        return chart_template.replace('$data$', json.dumps(data))\
+            .replace('$opts$', json.dumps(self.options))\
+            .replace('$chart$', self.chart)
 
 
 class TableArtifact(Artifact):

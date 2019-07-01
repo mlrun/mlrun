@@ -24,6 +24,7 @@ def write_kfpmeta(struct):
 
         if target.startswith('v3io:///'):
             target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
+
         viewer = output.get('viewer', '')
         if viewer in ['web-app', 'chart']:
             meta = {'type': 'web-app',

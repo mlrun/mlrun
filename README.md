@@ -36,21 +36,36 @@ checkout [example1](example1.py) and [example2](example2.py).
 
 ```python
 from mlrun import get_or_create_ctx
+from mlrun.artifacts import TableArtifact, ChartArtifact
 
 def my_func(ctx):
+    # get parameters from context (or default)
     p1 = ctx.get_param('p1', 1)
     p2 = ctx.get_param('p2', 'a-string')
 
+    # access input metadata, values, and inputs
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(ctx.get_secret('ACCESS_KEY')))
     print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
 
+    # log scalar values (KFP metrics)
     ctx.log_output('accuracy', p1 * 2)
-    for i in range(1,4):
-        ctx.log_metric('loss', 2*i, i)
-    ctx.log_artifact('test.txt', body=b'abc is 123')
+    ctx.log_output('latency', p1 * 3)
 
+    # log various types of artifacts (and set UI viewers)
+    ctx.log_artifact('test.txt', body=b'abc is 123')
+    ctx.log_artifact('test.html', body=b'<b> Some HTML <b>', viewer='web-app')
+
+    table = TableArtifact('tbl.csv', '1,2,3\n4,5,6\n',
+                          viewer='table', header=['A', 'B', 'C'])
+    ctx.log_artifact(table)
+
+    chart = ChartArtifact('chart.html')
+    chart.header = ['Hour','One', 'Two']
+    for i in range(1,4):
+        chart.add_row([i, 1+2, 2*i])
+    ctx.log_artifact(chart)
 
 if __name__ == "__main__":
     ex = get_or_create_ctx('mytask')
@@ -90,11 +105,9 @@ def handler(context, event):
     print('file\n{}\n'.format(ctx.input_artifact('infile.txt').get()))
 
     ctx.log_output('accuracy', p1 * 2)
-    for i in range(1,4):
-        ctx.log_metric('loss', 2*i, i)
     ctx.log_artifact('chart.png')
 
-    return ctx.to_yaml()
+    return ctx.to_json()
 ```
 
 > Note: add this repo to nuclio build commands (`pip install git+https://github.com/v3io/mlrun.git`)
@@ -109,17 +122,13 @@ Running in a pipeline would be similar to running using the command line
 the extra flag `--kfp` instruct mlrun to save outputs and artifacts in a way which will be visible to KubeFlow
 
 ```python
-def mlrun_run(p1, save_to):
-    """MLRun run"""
-    return dsl.ContainerOp(
-        name='mlrun',
-        image='v3io/mlrun',
-        command=['python','-m','mlrun','run','--kfp',
-                 '-p',f'p1={p1}',
-                 '--save-to',save_to,
-                 '--workflow','{{workflow.uid}}',
-                 'example1.py'],
-    )
+def mlrun_step(p1, p2):
+    return mlrun_op('myrun', 
+                 command = '/User/example1.py', 
+                 params = {'p1':p1, 'p2': p2},
+                 outputs = {'test.txt':'', 'tbl.csv':''},
+                 out_path ='s3:/bucket/mlrun/{{workflow.uid}}/',
+                 rundb = './')
 ```
 
 You can use the function inside a DAG:
@@ -141,39 +150,59 @@ def mlrun_pipeline(
 ```yaml
 metadata:
   name: mytask
-  uid: 497dba9bf1a942749f1605605e6f7eb7
+  uid: c029dc8c2ff44a7d9a1336db27685f99
   project: ''
   tag: ''
   labels:
-    owner: root
-    workflow: 4e128362-9ac2-11e9-b64f-0a581ce6bde8
+    owner: yaronh
   annotations: {}
 spec:
   runtime:
     kind: ''
     command: example1.py
   parameters:
-    p1: 6
+    p1: 5
     p2: a-string
   input_objects:
   - key: infile.txt
-    path: infile.txt
+    path: s3://yarons-tests/infile.txt
   data_stores: []
-  output_artifacts: []
-  default_output_path: ''
+  output_artifacts:
+  - key: test
+    path: ''
+  default_output_path: ./aa/
 status:
   state: running
   outputs:
-    accuracy: 12
-  metrics:
-    loss:
-      labels: {}
-      xvalues: ['1', '2', '3']
-      yvalues: [2, 4, 6]
-  start_time: '2019-06-29 23:04:57.553598'
-  last_update: '2019-06-29 23:04:57.553607'
+    accuracy: 10
+    latency: 15
+  start_time: '2019-07-01 19:43:21.383738'
+  last_update: '2019-07-01 19:43:21.383738'
   output_artifacts:
   - key: test.txt
+    src_path: ''
+    target_path: ./aa/test.txt
     description: ''
+    viewer: ''
+  - key: test.html
+    src_path: ''
+    target_path: ./aa/test.html
+    description: ''
+    viewer: web-app
+  - key: tbl.csv
+    src_path: ''
+    target_path: ./aa/tbl.csv
+    description: ''
+    format: ''
+    header:
+    - A
+    - B
+    - C
+    viewer: table
+  - key: chart.html
+    src_path: ''
+    target_path: ./aa/chart.html
+    description: ''
+    viewer: chart
 
 ```

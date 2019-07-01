@@ -62,7 +62,10 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
             key, value = param[:i].strip(), param[i + 1:].strip()
             if key is None:
                 raise ValueError(f'cannot find param key in line ({param})')
-            params_dict[key] = literal_eval(value)
+            try:
+                params_dict[key] = literal_eval(value)
+            except SyntaxError:
+                params_dict[key] = value
         spec['parameters'] = params_dict
 
     set_item(spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))

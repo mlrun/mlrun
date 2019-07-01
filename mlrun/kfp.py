@@ -4,6 +4,7 @@ from .utils import run_keys
 
 KFPMETA_DIR = '/'
 
+
 def write_kfpmeta(struct):
     outputs = struct['status']['outputs']
     metrics = {'metrics':
@@ -21,16 +22,29 @@ def write_kfpmeta(struct):
             'source': text
         }]
     }
-    with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
-        json.dump(metadata, f)
 
     for output in struct['status'][run_keys.output_artifacts]:
+        key = output["key"]
+        target = output.get('target_path', '')
         try:
-            key = output["key"]
             with open(f'/tmp/{key}', 'w') as fp:
                 fp.write(output["target_path"])
         except:
             pass
+        viewer = output.get('viewer', '')
+        if viewer == 'table':
+            header = output.get('header', None)
+            if header and target.endswith('.csv'):
+                if target.startswith('v3io:///'):
+                    target.replace('v3io:///', 'http://v3io-webapi:8081/')
+                meta = {'type': 'table',
+                    'format': 'csv',
+                    'header': header,
+                    'source': target}
+                metadata['outputs'] += [meta]
+
+    with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
+        json.dump(metadata, f)
 
 
 def mlrun_op(name='', image='v3io/mlrun', command='', params={}, inputs={}, outputs={}, out_path='', rundb=''):

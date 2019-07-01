@@ -1,4 +1,5 @@
 from mlrun import get_or_create_ctx
+from mlrun.artifacts import TableArtifact
 
 def my_func(ctx):
     p1 = ctx.get_param('p1', 1)
@@ -14,6 +15,9 @@ def my_func(ctx):
         ctx.log_metric('loss', 2*i, i)
     ctx.log_artifact('test', body=b'abc is 123')
 
+    table = TableArtifact('tbl.csv', '1,2,3\n4,5,6\n',
+                          viewer='table', header=['A', 'B', 'C'])
+    ctx.log_artifact(table)
 
 if __name__ == "__main__":
     ex = get_or_create_ctx('mytask')

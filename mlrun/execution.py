@@ -44,7 +44,6 @@ class MLClientCtx(object):
         self._objects = {}
 
         self._outputs = {}
-        self._metrics = {}
         self._state = 'created'
         self._start_time = datetime.now()
         self._last_update = datetime.now()
@@ -137,37 +136,32 @@ class MLClientCtx(object):
             self._outputs[p] = outputs[p]
         self._update_db()
 
-    def log_metric(self, key, value, timestamp=None):
-        self._log_metric(key, value, timestamp)
-        self._update_db()
-
-    def _log_metric(self, key, value, timestamp=None):
-        if key not in self._metrics:
-            self._metrics[key] = MLMetric()
+    def log_metric(self, key, value, timestamp=None, labels={}):
         if not timestamp:
             timestamp = datetime.now()
-        self._metrics[key].xvalues.append(str(timestamp))
-        self._metrics[key].yvalues.append(value)
+        if self._rundb:
+            self._rundb.store_metric({key: value}, timestamp, labels)
 
-    def log_metrics(self, keyvals={}, timestamp=None):
+    def log_metrics(self, keyvals={}, timestamp=None, labels={}):
         if not timestamp:
             timestamp = datetime.now()
-        for k, v in keyvals.items():
-            self.log_metric(k, v, timestamp)
-        self._update_db()
+        if self._rundb:
+            self._rundb.store_metric(keyvals, timestamp, labels)
 
-    def log_artifact(self, item, body=None, src_path='', target_path=''):
+    def log_artifact(self, item, body=None, target_path='', src_path='',
+                     tag='', viewer='', upload=True):
         self._artifacts_manager.log_artifact(item, body=body,
-                                             src_path=src_path,
                                              target_path=target_path,
-                                             tag=self._tag)
+                                             src_path=src_path,
+                                             tag=tag or self._tag,
+                                             viewer=viewer,
+                                             upload=upload)
         self._update_db()
 
     def commit(self, message=''):
         self._update_db(commit=True, message=message)
 
     def to_dict(self):
-        metrics = {k: v.to_dict() for (k, v) in self._metrics.items()}
         struct = {
             'metadata':
                 {'name': self.name,
@@ -184,7 +178,6 @@ class MLClientCtx(object):
             'status':
                 {'state': self._state,
                  'outputs': self._outputs,
-                 'metrics': metrics,
                  'start_time': str(self._start_time),
                  'last_update': str(self._last_update)},
             }

@@ -32,6 +32,12 @@ class RunDBInterface:
     def read_artifact(self, key, tag='', project=''):
         pass
 
+    def store_metric(self, keyvals={}, timestamp=None, labels={}):
+        pass
+
+    def read_metric(self, keys, query=''):
+        pass
+
 
 class FileRunDB(RunDBInterface):
 

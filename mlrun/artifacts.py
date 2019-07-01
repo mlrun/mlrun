@@ -1,13 +1,8 @@
-import json
 import os
-
-import yaml
-
+#import pandas as pd
 from .datastore import StoreManager
 from .rundb import RunDBInterface
 from .utils import uxjoin, run_keys, ModelObj
-
-
 
 
 class ArtifactManager:
@@ -38,33 +33,37 @@ class ArtifactManager:
         struct['spec'][run_keys.output_path] = self.out_path
         struct['status'][run_keys.output_artifacts] = [item.base_dict() for item in self.output_artifacts.values()]
 
-    def log_artifact(self, item, body=None, src_path='', target_path='', tag=''):
+    def log_artifact(self, item, body=None, target_path='', src_path='',
+                     tag='', viewer='', upload=True):
         if isinstance(item, str):
             key = item
-            item = Artifact(key, body)
+            item = Artifact(key, body, src_path=src_path,
+                            tag=tag, viewer=viewer)
         else:
             key = item.key
             target_path = target_path or item.target_path
+            item.src_path = src_path or item.src_path
+            item.viewer = viewer or item.viewer
 
+        # find the target path from defaults and config
         if key in self.outputs_spec.keys():
             target_path = self.outputs_spec[key] or target_path
         if not target_path:
             target_path = uxjoin(self.out_path, key)
         item.target_path = target_path
         item.tag = tag or item.tag or self._execution.tag
-        item.src_path = src_path
 
         self.output_artifacts[key] = item
-        store, ipath = self.get_store(target_path)
 
-        body = body or item.get_body()
-
-        if body:
-            store.put(ipath, body)
-        else:
-            src_path = src_path or key
-            if os.path.isfile(src_path):
-                store.upload(ipath, src_path)
+        if upload:
+            store, ipath = self.get_store(target_path)
+            body = body or item.get_body()
+            if body:
+                store.put(ipath, body)
+            else:
+                src_path = src_path or key
+                if os.path.isfile(src_path):
+                    store.upload(ipath, src_path)
 
         if self.artifact_db:
             if not item.sources:
@@ -77,10 +76,11 @@ class ArtifactManager:
 
 
 class Artifact(ModelObj):
-    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description']
 
-    def __init__(self, key, body=None, src_path='', target_path='', tag=''):
-        self.kind = ''
+    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description']
+    kind = ''
+
+    def __init__(self, key, body=None, src_path='', target_path='', tag='', viewer=''):
         self._key = key
         self.tag = tag
         self.target_path = target_path
@@ -88,6 +88,7 @@ class Artifact(ModelObj):
         self._body = body
         self.description = ''
         self.format = ''
+        self.viewer = viewer
         self.encoding = ''
         self.sources = []
         self.execution = None
@@ -108,8 +109,22 @@ class Artifact(ModelObj):
         return super().to_dict(self._dict_fields + ['execution', 'sources'])
 
 
-class Table(Artifact):
-    def __init__(self):
-        super().__init__()
-        self.kind = 'table'
-        self.schema = None
+class TableArtifact(Artifact):
+    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description',
+                    'format', 'schema', 'header', 'viewer']
+    kind = 'table'
+
+    def __init__(self, key, body=None, src_path='', target_path='', tag='',
+                         viewer='', format='', header=[], schema=None):
+        super().__init__(key, body, src_path, target_path, tag, viewer)
+        self.format = format
+        self.schema = schema
+        self.header = header
+
+    def from_df(self, df, format=''):
+        format = format or self.format
+        # todo: read pandas into body/file
+
+
+def write_df(df, format, path):
+    pass

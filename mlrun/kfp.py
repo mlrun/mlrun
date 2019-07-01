@@ -36,7 +36,7 @@ def write_kfpmeta(struct):
             header = output.get('header', None)
             if header and target.endswith('.csv'):
                 if target.startswith('v3io:///'):
-                    target.replace('v3io:///', 'http://v3io-webapi:8081/')
+                    target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
                 meta = {'type': 'table',
                     'format': 'csv',
                     'header': header,

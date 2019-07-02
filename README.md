@@ -38,39 +38,41 @@ checkout [example1](example1.py) and [example2](example2.py).
 from mlrun import get_or_create_ctx
 from mlrun.artifacts import TableArtifact, ChartArtifact
 
-def my_func(ctx):
-    # get parameters from context (or default)
-    p1 = ctx.get_param('p1', 1)
-    p2 = ctx.get_param('p2', 'a-string')
+def my_job():
+    # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
+    context = get_or_create_ctx('mytask')
+    
+    # get parameters from the runtime context (or use defaults)
+    p1 = context.get_param('p1', 1)
+    p2 = context.get_param('p2', 'a-string')
 
-    # access input metadata, values, and inputs
-    print(f'Run: {ctx.name} (uid={ctx.uid})')
+    # access input metadata, values, files, and secrets (passwords)
+    print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}')
-    print('accesskey = {}'.format(ctx.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
+    print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
+    print('file\n{}\n'.format(context.get_object('infile.txt').get()))
+    
+    # RUN some useful code e.g. ML training, data prep, etc.
 
-    # log scalar values (KFP metrics)
-    ctx.log_output('accuracy', p1 * 2)
-    ctx.log_output('latency', p1 * 3)
+    # log scalar result values (job result metrics)
+    context.log_output('accuracy', p1 * 2)
+    context.log_output('loss', p1 * 3)
 
-    # log various types of artifacts (and set UI viewers)
-    ctx.log_artifact('test.txt', body=b'abc is 123')
-    ctx.log_artifact('test.html', body=b'<b> Some HTML <b>', viewer='web-app')
+    # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
+    context.log_artifact('model.txt', body=b'abc is 123')
+    context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
+    context.log_artifact(TableArtifact('dataset.csv', '1,2,3\n4,5,6\n',
+                                        viewer='table', header=['A', 'B', 'C']))
 
-    table = TableArtifact('tbl.csv', '1,2,3\n4,5,6\n',
-                          viewer='table', header=['A', 'B', 'C'])
-    ctx.log_artifact(table)
-
+    # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart.html')
-    chart.header = ['Hour','One', 'Two']
-    for i in range(1,4):
-        chart.add_row([i, 1+2, 2*i])
-    ctx.log_artifact(chart)
+    chart.header = ['Epoch','Accuracy', 'Loss']
+    for i in range(1,8):
+        chart.add_row([i, i/20+0.75, 0.30-i/20])
+    context.log_artifact(chart)
 
 if __name__ == "__main__":
-    ex = get_or_create_ctx('mytask')
-    my_func(ex)
-    ex.commit('aa')
+    my_job()
 ```
 
 ### Replacing Runtime Context Parameters form CLI
@@ -119,16 +121,24 @@ To execute the code remotely just substitute the file name with the function URL
 ### Running Inside a KubeFlow Pipeline
 
 Running in a pipeline would be similar to running using the command line
-the extra flag `--kfp` instruct mlrun to save outputs and artifacts in a way which will be visible to KubeFlow
+mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
 
 ```python
-def mlrun_step(p1, p2):
-    return mlrun_op('myrun', 
-                 command = '/User/example1.py', 
-                 params = {'p1':p1, 'p2': p2},
-                 outputs = {'test.txt':'', 'tbl.csv':''},
-                 out_path ='s3:/bucket/mlrun/{{workflow.uid}}/',
-                 rundb = './')
+def mlrun_train(p1, p2):
+    return mlrun_op('training', 
+                    command = '/User/training.py', 
+                    params = {'p1':p1, 'p2': p2},
+                    outputs = {'model.txt':'', 'dataset.csv':''},
+                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
+                    rundb = '/User')
+                    
+# use data from the first step
+def mlrun_validate(modelfile):
+    return mlrun_op('validation', 
+                    command = '/User/validation.py', 
+                    inputs = {'model.txt':modelfile},
+                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
+                    rundb = '/User')
 ```
 
 You can use the function inside a DAG:
@@ -139,10 +149,12 @@ You can use the function inside a DAG:
     description='Shows how to use mlrun.'
 )
 def mlrun_pipeline(
-   save_to='./',
-   p1 = 5,
+   p1 = 5, p2 = 'text'
 ):
-    mlrun = mlrun_run(p1, save_to)
+    train = mlrun_train(p1, p2)
+    
+    # feed 1st step results into the secound step
+    validate = mlrun_validate(train.outputs['model-txt'])
 ```
 
 ### Example Output
@@ -150,48 +162,51 @@ def mlrun_pipeline(
 ```yaml
 metadata:
   name: mytask
-  uid: c029dc8c2ff44a7d9a1336db27685f99
+  uid: eae6f665ff2c4ff3a212edd65645d08c
   project: ''
   tag: ''
   labels:
-    owner: yaronh
+    owner: root
+    workflow: 30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8
   annotations: {}
 spec:
   runtime:
     kind: ''
-    command: example1.py
+    command: /User/training.py
   parameters:
-    p1: 5
-    p2: a-string
+    p1: 5.5
+    p2: another text
   input_objects:
   - key: infile.txt
-    path: s3://yarons-tests/infile.txt
+    path: infile.txt
   data_stores: []
   output_artifacts:
-  - key: test
+  - key: model.txt
     path: ''
-  default_output_path: ./aa/
+  - key: dataset.csv
+    path: ''
+  default_output_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/
 status:
   state: running
   outputs:
-    accuracy: 10
-    latency: 15
-  start_time: '2019-07-01 19:43:21.383738'
-  last_update: '2019-07-01 19:43:21.383738'
+    accuracy: 11.0
+    loss: 16.5
+  start_time: '2019-07-02 16:12:33.936275'
+  last_update: '2019-07-02 16:12:33.936283'
   output_artifacts:
-  - key: test.txt
+  - key: model.txt
     src_path: ''
-    target_path: ./aa/test.txt
+    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/model.txt
     description: ''
     viewer: ''
-  - key: test.html
+  - key: results.html
     src_path: ''
-    target_path: ./aa/test.html
+    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/results.html
     description: ''
     viewer: web-app
-  - key: tbl.csv
+  - key: dataset.csv
     src_path: ''
-    target_path: ./aa/tbl.csv
+    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/dataset.csv
     description: ''
     format: ''
     header:
@@ -201,8 +216,7 @@ status:
     viewer: table
   - key: chart.html
     src_path: ''
-    target_path: ./aa/chart.html
+    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/chart.html
     description: ''
     viewer: chart
-
 ```

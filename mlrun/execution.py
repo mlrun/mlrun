@@ -53,6 +53,7 @@ class MLClientCtx(object):
         self._runtime = {}
         self._parameters = {}
         self._in_path = ''
+        self._out_path = ''
         self._objects = {}
 
         self._outputs = {}
@@ -81,8 +82,9 @@ class MLClientCtx(object):
             self._secrets_manager.from_dict(spec)
             self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
-            self._in_path = spec.get('default_input_path', self._in_path)
-            in_list = spec.get('input_objects')
+            self._out_path = spec.get(run_keys.output_path, self._out_path)
+            self._in_path = spec.get(run_keys.input_path, self._in_path)
+            in_list = spec.get(run_keys.input_objects)
             if in_list and isinstance(in_list, list):
                 for item in in_list:
                     self._set_object(item['key'], item.get('path'))
@@ -105,6 +107,14 @@ class MLClientCtx(object):
     @property
     def parameters(self):
         return deepcopy(self._parameters)
+
+    @property
+    def in_path(self):
+        return self._in_path
+
+    @property
+    def out_path(self):
+        return self._out_path
 
     @property
     def labels(self):

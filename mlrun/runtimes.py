@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import logging
 import os
 import uuid
 from os import environ
@@ -25,7 +26,7 @@ from .kfp import write_kfpmeta
 from .execution import MLClientCtx
 from .rundb import get_run_db
 from .secrets import SecretsStore
-from sys import executable, stderr
+from sys import executable, stderr, stdout
 from subprocess import run, PIPE
 
 
@@ -57,7 +58,9 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
 
 def run_start(struct, runtime=None, args=[], rundb='', kfp=False, handler=None):
 
-    if isinstance(runtime, str):
+    if handler:
+        runtime = HandlerRuntime(handler=handler)
+    elif isinstance(runtime, str):
         if '://' in runtime:
             runtime = RemoteRuntime(runtime, args)
         else:
@@ -88,10 +91,11 @@ def run_start(struct, runtime=None, args=[], rundb='', kfp=False, handler=None):
 
 class MLRuntime:
     kind = ''
-    def __init__(self, command='', args=[]):
+    def __init__(self, command='', args=[], handler=None):
         self.struct = None
         self.command = command
         self.args = args
+        self.handler = handler
         self.rundb = ''
 
     def process_struct(self, struct):
@@ -163,4 +167,38 @@ class RemoteRuntime(MLRuntime):
             rundb.store_run(resp.json(), commit=True)
 
         return resp.json()
+
+
+class HandlerRuntime(MLRuntime):
+    kind = 'handler'
+    def run(self):
+        from nuclio_sdk import Context as _Context, Logger
+        from nuclio_sdk.logger import HumanReadableFormatter
+        from nuclio_sdk import Event  # noqa
+
+        class FunctionContext(_Context):
+            """Wrapper around nuclio_sdk.Context to make automatically create
+            logger"""
+
+            def __getattribute__(self, attr):
+                value = object.__getattribute__(self, attr)
+                if value is None and attr == 'logger':
+                    value = self.logger = Logger(level=logging.INFO)
+                    value.set_handler(
+                        'mlrun', stdout, HumanReadableFormatter())
+                return value
+
+            def set_logger_level(self, verbose=False):
+                if verbose:
+                    level = logging.DEBUG
+                else:
+                    level = logging.INFO
+                value = self.logger = Logger(level=level)
+                value.set_handler('mlrun', stdout, HumanReadableFormatter())
+
+        if self.rundb:
+            environ['MLRUN_META_DBPATH'] = self.rundb
+
+        out = self.handler(FunctionContext(), Event(body=json.dumps(self.struct)))
+        return out
 

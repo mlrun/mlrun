@@ -74,10 +74,11 @@ def run_start(struct, runtime=None, command='', args=[], rundb='', kfp=False, ha
 
         if struct and 'spec' in struct.keys() and 'runtime' in struct['spec'].keys():
             kind = struct['spec']['runtime'].get('kind', '')
-            if kind in ['', 'local']:
-                runtime = LocalRuntime()
-            elif kind == 'remote':
+            command = struct['spec']['runtime'].get('command', '')
+            if kind == 'remote' or (kind == '' and '://' in command):
                 runtime = RemoteRuntime()
+            elif kind in ['', 'local']:
+                runtime = LocalRuntime()
             elif kind == 'mpijob':
                 runtime = MpiRuntime()
             else:
@@ -92,6 +93,7 @@ def run_start(struct, runtime=None, command='', args=[], rundb='', kfp=False, ha
         else:
             raise Exception('runtime was not specified via struct or runtime or command!')
 
+    print(runtime, runtime.kind)
     runtime.rundb = rundb
     runtime.process_struct(struct)
     resp = runtime.run()
@@ -170,7 +172,7 @@ class RemoteRuntime(MLRuntime):
         secrets.from_dict(self.struct['spec'])
         self.struct['spec']['secret_sources'] = secrets.to_serial()
         log_level = self.struct['spec'].get('log_level', 'info')
-        headers = {'x-nuclio-log-level', log_level}
+        headers = {'x-nuclio-log-level': log_level}
         try:
             resp = requests.put(self.command, json=json.dumps(self.struct), headers=headers)
         except OSError as err:
@@ -178,7 +180,7 @@ class RemoteRuntime(MLRuntime):
             raise OSError('error: cannot run function at url {}'.format(self.command))
 
         if not resp.ok:
-            print('bad resp!!')
+            print('bad resp!!\n', resp.text)
             return None
 
         logs = resp.headers.get('X-Nuclio-Logs')

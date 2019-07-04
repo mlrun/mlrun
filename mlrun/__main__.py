@@ -39,7 +39,7 @@ def main():
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
 @click.option('--rundb', default='', help='save run results to path or DB url')
-@click.option('--runtime', '-r', default='local', help='runtime environment e.g. local, remote, nuclio, mpi')
+@click.option('--runtime', '-r', default='', help='runtime environment e.g. local, remote, nuclio, mpi')
 @click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')

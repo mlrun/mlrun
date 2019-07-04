@@ -44,6 +44,7 @@ class MLClientCtx(object):
             self._data_stores, self, db=self._rundb)
 
         self._logger = None
+        self._log_level = 'info'
         self._matrics_db = None
         self._autocommit = autocommit
 
@@ -80,6 +81,7 @@ class MLClientCtx(object):
         spec = attrs.get('spec')
         if spec:
             self._secrets_manager.from_dict(spec)
+            self._runtime = spec.get('log_level', self._log_level)
             self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
             self._out_path = spec.get(run_keys.output_path, self._out_path)
@@ -99,6 +101,15 @@ class MLClientCtx(object):
     @property
     def project(self):
         return self._project
+
+    @property
+    def log_level(self):
+        return self._log_level
+
+    @log_level.setter
+    def log_level(self, value):
+        self._log_level = value
+        print(f'changed log level to: {value}')
 
     @property
     def tag(self):
@@ -194,6 +205,7 @@ class MLClientCtx(object):
                  'annotations': self._annotations},
             'spec':
                 {'runtime': self._runtime,
+                 'log_level': self._log_level,
                  'parameters': self._parameters,
                  run_keys.input_objects: [item.to_dict() for item in self._objects.values()],
                  },

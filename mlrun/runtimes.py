@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import uuid
+from ast import literal_eval
 from os import environ
 from tempfile import mktemp
 
@@ -56,23 +57,40 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     return ctx
 
 
-def run_start(struct, runtime=None, args=[], rundb='', kfp=False, handler=None):
+def run_start(struct, runtime=None, command='', args=[], rundb='', kfp=False, handler=None):
 
     if handler:
         runtime = HandlerRuntime(handler=handler)
-    elif isinstance(runtime, str):
-        if '://' in runtime:
-            runtime = RemoteRuntime(runtime, args)
+    else:
+        if runtime:
+            if isinstance(runtime, str):
+                runtime = literal_eval(runtime)
+            if not isinstance(runtime, dict):
+                runtime = runtime.to_dict()
+
+            if 'spec' not in struct.keys():
+                struct['spec'] = {}
+            struct['spec']['runtime'] = runtime
+
+        if struct and 'spec' in struct.keys() and 'runtime' in struct['spec'].keys():
+            kind = struct['spec']['runtime'].get('kind', '')
+            if kind in ['', 'local']:
+                runtime = LocalRuntime()
+            elif kind == 'remote':
+                runtime = RemoteRuntime()
+            elif kind == 'mpijob':
+                runtime = MpiRuntime()
+            else:
+                raise Exception('unsupported runtime - %s' % kind)
+
+        elif command:
+            if '://' in command:
+                runtime = RemoteRuntime(command, args)
+            else:
+                runtime = LocalRuntime(command, args)
+
         else:
-            runtime = LocalRuntime(runtime, args)
-    elif struct and 'spec' in struct.keys() and 'runtime' in struct['spec'].keys():
-        kind = struct['spec']['runtime'].get('kind', '')
-        if kind in ['', 'local']:
-            runtime = LocalRuntime()
-        elif kind == 'remote':
-            runtime = RemoteRuntime()
-        else:
-            raise Exception('unsupported runtime - %s' % kind)
+            raise Exception('runtime was not specified via struct or runtime or command!')
 
     runtime.rundb = rundb
     runtime.process_struct(struct)
@@ -151,8 +169,10 @@ class RemoteRuntime(MLRuntime):
         secrets = SecretsStore()
         secrets.from_dict(self.struct['spec'])
         self.struct['spec']['secret_sources'] = secrets.to_serial()
+        log_level = self.struct['spec'].get('log_level', 'info')
+        headers = {'x-nuclio-log-level', log_level}
         try:
-            resp = requests.put(self.command, json=json.dumps(self.struct))
+            resp = requests.put(self.command, json=json.dumps(self.struct), headers=headers)
         except OSError as err:
             print('ERROR: %s', str(err))
             raise OSError('error: cannot run function at url {}'.format(self.command))
@@ -161,12 +181,41 @@ class RemoteRuntime(MLRuntime):
             print('bad resp!!')
             return None
 
+        logs = resp.headers.get('X-Nuclio-Logs')
+        if logs:
+            logs = json.loads(logs)
+            for line in logs:
+                print(line)
+
         if self.rundb:
             rundb = get_run_db(self.rundb)
             rundb.connect(secrets)
             rundb.store_run(resp.json(), commit=True)
 
         return resp.json()
+
+
+class MpiRuntime(MLRuntime):
+    kind = 'mpijob'
+    def run(self):
+
+        from .mpijob import MpiJob
+        uid = self.struct['spec'].get('uid', uuid.uuid4().hex)
+        self.struct['spec']['uid'] = uid
+        runtime = self.struct['spec']['runtime']
+
+        mpijob = MpiJob.from_dict(runtime.get('spec'))
+
+        mpijob.env('MLRUN_EXEC_CONFIG', json.dumps(self.struct))
+        if self.rundb:
+            mpijob.env('MLRUN_META_DBPATH', self.rundb)
+
+        mpijob.submit()
+
+        if self.rundb:
+            print(uid)
+
+        return None
 
 
 class HandlerRuntime(MLRuntime):
@@ -201,4 +250,6 @@ class HandlerRuntime(MLRuntime):
 
         out = self.handler(FunctionContext(), Event(body=json.dumps(self.struct)))
         return out
+
+
 

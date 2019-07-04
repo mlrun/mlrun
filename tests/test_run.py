@@ -58,4 +58,4 @@ run_spec =  {'metadata':
 
 
 def test_runtime():
-    print(run_start(run_spec, 'example1.py', rundb='./'))
+    print(run_start(run_spec, command='example1.py', rundb='./'))

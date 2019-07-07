@@ -35,20 +35,26 @@ from subprocess import run, PIPE
 
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
 
+    newspec = {}
     config = environ.get('MLRUN_EXEC_CONFIG')
     if with_env and config:
-        spec = config
+        newspec = config
 
-    if event:
-        spec = event.body
+    elif event:
+        newspec = event.body
         uid = uid or event.id
 
-    if spec and not isinstance(spec, dict):
-        spec = yaml.safe_load(spec)
+    elif spec:
+        newspec = deepcopy(spec)
 
-    if spec and spec.get('spec'):
-        uid = uid or spec['spec'].get('uid')
-    uid = uid or uuid.uuid4().hex
+    if newspec and not isinstance(newspec, dict):
+        newspec = yaml.safe_load(newspec)
+
+    if not newspec.get('metadata'):
+        newspec['metadata'] = {}
+
+    newspec['metadata']['uid'] = uid or newspec['metadata'].get('uid', uuid.uuid4().hex)
+    newspec['metadata']['name'] = name or newspec['metadata'].get('name')
 
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
@@ -56,14 +62,15 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     if out:
         autocommit = True
 
-    ctx = MLClientCtx(name, uid, rundb=out, autocommit=autocommit, tmp=tmp)
-    if spec:
-        ctx.from_dict(spec)
+    ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit, tmp=tmp)
     return ctx
 
 
 def run_start(struct, command='', args=[], runtime=None, rundb='',
               kfp=False, handler=None, hyperparams=None):
+
+    if struct:
+        struct = deepcopy(struct)
 
     if not runtime and handler:
         runtime = HandlerRuntime(handler=handler)
@@ -139,7 +146,7 @@ def task_gen(struct, hyperparams):
     i = 0
     params = grid_to_list(hyperparams)
     max = len(next(iter(params.values())))
-    base_uid = struct['spec'].get('uid', uuid.uuid4().hex)
+    struct['metadata']['uid'] = struct['metadata'].get('uid', uuid.uuid4().hex)
     if not struct['spec'].get('parameters'):
         struct['spec']['parameters'] = {}
 
@@ -147,13 +154,14 @@ def task_gen(struct, hyperparams):
         newstruct = deepcopy(struct)
         for key, values in params.items():
             newstruct['spec']['parameters'][key] = values[i]
-        newstruct['spec']['uid'] = f'{base_uid}-{i}'
+        newstruct['metadata']['instance'] = str(i)
         i += 1
         yield newstruct
 
 
 class MLRuntime:
     kind = ''
+
     def __init__(self, command='', args=[], handler=None):
         self.struct = None
         self.command = command
@@ -263,8 +271,8 @@ class MpiRuntime(MLRuntime):
 
     def run(self):
         from .mpijob import MpiJob
-        uid = self.struct['spec'].get('uid', uuid.uuid4().hex)
-        self.struct['spec']['uid'] = uid
+        uid = self.struct['metadata'].get('uid', uuid.uuid4().hex)
+        self.struct['metadata']['uid'] = uid
         runtime = self.struct['spec']['runtime']
 
         mpijob = MpiJob.from_dict(runtime.get('spec'))
@@ -299,6 +307,9 @@ class HandlerRuntime(MLRuntime):
             out = self.handler(self.struct)
         else:
             out = self.handler()
+
+        if isinstance(out, MLClientCtx):
+            return out.to_dict()
         if isinstance(out, dict):
             return out
         return json.loads(out)

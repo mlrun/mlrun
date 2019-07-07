@@ -26,9 +26,10 @@ from .utils import uxjoin, run_keys
 class MLClientCtx(object):
     """Execution Client Context"""
 
-    def __init__(self, name, uid, rundb: '', autocommit=False, tmp=''):
-        self.uid = uid
-        self.name = name
+    def __init__(self, rundb='', autocommit=False, tmp=''):
+        self._uid = ''
+        self.name = ''
+        self._instance = ''
         self._project = ''
         self._tag = ''
         self._secrets_manager = SecretsStore()
@@ -69,10 +70,15 @@ class MLClientCtx(object):
                 'project': self._project,
                 'uid': self.uid}
 
-    def from_dict(self, attrs={}):
+    @classmethod
+    def from_dict(cls, attrs, rundb='', autocommit=False, tmp=''):
+
+        self = cls(rundb=rundb, autocommit=autocommit, tmp=tmp)
+
         meta = attrs.get('metadata')
         if meta:
-            self.uid = meta.get('uid', self.uid)
+            self._uid = meta.get('uid', self._uid)
+            self._instance = meta.get('instance', self._instance)
             self.name = meta.get('name', self.name)
             self._project = meta.get('project', self._project)
             self._tag = meta.get('tag', self._tag)
@@ -94,9 +100,17 @@ class MLClientCtx(object):
             self._data_stores.from_dict(spec)
             self._artifacts_manager.from_dict(spec)
 
+        return self
+
     def _set_from_json(self, data):
         attrs = json.loads(data)
         self.from_dict(attrs)
+
+    @property
+    def uid(self):
+        if self._instance:
+            return f'{self._uid}-{self._instance}'
+        return self._uid
 
     @property
     def project(self):
@@ -198,7 +212,8 @@ class MLClientCtx(object):
         struct = {
             'metadata':
                 {'name': self.name,
-                 'uid': self.uid,
+                 'uid': self._uid,
+                 'instance': self._instance,
                  'project': self._project,
                  'tag': self._tag,
                  'labels': self._labels,

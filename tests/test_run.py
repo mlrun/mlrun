@@ -13,8 +13,11 @@
 # limitations under the License.
 
 from mlrun.runtimes import get_or_create_ctx, run_start
+from os import environ
 
-def my_func(ctx):
+
+def my_func(spec=None):
+    ctx = get_or_create_ctx('mytask', spec=spec)
     p1 = ctx.get_param('p1', 1)
     p2 = ctx.get_param('p2', 'a-string')
 
@@ -25,13 +28,13 @@ def my_func(ctx):
     ctx.log_output('accuracy', p1 * 2)
     ctx.log_metric('loss', 7)
     ctx.log_artifact('chart')
+    return ctx
 
 
 def test_noparams():
-    ex = get_or_create_ctx('mytask', rundb='./')
-    my_func(ex)
+    environ['MLRUN_META_DBPATH'] = './'
+    result = my_func().to_dict()
 
-    result = ex.to_dict()
     assert result['status']['outputs'].get('accuracy') == 2, 'failed to run'
     assert result['status']['output_artifacts'][0].get('key') == 'chart', 'failed to run'
 
@@ -44,18 +47,46 @@ spec = {'spec': {
 
 
 def test_with_params():
-    ex = get_or_create_ctx('task2', spec=spec)
-    my_func(ex)
-
-    result = ex.to_dict()
+    environ['MLRUN_META_DBPATH'] = './'
+    result = my_func(spec).to_dict()
     assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
     assert result['status']['output_artifacts'][0].get('key') == 'chart', 'failed to run'
 
 run_spec =  {'metadata':
-                 {'labels': {'runtime': 'local', 'owner': 'yaronh'}},
+                 {'labels': {'owner': 'yaronh'}},
              'spec':
-                 {'parameters': {'p1': 5}, 'input_objects': [], 'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+                 {'parameters': {'p1': 5},
+                  'input_objects': [],
+                  'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
 
 
-def test_runtime():
+run_spec_project =  {'metadata':
+                 {'labels': {'owner': 'yaronh'},
+                  'project': 'myproj'},
+             'spec':
+                 {'parameters': {'p1': 5},
+                  'input_objects': [],
+                  'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+
+
+def test_handler():
+    result = run_start(run_spec, handler=my_func, rundb='./')
+    print(result)
+    assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
+
+
+def test_handler_project():
+    result = run_start(run_spec_project, handler=my_func, rundb='./')
+    print(result)
+    assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
+
+
+def test_handler_hyper():
+    result = run_start(run_spec, handler=my_func, rundb='./',
+                       hyperparams={'p1': [1, 2, 3]})
+    print(result)
+    assert len(result) == 3, 'hyper parameters test failed'
+
+
+def test_local_runtime():
     print(run_start(run_spec, command='example1.py', rundb='./'))

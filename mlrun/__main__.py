@@ -41,10 +41,12 @@ def main():
 @click.option('--rundb', default='', help='save run results to path or DB url')
 @click.option('--runtime', '-r', default='', help='runtime environment e.g. local, remote, nuclio, mpi')
 @click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
+@click.option('--hyperparam', '-x', default='', multiple=True,
+              help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 #@click.option('--secrets', '-s', type=click.File(), help='secrets file')
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
-        workflow, project, rundb, runtime, kfp, run_args):
+        workflow, project, rundb, runtime, kfp, hyperparam, run_args):
     """Execute a task and inject parameters."""
 
     meta = {}
@@ -61,19 +63,9 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     set_item(spec['runtime'], run_args, 'args', list(run_args))
 
     if param:
-        params_dict = {}
-        for param in param:
-            i = param.find('=')
-            if i == -1:
-                continue
-            key, value = param[:i].strip(), param[i + 1:].strip()
-            if key is None:
-                raise ValueError(f'cannot find param key in line ({param})')
-            try:
-                params_dict[key] = literal_eval(value)
-            except SyntaxError:
-                params_dict[key] = value
-        spec['parameters'] = params_dict
+        spec['parameters'] = fill_params(param)
+    if hyperparam:
+        hyperparam = fill_params(hyperparam)
 
     set_item(spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))
     set_item(spec, in_path, run_keys.input_path)
@@ -82,9 +74,25 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     set_item(spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
 
     struct = {'metadata': meta, 'spec': spec}
-    resp = run_start(struct, rundb=rundb, kfp=kfp)
+    resp = run_start(struct, rundb=rundb, kfp=kfp, hyperparams=hyperparam)
     if resp:
         print(yaml.dump(resp, default_flow_style=False, sort_keys=False))
+
+def fill_params(param):
+    params_dict = {}
+    for param in param:
+        i = param.find('=')
+        if i == -1:
+            continue
+        key, value = param[:i].strip(), param[i + 1:].strip()
+        if key is None:
+            raise ValueError(f'cannot find param key in line ({param})')
+        try:
+            params_dict[key] = literal_eval(value)
+        except SyntaxError:
+            params_dict[key] = value
+    return params_dict
+
 
 
 def set_item(struct, item, key, value=None):

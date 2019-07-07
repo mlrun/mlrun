@@ -16,7 +16,9 @@ import json
 import logging
 import os
 import uuid
+import inspect
 from ast import literal_eval
+from copy import deepcopy
 from os import environ
 from tempfile import mktemp
 
@@ -27,23 +29,26 @@ from .kfp import write_kfpmeta
 from .execution import MLClientCtx
 from .rundb import get_run_db
 from .secrets import SecretsStore
-from sys import executable, stderr, stdout
+from sys import executable, stderr
 from subprocess import run, PIPE
 
 
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
 
-    if event:
-        spec = event.body
-        uid = uid or event.id
-
     config = environ.get('MLRUN_EXEC_CONFIG')
     if with_env and config:
         spec = config
 
-    uid = uid or uuid.uuid4().hex
+    if event:
+        spec = event.body
+        uid = uid or event.id
+
     if spec and not isinstance(spec, dict):
         spec = yaml.safe_load(spec)
+
+    if spec and spec.get('spec'):
+        uid = uid or spec['spec'].get('uid')
+    uid = uid or uuid.uuid4().hex
 
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
@@ -57,9 +62,10 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     return ctx
 
 
-def run_start(struct, runtime=None, command='', args=[], rundb='', kfp=False, handler=None):
+def run_start(struct, command='', args=[], runtime=None, rundb='',
+              kfp=False, handler=None, hyperparams=None):
 
-    if handler:
+    if not runtime and handler:
         runtime = HandlerRuntime(handler=handler)
     else:
         if runtime:
@@ -81,6 +87,8 @@ def run_start(struct, runtime=None, command='', args=[], rundb='', kfp=False, ha
                 runtime = LocalRuntime()
             elif kind == 'mpijob':
                 runtime = MpiRuntime()
+            elif kind == 'dask':
+                runtime = DaskRuntime()
             else:
                 raise Exception('unsupported runtime - %s' % kind)
 
@@ -93,20 +101,55 @@ def run_start(struct, runtime=None, command='', args=[], rundb='', kfp=False, ha
         else:
             raise Exception('runtime was not specified via struct or runtime or command!')
 
-    print(runtime, runtime.kind)
     runtime.rundb = rundb
+    runtime.handler = handler
     runtime.process_struct(struct)
-    resp = runtime.run()
-
-    # todo: add runtimes, e.g. Horovod, Pipelines workflow
+    if hyperparams:
+        resp = runtime.run_many(hyperparams)
+    else:
+        resp = runtime.run()
 
     if not resp:
         return {}
-    struct = json.loads(resp)
+
+    if isinstance(resp, str):
+        resp = json.loads(resp)
 
     if kfp:
-        write_kfpmeta(struct)
-    return struct
+        write_kfpmeta(resp)
+    return resp
+
+
+def grid_to_list(params={}):
+    arr = {}
+    lastlen = 1
+    for pk, pv in params.items():
+        for p in arr.keys():
+            arr[p] = arr[p] * len(pv)
+        expanded = []
+        for i in range(len(pv)):
+            expanded += [pv[i]] * lastlen
+        arr[pk] = expanded
+        lastlen = lastlen * len(pv)
+
+    return arr
+
+
+def task_gen(struct, hyperparams):
+    i = 0
+    params = grid_to_list(hyperparams)
+    max = len(next(iter(params.values())))
+    base_uid = struct['spec'].get('uid', uuid.uuid4().hex)
+    if not struct['spec'].get('parameters'):
+        struct['spec']['parameters'] = {}
+
+    while i < max:
+        newstruct = deepcopy(struct)
+        for key, values in params.items():
+            newstruct['spec']['parameters'][key] = values[i]
+        newstruct['spec']['uid'] = f'{base_uid}-{i}'
+        i += 1
+        yield newstruct
 
 
 class MLRuntime:
@@ -117,6 +160,7 @@ class MLRuntime:
         self.args = args
         self.handler = handler
         self.rundb = ''
+        self.hyperparams = None
 
     def process_struct(self, struct):
         self.struct = struct
@@ -138,8 +182,23 @@ class MLRuntime:
     def run(self):
         pass
 
+    def run_many(self, hyperparams={}):
+        base_struct = self.struct
+        results = []
+        for task in task_gen(base_struct, hyperparams):
+            self.struct = task
+            resp = self.run()
+            results.append(resp)
+
+        return results
+
+    def _force_handler(self):
+        if not self.handler:
+            raise ValueError('handler must be provided for {} runtime'.format(self.kind))
+
 
 class LocalRuntime(MLRuntime):
+    kind = 'local'
 
     def run(self):
         environ['MLRUN_EXEC_CONFIG'] = json.dumps(self.struct)
@@ -160,13 +219,15 @@ class LocalRuntime(MLRuntime):
             with open(tmp) as fp:
                 resp = fp.read()
             os.remove(tmp)
-            return resp
+            if resp:
+                return json.loads(resp)
         except FileNotFoundError as err:
             print(err)
 
 
 class RemoteRuntime(MLRuntime):
     kind = 'remote'
+
     def run(self):
         secrets = SecretsStore()
         secrets.from_dict(self.struct['spec'])
@@ -199,8 +260,8 @@ class RemoteRuntime(MLRuntime):
 
 class MpiRuntime(MLRuntime):
     kind = 'mpijob'
-    def run(self):
 
+    def run(self):
         from .mpijob import MpiJob
         uid = self.struct['spec'].get('uid', uuid.uuid4().hex)
         self.struct['spec']['uid'] = uid
@@ -222,36 +283,61 @@ class MpiRuntime(MLRuntime):
 
 class HandlerRuntime(MLRuntime):
     kind = 'handler'
+
     def run(self):
-        from nuclio_sdk import Context as _Context, Logger
-        from nuclio_sdk.logger import HumanReadableFormatter
-        from nuclio_sdk import Event  # noqa
-
-        class FunctionContext(_Context):
-            """Wrapper around nuclio_sdk.Context to make automatically create
-            logger"""
-
-            def __getattribute__(self, attr):
-                value = object.__getattribute__(self, attr)
-                if value is None and attr == 'logger':
-                    value = self.logger = Logger(level=logging.INFO)
-                    value.set_handler(
-                        'mlrun', stdout, HumanReadableFormatter())
-                return value
-
-            def set_logger_level(self, verbose=False):
-                if verbose:
-                    level = logging.DEBUG
-                else:
-                    level = logging.INFO
-                value = self.logger = Logger(level=level)
-                value.set_handler('mlrun', stdout, HumanReadableFormatter())
-
+        self._force_handler()
         if self.rundb:
             environ['MLRUN_META_DBPATH'] = self.rundb
 
-        out = self.handler(FunctionContext(), Event(body=json.dumps(self.struct)))
-        return out
+        args = inspect.signature(self.handler).parameters
+        if len(args) > 1 and args[0] == 'context':
+            # its a nuclio function
+            from .utils import fake_nuclio_context
+            context, event = fake_nuclio_context(self.struct)
+            out = self.handler(context, event)
+        elif len(args) == 1:
+            out = self.handler(self.struct)
+        else:
+            out = self.handler()
+        if isinstance(out, dict):
+            return out
+        return json.loads(out)
+
+
+class DaskRuntime(MLRuntime):
+    kind = 'dask'
+
+    def run(self):
+        self._force_handler()
+        from dask import delayed
+        if self.rundb:
+            # todo: remote dask via k8s spec env
+            environ['MLRUN_META_DBPATH'] = self.rundb
+
+        task = delayed(self.handler)(self.struct)
+        out = task.compute()
+        if isinstance(out, dict):
+            return out
+        return json.loads(out)
+
+    def run_many(self, hyperparams={}):
+        self._force_handler()
+        from dask.distributed import Client, default_client, as_completed
+        try:
+            client = default_client()
+        except ValueError:
+            client = Client()  # todo: k8s client
+
+        base_struct = self.struct
+        tasks = list(task_gen(base_struct, hyperparams))
+        results = []
+        futures = client.map(self.handler, tasks)
+        for batch in as_completed(futures, with_results=True).batches():
+            for future, result in batch:
+                results.append(result)
+
+        return results
+
 
 
 

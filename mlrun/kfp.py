@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+from copy import deepcopy
+
 import yaml
 from os import environ
 from .utils import run_keys
@@ -56,12 +58,21 @@ def write_kfpmeta(struct):
                     'source': target}
                 outputs += [meta]
 
+    text = '# Run Report\n'
     if 'iterations' in struct['status']:
+        iter = struct['status']['iterations']
         with open(f'/tmp/iterations', 'w') as fp:
-            fp.write(json.dumps(struct['status']['iterations']))
+            fp.write(json.dumps(iter))
+        iter_html = gen_md_table(iter[0], iter[1:])
+        text += '## Iterations\n' + iter_html
+        struct = deepcopy(struct)
+        struct['status']['iterations'] = []
 
-    text = yaml.dump(struct, default_flow_style=False, sort_keys=False)
-    text = "# Run Report\n```yaml\n" + text + "```\n"
+
+    text += "## Metadata\n```yaml\n" + \
+           yaml.dump(struct, default_flow_style=False, sort_keys=False) + \
+           "```\n"
+
     metadata = {
         'outputs': outputs + [{
             'type': 'markdown',
@@ -100,7 +111,7 @@ def mlrun_op(name='', image='v3io/mlrun', command='', params={}, inputs={}, outp
     return cop
 
 
-def gen_md_table(header, rows=[], sections=[]):
+def gen_md_table(header, rows=[]):
 
     style = '''    
 <style type="text/css">
@@ -117,12 +128,7 @@ def gen_md_table(header, rows=[], sections=[]):
         return out
 
     out = ''
-    if sections:
-        out += '<tr>'
-        for span, title in sections:
-            out += f'<th colspan={span}>{title}</th>'
-        out += '</tr>\n'
     out += '<tr>' + gen_list(header, 'th') + '</tr>\n'
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
-    return style + '<table class="tg">\n' + out + '</table>'
+    return style + '<table class="tg">\n' + out + '</table>\n\n'

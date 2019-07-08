@@ -21,6 +21,7 @@ from copy import deepcopy
 from os import environ
 from tempfile import mktemp
 
+import pandas as pd
 import requests
 import yaml
 
@@ -359,7 +360,10 @@ class DaskRuntime(MLRuntime):
         futures = client.map(self.handler, tasks)
         for batch in as_completed(futures, with_results=True).batches():
             for future, result in batch:
-                results.append(result)
+                if result:
+                    results.append(json.loads(result))
+                else:
+                    print("Dask RESULT = None")
 
         base_struct['status'] = {'start_time': str(start)}
         base_struct['spec']['hyperparams'] = hyperparams
@@ -370,14 +374,16 @@ class DaskRuntime(MLRuntime):
 def results_to_iter_status(base_struct, results):
     iter = []
     for task in results:
-        struct = {'parameters': task['spec'].get('parameters', []),
-                  'outputs': task['status'].get('outputs', []),
-                  'output_artifacts': task['status'].get('output_artifacts', []),
+        struct = {'param': task['spec'].get('parameters', {}),
+                  'output': task['status'].get('outputs', {}),
                   'state': task['status'].get('state'),
-                  'iteration': task['metadata'].get('iteration'),
+                  'iter': task['metadata'].get('iteration'),
                   }
         iter.append(struct)
 
-    base_struct['status']['iterations'] = iter
+    df = pd.io.json.json_normalize(iter).sort_values('iter')
+    iter_table = [df.columns.values.tolist()] + df.values.tolist()
+    base_struct['status']['iterations'] = iter_table
     base_struct['status']['state'] = 'completed'
     base_struct['status']['last_update'] = str(datetime.now())
+    print(yaml.dump(base_struct))

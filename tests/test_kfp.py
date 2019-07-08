@@ -97,5 +97,5 @@ def test_kfp_hyper():
     with open('/tmp/iterations') as fp:
         iter = json.load(fp)
         print(yaml.dump(iter))
-    assert len(iter) == 3, 'didnt see expected iterations file output'
+    assert len(iter) == 3+1, 'didnt see expected iterations file output'
 

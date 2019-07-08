@@ -16,6 +16,8 @@ import json
 from os import path
 from urllib.parse import urlparse
 import yaml
+
+from .utils import dict_to_yaml
 from .datastore import StoreManager
 
 
@@ -34,10 +36,10 @@ class RunDBInterface:
     def connect(self, secrets=None):
         pass
 
-    def store_run(self, execution, elements=[], commit=False):
+    def store_run(self, struct, uid, project='', commit=False):
         pass
 
-    def read_run(self, uid):
+    def read_run(self, uid, project=''):
         pass
 
     def store_artifact(self, key, artifact, tag='', project=''):
@@ -65,15 +67,15 @@ class FileRunDB(RunDBInterface):
         sm =StoreManager(secrets)
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
 
-    def store_run(self, execution, elements=[], commit=False):
+    def store_run(self, struct, uid, project='', commit=False):
         if self.format == '.yaml':
-            data = execution.to_yaml()
+            data = dict_to_yaml(struct)
         else:
-            data = execution.to_json()
-        filepath = self._filepath(execution.uid, '', execution.project, 'runs')
+            data = json.dumps(struct)
+        filepath = self._filepath(uid, '', project, 'runs')
         self._datastore.put(filepath, data)
 
-    def read_run(self, uid, project='default'):
+    def read_run(self, uid, project=''):
         filepath = self._filepath(uid, '', project, 'runs')
         data = self._datastore.get(filepath)
         if self.format == '.yaml':

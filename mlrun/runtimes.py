@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from datetime import datetime
 import json
-import logging
 import os
 import uuid
 import inspect
@@ -146,15 +145,17 @@ def task_gen(struct, hyperparams):
     i = 0
     params = grid_to_list(hyperparams)
     max = len(next(iter(params.values())))
+    if 'metadata' not in struct:
+        struct['metadata'] = {}
     struct['metadata']['uid'] = struct['metadata'].get('uid', uuid.uuid4().hex)
-    if not struct['spec'].get('parameters'):
+    if 'parameters' not in struct['spec']:
         struct['spec']['parameters'] = {}
 
     while i < max:
         newstruct = deepcopy(struct)
         for key, values in params.items():
             newstruct['spec']['parameters'][key] = values[i]
-        newstruct['metadata']['instance'] = str(i)
+        newstruct['metadata']['iteration'] = i + 1
         i += 1
         yield newstruct
 
@@ -169,12 +170,13 @@ class MLRuntime:
         self.handler = handler
         self.rundb = ''
         self.hyperparams = None
+        self._secrets = None
 
     def process_struct(self, struct):
         self.struct = struct
-        if 'spec' not in self.struct.keys():
+        if 'spec' not in self.struct:
             self.struct['spec'] = {}
-        if 'runtime' not in self.struct['spec'].keys():
+        if 'runtime' not in self.struct['spec']:
             self.struct['spec']['runtime'] = {}
 
         self.struct['spec']['runtime']['kind'] = self.kind
@@ -187,10 +189,24 @@ class MLRuntime:
         else:
             self.args = self.struct['spec']['runtime'].get('args', [])
 
+    def save_run(self, struct, state='completed'):
+        if self.rundb:
+            rundb = get_run_db(self.rundb)
+            if not self._secrets:
+                self._secrets = SecretsStore.from_dict(struct['spec'])
+            rundb.connect(self._secrets)
+            struct['status']['state'] = state
+            uid = struct['metadata']['uid']
+            project = struct['metadata'].get('project', '')
+            rundb.store_run(struct, uid, project, commit=True)
+        return struct
+
+
     def run(self):
         pass
 
     def run_many(self, hyperparams={}):
+        start = datetime.now()
         base_struct = self.struct
         results = []
         for task in task_gen(base_struct, hyperparams):
@@ -198,7 +214,10 @@ class MLRuntime:
             resp = self.run()
             results.append(resp)
 
-        return results
+        base_struct['status'] = {'start_time': str(start)}
+        base_struct['spec']['hyperparams'] = hyperparams
+        results_to_iter_status(base_struct, results)
+        return base_struct
 
     def _force_handler(self):
         if not self.handler:
@@ -228,7 +247,7 @@ class LocalRuntime(MLRuntime):
                 resp = fp.read()
             os.remove(tmp)
             if resp:
-                return json.loads(resp)
+                return self.save_run(json.loads(resp))
         except FileNotFoundError as err:
             print(err)
 
@@ -237,9 +256,8 @@ class RemoteRuntime(MLRuntime):
     kind = 'remote'
 
     def run(self):
-        secrets = SecretsStore()
-        secrets.from_dict(self.struct['spec'])
-        self.struct['spec']['secret_sources'] = secrets.to_serial()
+        self._secrets = SecretsStore.from_dict(self.struct['spec'])
+        self.struct['spec']['secret_sources'] = self._secrets.to_serial()
         log_level = self.struct['spec'].get('log_level', 'info')
         headers = {'x-nuclio-log-level': log_level}
         try:
@@ -258,12 +276,7 @@ class RemoteRuntime(MLRuntime):
             for line in logs:
                 print(line)
 
-        if self.rundb:
-            rundb = get_run_db(self.rundb)
-            rundb.connect(secrets)
-            rundb.store_run(resp.json(), commit=True)
-
-        return resp.json()
+        return self.save_run(resp.json())
 
 
 class MpiRuntime(MLRuntime):
@@ -310,7 +323,7 @@ class HandlerRuntime(MLRuntime):
 
         if isinstance(out, MLClientCtx):
             return out.to_dict()
-        if isinstance(out, dict):
+        if not out or isinstance(out, dict):
             return out
         return json.loads(out)
 
@@ -332,6 +345,7 @@ class DaskRuntime(MLRuntime):
         return json.loads(out)
 
     def run_many(self, hyperparams={}):
+        start = datetime.now()
         self._force_handler()
         from dask.distributed import Client, default_client, as_completed
         try:
@@ -347,8 +361,23 @@ class DaskRuntime(MLRuntime):
             for future, result in batch:
                 results.append(result)
 
-        return results
+        base_struct['status'] = {'start_time': str(start)}
+        base_struct['spec']['hyperparams'] = hyperparams
+        results_to_iter_status(base_struct, results)
+        return base_struct
 
 
+def results_to_iter_status(base_struct, results):
+    iter = []
+    for task in results:
+        struct = {'parameters': task['spec'].get('parameters', []),
+                  'outputs': task['status'].get('outputs', []),
+                  'output_artifacts': task['status'].get('output_artifacts', []),
+                  'state': task['status'].get('state'),
+                  'iteration': task['metadata'].get('iteration'),
+                  }
+        iter.append(struct)
 
-
+    base_struct['status']['iterations'] = iter
+    base_struct['status']['state'] = 'completed'
+    base_struct['status']['last_update'] = str(datetime.now())

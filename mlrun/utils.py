@@ -43,6 +43,10 @@ def list2dict(lines: list):
     return out
 
 
+def dict_to_yaml(struct):
+    return yaml.dump(struct, default_flow_style=False, sort_keys=False)
+
+
 def uxjoin(base, path):
     if base:
         if not base.endswith('/'):

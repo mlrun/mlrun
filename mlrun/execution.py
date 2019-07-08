@@ -29,7 +29,7 @@ class MLClientCtx(object):
     def __init__(self, rundb='', autocommit=False, tmp=''):
         self._uid = ''
         self.name = ''
-        self._instance = ''
+        self._iteration = 0
         self._project = ''
         self._tag = ''
         self._secrets_manager = SecretsStore()
@@ -78,7 +78,7 @@ class MLClientCtx(object):
         meta = attrs.get('metadata')
         if meta:
             self._uid = meta.get('uid', self._uid)
-            self._instance = meta.get('instance', self._instance)
+            self._iteration = meta.get('iteration', self._iteration)
             self.name = meta.get('name', self.name)
             self._project = meta.get('project', self._project)
             self._tag = meta.get('tag', self._tag)
@@ -86,7 +86,7 @@ class MLClientCtx(object):
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
         if spec:
-            self._secrets_manager.from_dict(spec)
+            self._secrets_manager = SecretsStore.from_dict(spec)
             self._runtime = spec.get('log_level', self._log_level)
             self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
@@ -100,6 +100,7 @@ class MLClientCtx(object):
             self._data_stores.from_dict(spec)
             self._artifacts_manager.from_dict(spec)
 
+        self._update_db(commit=True)
         return self
 
     def _set_from_json(self, data):
@@ -108,8 +109,8 @@ class MLClientCtx(object):
 
     @property
     def uid(self):
-        if self._instance:
-            return f'{self._uid}-{self._instance}'
+        if self._iteration:
+            return f'{self._uid}-{self._iteration}'
         return self._uid
 
     @property
@@ -206,6 +207,7 @@ class MLClientCtx(object):
         self._update_db()
 
     def commit(self, message=''):
+        self._annotations['message'] = message
         self._update_db(commit=True, message=message)
 
     def to_dict(self):
@@ -213,7 +215,7 @@ class MLClientCtx(object):
             'metadata':
                 {'name': self.name,
                  'uid': self._uid,
-                 'instance': self._instance,
+                 'iteration': self._iteration,
                  'project': self._project,
                  'tag': self._tag,
                  'labels': self._labels,
@@ -251,7 +253,7 @@ class MLClientCtx(object):
 
         if commit or self._autocommit:
             if self._rundb:
-                self._rundb.store_run(self, elements, commit)
+                self._rundb.store_run(self.to_dict(), self.uid, self.project, commit)
 
 
 class MLMetric(object):

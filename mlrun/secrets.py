@@ -21,11 +21,14 @@ class SecretsStore:
     def __init__(self):
         self._secrets = {}
 
-    def from_dict(self, struct: dict):
+    @classmethod
+    def from_dict(cls, struct: dict):
+        store = cls()
         src_list = struct.get(run_keys.secrets)
         if src_list and isinstance(src_list, list):
             for src in src_list:
-                self._add_source(src['kind'], src.get('source'), src.get('prefix', ''))
+                store._add_source(src['kind'], src.get('source'), src.get('prefix', ''))
+        return store
 
     def to_dict(self, struct):
         pass

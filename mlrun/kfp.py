@@ -14,22 +14,24 @@
 
 import json
 import yaml
+from os import environ
 from .utils import run_keys
 
-KFPMETA_DIR = '/'
+KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
 
 def write_kfpmeta(struct):
-    outputs = struct['status']['outputs']
+    outputs = struct['status'].get('outputs', {})
     metrics = {'metrics':
-                   [{'name': k, 'numberValue':v } for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
+                   [{'name': k, 'numberValue': v} for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
 
     outputs = []
-    for output in struct['status'][run_keys.output_artifacts]:
+    for output in struct['status'].get(run_keys.output_artifacts, []):
         key = output["key"]
         target = output.get('target_path', '')
+        target = output.get('inline', target)
         try:
             with open(f'/tmp/{key}', 'w') as fp:
                 fp.write(target)
@@ -53,6 +55,10 @@ def write_kfpmeta(struct):
                     'header': header,
                     'source': target}
                 outputs += [meta]
+
+    if 'iterations' in struct['status']:
+        with open(f'/tmp/iterations', 'w') as fp:
+            fp.write(json.dumps(struct['status']['iterations']))
 
     text = yaml.dump(struct, default_flow_style=False, sort_keys=False)
     text = "# Run Report\n```yaml\n" + text + "```\n"
@@ -92,3 +98,31 @@ def mlrun_op(name='', image='v3io/mlrun', command='', params={}, inputs={}, outp
     #cop.apply(mount_v3io(container='users', sub_path='/iguazio', mount_path='/User'))
     #cop.apply(v3io_cred())
     return cop
+
+
+def gen_md_table(header, rows=[], sections=[]):
+
+    style = '''    
+<style type="text/css">
+.tg  {border-collapse:collapse;border-spacing:0;}
+.tg td{border-style:solid;border-width:1px;padding:6px 4px;}
+.tg th{font-weight:normal;border-style:solid;border-width:1px;padding:6px 4px;}
+</style>
+'''
+
+    def gen_list(items=[], tag='td'):
+        out = ''
+        for item in items:
+            out += f'<{tag}>{item}</{tag}>'
+        return out
+
+    out = ''
+    if sections:
+        out += '<tr>'
+        for span, title in sections:
+            out += f'<th colspan={span}>{title}</th>'
+        out += '</tr>\n'
+    out += '<tr>' + gen_list(header, 'th') + '</tr>\n'
+    for r in rows:
+        out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
+    return style + '<table class="tg">\n' + out + '</table>'

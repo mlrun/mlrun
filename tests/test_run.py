@@ -85,7 +85,7 @@ def test_handler_hyper():
     result = run_start(run_spec, handler=my_func, rundb='./',
                        hyperparams={'p1': [1, 2, 3]})
     print(result)
-    assert len(result) == 3, 'hyper parameters test failed'
+    assert len(result['status']['iterations']) == 3, 'hyper parameters test failed'
 
 
 def test_local_runtime():

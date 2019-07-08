@@ -92,10 +92,12 @@ class ArtifactManager:
 
 class Artifact(ModelObj):
 
-    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description', 'viewer']
+    _dict_fields = ['key', 'src_path', 'target_path', 'hash',
+                    'description', 'viewer', 'inline']
     kind = ''
 
-    def __init__(self, key, body=None, src_path='', target_path='', tag='', viewer=''):
+    def __init__(self, key, body=None, src_path='', target_path='',
+                 tag='', viewer='', inline=False):
         self._key = key
         self.tag = tag
         self.target_path = target_path
@@ -107,11 +109,18 @@ class Artifact(ModelObj):
         self.sources = []
         self.execution = None
         self.hash = None
+        self._inline = inline
         self.license = ''
 
     @property
     def key(self):
         return self._key
+
+    @property
+    def inline(self):
+        if self._inline:
+            return self.get_body()
+        return None
 
     def get_body(self):
         return self._body

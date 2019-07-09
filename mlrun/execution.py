@@ -114,6 +114,10 @@ class MLClientCtx(object):
         return self._uid
 
     @property
+    def iteration(self):
+        return self._iteration
+
+    @property
     def project(self):
         return self._project
 

@@ -66,12 +66,15 @@ def write_kfpmeta(struct):
         iter_html = gen_md_table(iter[0], iter[1:])
         text += '## Iterations\n' + iter_html
         struct = deepcopy(struct)
-        struct['status']['iterations'] = []
+        del struct['status']['iterations']
 
 
     text += "## Metadata\n```yaml\n" + \
            yaml.dump(struct, default_flow_style=False, sort_keys=False) + \
            "```\n"
+
+    with open('sum.md', 'w') as fp:
+        fp.write(text)
 
     metadata = {
         'outputs': outputs + [{
@@ -113,6 +116,20 @@ def mlrun_op(name='', image='v3io/mlrun', command='', params={}, inputs={}, outp
 
 def gen_md_table(header, rows=[]):
 
+    def gen_list(items=[]):
+        out = '|'
+        for i in items:
+            out += f'{i}|'
+        return out
+
+    out = gen_list(header) + '\n' + gen_list(len(header) * ['-']) + '\n'
+    for r in rows:
+        out += gen_list(r) + '\n'
+    return out
+
+
+def gen_html_table(header, rows=[]):
+
     style = '''    
 <style type="text/css">
 .tg  {border-collapse:collapse;border-spacing:0;}
@@ -127,8 +144,7 @@ def gen_md_table(header, rows=[]):
             out += f'<{tag}>{item}</{tag}>'
         return out
 
-    out = ''
-    out += '<tr>' + gen_list(header, 'th') + '</tr>\n'
+    out = '<tr>' + gen_list(header, 'th') + '</tr>\n'
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
     return style + '<table class="tg">\n' + out + '</table>\n\n'

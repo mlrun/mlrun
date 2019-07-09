@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.runtimes import get_or_create_ctx, run_start
+from mlrun.run import get_or_create_ctx, run_start
+from mlrun.utils import run_keys
 from os import environ
 
 
@@ -36,13 +37,13 @@ def test_noparams():
     result = my_func().to_dict()
 
     assert result['status']['outputs'].get('accuracy') == 2, 'failed to run'
-    assert result['status']['output_artifacts'][0].get('key') == 'chart', 'failed to run'
+    assert result['status'][run_keys.output_artifacts][0].get('key') == 'chart', 'failed to run'
 
 
 spec = {'spec': {
     'parameters':{'p1':8},
     'secret_sources': [{'kind':'file', 'source': 'secrets.txt'}],
-    'input_artifacts': [{'key':'infile.txt', 'path':'s3://yarons-tests/infile.txt'}],
+    run_keys.input_objects: [{'key':'infile.txt', 'path':'s3://yarons-tests/infile.txt'}],
 }}
 
 
@@ -50,14 +51,15 @@ def test_with_params():
     environ['MLRUN_META_DBPATH'] = './'
     result = my_func(spec).to_dict()
     assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
-    assert result['status']['output_artifacts'][0].get('key') == 'chart', 'failed to run'
+    assert result['status'][run_keys.output_artifacts][0].get('key') == 'chart', 'failed to run'
 
 run_spec =  {'metadata':
                  {'labels': {'owner': 'yaronh'}},
              'spec':
                  {'parameters': {'p1': 5},
-                  'input_objects': [],
-                  'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+                  run_keys.input_objects: [],
+                  'secret_sources': [
+                      {'kind': 'file', 'source': 'secrets.txt'}]}}
 
 
 run_spec_project =  {'metadata':
@@ -89,4 +91,4 @@ def test_handler_hyper():
 
 
 def test_local_runtime():
-    print(run_start(run_spec, command='example1.py', rundb='./'))
+    print(run_start(spec, command='example1.py', rundb='./'))

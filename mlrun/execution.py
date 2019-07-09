@@ -26,24 +26,17 @@ from .utils import uxjoin, run_keys
 class MLClientCtx(object):
     """Execution Client Context"""
 
-    def __init__(self, rundb='', autocommit=False, tmp=''):
+    def __init__(self, autocommit=False, tmp=''):
         self._uid = ''
         self.name = ''
         self._iteration = 0
         self._project = ''
         self._tag = ''
         self._secrets_manager = SecretsStore()
-        self._data_stores = StoreManager(self._secrets_manager)
 
         # runtime db service interfaces
         self._rundb = None
-        if rundb:
-            self._rundb = get_run_db(rundb)
-            self._rundb.connect(self._secrets_manager)
         self._tmpfile = tmp
-        self._artifacts_manager = ArtifactManager(
-            self._data_stores, self, db=self._rundb)
-
         self._logger = None
         self._log_level = 'info'
         self._matrics_db = None
@@ -63,6 +56,14 @@ class MLClientCtx(object):
         self._start_time = datetime.now()
         self._last_update = datetime.now()
 
+    def _init_dbs(self, rundb):
+        if rundb:
+            self._rundb = get_run_db(rundb)
+            self._rundb.connect(self._secrets_manager)
+        self._data_stores = StoreManager(self._secrets_manager)
+        self._artifacts_manager = ArtifactManager(
+            self._data_stores, self, db=self._rundb)
+
     def get_meta(self):
         return {'name': self.name,
                 'labels': self.labels,
@@ -73,7 +74,7 @@ class MLClientCtx(object):
     @classmethod
     def from_dict(cls, attrs, rundb='', autocommit=False, tmp=''):
 
-        self = cls(rundb=rundb, autocommit=autocommit, tmp=tmp)
+        self = cls(autocommit=autocommit, tmp=tmp)
 
         meta = attrs.get('metadata')
         if meta:
@@ -93,19 +94,19 @@ class MLClientCtx(object):
             self._out_path = spec.get(run_keys.output_path, self._out_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             in_list = spec.get(run_keys.input_objects)
+
+        self._init_dbs(rundb)
+
+        if spec:
+            # init data related objects (require DB & Secrets to be set first)
+            self._data_stores.from_dict(spec)
+            self._artifacts_manager.from_dict(spec)
             if in_list and isinstance(in_list, list):
                 for item in in_list:
                     self._set_object(item['key'], item.get('path'))
 
-            self._data_stores.from_dict(spec)
-            self._artifacts_manager.from_dict(spec)
-
         self._update_db(commit=True)
         return self
-
-    def _set_from_json(self, data):
-        attrs = json.loads(data)
-        self.from_dict(attrs)
 
     @property
     def uid(self):

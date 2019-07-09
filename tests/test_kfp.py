@@ -22,7 +22,7 @@ environ['KFPMETA_OUT_DIR'] = './'
 from tempfile import mktemp
 from copy import deepcopy
 
-from mlrun.runtimes import get_or_create_ctx, run_start
+from mlrun.run import get_or_create_ctx, run_start
 from mlrun.artifacts import ChartArtifact, TableArtifact
 
 from mlrun.utils import run_keys

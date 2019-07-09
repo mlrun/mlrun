@@ -109,3 +109,37 @@ def fake_nuclio_context(struct):
     return FunctionContext(), Event(body=json.dumps(struct))
 
 
+def gen_md_table(header, rows=[]):
+
+    def gen_list(items=[]):
+        out = '|'
+        for i in items:
+            out += f' {i} |'
+        return out
+
+    out = gen_list(header) + '\n' + gen_list(len(header) * ['---']) + '\n'
+    for r in rows:
+        out += gen_list(r) + '\n'
+    return out
+
+
+def gen_html_table(header, rows=[]):
+
+    style = '''    
+<style type="text/css">
+.tg  {border-collapse:collapse;border-spacing:0;}
+.tg td{border-style:solid;border-width:1px;padding:6px 4px;}
+.tg th{font-weight:normal;border-style:solid;border-width:1px;padding:6px 4px;}
+</style>
+'''
+
+    def gen_list(items=[], tag='td'):
+        out = ''
+        for item in items:
+            out += f'<{tag}>{item}</{tag}>'
+        return out
+
+    out = '<tr>' + gen_list(header, 'th') + '</tr>\n'
+    for r in rows:
+        out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
+    return style + '<table class="tg">\n' + out + '</table>\n\n'

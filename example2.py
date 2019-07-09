@@ -1,6 +1,6 @@
 import json
 import os
-from mlrun.runtimes import get_or_create_ctx
+from mlrun.run import get_or_create_ctx
 
 
 def my_func(ctx):

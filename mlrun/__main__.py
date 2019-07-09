@@ -18,7 +18,8 @@ from ast import literal_eval
 import getpass
 import yaml
 
-from .runtimes import run_start, RunError
+from .run import run_start
+from .runtimes import RunError
 from .utils import run_keys
 
 @click.group()
@@ -44,7 +45,6 @@ def main():
 @click.option('--hyperparam', '-x', default='', multiple=True,
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
-#@click.option('--secrets', '-s', type=click.File(), help='secrets file')
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
         workflow, project, rundb, runtime, kfp, hyperparam, run_args):
     """Execute a task and inject parameters."""
@@ -59,8 +59,16 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     set_item(labels, workflow, 'workflow')
     meta['labels'] = labels
 
-    spec = {'runtime': {'kind': runtime, 'command': url}}
+    if runtime:
+        runtime = py_eval(runtime)
+        if isinstance(runtime, str):
+            runtime = {'kind': runtime}
+    else:
+        runtime = {'kind': ''}
+
+    spec = {'runtime': runtime}
     set_item(spec['runtime'], run_args, 'args', list(run_args))
+    set_item(spec['runtime'], url, 'command')
 
     if param:
         spec['parameters'] = fill_params(param)
@@ -92,11 +100,16 @@ def fill_params(param):
         key, value = param[:i].strip(), param[i + 1:].strip()
         if key is None:
             raise ValueError(f'cannot find param key in line ({param})')
-        try:
-            params_dict[key] = literal_eval(value)
-        except (SyntaxError, ValueError):
-            params_dict[key] = value
+        params_dict[key] = py_eval(value)
     return params_dict
+
+
+def py_eval(data):
+    try:
+        value = literal_eval(data)
+        return value
+    except (SyntaxError, ValueError):
+        return data
 
 
 def set_item(struct, item, key, value=None):

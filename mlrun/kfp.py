@@ -28,6 +28,7 @@ def write_kfpmeta(struct):
                    [{'name': k, 'numberValue': v} for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
+    print('wrote metrics:', metrics, 'to:', KFPMETA_DIR + 'mlpipeline-metrics.json')
 
     outputs = []
     for output in struct['status'].get(run_keys.output_artifacts, []):

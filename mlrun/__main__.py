@@ -18,7 +18,7 @@ from ast import literal_eval
 import getpass
 import yaml
 
-from .runtimes import run_start
+from .runtimes import run_start, RunError
 from .utils import run_keys
 
 @click.group()
@@ -74,9 +74,14 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     set_item(spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
 
     struct = {'metadata': meta, 'spec': spec}
-    resp = run_start(struct, rundb=rundb, kfp=kfp, hyperparams=hyperparam)
+    try:
+        resp = run_start(struct, rundb=rundb, kfp=kfp, hyperparams=hyperparam)
+    except RunError as err:
+        print(f'runtime error: {err}')
+        exit(1)
     if resp:
         print(yaml.dump(resp, default_flow_style=False, sort_keys=False))
+
 
 def fill_params(param):
     params_dict = {}
@@ -85,15 +90,13 @@ def fill_params(param):
         if i == -1:
             continue
         key, value = param[:i].strip(), param[i + 1:].strip()
-        print('param:', key, value, '|', param)
         if key is None:
             raise ValueError(f'cannot find param key in line ({param})')
         try:
             params_dict[key] = literal_eval(value)
-        except SyntaxError:
+        except (SyntaxError, ValueError):
             params_dict[key] = value
     return params_dict
-
 
 
 def set_item(struct, item, key, value=None):

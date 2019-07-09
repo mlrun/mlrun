@@ -33,6 +33,10 @@ from sys import executable, stderr
 from subprocess import run, PIPE
 
 
+class RunError(Exception):
+    pass
+
+
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
 
     newspec = {}
@@ -239,9 +243,10 @@ class LocalRuntime(MLRuntime):
         if self.args:
             cmd += self.args
         out = run(cmd, stdout=PIPE, stderr=PIPE)
+        print(out.stdout.decode('utf-8'))
         if out.returncode != 0:
             print(out.stderr.decode('utf-8'), file=stderr)
-        print(out.stdout.decode('utf-8'))
+            raise RunError(out.stderr.decode('utf-8'))
 
         try:
             with open(tmp) as fp:
@@ -386,4 +391,3 @@ def results_to_iter_status(base_struct, results):
     base_struct['status']['iterations'] = iter_table
     base_struct['status']['state'] = 'completed'
     base_struct['status']['last_update'] = str(datetime.now())
-    print(yaml.dump(base_struct))

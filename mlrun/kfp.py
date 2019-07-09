@@ -16,7 +16,7 @@ import json
 from copy import deepcopy
 
 import yaml
-from os import environ
+from os import environ, listdir
 from .utils import run_keys
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
@@ -29,6 +29,7 @@ def write_kfpmeta(struct):
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
     print('wrote metrics:', metrics, 'to:', KFPMETA_DIR + 'mlpipeline-metrics.json')
+    print(listdir(KFPMETA_DIR))
 
     outputs = []
     for output in struct['status'].get(run_keys.output_artifacts, []):
@@ -71,11 +72,11 @@ def write_kfpmeta(struct):
 
 
     text += "## Metadata\n```yaml\n" + \
-           yaml.dump(struct, default_flow_style=False, sort_keys=False) + \
-           "```\n"
+            yaml.dump(struct, default_flow_style=False, sort_keys=False) + \
+            "```\n"
 
-    with open('sum.md', 'w') as fp:
-        fp.write(text)
+    #with open('sum.md', 'w') as fp:
+    #    fp.write(text)
 
     metadata = {
         'outputs': outputs + [{

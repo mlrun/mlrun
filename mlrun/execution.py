@@ -259,18 +259,3 @@ class MLClientCtx(object):
             if self._rundb:
                 self._rundb.store_run(self.to_dict(), self.uid, self.project, commit)
 
-
-class MLMetric(object):
-
-    def __init__(self, labels={}):
-        self.labels = labels
-        self.xvalues = []
-        self.yvalues = []
-
-    def to_dict(self):
-        return {
-            'labels': self.labels,
-            'xvalues': self.xvalues,
-            'yvalues': self.yvalues,
-        }
-

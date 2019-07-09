@@ -57,8 +57,8 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     if not newspec.get('metadata'):
         newspec['metadata'] = {}
 
-    newspec['metadata']['uid'] = uid or newspec['metadata'].get('uid', uuid.uuid4().hex)
-    newspec['metadata']['name'] = name or newspec['metadata'].get('name')
+    newspec['metadata']['uid'] = newspec['metadata'].get('uid', uid) or uuid.uuid4().hex
+    newspec['metadata']['name'] = newspec['metadata'].get('name', name)
 
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')

@@ -119,10 +119,10 @@ def gen_md_table(header, rows=[]):
     def gen_list(items=[]):
         out = '|'
         for i in items:
-            out += f'{i}|'
+            out += f' {i} |'
         return out
 
-    out = gen_list(header) + '\n' + gen_list(len(header) * ['-']) + '\n'
+    out = gen_list(header) + '\n' + gen_list(len(header) * ['---']) + '\n'
     for r in rows:
         out += gen_list(r) + '\n'
     return out

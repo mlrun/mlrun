@@ -85,6 +85,7 @@ def fill_params(param):
         if i == -1:
             continue
         key, value = param[:i].strip(), param[i + 1:].strip()
+        print('param:', key, value, '|', param)
         if key is None:
             raise ValueError(f'cannot find param key in line ({param})')
         try:

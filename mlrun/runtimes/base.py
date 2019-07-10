@@ -50,11 +50,6 @@ def task_gen(struct, hyperparams):
     i = 0
     params = grid_to_list(hyperparams)
     max = len(next(iter(params.values())))
-    if 'metadata' not in struct:
-        struct['metadata'] = {}
-    struct['metadata']['uid'] = struct['metadata'].get('uid', uuid.uuid4().hex)
-    if 'parameters' not in struct['spec']:
-        struct['spec']['parameters'] = {}
 
     while i < max:
         newstruct = deepcopy(struct)
@@ -76,14 +71,21 @@ class MLRuntime:
         self.rundb = ''
         self.hyperparams = None
         self._secrets = None
+        self.with_kfp = False
 
     def process_struct(self, struct):
         self.struct = struct
-        if 'spec' not in self.struct:
-            self.struct['spec'] = {}
+
+        if 'metadata' not in self.struct:
+            self.struct['metadata'] = {}
+        if not struct['metadata'].get('uid'):
+            struct['metadata']['uid'] = uuid.uuid4().hex
+
+        if 'parameters' not in self.struct['spec']:
+            self.struct['spec']['parameters'] = {}
+
         if 'runtime' not in self.struct['spec']:
             self.struct['spec']['runtime'] = {}
-
         self.struct['spec']['runtime']['kind'] = self.kind
         if self.command:
             self.struct['spec']['runtime']['command'] = self.command
@@ -94,34 +96,59 @@ class MLRuntime:
         else:
             self.args = self.struct['spec']['runtime'].get('args', [])
 
-    def save_run(self, struct, state='completed'):
+    def _get_secrets(self):
+        if not self._secrets:
+            self._secrets = SecretsStore.from_dict(self.struct['spec'])
+        return self._secrets
+
+    def _save_run(self, struct):
         if self.rundb:
             rundb = get_run_db(self.rundb)
-            if not self._secrets:
-                self._secrets = SecretsStore.from_dict(struct['spec'])
-            rundb.connect(self._secrets)
-            struct['status']['state'] = state
+            rundb.connect(self._get_secrets())
             uid = struct['metadata']['uid']
             project = struct['metadata'].get('project', '')
             rundb.store_run(struct, uid, project, commit=True)
         return struct
 
-    def run(self):
+    def run(self, hyperparams=None):
+        self.hyperparams = hyperparams
+        if self.hyperparams:
+            resp = self._run_many()
+        else:
+            resp = self._run(self.struct)
+        return self._post_run(resp)
+
+    def _run(self, struct):
         pass
 
-    def run_many(self, hyperparams={}):
+    def _run_many(self):
         start = datetime.now()
-        base_struct = self.struct
         results = []
-        for task in task_gen(base_struct, hyperparams):
-            self.struct = task
-            resp = self.run()
+        for task in task_gen(self.struct, self.hyperparams):
+            resp = self._run(task)
+            resp = self._post_run(resp)
             results.append(resp)
 
-        base_struct['status'] = {'start_time': str(start)}
-        base_struct['spec']['hyperparams'] = hyperparams
-        results_to_iter_status(base_struct, results)
-        return base_struct
+        self.struct['status'] = {'start_time': str(start)}
+        self.struct['spec']['hyperparams'] = self.hyperparams
+        results_to_iter_status(self.struct, results)
+        return self.struct
+
+    def _post_run(self, resp):
+        if not resp:
+            return {}
+
+        if isinstance(resp, str):
+            resp = json.loads(resp)
+
+        if self.with_kfp:
+            self.write_kfpmeta(resp)
+
+        if resp['status'].get('state', '') != 'error':
+            resp['status']['state'] = 'completed'
+        resp['status']['last_update'] = str(datetime.now())
+        self._save_run(resp)
+        return resp
 
     def _force_handler(self):
         if not self.handler:
@@ -130,38 +157,14 @@ class MLRuntime:
     def write_kfpmeta(self, struct):
         outputs = struct['status'].get('outputs', {})
         metrics = {'metrics':
-                       [{'name': k, 'numberValue': v} for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
+                       [{'name': k,
+                         'numberValue': v,
+                         } for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
         with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
             json.dump(metrics, f)
 
-        outputs = []
-        for output in struct['status'].get(run_keys.output_artifacts, []):
-            key = output["key"]
-            target = output.get('target_path', '')
-            target = output.get('inline', target)
-            try:
-                with open(f'/tmp/{key}', 'w') as fp:
-                    fp.write(target)
-            except:
-                pass
-
-            if target.startswith('v3io:///'):
-                target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
-
-            viewer = output.get('viewer', '')
-            if viewer in ['web-app', 'chart']:
-                meta = {'type': 'web-app',
-                        'source': target}
-                outputs += [meta]
-
-            elif viewer == 'table':
-                header = output.get('header', None)
-                if header and target.endswith('.csv'):
-                    meta = {'type': 'table',
-                        'format': 'csv',
-                        'header': header,
-                        'source': target}
-                    outputs += [meta]
+        output_artifacts = get_kfp_outputs(
+            struct['status'].get(run_keys.output_artifacts, []))
 
         text = '# Run Report\n'
         if 'iterations' in struct['status']:
@@ -179,7 +182,7 @@ class MLRuntime:
         #    fp.write(text)
 
         metadata = {
-            'outputs': outputs + [{
+            'outputs': output_artifacts + [{
                 'type': 'markdown',
                 'storage': 'inline',
                 'source': text
@@ -187,6 +190,39 @@ class MLRuntime:
         }
         with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
             json.dump(metadata, f)
+
+
+def get_kfp_outputs(artifacts):
+    outputs = []
+    for output in artifacts:
+        key = output["key"]
+        target = output.get('target_path', '')
+        target = output.get('inline', target)
+        try:
+            with open(f'/tmp/{key}', 'w') as fp:
+                fp.write(target)
+        except:
+            pass
+
+        if target.startswith('v3io:///'):
+            target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
+
+        viewer = output.get('viewer', '')
+        if viewer in ['web-app', 'chart']:
+            meta = {'type': 'web-app',
+                    'source': target}
+            outputs += [meta]
+
+        elif viewer == 'table':
+            header = output.get('header', None)
+            if header and target.endswith('.csv'):
+                meta = {'type': 'table',
+                        'format': 'csv',
+                        'header': header,
+                        'source': target}
+                outputs += [meta]
+
+    return outputs
 
 
 def results_to_iter_status(base_struct, results):
@@ -202,5 +238,27 @@ def results_to_iter_status(base_struct, results):
     df = pd.io.json.json_normalize(iter).sort_values('iter')
     iter_table = [df.columns.values.tolist()] + df.values.tolist()
     base_struct['status']['iterations'] = iter_table
-    base_struct['status']['state'] = 'completed'
-    base_struct['status']['last_update'] = str(datetime.now())
+
+
+class MLRunChild:
+
+    def __init__(self, task):
+        self.param = task['spec'].get('parameters', {})
+        self.output = task['status'].get('outputs', {})
+        self.state = task['status'].get('state')
+        self.iter = task['metadata'].get('iteration')
+
+    def as_dict(self):
+        result = {'iter': self.iter, 'state': self.state}
+        for k, v in self.param.items():
+            result[f'param.{k}'] = v
+        for k, v in self.output.items():
+            result[f'output.{k}'] = v
+        return result
+
+
+class MLRunChild(list):
+
+    def to_table(self):
+        df = pd.DataFrame([i.as_dict() for i in self]).sort_values('iter')
+        return [df.columns.values.tolist()] + df.values.tolist()

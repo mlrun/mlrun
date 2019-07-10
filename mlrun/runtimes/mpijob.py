@@ -48,15 +48,15 @@ _mpijob_template = {
 class MpiRuntime(MLRuntime):
     kind = 'mpijob'
 
-    def run(self):
+    def _run(self, struct):
         from .mpijob import MpiJob
-        uid = self.struct['metadata'].get('uid', uuid.uuid4().hex)
-        self.struct['metadata']['uid'] = uid
-        runtime = self.struct['spec']['runtime']
+        uid = struct['metadata'].get('uid', uuid.uuid4().hex)
+        struct['metadata']['uid'] = uid
+        runtime = struct['spec']['runtime']
 
         mpijob = MpiJob.from_dict(runtime.get('spec'))
 
-        mpijob.env('MLRUN_EXEC_CONFIG', json.dumps(self.struct))
+        mpijob.env('MLRUN_EXEC_CONFIG', json.dumps(struct))
         if self.rundb:
             mpijob.env('MLRUN_META_DBPATH', self.rundb)
 

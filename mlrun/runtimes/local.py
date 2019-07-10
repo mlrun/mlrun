@@ -27,7 +27,7 @@ from subprocess import run, PIPE
 class HandlerRuntime(MLRuntime):
     kind = 'handler'
 
-    def run(self):
+    def _run(self, struct):
         self._force_handler()
         if self.rundb:
             environ['MLRUN_META_DBPATH'] = self.rundb
@@ -36,10 +36,10 @@ class HandlerRuntime(MLRuntime):
         if len(args) > 1 and args[0] == 'context':
             # its a nuclio function
             from mlrun.utils import fake_nuclio_context
-            context, event = fake_nuclio_context(self.struct)
+            context, event = fake_nuclio_context(struct)
             out = self.handler(context, event)
         elif len(args) == 1:
-            out = self.handler(self.struct)
+            out = self.handler(struct)
         else:
             out = self.handler()
 
@@ -53,8 +53,8 @@ class HandlerRuntime(MLRuntime):
 class LocalRuntime(MLRuntime):
     kind = 'local'
 
-    def run(self):
-        environ['MLRUN_EXEC_CONFIG'] = json.dumps(self.struct)
+    def _run(self, struct):
+        environ['MLRUN_EXEC_CONFIG'] = json.dumps(struct)
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         if self.rundb:
@@ -74,7 +74,7 @@ class LocalRuntime(MLRuntime):
                 resp = fp.read()
             os.remove(tmp)
             if resp:
-                return self.save_run(json.loads(resp))
+                return json.loads(resp)
         except FileNotFoundError as err:
             print(err)
 

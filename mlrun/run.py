@@ -63,9 +63,7 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     if out:
         autocommit = True
 
-    print('spec:', newspec)
     ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit, tmp=tmp)
-    print('ss:', ctx.get_secret('ACCESS_KEY'))
     return ctx
 
 
@@ -87,6 +85,8 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
 
     if struct:
         struct = deepcopy(struct)
+    if 'spec' not in struct:
+        struct['spec'] = {}
 
     if not runtime and handler:
         runtime = HandlerRuntime(handler=handler)
@@ -97,8 +97,6 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
             if not isinstance(runtime, dict):
                 runtime = runtime.to_dict()
 
-            if 'spec' not in struct.keys():
-                struct['spec'] = {}
             struct['spec']['runtime'] = runtime
 
         if struct and 'spec' in struct.keys() and 'runtime' in struct['spec'].keys():
@@ -127,19 +125,9 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
     runtime.rundb = rundb
     runtime.handler = handler
     runtime.process_struct(struct)
-    if hyperparams:
-        resp = runtime.run_many(hyperparams)
-    else:
-        resp = runtime.run()
+    runtime.with_kfp = kfp
 
-    if not resp:
-        return {}
+    return runtime.run(hyperparams)
 
-    if isinstance(resp, str):
-        resp = json.loads(resp)
-
-    if kfp:
-        runtime.write_kfpmeta(resp)
-    return resp
 
 

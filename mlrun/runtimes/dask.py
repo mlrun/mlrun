@@ -20,20 +20,20 @@ from .base import MLRuntime, task_gen, results_to_iter_status
 class DaskRuntime(MLRuntime):
     kind = 'dask'
 
-    def run(self):
+    def _run(self, struct):
         self._force_handler()
         from dask import delayed
         if self.rundb:
             # todo: remote dask via k8s spec env
             environ['MLRUN_META_DBPATH'] = self.rundb
 
-        task = delayed(self.handler)(self.struct)
+        task = delayed(self.handler)(struct)
         out = task.compute()
         if isinstance(out, dict):
             return out
         return json.loads(out)
 
-    def run_many(self, hyperparams={}):
+    def _run_many(self):
         start = datetime.now()
         self._force_handler()
         from dask.distributed import Client, default_client, as_completed
@@ -42,18 +42,18 @@ class DaskRuntime(MLRuntime):
         except ValueError:
             client = Client()  # todo: k8s client
 
-        base_struct = self.struct
-        tasks = list(task_gen(base_struct, hyperparams))
+        tasks = list(task_gen(self.struct, self.hyperparams))
         results = []
         futures = client.map(self.handler, tasks)
         for batch in as_completed(futures, with_results=True).batches():
             for future, result in batch:
                 if result:
-                    results.append(json.loads(result))
+                    result = self._post_run(result)
+                    results.append(result)
                 else:
                     print("Dask RESULT = None")
 
-        base_struct['status'] = {'start_time': str(start)}
-        base_struct['spec']['hyperparams'] = hyperparams
-        results_to_iter_status(base_struct, results)
-        return base_struct
+        self.struct['status'] = {'start_time': str(start)}
+        self.struct['spec']['hyperparams'] = self.hyperparams
+        results_to_iter_status(self.struct, results)
+        return self.struct

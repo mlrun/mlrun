@@ -22,13 +22,13 @@ from mlrun.secrets import SecretsStore
 class RemoteRuntime(MLRuntime):
     kind = 'remote'
 
-    def run(self):
-        self._secrets = SecretsStore.from_dict(self.struct['spec'])
-        self.struct['spec']['secret_sources'] = self._secrets.to_serial()
-        log_level = self.struct['spec'].get('log_level', 'info')
+    def _run(self, struct):
+        self._secrets = SecretsStore.from_dict(struct['spec'])
+        struct['spec']['secret_sources'] = self._secrets.to_serial()
+        log_level = struct['spec'].get('log_level', 'info')
         headers = {'x-nuclio-log-level': log_level}
         try:
-            resp = requests.put(self.command, json=json.dumps(self.struct), headers=headers)
+            resp = requests.put(self.command, json=json.dumps(struct), headers=headers)
         except OSError as err:
             print('ERROR: %s', str(err))
             raise OSError('error: cannot run function at url {}'.format(self.command))
@@ -43,6 +43,6 @@ class RemoteRuntime(MLRuntime):
             for line in logs:
                 print(line)
 
-        return self.save_run(resp.json())
+        return resp.json()
 
 

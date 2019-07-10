@@ -38,15 +38,15 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
 
     newspec = {}
     config = environ.get('MLRUN_EXEC_CONFIG')
-    if with_env and config:
-        newspec = config
-
-    elif event:
+    if event:
         newspec = event.body
         uid = uid or event.id
 
     elif spec:
         newspec = deepcopy(spec)
+
+    elif with_env and config:
+        newspec = config
 
     if newspec and not isinstance(newspec, dict):
         newspec = yaml.safe_load(newspec)
@@ -130,4 +130,42 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
     return runtime.run(hyperparams)
 
 
+def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', secrets=[],
+             params={}, hyperparams={}, inputs={}, outputs={}, out_path='', rundb=''):
+    from kfp import dsl
+    from igz import mount_v3io, v3io_cred
 
+    cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
+    file_outputs = {}
+    for s in secrets:
+        cmd += ['-s', f'{s}']
+    for p, val in params.items():
+        cmd += ['-p', f'{p}={val}']
+    for x, val in hyperparams.items():
+        cmd += ['-x', f'{x}={val}']
+    for i, val in inputs.items():
+        cmd += ['-i', f'{i}={val}']
+    for o, val in outputs.items():
+        cmd += ['-o', f'{o}={val}']
+        file_outputs[o.replace('.', '-')] = f'/tmp/{o}'
+    if project:
+        cmd += ['--project', project]
+    if runtime:
+        cmd += ['--runtime', runtime]
+    if out_path:
+        cmd += ['--out-path', out_path]
+    if rundb:
+        cmd += ['--rundb', rundb]
+
+    if hyperparams:
+        file_outputs['iterations'] = f'/tmp/iterations'
+
+    cop = dsl.ContainerOp(
+        name=name,
+        image=image,
+        command=cmd + [command],
+        file_outputs=file_outputs,
+    )
+    cop.apply(mount_v3io(container='users', sub_path='/iguazio', mount_path='/User'))
+    cop.apply(v3io_cred())
+    return cop

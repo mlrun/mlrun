@@ -33,8 +33,7 @@ class DaskRuntime(MLRuntime):
             return out
         return json.loads(out)
 
-    def _run_many(self):
-        start = datetime.now()
+    def _run_many(self, tasks):
         self._force_handler()
         from dask.distributed import Client, default_client, as_completed
         try:
@@ -42,7 +41,7 @@ class DaskRuntime(MLRuntime):
         except ValueError:
             client = Client()  # todo: k8s client
 
-        tasks = list(task_gen(self.struct, self.hyperparams))
+        tasks = list(tasks)
         results = []
         futures = client.map(self.handler, tasks)
         for batch in as_completed(futures, with_results=True).batches():
@@ -53,7 +52,4 @@ class DaskRuntime(MLRuntime):
                 else:
                     print("Dask RESULT = None")
 
-        self.struct['status'] = {'start_time': str(start)}
-        self.struct['spec']['hyperparams'] = self.hyperparams
-        results_to_iter_status(self.struct, results)
-        return self.struct
+        return results

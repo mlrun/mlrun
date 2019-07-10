@@ -76,6 +76,8 @@ class MLRuntime:
     def process_struct(self, struct):
         self.struct = struct
 
+        if 'status' not in self.struct:
+            self.struct['status'] = {}
         if 'metadata' not in self.struct:
             self.struct['metadata'] = {}
         if not struct['metadata'].get('uid'):
@@ -113,7 +115,12 @@ class MLRuntime:
     def run(self, hyperparams=None):
         self.hyperparams = hyperparams
         if self.hyperparams:
-            resp = self._run_many()
+            start = datetime.now()
+            results = self._run_many(task_gen(self.struct, hyperparams))
+            self.struct['status'] = {'start_time': str(start)}
+            self.struct['spec']['hyperparams'] = self.hyperparams
+            results_to_iter_status(self.struct, results)
+            resp = self.struct
         else:
             resp = self._run(self.struct)
         return self._post_run(resp)
@@ -121,18 +128,18 @@ class MLRuntime:
     def _run(self, struct):
         pass
 
-    def _run_many(self):
-        start = datetime.now()
+    def _run_many(self, tasks):
         results = []
-        for task in task_gen(self.struct, self.hyperparams):
-            resp = self._run(task)
-            resp = self._post_run(resp)
+        for task in tasks:
+            try:
+                resp = self._run(task)
+                resp = self._post_run(resp)
+            except RunError as err:
+                task['status']['state'] = 'error'
+                task['status']['error'] = err
+                resp = self._post_run(task)
             results.append(resp)
-
-        self.struct['status'] = {'start_time': str(start)}
-        self.struct['spec']['hyperparams'] = self.hyperparams
-        results_to_iter_status(self.struct, results)
-        return self.struct
+        return results
 
     def _post_run(self, resp):
         if not resp:
@@ -152,7 +159,7 @@ class MLRuntime:
 
     def _force_handler(self):
         if not self.handler:
-            raise ValueError('handler must be provided for {} runtime'.format(self.kind))
+            raise RunError('handler must be provided for {} runtime'.format(self.kind))
 
     def write_kfpmeta(self, struct):
         outputs = struct['status'].get('outputs', {})

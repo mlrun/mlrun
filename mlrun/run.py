@@ -133,7 +133,6 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
 def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', secrets=[],
              params={}, hyperparams={}, inputs={}, outputs={}, out_path='', rundb=''):
     from kfp import dsl
-    from igz import mount_v3io, v3io_cred
 
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
     file_outputs = {}
@@ -166,6 +165,4 @@ def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', se
         command=cmd + [command],
         file_outputs=file_outputs,
     )
-    cop.apply(mount_v3io(container='users', sub_path='/iguazio', mount_path='/User'))
-    cop.apply(v3io_cred())
     return cop

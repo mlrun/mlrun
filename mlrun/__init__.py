@@ -14,4 +14,4 @@
 
 __version__ = '0.0.2'
 
-from .run import get_or_create_ctx, run_start
+from .run import get_or_create_ctx, run_start, mlrun_op

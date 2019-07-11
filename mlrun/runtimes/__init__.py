@@ -15,5 +15,5 @@
 from .base import RunError
 from .local import HandlerRuntime, LocalRuntime
 from .function import RemoteRuntime
-from .mpijob import MpiRuntime
+from .mpijob import MpiRuntime, MpiJob
 from .dask import DaskRuntime

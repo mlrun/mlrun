@@ -11,15 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import uuid
 from copy import deepcopy
 from os import environ
 from pprint import pprint
 import yaml
-from kubernetes import client, config
-from kubernetes.client.rest import ApiException
 from .base import MLRuntime
+
+import importlib
+client = None
+
 
 _mpijob_template = {
  'apiVersion': 'kubeflow.org/v1alpha1',
@@ -49,7 +51,6 @@ class MpiRuntime(MLRuntime):
     kind = 'mpijob'
 
     def _run(self, struct):
-        from .mpijob import MpiJob
         uid = struct['metadata'].get('uid', uuid.uuid4().hex)
         struct['metadata']['uid'] = uid
         runtime = struct['spec']['runtime']
@@ -88,6 +89,10 @@ class MpiJob:
 
     def __init__(self, name, image=None, command=None,
                  replicas=0, namespace='default-tenant', struct=None):
+        global client
+        client = importlib.import_module('.client', 'kubernetes')
+        from kubernetes import config
+
         self.api_instance = None
         self.name = name
         self.namespace = namespace
@@ -121,7 +126,12 @@ class MpiJob:
 
         if volpath.startswith('~/'):
             user = environ.get('V3IO_USERNAME', '')
-            volpath = 'users/' + user + volpath[1:]
+            if not user:
+                raise ValueError('user name/env must be specified when using "~" in path')
+            if volpath == '~/':
+                volpath = 'users/' + user
+            else:
+                volpath = 'users/' + user + volpath[1:]
 
         container, subpath = split_path(volpath)
         access_key = access_key or environ.get('V3IO_ACCESS_KEY','')
@@ -176,7 +186,7 @@ class MpiJob:
             api_response = self.api_instance.create_namespaced_custom_object(
                 MpiJob.group, MpiJob.version, self.namespace, 'mpijobs', self._struct)
             pprint(api_response)
-        except ApiException as e:
+        except client.rest.ApiException as e:
             print("Exception when creating MPIJob: %s" % e)
 
     def delete(self):
@@ -186,7 +196,7 @@ class MpiJob:
             api_response = self.api_instance.delete_namespaced_custom_object(
                 MpiJob.group, MpiJob.version, self.namespace, MpiJob.plural, self.name, body)
             pprint(api_response)
-        except ApiException as e:
+        except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
 
     def status(self):
@@ -196,7 +206,7 @@ class MpiJob:
             api_response = self.api_instance.get_namespaced_custom_object(
                 MpiJob.group, MpiJob.version, self.namespace, MpiJob.plural, self.name)
             pprint(api_response)
-        except ApiException as e:
+        except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
 
 def split_path(mntpath=''):

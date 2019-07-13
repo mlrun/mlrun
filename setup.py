@@ -91,4 +91,6 @@ setup(
         'Topic :: Software Development :: Libraries',
     ],
     tests_require=tests_require,
+    zip_safe=False,
+    include_package_data=True,
 )

@@ -47,7 +47,7 @@ class RemoteRuntime(MLRuntime):
 
         return resp.json()
 
-    async def _run_many(self, tasks):
+    def _run_many(self, tasks):
         secrets = SecretsStore.from_dict(self.struct['spec'])
         secrets = secrets.to_serial()
         log_level = self.struct['spec'].get('log_level', 'info')

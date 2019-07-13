@@ -48,6 +48,9 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     elif with_env and config:
         newspec = config
 
+    if not newspec:
+        newspec = {}
+
     if newspec and not isinstance(newspec, dict):
         newspec = yaml.safe_load(newspec)
 

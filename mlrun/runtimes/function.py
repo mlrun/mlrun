@@ -19,7 +19,6 @@ from .base import MLRuntime, task_gen, results_to_iter_status
 from mlrun.secrets import SecretsStore
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from aiohttp.client import ClientSession
 
 
@@ -78,7 +77,7 @@ def parse_logs(logs):
 async def submit(session, url, body, headers=None):
     async with session.put(url, json=body, headers=headers) as response:
         text = await response.text()
-        logs = response.headers.get('X-Nuclio-Logs')
+        logs = response.headers.get('X-Nuclio-Logs', None)
         return response.status, text, logs
 
 
@@ -101,7 +100,9 @@ async def invoke_async(runs, url, headers, secrets):
                 results.append(json.loads(resp))
 
             if logs:
-                print('----------\n', parse_logs(logs))
+                parsed = parse_logs(logs)
+                if parsed:
+                    print(parsed, '----------')
 
     return results
 

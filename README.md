@@ -75,6 +75,55 @@ if __name__ == "__main__":
     my_job()
 ```
 
+### Running the function inline or with a specific runtime
+
+A user can invoke code through the `run_start` library function, see [examples notebook](examples/mlrun_games.ipynb)
+
+```python
+from mlrun import run_start
+import yaml
+
+# note: you need to create/specify a secrets file with credentials for remote data access (e.g. in S3 or v3io)
+run_spec =  {'metadata':
+                 {'labels': {
+                     'owner': 'yaronh'}},
+             'spec':
+                 {'parameters': {'p1': 5}, 
+                  'input_objects': [],
+                  'log_level': 'info',
+                  'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}],
+                 }}
+
+task = run_start(run_spec, command='example1.py', rundb='./')
+print(yaml.dump(task)) 
+```
+
+
+user can select the runtime to use (inline code, sub process, dask, horovod, nuclio) through parameters in the `run_start` command, 
+see the [examples notebook](examples/mlrun_games.ipynb) for details
+
+### Using hyper parameters 
+
+The same code can be run multiple times using different parameters per run, this can be done by simply setting the hyperparams attribute e.g.:
+
+```python
+# note: you need to create/specify a secrets file with credentials for remote data access (e.g. in S3 or v3io)
+run_spec =  {'metadata':
+                 {'labels': {
+                     'owner': 'yaronh'}},
+             'spec':
+                 {'parameters': {'p1': 5}, 
+                  'input_objects': [],
+                  'log_level': 'info',
+                  'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}],
+                 }}
+
+hyper = { 'p2': ['aa', 'bb', 'cc']}
+
+task = run_start(run_spec, command='example1.py', rundb='./', hyperparams=hyper)
+print(yaml.dump(task))
+```
+
 ### Replacing Runtime Context Parameters form CLI
 
 `python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt example2.py`
@@ -103,13 +152,17 @@ def handler(context, event):
 
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}')
-    print('accesskey = {}'.format(ctx.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(ctx.input_artifact('infile.txt').get()))
 
+    # log scalar values (KFP metrics)
     ctx.log_output('accuracy', p1 * 2)
-    ctx.log_artifact('chart.png')
+    ctx.log_output('latency', p1 * 3)
+
+    # log various types of artifacts (and set UI viewers)
+    ctx.log_artifact('test.txt', body=b'abc is 123')
+    ctx.log_artifact('test.html', body=b'<b> Some HTML <b>', viewer='web-app')
 
     return ctx.to_json()
+
 ```
 
 > Note: add this repo to nuclio build commands (`pip install git+https://github.com/v3io/mlrun.git`)

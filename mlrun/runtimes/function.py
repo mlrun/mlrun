@@ -69,9 +69,10 @@ def parse_logs(logs):
         for k, v in line.items():
             if k not in ['time', 'level', 'name', 'message']:
                 extra.append('{}={}'.format(k, v))
-        print(line)
         line['extra'] = ', '.join(extra)
         lines += '{time:<18} {level:<6} {name}  {message}  {extra}\n'.format(**line)
+
+    return lines
 
 
 async def submit(session, url, body, headers=None):

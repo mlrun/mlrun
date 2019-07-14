@@ -17,6 +17,7 @@ import requests
 
 from .base import MLRuntime, task_gen, results_to_iter_status
 from mlrun.secrets import SecretsStore
+from datetime import datetime
 
 import asyncio
 from aiohttp.client import ClientSession
@@ -69,7 +70,8 @@ def parse_logs(logs):
             if k not in ['time', 'level', 'name', 'message']:
                 extra.append('{}={}'.format(k, v))
         line['extra'] = ', '.join(extra)
-        lines += '{time:<18} {level:<6} {name}  {message}  {extra}\n'.format(**line)
+        line['time'] = datetime.fromtimestamp(float(line['time'])/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        lines += '{time}  {level:<6} {message}  {extra}\n'.format(**line)
 
     return lines
 

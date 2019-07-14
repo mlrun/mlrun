@@ -93,4 +93,6 @@ setup(
     tests_require=tests_require,
     zip_safe=False,
     include_package_data=True,
+    entry_points={'console_scripts': [
+        'mlrun=mlrun.__main__:main']},
 )

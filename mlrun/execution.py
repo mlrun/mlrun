@@ -82,7 +82,6 @@ class MLClientCtx(object):
             self._iteration = meta.get('iteration', self._iteration)
             self.name = meta.get('name', self.name)
             self._project = meta.get('project', self._project)
-            self._tag = meta.get('tag', self._tag)
             self._annotations = meta.get('annotations', self._annotations)
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
@@ -130,10 +129,6 @@ class MLClientCtx(object):
     def log_level(self, value):
         self._log_level = value
         print(f'changed log level to: {value}')
-
-    @property
-    def tag(self):
-        return self._tag or self.uid
 
     @property
     def parameters(self):
@@ -206,7 +201,7 @@ class MLClientCtx(object):
         self._artifacts_manager.log_artifact(item, body=body,
                                              target_path=target_path,
                                              src_path=src_path,
-                                             tag=tag or self._tag,
+                                             tag=tag,
                                              viewer=viewer,
                                              upload=upload)
         self._update_db()
@@ -222,7 +217,6 @@ class MLClientCtx(object):
                  'uid': self._uid,
                  'iteration': self._iteration,
                  'project': self._project,
-                 'tag': self._tag,
                  'labels': self._labels,
                  'annotations': self._annotations},
             'spec':

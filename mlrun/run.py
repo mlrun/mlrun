@@ -20,8 +20,9 @@ from os import environ
 import yaml
 
 from .execution import MLClientCtx
+from .utils import is_ipython
+from .render import ipython_ui
 from .runtimes import HandlerRuntime, LocalRuntime, RemoteRuntime, DaskRuntime, MpiRuntime
-
 
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
     """ called from within the user program to obtain a context
@@ -130,7 +131,11 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
     runtime.process_struct(struct)
     runtime.with_kfp = kfp
 
-    return runtime.run(hyperparams)
+    results = runtime.run(hyperparams)
+    if is_ipython and results:
+        ipython_ui(results)
+
+    return results
 
 
 def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', secrets=[],

@@ -20,6 +20,21 @@ from sys import stdout
 import yaml
 
 
+is_ipython = False
+try:
+    import IPython
+    ipy = IPython.get_ipython()
+    if ipy:
+        is_ipython = True
+except ImportError:
+    pass
+
+if is_ipython:
+    # bypass Jupyter asyncio bug
+    import nest_asyncio
+    nest_asyncio.apply()
+
+
 class run_keys:
     input_path = 'default_input_path'
     output_path = 'default_output_path'
@@ -27,6 +42,59 @@ class run_keys:
     output_artifacts = 'output_artifacts'
     data_stores = 'data_stores'
     secrets = 'secret_sources'
+
+
+def get_in(obj, keys, default=None):
+    """
+    >>> get_in({'a': {'b': 1}}, 'a.b')
+    1
+    """
+    if isinstance(keys, str):
+        keys = keys.split('.')
+
+    for key in keys:
+        if not obj or key not in obj:
+            return default
+        obj = obj[key]
+    return obj
+
+
+def match_labels(labels, conditions):
+    match = True
+
+    def splitter(verb, text):
+        items = text.split(verb)
+        if len(items) != 2:
+            raise ValueError('illegal condition - {}'.format(text))
+        return labels.get(items[0].strip(), ''), items[1].strip()
+
+    for condition in conditions:
+        if '~=' in condition:
+            l, val = splitter('~=', condition)
+            match = match and val in l
+        elif '!=' in condition:
+            l, val = splitter('!=', condition)
+            match = match and val != l
+        elif '=' in condition:
+            l, val = splitter('=', condition)
+            match = match and val == l
+        else:
+            match = match and (labels.get(condition.strip(), '') != '')
+    return match
+
+
+def flatten(df, col, prefix=''):
+    params = []
+    for r in df[col]:
+        if r:
+            for k in r.keys():
+                if k not in params:
+                    params += [k]
+    params
+    for p in params:
+        df[prefix + p] = df[col].apply(lambda x: x.get(p, '') if x else '')
+    df.drop(col, axis=1, inplace=True)
+    return df
 
 
 def list2dict(lines: list):
@@ -41,6 +109,10 @@ def list2dict(lines: list):
         value = path.expandvars(value)
         out[key] = value
     return out
+
+
+def dict_to_list(struct: dict):
+    return [f'{k}={v}' for k, v in struct.items()]
 
 
 def dict_to_yaml(struct):

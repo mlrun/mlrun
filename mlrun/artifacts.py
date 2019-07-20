@@ -66,7 +66,7 @@ class ArtifactManager:
         if not target_path:
             target_path = uxjoin(self.out_path, key)
         item.target_path = target_path
-        item.tag = tag or item.tag or self._execution.tag
+        item.tag = tag or item.tag
 
         self.output_artifacts[key] = item
 
@@ -92,7 +92,7 @@ class ArtifactManager:
 
 class Artifact(ModelObj):
 
-    _dict_fields = ['key', 'src_path', 'target_path', 'hash',
+    _dict_fields = ['key', 'kind', 'src_path', 'target_path', 'hash',
                     'description', 'viewer', 'inline']
     kind = ''
 
@@ -180,7 +180,7 @@ class ChartArtifact(Artifact):
 
 
 class TableArtifact(Artifact):
-    _dict_fields = ['key', 'src_path', 'target_path', 'hash', 'description',
+    _dict_fields = ['key', 'kind', 'src_path', 'target_path', 'hash', 'description',
                     'format', 'schema', 'header', 'viewer']
     kind = 'table'
 

@@ -20,7 +20,7 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .rundb import get_run_db
-from .utils import uxjoin, run_keys
+from .utils import uxjoin, run_keys, get_in
 
 
 class MLClientCtx(object):
@@ -62,14 +62,13 @@ class MLClientCtx(object):
             self._rundb.connect(self._secrets_manager)
         self._data_stores = StoreManager(self._secrets_manager)
         self._artifacts_manager = ArtifactManager(
-            self._data_stores, self, db=self._rundb)
+            self._data_stores, db=self._rundb)
 
     def get_meta(self):
         return {'name': self.name,
-                'labels': self.labels,
-                'start_time': str(self._start_time),
-                'project': self._project,
-                'uid': self.uid}
+                'kind': 'run',
+                'uri': f'{self._project}/{self.uid}' if self._project else self.uid,
+                'owner': get_in(self._labels, 'owner')}
 
     @classmethod
     def from_dict(cls, attrs, rundb='', autocommit=False, tmp=''):
@@ -196,9 +195,9 @@ class MLClientCtx(object):
         if self._rundb:
             self._rundb.store_metric(keyvals, timestamp, labels)
 
-    def log_artifact(self, item, body=None, target_path='', src_path='',
-                     tag='', viewer='', upload=True):
-        self._artifacts_manager.log_artifact(item, body=body,
+    def log_artifact(self, item, body=None, target_path='', src_path=None,
+                     tag='', viewer=None, upload=True):
+        self._artifacts_manager.log_artifact(self, item, body=body,
                                              target_path=target_path,
                                              src_path=src_path,
                                              tag=tag,

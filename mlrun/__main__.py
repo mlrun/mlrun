@@ -17,7 +17,6 @@
 from os import path
 import click
 from ast import literal_eval
-import getpass
 import yaml
 
 from .run import run_start
@@ -57,7 +56,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     set_item(meta, project, 'project')
     set_item(meta, workflow, 'workflow')
 
-    labels = {'owner': getpass.getuser()}
+    labels = {}
     set_item(labels, workflow, 'workflow')
     meta['labels'] = labels
 

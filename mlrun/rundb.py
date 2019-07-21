@@ -52,13 +52,14 @@ class RunList(list):
     def to_rows(self):
         rows = []
         artifacts_list = []
-        head = ['uid', 'iteration', 'start', 'name', 'labels',
+        head = ['uid', 'iteration', 'start', 'state', 'name', 'labels',
                 'parameters', 'outputs']
         for run in self:
             row = [
                 get_in(run, 'metadata.uid', ''),
                 get_in(run, 'metadata.iteration', ''),
                 get_in(run, 'status.start_time', ''),
+                get_in(run, 'status.state', ''),
                 get_in(run, 'metadata.name', ''),
                 get_in(run, 'metadata.labels', ''),
                 get_in(run, 'spec.parameters', ''),
@@ -98,7 +99,7 @@ class RunList(list):
         import IPython
         pd.set_option('display.max_colwidth', -1)
         IPython.display.display(
-            IPython.display.HTML(df.to_html(escape=False)))
+            IPython.display.HTML(df.to_html(escape=False, index=False)))
 
 
 class RunDBInterface:
@@ -148,17 +149,19 @@ class FileRunDB(RunDBInterface):
             data = dict_to_yaml(struct)
         else:
             data = json.dumps(struct)
-        filepath = self._filepath('runs', project, uid, '', self.format)
+        filepath = self._filepath('runs', project, uid, '') + self.format
         self._datastore.put(filepath, data)
 
     def read_run(self, uid, project=''):
-        filepath = self._filepath('runs', project, uid, '', self.format)
+        filepath = self._filepath('runs', project, uid, '') + self.format
         data = self._datastore.get(filepath)
         return self._loads(data)
 
     def list_runs(self, name='', project='', labels=[], sort=False):
         filepath = self._filepath('runs', project)
         results = RunList()
+        if isinstance(labels, str):
+            labels = labels.split(',')
         for run in self._load_list(filepath):
             if (name == '' or name in get_in(run, 'metadata.name', ''))\
                     and match_labels(get_in(run, 'metadata.labels', {}), labels):
@@ -175,21 +178,21 @@ class FileRunDB(RunDBInterface):
             data = artifact.to_yaml()
         else:
             data = artifact.to_json()
-        filepath = self._filepath('artifacts', project, key, tag, self.format)
+        filepath = self._filepath('artifacts', project, key, tag) + self.format
         self._datastore.put(filepath, data)
 
     def read_artifact(self, key, tag='', project=''):
-        filepath = self._filepath('artifacts', project, key, tag, self.format)
+        filepath = self._filepath('artifacts', project, key, tag) + self.format
         data = self._datastore.get(filepath)
         return self._loads(data)
 
-    def _filepath(self, table, project, uid='', tag='', format=''):
+    def _filepath(self, table, project, uid='', tag=''):
         if tag:
             tag = '/' + tag
         if project:
-            return path.join(self.dirpath, '{}/{}/{}{}{}'.format(table, project, uid, tag, format))
+            return path.join(self.dirpath, '{}/{}/{}{}'.format(table, project, uid, tag))
         else:
-            return path.join(self.dirpath, '{}/{}{}{}'.format(table, uid, tag, format))
+            return path.join(self.dirpath, '{}/{}{}'.format(table, uid, tag))
 
     def _dumps(self, obj):
         if self.format == '.yaml':

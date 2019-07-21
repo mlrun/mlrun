@@ -11,17 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import socket
 from datetime import datetime
 import json
 import uuid
+import getpass
 from copy import deepcopy
 from os import environ
 import pandas as pd
 
-from mlrun.rundb import get_run_db
-from mlrun.secrets import SecretsStore
-from mlrun.utils import run_keys, gen_md_table, dict_to_yaml
+from ..rundb import get_run_db
+from ..secrets import SecretsStore
+from ..utils import run_keys, gen_md_table, dict_to_yaml, get_in, update_in
 
 
 class RunError(Exception):
@@ -74,29 +75,30 @@ class MLRuntime:
         self.with_kfp = False
 
     def process_struct(self, struct):
-        self.struct = struct
+        if 'status' not in struct:
+            struct['status'] = {}
+        if not get_in(struct, 'metadata.uid'):
+            update_in(struct, 'metadata.uid', uuid.uuid4().hex)
 
-        if 'status' not in self.struct:
-            self.struct['status'] = {}
-        if 'metadata' not in self.struct:
-            self.struct['metadata'] = {}
-        if not struct['metadata'].get('uid'):
-            struct['metadata']['uid'] = uuid.uuid4().hex
+        update_in(struct, 'metadata.labels.owner', getpass.getuser(), replace=False)
+        update_in(struct, 'metadata.labels.host', socket.gethostname(), replace=False)
+        update_in(struct, 'metadata.labels.runtime', self.kind)
 
-        if 'parameters' not in self.struct['spec']:
-            self.struct['spec']['parameters'] = {}
+        update_in(struct, 'spec.runtime.kind', self.kind)
+        update_in(struct, 'spec.runtime.command', self.command)
 
-        if 'runtime' not in self.struct['spec']:
-            self.struct['spec']['runtime'] = {}
-        self.struct['spec']['runtime']['kind'] = self.kind
         if self.command:
-            self.struct['spec']['runtime']['command'] = self.command
+            update_in(struct, 'spec.runtime.command', self.command)
         else:
-            self.command = self.struct['spec']['runtime'].get('command')
+            self.command = get_in(struct, 'spec.runtime.command')
         if self.args:
-            self.struct['spec']['runtime']['args'] = self.args
+            update_in(struct, 'spec.runtime.args', self.args)
         else:
-            self.args = self.struct['spec']['runtime'].get('args', [])
+            self.args = get_in(struct, 'spec.runtime.args', [])
+
+        if 'parameters' not in struct['spec']:
+            struct['spec']['parameters'] = {}
+        self.struct = struct
 
     def _get_secrets(self):
         if not self._secrets:

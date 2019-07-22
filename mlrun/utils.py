@@ -139,6 +139,8 @@ def list2dict(lines: list):
 
 
 def dict_to_list(struct: dict):
+    if not struct:
+        return []
     return [f'{k}={v}' for k, v in struct.items()]
 
 

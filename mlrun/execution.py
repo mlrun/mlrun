@@ -65,10 +65,13 @@ class MLClientCtx(object):
             self._data_stores, db=self._rundb)
 
     def get_meta(self):
-        return {'name': self.name,
+        resp = {'name': self.name,
                 'kind': 'run',
                 'uri': f'{self._project}/{self.uid}' if self._project else self.uid,
                 'owner': get_in(self._labels, 'owner')}
+        if 'workflow' in self._labels:
+            resp['workflow'] = self._labels['workflow']
+        return resp
 
     @classmethod
     def from_dict(cls, attrs, rundb='', autocommit=False, tmp=''):
@@ -111,6 +114,10 @@ class MLClientCtx(object):
         if self._iteration:
             return f'{self._uid}-{self._iteration}'
         return self._uid
+
+    @property
+    def tag(self):
+        return self._labels.get('workflow', self._uid)
 
     @property
     def iteration(self):

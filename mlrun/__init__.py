@@ -15,4 +15,4 @@
 __version__ = '0.0.3'
 
 from .run import get_or_create_ctx, run_start, mlrun_op
-from .rundb import get_run
+from .rundb import get_run_db

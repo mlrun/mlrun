@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import uuid
 from ast import literal_eval
 from copy import deepcopy
@@ -20,8 +19,7 @@ from os import environ
 import yaml
 
 from .execution import MLClientCtx
-from .utils import is_ipython
-from .render import ipython_ui
+from .render import run_to_html
 from .runtimes import HandlerRuntime, LocalRuntime, RemoteRuntime, DaskRuntime, MpiRuntime
 
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
@@ -132,8 +130,7 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
     runtime.with_kfp = kfp
 
     results = runtime.run(hyperparams)
-    if is_ipython and results:
-        ipython_ui(results)
+    run_to_html(results, True)
 
     return results
 

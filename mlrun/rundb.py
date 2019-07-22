@@ -13,15 +13,16 @@
 # limitations under the License.
 
 import json
-from os import path, environ, listdir
+import time
+from os import path, environ
 from urllib.parse import urlparse
 import yaml
 import pathlib
 import pandas as pd
 
-from .utils import is_ipython, get_in, match_labels, dict_to_yaml, flatten
+from .utils import get_in, match_labels, dict_to_yaml, flatten
 from .datastore import StoreManager
-from .render import ipython_ui
+from .render import run_to_html, runs_to_html, artifacts_to_html
 
 
 def get_run_db(url=''):
@@ -37,23 +38,12 @@ def get_run_db(url=''):
     return db
 
 
-def get_run(uid, project='', rundb='', secrets=None):
-    db = get_run_db(rundb).connect(secrets)
-    result = db.read_run(uid, project)
-
-    if is_ipython and result:
-        ipython_ui(result)
-
-    return result
-
-
 class RunList(list):
 
     def to_rows(self):
         rows = []
-        artifacts_list = []
-        head = ['uid', 'iteration', 'start', 'state', 'name', 'labels',
-                'parameters', 'outputs']
+        head = ['uid', 'iter', 'start', 'state', 'name', 'labels',
+                'inputs', 'parameters', 'results', 'artifacts']
         for run in self:
             row = [
                 get_in(run, 'metadata.uid', ''),
@@ -62,18 +52,17 @@ class RunList(list):
                 get_in(run, 'status.state', ''),
                 get_in(run, 'metadata.name', ''),
                 get_in(run, 'metadata.labels', ''),
+                get_in(run, 'spec.input_objects', ''),
                 get_in(run, 'spec.parameters', ''),
                 get_in(run, 'status.outputs', ''),
+                get_in(run, 'status.output_artifacts', []),
             ]
             rows.append(row)
 
-            artifacts = get_in(run, 'status.output_artifacts', [])
-            artifacts_list.append(artifacts)
+        return [head] + rows
 
-        return [head] + rows, artifacts_list
-
-    def to_df(self, flat=True, links=False):
-        rows, artifacts_list = self.to_rows()
+    def to_df(self, flat=False):
+        rows = self.to_rows()
         df = pd.DataFrame(rows[1:], columns=rows[0]) #.set_index('iter')
         df['start'] = pd.to_datetime(df['start'])
 
@@ -82,24 +71,42 @@ class RunList(list):
             df = flatten(df, 'parameters', 'param_')
             df = flatten(df, 'outputs', 'out_')
 
-        if links:
-            new_list = []
-            for row in artifacts_list:
-                html = []
-                for item in row:
-                    if item:
-                        html.append('<a href="{}">{}</a>'.format(item['key'], item['target_path']))
-                new_list.append(', '.join(html))
-            df['artifacts'] = new_list
+        return df
+
+    def show(self, display=True):
+        html = runs_to_html(self.to_df(), display)
+        if not display:
+            return html
+
+
+class ArtifactList(list):
+
+    def to_rows(self):
+        rows = []
+        head = {'key': '', 'kind': '', 'path': 'target_path', 'hash': '',
+                'viewer': '', 'updated': '', 'description': '', 'producer': '',
+                'sources': '', 'labels': ''}
+        for artifact in self:
+            row = [get_in(artifact, v or k, '') for k, v in head.items()]
+            rows.append(row)
+
+        return [head.keys()] + rows
+
+    def to_df(self, flat=False):
+        rows = self.to_rows()
+        df = pd.DataFrame(rows[1:], columns=rows[0])
+        df['updated'] = pd.to_datetime(df['updated'], unit='s')
+
+        if flat:
+            df = flatten(df, 'producer', 'prod_')
+            df = flatten(df, 'sources', 'src_')
 
         return df
 
-    def show(self):
-        df = self.to_df(links=True)
-        import IPython
-        pd.set_option('display.max_colwidth', -1)
-        IPython.display.display(
-            IPython.display.HTML(df.to_html(escape=False, index=False)))
+    def show(self, display=True):
+        html = artifacts_to_html(self.to_df(), display)
+        if not display:
+            return html
 
 
 class RunDBInterface:
@@ -117,10 +124,13 @@ class RunDBInterface:
     def list_runs(self, name='', project='', labels=[], sort=False):
         pass
 
-    def store_artifact(self, key, artifact, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, tag='', project=''):
         pass
 
     def read_artifact(self, key, tag='', project=''):
+        pass
+
+    def list_artifacts(self, name='', project='', tag='', labels=[]):
         pass
 
     def store_metric(self, keyvals={}, timestamp=None, labels={}):
@@ -152,10 +162,14 @@ class FileRunDB(RunDBInterface):
         filepath = self._filepath('runs', project, uid, '') + self.format
         self._datastore.put(filepath, data)
 
-    def read_run(self, uid, project=''):
+    def read_run(self, uid, project='', display=True):
         filepath = self._filepath('runs', project, uid, '') + self.format
         data = self._datastore.get(filepath)
-        return self._loads(data)
+        result = self._loads(data)
+
+        run_to_html(result, display)
+
+        return result
 
     def list_runs(self, name='', project='', labels=[], sort=False):
         filepath = self._filepath('runs', project)
@@ -173,12 +187,15 @@ class FileRunDB(RunDBInterface):
 
         return results
 
-    def store_artifact(self, key, artifact, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, tag='', project=''):
+        artifact.updated = time.time()
         if self.format == '.yaml':
             data = artifact.to_yaml()
         else:
             data = artifact.to_json()
-        filepath = self._filepath('artifacts', project, key, tag) + self.format
+        filepath = self._filepath('artifacts', project, key, uid) + self.format
+        self._datastore.put(filepath, data)
+        filepath = self._filepath('artifacts', project, key, tag or 'latest') + self.format
         self._datastore.put(filepath, data)
 
     def read_artifact(self, key, tag='', project=''):
@@ -186,13 +203,25 @@ class FileRunDB(RunDBInterface):
         data = self._datastore.get(filepath)
         return self._loads(data)
 
-    def _filepath(self, table, project, uid='', tag=''):
+    def list_artifacts(self, name='', project='', tag='', labels=[]):
+        filepath = self._filepath('artifacts', project, tag=tag or 'latest')
+        results = ArtifactList()
+        if isinstance(labels, str):
+            labels = labels.split(',')
+        for artifact in self._load_list(filepath):
+            if (name == '' or name in get_in(artifact, 'key', ''))\
+                    and match_labels(get_in(artifact, 'labels', {}), labels):
+                results.append(artifact)
+
+        return results
+
+    def _filepath(self, table, project, key='', tag=''):
         if tag:
-            tag = '/' + tag
+            key = '/' + key
         if project:
-            return path.join(self.dirpath, '{}/{}/{}{}'.format(table, project, uid, tag))
+            return path.join(self.dirpath, '{}/{}/{}{}'.format(table, project, tag, key))
         else:
-            return path.join(self.dirpath, '{}/{}{}'.format(table, uid, tag))
+            return path.join(self.dirpath, '{}/{}{}'.format(table, tag, key))
 
     def _dumps(self, obj):
         if self.format == '.yaml':

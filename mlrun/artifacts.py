@@ -15,7 +15,6 @@
 import json
 import os
 import hashlib
-from datetime import datetime
 #import pandas as pd
 from .datastore import StoreManager
 from .rundb import RunDBInterface
@@ -63,7 +62,7 @@ class ArtifactManager:
                 self.outputs_spec[item['key']] = item.get('path')
 
     def to_dict(self, struct):
-        struct['spec'][run_keys.output_artifacts] = [{'key':k, 'path':v} for k, v in self.outputs_spec.items()]
+        struct['spec'][run_keys.output_artifacts] = [{'key': k, 'path': v} for k, v in self.outputs_spec.items()]
         struct['spec'][run_keys.output_path] = self.out_path
         struct['status'][run_keys.output_artifacts] = [item.base_dict() for item in self.output_artifacts.values()]
 
@@ -72,7 +71,7 @@ class ArtifactManager:
         if isinstance(item, str):
             key = item
             item = Artifact(key, body, src_path=src_path,
-                            tag=tag, viewer=viewer)
+                            viewer=viewer)
         else:
             key = item.key
             target_path = target_path or item.target_path
@@ -85,7 +84,7 @@ class ArtifactManager:
         if not target_path:
             target_path = uxjoin(self.out_path, key)
         item.target_path = target_path
-        item.tag = tag or item.tag
+        item.tree = execution.tag
 
         self.output_artifacts[key] = item
 
@@ -104,11 +103,10 @@ class ArtifactManager:
                     store.upload(ipath, src_path)
 
         if self.artifact_db:
-            item.updated = str(datetime.now())
             if not item.sources:
                 item.sources = execution.to_dict()['spec'][run_keys.input_objects]
             item.producer = execution.get_meta()
-            self.artifact_db.store_artifact(key, item, item.tag, execution.project)
+            self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
@@ -116,14 +114,14 @@ class ArtifactManager:
 
 class Artifact(ModelObj):
 
-    _dict_fields = ['key', 'kind', 'src_path', 'target_path', 'hash',
+    _dict_fields = ['key', 'kind', 'tree', 'src_path', 'target_path', 'hash',
                     'description', 'viewer', 'inline']
     kind = ''
 
     def __init__(self, key, body=None, src_path=None, target_path='',
-                 tag='', viewer=None, inline=False):
+                 viewer=None, inline=False):
         self._key = key
-        self.tag = tag
+        self.tree = None
         self.updated = None
         self.target_path = target_path
         self.src_path = src_path
@@ -184,9 +182,9 @@ chart_template = '''
 class ChartArtifact(Artifact):
     kind = 'chart'
 
-    def __init__(self, key, data=[], src_path=None, target_path='', tag='',
+    def __init__(self, key, data=[], src_path=None, target_path='',
                          viewer='chart', options={}):
-        super().__init__(key, None, src_path, target_path, tag, viewer)
+        super().__init__(key, None, src_path, target_path, viewer)
         self.header = []
         self._rows = []
         if data:

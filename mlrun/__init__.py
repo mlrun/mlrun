@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.0.3'
+__version__ = '0.1.0'
 
 from .run import get_or_create_ctx, run_start, mlrun_op
 from .rundb import get_run_db

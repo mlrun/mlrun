@@ -203,13 +203,14 @@ class MLClientCtx(object):
             self._rundb.store_metric(keyvals, timestamp, labels)
 
     def log_artifact(self, item, body=None, target_path='', src_path=None,
-                     tag='', viewer=None, upload=True):
+                     tag='', viewer=None, upload=True, labels=None):
         self._artifacts_manager.log_artifact(self, item, body=body,
                                              target_path=target_path,
                                              src_path=src_path,
                                              tag=tag,
                                              viewer=viewer,
-                                             upload=upload)
+                                             upload=upload,
+                                             labels=labels)
         self._update_db()
 
     def commit(self, message=''):

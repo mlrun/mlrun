@@ -67,7 +67,7 @@ class ArtifactManager:
         struct['status'][run_keys.output_artifacts] = [item.base_dict() for item in self.output_artifacts.values()]
 
     def log_artifact(self, execution, item, body=None, target_path='', src_path='',
-                     tag='', viewer='', upload=True):
+                     tag='', viewer='', upload=True, labels=None):
         if isinstance(item, str):
             key = item
             item = Artifact(key, body, src_path=src_path,
@@ -85,6 +85,11 @@ class ArtifactManager:
             target_path = uxjoin(self.out_path, key)
         item.target_path = target_path
         item.tree = execution.tag
+        if labels:
+            if not item.labels:
+                item.labels = {}
+            for k, v in labels.items():
+                item.labels[k] = str(v)
 
         self.output_artifacts[key] = item
 

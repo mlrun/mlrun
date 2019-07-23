@@ -43,7 +43,7 @@ class RunList(list):
     def to_rows(self):
         rows = []
         head = ['uid', 'iter', 'start', 'state', 'name', 'labels',
-                'inputs', 'parameters', 'results', 'artifacts']
+                'inputs', 'parameters', 'results', 'artifacts', 'error']
         for run in self:
             row = [
                 get_in(run, 'metadata.uid', ''),
@@ -56,6 +56,7 @@ class RunList(list):
                 get_in(run, 'spec.parameters', ''),
                 get_in(run, 'status.outputs', ''),
                 get_in(run, 'status.output_artifacts', []),
+                get_in(run, 'status.error', ''),
             ]
             rows.append(row)
 

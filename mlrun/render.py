@@ -282,6 +282,14 @@ def runs_to_html(df, display=True):
     df['results'] = df['results'].apply(dict_html)
     df['start'] = df['start'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))
     df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+
+    def expand_error(x):
+        if x['state'] == 'error':
+            x['state'] = '<div style="color: red;" title="{}">{}</div>'.format((str(x['error'])).replace('"', "'"), x['state'])
+        return x
+
+    df = df.apply(expand_error, axis=1)
+    df.drop('error', axis=1, inplace=True)
     pd.set_option('display.max_colwidth', -1)
     get_tblframe(df, display)
 

@@ -116,15 +116,22 @@ class MLRuntime:
 
     def run(self, hyperparams=None):
         self.hyperparams = hyperparams
+        start = datetime.now()
         if self.hyperparams:
-            start = datetime.now()
             results = self._run_many(task_gen(self.struct, hyperparams))
             self.struct['status'] = {'start_time': str(start)}
             self.struct['spec']['hyperparams'] = self.hyperparams
             results_to_iter_status(self.struct, results)
             resp = self.struct
         else:
-            resp = self._run(self.struct)
+            self.struct['status'] = {'start_time': str(start)}
+            try:
+                resp = self._run(self.struct)
+            except RunError as err:
+                self.struct['status']['state'] = 'error'
+                self.struct['status']['error'] = err
+                return self._post_run(self.struct)
+
         return self._post_run(resp)
 
     def _run(self, struct):

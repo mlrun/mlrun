@@ -80,10 +80,12 @@ class RunList(list):
 
 
 class ArtifactList(list):
+    def __init__(self, tag='*'):
+        self.tag = tag
 
     def to_rows(self):
         rows = []
-        head = {'key': '', 'kind': '', 'path': 'target_path', 'hash': '',
+        head = {'tree': '', 'key': '', 'kind': '', 'path': 'target_path', 'hash': '',
                 'viewer': '', 'updated': '', 'description': '', 'producer': '',
                 'sources': '', 'labels': ''}
         for artifact in self:
@@ -104,7 +106,10 @@ class ArtifactList(list):
         return df
 
     def show(self, display=True):
-        html = artifacts_to_html(self.to_df(), display)
+        df = self.to_df()
+        if self.tag != '*':
+            df.drop('tree', axis=1, inplace=True)
+        html = artifacts_to_html(df, display)
         if not display:
             return html
 
@@ -176,7 +181,7 @@ class FileRunDB(RunDBInterface):
         results = RunList()
         if isinstance(labels, str):
             labels = labels.split(',')
-        for run in self._load_list(filepath):
+        for run, _ in self._load_list(filepath, '*'):
             if (name == '' or name in get_in(run, 'metadata.name', ''))\
                     and match_labels(get_in(run, 'metadata.labels', {}), labels):
                 results.append(run)
@@ -204,11 +209,19 @@ class FileRunDB(RunDBInterface):
         return self._loads(data)
 
     def list_artifacts(self, name='', project='', tag='', labels=[]):
-        filepath = self._filepath('artifacts', project, tag=tag or 'latest')
-        results = ArtifactList()
+        tag = tag or 'latest'
+        print(f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
+        filepath = self._filepath('artifacts', project, tag=tag)
+        results = ArtifactList(tag)
         if isinstance(labels, str):
             labels = labels.split(',')
-        for artifact in self._load_list(filepath):
+        if tag == '*':
+            mask = '**/*' + name
+            if name:
+                mask += '*'
+        else:
+            mask = '**/*'
+        for artifact, _ in self._load_list(filepath, mask):
             if (name == '' or name in get_in(artifact, 'key', ''))\
                     and match_labels(get_in(artifact, 'labels', {}), labels):
                 results.append(artifact)
@@ -216,6 +229,8 @@ class FileRunDB(RunDBInterface):
         return results
 
     def _filepath(self, table, project, key='', tag=''):
+        if tag == '*':
+            tag = ''
         if tag:
             key = '/' + key
         if project:
@@ -235,9 +250,13 @@ class FileRunDB(RunDBInterface):
         else:
             return json.loads(data)
 
-    def _load_list(self, dirpath):
-        for p in pathlib.Path(dirpath).iterdir():
-            if p.is_file() and p.suffix == self.format:
-                yield self._loads(p.read_text())
+    def _load_list(self, dirpath, mask):
+        for p in pathlib.Path(dirpath).glob(mask + self.format):
+            if p.is_file():
+                if '.ipynb_checkpoints' in p.parts:
+                    continue
+                data = self._loads(p.read_text())
+                if data:
+                    yield data, str(p.parent)
 
 

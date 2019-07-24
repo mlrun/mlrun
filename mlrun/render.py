@@ -15,11 +15,11 @@ import base64
 import uuid
 from io import BytesIO
 import pandas as pd
-from os import path
+from os import path, environ
 from .utils import is_ipython, get_in, dict_to_list
+from .datastore import uri_to_ipython
 
-IPYTHON_ROOT = '/User'
-V3IO_ROOT = 'files/v3io'
+JUPYTER_SERVER_ROOT = environ.get('JUPYTER_SERVER_ROOT', '/User')
 
 
 def html_dict(title, data, open=False, show_nil=False):
@@ -77,12 +77,14 @@ def link_to_ipython(link):
     ref = 'class="artifact" onclick="expandPanel(this)" paneName="result" '
     if '://' not in link:
         abs = path.abspath(link)
-        if abs.startswith('/User'):
-            return abs.replace(IPYTHON_ROOT, '/files'), ref
+        if abs.startswith(JUPYTER_SERVER_ROOT):
+            return abs.replace(JUPYTER_SERVER_ROOT, '/files'), ref
         else:
             return abs, ''
-    elif link.lower().startswith('v3io:///'):
-        return V3IO_ROOT + link[7:], ref
+    else:
+        newlink = uri_to_ipython(link)
+        if newlink:
+            return 'files/' + newlink, ref
     return link, ''
 
 

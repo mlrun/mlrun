@@ -20,6 +20,8 @@ from .utils import run_keys
 import boto3
 import requests
 
+V3IO_LOCAL_ROOT = 'v3io'
+
 
 def parseurl(url):
     p = urlparse(url)
@@ -28,6 +30,25 @@ def parseurl(url):
     if p.port:
         endpoint += ':{}'.format(p.port)
     return schema, endpoint, p.path
+
+
+def schema_to_store(schema):
+    if not schema or schema in ['file', 'c', 'd']:
+        return FileStore
+    elif schema == 's3':
+        return S3Store
+    elif schema in ['v3io', 'v3ios']:
+        return V3ioStore
+    elif schema in ['http', 'https']:
+        return HttpStore
+    else:
+        raise ValueError('unsupported store scheme ({})'.format(schema))
+
+
+def uri_to_ipython(link):
+    schema, endpoint, subpath = parseurl(link)
+    return schema_to_store(schema).uri_to_ipython(endpoint, subpath)
+
 
 class StoreManager:
     def __init__(self, secrets=None):
@@ -39,7 +60,7 @@ class StoreManager:
         if stor_list and isinstance(stor_list, list):
             for stor in stor_list:
                 schema, endpoint, subpath = parseurl(stor.get('url'))
-                new_stor = self._schema_to_store(schema)(self, schema, stor['name'], endpoint)
+                new_stor = schema_to_store(schema)(self, schema, stor['name'], endpoint)
                 new_stor.subpath = subpath
                 new_stor.secret_pfx = stor.get('secret_pfx')
                 new_stor.options = stor.get('options', {})
@@ -60,7 +81,6 @@ class StoreManager:
         return DataItem(key, store, ipath, realpath)
 
     def get_or_create_store(self, url):
-        store = None
         schema, endpoint, subpath = parseurl(url)
         if subpath.startswith('/'):
             subpath = subpath[1:]
@@ -75,21 +95,9 @@ class StoreManager:
         if storekey in self._stores.keys():
             return self._stores[storekey], subpath
 
-        store = self._schema_to_store(schema)(self, schema, storekey, endpoint)
+        store = schema_to_store(schema)(self, schema, storekey, endpoint)
         self._stores[storekey] = store
         return store, subpath
-
-    def _schema_to_store(self, schema):
-        if not schema or schema in ['file', 'c', 'd']:
-            return FileStore
-        elif schema == 's3':
-            return S3Store
-        elif schema in ['v3io', 'v3ios']:
-            return V3ioStore
-        elif schema in ['http', 'https']:
-            return HttpStore
-        else:
-            raise ValueError('unsupported store scheme ({})'.format(schema))
 
 
 class DataStore:
@@ -102,6 +110,14 @@ class DataStore:
         self.secret_pfx = ''
         self.options = {}
         self.from_spec = False
+
+    @staticmethod
+    def uri_to_kfp(endpoint, subpath):
+        raise ValueError('data store doesnt support KFP URLs')
+
+    @staticmethod
+    def uri_to_ipython(endpoint, subpath):
+        return ''
 
     def _join(self, key):
         if self.subpath:
@@ -303,6 +319,10 @@ class V3ioStore(DataStore):
             self.headers = {'X-v3io-session-key': token}
         elif username and password:
             self.headers = basic_auth_header(username, password)
+
+    @staticmethod
+    def uri_to_ipython(endpoint, subpath):
+        return V3IO_LOCAL_ROOT + subpath
 
     @property
     def url(self):

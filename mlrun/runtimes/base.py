@@ -16,7 +16,6 @@ from datetime import datetime
 import json
 import uuid
 import getpass
-import sys
 from copy import deepcopy
 from os import environ, path
 import pandas as pd
@@ -283,11 +282,13 @@ def results_to_iter_status(base_struct, results):
 
 def add_code_metadata(labels):
     dirpath = './'
-    if len(sys.argv) > 0:
-        filepath = sys.argv[0]
+    try:
+        filepath = __file__
         if path.isfile(filepath):
             labels['file'] = filepath
             dirpath = path.dirname(filepath)
+    except NameError:
+        pass
 
     try:
         from git import Repo

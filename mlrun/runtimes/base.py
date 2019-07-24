@@ -85,7 +85,6 @@ class MLRuntime:
         update_in(struct, 'metadata.labels.runtime', self.kind)
 
         update_in(struct, 'spec.runtime.kind', self.kind)
-        update_in(struct, 'spec.runtime.command', self.command)
 
         if self.command:
             update_in(struct, 'spec.runtime.command', self.command)

@@ -19,7 +19,7 @@ from datetime import datetime
 from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
-from .rundb import get_run_db
+from .db import get_run_db
 from .utils import uxjoin, run_keys, get_in
 
 

@@ -17,7 +17,7 @@ import os
 import hashlib
 #import pandas as pd
 from .datastore import StoreManager
-from .rundb import RunDBInterface
+from .db import RunDBInterface
 from .utils import uxjoin, run_keys, ModelObj
 
 

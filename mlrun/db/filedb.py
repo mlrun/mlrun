@@ -14,136 +14,15 @@
 
 import json
 import time
-from os import path, environ
-from urllib.parse import urlparse
+from os import path, remove
 import yaml
 import pathlib
-import pandas as pd
+from datetime import datetime, timedelta
 
-from .utils import get_in, match_labels, dict_to_yaml, flatten
-from .datastore import StoreManager
-from .render import run_to_html, runs_to_html, artifacts_to_html
-
-
-def get_run_db(url=''):
-    if not url:
-        url = environ.get('MLRUN_META_DBPATH', './')
-
-    p = urlparse(url)
-    scheme = p.scheme.lower()
-    if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
-        db = FileRunDB(url)
-    else:
-        raise ValueError('unsupported run DB scheme ({})'.format(scheme))
-    return db
-
-
-class RunList(list):
-
-    def to_rows(self):
-        rows = []
-        head = ['uid', 'iter', 'start', 'state', 'name', 'labels',
-                'inputs', 'parameters', 'results', 'artifacts', 'error']
-        for run in self:
-            row = [
-                get_in(run, 'metadata.uid', ''),
-                get_in(run, 'metadata.iteration', ''),
-                get_in(run, 'status.start_time', ''),
-                get_in(run, 'status.state', ''),
-                get_in(run, 'metadata.name', ''),
-                get_in(run, 'metadata.labels', ''),
-                get_in(run, 'spec.input_objects', ''),
-                get_in(run, 'spec.parameters', ''),
-                get_in(run, 'status.outputs', ''),
-                get_in(run, 'status.output_artifacts', []),
-                get_in(run, 'status.error', ''),
-            ]
-            rows.append(row)
-
-        return [head] + rows
-
-    def to_df(self, flat=False):
-        rows = self.to_rows()
-        df = pd.DataFrame(rows[1:], columns=rows[0]) #.set_index('iter')
-        df['start'] = pd.to_datetime(df['start'])
-
-        if flat:
-            df = flatten(df, 'labels')
-            df = flatten(df, 'parameters', 'param_')
-            df = flatten(df, 'outputs', 'out_')
-
-        return df
-
-    def show(self, display=True):
-        html = runs_to_html(self.to_df(), display)
-        if not display:
-            return html
-
-
-class ArtifactList(list):
-    def __init__(self, tag='*'):
-        self.tag = tag
-
-    def to_rows(self):
-        rows = []
-        head = {'tree': '', 'key': '', 'kind': '', 'path': 'target_path', 'hash': '',
-                'viewer': '', 'updated': '', 'description': '', 'producer': '',
-                'sources': '', 'labels': ''}
-        for artifact in self:
-            row = [get_in(artifact, v or k, '') for k, v in head.items()]
-            rows.append(row)
-
-        return [head.keys()] + rows
-
-    def to_df(self, flat=False):
-        rows = self.to_rows()
-        df = pd.DataFrame(rows[1:], columns=rows[0])
-        df['updated'] = pd.to_datetime(df['updated'], unit='s')
-
-        if flat:
-            df = flatten(df, 'producer', 'prod_')
-            df = flatten(df, 'sources', 'src_')
-
-        return df
-
-    def show(self, display=True):
-        df = self.to_df()
-        if self.tag != '*':
-            df.drop('tree', axis=1, inplace=True)
-        html = artifacts_to_html(df, display)
-        if not display:
-            return html
-
-
-class RunDBInterface:
-    kind = ''
-
-    def connect(self, secrets=None):
-        return self
-
-    def store_run(self, struct, uid, project='', commit=False):
-        pass
-
-    def read_run(self, uid, project=''):
-        pass
-
-    def list_runs(self, name='', project='', labels=[], sort=False):
-        pass
-
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
-        pass
-
-    def read_artifact(self, key, tag='', project=''):
-        pass
-
-    def list_artifacts(self, name='', project='', tag='', labels=[]):
-        pass
-
-    def store_metric(self, keyvals={}, timestamp=None, labels={}):
-        pass
-
-    def read_metric(self, keys, query=''):
-        pass
+from ..utils import get_in, match_labels, dict_to_yaml
+from ..datastore import StoreManager
+from ..render import run_to_html
+from .base import RunDBError, RunDBInterface, RunList, ArtifactList
 
 
 class FileRunDB(RunDBInterface):
@@ -177,21 +56,51 @@ class FileRunDB(RunDBInterface):
 
         return result
 
-    def list_runs(self, name='', project='', labels=[], sort=False):
+    def list_runs(self, name='', project='', labels=[],
+                  state='', sort=True, last=30):
         filepath = self._filepath('runs', project)
         results = RunList()
         if isinstance(labels, str):
             labels = labels.split(',')
         for run, _ in self._load_list(filepath, '*'):
             if (name == '' or name in get_in(run, 'metadata.name', ''))\
-                    and match_labels(get_in(run, 'metadata.labels', {}), labels):
+                    and match_labels(get_in(run, 'metadata.labels', {}), labels)\
+                    and (state == '' or get_in(run, 'status.state', '') == state):
                 results.append(run)
 
-        if sort:
-            results.sort(key = lambda i: get_in(
-                i, ['status','start_time']), reverse=True)
-
+        if sort or last:
+            results.sort(key=lambda i: get_in(
+                i, ['status', 'start_time']), reverse=True)
+        if last and len(results) > last:
+            return RunList(results[:last])
         return results
+
+    def del_run(self, uid, project=''):
+        filepath = self._filepath('runs', project, uid, '') + self.format
+        self._safe_del(filepath)
+
+    def del_runs(self, name='', project='', labels=[], state='', days_ago=0):
+        if not name and not state and not days_ago:
+            raise RunDBError('filter is too wide, select name and/or state and/or days_ago')
+
+        filepath = self._filepath('runs', project)
+        if isinstance(labels, str):
+            labels = labels.split(',')
+
+        if days_ago:
+            days_ago = datetime.now() - timedelta(days=days_ago)
+
+        def date_before(run):
+            return datetime.strptime(get_in(run, 'status.start_time', ''),
+                                     '%Y-%m-%d %H:%M:%S.%f') < days_ago
+
+        for run, p in self._load_list(filepath, '*'):
+            if (name == '' or name == get_in(run, 'metadata.name', ''))\
+                    and match_labels(get_in(run, 'metadata.labels', {}), labels)\
+                    and (state == '' or get_in(run, 'status.state', '') == state)\
+                    and (not days_ago or date_before(run)):
+
+                self._safe_del(p)
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
         artifact.updated = time.time()
@@ -222,12 +131,37 @@ class FileRunDB(RunDBInterface):
                 mask += '*'
         else:
             mask = '**/*'
-        for artifact, _ in self._load_list(filepath, mask):
+        for artifact, p in self._load_list(filepath, mask):
             if (name == '' or name in get_in(artifact, 'key', ''))\
                     and match_labels(get_in(artifact, 'labels', {}), labels):
+                if 'artifacts/latest' in p:
+                    artifact['tree'] = 'latest'
                 results.append(artifact)
 
         return results
+
+    def del_artifact(self, key, tag='', project=''):
+        filepath = self._filepath('artifacts', project, key, tag) + self.format
+        self._safe_del(filepath)
+
+    def del_artifacts(self, name='', project='', tag='', labels=[]):
+        tag = tag or 'latest'
+        filepath = self._filepath('artifacts', project, tag=tag)
+
+        if isinstance(labels, str):
+            labels = labels.split(',')
+        if tag == '*':
+            mask = '**/*' + name
+            if name:
+                mask += '*'
+        else:
+            mask = '**/*'
+
+        for artifact, p in self._load_list(filepath, mask):
+            if (name == '' or name == get_in(artifact, 'key', ''))\
+                    and match_labels(get_in(artifact, 'labels', {}), labels):
+
+                self._safe_del(p)
 
     def _filepath(self, table, project, key='', tag=''):
         if tag == '*':
@@ -258,6 +192,13 @@ class FileRunDB(RunDBInterface):
                     continue
                 data = self._loads(p.read_text())
                 if data:
-                    yield data, str(p.parent)
+                    yield data, str(p)
+
+    def _safe_del(self, filepath):
+        if path.isfile(filepath):
+            remove(filepath)
+        else:
+            raise RunDBError(f'run file is not found or valid ({filepath})')
+
 
 

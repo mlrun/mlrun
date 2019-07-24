@@ -16,11 +16,12 @@ from datetime import datetime
 import json
 import uuid
 import getpass
+import sys
 from copy import deepcopy
-from os import environ
+from os import environ, path
 import pandas as pd
 
-from ..rundb import get_run_db
+from ..db import get_run_db
 from ..secrets import SecretsStore
 from ..utils import run_keys, gen_md_table, dict_to_yaml, get_in, update_in
 
@@ -83,6 +84,7 @@ class MLRuntime:
         update_in(struct, 'metadata.labels.owner', getpass.getuser(), replace=False)
         update_in(struct, 'metadata.labels.host', socket.gethostname(), replace=False)
         update_in(struct, 'metadata.labels.runtime', self.kind)
+        add_code_metadata(struct['metadata']['labels'])
 
         update_in(struct, 'spec.runtime.kind', self.kind)
 
@@ -255,25 +257,52 @@ def results_to_iter_status(base_struct, results):
     base_struct['status']['iterations'] = iter_table
 
 
-class MLRunChild:
+# class MLRunChild:
+#
+#     def __init__(self, task):
+#         self.param = task['spec'].get('parameters', {})
+#         self.output = task['status'].get('outputs', {})
+#         self.state = task['status'].get('state')
+#         self.iter = task['metadata'].get('iteration')
+#
+#     def as_dict(self):
+#         result = {'iter': self.iter, 'state': self.state}
+#         for k, v in self.param.items():
+#             result[f'param.{k}'] = v
+#         for k, v in self.output.items():
+#             result[f'output.{k}'] = v
+#         return result
+#
+#
+# class MLRunChild(list):
+#
+#     def to_table(self):
+#         df = pd.DataFrame([i.as_dict() for i in self]).sort_values('iter')
+#         return [df.columns.values.tolist()] + df.values.tolist()
 
-    def __init__(self, task):
-        self.param = task['spec'].get('parameters', {})
-        self.output = task['status'].get('outputs', {})
-        self.state = task['status'].get('state')
-        self.iter = task['metadata'].get('iteration')
 
-    def as_dict(self):
-        result = {'iter': self.iter, 'state': self.state}
-        for k, v in self.param.items():
-            result[f'param.{k}'] = v
-        for k, v in self.output.items():
-            result[f'output.{k}'] = v
-        return result
+def add_code_metadata(labels):
+    dirpath = './'
+    if len(sys.argv) > 0:
+        filepath = sys.argv[0]
+        if path.isfile(filepath):
+            labels['file'] = filepath
+            dirpath = path.dirname(filepath)
+
+    try:
+        from git import Repo
+        from git.exc import GitCommandError, InvalidGitRepositoryError
+    except ImportError:
+        return labels
+
+    try:
+        repo = Repo(dirpath, search_parent_directories=True)
+        remotes = [remote.url for remote in repo.remotes]
+        if len(remotes) > 0:
+            labels['repo'] = remotes[0]
+            labels['commit'] = repo.head.commit.hexsha
+    except (GitCommandError, InvalidGitRepositoryError):
+        pass
+    return labels
 
 
-class MLRunChild(list):
-
-    def to_table(self):
-        df = pd.DataFrame([i.as_dict() for i in self]).sort_values('iter')
-        return [df.columns.values.tolist()] + df.values.tolist()

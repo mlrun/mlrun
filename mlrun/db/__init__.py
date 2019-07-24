@@ -12,7 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.1.1'
+from .filedb import FileRunDB
+from .base import RunDBInterface
+from os import environ
+from urllib.parse import urlparse
 
-from .run import get_or_create_ctx, run_start, mlrun_op
-from .db import get_run_db
+
+def get_run_db(url=''):
+    if not url:
+        url = environ.get('MLRUN_META_DBPATH', './')
+
+    p = urlparse(url)
+    scheme = p.scheme.lower()
+    if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
+        db = FileRunDB(url)
+    else:
+        raise ValueError('unsupported run DB scheme ({})'.format(scheme))
+    return db
+
+

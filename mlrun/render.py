@@ -16,11 +16,12 @@ import uuid
 from io import BytesIO
 import pandas as pd
 from os import path, environ
+import pathlib
 from .utils import is_ipython, get_in, dict_to_list
 from .datastore import uri_to_ipython
 
 JUPYTER_SERVER_ROOT = environ.get('JUPYTER_SERVER_ROOT', '/User')
-
+supported_viewers = ['.htm', '.html', '.json', '.yaml', '.txt', '.log', '.jpg', '.png', '.csv', '.py']
 
 def html_dict(title, data, open=False, show_nil=False):
     if not data:
@@ -74,16 +75,17 @@ def dict_html(x):
 
 
 def link_to_ipython(link):
+    valid = pathlib.Path(link).suffix in supported_viewers
     ref = 'class="artifact" onclick="expandPanel(this)" paneName="result" '
     if '://' not in link:
         abs = path.abspath(link)
-        if abs.startswith(JUPYTER_SERVER_ROOT):
+        if abs.startswith(JUPYTER_SERVER_ROOT) and valid:
             return abs.replace(JUPYTER_SERVER_ROOT, '/files'), ref
         else:
             return abs, ''
     else:
         newlink = uri_to_ipython(link)
-        if newlink:
+        if newlink and valid:
             return 'files/' + newlink, ref
     return link, ''
 
@@ -204,7 +206,7 @@ iframe.fileview {
 
 </style>"""
 
-jscripts = """<script>
+jscripts = r"""<script>
 function copyToClipboard(fld) {
     if (document.queryCommandSupported && document.queryCommandSupported('copy')) {
         var textarea = document.createElement('textarea');
@@ -229,8 +231,22 @@ function expandPanel(el) {
   document.querySelector(panelName + "-title").innerHTML = el.title
   iframe = document.querySelector(panelName + "-body");
   
+  const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
+    #csv { margin-bottom: 15px; }
+    #csv table { border-collapse: collapse;}
+    #csv table td { padding: 4px 8px; border: 1px solid silver;} </style>`;
+
+  function csvToHtmlTable(str) {
+    return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
+      .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
+  }
+  
   function reqListener () {
-    iframe.setAttribute("srcdoc", this.responseText);
+    if (el.title.endsWith(".csv")) {
+      iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
+    } else {
+      iframe.setAttribute("srcdoc", this.responseText);
+    }  
     console.log(this.responseText);
   }
 

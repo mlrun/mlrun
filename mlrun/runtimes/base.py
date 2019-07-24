@@ -283,14 +283,6 @@ def results_to_iter_status(base_struct, results):
 def add_code_metadata(labels):
     dirpath = './'
     try:
-        filepath = __file__
-        if path.isfile(filepath):
-            labels['file'] = filepath
-            dirpath = path.dirname(filepath)
-    except NameError:
-        pass
-
-    try:
         from git import Repo
         from git.exc import GitCommandError, InvalidGitRepositoryError
     except ImportError:
@@ -305,5 +297,3 @@ def add_code_metadata(labels):
     except (GitCommandError, InvalidGitRepositoryError):
         pass
     return labels
-
-

@@ -17,7 +17,7 @@ import json
 import uuid
 import getpass
 from copy import deepcopy
-from os import environ, path
+from os import environ
 import pandas as pd
 
 from ..db import get_run_db
@@ -111,6 +111,9 @@ class MLRuntime:
             rundb.connect(self._get_secrets())
             uid = struct['metadata']['uid']
             project = struct['metadata'].get('project', '')
+            iter = get_in(struct, 'metadata.iteration')
+            if iter:
+                uid = f'{uid}-{iter}'
             rundb.store_run(struct, uid, project, commit=True)
         return struct
 

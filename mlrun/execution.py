@@ -13,14 +13,21 @@
 # limitations under the License.
 
 from copy import deepcopy
-import yaml, json
+import yaml
+import json
 from datetime import datetime
+import uuid
+
 
 from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
 from .utils import uxjoin, run_keys, get_in
+
+
+class MLCtxValueError(Exception):
+    pass
 
 
 class MLClientCtx(object):
@@ -47,19 +54,26 @@ class MLClientCtx(object):
 
         self._runtime = {}
         self._parameters = {}
+        self._hyper_parameters = {}
         self._in_path = ''
         self._out_path = ''
         self._objects = {}
 
         self._outputs = {}
         self._state = 'created'
+        self._error = None
+        self._commit = ''
         self._start_time = datetime.now()
         self._last_update = datetime.now()
+        self._iteration_results = None
 
     def _init_dbs(self, rundb):
         if rundb:
-            self._rundb = get_run_db(rundb)
-            self._rundb.connect(self._secrets_manager)
+            if isinstance(rundb, str):
+                self._rundb = get_run_db(rundb)
+                self._rundb.connect(self._secrets_manager)
+            else:
+                self._rundb = rundb
         self._data_stores = StoreManager(self._secrets_manager)
         self._artifacts_manager = ArtifactManager(
             self._data_stores, db=self._rundb)
@@ -74,13 +88,13 @@ class MLClientCtx(object):
         return resp
 
     @classmethod
-    def from_dict(cls, attrs, rundb='', autocommit=False, tmp=''):
+    def from_dict(cls, attrs, rundb='', autocommit=False, tmp='', with_status=False):
 
         self = cls(autocommit=autocommit, tmp=tmp)
 
         meta = attrs.get('metadata')
         if meta:
-            self._uid = meta.get('uid', self._uid)
+            self._uid = meta.get('uid', self._uid or uuid.uuid4().hex)
             self._iteration = meta.get('iteration', self._iteration)
             self.name = meta.get('name', self.name)
             self._project = meta.get('project', self._project)
@@ -92,6 +106,7 @@ class MLClientCtx(object):
             self._runtime = spec.get('log_level', self._log_level)
             self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
+            self._hyper_parameters = spec.get('hyperparams', self._hyper_parameters)
             self._out_path = spec.get(run_keys.output_path, self._out_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             in_list = spec.get(run_keys.input_objects)
@@ -105,6 +120,11 @@ class MLClientCtx(object):
             if in_list and isinstance(in_list, list):
                 for item in in_list:
                     self._set_object(item['key'], item.get('path'))
+
+        status = attrs.get('status')
+        if status and with_status:
+            self._state = status.get('state', self._state)
+            self._error = status.get('error', self._error)
 
         self._update_db(commit=True)
         return self
@@ -152,9 +172,17 @@ class MLClientCtx(object):
     def labels(self):
         return deepcopy(self._labels)
 
+    def set_label(self, key, value, replace=True):
+        if replace or not self._labels.get(key):
+            self._labels[key] = str(value)
+
     @property
     def annotations(self):
         return deepcopy(self._annotations)
+
+    def set_annotation(self, key, value, replace=True):
+        if replace or not self._annotations.get(key):
+            self._annotations[key] = str(value)
 
     def get_param(self, key, default=None):
         if key not in self._parameters:
@@ -182,13 +210,24 @@ class MLClientCtx(object):
             return self._objects[key]
 
     def log_output(self, key, value):
-        self._outputs[key] = value
+        self._outputs[str(key)] = value
         self._update_db()
 
-    def log_outputs(self, outputs={}):
+    def log_outputs(self, outputs):
+        if not isinstance(outputs, dict):
+            raise MLCtxValueError('(multiple) outputs must be in the form of dict')
+
         for p in outputs.keys():
-            self._outputs[p] = outputs[p]
+            self._outputs[str(p)] = outputs[p]
         self._update_db()
+
+    def log_iteration_results(self, results, commit=False):
+        if not isinstance(results, list):
+            raise MLCtxValueError('iteration results must be a table (list of lists)')
+
+        self._iteration_results = results
+        if commit:
+            self._update_db(commit=True)
 
     def log_metric(self, key, value, timestamp=None, labels={}):
         if not timestamp:
@@ -217,6 +256,15 @@ class MLClientCtx(object):
         self._annotations['message'] = message
         self._update_db(commit=True, message=message)
 
+    def set_state(self, state=None, error=None):
+        if error:
+            self._state = 'error'
+            self._error = str(error)
+            self._update_db('error', commit=True)
+        elif state and state != self._state and self._state != 'error':
+            self._state = state
+            self._update_db(state, commit=True)
+
     def to_dict(self):
         struct = {
             'metadata':
@@ -234,10 +282,17 @@ class MLClientCtx(object):
                  },
             'status':
                 {'state': self._state,
+                 'error': self._error,
+                 'commit': self._commit,
                  'outputs': self._outputs,
                  'start_time': str(self._start_time),
                  'last_update': str(self._last_update)},
             }
+
+        if self._iteration == 0 and self._hyper_parameters:
+            struct['spec']['hyperparams'] = self._hyper_parameters
+        if self._iteration_results:
+            struct['status']['iterations'] = self._iteration_results
         self._data_stores.to_dict(struct['spec'])
         self._artifacts_manager.to_dict(struct)
         return struct
@@ -248,7 +303,7 @@ class MLClientCtx(object):
     def to_json(self):
         return json.dumps(self.to_dict())
 
-    def _update_db(self, state='', elements=[], commit=False, message=''):
+    def _update_db(self, state='', commit=False, message=''):
         self.last_update = datetime.now()
         self._state = state or 'running'
         if self._tmpfile:
@@ -258,6 +313,7 @@ class MLClientCtx(object):
                 fp.close()
 
         if commit or self._autocommit:
+            self._commit = message
             if self._rundb:
                 self._rundb.store_run(self.to_dict(), self.uid, self.project, commit)
 

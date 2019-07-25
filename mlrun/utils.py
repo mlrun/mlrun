@@ -16,10 +16,20 @@ import json
 import logging
 from os import path
 from sys import stdout
-
 import yaml
 
 
+def create_logger():
+    handler = logging.StreamHandler(stdout)
+    handler.setFormatter(
+        logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
+    logger = logging.getLogger('mlrun')
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    return logger
+
+
+logger = create_logger()
 missing = object()
 
 is_ipython = False

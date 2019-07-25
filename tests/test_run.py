@@ -71,24 +71,31 @@ run_spec_project =  {'metadata':
                   'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
 
 
+def verify_state(result):
+    state = result['status']['state']
+    assert state == 'completed', f'wrong state ({state}) ' + result['status'].get('error', '')
+
+
 def test_handler():
     result = run_start(run_spec, handler=my_func, rundb='./')
     print(result)
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
+    verify_state(result)
 
 
 def test_handler_project():
     result = run_start(run_spec_project, handler=my_func, rundb='./')
     print(result)
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
-
+    verify_state(result)
 
 def test_handler_hyper():
     result = run_start(run_spec, handler=my_func, rundb='./',
                        hyperparams={'p1': [1, 2, 3]})
     print(result)
     assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
-
+    verify_state(result)
 
 def test_local_runtime():
-    print(run_start(spec, command='example1.py', rundb='./'))
+    result = run_start(spec, command='example1.py', rundb='./')
+    verify_state(result)

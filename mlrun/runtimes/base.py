@@ -14,15 +14,17 @@
 import socket
 from datetime import datetime
 import json
-import uuid
 import getpass
 from copy import deepcopy
 from os import environ
 import pandas as pd
+from io import StringIO
 
 from ..db import get_run_db
 from ..secrets import SecretsStore
-from ..utils import run_keys, gen_md_table, dict_to_yaml, get_in, update_in
+from ..utils import run_keys, gen_md_table, dict_to_yaml, get_in, update_in, logger
+from ..execution import MLClientCtx
+from ..artifacts import TableArtifact
 
 
 class RunError(Exception):
@@ -70,70 +72,54 @@ class MLRuntime:
         self.args = args
         self.handler = handler
         self.rundb = ''
+        self.db_conn = None
         self.hyperparams = None
         self._secrets = None
+        self.secret_sources = None
         self.with_kfp = False
+        self.execution = None #MLClientCtx()
 
-    def process_struct(self, struct):
-        if 'status' not in struct:
-            struct['status'] = {}
-        if not get_in(struct, 'metadata.uid'):
-            update_in(struct, 'metadata.uid', uuid.uuid4().hex)
-
-        update_in(struct, 'metadata.labels.owner', getpass.getuser(), replace=False)
-        update_in(struct, 'metadata.labels.host', socket.gethostname(), replace=False)
-        update_in(struct, 'metadata.labels.runtime', self.kind)
-        add_code_metadata(struct['metadata']['labels'])
-
-        update_in(struct, 'spec.runtime.kind', self.kind)
-
-        if self.command:
-            update_in(struct, 'spec.runtime.command', self.command)
-        else:
-            self.command = get_in(struct, 'spec.runtime.command')
-        if self.args:
-            update_in(struct, 'spec.runtime.args', self.args)
-        else:
-            self.args = get_in(struct, 'spec.runtime.args', [])
-
-        if 'parameters' not in struct['spec']:
-            struct['spec']['parameters'] = {}
+    def process_struct(self, struct, rundb=''):
+        self.command = get_in(struct, 'spec.runtime.command')
+        self.args = get_in(struct, 'spec.runtime.args', [])
         self.struct = struct
+        self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
 
-    def _get_secrets(self):
-        if not self._secrets:
-            self._secrets = SecretsStore.from_dict(self.struct['spec'])
-        return self._secrets
+        if rundb:
+            self.rundb = rundb
+            self.db_conn = get_run_db(rundb).connect(
+                SecretsStore.from_dict(struct)
+            )
+
+        update_in(struct, 'spec.hyperparams', self.hyperparams)
+        self.execution = MLClientCtx.from_dict(struct, self.db_conn)
+        self.execution.set_label('owner', getpass.getuser(), replace=False)
+        self.execution.set_label('host', socket.gethostname(), replace=False)
+        self.execution.set_label('runtime', self.kind)
+        add_code_metadata(self.execution)
 
     def _save_run(self, struct):
-        if self.rundb:
-            rundb = get_run_db(self.rundb)
-            rundb.connect(self._get_secrets())
-            uid = struct['metadata']['uid']
-            project = struct['metadata'].get('project', '')
+        if self.db_conn:
+            project = self.execution.project
+            uid = self.execution.uid
             iter = get_in(struct, 'metadata.iteration')
             if iter:
                 uid = f'{uid}-{iter}'
-            rundb.store_run(struct, uid, project, commit=True)
+            self.db_conn.store_run(struct, uid, project, commit=True)
         return struct
 
-    def run(self, hyperparams=None):
-        self.hyperparams = hyperparams
-        start = datetime.now()
+    def run(self):
         if self.hyperparams:
-            results = self._run_many(task_gen(self.struct, hyperparams))
-            self.struct['status'] = {'start_time': str(start)}
-            self.struct['spec']['hyperparams'] = self.hyperparams
-            results_to_iter_status(self.struct, results)
-            resp = self.struct
+            results = self._run_many(task_gen(self.struct, self.hyperparams))
+            return results_to_iter(self.execution, results)
         else:
-            self.struct['status'] = {'start_time': str(start)}
+            start = datetime.now()
             try:
                 resp = self._run(self.struct)
             except RunError as err:
-                self.struct['status']['state'] = 'error'
-                self.struct['status']['error'] = err
-                return self._post_run(self.struct)
+                logger.error(f'run error - {err}')
+                self.execution.set_state(error=err)
+                return self.execution.to_dict()
 
         return self._post_run(resp)
 
@@ -163,9 +149,9 @@ class MLRuntime:
         if self.with_kfp:
             self.write_kfpmeta(resp)
 
-        if resp['status'].get('state', '') != 'error':
+        update_in(resp, ['status', 'last_update'], str(datetime.now()))
+        if get_in(resp, ['status', 'state'], '') != 'error':
             resp['status']['state'] = 'completed'
-        resp['status']['last_update'] = str(datetime.now())
         self._save_run(resp)
         return resp
 
@@ -244,59 +230,53 @@ def get_kfp_outputs(artifacts):
     return outputs
 
 
-def results_to_iter_status(base_struct, results):
+def results_to_iter(execution, results):
     iter = []
+    failed = 0
     for task in results:
-        struct = {'param': task['spec'].get('parameters', {}),
-                  'output': task['status'].get('outputs', {}),
-                  'state': task['status'].get('state'),
-                  'iter': task['metadata'].get('iteration'),
+        state = get_in(task, ['status', 'state'])
+        id = get_in(task, ['metadata', 'iteration'])
+        struct = {'param': get_in(task, ['spec', 'parameters'], {}),
+                  'output': get_in(task, ['status', 'outputs'], {}),
+                  'state': state,
+                  'iter': id,
                   }
+        if state == 'error':
+            failed += 1
+            logger.error(f'error in task  {execution.uid}:{id} - ' + get_in(task, ['status', 'error'], ''))
+        elif state != 'completed':
+            logger.error(f'task {id} didnt complete in {execution.uid}: - state: {state}')
         iter.append(struct)
 
     df = pd.io.json.json_normalize(iter).sort_values('iter')
-    iter_table = [df.columns.values.tolist()] + df.values.tolist()
-    base_struct['status']['iterations'] = iter_table
+    header = df.columns.values.tolist()
+    results = [header] + df.values.tolist()
+    execution.log_iteration_results(results)
+
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False, line_terminator='\n',encoding='utf-8')
+    execution.log_artifact(TableArtifact(
+        'iteration_results.csv', body=csv_buffer.getvalue(), header=header))
+    if failed:
+        execution.set_state(error=f'{failed} tasks failed, check logs for db for details')
+    else:
+        execution.set_state('completed')
+    return execution.to_dict()
 
 
-# class MLRunChild:
-#
-#     def __init__(self, task):
-#         self.param = task['spec'].get('parameters', {})
-#         self.output = task['status'].get('outputs', {})
-#         self.state = task['status'].get('state')
-#         self.iter = task['metadata'].get('iteration')
-#
-#     def as_dict(self):
-#         result = {'iter': self.iter, 'state': self.state}
-#         for k, v in self.param.items():
-#             result[f'param.{k}'] = v
-#         for k, v in self.output.items():
-#             result[f'output.{k}'] = v
-#         return result
-#
-#
-# class MLRunChild(list):
-#
-#     def to_table(self):
-#         df = pd.DataFrame([i.as_dict() for i in self]).sort_values('iter')
-#         return [df.columns.values.tolist()] + df.values.tolist()
-
-
-def add_code_metadata(labels):
+def add_code_metadata(execution):
     dirpath = './'
     try:
         from git import Repo
         from git.exc import GitCommandError, InvalidGitRepositoryError
     except ImportError:
-        return labels
+        pass
 
     try:
         repo = Repo(dirpath, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
-            labels['repo'] = remotes[0]
-            labels['commit'] = repo.head.commit.hexsha
+            execution.set_label('repo', remotes[0])
+            execution.set_label('commit', repo.head.commit.hexsha)
     except (GitCommandError, InvalidGitRepositoryError):
         pass
-    return labels

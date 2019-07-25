@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import uuid
 from ast import literal_eval
 from copy import deepcopy
 from os import environ
@@ -21,6 +20,7 @@ import yaml
 from .execution import MLClientCtx
 from .render import run_to_html
 from .runtimes import HandlerRuntime, LocalRuntime, RemoteRuntime, DaskRuntime, MpiRuntime
+from .utils import update_in, get_in
 
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
     """ called from within the user program to obtain a context
@@ -53,12 +53,7 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     if newspec and not isinstance(newspec, dict):
         newspec = yaml.safe_load(newspec)
 
-    if not newspec.get('metadata'):
-        newspec['metadata'] = {}
-
-    newspec['metadata']['uid'] = newspec['metadata'].get('uid', uid) or uuid.uuid4().hex
-    newspec['metadata']['name'] = newspec['metadata'].get('name', name)
-
+    update_in(newspec, 'metadata.name', name, replace=False)
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
     out = environ.get('MLRUN_META_DBPATH', rundb)
@@ -87,8 +82,6 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
 
     if struct:
         struct = deepcopy(struct)
-    if 'spec' not in struct:
-        struct['spec'] = {}
 
     if not runtime and handler:
         runtime = HandlerRuntime(handler=handler)
@@ -99,37 +92,34 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
             if not isinstance(runtime, dict):
                 runtime = runtime.to_dict()
 
-            struct['spec']['runtime'] = runtime
+        runtime_spec = get_in(struct, 'spec.runtime', runtime or {})
 
-        if struct and 'spec' in struct.keys() and 'runtime' in struct['spec'].keys():
-            kind = struct['spec']['runtime'].get('kind', '')
-            command = struct['spec']['runtime'].get('command', '')
-            if kind == 'remote' or (kind == '' and '://' in command):
-                runtime = RemoteRuntime()
-            elif kind in ['', 'local']:
-                runtime = LocalRuntime()
-            elif kind == 'mpijob':
-                runtime = MpiRuntime()
-            elif kind == 'dask':
-                runtime = DaskRuntime()
-            else:
-                raise Exception('unsupported runtime - %s' % kind)
+        if command:
+            update_in(runtime_spec, 'command', command)
+        if args:
+            update_in(runtime_spec, 'args', args)
 
-        elif command:
-            if '://' in command:
-                runtime = RemoteRuntime(command, args)
-            else:
-                runtime = LocalRuntime(command, args)
+        kind = runtime_spec.get('kind', '')
+        command = runtime_spec.get('kind', command)
+        update_in(struct, 'spec.runtime', runtime_spec)
 
+        if kind == 'remote' or (kind == '' and '://' in command):
+            runtime = RemoteRuntime()
+        elif kind in ['', 'local'] and command:
+            runtime = LocalRuntime()
+        elif kind == 'mpijob':
+            runtime = MpiRuntime()
+        elif kind == 'dask':
+            runtime = DaskRuntime()
         else:
-            raise Exception('runtime was not specified via struct or runtime or command!')
+            raise Exception('unsupported runtime (%s) or missing command' % kind)
 
-    runtime.rundb = rundb
     runtime.handler = handler
-    runtime.process_struct(struct)
+    runtime.process_struct(struct, rundb)
     runtime.with_kfp = kfp
+    runtime.hyperparams = hyperparams
 
-    results = runtime.run(hyperparams)
+    results = runtime.run()
     run_to_html(results, True)
 
     return results

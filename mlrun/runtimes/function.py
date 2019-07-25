@@ -15,8 +15,7 @@
 import json
 import requests
 
-from .base import MLRuntime, task_gen, results_to_iter_status
-from mlrun.secrets import SecretsStore
+from .base import MLRuntime
 from datetime import datetime
 
 import asyncio
@@ -27,9 +26,8 @@ class RemoteRuntime(MLRuntime):
     kind = 'remote'
 
     def _run(self, struct):
-        secrets = SecretsStore.from_dict(struct['spec'])
-        struct['spec']['secret_sources'] = secrets.to_serial()
-        log_level = struct['spec'].get('log_level', 'info')
+        struct['spec']['secret_sources'] = self._get_secrets().to_serial()
+        log_level = self.execution.log_level
         headers = {'x-nuclio-log-level': log_level}
         try:
             resp = requests.put(self.command, json=json.dumps(struct), headers=headers)
@@ -48,9 +46,9 @@ class RemoteRuntime(MLRuntime):
         return resp.json()
 
     def _run_many(self, tasks):
-        secrets = SecretsStore.from_dict(self.struct['spec'])
-        secrets = secrets.to_serial()
-        log_level = self.struct['spec'].get('log_level', 'info')
+        secrets = self._get_secrets().to_serial()
+        log_level = self.execution.log_level
+        #log_level = self.struct['spec'].get('log_level', 'info')
         headers = {'x-nuclio-log-level': log_level}
 
         loop = asyncio.get_event_loop()

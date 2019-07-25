@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
 import json
 from os import environ
-from .base import MLRuntime, task_gen, results_to_iter_status
+from .base import MLRuntime
+
 
 class DaskRuntime(MLRuntime):
     kind = 'dask'

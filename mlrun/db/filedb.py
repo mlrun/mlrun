@@ -70,7 +70,7 @@ class FileRunDB(RunDBInterface):
 
         if sort or last:
             results.sort(key=lambda i: get_in(
-                i, ['status', 'start_time']), reverse=True)
+                i, ['status', 'start_time'], ''), reverse=True)
         if last and len(results) > last:
             return RunList(results[:last])
         return results

@@ -46,9 +46,8 @@ class RemoteRuntime(MLRuntime):
         return resp.json()
 
     def _run_many(self, tasks):
-        secrets = self._get_secrets().to_serial()
+        secrets = self._secrets.to_serial()
         log_level = self.execution.log_level
-        #log_level = self.struct['spec'].get('log_level', 'info')
         headers = {'x-nuclio-log-level': log_level}
 
         loop = asyncio.get_event_loop()

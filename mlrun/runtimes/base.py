@@ -85,15 +85,14 @@ class MLRuntime:
         self.args = get_in(struct, 'spec.runtime.args', [])
         self.struct = struct
         self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
+        self._secrets = SecretsStore.from_dict(struct)
 
         if not get_in(struct, 'metadata.uid'):
             update_in(struct, 'metadata.uid', uuid.uuid4().hex)
 
         if rundb:
             self.rundb = rundb
-            self.db_conn = get_run_db(rundb).connect(
-                SecretsStore.from_dict(struct)
-            )
+            self.db_conn = get_run_db(rundb).connect(self._secrets)
 
         update_in(struct, 'spec.hyperparams', self.hyperparams)
         self.execution = MLClientCtx.from_dict(struct, self.db_conn)
@@ -273,7 +272,7 @@ def add_code_metadata(execution):
         from git import Repo
         from git.exc import GitCommandError, InvalidGitRepositoryError
     except ImportError:
-        pass
+        return
 
     try:
         repo = Repo(dirpath, search_parent_directories=True)

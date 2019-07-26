@@ -168,8 +168,10 @@ div.block.hidden {
   justify-content: flex-start;
   align-items: stretch;
 }
+.master-tbl {
+  flex: 3
+}
 .master-wrapper > div {
-  flex: 1 auto;
   margin: 4px;
   padding: 10px;
 }
@@ -198,12 +200,11 @@ iframe.fileview {
   border: 1px inset silver;
   width: 40%;
   min-height: 300px;
+  flex: 3
 }
-
 .master-wrapper * {
   box-sizing: border-box;
 }
-
 </style>"""
 
 jscripts = r"""<script>
@@ -274,7 +275,7 @@ function closePanel(el) {
 
 tblframe = """
 <div class="master-wrapper">
-  <div class="block">{}</div>
+  <div class="block master-tbl">{}</div>
   <div id="result-pane" class="right-pane block hidden">
     <div class="pane-header">
       <span id="result-title" class="pane-header-title">Title</span>

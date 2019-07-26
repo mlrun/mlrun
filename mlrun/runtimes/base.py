@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import socket
+import uuid
 from datetime import datetime
 import json
 import getpass
@@ -85,6 +86,9 @@ class MLRuntime:
         self.struct = struct
         self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
 
+        if not get_in(struct, 'metadata.uid'):
+            update_in(struct, 'metadata.uid', uuid.uuid4().hex)
+
         if rundb:
             self.rundb = rundb
             self.db_conn = get_run_db(rundb).connect(
@@ -98,30 +102,19 @@ class MLRuntime:
         self.execution.set_label('runtime', self.kind)
         add_code_metadata(self.execution)
 
-    def _save_run(self, struct):
-        if self.db_conn:
-            project = self.execution.project
-            uid = self.execution.uid
-            iter = get_in(struct, 'metadata.iteration')
-            if iter:
-                uid = f'{uid}-{iter}'
-            self.db_conn.store_run(struct, uid, project, commit=True)
-        return struct
-
     def run(self):
         if self.hyperparams:
             results = self._run_many(task_gen(self.struct, self.hyperparams))
             return results_to_iter(self.execution, results)
         else:
-            start = datetime.now()
+            #start = datetime.now()
             try:
                 resp = self._run(self.struct)
+                return self._post_run(resp)
             except RunError as err:
                 logger.error(f'run error - {err}')
                 self.execution.set_state(error=err)
                 return self.execution.to_dict()
-
-        return self._post_run(resp)
 
     def _run(self, struct):
         pass
@@ -154,6 +147,16 @@ class MLRuntime:
             resp['status']['state'] = 'completed'
         self._save_run(resp)
         return resp
+
+    def _save_run(self, struct):
+        if self.db_conn:
+            project = self.execution.project
+            uid = get_in(struct, 'metadata.uid')
+            iter = get_in(struct, 'metadata.iteration')
+            if iter:
+                uid = f'{uid}-{iter}'
+            self.db_conn.store_run(struct, uid, project, commit=True)
+        return struct
 
     def _force_handler(self):
         if not self.handler:

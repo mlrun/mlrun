@@ -266,6 +266,11 @@ class MLClientCtx(object):
             self._update_db(state, commit=True)
 
     def to_dict(self):
+
+        def set_if_valid(struct, key, val):
+            if val:
+                struct['key'] = val
+
         struct = {
             'metadata':
                 {'name': self.name,
@@ -282,12 +287,13 @@ class MLClientCtx(object):
                  },
             'status':
                 {'state': self._state,
-                 'error': self._error,
-                 'commit': self._commit,
                  'outputs': self._outputs,
                  'start_time': str(self._start_time),
                  'last_update': str(self._last_update)},
             }
+
+        set_if_valid(struct['status'], 'error', self._error)
+        set_if_valid(struct['status'], 'commit', self._commit)
 
         if self._iteration == 0 and self._hyper_parameters:
             struct['spec']['hyperparams'] = self._hyper_parameters

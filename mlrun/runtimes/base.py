@@ -104,11 +104,16 @@ class MLRuntime:
     def run(self):
         if self.hyperparams:
             results = self._run_many(task_gen(self.struct, self.hyperparams))
-            return results_to_iter(self.execution, results)
+            resp = self.results_to_iter(results)
+            if self.with_kfp:
+                self.write_kfpmeta(resp)
+            return resp
         else:
             #start = datetime.now()
             try:
                 resp = self._run(self.struct)
+                if self.with_kfp:
+                    self.write_kfpmeta(resp)
                 return self._post_run(resp)
             except RunError as err:
                 logger.error(f'run error - {err}')
@@ -138,9 +143,6 @@ class MLRuntime:
         if isinstance(resp, str):
             resp = json.loads(resp)
 
-        if self.with_kfp:
-            self.write_kfpmeta(resp)
-
         update_in(resp, ['status', 'last_update'], str(datetime.now()))
         if get_in(resp, ['status', 'state'], '') != 'error':
             resp['status']['state'] = 'completed'
@@ -156,6 +158,40 @@ class MLRuntime:
                 uid = f'{uid}-{iter}'
             self.db_conn.store_run(struct, uid, project, commit=True)
         return struct
+
+    def results_to_iter(self, results):
+        iter = []
+        failed = 0
+        for task in results:
+            state = get_in(task, ['status', 'state'])
+            id = get_in(task, ['metadata', 'iteration'])
+            struct = {'param': get_in(task, ['spec', 'parameters'], {}),
+                      'output': get_in(task, ['status', 'outputs'], {}),
+                      'state': state,
+                      'iter': id,
+                      }
+            if state == 'error':
+                failed += 1
+                logger.error(f'error in task  {self.execution.uid}:{id} - ' + get_in(task, ['status', 'error'], ''))
+            elif state != 'completed':
+                self._post_run(task)
+
+            iter.append(struct)
+
+        df = pd.io.json.json_normalize(iter).sort_values('iter')
+        header = df.columns.values.tolist()
+        results = [header] + df.values.tolist()
+        self.execution.log_iteration_results(results)
+
+        csv_buffer = StringIO()
+        df.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
+        self.execution.log_artifact(TableArtifact(
+            'iteration_results.csv', body=csv_buffer.getvalue(), header=header))
+        if failed:
+            self.execution.set_state(error=f'{failed} tasks failed, check logs for db for details')
+        else:
+            self.execution.set_state('completed')
+        return self.execution.to_dict()
 
     def _force_handler(self):
         if not self.handler:
@@ -230,40 +266,6 @@ def get_kfp_outputs(artifacts):
                 outputs += [meta]
 
     return outputs
-
-
-def results_to_iter(execution, results):
-    iter = []
-    failed = 0
-    for task in results:
-        state = get_in(task, ['status', 'state'])
-        id = get_in(task, ['metadata', 'iteration'])
-        struct = {'param': get_in(task, ['spec', 'parameters'], {}),
-                  'output': get_in(task, ['status', 'outputs'], {}),
-                  'state': state,
-                  'iter': id,
-                  }
-        if state == 'error':
-            failed += 1
-            logger.error(f'error in task  {execution.uid}:{id} - ' + get_in(task, ['status', 'error'], ''))
-        elif state != 'completed':
-            logger.error(f'task {id} didnt complete in {execution.uid}: - state: {state}')
-        iter.append(struct)
-
-    df = pd.io.json.json_normalize(iter).sort_values('iter')
-    header = df.columns.values.tolist()
-    results = [header] + df.values.tolist()
-    execution.log_iteration_results(results)
-
-    csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False, line_terminator='\n',encoding='utf-8')
-    execution.log_artifact(TableArtifact(
-        'iteration_results.csv', body=csv_buffer.getvalue(), header=header))
-    if failed:
-        execution.set_state(error=f'{failed} tasks failed, check logs for db for details')
-    else:
-        execution.set_state('completed')
-    return execution.to_dict()
 
 
 def add_code_metadata(execution):

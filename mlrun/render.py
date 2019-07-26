@@ -201,6 +201,7 @@ iframe.fileview {
   width: 40%;
   min-height: 300px;
   flex: 3
+  min-width: 500px;
 }
 .master-wrapper * {
   box-sizing: border-box;

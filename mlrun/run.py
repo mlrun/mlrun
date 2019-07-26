@@ -100,7 +100,7 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
             update_in(runtime_spec, 'args', args)
 
         kind = runtime_spec.get('kind', '')
-        command = runtime_spec.get('kind', command)
+        command = runtime_spec.get('command', command)
         update_in(struct, 'spec.runtime', runtime_spec)
 
         if kind == 'remote' or (kind == '' and '://' in command):

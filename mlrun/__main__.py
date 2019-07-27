@@ -44,9 +44,10 @@ def main():
 @click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
 @click.option('--hyperparam', '-x', default='', multiple=True,
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
+@click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
-        workflow, project, rundb, runtime, kfp, hyperparam, run_args):
+        workflow, project, rundb, runtime, kfp, hyperparam, param_file, run_args):
     """Execute a task and inject parameters."""
 
     meta = {}
@@ -83,7 +84,8 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
 
     struct = {'metadata': meta, 'spec': spec}
     try:
-        resp = run_start(struct, rundb=rundb, kfp=kfp, hyperparams=hyperparam)
+        resp = run_start(struct, rundb=rundb, kfp=kfp,
+                         hyperparams=hyperparam, param_file=param_file)
     except RunError as err:
         print(f'runtime error: {err}')
         exit(1)

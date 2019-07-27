@@ -201,7 +201,7 @@ class FileStore(DataStore):
         return path.join(self.subpath, key)
 
     def get(self, key, tag=''):
-        with open(self._join(key), 'r') as fp:
+        with open(self._join(key), 'rb') as fp:
             return fp.read()
 
     def put(self, key, data, tag=''):

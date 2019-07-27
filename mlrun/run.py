@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import socket
 from ast import literal_eval
 from copy import deepcopy
 from os import environ
@@ -61,11 +61,12 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
         autocommit = True
 
     ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit, tmp=tmp)
+    ctx.set_label('host', socket.gethostname())
     return ctx
 
 
 def run_start(struct, command='', args=[], runtime=None, rundb='',
-              kfp=False, handler=None, hyperparams=None):
+              kfp=False, handler=None, hyperparams=None, param_file=None):
     """Run a local or remote task.
 
     :param struct:     dict holding run spec
@@ -117,9 +118,8 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
             raise Exception('unsupported runtime (%s) or missing command' % kind)
 
     runtime.handler = handler
-    runtime.process_struct(struct, rundb)
+    runtime.process_struct(struct, rundb,hyperparams, param_file)
     runtime.with_kfp = kfp
-    runtime.hyperparams = hyperparams
 
     results = runtime.run()
     run_to_html(results, True)
@@ -128,9 +128,12 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
 
 
 def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', secrets=[],
-             params={}, hyperparams={}, inputs={}, outputs={}, out_path='', rundb=''):
+             params={}, hyperparams={}, param_file='',
+             inputs={}, outputs={}, out_path='', rundb=''):
     from kfp import dsl
+    from os import environ
 
+    rundb = rundb or environ.get('MLRUN_META_DBPATH')
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
     file_outputs = {}
     for s in secrets:
@@ -152,9 +155,11 @@ def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', se
         cmd += ['--out-path', out_path]
     if rundb:
         cmd += ['--rundb', rundb]
+    if param_file:
+        cmd += ['--param-file', param_file]
 
-    if hyperparams:
-        file_outputs['iterations'] = f'/tmp/iterations'
+    if hyperparams or param_file:
+        file_outputs['iterations'] = f'/tmp/iteration_results.csv'
 
     cop = dsl.ContainerOp(
         name=name,

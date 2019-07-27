@@ -54,7 +54,7 @@ class MLClientCtx(object):
 
         self._runtime = {}
         self._parameters = {}
-        self._hyper_parameters = {}
+        #self._hyper_parameters = {}
         self._in_path = ''
         self._out_path = ''
         self._objects = {}
@@ -106,7 +106,7 @@ class MLClientCtx(object):
             self._log_level = spec.get('log_level', self._log_level)
             self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
-            self._hyper_parameters = spec.get('hyperparams', self._hyper_parameters)
+            #self._hyper_parameters = spec.get('hyperparams', self._hyper_parameters)
             self._out_path = spec.get(run_keys.output_path, self._out_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             in_list = spec.get(run_keys.input_objects)
@@ -295,8 +295,8 @@ class MLClientCtx(object):
         set_if_valid(struct['status'], 'error', self._error)
         set_if_valid(struct['status'], 'commit', self._commit)
 
-        if self._iteration == 0 and self._hyper_parameters:
-            struct['spec']['hyperparams'] = self._hyper_parameters
+        #if self._iteration == 0 and self._hyper_parameters:
+        #    struct['spec']['hyperparams'] = self._hyper_parameters
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
         self._data_stores.to_dict(struct['spec'])

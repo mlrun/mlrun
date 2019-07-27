@@ -26,6 +26,7 @@ from ..secrets import SecretsStore
 from ..utils import run_keys, gen_md_table, dict_to_yaml, get_in, update_in, logger
 from ..execution import MLClientCtx
 from ..artifacts import TableArtifact
+from .generators import GridGenerator, ListGenerator
 
 
 class RunError(Exception):
@@ -33,37 +34,6 @@ class RunError(Exception):
 
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
-
-
-def grid_to_list(params={}):
-    arr = {}
-    lastlen = 1
-    for pk, pv in params.items():
-        for p in arr.keys():
-            arr[p] = arr[p] * len(pv)
-        expanded = []
-        for i in range(len(pv)):
-            expanded += [pv[i]] * lastlen
-        arr[pk] = expanded
-        lastlen = lastlen * len(pv)
-
-    return arr
-
-
-def task_gen(struct, hyperparams):
-    i = 0
-    params = grid_to_list(hyperparams)
-    max = len(next(iter(params.values())))
-
-    while i < max:
-        newstruct = deepcopy(struct)
-        param_dict = get_in(newstruct, ['spec', 'parameters'], {})
-        for key, values in params.items():
-            param_dict[key] = values[i]
-        update_in(newstruct, ['spec', 'parameters'], param_dict)
-        update_in(newstruct, ['metadata', 'iteration'], i + 1)
-        i += 1
-        yield newstruct
 
 
 class MLRuntime:
@@ -76,13 +46,15 @@ class MLRuntime:
         self.handler = handler
         self.rundb = ''
         self.db_conn = None
-        self.hyperparams = None
+        self.task_generator = None
         self._secrets = None
         self.secret_sources = None
         self.with_kfp = False
         self.execution = None #MLClientCtx()
 
-    def process_struct(self, struct, rundb=''):
+    def process_struct(self, struct, rundb='',
+                       hyperparams=None, param_file=None):
+
         self.command = get_in(struct, 'spec.runtime.command')
         self.args = get_in(struct, 'spec.runtime.args', [])
         self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
@@ -105,12 +77,18 @@ class MLRuntime:
         update_in(struct, 'metadata.labels', labels)
         self.struct = struct
 
-        update_in(struct, 'spec.hyperparams', self.hyperparams)
         self.execution = MLClientCtx.from_dict(struct, self.db_conn)
 
+        if hyperparams:
+            self.task_generator = GridGenerator(hyperparams)
+        elif param_file:
+            obj = self.execution.get_object('param_file.csv', param_file)
+            self.task_generator = ListGenerator(obj.get())
+
     def run(self):
-        if self.hyperparams:
-            results = self._run_many(task_gen(self.struct, self.hyperparams))
+        if self.task_generator:
+            generator = self.task_generator.generate(self.struct)
+            results = self._run_many(generator)
             resp = self.results_to_iter(results)
             if self.with_kfp:
                 self.write_kfpmeta(resp)
@@ -222,8 +200,6 @@ class MLRuntime:
         text = '# Run Report\n'
         if 'iterations' in struct['status']:
             iter = struct['status']['iterations']
-            with open(f'/tmp/iterations', 'w') as fp:
-                fp.write(json.dumps(iter))
             iter_html = gen_md_table(iter[0], iter[1:])
             text += '## Iterations\n' + iter_html
             struct = deepcopy(struct)

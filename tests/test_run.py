@@ -111,6 +111,14 @@ def test_handler_hyper():
     assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
     verify_state(result)
 
+def test_handler_hyperlist():
+    run_spec = tag_test(basespec2, 'test_handler_hyperlist')
+    result = run_start(run_spec, handler=my_func, rundb=rundb_path,
+                       param_file='param_file.csv')
+    print(result)
+    assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
+    verify_state(result)
+
 def test_local_runtime():
     spec = tag_test(basespec, 'test_local_runtime')
     result = run_start(spec, command='example1.py', rundb=rundb_path)

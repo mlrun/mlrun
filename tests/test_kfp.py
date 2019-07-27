@@ -16,8 +16,6 @@ from os import environ, listdir
 
 import yaml
 
-environ['KFPMETA_OUT_DIR'] = './'
-
 
 from tempfile import mktemp
 from copy import deepcopy

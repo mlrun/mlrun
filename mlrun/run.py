@@ -47,11 +47,11 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     elif with_env and config:
         newspec = config
 
-    if not newspec:
-        newspec = {}
-
     if newspec and not isinstance(newspec, dict):
         newspec = yaml.safe_load(newspec)
+
+    if not newspec:
+        newspec = {}
 
     update_in(newspec, 'metadata.name', name, replace=False)
     autocommit = False
@@ -92,6 +92,8 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
             if not isinstance(runtime, dict):
                 runtime = runtime.to_dict()
 
+        if not struct:
+            struct = {}
         runtime_spec = get_in(struct, 'spec.runtime', runtime or {})
 
         if command:

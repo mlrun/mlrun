@@ -192,34 +192,6 @@ class ModelObj:
         return json.dumps(self.to_dict())
 
 
-def fake_nuclio_context(struct):
-    from nuclio_sdk import Context as _Context, Logger
-    from nuclio_sdk.logger import HumanReadableFormatter
-    from nuclio_sdk import Event
-
-    class FunctionContext(_Context):
-        """Wrapper around nuclio_sdk.Context to make automatically create
-        logger"""
-
-        def __getattribute__(self, attr):
-            value = object.__getattribute__(self, attr)
-            if value is None and attr == 'logger':
-                value = self.logger = Logger(level=logging.INFO)
-                value.set_handler(
-                    'mlrun', stdout, HumanReadableFormatter())
-            return value
-
-        def set_logger_level(self, verbose=False):
-            if verbose:
-                level = logging.DEBUG
-            else:
-                level = logging.INFO
-            value = self.logger = Logger(level=level)
-            value.set_handler('mlrun', stdout, HumanReadableFormatter())
-
-    return FunctionContext(), Event(body=json.dumps(struct))
-
-
 def gen_md_table(header, rows=[]):
 
     def gen_list(items=[]):

@@ -57,9 +57,11 @@ def task_gen(struct, hyperparams):
 
     while i < max:
         newstruct = deepcopy(struct)
+        param_dict = get_in(newstruct, ['spec', 'parameters'], {})
         for key, values in params.items():
-            newstruct['spec']['parameters'][key] = values[i]
-        newstruct['metadata']['iteration'] = i + 1
+            param_dict[key] = values[i]
+        update_in(newstruct, ['spec', 'parameters'], param_dict)
+        update_in(newstruct, ['metadata', 'iteration'], i + 1)
         i += 1
         yield newstruct
 
@@ -85,7 +87,8 @@ class MLRuntime:
         self.args = get_in(struct, 'spec.runtime.args', [])
         self.struct = struct
         self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
-        self._secrets = SecretsStore.from_dict(struct)
+        if self.secret_sources:
+            self._secrets = SecretsStore.from_dict(struct)
 
         if not get_in(struct, 'metadata.uid'):
             update_in(struct, 'metadata.uid', uuid.uuid4().hex)
@@ -185,8 +188,11 @@ class MLRuntime:
 
         csv_buffer = StringIO()
         df.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
-        self.execution.log_artifact(TableArtifact(
-            'iteration_results.csv', body=csv_buffer.getvalue(), header=header))
+        self.execution.log_artifact(
+            TableArtifact('iteration_results.csv',
+                          body=csv_buffer.getvalue(),
+                          header=header,
+                          viewer='table'))
         if failed:
             self.execution.set_state(error=f'{failed} tasks failed, check logs for db for details')
         else:

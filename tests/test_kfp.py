@@ -24,20 +24,21 @@ from copy import deepcopy
 
 from mlrun.run import get_or_create_ctx, run_start
 from mlrun.artifacts import ChartArtifact, TableArtifact
-
 from mlrun.utils import run_keys
+from conftest import rundb_path, out_path
 
 run_spec =  {'metadata':
                  {'labels': {'owner': 'yaronh'}},
              'spec':
                  {'parameters': {'p1': 5},
                   'input_objects': [],
+                  run_keys.output_path: out_path,
                   'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
 
 
 def my_job(struct):
     # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-    context = get_or_create_ctx('mytask', spec=struct)
+    context = get_or_create_ctx('kfp_test', spec=struct)
 
     # get parameters from the runtime context (or use defaults)
     p1 = context.get_param('p1', 1)
@@ -75,7 +76,7 @@ def test_kfp_run():
     spec = deepcopy(run_spec)
     spec['spec'][run_keys.output_path] = tmpdir
     print(tmpdir)
-    result = run_start(spec, handler=my_job, rundb='./', kfp=True)
+    result = run_start(spec, handler=my_job, rundb=rundb_path, kfp=True)
     print(result['status']['output_artifacts'])
     alist = listdir(tmpdir)
     expected = ['chart.html', 'dataset.csv', 'model.txt', 'results.html']
@@ -89,7 +90,7 @@ def test_kfp_hyper():
     spec = deepcopy(run_spec)
     spec['spec'][run_keys.output_path] = tmpdir
     print(tmpdir)
-    result = run_start(spec, handler=my_job, rundb='./',
+    result = run_start(spec, handler=my_job, rundb=rundb_path,
                        kfp=True, hyperparams={'p1': [1, 2, 3]})
     alist = listdir(tmpdir)
     print(alist)

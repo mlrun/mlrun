@@ -14,23 +14,31 @@
 
 import json
 import requests
-
-from .base import MLRuntime
 from datetime import datetime
-
 import asyncio
 from aiohttp.client import ClientSession
+import logging
+from sys import stdout
+
+from .base import MLRuntime
+from ..utils import update_in
+
+from nuclio_sdk import Context as _Context, Logger
+from nuclio_sdk.logger import HumanReadableFormatter
+from nuclio_sdk import Event
 
 
 class RemoteRuntime(MLRuntime):
     kind = 'remote'
 
     def _run(self, struct):
-        struct['spec']['secret_sources'] = self._get_secrets().to_serial()
+        if self._secrets:
+            update_in(struct, 'spec.secret_sources',
+                      self._secrets.to_serial())
         log_level = self.execution.log_level
         headers = {'x-nuclio-log-level': log_level}
         try:
-            resp = requests.put(self.command, json=json.dumps(struct), headers=headers)
+            resp = requests.put(self.command, json=struct, headers=headers)
         except OSError as err:
             print('ERROR: %s', str(err))
             raise OSError('error: cannot run function at url {}'.format(self.command))
@@ -46,7 +54,7 @@ class RemoteRuntime(MLRuntime):
         return resp.json()
 
     def _run_many(self, tasks):
-        secrets = self._secrets.to_serial()
+        secrets = self._secrets.to_serial() if self._secrets else None
         log_level = self.execution.log_level
         headers = {'x-nuclio-log-level': log_level}
 
@@ -86,9 +94,9 @@ async def invoke_async(runs, url, headers, secrets):
 
     async with ClientSession() as session:
         for run in runs:
-            run['spec']['secret_sources'] = secrets
+            update_in(run, 'spec.secret_sources', secrets)
             tasks.append(asyncio.ensure_future(
-                submit(session, url, json.dumps(run), headers),
+                submit(session, url, run, headers),
             ))
 
         for status, resp, logs in await asyncio.gather(*tasks):
@@ -104,4 +112,30 @@ async def invoke_async(runs, url, headers, secrets):
                     print(parsed, '----------')
 
     return results
+
+
+def fake_nuclio_context(body, headers=None):
+
+    class FunctionContext(_Context):
+        """Wrapper around nuclio_sdk.Context to make automatically create
+        logger"""
+
+        def __getattribute__(self, attr):
+            value = object.__getattribute__(self, attr)
+            if value is None and attr == 'logger':
+                value = self.logger = Logger(level=logging.INFO)
+                value.set_handler(
+                    'mlrun', stdout, HumanReadableFormatter())
+            return value
+
+        def set_logger_level(self, verbose=False):
+            if verbose:
+                level = logging.DEBUG
+            else:
+                level = logging.INFO
+            value = self.logger = Logger(level=level)
+            value.set_handler('mlrun', stdout, HumanReadableFormatter())
+
+    return FunctionContext(), Event(body=body, headers=headers)
+
 

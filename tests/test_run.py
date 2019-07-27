@@ -15,6 +15,7 @@
 from mlrun.run import get_or_create_ctx, run_start
 from mlrun.utils import run_keys
 from os import environ
+from conftest import rundb_path, out_path
 
 
 def my_func(spec=None):
@@ -33,7 +34,7 @@ def my_func(spec=None):
 
 
 def test_noparams():
-    environ['MLRUN_META_DBPATH'] = './'
+    environ['MLRUN_META_DBPATH'] = rundb_path
     result = my_func().to_dict()
 
     assert result['status']['outputs'].get('accuracy') == 2, 'failed to run'
@@ -43,12 +44,13 @@ def test_noparams():
 spec = {'spec': {
     'parameters':{'p1':8},
     'secret_sources': [{'kind':'file', 'source': 'secrets.txt'}],
+    run_keys.output_path: out_path,
     run_keys.input_objects: [{'key':'infile.txt', 'path':'s3://yarons-tests/infile.txt'}],
 }}
 
 
 def test_with_params():
-    environ['MLRUN_META_DBPATH'] = './'
+    environ['MLRUN_META_DBPATH'] = rundb_path
     result = my_func(spec).to_dict()
     assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
     assert result['status'][run_keys.output_artifacts][0].get('key') == 'chart', 'failed to run'
@@ -58,6 +60,7 @@ run_spec =  {'metadata':
              'spec':
                  {'parameters': {'p1': 5},
                   run_keys.input_objects: [],
+                  run_keys.output_path: out_path,
                   'secret_sources': [
                       {'kind': 'file', 'source': 'secrets.txt'}]}}
 
@@ -68,6 +71,7 @@ run_spec_project =  {'metadata':
              'spec':
                  {'parameters': {'p1': 5},
                   'input_objects': [],
+                  run_keys.output_path: out_path,
                   'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
 
 
@@ -77,25 +81,25 @@ def verify_state(result):
 
 
 def test_handler():
-    result = run_start(run_spec, handler=my_func, rundb='./')
+    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
     print(result)
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
     verify_state(result)
 
 
 def test_handler_project():
-    result = run_start(run_spec_project, handler=my_func, rundb='./')
+    result = run_start(run_spec_project, handler=my_func, rundb=rundb_path)
     print(result)
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
     verify_state(result)
 
 def test_handler_hyper():
-    result = run_start(run_spec, handler=my_func, rundb='./',
+    result = run_start(run_spec, handler=my_func, rundb=rundb_path,
                        hyperparams={'p1': [1, 2, 3]})
     print(result)
     assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
     verify_state(result)
 
 def test_local_runtime():
-    result = run_start(spec, command='example1.py', rundb='./')
+    result = run_start(spec, command='example1.py', rundb=rundb_path)
     verify_state(result)

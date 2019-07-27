@@ -35,8 +35,8 @@ class HandlerRuntime(MLRuntime):
         args = inspect.signature(self.handler).parameters
         if len(args) > 1 and args[0] == 'context':
             # its a nuclio function
-            from mlrun.utils import fake_nuclio_context
-            context, event = fake_nuclio_context(struct)
+            from .function import fake_nuclio_context
+            context, event = fake_nuclio_context(json.dumps(struct))
             out = self.handler(context, event)
         elif len(args) == 1:
             out = self.handler(struct)

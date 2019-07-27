@@ -311,7 +311,7 @@ def runs_to_html(df, display=True):
     df = df.apply(expand_error, axis=1)
     df.drop('error', axis=1, inplace=True)
     pd.set_option('display.max_colwidth', -1)
-    get_tblframe(df, display)
+    return get_tblframe(df, display)
 
 
 def artifacts_to_html(df, display=True):
@@ -333,4 +333,4 @@ def artifacts_to_html(df, display=True):
     df['updated'] = df['updated'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))
     pd.set_option('display.max_colwidth', -1)
 
-    get_tblframe(df, display)
+    return get_tblframe(df, display)

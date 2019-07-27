@@ -14,10 +14,10 @@
 
 from http_srv import create_function
 from mlrun import get_or_create_ctx, run_start
-from mlrun.utils import run_keys
+from mlrun.utils import run_keys, update_in
 import time
 import _thread
-from conftest import rundb_path, out_path
+from conftest import rundb_path, out_path, tag_test
 
 
 def myfunction(context, event):
@@ -42,7 +42,7 @@ def myfunction(context, event):
     return ctx.to_json()
 
 
-spec = {'spec': {
+basespec = {'spec': {
     'parameters':{'p1':8},
     'secret_sources': [{'kind':'file', 'source': 'secrets.txt'}],
     run_keys.output_path: out_path,
@@ -59,6 +59,7 @@ def test_simple_function():
     _thread.start_new_thread( create_function, (myfunction, 4444))
     time.sleep(2)
 
+    spec = tag_test(basespec, 'simple_function')
     result = run_start(spec, command='http://localhost:4444',
                        rundb=rundb_path)
     print(result)
@@ -69,6 +70,7 @@ def test_hyper_function():
     _thread.start_new_thread( create_function, (myfunction, 4444))
     time.sleep(2)
 
+    spec = tag_test(basespec, 'hyper_function')
     result = run_start(spec, command='http://localhost:4444',
                        rundb=rundb_path, hyperparams={'p1': [1, 2, 3]})
     print(result)

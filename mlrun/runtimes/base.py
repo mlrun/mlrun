@@ -85,7 +85,6 @@ class MLRuntime:
     def process_struct(self, struct, rundb=''):
         self.command = get_in(struct, 'spec.runtime.command')
         self.args = get_in(struct, 'spec.runtime.args', [])
-        self.struct = struct
         self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
         if self.secret_sources:
             self._secrets = SecretsStore.from_dict(struct)
@@ -97,12 +96,16 @@ class MLRuntime:
             self.rundb = rundb
             self.db_conn = get_run_db(rundb).connect(self._secrets)
 
+        labels = get_in(struct, 'metadata.labels', {})
+        set_if_none(labels, 'owner', getpass.getuser())
+        set_if_none(labels, 'host', socket.gethostname())
+        set_if_none(labels, 'runtime', self.kind)
+        add_code_metadata(labels)
+        update_in(struct, 'metadata.labels', labels)
+        self.struct = struct
+
         update_in(struct, 'spec.hyperparams', self.hyperparams)
         self.execution = MLClientCtx.from_dict(struct, self.db_conn)
-        self.execution.set_label('owner', getpass.getuser(), replace=False)
-        self.execution.set_label('host', socket.gethostname(), replace=False)
-        self.execution.set_label('runtime', self.kind)
-        add_code_metadata(self.execution)
 
     def run(self):
         if self.hyperparams:
@@ -274,7 +277,7 @@ def get_kfp_outputs(artifacts):
     return outputs
 
 
-def add_code_metadata(execution):
+def add_code_metadata(labels):
     dirpath = './'
     try:
         from git import Repo
@@ -286,7 +289,12 @@ def add_code_metadata(execution):
         repo = Repo(dirpath, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
-            execution.set_label('repo', remotes[0])
-            execution.set_label('commit', repo.head.commit.hexsha)
+            set_if_none(labels, 'repo', remotes[0])
+            set_if_none(labels, 'commit', repo.head.commit.hexsha)
     except (GitCommandError, InvalidGitRepositoryError):
         pass
+
+
+def set_if_none(struct, key, value):
+    if not struct.get(key):
+        struct[key] = value

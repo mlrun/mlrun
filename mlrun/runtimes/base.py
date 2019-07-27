@@ -92,6 +92,7 @@ class MLRuntime:
         if not get_in(struct, 'metadata.uid'):
             update_in(struct, 'metadata.uid', uuid.uuid4().hex)
 
+        rundb = rundb or environ.get('MLRUN_META_DBPATH', '')
         if rundb:
             self.rundb = rundb
             self.db_conn = get_run_db(rundb).connect(self._secrets)

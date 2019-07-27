@@ -38,7 +38,7 @@ class HandlerRuntime(MLRuntime):
             from .function import fake_nuclio_context
             context, event = fake_nuclio_context(json.dumps(struct))
             out = self.handler(context, event)
-        elif len(args) == 1:
+        elif len(args) >= 1:
             out = self.handler(struct)
         else:
             out = self.handler()

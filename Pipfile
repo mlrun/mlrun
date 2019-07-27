@@ -16,6 +16,8 @@ kubernetes = ">=9.0.0"
 aiohttp = ">=3.5.0"
 nest-asyncio = ">=1.0.0"
 GitPython = ">=2.1.0"
+nuclio-sdk = ">=0.0.3"
+
 
 [requires]
 python_version = "3.6"

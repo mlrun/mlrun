@@ -23,7 +23,7 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in
+from .utils import uxjoin, run_keys, get_in, dict_to_yaml
 
 
 class MLCtxValueError(Exception):
@@ -304,7 +304,7 @@ class MLClientCtx(object):
         return struct
 
     def to_yaml(self):
-        return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
+        return dict_to_yaml(self.to_dict())
 
     def to_json(self):
         return json.dumps(self.to_dict())

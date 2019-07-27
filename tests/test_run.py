@@ -13,13 +13,13 @@
 # limitations under the License.
 
 from mlrun.run import get_or_create_ctx, run_start
-from mlrun.utils import run_keys
+from mlrun.utils import run_keys, update_in
 from os import environ
 from conftest import rundb_path, out_path
 
 
 def my_func(spec=None):
-    ctx = get_or_create_ctx('mytask', spec=spec)
+    ctx = get_or_create_ctx('run_test', spec=spec)
     p1 = ctx.get_param('p1', 1)
     p2 = ctx.get_param('p2', 'a-string')
 
@@ -41,7 +41,7 @@ def test_noparams():
     assert result['status'][run_keys.output_artifacts][0].get('key') == 'chart', 'failed to run'
 
 
-spec = {'spec': {
+spec = { 'metadata': {}, 'spec': {
     'parameters':{'p1':8},
     'secret_sources': [{'kind':'file', 'source': 'secrets.txt'}],
     run_keys.output_path: out_path,
@@ -51,12 +51,13 @@ spec = {'spec': {
 
 def test_with_params():
     environ['MLRUN_META_DBPATH'] = rundb_path
+    update_in(spec, 'metadata.lables', {'test': 'test_with_params'})
     result = my_func(spec).to_dict()
     assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
     assert result['status'][run_keys.output_artifacts][0].get('key') == 'chart', 'failed to run'
 
 run_spec =  {'metadata':
-                 {'labels': {'owner': 'yaronh'}},
+                 {},
              'spec':
                  {'parameters': {'p1': 5},
                   run_keys.input_objects: [],
@@ -81,6 +82,7 @@ def verify_state(result):
 
 
 def test_handler():
+    update_in(run_spec, 'metadata.lables', {'test': 'test_handler'})
     result = run_start(run_spec, handler=my_func, rundb=rundb_path)
     print(result)
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
@@ -88,12 +90,14 @@ def test_handler():
 
 
 def test_handler_project():
+    update_in(run_spec_project, 'metadata.lables', {'test': 'test_handler_project'})
     result = run_start(run_spec_project, handler=my_func, rundb=rundb_path)
     print(result)
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
     verify_state(result)
 
 def test_handler_hyper():
+    update_in(run_spec, 'metadata.lables', {'test': 'test_handler_hyper'})
     result = run_start(run_spec, handler=my_func, rundb=rundb_path,
                        hyperparams={'p1': [1, 2, 3]})
     print(result)
@@ -101,5 +105,6 @@ def test_handler_hyper():
     verify_state(result)
 
 def test_local_runtime():
+    update_in(spec, 'metadata.lables', {'test': 'test_local_runtime'})
     result = run_start(spec, command='example1.py', rundb=rundb_path)
     verify_state(result)

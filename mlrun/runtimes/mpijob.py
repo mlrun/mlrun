@@ -16,8 +16,8 @@ import uuid
 from copy import deepcopy
 from os import environ
 from pprint import pprint
-import yaml
 from .base import MLRuntime
+from ..utils import dict_to_yaml
 
 import importlib
 client = None
@@ -173,7 +173,7 @@ class MpiJob:
         return {'kind': 'mpijob', 'spec': self._struct}
 
     def to_yaml(self):
-        return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
+        return dict_to_yaml(self.to_dict())
 
     def submit(self):
         try:

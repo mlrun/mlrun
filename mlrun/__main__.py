@@ -17,11 +17,10 @@
 from os import path
 import click
 from ast import literal_eval
-import yaml
 
 from .run import run_start
 from .runtimes import RunError
-from .utils import run_keys
+from .utils import run_keys, dict_to_yaml
 
 @click.group()
 def main():
@@ -89,7 +88,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
         print(f'runtime error: {err}')
         exit(1)
     if resp:
-        print(yaml.dump(resp, default_flow_style=False, sort_keys=False))
+        print(dict_to_yaml(resp))
 
 
 def fill_params(param):

@@ -16,9 +16,13 @@ import pytest
 import pathlib
 from os.path import abspath, dirname
 from os import environ
+import shutil
+
 
 here = dirname(abspath(__file__))
-results = f'{here}/results'
+results = f'{here}/test_results'
+
+shutil.rmtree(results, ignore_errors=True, onerror=None)
 
 rundb_path = f'{results}/rundb'
 out_path = f'{results}/out'

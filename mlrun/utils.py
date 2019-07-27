@@ -18,6 +18,8 @@ from os import path
 from sys import stdout
 import yaml
 
+yaml.Dumper.ignore_aliases = lambda *args : True
+
 
 def create_logger():
     handler = logging.StreamHandler(stdout)
@@ -155,7 +157,8 @@ def dict_to_list(struct: dict):
 
 
 def dict_to_yaml(struct):
-    return yaml.dump(struct, default_flow_style=False, sort_keys=False)
+    return yaml.dump(struct, default_flow_style=False,
+                     sort_keys=False)
 
 
 def uxjoin(base, path):
@@ -186,7 +189,7 @@ class ModelObj:
     #    for key, val in struct.items():
 
     def to_yaml(self):
-        return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
+        return dict_to_yaml(self.to_dict())
 
     def to_json(self):
         return json.dumps(self.to_dict())

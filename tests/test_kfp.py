@@ -26,7 +26,7 @@ from mlrun.utils import run_keys
 from conftest import rundb_path, out_path
 
 run_spec =  {'metadata':
-                 {'labels': {'owner': 'yaronh'}},
+                 {'labels': {'owner': 'yaronh', 'tests': 'kfp'}},
              'spec':
                  {'parameters': {'p1': 5},
                   'input_objects': [],

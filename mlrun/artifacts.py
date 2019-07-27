@@ -163,6 +163,22 @@ class Artifact(ModelObj):
             self._dict_fields + ['updated', 'labels', 'annotations', 'producer', 'sources'])
 
 
+class TableArtifact(Artifact):
+    _dict_fields = Artifact._dict_fields + ['format', 'schema', 'header']
+    kind = 'table'
+
+    def __init__(self, key, body=None, src_path=None, target_path='',
+                         viewer=None, inline=False, format=None, header=None, schema=None):
+        super().__init__(key, body, src_path, target_path, viewer, inline)
+        self.format = format
+        self.schema = schema
+        self.header = header
+
+    def from_df(self, df, format=''):
+        format = format or self.format
+        # todo: read pandas into body/file
+
+
 chart_template = '''
 <html>
   <head>
@@ -208,22 +224,6 @@ class ChartArtifact(Artifact):
         return chart_template.replace('$data$', json.dumps(data))\
             .replace('$opts$', json.dumps(self.options))\
             .replace('$chart$', self.chart)
-
-
-class TableArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['format', 'schema', 'header']
-    kind = 'table'
-
-    def __init__(self, key, body=None, src_path=None, target_path='', tag='',
-                         viewer=None, format=None, header=None, schema=None):
-        super().__init__(key, body, src_path, target_path, tag, viewer)
-        self.format = format
-        self.schema = schema
-        self.header = header
-
-    def from_df(self, df, format=''):
-        format = format or self.format
-        # todo: read pandas into body/file
 
 
 def write_df(df, format, path):

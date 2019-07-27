@@ -103,7 +103,7 @@ class MLClientCtx(object):
         spec = attrs.get('spec')
         if spec:
             self._secrets_manager = SecretsStore.from_dict(spec)
-            self._runtime = spec.get('log_level', self._log_level)
+            self._log_level = spec.get('log_level', self._log_level)
             self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
             self._hyper_parameters = spec.get('hyperparams', self._hyper_parameters)

@@ -309,7 +309,7 @@ class MLClientCtx(object):
 
         def set_if_valid(struct, key, val):
             if val:
-                struct['key'] = val
+                struct[key] = val
 
         struct = {
             'metadata':

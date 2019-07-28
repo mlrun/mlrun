@@ -22,17 +22,52 @@ from .render import run_to_html
 from .runtimes import HandlerRuntime, LocalRuntime, RemoteRuntime, DaskRuntime, MpiRuntime
 from .utils import update_in, get_in
 
+
 def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
-    """ called from within the user program to obtain a context
+    """ called from within the user program to obtain a run context
+
+    the run context is an interface for receiving parameters, data and logging
+    run results, the run context is read from the event, spec, or environment
+    (in that order), user can also work without a context (local defaults mode)
+
+    all results are automatically stored in the "rundb" or artifact store,
+    the path to the rundb can be specified in the call or obtained from env.
 
     :param name:     run name (will be overridden by context)
     :param uid:      run unique id (will be overridden by context)
     :param event:    function (nuclio Event object)
     :param spec:     dictionary holding run spec
-    :param with_env: look for context in environment vars
+    :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
 
     :return: execution context
+
+    Example:
+
+    # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
+    context = get_or_create_ctx('train')
+
+    # get parameters from the runtime context (or use defaults)
+    p1 = context.get_param('p1', 1)
+    p2 = context.get_param('p2', 'a-string')
+
+    # access input metadata, values, files, and secrets (passwords)
+    print(f'Run: {context.name} (uid={context.uid})')
+    print(f'Params: p1={p1}, p2={p2}')
+    print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
+    print('file\n{}\n'.format(context.get_object('infile.txt').get()))
+
+    # RUN some useful code e.g. ML training, data prep, etc.
+
+    # log scalar result values (job result metrics)
+    context.log_output('accuracy', p1 * 2)
+    context.log_output('loss', p1 * 3)
+    context.set_label('framework', 'sklearn')
+
+    # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
+    context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
+    context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
+
     """
 
     newspec = {}
@@ -72,13 +107,15 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
     :param struct:     dict holding run spec
     :param command:    runtime command (filename, function url, ..)
     :param args:       optional command args
-    :param runtime:    runtime dict or object or name
+    :param runtime:    runtime spec (dict or object) e.g. MpiJob, Dask, ..
+                       provide runtime specific configuration.
     :param rundb:      path/url to the metadata and artifact database
     :param kfp:        flag indicating run within kubeflow pipeline
     :param handler:    pointer or name of a function handler
-    :param hyperparams: hyper parameters (for running multiple iterations)
+    :param hyperparams:  hyper parameters (for running multiple iterations)
+    :param param_file:   path/url to csv table per run with parameter values
 
-    :return: dict with run metadata and status
+    :return: run context object (dict) with run metadata, results and status
     """
 
     if struct:
@@ -129,7 +166,72 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
 
 def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', secrets=[],
              params={}, hyperparams={}, param_file='',
-             inputs={}, outputs={}, out_path='', rundb=''):
+             inputs={}, outputs={}, in_path='', out_path='', rundb=''):
+    """mlrun KubeFlow pipelines operator, use to form pipeline steps
+
+    when using kubeflow pipelines, each step is wrapped in an mlrun_op
+    one step can pass state and data to the next step, see example below.
+
+    :param name:    name used for the step
+    :param project: optional, project name
+    :param image:   optional, run container image (will be executing the step)
+                    the container should host all requiered packages + code
+                    for the run, alternatively user can mount packages/code via
+                    shared file volumes like v3io (see example below)
+    :param runtime: optional, runtime specification
+    :param command: exec command (or URL for functions)
+    :param secrets: extra secrets specs, will be injected into the runtime
+                    e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
+    :param params:  dictionary of run parameters and values
+    :param hyperparams: dictionary of hyper parameters and list values, each
+                        hyperparam holds a list of values, the run will be
+                        executed for every parameter combination (GridSearch)
+    :param param_file:  a csv file with parameter combinations, first row hold
+                        the parameter names, following rows hold param values
+    :param inputs:   dictionary of input objects + optional paths (if path is
+                     omitted the path will be the in_path/key.
+    :param outputs:  dictionary of input objects + optional paths (if path is
+                     omitted the path will be the out_path/key.
+    :param in_path:  default input path/url (prefix) for inputs
+    :param out_path: default output path/url (prefix) for artifacts
+    :param rundb:    path for rundb (or use 'MLRUN_META_DBPATH' env instead)
+
+    :return: KFP step operation
+
+    Example:
+    from kfp import dsl
+    from mlrun import mlrun_op
+    from mlrun.platforms import mount_v3io
+
+    def mlrun_train(p1, p2):
+    return mlrun_op('training',
+                    command = '/User/kubeflow/training.py',
+                    params = {'p1':p1, 'p2':p2},
+                    outputs = {'model.txt':'', 'dataset.csv':''},
+                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
+                    rundb = '/User/kubeflow')
+
+    # use data from the first step
+    def mlrun_validate(modelfile):
+        return mlrun_op('validation',
+                    command = '/User/kubeflow/validation.py',
+                    inputs = {'model.txt':modelfile},
+                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
+                    rundb = '/User/kubeflow')
+
+    @dsl.pipeline(
+        name='My MLRUN pipeline', description='Shows how to use mlrun.'
+    )
+    def mlrun_pipeline(
+        p1 = 5 , p2 = '"text"'
+    ):
+        # run training, mount_v3io will mount "/User" into the pipeline step
+        train = mlrun_train(p1, p2).apply(mount_v3io())
+
+        # feed 1st step results into the secound step
+        validate = mlrun_validate(train.outputs['model-txt']).apply(mount_v3io())
+
+    """
     from kfp import dsl
     from os import environ
 
@@ -151,6 +253,8 @@ def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', se
         cmd += ['--project', project]
     if runtime:
         cmd += ['--runtime', runtime]
+    if in_path:
+        cmd += ['--in-path', in_path]
     if out_path:
         cmd += ['--out-path', out_path]
     if rundb:

@@ -21,6 +21,7 @@ def training_job():
     # log scalar result values (job result metrics)
     context.log_output('accuracy', p1 * 2)
     context.log_output('loss', p1 * 3)
+    context.set_label('framework', 'sklearn')
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
     context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})

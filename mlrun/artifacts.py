@@ -198,33 +198,35 @@ class TableArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['format', 'schema', 'header']
     kind = 'table'
 
-    def __init__(self, key, body=None, src_path=None, target_path='',
-                         viewer=None, inline=False, format=None, header=None, schema=None):
+    def __init__(self, key, body=None, df=None, src_path=None, target_path='',
+                         viewer=None, visible=False, inline=False, format=None, header=None, schema=None):
+
+        key_suffix = pathlib.Path(key).suffix
+        if not format and key_suffix:
+            format = key_suffix[1:]
+
+        if df:
+            self._is_df = True
+            self.header = df.columns.values.tolist()
+            format = format or 'csv'
+            if format not in ['csv']:  # todo other formats
+                raise ValueError('format must be csv for now')
+            if visible and not key_suffix:
+                key += '.csv'
+            body = df
+        else:
+            self._is_df = False
+            self.header = header
+
         self.format = format
         self.schema = schema
-        self.header = header
+        if not viewer:
+            viewer = 'table' if visible else None
         super().__init__(key, body, src_path, target_path, viewer, inline)
 
-
-class DataframeArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['format', 'schema', 'header']
-    kind = 'dataframe'
-
-    def __init__(self, key, df, target_path='', inline=False, format=None,
-                 schema=None, visible=False):
-
-        self.header = df.columns.values.tolist()
-        format = format or 'csv'
-        if format not in ['csv']:  # todo other formats
-            raise ValueError('format must be csv for now')
-        if visible and not pathlib.Path(key).suffix:
-            self._key += '.csv'
-        self.format = format
-        self.schema = schema
-        viewer = 'table' if visible else None
-        super().__init__(key, df, None, target_path, viewer, inline)
-
     def get_body(self):
+        if not self._is_df:
+            return self._body
         csv_buffer = StringIO()
         self._body.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
         return csv_buffer.getvalue()

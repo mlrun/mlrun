@@ -82,8 +82,6 @@ class StoreManager:
 
     def get_or_create_store(self, url):
         schema, endpoint, subpath = parseurl(url)
-        if subpath.startswith('/'):
-            subpath = subpath[1:]
 
         if not schema and endpoint:
             if endpoint in self._stores.keys():
@@ -137,7 +135,7 @@ class DataStore:
 
     @property
     def url(self):
-        return '{}://{}/'.format(self.kind, self.endpoint)
+        return '{}://{}'.format(self.kind, self.endpoint)
 
     def get(self, key, tag=''):
         pass
@@ -256,14 +254,14 @@ class S3Store(DataStore):
             self.s3 = boto3.resource('s3', region_name=region)
 
     def upload(self, key, src_path, tag=''):
-        self.s3.Object(self.endpoint, self._join(key)).put(Body=open(src_path, 'rb'))
+        self.s3.Object(self.endpoint, self._join(key)[1:]).put(Body=open(src_path, 'rb'))
 
     def get(self, key, tag=''):
-        obj = self.s3.Object(self.endpoint, self._join(key))
+        obj = self.s3.Object(self.endpoint, self._join(key)[1:])
         return obj.get()['Body'].read()
 
     def put(self, key, data, tag=''):
-        self.s3.Object(self.endpoint, self._join(key)).put(Body=data)
+        self.s3.Object(self.endpoint, self._join(key)[1:]).put(Body=data)
 
 
 def basic_auth_header(user, password):
@@ -338,7 +336,7 @@ class V3ioStore(DataStore):
     @property
     def url(self):
         schema = 'http' if self.kind == 'v3io' else 'https'
-        return '{}://{}/'.format(schema, self.endpoint)
+        return '{}://{}'.format(schema, self.endpoint)
 
     def upload(self, key, src_path, tag=''):
         http_upload(self.url + self._join(key), src_path, self.headers, None)

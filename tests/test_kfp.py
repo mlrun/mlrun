@@ -51,8 +51,8 @@ def my_job(struct):
     # RUN some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)
-    context.log_output('accuracy', p1 * 2)
-    context.log_output('loss', p1 * 3)
+    context.log_result('accuracy', p1 * 2)
+    context.log_result('loss', p1 * 3)
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
     context.log_artifact('model.txt', body=b'abc is 123')

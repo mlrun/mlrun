@@ -13,8 +13,8 @@ def my_func(ctx):
     print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
 
     # log scalar values (KFP metrics)
-    ctx.log_output('accuracy', p1 * 2)
-    ctx.log_output('latency', p1 * 3)
+    ctx.log_result('accuracy', p1 * 2)
+    ctx.log_result('latency', p1 * 3)
 
     # log various types of artifacts (and set UI viewers)
     ctx.log_artifact('test.txt', body=b'abc is 123')

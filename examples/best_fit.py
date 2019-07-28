@@ -14,7 +14,7 @@ def my_job():
     #json.loads(context.get_object('iterations').get())
     df = pd.DataFrame(iterations[1:], columns=iterations[0]).set_index('iter')
     row = df[max_param].idxmax()
-    context.log_output('best_fit', int(row))
+    context.log_result('best_fit', int(row))
     context.log_artifact('model.txt', body=b'abc is 123')
     context.log_artifact('best_fit.html', body=b'<b> best fit is: %d <b>' % int(row), viewer='web-app')
 

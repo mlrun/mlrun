@@ -65,8 +65,8 @@ def get_or_create_ctx(name: str,
     # RUN some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)
-    context.log_output('accuracy', p1 * 2)
-    context.log_output('loss', p1 * 3)
+    context.log_result('accuracy', p1 * 2)
+    context.log_result('loss', p1 * 3)
     context.set_label('framework', 'sklearn')
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI

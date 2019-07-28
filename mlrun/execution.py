@@ -240,12 +240,12 @@ class MLClientCtx(object):
         else:
             return self._objects[key]
 
-    def log_output(self, key: str, value):
+    def log_result(self, key: str, value):
         """log a scalar result value"""
         self._outputs[str(key)] = value
         self._update_db()
 
-    def log_outputs(self, outputs: dict):
+    def log_results(self, outputs: dict):
         """log a set of scalar result values"""
         if not isinstance(outputs, dict):
             raise MLCtxValueError('(multiple) outputs must be in the form of dict')

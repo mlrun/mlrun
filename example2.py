@@ -11,7 +11,7 @@ def my_func(ctx):
     print(f'Params: p1={p1}, p2={p2}\n')
     print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
 
-    ctx.log_output('accuracy', p1 * 2)
+    ctx.log_result('accuracy', p1 * 2)
     ctx.log_metric('loss', 7)
     ctx.log_artifact('chart.png')
 

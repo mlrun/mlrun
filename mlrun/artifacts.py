@@ -214,11 +214,12 @@ class DataframeArtifact(Artifact):
                  schema=None, visible=False):
 
         self.header = df.columns.values.tolist()
-        if format not in ['', 'csv']:  # todo other formats
+        format = format or 'csv'
+        if format not in ['csv']:  # todo other formats
             raise ValueError('format must be csv for now')
-        if visible and not pathlib.Path(self.key).suffix:
+        if visible and not pathlib.Path(key).suffix:
             self._key += '.csv'
-        self.format = format or 'csv'
+        self.format = format
         self.schema = schema
         viewer = 'table' if visible else None
         super().__init__(key, df, None, target_path, viewer, inline)

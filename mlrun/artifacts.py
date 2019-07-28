@@ -205,7 +205,7 @@ class TableArtifact(Artifact):
         if not format and key_suffix:
             format = key_suffix[1:]
 
-        if df:
+        if df is not None:
             self._is_df = True
             self.header = df.columns.values.tolist()
             format = format or 'csv'

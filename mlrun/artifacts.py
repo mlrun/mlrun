@@ -16,7 +16,8 @@ import json
 import os
 import hashlib
 import base64
-from io import BytesIO
+from io import BytesIO, StringIO
+import pathlib
 
 #import pandas as pd
 from .datastore import StoreManager
@@ -177,6 +178,8 @@ class PlotArtifact(Artifact):
         import matplotlib
         if not self._body or not isinstance(self._body, matplotlib.figure.Figure):
             raise ValueError('matplotlib fig must be provided as artifact body')
+        if not pathlib.Path(self.key).suffix:
+            self.key += '.html'
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use using base64 encoding. """
@@ -188,7 +191,7 @@ class PlotArtifact(Artifact):
         data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode('utf-8')
-        return '<img src="data:image/png;base64,{0}">'.format(data_uri)
+        return '<img title="{}" src="data:image/png;base64,{}">'.format(self.key, data_uri)
 
 
 class TableArtifact(Artifact):
@@ -197,14 +200,33 @@ class TableArtifact(Artifact):
 
     def __init__(self, key, body=None, src_path=None, target_path='',
                          viewer=None, inline=False, format=None, header=None, schema=None):
-        super().__init__(key, body, src_path, target_path, viewer, inline)
         self.format = format
         self.schema = schema
         self.header = header
+        super().__init__(key, body, src_path, target_path, viewer, inline)
 
-    def from_df(self, df, format=''):
-        format = format or self.format
-        # todo: read pandas into body/file
+
+class DataframeArtifact(Artifact):
+    _dict_fields = Artifact._dict_fields + ['format', 'schema', 'header']
+    kind = 'dataframe'
+
+    def __init__(self, key, df, target_path='', inline=False, format=None,
+                 schema=None, visible=False):
+
+        self.header = df.columns.values.tolist()
+        if format not in ['', 'csv']:  # todo other formats
+            raise ValueError('format must be csv for now')
+        if visible and not pathlib.Path(self.key).suffix:
+            self.key += '.csv'
+        self.format = format or 'csv'
+        self.schema = schema
+        viewer = 'table' if visible else None
+        super().__init__(key, df, None, target_path, viewer, inline)
+
+    def get_body(self):
+        csv_buffer = StringIO()
+        self._body.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
+        return csv_buffer.getvalue()
 
 
 chart_template = '''

@@ -111,6 +111,14 @@ class DataStore:
         self.options = {}
         self.from_spec = False
 
+    @property
+    def is_structured(self):
+        return False
+
+    @property
+    def is_unstructured(self):
+        return True
+
     @staticmethod
     def uri_to_kfp(endpoint, subpath):
         raise ValueError('data store doesnt support KFP URLs')
@@ -133,6 +141,9 @@ class DataStore:
 
     def get(self, key, tag=''):
         pass
+
+    def query(self, key, query='', tag='', **kwargs):
+        raise ValueError('data store doesnt support structured queries')
 
     def put(self, key, data, tag=''):
         pass

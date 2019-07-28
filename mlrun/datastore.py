@@ -280,7 +280,7 @@ def http_get(url, headers=None, auth=None):
 
     if not resp.ok:
         raise OSError('failed to read file in {}'.format(url))
-    return resp.text
+    return resp.content
 
 
 def http_put(url, data, headers=None, auth=None):

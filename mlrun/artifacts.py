@@ -174,7 +174,8 @@ class PlotArtifact(Artifact):
     kind = 'plot'
     def _post_init(self):
         self.viewer = 'chart'
-        if not self._body or type(self._body) != 'matplotlib.figure.Figure':
+        import matplotlib
+        if not self._body or not isinstance(self._body, matplotlib.figure.Figure):
             raise ValueError('matplotlib fig must be provided as artifact body')
 
     def get_body(self):

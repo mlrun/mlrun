@@ -10,6 +10,5 @@ def my_job():
     
     context.log_artifact('validation.html', body=b'<b> validated <b>', viewer='web-app')
 
-
 if __name__ == "__main__":
     my_job()

@@ -15,6 +15,9 @@
 import json
 import os
 import hashlib
+import base64
+from io import BytesIO
+
 #import pandas as pd
 from .datastore import StoreManager
 from .db import RunDBInterface
@@ -95,7 +98,7 @@ class ArtifactManager:
 
         if upload:
             store, ipath = self.get_store(target_path)
-            body = body or item.get_body()
+            body = item.get_body()
             if body:
                 if self.calc_hash:
                     item.hash = blob_hash(body)
@@ -141,6 +144,10 @@ class Artifact(ModelObj):
         self.hash = None
         self._inline = inline
         self.license = ''
+        self._post_init()
+
+    def _post_init(self):
+        pass
 
     @property
     def key(self):
@@ -161,6 +168,26 @@ class Artifact(ModelObj):
     def to_dict(self, fields=None):
         return super().to_dict(
             self._dict_fields + ['updated', 'labels', 'annotations', 'producer', 'sources'])
+
+
+class PlotArtifact(Artifact):
+    kind = 'plot'
+    def _post_init(self):
+        self.viewer = 'chart'
+        if not self._body or type(self._body) != 'matplotlib.figure.Figure':
+            raise ValueError('matplotlib fig must be provided as artifact body')
+
+    def get_body(self):
+        """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use using base64 encoding. """
+        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
+        canvas = FigureCanvas(self._body)
+        png_output = BytesIO()
+        canvas.print_png(png_output)
+        data = png_output.getvalue()
+
+        data_uri = base64.b64encode(data).decode('utf-8')
+        return '<img src="data:image/png;base64,{0}">'.format(data_uri)
 
 
 class TableArtifact(Artifact):

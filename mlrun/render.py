@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import base64
 import uuid
-from io import BytesIO
 import pandas as pd
 from os import path, environ
 import pathlib
@@ -54,19 +52,6 @@ def table_sum(title, df):
     size = len(df.index)
     if size > 0:
         return html_summary(title, df.to_html(escape=False), size)
-
-
-def plot_to_html(fig):
-    """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use using base64 encoding. """
-    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-
-    canvas = FigureCanvas(fig)
-    png_output = BytesIO()
-    canvas.print_png(png_output)
-    data = png_output.getvalue()
-
-    data_uri = base64.b64encode(data).decode('utf-8')
-    return '<img src="data:image/png;base64,{0}">'.format(data_uri)
 
 
 def dict_html(x):

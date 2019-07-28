@@ -179,7 +179,7 @@ class PlotArtifact(Artifact):
         if not self._body or not isinstance(self._body, matplotlib.figure.Figure):
             raise ValueError('matplotlib fig must be provided as artifact body')
         if not pathlib.Path(self.key).suffix:
-            self.key += '.html'
+            self._key += '.html'
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use using base64 encoding. """
@@ -217,7 +217,7 @@ class DataframeArtifact(Artifact):
         if format not in ['', 'csv']:  # todo other formats
             raise ValueError('format must be csv for now')
         if visible and not pathlib.Path(self.key).suffix:
-            self.key += '.csv'
+            self._key += '.csv'
         self.format = format or 'csv'
         self.schema = schema
         viewer = 'table' if visible else None

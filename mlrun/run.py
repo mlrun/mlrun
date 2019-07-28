@@ -23,7 +23,12 @@ from .runtimes import HandlerRuntime, LocalRuntime, RemoteRuntime, DaskRuntime, 
 from .utils import update_in, get_in
 
 
-def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=''):
+def get_or_create_ctx(name: str,
+                      uid: str = '',
+                      event=None,
+                      spec=None,
+                      with_env: bool = True,
+                      rundb: str = ''):
     """ called from within the user program to obtain a run context
 
     the run context is an interface for receiving parameters, data and logging
@@ -55,7 +60,7 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(context.get_object('infile.txt').get()))
+    print('file: {}'.format(context.get_object('infile.txt').get()))
 
     # RUN some useful code e.g. ML training, data prep, etc.
 
@@ -100,8 +105,9 @@ def get_or_create_ctx(name, uid='', event=None, spec=None, with_env=True, rundb=
     return ctx
 
 
-def run_start(struct, command='', args=[], runtime=None, rundb='',
-              kfp=False, handler=None, hyperparams=None, param_file=None):
+def run_start(struct: dict, command: str = '', args: list = [],
+              runtime=None, rundb: str = '', kfp: bool = False,
+              handler=None, hyperparams: dict = None, param_file: str = None):
     """Run a local or remote task.
 
     :param struct:     dict holding run spec
@@ -155,7 +161,7 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
             raise Exception('unsupported runtime (%s) or missing command' % kind)
 
     runtime.handler = handler
-    runtime.process_struct(struct, rundb,hyperparams, param_file)
+    runtime.process_struct(struct, rundb, hyperparams, param_file)
     runtime.with_kfp = kfp
 
     results = runtime.run()
@@ -164,9 +170,11 @@ def run_start(struct, command='', args=[], runtime=None, rundb='',
     return results
 
 
-def mlrun_op(name='', project='', image='v3io/mlrun', runtime='', command='', secrets=[],
-             params={}, hyperparams={}, param_file='',
-             inputs={}, outputs={}, in_path='', out_path='', rundb=''):
+def mlrun_op(name: str = '', project: str = '',
+             image: str = 'v3io/mlrun', runtime: str = '', command: str = '',
+             secrets: list = [], params: dict = {}, hyperparams: dict = {},
+             param_file: str = '', inputs: dict = {}, outputs: dict = {},
+             in_path: str = '', out_path: str = '', rundb: str = ''):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
     when using kubeflow pipelines, each step is wrapped in an mlrun_op

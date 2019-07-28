@@ -41,6 +41,8 @@ class MLClientCtx(object):
     access parameters and secrets using get_param(), get_secret()
     access input data objects using get_object()
     store results, artifacts, and real-time metrics using log_xx methods
+
+    see doc for the individual params and methods
     """
 
     def __init__(self, autocommit=False, tmp=''):

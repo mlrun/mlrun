@@ -165,7 +165,7 @@ def run_start(struct: dict, command: str = '', args: list = [],
     runtime.with_kfp = kfp
 
     results = runtime.run()
-    run_to_html(results, True)
+    #run_to_html(results, True)
 
     return results
 

@@ -43,9 +43,11 @@ class HandlerRuntime(MLRuntime):
         else:
             out = self.handler()
 
+        if not out:
+            return struct
         if isinstance(out, MLClientCtx):
             return out.to_dict()
-        if not out or isinstance(out, dict):
+        if isinstance(out, dict):
             return out
         return json.loads(out)
 
@@ -76,6 +78,6 @@ class LocalRuntime(MLRuntime):
             if resp:
                 return json.loads(resp)
         except FileNotFoundError as err:
-            print(err)
+            return struct
 
 

@@ -15,7 +15,7 @@
 import json
 from os import environ
 from .base import MLRuntime
-
+from ..collections import RunList
 
 class DaskRuntime(MLRuntime):
     kind = 'dask'
@@ -42,7 +42,7 @@ class DaskRuntime(MLRuntime):
             client = Client()  # todo: k8s client
 
         tasks = list(tasks)
-        results = []
+        results = RunList()
         futures = client.map(self.handler, tasks)
         for batch in as_completed(futures, with_results=True).batches():
             for future, result in batch:

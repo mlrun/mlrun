@@ -280,12 +280,19 @@ def get_tblframe(df, display):
 
 
 def runs_to_html(df, display=True):
+
+    def time_str(x):
+        try:
+            return x.strftime("%b %d %H:%M:%S")
+        except ValueError:
+            return ''
+
     df['inputs'] = df['inputs'].apply(artifacts_html)
     df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(x, 'target_path'))
     df['labels'] = df['labels'].apply(dict_html)
     df['parameters'] = df['parameters'].apply(dict_html)
     df['results'] = df['results'].apply(dict_html)
-    df['start'] = df['start'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))
+    df['start'] = df['start'].apply(time_str)
     df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 
     def expand_error(x):

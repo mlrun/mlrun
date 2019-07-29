@@ -23,9 +23,11 @@ from io import StringIO
 
 from ..db import get_run_db
 from ..secrets import SecretsStore
-from ..utils import run_keys, gen_md_table, dict_to_yaml, get_in, update_in, logger
+from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
+                     update_in, logger, is_ipython)
 from ..execution import MLClientCtx
 from ..artifacts import TableArtifact
+from ..collections import RunList
 from .generators import GridGenerator, ListGenerator
 
 
@@ -86,30 +88,37 @@ class MLRuntime:
             self.task_generator = ListGenerator(obj.get())
 
     def run(self):
+        def show(results, resp):
+            results.append(resp)
+            if is_ipython:
+                results.show()
+            return resp
+
         if self.task_generator:
             generator = self.task_generator.generate(self.struct)
             results = self._run_many(generator)
-            resp = self.results_to_iter(results)
-            if self.with_kfp:
+            self.results_to_iter(results)
+            resp = self.execution.to_dict()
+            if resp and self.with_kfp:
                 self.write_kfpmeta(resp)
-            return resp
+            return show(results, resp)
         else:
-            #start = datetime.now()
+            results = RunList()
             try:
                 resp = self._run(self.struct)
-                if self.with_kfp:
+                if resp and self.with_kfp:
                     self.write_kfpmeta(resp)
-                return self._post_run(resp)
+                return show(results, self._post_run(resp))
             except RunError as err:
                 logger.error(f'run error - {err}')
                 self.execution.set_state(error=err)
-                return self.execution.to_dict()
+                return show(results, self.execution.to_dict())
 
     def _run(self, struct):
         pass
 
     def _run_many(self, tasks):
-        results = []
+        results = RunList()
         for task in tasks:
             try:
                 resp = self._run(task)
@@ -179,7 +188,6 @@ class MLRuntime:
             self.execution.set_state(error=f'{failed} tasks failed, check logs for db for details')
         else:
             self.execution.set_state('completed')
-        return self.execution.to_dict()
 
     def _force_handler(self):
         if not self.handler:

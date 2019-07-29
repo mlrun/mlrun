@@ -33,7 +33,7 @@ class HandlerRuntime(MLRuntime):
             environ['MLRUN_META_DBPATH'] = self.rundb
 
         args = inspect.signature(self.handler).parameters
-        if len(args) > 1 and args[0] == 'context':
+        if len(args) > 1 and list(args.keys())[0] == 'context':
             # its a nuclio function
             from .function import fake_nuclio_context
             context, event = fake_nuclio_context(json.dumps(struct))

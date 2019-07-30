@@ -126,5 +126,5 @@ def test_local_runtime():
 
 def test_local_no_context():
     spec = tag_test(basespec, 'test_local_no_context')
-    result = run_start(spec, command= f'{here}/no_ctx.py', rundb=rundb_path)
+    result = run_start(spec, command= f'{here}/no_ctx.py', rundb=rundb_path, mode='noctx')
     verify_state(result)

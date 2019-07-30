@@ -53,10 +53,12 @@ class MLRuntime:
         self.secret_sources = None
         self.with_kfp = False
         self.execution = None #MLClientCtx()
+        self.mode = ''
 
     def process_struct(self, struct, rundb='',
-                       hyperparams=None, param_file=None):
+                       hyperparams=None, param_file=None, mode=''):
 
+        self.mode = mode
         self.command = get_in(struct, 'spec.runtime.command')
         self.args = get_in(struct, 'spec.runtime.args', [])
         self.secret_sources = get_in(struct, ['spec', run_keys.secrets])

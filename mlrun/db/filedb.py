@@ -40,6 +40,17 @@ class FileRunDB(RunDBInterface):
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
         return self
 
+    def store_log(self, uid, project='', body=None, append=True):
+        filepath = self._filepath('runs', project, uid, '') + '.log'
+        # TODO: handle append
+        self._datastore.put(filepath, body)
+
+    def get_log(self, uid, project=''):
+        filepath = self._filepath('runs', project, uid, '') + '.log'
+        if pathlib.Path(filepath).is_file():
+            return self._datastore.get(filepath)
+        return None
+
     def store_run(self, struct, uid, project='', commit=False):
         if self.format == '.yaml':
             data = dict_to_yaml(struct)

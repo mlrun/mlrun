@@ -143,7 +143,7 @@ class DataStore:
     def query(self, key, query='', tag='', **kwargs):
         raise ValueError('data store doesnt support structured queries')
 
-    def put(self, key, data, tag=''):
+    def put(self, key, data, tag='', append=False):
         pass
 
     def download(self, key, target_path, tag=''):
@@ -213,7 +213,7 @@ class FileStore(DataStore):
         with open(self._join(key), 'rb') as fp:
             return fp.read()
 
-    def put(self, key, data, tag=''):
+    def put(self, key, data, tag='', append=False):
         dir = path.dirname(self._join(key))
         if dir:
             makedirs(dir, exist_ok=True)
@@ -260,7 +260,7 @@ class S3Store(DataStore):
         obj = self.s3.Object(self.endpoint, self._join(key)[1:])
         return obj.get()['Body'].read()
 
-    def put(self, key, data, tag=''):
+    def put(self, key, data, tag='', append=False):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(Body=data)
 
 
@@ -306,7 +306,7 @@ class HttpStore(DataStore):
     def upload(self, key, src_path, tag=''):
         raise ValueError('unimplemented')
 
-    def put(self, key, data, tag=''):
+    def put(self, key, data, tag='', append=False):
         raise ValueError('unimplemented')
 
     def get(self, key, tag=''):
@@ -344,5 +344,5 @@ class V3ioStore(DataStore):
     def get(self, key, tag=''):
         return http_get(self.url + self._join(key), self.headers, None)
 
-    def put(self, key, data, tag=''):
+    def put(self, key, data, tag='', append=False):
         http_put(self.url + self._join(key), data, self.headers, None)

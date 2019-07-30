@@ -107,7 +107,8 @@ def get_or_create_ctx(name: str,
 
 def run_start(struct: dict, command: str = '', args: list = [],
               runtime=None, rundb: str = '', kfp: bool = False,
-              handler=None, hyperparams: dict = None, param_file: str = None):
+              handler=None, hyperparams: dict = None,
+              param_file: str = None, mode: str = ''):
     """Run a local or remote task.
 
     :param struct:     dict holding run spec
@@ -120,6 +121,7 @@ def run_start(struct: dict, command: str = '', args: list = [],
     :param handler:    pointer or name of a function handler
     :param hyperparams:  hyper parameters (for running multiple iterations)
     :param param_file:   path/url to csv table per run with parameter values
+    :param mode:       special run mode, e.g. 'noctx'
 
     :return: run context object (dict) with run metadata, results and status
     """
@@ -161,11 +163,10 @@ def run_start(struct: dict, command: str = '', args: list = [],
             raise Exception('unsupported runtime (%s) or missing command' % kind)
 
     runtime.handler = handler
-    runtime.process_struct(struct, rundb, hyperparams, param_file)
+    runtime.process_struct(struct, rundb, hyperparams, param_file, mode)
     runtime.with_kfp = kfp
 
     results = runtime.run()
-    #run_to_html(results, True)
 
     return results
 
@@ -174,7 +175,8 @@ def mlrun_op(name: str = '', project: str = '',
              image: str = 'v3io/mlrun', runtime: str = '', command: str = '',
              secrets: list = [], params: dict = {}, hyperparams: dict = {},
              param_file: str = '', inputs: dict = {}, outputs: dict = {},
-             in_path: str = '', out_path: str = '', rundb: str = ''):
+             in_path: str = '', out_path: str = '', rundb: str = '',
+             mode: str = ''):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
     when using kubeflow pipelines, each step is wrapped in an mlrun_op
@@ -203,6 +205,7 @@ def mlrun_op(name: str = '', project: str = '',
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_META_DBPATH' env instead)
+    :param mode:     run mode, e.g. 'noctx' for pushing params as args
 
     :return: KFP step operation
 
@@ -269,6 +272,8 @@ def mlrun_op(name: str = '', project: str = '',
         cmd += ['--rundb', rundb]
     if param_file:
         cmd += ['--param-file', param_file]
+    if mode:
+        cmd += ['--mode', mode]
 
     if hyperparams or param_file:
         file_outputs['iterations'] = f'/tmp/iteration_results.csv'

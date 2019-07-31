@@ -27,7 +27,7 @@ from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
                      update_in, logger, is_ipython)
 from ..execution import MLClientCtx
 from ..artifacts import TableArtifact
-from ..collections import RunList
+from ..lists import RunList
 from .generators import GridGenerator, ListGenerator
 
 

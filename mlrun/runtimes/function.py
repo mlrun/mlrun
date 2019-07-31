@@ -22,7 +22,7 @@ from sys import stdout
 
 from .base import MLRuntime
 from ..utils import update_in
-from ..collections import RunList
+from ..lists import RunList
 
 from nuclio_sdk import Context as _Context, Logger
 from nuclio_sdk.logger import HumanReadableFormatter

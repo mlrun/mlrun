@@ -1,6 +1,7 @@
 from mlrun import get_or_create_ctx
 from mlrun.artifacts import ChartArtifact, TableArtifact
 
+
 def my_job():
     # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
     context = get_or_create_ctx('train')
@@ -31,10 +32,11 @@ def my_job():
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart.html')
     chart.labels = {'type': 'roc'}
-    chart.header = ['Epoch','Accuracy', 'Loss']
-    for i in range(1,8):
+    chart.header = ['Epoch', 'Accuracy', 'Loss']
+    for i in range(1, 8):
         chart.add_row([i, i/20+0.75, 0.30-i/20])
     context.log_artifact(chart)
+
 
 if __name__ == "__main__":
     my_job()

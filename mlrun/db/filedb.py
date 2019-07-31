@@ -23,7 +23,7 @@ from ..utils import get_in, match_labels, dict_to_yaml
 from ..datastore import StoreManager
 from ..render import run_to_html
 from .base import RunDBError, RunDBInterface
-from ..collections import RunList, ArtifactList
+from ..lists import RunList, ArtifactList
 
 
 class FileRunDB(RunDBInterface):

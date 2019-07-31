@@ -30,17 +30,18 @@ A user instantiates a `context` object using the `get_or_create_ctx` method, rea
 or outputs is done through the context object. the context object can be used as is locally, 
 in the same time context can be `injected` via the API, CLI, RPC, environment variables or other mechanisms.
 
-checkout [example1](example1.py) and [example2](example2.py).
+checkout [training example](examples/training.py).
 
 ### Example Code
 
 ```python
 from mlrun import get_or_create_ctx
-from mlrun.artifacts import TableArtifact, ChartArtifact
+from mlrun.artifacts import ChartArtifact, TableArtifact
+
 
 def my_job():
     # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-    context = get_or_create_ctx('mytask')
+    context = get_or_create_ctx('train')
     
     # get parameters from the runtime context (or use defaults)
     p1 = context.get_param('p1', 1)
@@ -57,19 +58,22 @@ def my_job():
     # log scalar result values (job result metrics)
     context.log_result('accuracy', p1 * 2)
     context.log_result('loss', p1 * 3)
+    context.set_label('framework', 'sklearn')
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-    context.log_artifact('model.txt', body=b'abc is 123')
+    context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
     context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
     context.log_artifact(TableArtifact('dataset.csv', '1,2,3\n4,5,6\n',
                                         viewer='table', header=['A', 'B', 'C']))
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart.html')
-    chart.header = ['Epoch','Accuracy', 'Loss']
-    for i in range(1,8):
+    chart.labels = {'type': 'roc'}
+    chart.header = ['Epoch', 'Accuracy', 'Loss']
+    for i in range(1, 8):
         chart.add_row([i, i/20+0.75, 0.30-i/20])
     context.log_artifact(chart)
+
 
 if __name__ == "__main__":
     my_job()
@@ -126,7 +130,7 @@ print(yaml.dump(task))
 
 ### Replacing Runtime Context Parameters form CLI
 
-`python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt example2.py`
+`python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt training.py`
 
 when running the command above:
 * the parameter `p1` will be overwritten with `5`
@@ -143,15 +147,18 @@ for example the same code can be wrapped in a nuclio handler and be remotely exe
 
 ```python
 from mlrun import get_or_create_ctx
+import time
+
 
 def handler(context, event):
     ctx = get_or_create_ctx('myfunc', event=event)
-    context.logger.info('This is an unstructured log')
     p1 = ctx.get_param('p1', 1)
     p2 = ctx.get_param('p2', 'a-string')
 
-    print(f'Run: {ctx.name} (uid={ctx.uid})')
-    print(f'Params: p1={p1}, p2={p2}')
+    context.logger.info(
+        f'Run: {ctx.name} uid={ctx.uid}:{ctx.iteration} Params: p1={p1}, p2={p2}')
+
+    time.sleep(1)
 
     # log scalar values (KFP metrics)
     ctx.log_result('accuracy', p1 * 2)
@@ -161,9 +168,26 @@ def handler(context, event):
     ctx.log_artifact('test.txt', body=b'abc is 123')
     ctx.log_artifact('test.html', body=b'<b> Some HTML <b>', viewer='web-app')
 
+    context.logger.info('run complete!')
     return ctx.to_json()
+```
+
+#### Function Deployment
+
+to deploy the function into a cluster you can run the following commands
+(make sure you first installed the nuclio-jupyter package)
+
+```python
+import nuclio
+
+spec = nuclio.ConfigSpec(cmd=['pip install git+https://github.com/v3io/mlrun.git'],
+                         config={'spec.build.baseImage': 'python:3.6-jessie',
+                                 'spec.triggers.web': {'kind': 'http', 'maxWorkers': 8}})
+
+addr = nuclio.deploy_file('mycode.py',name='myfunc', project='mlrun', spec=spec)
 
 ```
+
 
 > Note: add this repo to nuclio build commands (`pip install git+https://github.com/v3io/mlrun.git`)
 
@@ -176,22 +200,25 @@ To execute the code remotely just substitute the file name with the function URL
 Running in a pipeline would be similar to running using the command line
 mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
 
+see the [pipelines notebook example](examples/ml_pipe.ipynb)
 ```python
+# run training using params p1 and p2, generate 2 registered outputs (model, dataset) to be listed in the pipeline UI
+# user can specify the target path per output e.g. 'model.txt':'<some-path>', or leave blank to use the default out_path
 def mlrun_train(p1, p2):
     return mlrun_op('training', 
-                    command = '/User/training.py', 
-                    params = {'p1':p1, 'p2': p2},
+                    command = this_path + '/training.py', 
+                    params = {'p1':p1, 'p2':p2},
                     outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
-                    rundb = '/User')
+                    out_path = artifacts_path,
+                    rundb = db_path)
                     
-# use data from the first step
+# use data (model) from the first step as an input
 def mlrun_validate(modelfile):
     return mlrun_op('validation', 
-                    command = '/User/validation.py', 
+                    command = this_path + '/validation.py', 
                     inputs = {'model.txt':modelfile},
-                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
-                    rundb = '/User')
+                    out_path = artifacts_path,
+                    rundb = db_path)
 ```
 
 You can use the function inside a DAG:
@@ -202,74 +229,38 @@ You can use the function inside a DAG:
     description='Shows how to use mlrun.'
 )
 def mlrun_pipeline(
-   p1 = 5, p2 = 'text'
+   p1 = 5 , p2 = '"text"'
 ):
-    train = mlrun_train(p1, p2)
+    # create a train step, apply v3io mount to it (will add the /User mount to the container)
+    train = mlrun_train(p1, p2).apply(mount_v3io())
     
     # feed 1st step results into the secound step
-    validate = mlrun_validate(train.outputs['model-txt'])
+    # Note: the '.' in model.txt must be substituted with '-'
+    validate = mlrun_validate(train.outputs['model-txt']).apply(mount_v3io())
 ```
 
-### Example Output
+### Query The Run Results and Artifact Database
 
-```yaml
-metadata:
-  name: mytask
-  uid: eae6f665ff2c4ff3a212edd65645d08c
-  project: ''
-  tag: ''
-  labels:
-    owner: root
-    workflow: 30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8
-  annotations: {}
-spec:
-  runtime:
-    kind: ''
-    command: /User/training.py
-  parameters:
-    p1: 5.5
-    p2: another text
-  input_objects:
-  - key: infile.txt
-    path: infile.txt
-  data_stores: []
-  output_artifacts:
-  - key: model.txt
-    path: ''
-  - key: dataset.csv
-    path: ''
-  default_output_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/
-status:
-  state: running
-  outputs:
-    accuracy: 11.0
-    loss: 16.5
-  start_time: '2019-07-02 16:12:33.936275'
-  last_update: '2019-07-02 16:12:33.936283'
-  output_artifacts:
-  - key: model.txt
-    src_path: ''
-    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/model.txt
-    description: ''
-    viewer: ''
-  - key: results.html
-    src_path: ''
-    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/results.html
-    description: ''
-    viewer: web-app
-  - key: dataset.csv
-    src_path: ''
-    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/dataset.csv
-    description: ''
-    format: ''
-    header:
-    - A
-    - B
-    - C
-    viewer: table
-  - key: chart.html
-    src_path: ''
-    target_path: v3io:///bigdata/mlrun/30b0b0a3-9ce4-11e9-b64f-0a581ce6bde8/chart.html
-    description: ''
-    viewer: chart
+if you have specified a `rundb` the results and artifacts from each run are recorded 
+
+you can use various `db` methods, see the [example notebook](examples/mlrun_db.ipynb)
+
+```python
+from mlrun import get_run_db
+
+# connect to a local file DB
+db = get_run_db('./').connect()
+
+# list all runs
+db.list_runs('').show()
+
+# list all artifact for version "latest"
+db.list_artifacts('', tag='').show()
+
+# check different artifact versions 
+db.list_artifacts('ch', tag='*').show()
+
+# delete completed runs
+db.del_runs(state='completed')
 ```
+

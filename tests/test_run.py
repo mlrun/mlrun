@@ -15,7 +15,7 @@
 from mlrun.run import get_or_create_ctx, run_start
 from mlrun.utils import run_keys, update_in
 from os import environ
-from conftest import rundb_path, out_path, tag_test, here
+from conftest import rundb_path, out_path, tag_test, here, examples_path
 
 
 def my_func(spec=None):
@@ -121,10 +121,10 @@ def test_handler_hyperlist():
 
 def test_local_runtime():
     spec = tag_test(basespec, 'test_local_runtime')
-    result = run_start(spec, command='example1.py', rundb=rundb_path)
+    result = run_start(spec, command=f'{examples_path}/training.py', rundb=rundb_path)
     verify_state(result)
 
 def test_local_no_context():
     spec = tag_test(basespec, 'test_local_no_context')
-    result = run_start(spec, command= f'{here}/no_ctx.py', rundb=rundb_path)
+    result = run_start(spec, command= f'{here}/no_ctx.py', rundb=rundb_path, mode='noctx')
     verify_state(result)

@@ -1,7 +1,9 @@
+import sys
 import time
 
 def noctx_job():
    print('im running')
+   print('args:', sys.argv)
    time.sleep(0.1)
    print('finish')
 

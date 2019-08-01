@@ -18,7 +18,8 @@ import inspect
 from os import environ
 from tempfile import mktemp
 
-from mlrun.execution import MLClientCtx
+from ..execution import MLClientCtx
+from ..utils import get_in, update_in
 from .base import MLRuntime, RunError
 from sys import executable, stderr
 from subprocess import run, PIPE
@@ -65,8 +66,16 @@ class LocalRuntime(MLRuntime):
         cmd = [executable, self.command]
         if self.args:
             cmd += self.args
+        if self.mode in  ['noctx', 'args']:
+            params = get_in(struct, 'spec.parameters', {})
+            for k, v in params.items():
+                cmd += [f'--{k}', str(v)]
         out = run(cmd, stdout=PIPE, stderr=PIPE)
         print(out.stdout.decode('utf-8'))
+        if self.db_conn:
+            uid = get_in(struct, 'metadata.uid')
+            project = get_in(struct, 'metadata.project', '')
+            self.db_conn.store_log(uid, project, out.stdout.decode('utf-8'))
         if out.returncode != 0:
             print(out.stderr.decode('utf-8'), file=stderr)
             raise RunError(out.stderr.decode('utf-8'))

@@ -27,6 +27,12 @@ class RunDBInterface:
     def connect(self, secrets=None):
         return self
 
+    def store_log(self, uid, project='', body=None, append=True):
+        pass
+
+    def get_log(self, uid, project=''):
+        pass
+
     def store_run(self, struct, uid, project='', commit=False):
         pass
 

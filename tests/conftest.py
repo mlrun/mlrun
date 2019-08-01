@@ -14,6 +14,7 @@
 from copy import deepcopy
 
 import pytest
+import sys
 import pathlib
 from os.path import abspath, dirname
 from os import environ
@@ -25,10 +26,13 @@ shutil.rmtree(results, ignore_errors=True, onerror=None)
 
 rundb_path = f'{results}/rundb'
 out_path = f'{results}/out'
+root_path = str(pathlib.Path(here).parent)
+examples_path = pathlib.Path(here).parent.joinpath('examples')
 
 pathlib.Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
 
+#sys.path.append(root_path)
 
 from mlrun.utils import update_in
 

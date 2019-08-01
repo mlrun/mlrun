@@ -8,6 +8,7 @@
 from mlrun import get_or_create_ctx
 import time
 
+
 def handler(context, event):
     ctx = get_or_create_ctx('myfunc', event=event)
     p1 = ctx.get_param('p1', 1)

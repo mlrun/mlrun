@@ -15,7 +15,7 @@
 import json
 from os import environ
 from .base import MLRuntime
-from ..collections import RunList
+from ..lists import RunList
 
 class DaskRuntime(MLRuntime):
     kind = 'dask'

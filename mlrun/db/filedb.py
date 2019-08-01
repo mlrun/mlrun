@@ -23,7 +23,7 @@ from ..utils import get_in, match_labels, dict_to_yaml
 from ..datastore import StoreManager
 from ..render import run_to_html
 from .base import RunDBError, RunDBInterface
-from ..collections import RunList, ArtifactList
+from ..lists import RunList, ArtifactList
 
 
 class FileRunDB(RunDBInterface):
@@ -39,6 +39,17 @@ class FileRunDB(RunDBInterface):
         sm = StoreManager(secrets)
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
         return self
+
+    def store_log(self, uid, project='', body=None, append=True):
+        filepath = self._filepath('runs', project, uid, '') + '.log'
+        # TODO: handle append
+        self._datastore.put(filepath, body)
+
+    def get_log(self, uid, project=''):
+        filepath = self._filepath('runs', project, uid, '') + '.log'
+        if pathlib.Path(filepath).is_file():
+            return self._datastore.get(filepath)
+        return None
 
     def store_run(self, struct, uid, project='', commit=False):
         if self.format == '.yaml':

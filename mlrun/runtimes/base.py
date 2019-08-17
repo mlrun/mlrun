@@ -196,6 +196,9 @@ class MLRuntime:
             raise RunError('handler must be provided for {} runtime'.format(self.kind))
 
     def write_kfpmeta(self, struct):
+        if 'status' not in struct:
+            return
+
         outputs = struct['status'].get('outputs', {})
         metrics = {'metrics':
                        [{'name': k,

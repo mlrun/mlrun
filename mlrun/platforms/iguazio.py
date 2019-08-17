@@ -34,7 +34,7 @@ def xcp_op(src, dst, f='', recursive=False, mtime='', log_level='info', minsize=
     )
 
 
-def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key=''):
+def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key='', user=''):
     """
         Modifier function to apply to a Container Op to volume mount a v3io path
         Usage:
@@ -44,23 +44,7 @@ def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key=''):
 
     def _mount_v3io(task):
         from kubernetes import client as k8s_client
-        from os import environ
-        _access_key = access_key or environ.get('V3IO_ACCESS_KEY')
-        _remote = remote
-
-        if _remote.startswith('~/'):
-            user = environ.get('V3IO_USERNAME', '')
-            if not user:
-                raise ValueError('user name/env must be specified when using "~" in path')
-            if _remote == '~/':
-                _remote = 'users/' + user
-            else:
-                _remote = 'users/' + user + _remote[1:]
-        container, subpath = split_path(_remote)
-
-        opts = {'accessKey': _access_key, 'container': container, 'subPath': subpath}
-        vol = {'flexVolume': k8s_client.V1FlexVolumeSource('v3io/fuse', options=opts), 'name': name}
-
+        vol = v3io_to_vol(name, remote, access_key, user)
         task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path=mount_path, name=name))
 
         task = v3io_cred(access_key=access_key)(task)
@@ -103,3 +87,53 @@ def split_path(mntpath=''):
     if len(paths) > 1:
         subpath = mntpath[len(container):]
     return container, subpath
+
+
+def kaniko_op(image, context_path, secret_name='docker-secret'):
+    """use kaniko to build Docker image."""
+
+    from kubernetes import client as k8s_client
+    cops = dsl.ContainerOp(
+        name='kaniko',
+        image='gcr.io/kaniko-project/executor:latest',
+        arguments=["--dockerfile", "/context/Dockerfile",
+                   "--context", "/context",
+                   "--destination", image],
+    )
+
+    cops.add_volume(
+        k8s_client.V1Volume(
+            name='registry-creds',
+            secret=k8s_client.V1SecretVolumeSource(
+                secret_name=secret_name,
+                items=[{'key': '.dockerconfigjson', 'path': '.docker/config.json'}],
+            )
+        ))
+    cops.container.add_volume_mount(
+        k8s_client.V1VolumeMount(
+            name='registry-creds',
+            mount_path='/root/',
+        )
+    )
+    return cops.apply(mount_v3io(remote=context_path, mount_path='/context'))
+
+
+def v3io_to_vol(name, remote='~/', access_key='', user=''):
+    from os import environ
+    from kubernetes import client
+    access_key = access_key or environ.get('V3IO_ACCESS_KEY')
+    remote = str(remote)
+
+    if remote.startswith('~/'):
+        user = environ.get('V3IO_USERNAME', user)
+        if not user:
+            raise ValueError('user name/env must be specified when using "~" in path')
+        if remote == '~/':
+            remote = 'users/' + user
+        else:
+            remote = 'users/' + user + remote[1:]
+    container, subpath = split_path(remote)
+
+    opts = {'accessKey': access_key, 'container': container, 'subPath': subpath}
+    vol = client.V1Volume(name=name, flex_volume=client.V1FlexVolumeSource('v3io/fuse', options=opts))
+    return vol

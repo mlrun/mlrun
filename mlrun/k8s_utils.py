@@ -36,12 +36,11 @@ class k8s_helper:
             config.load_incluster_config()
             logger.info('using in-cluster config.')
         except:
-            logger.info('cannot find in-cluster config, trying the local kubernetes config.')
             try:
                 config.load_kube_config(config_file)
                 logger.info('using local kubernetes config.')
             except:
-                raise RuntimeError('cannot find local kubernetes config file')
+                raise RuntimeError('cannot find in-cluster or local kubernetes config file')
 
     def list_pods(self, namespace=None, selector='', states=None):
         try:
@@ -74,7 +73,7 @@ class k8s_helper:
             raise e
 
         logger.info(f'Pod {resp.metadata.name} created')
-        return resp.metadata.name
+        return resp.metadata.name, resp.metadata.namespace
 
     def del_pod(self, name, namespace=None):
         try:
@@ -110,14 +109,13 @@ class k8s_helper:
         return resp
 
     def run_job(self, pod, timeout=600):
-        if hasattr(pod, 'pod'):
-            pod = pod.pod
-        namespace = self._ns(self._ns(pod.metadata.namespace))
-        pod_name = self.create_pod(pod)
+        pod_name, namespace = self.create_pod(pod)
         if not pod_name:
             logger.error('failed to create pod')
             return 'error'
+        return self.watch(pod_name, namespace, timeout, True)
 
+    def watch(self, pod_name, namespace, timeout=600, del_on_done=False):
         start_time = datetime.now()
         while True:
             try:
@@ -139,14 +137,16 @@ class k8s_helper:
                     logger.warning(f'pod state in loop is {status}')
             except ApiException as e:
                 logger.error('failed waiting for pod: {}\n'.format(str(e)))
-                self.del_pod(pod_name, namespace)
+                if del_on_done:
+                    self.del_pod(pod_name, namespace)
                 return 'error'
         w = watch.Watch()
         for out in w.stream(self.v1api.read_namespaced_pod_log,
                             name=pod_name, namespace=namespace):
             print(out)
         pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
-        self.del_pod(pod_name, namespace)
+        if del_on_done:
+            self.del_pod(pod_name, namespace)
         if pod_state == 'failed':
             logger.error('pod exited with error')
         return pod_state
@@ -163,7 +163,6 @@ class k8s_helper:
             body.metadata = client.V1ObjectMeta(name=name,
                                                 namespace=namespace,
                                                 labels=labels)
-
         try:
             resp = self.v1api.create_namespaced_config_map(namespace, body)
         except ApiException as e:
@@ -212,41 +211,41 @@ class BasePod:
         self.args = args
         self._volumes = []
         self._mounts = []
-        self.env = []
-        self.labels = {'task-name': task_name}
+        self.env = None
+        self.labels = {'task-name': task_name, 'application': 'mlrun'}
         self.annotations = None
+        self._init_container = None
 
     @property
     def pod(self):
         return self._get_spec()
 
+    @property
+    def init_container(self):
+        return self._init_container
+
+    @init_container.setter
+    def init_container(self, container):
+        self._init_container = container
+
+    def set_init_container(self, image, command=None, args=None, env=None):
+        if isinstance(env, dict):
+            env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
+        self._init_container = client.V1Container(name='init',
+                                                  image=image,
+                                                  env=env,
+                                                  command=command,
+                                                  args=args)
+
     def add_volume(self, volume: client.V1Volume, mount_path):
         self._mounts.append(client.V1VolumeMount(name=volume.name, mount_path=mount_path))
         self._volumes.append(volume)
 
-    def _get_spec(self):
+    def mount_empty(self, name='empty', mount_path='/empty'):
+        self.add_volume(client.V1Volume(name=name, empty_dir=client.V1EmptyDirVolumeSource()),
+                        mount_path=mount_path)
 
-        container = client.V1Container(name='base',
-                                       image=self.image,
-                                       env=self.env,
-                                       command=self.command,
-                                       args=self.args,
-                                       volume_mounts=self._mounts,
-                                       )
-
-        pod_spec = client.V1PodSpec(containers=[container],
-                                    restart_policy='Never',
-                                    volumes=self._volumes)
-
-        pod = client.V1Pod(
-            metadata=client.V1ObjectMeta(generate_name=f'{self.task_name}-',
-                                         namespace=self.namespace,
-                                         labels=self.labels,
-                                         annotations=self.annotations),
-            spec=pod_spec)
-        return pod
-
-    def mount_v3io(self, remote='~/', mount_path='/User', access_key='', user='', name='v3io'):
+    def mount_v3io(self, name='v3io', remote='~/', mount_path='/User', access_key='', user=''):
         self.add_volume(v3io_to_vol(name, remote, access_key, user),
                         mount_path=mount_path)
 
@@ -256,20 +255,40 @@ class BasePod:
             config_map=client.V1ConfigMapVolumeSource(name=name)),
             mount_path=path)
 
+    def mount_secret(self, name, path='/secret', items=None):
+        self.add_volume(client.V1Volume(
+            name=name,
+            secret=client.V1SecretVolumeSource(
+                secret_name=name,
+                items=items,
+                )),
+            mount_path=path)
 
-class KanikoPod(BasePod):
-    def __init__(self, dockerfile='/User/Dockerfile',
-                 context='/User', dest='yhaviv/ktests:latest',
-                 secret_name='my-docker'):
+    def _get_spec(self):
 
-        super().__init__('kaniko', 'gcr.io/kaniko-project/executor:latest',
-                         args=["--dockerfile", dockerfile,
-                               "--context", context,
-                               "--destination", dest])
+        if self.env and isinstance(self.env, dict):
+            env = [client.V1EnvVar(name=k, value=v) for k, v in self.env.items()]
+        else:
+            env = self.env
+        container = client.V1Container(name='base',
+                                       image=self.image,
+                                       env=env,
+                                       command=self.command,
+                                       args=self.args,
+                                       volume_mounts=self._mounts)
 
-        self.add_volume(client.V1Volume(name='registry-creds',
-                                        secret=client.V1SecretVolumeSource(
-                                             secret_name=secret_name,
-                                             items=[{'key': '.dockerconfigjson', 'path': '.docker/config.json'}],
-                                        )),
-                        mount_path='/root/')
+        pod_spec = client.V1PodSpec(containers=[container],
+                                    restart_policy='Never',
+                                    volumes=self._volumes)
+
+        if self._init_container:
+            self._init_container.volume_mounts = self._mounts
+            pod_spec.init_containers = [self._init_container]
+
+        pod = client.V1Pod(
+            metadata=client.V1ObjectMeta(generate_name=f'{self.task_name}-',
+                                         namespace=self.namespace,
+                                         labels=self.labels,
+                                         annotations=self.annotations),
+            spec=pod_spec)
+        return pod

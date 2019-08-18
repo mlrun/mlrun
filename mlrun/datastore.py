@@ -274,7 +274,7 @@ def basic_auth_header(user, password):
 
 def http_get(url, headers=None, auth=None):
     try:
-        resp = requests.get(url, headers=headers, auth=auth)
+        resp = requests.get(url, headers=headers, auth=auth, verify=False)
     except OSError:
         raise OSError('error: cannot connect to {}'.format(url))
 
@@ -285,7 +285,7 @@ def http_get(url, headers=None, auth=None):
 
 def http_put(url, data, headers=None, auth=None):
     try:
-        resp = requests.put(url, data=data, headers=headers, auth=auth)
+        resp = requests.put(url, data=data, headers=headers, auth=auth, verify=False)
     except OSError:
         raise OSError('error: cannot connect to {}'.format(url))
     if not resp.ok:

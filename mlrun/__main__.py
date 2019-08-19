@@ -18,10 +18,11 @@ from os import path
 import click
 from ast import literal_eval
 
+from .k8s_utils import k8s_helper
 from .run import run_start
 from .runtimes import RunError
 from .utils import run_keys, dict_to_yaml
-
+from .builder import build as build_func
 @click.group()
 def main():
     pass
@@ -92,6 +93,54 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
         exit(1)
     if resp:
         print(dict_to_yaml(resp))
+
+
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("dest", type=str)
+@click.option('--command', '-c', default='', multiple=True,
+              help="build commands, e.g. '-p pip install pandas'")
+@click.option('--source', '-s', help='location/url of the source files dir/tar')
+@click.option('--base-image', '-b', help='base docker image')
+@click.option('--secret-name', default='my-docker', help='container registry secret name')
+@click.option('--requirements', '-r', help='python package requirements file path')
+@click.option('--namespace', help='kubernetes namespace')
+@click.option('--silent', is_flag=True, help='do not show build logs')
+@click.option('--inline', '-i', is_flag=True, help='inline code (for single file)')
+def build(dest, command, source, base_image, secret_name,
+          requirements, namespace, silent, inline):
+
+    inline_code = None
+    cmd = list(command)
+    if inline:
+        with open(source, 'r') as fp:
+            inline_code = fp.read()
+        source = None
+        if requirements:
+            with open(requirements, 'r') as fp:
+                requirements = fp.readlines()
+
+    print(dest, cmd, source, inline_code, base_image,
+          secret_name, requirements, namespace)
+
+    build_func(dest, command, source,
+               inline_code=inline_code,
+               base_image=base_image,
+               secret_name=secret_name,
+               requirements=requirements,
+               namespace=namespace,
+               interactive=True)
+
+
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("pod", type=str)
+@click.option('--namespace', '-n', help='kubernetes namespace')
+@click.option('--timeout', '-t', default=600, show_default=True,
+              help='timeout in seconds')
+@click.option('--del-on-done', '-d', is_flag=True, help='inline code (for single file)')
+def watch(pod, namespace, timeout, del_on_done):
+    k8s = k8s_helper(namespace or 'default-tenant')
+    status = k8s.watch(pod, namespace, timeout, del_on_done)
+    print('Pod {} last status is: {}'.format(pod, status))
 
 
 def fill_params(param):

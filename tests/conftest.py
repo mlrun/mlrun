@@ -28,6 +28,7 @@ rundb_path = f'{results}/rundb'
 out_path = f'{results}/out'
 root_path = str(pathlib.Path(here).parent)
 examples_path = pathlib.Path(here).parent.joinpath('examples')
+environ['PYTHONPATH'] = root_path
 
 pathlib.Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'

@@ -99,15 +99,16 @@ def build(dest,
           commands=None,
           source='',
           mounter='v3io',
-          base_image=default_image,
+          base_image=None,
           requirements=None,
           inline_code=None,
           secret_name='my-docker',
+          namespace=None,
           interactive=True):
 
     global k8s
     if not k8s:
-        k8s = k8s_helper('default-tenant')
+        k8s = k8s_helper(namespace or 'default-tenant')
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -118,6 +119,7 @@ def build(dest,
         requirements_list = None
         requirements_path = requirements
 
+    base_image = base_image or default_image
     context = '/context'
     to_mount = False
     src_dir = '.'

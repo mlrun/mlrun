@@ -29,13 +29,14 @@ def make_dockerfile(base_image=default_image,
                     requirements=None):
     dock = f'FROM {base_image}\n'
     dock += 'WORKDIR /run\n'
-    if commands:
-        dock += ''.join([f'RUN {b}\n' for b in commands])
     dock += f'RUN pip install {mlrun_package}\n'
     if src_dir:
         dock += f'ADD {src_dir} /run\n'
     if requirements:
+        #dock += f'ADD {requirements} /run\n'
         dock += f'RUN pip install -r {requirements}\n'
+    if commands:
+        dock += ''.join([f'RUN {b}\n' for b in commands])
 
     print(dock)
     return dock
@@ -44,6 +45,8 @@ def make_dockerfile(base_image=default_image,
 def make_kaniko_pod(context, dest,
                     dockerfile=None,
                     dockertext=None,
+                    inline_code=None,
+                    requirements=None,
                     secret_name=None):
 
     if not dockertext and not dockerfile:
@@ -63,17 +66,26 @@ def make_kaniko_pod(context, dest,
     items = [{'key': '.dockerconfigjson', 'path': '.docker/config.json'}]
     kpod.mount_secret(secret_name, '/root/', items=items)
 
-    kpod.mount_v3io(user='admin')
-    if dockertext:
+    if dockertext or inline_code or requirements:
         kpod.mount_empty()
-        kpod.set_init_container('alpine',
-                                args=['sh', '-c', 'echo ${TEXT} | base64 -d > /empty/Dockerfile'],
-                                env={'TEXT': dockertext})
+        commands = []
+        env = {}
+        if dockertext:
+            commands.append('echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile')
+            env['DOCKERFILE'] = b64encode(dockertext.encode('utf-8')).decode('utf-8')
+        if inline_code:
+            commands.append('echo ${CODE} | base64 -d > /empty/main.py')
+            env['CODE'] = b64encode(inline_code.encode('utf-8')).decode('utf-8')
+        if requirements:
+            commands.append('echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt')
+            env['REQUIREMENTS'] = b64encode('\n'.join(requirements).encode('utf-8')).decode('utf-8')
+
+        kpod.set_init_container('alpine', args=['sh', '-c', '; '.join(commands)], env=env)
 
     return kpod
 
 
-def upload_tarfile(source_dir, target, secrets=None):
+def upload_tarball(source_dir, target, secrets=None):
     tmpfile = mktemp('.tar.gz')
     with tarfile.open(tmpfile, "w:gz") as tar:
         tar.add(source_dir, arcname='')
@@ -84,34 +96,55 @@ def upload_tarfile(source_dir, target, secrets=None):
 
 
 def build(dest,
-          context,
           commands=None,
-          source_dir=None,
-          target='',
+          source='',
+          mounter='v3io',
           base_image=default_image,
           requirements=None,
+          inline_code=None,
           secret_name='my-docker',
-          secrets={},
           interactive=True):
-
-    upload_tarfile(source_dir, target, secrets)
 
     global k8s
     if not k8s:
-        k8s = k8s_helper('default-tenant', config_file='./config')
+        k8s = k8s_helper('default-tenant')
 
-    src_file = os.path.basename(target)
-    print(src_file)
-    dock = make_dockerfile(base_image, commands, src_file, requirements)
-    dock64 = b64encode(dock.encode('utf-8')).decode('utf-8')
+    if isinstance(requirements, list):
+        requirements_list = requirements
+        requirements_path = 'requirements.txt'
+        if source:
+            raise ValueError('requirements list only works with inline code')
+    else:
+        requirements_list = None
+        requirements_path = requirements
 
-    kpod = make_kaniko_pod(context, dest, dockertext=dock64, secret_name=secret_name)
-    k8s.run_job(kpod)
+    context = '/context'
+    to_mount = False
+    src_dir = '.'
+    if inline_code:
+        context = '/empty'
+    elif '://' in source:
+        context = source
+    elif source:
+        to_mount = True
+        if source.endswith('.tar.gz'):
+            source, src_dir = os.path.split(source)
+    else:
+        src_dir = None
 
+    dock = make_dockerfile(base_image, commands,
+                           src_dir=src_dir,
+                           requirements=requirements_path)
 
-build('yhaviv/ktests2:latest',
-      context='/User/context',
-      source_dir='./buildtst',
-      target='v3ios:///users/admin/context/src.tar.gz',
-      requirements='requirements.txt')
+    kpod = make_kaniko_pod(context, dest, dockertext=dock,
+                           inline_code=inline_code, requirements=requirements_list,
+                           secret_name=secret_name)
 
+    if to_mount:
+        # todo: support different mounters
+        kpod.mount_v3io(remote=source, mount_path='/context')
+
+    if interactive:
+        k8s.run_job(kpod)
+    else:
+        k8s.create_pod(kpod)

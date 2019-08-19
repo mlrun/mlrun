@@ -40,7 +40,8 @@ class k8s_helper:
                 config.load_kube_config(config_file)
                 logger.info('using local kubernetes config.')
             except:
-                raise RuntimeError('cannot find in-cluster or local kubernetes config file')
+                raise RuntimeError('cannot find local kubernetes config file,'
+                                   ' place it in ~/.kube/config or specify it in KUBECONFIG env var')
 
     def list_pods(self, namespace=None, selector='', states=None):
         try:

@@ -53,7 +53,7 @@ def uri_to_ipython(link):
 class StoreManager:
     def __init__(self, secrets=None):
         self._stores = {}
-        self._secrets = secrets
+        self._secrets = secrets or {}
 
     def from_dict(self, struct: dict):
         stor_list = struct.get(run_keys.data_stores)

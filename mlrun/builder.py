@@ -29,7 +29,6 @@ def make_dockerfile(base_image=default_image,
                     requirements=None):
     dock = f'FROM {base_image}\n'
     dock += 'WORKDIR /run\n'
-    dock += f'RUN pip install {mlrun_package}\n'
     if src_dir:
         dock += f'ADD {src_dir} /run\n'
     if requirements:
@@ -37,6 +36,7 @@ def make_dockerfile(base_image=default_image,
         dock += f'RUN pip install -r {requirements}\n'
     if commands:
         dock += ''.join([f'RUN {b}\n' for b in commands])
+    dock += 'ENV PYTHONPATH /run'
 
     print(dock)
     return dock
@@ -120,6 +120,8 @@ def build(dest,
         requirements_path = requirements
 
     base_image = base_image or default_image
+    commands = commands or []
+    commands.append(f'pip install {mlrun_package}')
     context = '/context'
     to_mount = False
     src_dir = '.'

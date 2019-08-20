@@ -78,6 +78,23 @@ def v3io_cred(api='', user='', access_key=''):
     return _use_v3io_cred
 
 
+def add_env(env={}):
+    """
+        Modifier function to add env vars from dict
+        Usage:
+            train = train_op(...)
+            train.apply(add_env({'MY_ENV':'123'}))
+    """
+
+    def _add_env(task):
+        from kubernetes import client as k8s_client
+        for k, v in env:
+            task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
+        return task
+
+    return _add_env
+
+
 def split_path(mntpath=''):
     if mntpath[0] == '/':
         mntpath = mntpath[1:]

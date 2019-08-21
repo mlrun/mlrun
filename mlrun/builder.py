@@ -61,7 +61,8 @@ def make_kaniko_pod(context, dest,
                  'gcr.io/kaniko-project/executor:latest',
                  args=["--dockerfile", dockerfile,
                        "--context", context,
-                       "--destination", dest])
+                       "--destination", dest],
+                 kind='build')
 
     items = [{'key': '.dockerconfigjson', 'path': '.docker/config.json'}]
     kpod.mount_secret(secret_name, '/root/', items=items)
@@ -95,16 +96,17 @@ def upload_tarball(source_dir, target, secrets=None):
     datastore.upload(subpath, tmpfile)
 
 
-def build(dest,
-          commands=None,
-          source='',
-          mounter='v3io',
-          base_image=None,
-          requirements=None,
-          inline_code=None,
-          secret_name='my-docker',
-          namespace=None,
-          interactive=True):
+def build_image(dest,
+                commands=None,
+                source='',
+                mounter='v3io',
+                base_image=None,
+                requirements=None,
+                inline_code=None,
+                secret_name='my-docker',
+                namespace=None,
+                with_mlrun=True,
+                interactive=True):
 
     global k8s
     if not k8s:
@@ -120,8 +122,9 @@ def build(dest,
         requirements_path = requirements
 
     base_image = base_image or default_image
-    commands = commands or []
-    commands.append(f'pip install {mlrun_package}')
+    if with_mlrun:
+        commands = commands or []
+        commands.append(f'pip install {mlrun_package}')
     context = '/context'
     to_mount = False
     src_dir = '.'
@@ -149,6 +152,6 @@ def build(dest,
         kpod.mount_v3io(remote=source, mount_path='/context')
 
     if interactive:
-        k8s.run_job(kpod)
+        return k8s.run_job(kpod)
     else:
-        k8s.create_pod(kpod)
+        return k8s.create_pod(kpod)

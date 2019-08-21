@@ -64,7 +64,7 @@ class k8s_helper:
             self.del_pod(item.metadata.name, item.metadata.namespace)
 
     def create_pod(self, pod):
-        if hasattr(pod, 'pod'):
+        if 'pod' in dir(pod):
             pod = pod.pod
         pod.metadata.namespace = self._ns(pod.metadata.namespace)
         try:
@@ -114,9 +114,10 @@ class k8s_helper:
         if not pod_name:
             logger.error('failed to create pod')
             return 'error'
-        return self.watch(pod_name, namespace, timeout, True)
+        return self.watch(pod_name, namespace, timeout)
 
-    def watch(self, pod_name, namespace, timeout=600, del_on_done=False):
+    def watch(self, pod_name, namespace, timeout=600):
+        namespace = self._ns(namespace)
         start_time = datetime.now()
         while True:
             try:
@@ -138,16 +139,12 @@ class k8s_helper:
                     logger.warning(f'pod state in loop is {status}')
             except ApiException as e:
                 logger.error('failed waiting for pod: {}\n'.format(str(e)))
-                if del_on_done:
-                    self.del_pod(pod_name, namespace)
                 return 'error'
         w = watch.Watch()
         for out in w.stream(self.v1api.read_namespaced_pod_log,
                             name=pod_name, namespace=namespace):
             print(out)
         pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
-        if del_on_done:
-            self.del_pod(pod_name, namespace)
         if pod_state == 'failed':
             logger.error('pod exited with error')
         return pod_state
@@ -203,7 +200,7 @@ class k8s_helper:
 
 class BasePod:
 
-    def __init__(self, task_name='', image=None, command=None, args=None, namespace=''):
+    def __init__(self, task_name='', image=None, command=None, args=None, namespace='', kind='job'):
         self.namespace = namespace
         self.name = ''
         self.task_name = task_name
@@ -213,8 +210,9 @@ class BasePod:
         self._volumes = []
         self._mounts = []
         self.env = None
-        self.labels = {'task-name': task_name, 'application': 'mlrun'}
-        self.annotations = None
+        self._labels = {'mlrun/task-name': task_name,
+                        'mlrun/class': kind}
+        self._annotations = {}
         self._init_container = None
 
     @property
@@ -237,6 +235,12 @@ class BasePod:
                                                   env=env,
                                                   command=command,
                                                   args=args)
+
+    def add_label(self, key, value):
+        self._labels[key] = str(value)
+
+    def add_annotation(self, key, value):
+        self._annotations[key] = str(value)
 
     def add_volume(self, volume: client.V1Volume, mount_path):
         self._mounts.append(client.V1VolumeMount(name=volume.name, mount_path=mount_path))
@@ -265,7 +269,9 @@ class BasePod:
                 )),
             mount_path=path)
 
-    def _get_spec(self):
+    def _get_spec(self, template=False):
+
+        pod_obj = client.V1PodTemplate if template else client.V1Pod
 
         if self.env and isinstance(self.env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in self.env.items()]
@@ -286,10 +292,10 @@ class BasePod:
             self._init_container.volume_mounts = self._mounts
             pod_spec.init_containers = [self._init_container]
 
-        pod = client.V1Pod(
+        pod = pod_obj(
             metadata=client.V1ObjectMeta(generate_name=f'{self.task_name}-',
                                          namespace=self.namespace,
-                                         labels=self.labels,
-                                         annotations=self.annotations),
+                                         labels=self._labels,
+                                         annotations=self._annotations),
             spec=pod_spec)
         return pod

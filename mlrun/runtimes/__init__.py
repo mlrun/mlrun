@@ -17,3 +17,4 @@ from .local import HandlerRuntime, LocalRuntime
 from .function import RemoteRuntime
 from .mpijob import MpiRuntime, MpiJob
 from .dask import DaskRuntime
+from .kubejob import KubejobRuntime

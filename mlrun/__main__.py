@@ -22,7 +22,7 @@ from .k8s_utils import k8s_helper
 from .run import run_start
 from .runtimes import RunError
 from .utils import run_keys, dict_to_yaml
-from .builder import build as build_func
+from .builder import build_image
 @click.group()
 def main():
     pass
@@ -122,13 +122,13 @@ def build(dest, command, source, base_image, secret_name,
     print(dest, cmd, source, inline_code, base_image,
           secret_name, requirements, namespace)
 
-    build_func(dest, command, source,
-               inline_code=inline_code,
-               base_image=base_image,
-               secret_name=secret_name,
-               requirements=requirements,
-               namespace=namespace,
-               interactive=True)
+    build_image(dest, command, source,
+                inline_code=inline_code,
+                base_image=base_image,
+                secret_name=secret_name,
+                requirements=requirements,
+                namespace=namespace,
+                interactive=True)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -136,10 +136,9 @@ def build(dest, command, source, base_image, secret_name,
 @click.option('--namespace', '-n', help='kubernetes namespace')
 @click.option('--timeout', '-t', default=600, show_default=True,
               help='timeout in seconds')
-@click.option('--del-on-done', '-d', is_flag=True, help='inline code (for single file)')
-def watch(pod, namespace, timeout, del_on_done):
+def watch(pod, namespace, timeout):
     k8s = k8s_helper(namespace or 'default-tenant')
-    status = k8s.watch(pod, namespace, timeout, del_on_done)
+    status = k8s.watch(pod, namespace, timeout)
     print('Pod {} last status is: {}'.format(pod, status))
 
 

@@ -61,6 +61,11 @@ class MLRuntime:
         self.mode = mode
         self.command = get_in(struct, 'spec.runtime.command')
         self.args = get_in(struct, 'spec.runtime.args', [])
+        if self.mode in ['noctx', 'args']:
+            params = get_in(struct, 'spec.parameters', {})
+            for k, v in params.items():
+                self.args += [f'--{k}', str(v)]
+
         self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
         if self.secret_sources:
             self._secrets = SecretsStore.from_dict(struct)

@@ -19,7 +19,8 @@ import yaml
 
 from .execution import MLClientCtx
 from .render import run_to_html
-from .runtimes import HandlerRuntime, LocalRuntime, RemoteRuntime, DaskRuntime, MpiRuntime
+from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
+                       DaskRuntime, MpiRuntime, KubejobRuntime)
 from .utils import update_in, get_in
 
 
@@ -159,6 +160,8 @@ def run_start(struct: dict, command: str = '', args: list = [],
             runtime = MpiRuntime()
         elif kind == 'dask':
             runtime = DaskRuntime()
+        elif kind == 'job':
+            runtime = KubejobRuntime()
         else:
             raise Exception('unsupported runtime (%s) or missing command' % kind)
 

@@ -66,10 +66,6 @@ class LocalRuntime(MLRuntime):
         cmd = [executable, self.command]
         if self.args:
             cmd += self.args
-        if self.mode in  ['noctx', 'args']:
-            params = get_in(struct, 'spec.parameters', {})
-            for k, v in params.items():
-                cmd += [f'--{k}', str(v)]
         out = run(cmd, stdout=PIPE, stderr=PIPE)
         print(out.stdout.decode('utf-8'))
         if self.db_conn:

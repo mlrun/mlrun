@@ -138,6 +138,12 @@ def run_start(struct: dict, command: str = '', args: list = [],
                 runtime = literal_eval(runtime)
             if not isinstance(runtime, dict):
                 runtime = runtime.to_dict()
+        else:
+            image, new_command, new_args = parse_image(command)
+            if image:
+                runtime = {'kind': 'job', 'spec': {'image': image}}
+                command = new_command
+                args = new_args + args
 
         if not struct:
             struct = {}
@@ -172,6 +178,17 @@ def run_start(struct: dict, command: str = '', args: list = [],
     results = runtime.run()
 
     return results
+
+
+def parse_image(url=''):
+    if not url.startswith('image:'):
+        return None, None
+    url = url[6:]
+    idx = url.find('#')
+    if idx == -1:
+        return url, None
+    arg_list = url[idx+1:].split()
+    return url[:idx], arg_list[0], arg_list[1:]
 
 
 def mlrun_op(name: str = '', project: str = '',

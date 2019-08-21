@@ -138,24 +138,21 @@ def run_start(struct: dict, command: str = '', args: list = [],
                 runtime = literal_eval(runtime)
             if not isinstance(runtime, dict):
                 runtime = runtime.to_dict()
-        else:
-            image, new_command, new_args = parse_image(command)
-            if image:
-                runtime = {'kind': 'job', 'spec': {'image': image}}
-                command = new_command
-                args = new_args + args
 
         if not struct:
             struct = {}
         runtime_spec = get_in(struct, 'spec.runtime', runtime or {})
-
-        if command:
-            update_in(runtime_spec, 'command', command)
-        if args:
-            update_in(runtime_spec, 'args', args)
-
         kind = runtime_spec.get('kind', '')
         command = runtime_spec.get('command', command)
+        args = runtime_spec.get('args', args)
+        image, command, args = parse_image(command, args)
+        if image:
+            update_in(runtime_spec, 'kind', 'job')
+            update_in(runtime_spec, 'spec.image', image)
+            kind = 'job'
+
+        update_in(runtime_spec, 'command', command)
+        update_in(runtime_spec, 'args', args)
         update_in(struct, 'spec.runtime', runtime_spec)
 
         if kind == 'remote' or (kind == '' and '://' in command):
@@ -180,15 +177,15 @@ def run_start(struct: dict, command: str = '', args: list = [],
     return results
 
 
-def parse_image(url=''):
+def parse_image(url, args=[]):
     if not url.startswith('image:'):
-        return None, None
+        return None, url, args
     url = url[6:]
     idx = url.find('#')
     if idx == -1:
-        return url, None
+        return url, None, args
     arg_list = url[idx+1:].split()
-    return url[:idx], arg_list[0], arg_list[1:]
+    return url[:idx], arg_list[0], arg_list[1:] + args
 
 
 def mlrun_op(name: str = '', project: str = '',

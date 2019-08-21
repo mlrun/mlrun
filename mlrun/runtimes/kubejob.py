@@ -18,7 +18,7 @@ from base64 import b64decode
 from ..utils import get_in, update_in, logger
 from ..k8s_utils import k8s_helper, BasePod
 from .base import MLRuntime, RunError
-from builder import build_image
+from ..builder import build_image
 
 from kubernetes import client
 
@@ -35,26 +35,7 @@ class KubejobRuntime(MLRuntime):
             raise ValueError('job runtime must have a spec')
         namespace = get_in(meta, 'namespace', 'default-tenant')
 
-        build = get_in(func_spec, 'build')
-        if build:
-            inline = get_in(build, 'functionSourceCode')
-            if not inline:
-                raise ValueError('build spec must have functionSourceCode and baseImage')
-            inline = b64decode(inline).decode('utf-8')
-            base_image = get_in(build, 'baseImage')
-            commands = get_in(build, 'commands')
-            image = get_in(build, 'image')
-            logger.info(f'building image ({image})')
-            status = build_image(image,
-                                 base_image=base_image,
-                                 commands=commands,
-                                 namespace=namespace,
-                                 inline_code=inline,
-                                 with_mlrun=self.mode != 'noctx')
-            logger.info(f'build completed with {status}')
-            if status in ['failed', 'error']:
-                raise RunError(f' build {status}!')
-            update_in(func_spec, 'image', image)
+        self._build(func_spec, namespace)
 
         extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': json.dumps(struct)}]
         if self.rundb:
@@ -86,6 +67,28 @@ class KubejobRuntime(MLRuntime):
             raise RunError(f'pod exited with {status}, check logs')
 
         return None
+
+    def _build(self, func_spec, namespace):
+        build = get_in(func_spec, 'build')
+        if build:
+            inline = get_in(build, 'functionSourceCode')
+            if not inline:
+                raise ValueError('build spec must have functionSourceCode and baseImage')
+            inline = b64decode(inline).decode('utf-8')
+            base_image = get_in(build, 'baseImage')
+            commands = get_in(build, 'commands')
+            image = get_in(build, 'image')
+            logger.info(f'building image ({image})')
+            status = build_image(image,
+                                 base_image=base_image,
+                                 commands=commands,
+                                 namespace=namespace,
+                                 inline_code=inline,
+                                 with_mlrun=self.mode != 'noctx')
+            logger.info(f'build completed with {status}')
+            if status in ['failed', 'error']:
+                raise RunError(f' build {status}!')
+            update_in(func_spec, 'image', image)
 
     @staticmethod
     def _submit(k8s, pod_spec, metadata):

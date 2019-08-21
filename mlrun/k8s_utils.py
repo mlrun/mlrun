@@ -16,7 +16,7 @@ import time
 from datetime import datetime
 from sys import stdout
 
-from kubernetes import config, client, watch
+from kubernetes import config, client
 from kubernetes.client.rest import ApiException
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
@@ -140,10 +140,9 @@ class k8s_helper:
             except ApiException as e:
                 logger.error('failed waiting for pod: {}\n'.format(str(e)))
                 return 'error'
-        w = watch.Watch()
         for out in self.v1api.read_namespaced_pod_log(
                             name=pod_name, namespace=namespace, follow=True, _preload_content=False):
-            stdout.buffer.write(out)
+            print(out.decode('utf-8'), end='')
         pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
         if pod_state == 'failed':
             logger.error('pod exited with error')

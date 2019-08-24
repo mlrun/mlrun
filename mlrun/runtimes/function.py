@@ -23,6 +23,7 @@ from sys import stdout
 from .base import MLRuntime
 from ..utils import update_in
 from ..lists import RunList
+from ..model import RunObject
 
 from nuclio_sdk import Context as _Context, Logger
 from nuclio_sdk.logger import HumanReadableFormatter
@@ -32,14 +33,13 @@ from nuclio_sdk import Event
 class RemoteRuntime(MLRuntime):
     kind = 'remote'
 
-    def _run(self, struct):
+    def _run(self, runobj: RunObject):
         if self._secrets:
-            update_in(struct, 'spec.secret_sources',
-                      self._secrets.to_serial())
+            runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = self.execution.log_level
         headers = {'x-nuclio-log-level': log_level}
         try:
-            resp = requests.put(self.command, json=struct, headers=headers)
+            resp = requests.put(self.command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
             print('ERROR: %s', str(err))
             raise OSError('error: cannot run function at url {}'.format(self.command))
@@ -95,9 +95,9 @@ async def invoke_async(runs, url, headers, secrets):
 
     async with ClientSession() as session:
         for run in runs:
-            update_in(run, 'spec.secret_sources', secrets)
+            run.spec.secret_sources = secrets
             tasks.append(asyncio.ensure_future(
-                submit(session, url, run, headers),
+                submit(session, url, run.to_dict(), headers),
             ))
 
         for status, resp, logs in await asyncio.gather(*tasks):

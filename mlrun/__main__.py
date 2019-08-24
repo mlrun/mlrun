@@ -21,8 +21,11 @@ from ast import literal_eval
 from .k8s_utils import k8s_helper
 from .run import run_start
 from .runtimes import RunError
-from .utils import run_keys, dict_to_yaml
+from .utils import run_keys, dict_to_yaml, logger
 from .builder import build_image
+from .model import RunTemplate
+
+
 @click.group()
 def main():
     pass
@@ -52,42 +55,35 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
         workflow, project, rundb, runtime, kfp, hyperparam, param_file, mode, run_args):
     """Execute a task and inject parameters."""
 
-    meta = {}
-    set_item(meta, uid, 'uid')
-    set_item(meta, name, 'name')
-    set_item(meta, project, 'project')
-    set_item(meta, workflow, 'workflow')
+    runobj = RunTemplate()
 
-    labels = {}
-    set_item(labels, workflow, 'workflow')
-    meta['labels'] = labels
+    set_item(runobj.metadata, uid, 'uid')
+    set_item(runobj.metadata, name, 'name')
+    set_item(runobj.metadata, project, 'project')
+
+    if workflow:
+        runobj.metadata.labels['workflow'] = workflow
 
     if runtime:
         runtime = py_eval(runtime)
-        if isinstance(runtime, str):
-            runtime = {'kind': runtime}
-    else:
-        runtime = {'kind': ''}
+        if not isinstance(runtime, dict):
+            print(f'runtime parameter must be a dict')
+            exit(1)
+        runobj.spec.runtime = runtime
 
-    spec = {'runtime': runtime}
-    set_item(spec['runtime'], run_args, 'args', list(run_args))
-    set_item(spec['runtime'], url, 'command')
+    set_item(runobj.spec.runtime, url, 'command')
+    set_item(runobj.spec.runtime, run_args, 'args', list(run_args))
+    set_item(runobj.spec, param, 'parameters', fill_params(param))
+    set_item(runobj.spec, hyperparam, 'hyperparam', fill_params(hyperparam))
+    set_item(runobj.spec, param_file, 'param_file')
 
-    if param:
-        spec['parameters'] = fill_params(param)
-    if hyperparam:
-        hyperparam = fill_params(hyperparam)
-
-    set_item(spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))
-    set_item(spec, in_path, run_keys.input_path)
-    set_item(spec, out_path, run_keys.output_path)
-    set_item(spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
-    set_item(spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
-
-    struct = {'metadata': meta, 'spec': spec}
+    set_item(runobj.spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))
+    set_item(runobj.spec, in_path, run_keys.input_path)
+    set_item(runobj.spec, out_path, run_keys.output_path)
+    set_item(runobj.spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
+    set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
-        resp = run_start(struct, rundb=rundb, kfp=kfp,
-                         hyperparams=hyperparam, param_file=param_file)
+        resp = run_start(runobj, rundb=rundb, kfp=kfp ,mode=mode)
     except RunError as err:
         print(f'runtime error: {err}')
         exit(1)
@@ -163,12 +159,12 @@ def py_eval(data):
         return data
 
 
-def set_item(struct, item, key, value=None):
+def set_item(obj, item, key, value=None):
     if item:
         if value:
-            struct[key] = value
+            setattr(obj, key, value)
         else:
-            struct[key] = item
+            setattr(obj, key, item)
 
 
 def line2keylist(lines: list, keyname='key', valname='path'):

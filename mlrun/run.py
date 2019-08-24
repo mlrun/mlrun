@@ -19,6 +19,7 @@ import yaml
 
 from .execution import MLClientCtx
 from .render import run_to_html
+from .model import RunTemplate, RunRuntime, RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskRuntime, MpiRuntime, KubejobRuntime)
 from .utils import update_in, get_in
@@ -88,6 +89,9 @@ def get_or_create_ctx(name: str,
     elif with_env and config:
         newspec = config
 
+    if isinstance(newspec, RunObject):
+        newspec = newspec.to_dict()
+
     if newspec and not isinstance(newspec, dict):
         newspec = yaml.safe_load(newspec)
 
@@ -106,70 +110,55 @@ def get_or_create_ctx(name: str,
     return ctx
 
 
-def run_start(struct: dict, command: str = '', args: list = [],
-              runtime=None, rundb: str = '', kfp: bool = False,
-              handler=None, hyperparams: dict = None,
-              param_file: str = None, mode: str = ''):
+def run_start(run, command: str = '', args: list = [], handler=None,
+               rundb: str = '', kfp: bool = False, mode: str = ''):
     """Run a local or remote task.
 
-    :param struct:     dict holding run spec
+    :param struct:     run template object or dict (see RunTemplate)
     :param command:    runtime command (filename, function url, ..)
     :param args:       optional command args
-    :param runtime:    runtime spec (dict or object) e.g. MpiJob, Dask, ..
-                       provide runtime specific configuration.
     :param rundb:      path/url to the metadata and artifact database
     :param kfp:        flag indicating run within kubeflow pipeline
     :param handler:    pointer or name of a function handler
-    :param hyperparams:  hyper parameters (for running multiple iterations)
-    :param param_file:   path/url to csv table per run with parameter values
     :param mode:       special run mode, e.g. 'noctx'
 
     :return: run context object (dict) with run metadata, results and status
     """
 
-    if struct:
-        struct = deepcopy(struct)
+    if run:
+        run = deepcopy(run)
+        if isinstance(run, str):
+            run = literal_eval(run)
 
-    if not runtime and handler:
-        runtime = HandlerRuntime(handler=handler)
+    if isinstance(run, RunTemplate):
+        run = RunObject.from_template(run)
+    if isinstance(run, dict) or run is None:
+        run = RunObject.from_dict(run)
+
+    if not run.spec.runtime.kind and handler:
+        runtime = HandlerRuntime(run, handler=handler)
     else:
-        if runtime:
-            if isinstance(runtime, str):
-                runtime = literal_eval(runtime)
-            if not isinstance(runtime, dict):
-                runtime = runtime.to_dict()
+        runtime_spec = run.spec.runtime
+        runtime_spec.command = command or runtime_spec.command
+        runtime_spec.args = args or runtime_spec.args
+        parse_kind(runtime_spec)
 
-        if not struct:
-            struct = {}
-        runtime_spec = get_in(struct, 'spec.runtime', runtime or {})
-        kind = runtime_spec.get('kind', '')
-        command = runtime_spec.get('command', command)
-        args = runtime_spec.get('args', args)
-        image, command, args = parse_image(command, args)
-        if image:
-            update_in(runtime_spec, 'kind', 'job')
-            update_in(runtime_spec, 'spec.image', image)
-            kind = 'job'
-
-        update_in(runtime_spec, 'command', command)
-        update_in(runtime_spec, 'args', args)
-        update_in(struct, 'spec.runtime', runtime_spec)
-
-        if kind == 'remote' or (kind == '' and '://' in command):
-            runtime = RemoteRuntime()
-        elif kind in ['', 'local'] and command:
-            runtime = LocalRuntime()
+        kind = runtime_spec.kind
+        if kind == 'remote':
+            runtime = RemoteRuntime(run)
+        elif kind in ['', 'local'] and runtime_spec.command:
+            runtime = LocalRuntime(run)
         elif kind == 'mpijob':
-            runtime = MpiRuntime()
+            runtime = MpiRuntime(run)
         elif kind == 'dask':
-            runtime = DaskRuntime()
+            runtime = DaskRuntime(run)
         elif kind == 'job':
-            runtime = KubejobRuntime()
+            runtime = KubejobRuntime(run)
         else:
             raise Exception('unsupported runtime (%s) or missing command' % kind)
 
     runtime.handler = handler
-    runtime.process_struct(struct, rundb, hyperparams, param_file, mode)
+    runtime.process_struct(rundb, mode)
     runtime.with_kfp = kfp
 
     results = runtime.run()
@@ -177,15 +166,30 @@ def run_start(struct: dict, command: str = '', args: list = [],
     return results
 
 
-def parse_image(url, args=[]):
-    if not url.startswith('image:'):
-        return None, url, args
-    url = url[6:]
+def parse_kind(runtime_spec: RunRuntime):
+    idx = runtime_spec.command.find('://')
+    if idx < 0:
+        return
+
+    if runtime_spec.command.startswith('http'):
+        runtime_spec.kind = 'remote'
+        return
+
+    url = runtime_spec.command[idx + 3:]
+    runtime_spec.kind = runtime_spec.command[:idx]
+    if not url:
+        return
+
     idx = url.find('#')
     if idx == -1:
-        return url, None, args
+        runtime_spec.spec = {'image': url}
+        runtime_spec.command = ''
+        return
+
     arg_list = url[idx+1:].split()
-    return url[:idx], arg_list[0], arg_list[1:] + args
+    runtime_spec.spec = {'image': url[:idx]}
+    runtime_spec.command = arg_list[0]
+    runtime_spec.args = arg_list[1:] + runtime_spec.args
 
 
 def mlrun_op(name: str = '', project: str = '',

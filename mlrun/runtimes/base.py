@@ -22,6 +22,7 @@ import pandas as pd
 from io import StringIO
 
 from ..db import get_run_db
+from ..model import RunTemplate, RunObject
 from ..secrets import SecretsStore
 from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
                      update_in, logger, is_ipython)
@@ -41,8 +42,8 @@ KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 class MLRuntime:
     kind = ''
 
-    def __init__(self, command='', args=[], handler=None):
-        self.struct = None
+    def __init__(self, run: RunObject, command='', args=[], handler=None):
+        self.runspec = run
         self.command = command
         self.args = args
         self.handler = handler
@@ -50,48 +51,43 @@ class MLRuntime:
         self.db_conn = None
         self.task_generator = None
         self._secrets = None
-        self.secret_sources = None
         self.with_kfp = False
         self.execution = None #MLClientCtx()
         self.mode = ''
 
-    def process_struct(self, struct, rundb='',
-                       hyperparams=None, param_file=None, mode=''):
+    def process_struct(self, rundb='', mode=''):
 
         self.mode = mode
-        self.command = get_in(struct, 'spec.runtime.command')
-        self.args = get_in(struct, 'spec.runtime.args', [])
+        spec = self.runspec.spec
+        self.command = spec.runtime.command
+        self.args = spec.runtime.args
         if self.mode in ['noctx', 'args']:
-            params = get_in(struct, 'spec.parameters', {})
+            params = spec.parameters or {}
             for k, v in params.items():
                 self.args += [f'--{k}', str(v)]
 
-        self.secret_sources = get_in(struct, ['spec', run_keys.secrets])
-        if self.secret_sources:
-            self._secrets = SecretsStore.from_dict(struct)
+        if spec.secret_sources:
+            self._secrets = SecretsStore.from_dict(spec.to_dict())
 
-        if not get_in(struct, 'metadata.uid'):
-            update_in(struct, 'metadata.uid', uuid.uuid4().hex)
+        meta = self.runspec.metadata
+        meta.uid = meta.uid or uuid.uuid4().hex
 
         rundb = rundb or environ.get('MLRUN_META_DBPATH', '')
         if rundb:
             self.rundb = rundb
             self.db_conn = get_run_db(rundb).connect(self._secrets)
 
-        labels = get_in(struct, 'metadata.labels', {})
-        set_if_none(labels, 'owner', getpass.getuser())
-        set_if_none(labels, 'host', socket.gethostname())
-        set_if_none(labels, 'runtime', self.kind)
-        add_code_metadata(labels)
-        update_in(struct, 'metadata.labels', labels)
-        self.struct = struct
+        meta.labels['kind'] = self.kind
+        meta.labels['host'] = meta.labels.get('host', socket.gethostname())
+        meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
+        add_code_metadata(meta.labels)
 
-        self.execution = MLClientCtx.from_dict(struct, self.db_conn)
+        self.execution = MLClientCtx.from_dict(self.runspec.to_dict(), self.db_conn)
 
-        if hyperparams:
-            self.task_generator = GridGenerator(hyperparams)
-        elif param_file:
-            obj = self.execution.get_object('param_file.csv', param_file)
+        if spec.hyperparams:
+            self.task_generator = GridGenerator(spec.hyperparams)
+        elif spec.param_file:
+            obj = self.execution.get_object('param_file.csv', spec.param_file)
             self.task_generator = ListGenerator(obj.get())
 
     def run(self):
@@ -102,7 +98,7 @@ class MLRuntime:
             return resp
 
         if self.task_generator:
-            generator = self.task_generator.generate(self.struct)
+            generator = self.task_generator.generate(self.runspec)
             results = self._run_many(generator)
             self.results_to_iter(results)
             resp = self.execution.to_dict()
@@ -112,7 +108,7 @@ class MLRuntime:
         else:
             results = RunList()
             try:
-                resp = self._run(self.struct)
+                resp = self._run(self.runspec)
                 if resp and self.with_kfp:
                     self.write_kfpmeta(resp)
                 return show(results, self._post_run(resp))
@@ -121,7 +117,7 @@ class MLRuntime:
                 self.execution.set_state(error=err)
                 return show(results, self.execution.to_dict())
 
-    def _run(self, struct):
+    def _run(self, runspec):
         pass
 
     def _run_many(self, tasks):
@@ -131,34 +127,35 @@ class MLRuntime:
                 resp = self._run(task)
                 resp = self._post_run(resp)
             except RunError as err:
-                task['status']['state'] = 'error'
-                task['status']['error'] = err
+                task.status.state = 'error'
+                task.status.error = err
                 resp = self._post_run(task)
             results.append(resp)
         return results
 
     def _post_run(self, resp):
-        if not resp:
-            return {}
-
         if isinstance(resp, str):
             resp = json.loads(resp)
+        if isinstance(resp, dict) or resp is None:
+            resp = RunObject.from_dict(resp)
 
-        update_in(resp, ['status', 'last_update'], str(datetime.now()))
-        if get_in(resp, ['status', 'state'], '') != 'error':
-            resp['status']['state'] = 'completed'
+        resp.status.last_update = str(datetime.now())
+        if resp.status.state != 'error':
+            resp.status.state = 'completed'
+
         self._save_run(resp)
-        return resp
+        return resp.to_dict()
 
-    def _save_run(self, struct):
+    def _save_run(self, runspec: RunObject):
         if self.db_conn:
             project = self.execution.project
-            uid = get_in(struct, 'metadata.uid')
-            iter = get_in(struct, 'metadata.iteration')
+            uid = runspec.metadata.uid
+            iter = runspec.metadata.iteration
             if iter:
                 uid = f'{uid}-{iter}'
-            self.db_conn.store_run(struct, uid, project, commit=True)
-        return struct
+            self.db_conn.store_run(runspec.to_dict(),
+                                   uid, project, commit=True)
+        return runspec
 
     def results_to_iter(self, results):
         iter = []

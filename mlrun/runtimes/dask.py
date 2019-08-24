@@ -14,20 +14,22 @@
 
 import json
 from os import environ
+
+from ..model import RunObject
 from .base import MLRuntime
 from ..lists import RunList
 
 class DaskRuntime(MLRuntime):
     kind = 'dask'
 
-    def _run(self, struct):
+    def _run(self, runobj: RunObject):
         self._force_handler()
         from dask import delayed
         if self.rundb:
             # todo: remote dask via k8s spec env
             environ['MLRUN_META_DBPATH'] = self.rundb
 
-        task = delayed(self.handler)(struct)
+        task = delayed(self.handler)(runobj.to_dict())
         out = task.compute()
         if isinstance(out, dict):
             return out

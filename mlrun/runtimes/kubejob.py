@@ -15,6 +15,7 @@
 import json
 from base64 import b64decode
 
+from ..model import RunObject
 from ..utils import get_in, update_in, logger
 from ..k8s_utils import k8s_helper, BasePod
 from .base import MLRuntime, RunError
@@ -26,41 +27,40 @@ from kubernetes import client
 class KubejobRuntime(MLRuntime):
     kind = 'job'
 
-    def _run(self, struct):
+    def _run(self, runobj: RunObject):
 
-        runtime = get_in(struct, 'spec.runtime')
-        func_spec = get_in(runtime, 'spec')
-        meta = get_in(runtime, 'metadata', {})
+        runtime = runobj.spec.runtime
+        func_spec = runtime.spec
+        meta = runtime.metadata or {}
         if not func_spec:
             raise ValueError('job runtime must have a spec')
-        namespace = get_in(meta, 'namespace', 'default-tenant')
+        namespace = meta.namespace or 'default-tenant'
 
         self._build(func_spec, namespace)
 
-        extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': json.dumps(struct)}]
+        extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
         if self.rundb:
             extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
 
         cmd = [self.command]
         pod_spec = func_to_pod(func_spec, cmd, self.args, extra_env)
 
-        uid = get_in(struct, 'metadata.uid')
-        name = get_in(struct, 'metadata.name', 'mlrun')
-        labels = get_in(meta, 'labels', {})
+        uid = runobj.metadata.uid
+        name = runobj.metadata.name or 'mlrun'
+        labels = meta.labels or {}
         labels['mlrun/class'] = 'job'
         labels['mlrun/uid'] = uid
         new_meta = client.V1ObjectMeta(generate_name=f'{name}-',
                                        namespace=namespace,
                                        labels=labels,
-                                       annotations=get_in(meta, 'annotations'))
+                                       annotations=meta.annotations)
 
         k8s = k8s_helper()
         pod_name, namespace = self._submit(k8s, pod_spec, new_meta)
         status = k8s.watch(pod_name, namespace)
 
         if self.db_conn:
-            uid = get_in(struct, 'metadata.uid')
-            project = get_in(struct, 'metadata.project', '')
+            project = runobj.metadata.project or ''
             self.db_conn.store_log(uid, project,
                                    k8s.logs(pod_name, namespace))
         if status in ['failed', 'error']:

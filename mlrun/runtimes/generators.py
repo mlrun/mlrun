@@ -16,10 +16,11 @@ from io import BytesIO
 import pandas as pd
 from copy import deepcopy
 from ..utils import get_in, update_in
+from ..model import RunObject
 
 
 class TaskGenerator:
-    def generate(self, struct):
+    def generate(self, run: RunObject):
         pass
 
 
@@ -27,20 +28,19 @@ class GridGenerator(TaskGenerator):
     def __init__(self, hyperparams):
         self.hyperparams = hyperparams
 
-    def generate(self, struct):
+    def generate(self, run: RunObject):
         i = 0
         params = self.grid_to_list()
         max = len(next(iter(params.values())))
 
         while i < max:
-            newstruct = deepcopy(struct)
-            param_dict = get_in(newstruct, ['spec', 'parameters'], {})
+            newrun = deepcopy(run)
+            param_dict = newrun.spec.parameters
             for key, values in params.items():
                 param_dict[key] = values[i]
-            update_in(newstruct, ['spec', 'parameters'], param_dict)
-            update_in(newstruct, ['metadata', 'iteration'], i + 1)
+            newrun.metadata.iteration = i + 1
             i += 1
-            yield newstruct
+            yield newrun
 
     def grid_to_list(self):
         arr = {}
@@ -62,17 +62,16 @@ class ListGenerator(TaskGenerator):
 
         self.df = pd.read_csv(BytesIO(body), encoding='utf-8')
 
-    def generate(self, struct):
+    def generate(self, run: RunObject):
         i = 0
         for idx, row in self.df.iterrows():
-            newstruct = deepcopy(struct)
-            param_dict = get_in(newstruct, ['spec', 'parameters'], {})
+            newrun = deepcopy(run)
+            param_dict = newrun.spec.parameters
             for key, values in row.to_dict().items():
                 param_dict[key] = values
-            update_in(newstruct, ['spec', 'parameters'], param_dict)
-            update_in(newstruct, ['metadata', 'iteration'], i + 1)
+            newrun.metadata.iteration = i + 1
             i += 1
-            yield newstruct
+            yield newrun
 
 
 

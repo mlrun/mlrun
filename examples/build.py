@@ -4,7 +4,7 @@ inline = """
 print(1+1)
 """
 
-tst = 4
+tst = 1
 
 # various build examples, need to run inside Kubernetes/jupyter
 # or place the Kubernetes config file for the cluster in the default location
@@ -12,6 +12,7 @@ tst = 4
 if tst == 1:
     build_image('yhaviv/ktests2:latest',
           requirements=['pandas'],
+          with_mlrun=False,
           inline_code=inline)
 
 if tst == 2:

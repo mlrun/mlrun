@@ -20,7 +20,8 @@ from mlrun.k8s_utils import k8s_helper, BasePod
 from mlrun.datastore import StoreManager
 
 default_image = 'python:3.6-jessie'
-mlrun_package = 'git+https://github.com/v3io/mlrun.git@development'
+mlrun_package = 'git+https://github.com/v3io/mlrun.git'
+kaniko_version = 'v0.10.0'
 k8s = None
 
 
@@ -58,10 +59,12 @@ def make_kaniko_pod(context, dest,
         dockerfile = '/empty/Dockerfile'
 
     kpod=BasePod('kaniko',
-                 'gcr.io/kaniko-project/executor:latest',
+                 'gcr.io/kaniko-project/executor:' + kaniko_version,
                  args=["--dockerfile", dockerfile,
                        "--context", context,
-                       "--destination", dest],
+                       "--destination", dest,
+                       #"--verbosity", 'debug',
+                       ],
                  kind='build')
 
     items = [{'key': '.dockerconfigjson', 'path': '.docker/config.json'}]

@@ -71,8 +71,9 @@ def test_hyper_function():
     time.sleep(2)
 
     spec = tag_test(basespec, 'hyper_function')
+    spec['spec']['hyperparams'] = {'p1': [1, 2, 3]}
     result = run_start(spec, command='http://localhost:4444',
-                       rundb=rundb_path, hyperparams={'p1': [1, 2, 3]})
+                       rundb=rundb_path)
     print(result)
     verify_state(result)
 

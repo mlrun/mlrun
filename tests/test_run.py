@@ -99,22 +99,23 @@ def test_handler_project():
 
 def test_handler_empty_hyper():
     run_spec = tag_test(basespec2, 'test_handler_empty_hyper')
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path, hyperparams={'p1': [2, 4]})
+    run_spec['spec']['hyperparams'] = {'p1': [2, 4]}
+    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
     verify_state(result)
 
 
 def test_handler_hyper():
     run_spec = tag_test(basespec2, 'test_handler_hyper')
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path,
-                       hyperparams={'p1': [1, 2, 3]})
+    run_spec['spec']['hyperparams'] = {'p1': [1, 2, 3]}
+    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
     print(result)
     assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
     verify_state(result)
 
 def test_handler_hyperlist():
     run_spec = tag_test(basespec2, 'test_handler_hyperlist')
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path,
-                       param_file='param_file.csv')
+    run_spec['spec']['param_file'] = 'param_file.csv'
+    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
     print(result)
     assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
     verify_state(result)
@@ -126,5 +127,5 @@ def test_local_runtime():
 
 def test_local_no_context():
     spec = tag_test(basespec, 'test_local_no_context')
-    result = run_start(spec, command= f'{here}/no_ctx.py', rundb=rundb_path, mode='noctx')
+    result = run_start(spec, command=f'{here}/no_ctx.py', rundb=rundb_path, mode='noctx')
     verify_state(result)

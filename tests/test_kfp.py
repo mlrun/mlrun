@@ -87,9 +87,10 @@ def test_kfp_hyper():
     tmpdir = mktemp()
     spec = deepcopy(run_spec)
     spec['spec'][run_keys.output_path] = tmpdir
+    spec['spec']['hyperparams'] = {'p1': [1, 2, 3]}
     print(tmpdir)
     result = run_start(spec, handler=my_job, rundb=rundb_path,
-                       kfp=True, hyperparams={'p1': [1, 2, 3]})
+                       kfp=True)
     alist = listdir(tmpdir)
     print(alist)
     print(listdir('/tmp'))

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import path
+from os import path, environ
 import click
 from ast import literal_eval
 
@@ -50,12 +50,22 @@ def main():
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.option('--mode', default='', help='run mode e.g. noctx')
+@click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
-def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, name,
-        workflow, project, rundb, runtime, kfp, hyperparam, param_file, mode, run_args):
+def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
+        uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
+        param_file, mode, from_env, run_args):
     """Execute a task and inject parameters."""
 
-    runobj = RunTemplate()
+    config = environ.get('MLRUN_EXEC_CONFIG')
+    if from_env and config:
+        config = py_eval(config)
+        if not isinstance(config, dict):
+            print(f'config env var must be a dict')
+            exit(1)
+        runobj = RunTemplate.from_dict(config)
+    else:
+        runobj = RunTemplate()
 
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')
@@ -84,11 +94,11 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets, uid, 
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
         resp = run_start(runobj, rundb=rundb, kfp=kfp ,mode=mode)
+        if resp:
+            print(dict_to_yaml(resp))
     except RunError as err:
         print(f'runtime error: {err}')
         exit(1)
-    if resp:
-        print(dict_to_yaml(resp))
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -124,7 +134,7 @@ def build(dest, command, source, base_image, secret_name,
                 secret_name=secret_name,
                 requirements=requirements,
                 namespace=namespace,
-                interactive=True)
+                interactive=not silent)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -136,6 +146,27 @@ def watch(pod, namespace, timeout):
     k8s = k8s_helper(namespace or 'default-tenant')
     status = k8s.watch(pod, namespace, timeout)
     print('Pod {} last status is: {}'.format(pod, status))
+
+
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument('kind', type=str)
+@click.option('--selector', '-s', default='', help='label selector')
+@click.option('--namespace', '-n', help='kubernetes namespace')
+@click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
+def ls(kind, selector, namespace, extra_args):
+    if kind.startswith('po'):
+        k8s = k8s_helper(namespace or 'default-tenant')
+        items = k8s.list_pods(namespace, selector)
+        print('{:10} {:16} {:8} {}'.format('state', 'started', 'type', 'name'))
+        for i in items:
+            task = i.metadata.labels.get('mlrun/class', '')
+            if task:
+                name = i.metadata.name
+                state = i.status.phase
+                start = i.status.start_time.strftime("%b %d %H:%M:%S")
+                print('{:10} {:16} {:8} {}'.format(state, start, task, name))
+    else:
+        print('currently only ls pods is supported')
 
 
 def fill_params(param):

@@ -63,9 +63,10 @@ class LocalRuntime(MLRuntime):
         if self.rundb:
             environ['MLRUN_META_DBPATH'] = self.rundb
 
-        cmd = [executable, self.command]
-        if self.args:
-            cmd += self.args
+        cmd = [executable, runobj.spec.runtime.command]
+        args = runobj.spec.runtime.args
+        if args:
+            cmd += args
         out = run(cmd, stdout=PIPE, stderr=PIPE)
         print(out.stdout.decode('utf-8'))
         if self.db_conn:

@@ -22,7 +22,8 @@ import pathlib
 #import pandas as pd
 from .datastore import StoreManager
 from .db import RunDBInterface
-from .utils import uxjoin, run_keys, ModelObj
+from .utils import uxjoin, run_keys
+from .model import ModelObj
 
 
 def file_hash(filename):

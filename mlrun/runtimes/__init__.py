@@ -18,3 +18,4 @@ from .function import RemoteRuntime
 from .mpijob import MpiRuntime, MpiJob
 from .dask import DaskRuntime
 from .kubejob import KubejobRuntime
+from .nuclio_deploy import NuclioDeployRuntime

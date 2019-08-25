@@ -42,10 +42,8 @@ KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 class MLRuntime:
     kind = ''
 
-    def __init__(self, run: RunObject, command='', args=[], handler=None):
+    def __init__(self, run: RunObject, handler=None):
         self.runspec = run
-        self.command = command
-        self.args = args
         self.handler = handler
         self.rundb = ''
         self.db_conn = None
@@ -59,12 +57,10 @@ class MLRuntime:
 
         self.mode = mode
         spec = self.runspec.spec
-        self.command = spec.runtime.command
-        self.args = spec.runtime.args
         if self.mode in ['noctx', 'args']:
             params = spec.parameters or {}
             for k, v in params.items():
-                self.args += [f'--{k}', str(v)]
+                spec.runtime.args += [f'--{k}', str(v)]
 
         if spec.secret_sources:
             self._secrets = SecretsStore.from_dict(spec.to_dict())

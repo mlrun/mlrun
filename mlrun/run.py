@@ -21,7 +21,7 @@ from .execution import MLClientCtx
 from .render import run_to_html
 from .model import RunTemplate, RunRuntime, RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskRuntime, MpiRuntime, KubejobRuntime)
+                       DaskRuntime, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
 from .utils import update_in, get_in
 
 
@@ -110,6 +110,12 @@ def get_or_create_ctx(name: str,
     return ctx
 
 
+runtime_dict = {'remote': RemoteRuntime,
+                'dask': DaskRuntime,
+                'job': KubejobRuntime,
+                'mpijob': MpiRuntime,
+                'Function': NuclioDeployRuntime}
+
 def run_start(run, command: str = '', args: list = [], handler=None,
                rundb: str = '', kfp: bool = False, mode: str = ''):
     """Run a local or remote task.
@@ -144,18 +150,14 @@ def run_start(run, command: str = '', args: list = [], handler=None,
         parse_kind(runtime_spec)
 
         kind = runtime_spec.kind
-        if kind == 'remote':
-            runtime = RemoteRuntime(run)
-        elif kind in ['', 'local'] and runtime_spec.command:
+        if kind in ['', 'local'] and runtime_spec.command:
             runtime = LocalRuntime(run)
-        elif kind == 'mpijob':
-            runtime = MpiRuntime(run)
-        elif kind == 'dask':
-            runtime = DaskRuntime(run)
-        elif kind == 'job':
-            runtime = KubejobRuntime(run)
+        elif kind in runtime_dict:
+            runtime = runtime_dict[kind](run)
         else:
-            raise Exception('unsupported runtime (%s) or missing command' % kind)
+            raise Exception(f'unsupported runtime ({kind}) or missing command, '
+                            + 'supported runtimes: {}'.format(
+                              ','.join(runtime_dict.keys() + ['local'])))
 
     runtime.handler = handler
     runtime.process_struct(rundb, mode)

@@ -37,12 +37,13 @@ class RemoteRuntime(MLRuntime):
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = self.execution.log_level
+        command = runobj.spec.runtime.command
         headers = {'x-nuclio-log-level': log_level}
         try:
-            resp = requests.put(self.command, json=runobj.to_dict(), headers=headers)
+            resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
             print('ERROR: %s', str(err))
-            raise OSError('error: cannot run function at url {}'.format(self.command))
+            raise OSError('error: cannot run function at url {}'.format(command))
 
         if not resp.ok:
             print('bad resp!!\n', resp.text)
@@ -61,7 +62,7 @@ class RemoteRuntime(MLRuntime):
 
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            invoke_async(tasks, self.command, headers, secrets))
+            invoke_async(tasks, self.runspec.spec.runtime.command, headers, secrets))
 
         loop.run_until_complete(future)
         return future.result()

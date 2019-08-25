@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
-import json
+
 import logging
 from os import path
 from sys import stdout
@@ -167,59 +166,6 @@ def uxjoin(base, path):
             base += '/'
         return '{}{}'.format(base, path)
     return path
-
-
-class ModelObj:
-    _dict_fields = []
-
-    @staticmethod
-    def _verify_list(param, name):
-        if not isinstance(param, list):
-            raise ValueError(f'parameter {name} must be a list')
-
-    @staticmethod
-    def _verify_dict(param, name, new_type=None):
-        if param is not None and not isinstance(param, dict) and not hasattr(param, 'to_dict'):
-            raise ValueError(f'parameter {name} must be a dict or object')
-        if new_type and (isinstance(param, dict) or param is None):
-            return new_type.from_dict(param)
-        return param
-
-    def to_dict(self, fields=None):
-        struct = {}
-        fields = fields or self._dict_fields
-        if not fields:
-            fields = list(inspect.signature(self.__init__).parameters.keys())
-        for t in fields:
-            val = getattr(self, t, None)
-            if val is not None and not (isinstance(val, dict) and not val):
-                if hasattr(val, 'to_dict'):
-                    val = val.to_dict()
-                    if val:
-                        struct[t] = val
-                else:
-                    struct[t] = val
-        return struct
-
-    @classmethod
-    def from_dict(cls, struct={}):
-        fields = list(inspect.signature(cls.__init__).parameters.keys())
-        new_obj = cls()
-        if struct:
-            for key, val in struct.items():
-                if key in fields:
-                    setattr(new_obj, key, val)
-        return new_obj
-
-
-    def to_yaml(self):
-        return dict_to_yaml(self.to_dict())
-
-    def to_json(self):
-        return json.dumps(self.to_dict())
-
-    def __str__(self):
-        return str(self.to_dict())
 
 
 def gen_md_table(header, rows=[]):

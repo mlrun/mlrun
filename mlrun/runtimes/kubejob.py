@@ -17,7 +17,7 @@ from base64 import b64decode
 
 from ..model import RunObject
 from ..utils import get_in, update_in, logger
-from ..k8s_utils import k8s_helper, BasePod
+from ..k8s_utils import k8s_helper
 from .base import MLRuntime, RunError
 from ..builder import build_image
 
@@ -30,25 +30,21 @@ class KubejobRuntime(MLRuntime):
     def _run(self, runobj: RunObject):
 
         runtime = runobj.spec.runtime
-        func_spec = runtime.spec
         meta = runtime.metadata or {}
-        if not func_spec:
+        if not runtime.spec:
             raise ValueError('job runtime must have a spec')
         namespace = meta.namespace or 'default-tenant'
 
-        self._build(func_spec, namespace)
+        self._build(runtime, namespace, self.mode)
 
         extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
         if self.rundb:
             extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
 
-        cmd = [self.command]
-        pod_spec = func_to_pod(func_spec, cmd, self.args, extra_env)
-
         uid = runobj.metadata.uid
         name = runobj.metadata.name or 'mlrun'
         labels = meta.labels or {}
-        labels['mlrun/class'] = 'job'
+        labels['mlrun/class'] = self.kind
         labels['mlrun/uid'] = uid
         new_meta = client.V1ObjectMeta(generate_name=f'{name}-',
                                        namespace=namespace,
@@ -56,10 +52,12 @@ class KubejobRuntime(MLRuntime):
                                        annotations=meta.annotations)
 
         k8s = k8s_helper()
-        pod_name, namespace = self._submit(k8s, pod_spec, new_meta)
-        status = k8s.watch(pod_name, namespace)
+        pod_name, namespace = self._submit(k8s, runtime, new_meta, extra_env)
+        status = 'unknown'
+        if pod_name:
+            status = k8s.watch(pod_name, namespace)
 
-        if self.db_conn:
+        if self.db_conn and pod_name:
             project = runobj.metadata.project or ''
             self.db_conn.store_log(uid, project,
                                    k8s.logs(pod_name, namespace))
@@ -68,30 +66,16 @@ class KubejobRuntime(MLRuntime):
 
         return None
 
-    def _build(self, func_spec, namespace):
-        build = get_in(func_spec, 'build')
-        if build:
-            inline = get_in(build, 'functionSourceCode')
-            if not inline:
-                raise ValueError('build spec must have functionSourceCode and baseImage')
-            inline = b64decode(inline).decode('utf-8')
-            base_image = get_in(build, 'baseImage')
-            commands = get_in(build, 'commands')
-            image = get_in(build, 'image')
-            logger.info(f'building image ({image})')
-            status = build_image(image,
-                                 base_image=base_image,
-                                 commands=commands,
-                                 namespace=namespace,
-                                 inline_code=inline,
-                                 with_mlrun=self.mode != 'noctx')
-            logger.info(f'build completed with {status}')
-            if status in ['failed', 'error']:
-                raise RunError(f' build {status}!')
-            update_in(func_spec, 'image', image)
+    @staticmethod
+    def _build(runtime, namespace, mode):
+        build_spec = get_in(runtime.spec, 'build')
+        if build_spec:
+            image = _build(build_spec, namespace, mode)
+            update_in(runtime.spec, 'image', image)
 
     @staticmethod
-    def _submit(k8s, pod_spec, metadata):
+    def _submit(k8s, runtime, metadata, extra_env):
+        pod_spec = func_to_pod(runtime, extra_env)
         pod = client.V1Pod(metadata=metadata, spec=pod_spec)
         try:
             return k8s.create_pod(pod)
@@ -100,9 +84,9 @@ class KubejobRuntime(MLRuntime):
             raise RunError(str(e))
 
 
-def func_to_pod(spec, command=None, args=None, extra_env=None):
+def func_to_pod(runtime, extra_env=None):
 
-    volumes = get_in(spec, 'volumes')
+    volumes = get_in(runtime.spec, 'volumes')
     mounts = []
     vols = []
     if volumes:
@@ -110,23 +94,44 @@ def func_to_pod(spec, command=None, args=None, extra_env=None):
             mounts.append(vol['volumeMount'])
             vols.append(vol['volume'])
 
-    env = get_in(spec, 'env', [])
+    env = get_in(runtime.spec, 'env', [])
     if extra_env:
         env = extra_env + env
 
     container = client.V1Container(name='base',
-                                   image=get_in(spec, 'image'),
+                                   image=get_in(runtime.spec, 'image'),
                                    env=env,
-                                   command=command,
-                                   args=args,
-                                   image_pull_policy=get_in(spec, 'imagePullPolicy'),
+                                   command=[runtime.command],
+                                   args=runtime.args,
+                                   image_pull_policy=get_in(runtime.spec, 'imagePullPolicy'),
                                    volume_mounts=mounts,
-                                   resources=get_in(spec, 'resources'))
+                                   resources=get_in(runtime.spec, 'resources'))
 
     pod_spec = client.V1PodSpec(containers=[container],
                                 restart_policy='Never',
                                 volumes=vols,
-                                service_account=get_in(spec, 'serviceAccount'))
+                                service_account=get_in(runtime.spec, 'serviceAccount'))
 
     return pod_spec
+
+
+def _build(build, namespace, mode=''):
+    inline = get_in(build, 'functionSourceCode')
+    if not inline:
+        raise ValueError('build spec must have functionSourceCode and baseImage')
+    inline = b64decode(inline).decode('utf-8')
+    base_image = get_in(build, 'baseImage')
+    commands = get_in(build, 'commands')
+    image = get_in(build, 'image')
+    logger.info(f'building image ({image})')
+    status = build_image(image,
+                         base_image=base_image,
+                         commands=commands,
+                         namespace=namespace,
+                         inline_code=inline,
+                         with_mlrun=mode != 'noctx')
+    logger.info(f'build completed with {status}')
+    if status in ['failed', 'error']:
+        raise RunError(f' build {status}!')
+    return image
 

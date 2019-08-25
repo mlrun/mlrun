@@ -48,7 +48,7 @@ class NuclioDeployRuntime(MLRuntime):
         config = runtime.to_dict(['kind', 'apiVersion', 'spec', 'metadata'])
         print(config)
 
-        addr = deploy_config(config, runtime.command, name, project)
+        addr = deploy_config(config, runtime.command, name, project, create_new=True)
         logger.info('function address is {}'.format(addr))
         return None
 

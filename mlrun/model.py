@@ -14,6 +14,7 @@
 
 import inspect
 import json
+from copy import deepcopy
 from os import environ
 from pprint import pformat
 from .utils import dict_to_yaml
@@ -73,6 +74,9 @@ class ModelObj:
 
     def __str__(self):
         return str(self.to_dict())
+
+    def copy(self):
+        return deepcopy(self)
 
 
 class BaseMetadata(ModelObj):

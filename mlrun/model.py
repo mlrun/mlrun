@@ -164,7 +164,7 @@ class RunSpec(ModelObj):
         self._output_artifacts = output_artifacts
         self.input_path = input_path
         self.output_path = output_path
-        self._secret_sources = secret_sources
+        self._secret_sources = secret_sources or []
         self._data_stores = data_stores
 
     @property

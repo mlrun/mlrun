@@ -33,10 +33,10 @@ def exec_run(cmd, args, test):
     return exec_main('run', args)
 
 
-def param_list(params: dict):
+def param_list(params: dict, flag='-p'):
     l = []
     for k, v in params.items():
-        l += ['-p', f'{k}={v}']
+        l += [flag, f'{k}={v}']
     return l
 
 
@@ -46,6 +46,15 @@ def test_main_run_basic():
                    'test_main_run_basic')
     print(out)
     assert out.find('state: completed') != -1, out
+
+
+def test_main_run_hyper():
+    out = exec_run(f'{examples_path}/training.py',
+                   param_list(dict(p2=[4,5,6]), '-x'),
+                   'test_main_run_hyper')
+    print(out)
+    assert out.find('state: completed') != -1, out
+    assert out.find('iterations:') != -1, out
 
 
 def test_main_run_noctx():

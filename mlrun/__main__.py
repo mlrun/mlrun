@@ -66,6 +66,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         runobj = RunTemplate.from_dict(config)
     else:
         runobj = RunTemplate()
+
     code = environ.get('MLRUN_EXEC_CODE')
     if from_env and code:
         code = b64decode(code).decode('utf-8')
@@ -92,7 +93,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     if run_args:
         runtime['args'] = list(run_args)
     set_item(runobj.spec, param, 'parameters', fill_params(param))
-    set_item(runobj.spec, hyperparam, 'hyperparam', fill_params(hyperparam))
+    set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
     set_item(runobj.spec, param_file, 'param_file')
 
     set_item(runobj.spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))

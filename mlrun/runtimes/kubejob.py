@@ -29,17 +29,22 @@ class KubejobRuntime(MLRuntime):
 
     def _run(self, runobj: RunObject):
 
-        runtime = runobj.spec.runtime
+        runtime = self.runtime
         meta = runtime.metadata or {}
-        if not runtime.spec:
-            raise ValueError('job runtime must have a spec')
         namespace = meta.namespace or 'default-tenant'
-
-        self._build(runtime, namespace, self.mode)
 
         extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
         if self.rundb:
             extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
+
+        source_code = get_in(runtime.spec, 'build.functionSourceCode')
+        if runtime.image and source_code:
+            extra_env.append({'name': 'MLRUN_EXEC_CODE', 'value': source_code})
+            runtime.command = 'mlrun'
+            runtime.args = ['--from-env', 'main.py']
+
+        if not runtime.image:
+            self._build(runtime, namespace, self.mode)
 
         uid = runobj.metadata.uid
         name = runobj.metadata.name or 'mlrun'
@@ -71,7 +76,9 @@ class KubejobRuntime(MLRuntime):
         build_spec = get_in(runtime.spec, 'build')
         if build_spec:
             image = _build(build_spec, namespace, mode)
-            update_in(runtime.spec, 'image', image)
+            runtime.image = image
+            runtime.command = 'python'
+            runtime.args = ['main.py']
 
     @staticmethod
     def _submit(k8s, runtime, metadata, extra_env):
@@ -99,7 +106,7 @@ def func_to_pod(runtime, extra_env=None):
         env = extra_env + env
 
     container = client.V1Container(name='base',
-                                   image=get_in(runtime.spec, 'image'),
+                                   image=runtime.image,
                                    env=env,
                                    command=[runtime.command],
                                    args=runtime.args,
@@ -120,9 +127,11 @@ def _build(build, namespace, mode=''):
     if not inline:
         raise ValueError('build spec must have functionSourceCode and baseImage')
     inline = b64decode(inline).decode('utf-8')
-    base_image = get_in(build, 'baseImage')
+    base_image = get_in(build, 'baseImage', 'python:3.6-jessie')
     commands = get_in(build, 'commands')
     image = get_in(build, 'image')
+    if not image:
+        raise ValueError('build spec must have image, use %nuclio config spec.build.image = <target image>')
     logger.info(f'building image ({image})')
     status = build_image(image,
                          base_image=base_image,

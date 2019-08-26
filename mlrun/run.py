@@ -116,13 +116,13 @@ runtime_dict = {'remote': RemoteRuntime,
                 'mpijob': MpiRuntime,
                 'Function': NuclioDeployRuntime}
 
-def run_start(run, command: str = '', args: list = [], handler=None,
+def run_start(run, command: str = '', runtime=None, handler=None,
                rundb: str = '', kfp: bool = False, mode: str = ''):
     """Run a local or remote task.
 
     :param struct:     run template object or dict (see RunTemplate)
     :param command:    runtime command (filename, function url, ..)
-    :param args:       optional command args
+    :param runtime:    runtime object/dict, runtime specific details
     :param rundb:      path/url to the metadata and artifact database
     :param kfp:        flag indicating run within kubeflow pipeline
     :param handler:    pointer or name of a function handler
@@ -141,57 +141,64 @@ def run_start(run, command: str = '', args: list = [], handler=None,
     if isinstance(run, dict) or run is None:
         run = RunObject.from_dict(run)
 
-    if not run.spec.runtime.kind and handler:
-        runtime = HandlerRuntime(run, handler=handler)
-    else:
-        runtime_spec = run.spec.runtime
-        runtime_spec.command = command or runtime_spec.command
-        runtime_spec.args = args or runtime_spec.args
-        parse_kind(runtime_spec)
+    kind, runtime = process_runtime(command, runtime)
 
-        kind = runtime_spec.kind
-        if kind in ['', 'local'] and runtime_spec.command:
-            runtime = LocalRuntime(run)
+    if not kind and handler:
+        runner = HandlerRuntime(run)
+    else:
+        if kind in ['', 'local'] and runtime.get('command'):
+            runner = LocalRuntime(run)
         elif kind in runtime_dict:
-            runtime = runtime_dict[kind](run)
+            runner = runtime_dict[kind](run)
         else:
             raise Exception(f'unsupported runtime ({kind}) or missing command, '
                             + 'supported runtimes: {}'.format(
-                              ','.join(runtime_dict.keys() + ['local'])))
+                              ','.join(list(runtime_dict.keys()) + ['local'])))
+        runner.set_runtime(runtime)
 
-    runtime.handler = handler
-    runtime.process_struct(rundb, mode)
-    runtime.with_kfp = kfp
+    runner.handler = handler
+    runner.prep_run(rundb, mode, kfp)
 
-    results = runtime.run()
+    results = runner.run()
 
     return results
 
 
-def parse_kind(runtime_spec: RunRuntime):
-    idx = runtime_spec.command.find('://')
+def process_runtime(command, runtime):
+    kind = ''
+    if runtime and hasattr(runtime, 'to_dict'):
+        runtime = runtime.to_dict()
+    if runtime and isinstance(runtime, dict):
+        kind = runtime.get('kind', '')
+        command = command or runtime.get('command')
+    kind, command = get_kind(kind, command)
+    if not runtime:
+        runtime = {}
+    runtime['command'] = command
+    runtime['kind'] = kind
+    parse_command(runtime, command)
+    return kind, runtime
+
+
+def get_kind(kind, command):
+    idx = command.find('://')
     if idx < 0:
-        return
+        return kind, command
+    if command.startswith('http'):
+        return 'remote', command
+    return command[:idx], command[idx + 3:]
 
-    if runtime_spec.command.startswith('http'):
-        runtime_spec.kind = 'remote'
-        return
 
-    url = runtime_spec.command[idx + 3:]
-    runtime_spec.kind = runtime_spec.command[:idx]
-    if not url:
-        return
-
+def parse_command(runtime, url):
     idx = url.find('#')
     if idx == -1:
-        runtime_spec.spec = {'image': url}
-        runtime_spec.command = ''
+        runtime['command'] = url
         return
 
     arg_list = url[idx+1:].split()
-    runtime_spec.spec = {'image': url[:idx]}
-    runtime_spec.command = arg_list[0]
-    runtime_spec.args = arg_list[1:] + runtime_spec.args
+    runtime['image'] = url[:idx]
+    runtime['command'] = arg_list[0]
+    runtime['args'] = arg_list[1:]
 
 
 def mlrun_op(name: str = '', project: str = '',

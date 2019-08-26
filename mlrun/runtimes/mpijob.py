@@ -16,6 +16,8 @@ import uuid
 from copy import deepcopy
 from os import environ
 from pprint import pprint
+
+from ..model import RunObject
 from .base import MLRuntime
 from ..utils import dict_to_yaml
 
@@ -50,12 +52,11 @@ _mpijob_template = {
 class MpiRuntime(MLRuntime):
     kind = 'mpijob'
 
-    def _run(self, struct):
-        runtime = struct['spec']['runtime']
+    def _run(self, runobj: RunObject):
 
-        mpijob = MpiJob.from_dict(runtime.get('spec'))
+        mpijob = MpiJob.from_dict(self.runtime.spec.to_dict())
 
-        mpijob.env('MLRUN_EXEC_CONFIG', json.dumps(struct))
+        mpijob.env('MLRUN_EXEC_CONFIG', runobj.to_json())
         if self.rundb:
             mpijob.env('MLRUN_META_DBPATH', self.rundb)
 
@@ -99,7 +100,7 @@ class MpiJob:
         if image:
             self._update_container('image', image)
         if command:
-            self._update_container('command', ['mpirun','python'] + command)
+            self._update_container('command', ['mpirun', 'python'] + command)
         if replicas:
             self._struct['spec']['replicas'] = replicas
         config.load_incluster_config()
@@ -202,6 +203,7 @@ class MpiJob:
             pprint(api_response)
         except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
+
 
 def split_path(mntpath=''):
     if mntpath[0] == '/':

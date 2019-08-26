@@ -22,7 +22,7 @@ import pandas as pd
 from io import StringIO
 
 from ..db import get_run_db
-from ..model import RunTemplate, RunObject
+from ..model import RunTemplate, RunObject, RunRuntime
 from ..secrets import SecretsStore
 from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
                      update_in, logger, is_ipython)
@@ -42,9 +42,10 @@ KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 class MLRuntime:
     kind = ''
 
-    def __init__(self, run: RunObject, handler=None):
+    def __init__(self, run: RunObject):
         self.runspec = run
-        self.handler = handler
+        self.runtime = None
+        self.handler = None
         self.rundb = ''
         self.db_conn = None
         self.task_generator = None
@@ -53,14 +54,18 @@ class MLRuntime:
         self.execution = None #MLClientCtx()
         self.mode = ''
 
-    def process_struct(self, rundb='', mode=''):
+    def set_runtime(self, runtime: RunRuntime):
+        self.runtime = RunRuntime.from_dict(runtime)
+
+    def prep_run(self, rundb='', mode='', kfp=None):
 
         self.mode = mode
+        self.with_kfp = kfp
         spec = self.runspec.spec
         if self.mode in ['noctx', 'args']:
             params = spec.parameters or {}
             for k, v in params.items():
-                spec.runtime.args += [f'--{k}', str(v)]
+                self.runtime.args += [f'--{k}', str(v)]
 
         if spec.secret_sources:
             self._secrets = SecretsStore.from_dict(spec.to_dict())

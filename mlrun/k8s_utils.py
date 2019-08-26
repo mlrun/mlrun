@@ -27,6 +27,7 @@ class k8s_helper:
         self.namespace = namespace
         self._init_k8s_config(config_file)
         self.v1api = client.CoreV1Api()
+        self.crdapi = client.CustomObjectsApi()
 
     def _ns(self, namespace):
         return namespace or self.namespace

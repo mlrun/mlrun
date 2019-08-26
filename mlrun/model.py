@@ -14,6 +14,7 @@
 
 import inspect
 import json
+from os import environ
 from pprint import pformat
 from .utils import dict_to_yaml
 
@@ -83,15 +84,15 @@ class BaseMetadata(ModelObj):
 
 
 class RunRuntime(ModelObj):
-    def __init__(self, kind=None, command=None, args=None, metadata=None, spec=None):
+    def __init__(self, kind=None, command=None, args=None, image=None, metadata=None, spec=None):
         self.kind = kind or ''
-        self.apiVersion = None  # for k8s/nuclio compatibility
         self.command = command or ''
+        self.image = image or ''
         self.args = args or []
         self._metadata = None
         self._spec = None
         self.metadata = metadata
-        self.spec = spec
+        self.spec = spec or {}
 
     @property
     def spec(self):
@@ -108,6 +109,28 @@ class RunRuntime(ModelObj):
     @metadata.setter
     def metadata(self, metadata):
         self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
+
+
+class K8sJobSpec(ModelObj):
+    def __init__(self, build=None, image=None, volumes=None, volume_mounts=None, env=None):
+        self.build = build or {}
+        self.image = image
+        self.volumes = volumes or []
+        self.volume_mounts or []
+        self.env = env or []
+
+
+class K8sRuntime(RunRuntime):
+    def __init__(self, kind=None, apiVersion=None, command=None, args=None, metadata=None, spec=None):
+        super().__init__(kind, apiVersion, command, args, metadata, spec)
+
+    @property
+    def spec(self) -> K8sJobSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, 'spec', K8sJobSpec)
 
 
 class RunMetadata(ModelObj):
@@ -129,14 +152,11 @@ class RunMetadata(ModelObj):
 
 
 class RunSpec(ModelObj):
-    def __init__(self, runtime: RunRuntime = None,
-                 parameters=None, hyperparams=None, param_file=None,
+    def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  input_objects=None, output_artifacts=None,
                  input_path=None, output_path=None,
                  secret_sources=None, data_stores=None):
 
-        self._runtime = None
-        self.runtime = runtime
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
@@ -146,14 +166,6 @@ class RunSpec(ModelObj):
         self.output_path = output_path
         self._secret_sources = secret_sources
         self._data_stores = data_stores
-
-    @property
-    def runtime(self) -> RunRuntime:
-        return self._runtime
-
-    @runtime.setter
-    def runtime(self, runtime):
-        self._runtime = self._verify_dict(runtime, 'runtime', RunRuntime)
 
     @property
     def input_objects(self):
@@ -226,6 +238,29 @@ class RunTemplate(ModelObj):
     @metadata.setter
     def metadata(self, metadata):
         self._metadata = self._verify_dict(metadata, 'metadata', RunMetadata)
+
+    def with_params(self, params):
+        self.spec.parameters = params
+        return self
+
+    def with_hyper_params(self, hyperparams):
+        self.spec.hyperparams = hyperparams
+        return self
+
+    def with_param_file(self, param_file):
+        self.spec.param_file = param_file
+        return self
+
+    def with_secrets(self, kind, source):
+        self.spec.secret_sources.append({'kind': kind, 'source': source})
+        return self
+
+    def set_label(self, key, value):
+        self.metadata.labels[key] = str(value)
+        return self
+
+    def to_env(self):
+        environ['MLRUN_EXEC_CONFIG'] = self.to_json()
 
 
 class RunObject(RunTemplate):

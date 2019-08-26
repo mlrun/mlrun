@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from base64 import b64decode
 from os import path, environ
 import click
 from ast import literal_eval
@@ -66,6 +66,11 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         runobj = RunTemplate.from_dict(config)
     else:
         runobj = RunTemplate()
+    code = environ.get('MLRUN_EXEC_CODE')
+    if from_env and code:
+        code = b64decode(code).decode('utf-8')
+        with open('main.py', 'w') as fp:
+            fp.write(code)
 
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')
@@ -79,10 +84,13 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         if not isinstance(runtime, dict):
             print(f'runtime parameter must be a dict')
             exit(1)
-        runobj.spec.runtime = runtime
+    else:
+        runtime = {}
 
-    set_item(runobj.spec.runtime, url, 'command')
-    set_item(runobj.spec.runtime, run_args, 'args', list(run_args))
+    if url:
+        runtime['command'] = url
+    if run_args:
+        runtime['args'] = list(run_args)
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparam', fill_params(hyperparam))
     set_item(runobj.spec, param_file, 'param_file')
@@ -93,7 +101,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     set_item(runobj.spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
-        resp = run_start(runobj, rundb=rundb, kfp=kfp ,mode=mode)
+        resp = run_start(runobj, runtime=runtime, rundb=rundb, kfp=kfp, mode=mode)
         if resp:
             print(dict_to_yaml(resp))
     except RunError as err:
@@ -114,6 +122,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
 @click.option('--inline', '-i', is_flag=True, help='inline code (for single file)')
 def build(dest, command, source, base_image, secret_name,
           requirements, namespace, silent, inline):
+    """Build a container image from code and requirements."""
 
     inline_code = None
     cmd = list(command)
@@ -143,6 +152,7 @@ def build(dest, command, source, base_image, secret_name,
 @click.option('--timeout', '-t', default=600, show_default=True,
               help='timeout in seconds')
 def watch(pod, namespace, timeout):
+    """read current or previous task (pod) logs."""
     k8s = k8s_helper(namespace or 'default-tenant')
     status = k8s.watch(pod, namespace, timeout)
     print('Pod {} last status is: {}'.format(pod, status))
@@ -154,6 +164,7 @@ def watch(pod, namespace, timeout):
 @click.option('--namespace', '-n', help='kubernetes namespace')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
 def ls(kind, selector, namespace, extra_args):
+    """List all object per kind/class."""
     if kind.startswith('po'):
         k8s = k8s_helper(namespace or 'default-tenant')
         items = k8s.list_pods(namespace, selector)

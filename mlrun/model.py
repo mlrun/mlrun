@@ -14,9 +14,11 @@
 
 import inspect
 import json
+from base64 import b64encode
 from copy import deepcopy
 from os import environ
 from pprint import pformat
+from kubernetes import client
 from .utils import dict_to_yaml
 
 
@@ -119,6 +121,18 @@ class RunRuntime(ModelObj):
         return self
 
 
+class ImageBuilder(ModelObj):
+    def __init__(self, inline_code=None, source=None, image=None, base_image=None,
+                 commands=None, secret=None, registry=None):
+        self.inline_code = inline_code
+        self.source = source
+        self.image = image
+        self.base_image = base_image
+        self.commands = commands or []
+        self.secret = secret
+        self.registry = registry
+
+
 class K8sRuntime(RunRuntime):
     def __init__(self, kind=None, command=None, args=None, image=None,
                  metadata=None, build=None, volumes=None, volume_mounts=None,
@@ -131,7 +145,8 @@ class K8sRuntime(RunRuntime):
             raise e
 
         super().__init__(kind, command, args, image, metadata, None)
-        self.build = build or {}
+        self._build = None
+        self.build = build
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
@@ -159,6 +174,27 @@ class K8sRuntime(RunRuntime):
         if self._cop.container.volume_mounts:
             [self.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
             self._cop.container.volume_mounts.clear()
+
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, 'build', ImageBuilder)
+
+    def set_env(self, name, value):
+        self.env.append(client.V1EnvVar(name=name, value=value))
+        return self
+
+    def with_code(self, body=None, from_file=None):
+        if not body and not from_file:
+            raise ValueError('specify body or file name')
+        if from_file:
+            with open(from_file) as fp:
+                body = fp.read()
+        self.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
+        return self
 
 
 class RunMetadata(ModelObj):

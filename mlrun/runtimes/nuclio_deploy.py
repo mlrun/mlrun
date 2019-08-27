@@ -51,8 +51,6 @@ class NuclioDeployRuntime(MLRuntime):
         if not project or not name:
             raise RunError('name and a project must be specified in the run to deploy this function')
 
-        print(runtime)
-
         addr = deploy_config(runtime, self.dashboard, name, project, create_new=True)
         logger.info('function address is {}'.format(addr))
         return None

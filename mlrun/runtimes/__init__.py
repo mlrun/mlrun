@@ -16,6 +16,6 @@ from .base import RunError
 from .local import HandlerRuntime, LocalRuntime
 from .function import RemoteRuntime
 from .mpijob import MpiRuntime, MpiJob
-from .dask import DaskRuntime
-from .kubejob import KubejobRuntime
+from .dask import DaskRuntime, DaskCluster
+from .kubejob import KubejobRuntime, nuclio_to_k8s
 from .nuclio_deploy import NuclioDeployRuntime

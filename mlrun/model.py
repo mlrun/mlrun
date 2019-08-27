@@ -114,27 +114,47 @@ class RunRuntime(ModelObj):
     def metadata(self, metadata):
         self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
 
-
-class K8sJobSpec(ModelObj):
-    def __init__(self, build=None, image=None, volumes=None, volume_mounts=None, env=None):
-        self.build = build or {}
-        self.image = image
-        self.volumes = volumes or []
-        self.volume_mounts or []
-        self.env = env or []
+    def set_label(self, key, value):
+        self.metadata.labels[key] = str(value)
+        return self
 
 
 class K8sRuntime(RunRuntime):
-    def __init__(self, kind=None, apiVersion=None, command=None, args=None, metadata=None, spec=None):
-        super().__init__(kind, apiVersion, command, args, metadata, spec)
+    def __init__(self, kind=None, command=None, args=None, image=None,
+                 metadata=None, build=None, volumes=None, volume_mounts=None,
+                 env=None, resources=None, image_pull_policy=None,
+                 service_account=None):
+        try:
+            from kfp.dsl import ContainerOp
+        except ImportError as e:
+            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
+            raise e
 
-    @property
-    def spec(self) -> K8sJobSpec:
-        return self._spec
+        super().__init__(kind, command, args, image, metadata, None)
+        self.build = build or {}
+        self.volumes = volumes or []
+        self.volume_mounts = volume_mounts or []
+        self.env = env or []
+        self.resources = resources
+        self.image_pull_policy = image_pull_policy
+        self.service_account = service_account
+        self._cop = ContainerOp('name', 'image')
 
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', K8sJobSpec)
+    def apply(self, modify):
+        modify(self._cop)
+        return self
+
+    def merge(self):
+        for k, v in self._cop.pod_labels.items():
+            self.metadata.labels[k] = v
+        for k, v in self._cop.pod_annotations.items():
+            self.metadata.annotations[k] = v
+        if self._cop.container.env:
+            [self.env.append(e) for e in self._cop.container.env]
+        if self._cop.volumes:
+            [self.volumes.append(v) for v in self._cop.volumes]
+        if self._cop.container.volume_mounts:
+            [self.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
 
 
 class RunMetadata(ModelObj):

@@ -191,14 +191,14 @@ def get_kind(kind, command):
 
 def parse_command(runtime, url):
     idx = url.find('#')
-    if idx == -1:
-        runtime['command'] = url
-        return
+    if idx > -1:
+        runtime['image'] = url[:idx]
+        url = url[idx+1:]
 
-    arg_list = url[idx+1:].split()
-    runtime['image'] = url[:idx]
-    runtime['command'] = arg_list[0]
-    runtime['args'] = arg_list[1:]
+    if url:
+        arg_list = url.split()
+        runtime['command'] = arg_list[0]
+        runtime['args'] = arg_list[1:]
 
 
 def mlrun_op(name: str = '', project: str = '',

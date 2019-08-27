@@ -12,20 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from base64 import b64decode
+from kubernetes import client
 
-from ..model import RunObject
-from ..utils import get_in, update_in, logger
+from ..model import RunObject, K8sRuntime
+from ..utils import get_in, logger
 from ..k8s_utils import k8s_helper
 from .base import MLRuntime, RunError
 from ..builder import build_image
 
-from kubernetes import client
-
 
 class KubejobRuntime(MLRuntime):
     kind = 'job'
+
+    def set_runtime(self, runtime: K8sRuntime):
+        self.runtime = K8sRuntime.from_dict(runtime)
 
     def _run(self, runobj: RunObject):
 
@@ -37,23 +38,22 @@ class KubejobRuntime(MLRuntime):
         if self.rundb:
             extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
 
-        source_code = get_in(runtime.spec, 'build.functionSourceCode')
+        source_code = get_in(runtime.build, 'functionSourceCode')
         if runtime.image and source_code:
             extra_env.append({'name': 'MLRUN_EXEC_CODE', 'value': source_code})
             runtime.command = 'mlrun'
-            runtime.args = ['--from-env', 'main.py']
+            runtime.args = ['run', '--from-env', 'main.py']
 
         if not runtime.image:
-            self._build(runtime, namespace, self.mode)
+            self._build(runtime, namespace, self.mode != 'noctx')
 
         uid = runobj.metadata.uid
         name = runobj.metadata.name or 'mlrun'
-        labels = meta.labels or {}
-        labels['mlrun/class'] = self.kind
-        labels['mlrun/uid'] = uid
+        runtime.set_label('mlrun/class', self.kind)
+        runtime.set_label('mlrun/uid', uid)
         new_meta = client.V1ObjectMeta(generate_name=f'{name}-',
                                        namespace=namespace,
-                                       labels=labels,
+                                       labels=meta.labels,
                                        annotations=meta.annotations)
 
         k8s = k8s_helper()
@@ -72,10 +72,10 @@ class KubejobRuntime(MLRuntime):
         return None
 
     @staticmethod
-    def _build(runtime, namespace, mode):
+    def _build(runtime, namespace, with_mlrun):
         build_spec = get_in(runtime.spec, 'build')
         if build_spec:
-            image = _build(build_spec, namespace, mode)
+            image = _build(build_spec, namespace, with_mlrun)
             runtime.image = image
             runtime.command = 'python'
             runtime.args = ['main.py']
@@ -91,38 +91,26 @@ class KubejobRuntime(MLRuntime):
             raise RunError(str(e))
 
 
-def func_to_pod(runtime, extra_env=None):
-
-    volumes = get_in(runtime.spec, 'volumes')
-    mounts = []
-    vols = []
-    if volumes:
-        for vol in volumes:
-            mounts.append(vol['volumeMount'])
-            vols.append(vol['volume'])
-
-    env = get_in(runtime.spec, 'env', [])
-    if extra_env:
-        env = extra_env + env
+def func_to_pod(runtime, extra_env=[]):
 
     container = client.V1Container(name='base',
                                    image=runtime.image,
-                                   env=env,
+                                   env=extra_env + runtime.env,
                                    command=[runtime.command],
                                    args=runtime.args,
-                                   image_pull_policy=get_in(runtime.spec, 'imagePullPolicy'),
-                                   volume_mounts=mounts,
-                                   resources=get_in(runtime.spec, 'resources'))
+                                   image_pull_policy=runtime.image_pull_policy,
+                                   volume_mounts=runtime.volume_mounts,
+                                   resources=runtime.resources)
 
     pod_spec = client.V1PodSpec(containers=[container],
                                 restart_policy='Never',
-                                volumes=vols,
-                                service_account=get_in(runtime.spec, 'serviceAccount'))
+                                volumes=runtime.volumes,
+                                service_account=runtime.service_account)
 
     return pod_spec
 
 
-def _build(build, namespace, mode=''):
+def _build(build, namespace, with_mlrun=True):
     inline = get_in(build, 'functionSourceCode')
     if not inline:
         raise ValueError('build spec must have functionSourceCode and baseImage')
@@ -138,7 +126,7 @@ def _build(build, namespace, mode=''):
                          commands=commands,
                          namespace=namespace,
                          inline_code=inline,
-                         with_mlrun=mode != 'noctx')
+                         with_mlrun=with_mlrun)
     logger.info(f'build completed with {status}')
     if status in ['failed', 'error']:
         raise RunError(f' build {status}!')

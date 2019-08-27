@@ -161,13 +161,19 @@ def watch(pod, namespace, timeout):
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument('kind', type=str)
+@click.argument('name', type=str, required=False)
 @click.option('--selector', '-s', default='', help='label selector')
 @click.option('--namespace', '-n', help='kubernetes namespace')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
-def ls(kind, selector, namespace, extra_args):
-    """List all object per kind/class."""
+def get(kind, name, selector, namespace, extra_args):
+    """List/get one or more object per kind/class."""
     if kind.startswith('po'):
         k8s = k8s_helper(namespace or 'default-tenant')
+        if name:
+            resp = k8s.get_pod(name, namespace)
+            print(resp)
+            return
+
         items = k8s.list_pods(namespace, selector)
         print('{:10} {:16} {:8} {}'.format('state', 'started', 'type', 'name'))
         for i in items:

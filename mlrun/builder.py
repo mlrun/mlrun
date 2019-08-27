@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
+
+from os import environ
 import tarfile
 from base64 import b64encode
 from tempfile import mktemp
@@ -21,7 +22,7 @@ from mlrun.datastore import StoreManager
 
 default_image = 'python:3.6-jessie'
 mlrun_package = 'git+https://github.com/v3io/mlrun.git'
-kaniko_version = 'v0.10.0'
+kaniko_version = 'v0.9.0'
 k8s = None
 
 
@@ -48,27 +49,31 @@ def make_kaniko_pod(context, dest,
                     dockertext=None,
                     inline_code=None,
                     requirements=None,
-                    secret_name=None):
+                    secret_name=None,
+                    verbose=False):
 
     if not dockertext and not dockerfile:
         raise ValueError('docker file or text must be specified')
-    if not secret_name:
-        raise ValueError('registry secret name must be specified')
 
     if dockertext:
         dockerfile = '/empty/Dockerfile'
 
-    kpod=BasePod('kaniko',
+    args = ["--dockerfile", dockerfile,
+            "--context", context,
+            "--destination", dest]
+    if not secret_name:
+        args.append('--insecure')
+    if verbose:
+        args += ["--verbosity", 'debug']
+
+    kpod=BasePod('mlrun-build',
                  'gcr.io/kaniko-project/executor:' + kaniko_version,
-                 args=["--dockerfile", dockerfile,
-                       "--context", context,
-                       "--destination", dest,
-                       #"--verbosity", 'debug',
-                       ],
+                 args=args,
                  kind='build')
 
-    items = [{'key': '.dockerconfigjson', 'path': '.docker/config.json'}]
-    kpod.mount_secret(secret_name, '/root/', items=items)
+    if secret_name:
+        items = [{'key': '.dockerconfigjson', 'path': '.docker/config.json'}]
+        kpod.mount_secret(secret_name, '/root/', items=items)
 
     if dockertext or inline_code or requirements:
         kpod.mount_empty()
@@ -106,14 +111,21 @@ def build_image(dest,
                 base_image=None,
                 requirements=None,
                 inline_code=None,
-                secret_name='my-docker',
+                secret_name=None,
                 namespace=None,
                 with_mlrun=True,
-                interactive=True):
+                registry=None,
+                interactive=True,
+                verbose=False):
 
     global k8s
     if not k8s:
         k8s = k8s_helper(namespace or 'default-tenant')
+
+    if registry:
+        dest = '{}/{}'.format(registry, dest)
+    elif 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
+        dest = '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), dest)
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -148,7 +160,7 @@ def build_image(dest,
 
     kpod = make_kaniko_pod(context, dest, dockertext=dock,
                            inline_code=inline_code, requirements=requirements_list,
-                           secret_name=secret_name)
+                           secret_name=secret_name, verbose=verbose)
 
     if to_mount:
         # todo: support different mounters

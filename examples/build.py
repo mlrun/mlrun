@@ -16,7 +16,7 @@ if tst == 1:
           inline_code=inline)
 
 if tst == 2:
-    upload_tarball('../buildtst', 'v3ios:///users/admin/context/src.tar.gz')
+    upload_tarball('./', 'v3ios:///users/admin/context/src.tar.gz')
     build_image('yhaviv/ktests3:latest',
           source='/users/admin/context/src.tar.gz',
           requirements='requirements.txt')

@@ -14,6 +14,7 @@
 
 from base64 import b64decode
 from kubernetes import client
+from os import environ
 
 from ..model import RunObject, K8sRuntime
 from ..utils import get_in, logger
@@ -73,16 +74,15 @@ class KubejobRuntime(MLRuntime):
 
     @staticmethod
     def _build(runtime, namespace, with_mlrun):
-        build_spec = get_in(runtime.spec, 'build')
-        if build_spec:
-            image = _build(build_spec, namespace, with_mlrun)
+        if runtime.build:
+            image = _build(runtime.build, namespace, with_mlrun)
             runtime.image = image
             runtime.command = 'python'
             runtime.args = ['main.py']
 
     @staticmethod
     def _submit(k8s, runtime, metadata, extra_env):
-        pod_spec = func_to_pod(runtime, extra_env)
+        pod_spec = func_to_pod(image_path(runtime.image), runtime, extra_env)
         pod = client.V1Pod(metadata=metadata, spec=pod_spec)
         try:
             return k8s.create_pod(pod)
@@ -91,10 +91,16 @@ class KubejobRuntime(MLRuntime):
             raise RunError(str(e))
 
 
-def func_to_pod(runtime, extra_env=[]):
+def image_path(image):
+    if 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
+        return '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), image)
+    return image
+
+
+def func_to_pod(image, runtime, extra_env=[]):
 
     container = client.V1Container(name='base',
-                                   image=runtime.image,
+                                   image=image,
                                    env=extra_env + runtime.env,
                                    command=[runtime.command],
                                    args=runtime.args,
@@ -119,13 +125,14 @@ def _build(build, namespace, with_mlrun=True):
     commands = get_in(build, 'commands')
     image = get_in(build, 'image')
     if not image:
-        raise ValueError('build spec must have image, use %nuclio config spec.build.image = <target image>')
+        raise ValueError('build spec must have image, set runtime.build["image"] = <target image>')
     logger.info(f'building image ({image})')
     status = build_image(image,
                          base_image=base_image,
                          commands=commands,
                          namespace=namespace,
                          inline_code=inline,
+                         secret_name=get_in(build, 'secret'),
                          with_mlrun=with_mlrun)
     logger.info(f'build completed with {status}')
     if status in ['failed', 'error']:

@@ -92,8 +92,8 @@ class KubejobRuntime(MLRuntime):
 
 
 def image_path(image):
-    if 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
-        return '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), image)
+    if 'DEFAULT_DOCKER_REGISTRY' in environ:
+        return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image)
     return image
 
 

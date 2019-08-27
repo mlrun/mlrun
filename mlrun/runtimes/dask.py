@@ -53,7 +53,11 @@ class DaskCluster(K8sRuntime):
                                     volumes=self.volumes,
                                     service_account=self.service_account)
 
-        pod = client.V1Pod(metadata=self.metadata, spec=pod_spec)
+        meta = client.V1ObjectMeta(namespace=self.metadata.namespace or 'default-tenant',
+                                   labels=self.metadata.labels,
+                                   annotations=self.metadata.annotations)
+
+        pod = client.V1Pod(metadata=meta, spec=pod_spec)
         return pod
 
     @property
@@ -63,7 +67,11 @@ class DaskCluster(K8sRuntime):
     @property
     def cluster(self):
         if not self._cluster:
-            from dask_kubernetes import KubeCluster
+            try:
+                from dask_kubernetes import KubeCluster
+            except ImportError as e:
+                print('missing dask_kubernetes, please run "pip install dask_kubernetes"')
+                raise e
             self._cluster = KubeCluster(self.to_pod())
         return self._cluster
 

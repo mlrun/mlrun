@@ -142,19 +142,23 @@ class K8sRuntime(RunRuntime):
 
     def apply(self, modify):
         modify(self._cop)
+        self._merge()
         return self
 
-    def merge(self):
+    def _merge(self):
         for k, v in self._cop.pod_labels.items():
             self.metadata.labels[k] = v
         for k, v in self._cop.pod_annotations.items():
             self.metadata.annotations[k] = v
         if self._cop.container.env:
             [self.env.append(e) for e in self._cop.container.env]
+            self._cop.container.env.clear()
         if self._cop.volumes:
             [self.volumes.append(v) for v in self._cop.volumes]
+            self._cop.volumes.clear()
         if self._cop.container.volume_mounts:
             [self.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
+            self._cop.container.volume_mounts.clear()
 
 
 class RunMetadata(ModelObj):

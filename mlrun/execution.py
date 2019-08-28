@@ -23,7 +23,7 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in, dict_to_yaml
+from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger
 
 
 class MLCtxValueError(Exception):
@@ -56,7 +56,7 @@ class MLClientCtx(object):
         # runtime db service interfaces
         self._rundb = None
         self._tmpfile = tmp
-        self._logger = None
+        self._logger = logger
         self._log_level = 'info'
         self._matrics_db = None
         self._autocommit = autocommit
@@ -162,6 +162,11 @@ class MLClientCtx(object):
     def project(self):
         """project name, runs can be categorized by projects"""
         return self._project
+
+    @property
+    def logger(self):
+        """built-in logger interface"""
+        return self._logger
 
     @property
     def log_level(self):

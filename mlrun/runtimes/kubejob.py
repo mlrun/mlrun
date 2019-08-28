@@ -26,7 +26,7 @@ from ..builder import build_image
 def nuclio_to_k8s(spec, kind=None, image=None, secret=None):
     r = K8sRuntime()
     r.kind = kind or 'job'
-    h = get_in(spec, 'spec.handler', '').splity(':')
+    h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
     r.build.base_image = get_in(spec, 'spec.build.baseImage')

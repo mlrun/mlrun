@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+from threading import Thread
+
+import pytest
+
+from conftest import has_secrets, out_path, rundb_path, tag_test
 from http_srv import create_function
 from mlrun import get_or_create_ctx, run_start
-from mlrun.utils import run_keys, update_in
-import time
-import _thread
-from conftest import rundb_path, out_path, tag_test
+from mlrun.utils import run_keys
 
 
 def myfunction(context, event):
@@ -55,8 +58,9 @@ def verify_state(result):
     assert state == 'completed', f'wrong state ({state}) ' + result['status'].get('error', '')
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_simple_function():
-    _thread.start_new_thread( create_function, (myfunction, 4444))
+    Thread(target=create_function, args=(myfunction, 4444)).start()
     time.sleep(2)
 
     spec = tag_test(basespec, 'simple_function')
@@ -66,8 +70,9 @@ def test_simple_function():
     verify_state(result)
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_hyper_function():
-    _thread.start_new_thread( create_function, (myfunction, 4444))
+    Thread(target=create_function, args=(myfunction, 4444))
     time.sleep(2)
 
     spec = tag_test(basespec, 'hyper_function')
@@ -76,5 +81,3 @@ def test_hyper_function():
                        rundb=rundb_path)
     print(result)
     verify_state(result)
-
-

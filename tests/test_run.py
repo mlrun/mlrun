@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os import environ
+
+import pytest
+
+from conftest import (examples_path, has_secrets, here, out_path, rundb_path,
+                      tag_test)
 from mlrun.run import get_or_create_ctx, run_start
 from mlrun.utils import run_keys, update_in
-from os import environ
-from conftest import rundb_path, out_path, tag_test, here, examples_path
 
 
 def my_func(spec=None):
@@ -49,6 +53,7 @@ basespec = { 'metadata': {}, 'spec': {
 }}
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_with_params():
     environ['MLRUN_META_DBPATH'] = rundb_path
     spec = tag_test(basespec, 'test_with_params')
@@ -82,6 +87,7 @@ def verify_state(result):
     assert state == 'completed', f'wrong state ({state}) ' + result['status'].get('error', '')
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_handler():
     run_spec = tag_test(basespec2, 'test_handler')
     result = run_start(run_spec, handler=my_func, rundb=rundb_path)
@@ -90,6 +96,7 @@ def test_handler():
     verify_state(result)
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_handler_project():
     run_spec_project = tag_test(basespec_project, 'test_handler_project')
     result = run_start(run_spec_project, handler=my_func, rundb=rundb_path)
@@ -97,6 +104,8 @@ def test_handler_project():
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
     verify_state(result)
 
+
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_handler_empty_hyper():
     run_spec = tag_test(basespec2, 'test_handler_empty_hyper')
     run_spec['spec']['hyperparams'] = {'p1': [2, 4]}
@@ -104,6 +113,7 @@ def test_handler_empty_hyper():
     verify_state(result)
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_handler_hyper():
     run_spec = tag_test(basespec2, 'test_handler_hyper')
     run_spec['spec']['hyperparams'] = {'p1': [1, 2, 3]}
@@ -112,6 +122,8 @@ def test_handler_hyper():
     assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
     verify_state(result)
 
+
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_handler_hyperlist():
     run_spec = tag_test(basespec2, 'test_handler_hyperlist')
     run_spec['spec']['param_file'] = 'param_file.csv'
@@ -120,11 +132,15 @@ def test_handler_hyperlist():
     assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
     verify_state(result)
 
+
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_local_runtime():
     spec = tag_test(basespec, 'test_local_runtime')
     result = run_start(spec, command=f'{examples_path}/training.py', rundb=rundb_path)
     verify_state(result)
 
+
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_local_no_context():
     spec = tag_test(basespec, 'test_local_no_context')
     result = run_start(spec, command=f'{here}/no_ctx.py', rundb=rundb_path, mode='noctx')

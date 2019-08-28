@@ -11,19 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-from os import environ, listdir
 
+import json
+from copy import deepcopy
+from os import listdir
+from tempfile import mktemp
+
+import pytest
 import yaml
 
-
-from tempfile import mktemp
-from copy import deepcopy
-
-from mlrun.run import get_or_create_ctx, run_start
+from conftest import has_secrets, out_path, rundb_path
 from mlrun.artifacts import ChartArtifact, TableArtifact
+from mlrun.run import get_or_create_ctx, run_start
 from mlrun.utils import run_keys
-from conftest import rundb_path, out_path
 
 run_spec =  {'metadata':
                  {'labels': {'owner': 'yaronh', 'tests': 'kfp'}},
@@ -69,6 +69,7 @@ def my_job(struct):
     return context
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_kfp_run():
     tmpdir = mktemp()
     spec = deepcopy(run_spec)
@@ -83,6 +84,7 @@ def test_kfp_run():
     assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
 
 
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_kfp_hyper():
     tmpdir = mktemp()
     spec = deepcopy(run_spec)
@@ -98,4 +100,3 @@ def test_kfp_hyper():
         iter = json.load(fp)
         print(yaml.dump(iter))
     assert len(iter) == 3+1, 'didnt see expected iterations file output'
-

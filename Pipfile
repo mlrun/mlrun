@@ -5,6 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 pytest = "*"
+twine = "*"
 
 [packages]
 requests = ">=2.20.1"

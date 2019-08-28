@@ -13,19 +13,37 @@
 # limitations under the License.
 
 from base64 import b64decode
+from os import environ
 
 from kubernetes import client
 
 from ..builder import build_image
 from ..config import config
 from ..k8s_utils import k8s_helper
-from ..model import RunObject
+from ..model import K8sRuntime, RunObject
 from ..utils import get_in, logger
 from .base import MLRuntime, RunError
 
 
+def nuclio_to_k8s(kind, spec, image=''):
+    r = K8sRuntime()
+    r.metadata = get_in(spec, 'spec.metadata')
+    r.build.base_image = get_in(spec, 'spec.build.baseImage')
+    r.build.commands = get_in(spec, 'spec.build.commands')
+    r.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+    r.build.image = get_in(spec, 'spec.build.image', image)
+    r.env = get_in(spec, 'spec.env')
+    for vol in get_in(spec, 'spec.volumes', []):
+        r.volumes.append(vol.get('volume'))
+        r.volume_mounts.append(vol.get('volumeMount'))
+    return r
+
+
 class KubejobRuntime(MLRuntime):
     kind = 'job'
+
+    def set_runtime(self, runtime: K8sRuntime):
+        self.runtime = K8sRuntime.from_dict(runtime)
 
     def _run(self, runobj: RunObject):
 
@@ -37,23 +55,24 @@ class KubejobRuntime(MLRuntime):
         if self.rundb:
             extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
 
-        source_code = get_in(runtime.spec, 'build.functionSourceCode')
+        source_code = runtime.build.inline_code
         if runtime.image and source_code:
             extra_env.append({'name': 'MLRUN_EXEC_CODE', 'value': source_code})
             runtime.command = 'mlrun'
-            runtime.args = ['--from-env', 'main.py']
+            runtime.args = ['run', '--from-env', 'main.py']
 
+        if not runtime.image and (runtime.build.source or runtime.build.inline_code):
+            self._build(runtime, namespace, self.mode != 'noctx')
         if not runtime.image:
-            self._build(runtime, namespace, self.mode)
+            raise RunError('job submitted without image, set runtime.image')
 
         uid = runobj.metadata.uid
         name = runobj.metadata.name or 'mlrun'
-        labels = meta.labels or {}
-        labels['mlrun/class'] = self.kind
-        labels['mlrun/uid'] = uid
+        runtime.set_label('mlrun/class', self.kind)
+        runtime.set_label('mlrun/uid', uid)
         new_meta = client.V1ObjectMeta(generate_name=f'{name}-',
                                        namespace=namespace,
-                                       labels=labels,
+                                       labels=meta.labels,
                                        annotations=meta.annotations)
 
         k8s = k8s_helper()
@@ -72,17 +91,34 @@ class KubejobRuntime(MLRuntime):
         return None
 
     @staticmethod
-    def _build(runtime, namespace, mode):
-        build_spec = get_in(runtime.spec, 'build')
-        if build_spec:
-            image = _build(build_spec, namespace, mode)
-            runtime.image = image
-            runtime.command = 'python'
-            runtime.args = ['main.py']
+    def _build(runtime, namespace, with_mlrun):
+        build = runtime.build
+        inline = None
+        if build.inline_code:
+            inline = b64decode(build.inline_code).decode('utf-8')
+        if not build.image:
+            raise ValueError('build spec must have image, set runtime.build.image = <target image>')
+        logger.info(f'building image ({build.image})')
+        status = build_image(build.image,
+                             base_image=build.base_image or 'python:3.6-jessie',
+                             commands=build.commands,
+                             namespace=namespace,
+                             inline_code=inline,
+                             source=build.source,
+                             secret_name=build.secret,
+                             with_mlrun=with_mlrun)
+        logger.info(f'build completed with {status}')
+        if status in ['failed', 'error']:
+            raise RunError(f' build {status}!')
+
+        runtime.image = build.image
+        runtime.command = 'python'
+        runtime.args = ['main.py']
+
 
     @staticmethod
     def _submit(k8s, runtime, metadata, extra_env):
-        pod_spec = func_to_pod(runtime, extra_env)
+        pod_spec = func_to_pod(image_path(runtime.image), runtime, extra_env)
         pod = client.V1Pod(metadata=metadata, spec=pod_spec)
         try:
             return k8s.create_pod(pod)
@@ -91,33 +127,27 @@ class KubejobRuntime(MLRuntime):
             raise RunError(str(e))
 
 
-def func_to_pod(runtime, extra_env=None):
+def image_path(image):
+    if 'DEFAULT_DOCKER_REGISTRY' in environ:
+        return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image)
+    return image
 
-    volumes = get_in(runtime.spec, 'volumes')
-    mounts = []
-    vols = []
-    if volumes:
-        for vol in volumes:
-            mounts.append(vol['volumeMount'])
-            vols.append(vol['volume'])
 
-    env = get_in(runtime.spec, 'env', [])
-    if extra_env:
-        env = extra_env + env
+def func_to_pod(image, runtime, extra_env=[]):
 
     container = client.V1Container(name='base',
-                                   image=runtime.image,
-                                   env=env,
+                                   image=image,
+                                   env=extra_env + runtime.env,
                                    command=[runtime.command],
                                    args=runtime.args,
-                                   image_pull_policy=get_in(runtime.spec, 'imagePullPolicy'),
-                                   volume_mounts=mounts,
-                                   resources=get_in(runtime.spec, 'resources'))
+                                   image_pull_policy=runtime.image_pull_policy,
+                                   volume_mounts=runtime.volume_mounts,
+                                   resources=runtime.resources)
 
     pod_spec = client.V1PodSpec(containers=[container],
                                 restart_policy='Never',
-                                volumes=vols,
-                                service_account=get_in(runtime.spec, 'serviceAccount'))
+                                volumes=runtime.volumes,
+                                service_account=runtime.service_account)
 
     return pod_spec
 

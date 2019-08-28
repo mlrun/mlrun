@@ -14,10 +14,72 @@
 
 import json
 from os import environ
+from kubernetes import client
 
-from ..model import RunObject
+from ..model import RunObject, K8sRuntime
 from .base import MLRuntime
 from ..lists import RunList
+
+class DaskCluster(K8sRuntime):
+    kind = 'dask'
+    def __init__(self, kind=None, command=None, args=None, image=None,
+                 metadata=None, build=None, volumes=None, volume_mounts=None,
+                 env=None, resources=None, image_pull_policy=None,
+                 service_account=None, extra_pip=None):
+        args = args or ['dask-worker']
+        super().__init__(kind, command, args, image, metadata, build, volumes,
+                         volume_mounts, env, resources, image_pull_policy,
+                         service_account)
+        self._cluster = None
+        self.extra_pip = extra_pip
+        self.set_label('mlrun/class', self.kind)
+
+    def to_pod(self):
+        image = self.image or 'daskdev/dask:latest'
+        env = self.env
+        if self.extra_pip:
+            env.append(self.extra_pip)
+        container = client.V1Container(name='base',
+                                       image=image,
+                                       env=self.env,
+                                       command=None,
+                                       args=self.args,
+                                       image_pull_policy=self.image_pull_policy,
+                                       volume_mounts=self.volume_mounts,
+                                       resources=self.resources)
+
+        pod_spec = client.V1PodSpec(containers=[container],
+                                    restart_policy='Never',
+                                    volumes=self.volumes,
+                                    service_account=self.service_account)
+
+        meta = client.V1ObjectMeta(namespace=self.metadata.namespace or 'default-tenant',
+                                   labels=self.metadata.labels,
+                                   annotations=self.metadata.annotations)
+
+        pod = client.V1Pod(metadata=meta, spec=pod_spec)
+        return pod
+
+    @property
+    def initialized(self):
+        return True if self._cluster else False
+
+    @property
+    def cluster(self):
+        if not self._cluster:
+            try:
+                from dask_kubernetes import KubeCluster
+            except ImportError as e:
+                print('missing dask_kubernetes, please run "pip install dask_kubernetes"')
+                raise e
+            self._cluster = KubeCluster(self.to_pod())
+        return self._cluster
+
+    @property
+    def client(self):
+        import distributed
+        return distributed.Client(self.cluster)
+
 
 class DaskRuntime(MLRuntime):
     kind = 'dask'

@@ -14,9 +14,11 @@
 
 import inspect
 import json
+from base64 import b64encode
 from copy import deepcopy
 from os import environ
 from pprint import pformat
+from kubernetes import client
 from .utils import dict_to_yaml
 
 
@@ -114,27 +116,85 @@ class RunRuntime(ModelObj):
     def metadata(self, metadata):
         self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
 
+    def set_label(self, key, value):
+        self.metadata.labels[key] = str(value)
+        return self
 
-class K8sJobSpec(ModelObj):
-    def __init__(self, build=None, image=None, volumes=None, volume_mounts=None, env=None):
-        self.build = build or {}
+
+class ImageBuilder(ModelObj):
+    def __init__(self, inline_code=None, source=None, image=None, base_image=None,
+                 commands=None, secret=None, registry=None):
+        self.inline_code = inline_code
+        self.source = source
         self.image = image
-        self.volumes = volumes or []
-        self.volume_mounts or []
-        self.env = env or []
+        self.base_image = base_image
+        self.commands = commands or []
+        self.secret = secret
+        self.registry = registry
 
 
 class K8sRuntime(RunRuntime):
-    def __init__(self, kind=None, apiVersion=None, command=None, args=None, metadata=None, spec=None):
-        super().__init__(kind, apiVersion, command, args, metadata, spec)
+    def __init__(self, kind=None, command=None, args=None, image=None,
+                 metadata=None, build=None, volumes=None, volume_mounts=None,
+                 env=None, resources=None, image_pull_policy=None,
+                 service_account=None):
+        try:
+            from kfp.dsl import ContainerOp
+        except ImportError as e:
+            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
+            raise e
+
+        super().__init__(kind, command, args, image, metadata, None)
+        self._build = None
+        self.build = build
+        self.volumes = volumes or []
+        self.volume_mounts = volume_mounts or []
+        self.env = env or []
+        self.resources = resources
+        self.image_pull_policy = image_pull_policy
+        self.service_account = service_account
+        self._cop = ContainerOp('name', 'image')
+
+    def apply(self, modify):
+        modify(self._cop)
+        self._merge()
+        return self
+
+    def _merge(self):
+        for k, v in self._cop.pod_labels.items():
+            self.metadata.labels[k] = v
+        for k, v in self._cop.pod_annotations.items():
+            self.metadata.annotations[k] = v
+        if self._cop.container.env:
+            [self.env.append(e) for e in self._cop.container.env]
+            self._cop.container.env.clear()
+        if self._cop.volumes:
+            [self.volumes.append(v) for v in self._cop.volumes]
+            self._cop.volumes.clear()
+        if self._cop.container.volume_mounts:
+            [self.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
+            self._cop.container.volume_mounts.clear()
 
     @property
-    def spec(self) -> K8sJobSpec:
-        return self._spec
+    def build(self) -> ImageBuilder:
+        return self._build
 
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', K8sJobSpec)
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, 'build', ImageBuilder)
+
+    def set_env(self, name, value):
+        self.env.append(client.V1EnvVar(name=name, value=value))
+        return self
+
+    def with_code(self, body=None, from_file=None):
+        if not body and not from_file:
+            raise ValueError('specify body or file name')
+        if from_file:
+            with open(from_file) as fp:
+                body = fp.read()
+        self.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
+        return self
 
 
 class RunMetadata(ModelObj):

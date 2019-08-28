@@ -58,6 +58,8 @@ class KubejobRuntime(MLRuntime):
             extra_env.append({'name': 'MLRUN_EXEC_CODE', 'value': source_code})
             runtime.command = 'mlrun'
             runtime.args = ['run', '--from-env', 'main.py']
+            if runtime.handler:
+                runtime.args += ['--handler', runtime.handler]
 
         if not runtime.image and (runtime.build.source or runtime.build.inline_code):
             self._build(runtime, namespace, self.mode != 'noctx')

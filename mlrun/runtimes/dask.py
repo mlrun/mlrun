@@ -80,6 +80,16 @@ class DaskCluster(K8sRuntime):
         import distributed
         return distributed.Client(self.cluster)
 
+    def close(self):
+        from dask.distributed import Client, default_client, as_completed
+        try:
+            client = default_client()
+            client.close()
+        except ValueError:
+            pass
+        if self._cluster:
+            self._cluster.close()
+
 
 class DaskRuntime(MLRuntime):
     kind = 'dask'

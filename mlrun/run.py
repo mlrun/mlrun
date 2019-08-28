@@ -143,9 +143,12 @@ def run_start(run, command: str = '', runtime=None, handler=None,
 
     kind, runtime = process_runtime(command, runtime)
 
-    if not kind and handler:
+    if not kind and handler and not isinstance(handler, str):
         runner = HandlerRuntime(run)
     else:
+        if handler and isinstance(handler, str):
+            runtime['handler'] = handler
+
         if kind in ['', 'local'] and runtime.get('command'):
             runner = LocalRuntime(run)
         elif kind in runtime_dict:
@@ -176,7 +179,8 @@ def process_runtime(command, runtime):
         runtime = {}
     runtime['command'] = command
     runtime['kind'] = kind
-    parse_command(runtime, command)
+    if kind != 'remote':
+        parse_command(runtime, command)
     return kind, runtime
 
 
@@ -197,7 +201,13 @@ def parse_command(runtime, url):
 
     if url:
         arg_list = url.split()
-        runtime['command'] = arg_list[0]
+        # avoid parsing windows paths like C://x.py as handlers
+        handler = arg_list[0].replace(':\\', '$$\\').split(':')
+        if len(handler) > 1:
+            runtime['handler'] = handler[1]
+            runtime['command'] = handler[0].replace('$$\\', ':\\')
+        else:
+            runtime['command'] = arg_list[0]
         runtime['args'] = arg_list[1:]
 
 

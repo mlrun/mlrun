@@ -90,10 +90,11 @@ class BaseMetadata(ModelObj):
 
 
 class RunRuntime(ModelObj):
-    def __init__(self, kind=None, command=None, args=None, image=None, metadata=None, spec=None):
+    def __init__(self, kind=None, command=None, args=None, image=None, handler=None, metadata=None, spec=None):
         self.kind = kind or ''
         self.command = command or ''
         self.image = image or ''
+        self.handler = handler
         self.args = args or []
         self._metadata = None
         self._spec = None
@@ -134,7 +135,7 @@ class ImageBuilder(ModelObj):
 
 
 class K8sRuntime(RunRuntime):
-    def __init__(self, kind=None, command=None, args=None, image=None,
+    def __init__(self, kind=None, command=None, args=None, image=None, handler=None,
                  metadata=None, build=None, volumes=None, volume_mounts=None,
                  env=None, resources=None, image_pull_policy=None,
                  service_account=None):
@@ -144,7 +145,7 @@ class K8sRuntime(RunRuntime):
             print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
             raise e
 
-        super().__init__(kind, command, args, image, metadata, None)
+        super().__init__(kind, command, args, image, handler, metadata, None)
         self._build = None
         self.build = build
         self.volumes = volumes or []

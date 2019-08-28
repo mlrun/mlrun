@@ -49,12 +49,13 @@ def main():
 @click.option('--hyperparam', '-x', default='', multiple=True,
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
+@click.option('--handler', default='', help='invoke function handler inside the code file')
 @click.option('--mode', default='', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
-        param_file, mode, from_env, run_args):
+        param_file, handler, mode, from_env, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -87,7 +88,8 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
             exit(1)
     else:
         runtime = {}
-
+    if handler:
+        runtime['handler'] = handler
     if url:
         runtime['command'] = url
     if run_args:

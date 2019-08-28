@@ -11,34 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from copy import deepcopy
 
-import pytest
-import sys
-import pathlib
-from os.path import abspath, dirname
-from os import environ
+from pathlib import Path
 import shutil
-here = dirname(abspath(__file__))
-results = f'{here}/test_results'
+from copy import deepcopy
+from os import environ
+
+from mlrun.utils import update_in
+
+here = Path(__file__).absolute().parent
+results = here / 'test_results'
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
 
 rundb_path = f'{results}/rundb'
 out_path = f'{results}/out'
-root_path = str(pathlib.Path(here).parent)
-examples_path = pathlib.Path(here).parent.joinpath('examples')
+root_path = str(Path(here).parent)
+examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 
-pathlib.Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
+Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
 
-#sys.path.append(root_path)
-
-from mlrun.utils import update_in
 
 def tag_test(spec, name):
     spec = deepcopy(spec)
     update_in(spec, 'metadata.name', name)
     update_in(spec, 'metadata.lables.test', name)
     return spec
+
+
+def has_secrets():
+    return Path('secretes.txt').is_file()

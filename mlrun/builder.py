@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 import tarfile
 from base64 import b64encode
 from tempfile import mktemp
 
-from mlrun.k8s_utils import k8s_helper, BasePod
+from mlrun.config import config
 from mlrun.datastore import StoreManager
+from mlrun.k8s_utils import BasePod, k8s_helper
 
 default_image = 'python:3.6-jessie'
 mlrun_package = 'git+https://github.com/v3io/mlrun.git'
@@ -113,7 +115,7 @@ def build_image(dest,
 
     global k8s
     if not k8s:
-        k8s = k8s_helper(namespace or 'default-tenant')
+        k8s = k8s_helper(namespace or config.namespace)
 
     if isinstance(requirements, list):
         requirements_list = requirements

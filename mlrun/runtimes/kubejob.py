@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from base64 import b64decode
 
-from ..model import RunObject
-from ..utils import get_in, update_in, logger
-from ..k8s_utils import k8s_helper
-from .base import MLRuntime, RunError
-from ..builder import build_image
-
 from kubernetes import client
+
+from ..builder import build_image
+from ..config import config
+from ..k8s_utils import k8s_helper
+from ..model import RunObject
+from ..utils import get_in, logger
+from .base import MLRuntime, RunError
 
 
 class KubejobRuntime(MLRuntime):
@@ -31,7 +31,7 @@ class KubejobRuntime(MLRuntime):
 
         runtime = self.runtime
         meta = runtime.metadata or {}
-        namespace = meta.namespace or 'default-tenant'
+        namespace = meta.namespace or config.namespace
 
         extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
         if self.rundb:
@@ -143,4 +143,3 @@ def _build(build, namespace, mode=''):
     if status in ['failed', 'error']:
         raise RunError(f' build {status}!')
     return image
-

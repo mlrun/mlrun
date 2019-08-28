@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-import uuid
+
 from copy import deepcopy
 from os import environ
 from pprint import pprint
@@ -20,6 +19,7 @@ from pprint import pprint
 from ..model import RunObject
 from .base import MLRuntime
 from ..utils import dict_to_yaml
+from ..config import config as mlconf
 
 import importlib
 client = None
@@ -30,7 +30,7 @@ _mpijob_template = {
  'kind': 'MPIJob',
  'metadata': {
      'name': '',
-     'namespace': 'default-tenant'
+     'namespace': config.namespace,
  },
  'spec': {
      'replicas': 1,
@@ -83,14 +83,14 @@ class MpiJob:
     plural = 'mpijobs'
 
     def __init__(self, name, image=None, command=None,
-                 replicas=0, namespace='default-tenant', struct=None):
+                 replicas=0, namespace='', struct=None):
         global client
         client = importlib.import_module('.client', 'kubernetes')
         from kubernetes import config
 
         self.api_instance = None
         self.name = name
-        self.namespace = namespace
+        self.namespace = namespace or mlconf.namespace
         if struct:
             self._struct = struct
         else:

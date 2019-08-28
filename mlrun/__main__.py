@@ -62,7 +62,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     if from_env and config:
         config = py_eval(config)
         if not isinstance(config, dict):
-            print(f'config env var must be a dict')
+            print('config env var must be a dict')
             exit(1)
         runobj = RunTemplate.from_dict(config)
     else:
@@ -84,7 +84,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
-            print(f'runtime parameter must be a dict')
+            print('runtime parameter must be a dict')
             exit(1)
     else:
         runtime = {}
@@ -108,7 +108,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         if resp:
             print(dict_to_yaml(resp))
     except RunError as err:
-        print(f'runtime error: {err}')
+        print('runtime error: {}'.format(err))
         exit(1)
 
 
@@ -186,7 +186,7 @@ def get(kind, name, selector, namespace, extra_args):
                 start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     else:
-        print('currently only ls pods is supported')
+        print('currently only get pods [name] is supported')
 
 
 def fill_params(param):
@@ -197,7 +197,7 @@ def fill_params(param):
             continue
         key, value = param[:i].strip(), param[i + 1:].strip()
         if key is None:
-            raise ValueError(f'cannot find param key in line ({param})')
+            raise ValueError('cannot find param key in line ({})'.format(param))
         params_dict[key] = py_eval(value)
     return params_dict
 

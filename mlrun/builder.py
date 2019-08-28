@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import environ
+from os import environ, path
 import tarfile
 from base64 import b64encode
 from tempfile import mktemp
 
-from mlrun.k8s_utils import k8s_helper, BasePod
-from mlrun.datastore import StoreManager
+from .k8s_utils import k8s_helper, BasePod
+from .datastore import StoreManager
+from .utils import logger
 
 default_image = 'python:3.6-jessie'
-mlrun_package = 'git+https://github.com/v3io/mlrun.git'
+mlrun_package = environ.get('MLRUN_PACKAGE_PATH', 'git+https://github.com/v3io/mlrun.git')
 kaniko_version = 'v0.9.0'
 k8s = None
 
@@ -48,6 +49,7 @@ def make_kaniko_pod(context, dest,
                     dockerfile=None,
                     dockertext=None,
                     inline_code=None,
+                    inline_path=None,
                     requirements=None,
                     secret_name=None,
                     verbose=False):
@@ -83,7 +85,8 @@ def make_kaniko_pod(context, dest,
             commands.append('echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile')
             env['DOCKERFILE'] = b64encode(dockertext.encode('utf-8')).decode('utf-8')
         if inline_code:
-            commands.append('echo ${CODE} | base64 -d > /empty/main.py')
+            name = inline_path or 'main.py'
+            commands.append('echo ${CODE} | base64 -d > /empty/' + name)
             env['CODE'] = b64encode(inline_code.encode('utf-8')).decode('utf-8')
         if requirements:
             commands.append('echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt')
@@ -111,6 +114,7 @@ def build_image(dest,
                 base_image=None,
                 requirements=None,
                 inline_code=None,
+                inline_path=None,
                 secret_name=None,
                 namespace=None,
                 with_mlrun=True,
@@ -119,9 +123,6 @@ def build_image(dest,
                 verbose=False):
 
     global k8s
-    if not k8s:
-        k8s = k8s_helper(namespace or 'default-tenant')
-
     if registry:
         dest = '{}/{}'.format(registry, dest)
     elif 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
@@ -140,17 +141,22 @@ def build_image(dest,
     if with_mlrun:
         commands = commands or []
         commands.append(f'pip install {mlrun_package}')
+
+    if not inline_code and not source and not commands:
+        logger.info('skipping build, nothing to add')
+        return 'skipped'
+
     context = '/context'
     to_mount = False
     src_dir = '.'
     if inline_code:
         context = '/empty'
-    elif '://' in source:
+    elif source and '://' in source:
         context = source
     elif source:
         to_mount = True
         if source.endswith('.tar.gz'):
-            source, src_dir = os.path.split(source)
+            source, src_dir = path.split(source)
     else:
         src_dir = None
 
@@ -159,12 +165,16 @@ def build_image(dest,
                            requirements=requirements_path)
 
     kpod = make_kaniko_pod(context, dest, dockertext=dock,
-                           inline_code=inline_code, requirements=requirements_list,
+                           inline_code=inline_code, inline_path=inline_path,
+                           requirements=requirements_list,
                            secret_name=secret_name, verbose=verbose)
 
     if to_mount:
         # todo: support different mounters
         kpod.mount_v3io(remote=source, mount_path='/context')
+
+    if not k8s:
+        k8s = k8s_helper(namespace or 'default-tenant')
 
     if interactive:
         return k8s.run_job(kpod)

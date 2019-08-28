@@ -23,13 +23,17 @@ from .base import MLRuntime, RunError
 from ..builder import build_image
 
 
-def nuclio_to_k8s(kind, spec, image=''):
+def nuclio_to_k8s(spec, kind=None, image=None, secret=None):
     r = K8sRuntime()
+    r.kind = kind or 'job'
+    h = get_in(spec, 'spec.handler', '').splity(':')
+    r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
     r.build.base_image = get_in(spec, 'spec.build.baseImage')
     r.build.commands = get_in(spec, 'spec.build.commands')
     r.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
     r.build.image = get_in(spec, 'spec.build.image', image)
+    r.build.secret = get_in(spec, 'spec.build.secret', secret)
     r.env = get_in(spec, 'spec.env')
     for vol in get_in(spec, 'spec.volumes', []):
         r.volumes.append(vol.get('volume'))
@@ -54,15 +58,18 @@ class KubejobRuntime(MLRuntime):
             extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
 
         source_code = runtime.build.inline_code
-        if runtime.image and source_code:
+        if source_code:
             extra_env.append({'name': 'MLRUN_EXEC_CODE', 'value': source_code})
-            runtime.command = 'mlrun'
-            runtime.args = ['run', '--from-env', 'main.py']
-            if runtime.handler:
-                runtime.args += ['--handler', runtime.handler]
+            if self.mode != 'pass':
+                runtime.command = 'mlrun'
+                runtime.args = ['run', '--from-env', 'main.py']
+                if runtime.handler:
+                    runtime.args += ['--handler', runtime.handler]
+            if not runtime.build.commands and self.mode == 'pass':
+                runtime.image = runtime.image or runtime.build.base_image
 
-        if not runtime.image and (runtime.build.source or runtime.build.inline_code):
-            self._build(runtime, namespace, self.mode != 'noctx')
+        if not runtime.image and (runtime.build.source or runtime.build.commands or self.mode != 'pass'):
+            self._build(runtime, namespace, self.mode != 'pass')
         if not runtime.image:
             raise RunError('job submitted without image, set runtime.image')
 
@@ -103,17 +110,19 @@ class KubejobRuntime(MLRuntime):
                              base_image=build.base_image or 'python:3.6-jessie',
                              commands=build.commands,
                              namespace=namespace,
-                             inline_code=inline,
+                             #inline_code=inline,
                              source=build.source,
                              secret_name=build.secret,
                              with_mlrun=with_mlrun)
-        logger.info(f'build completed with {status}')
+        if status == 'skipped':
+            runtime.image = runtime.build.base_image
+            return
+
+        logger.info('build completed with {}'.format(status))
         if status in ['failed', 'error']:
-            raise RunError(f' build {status}!')
+            raise RunError(' build {}!'.format(status))
 
         runtime.image = build.image
-        runtime.command = 'python'
-        runtime.args = ['main.py']
 
 
     @staticmethod

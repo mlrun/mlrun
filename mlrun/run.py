@@ -154,7 +154,7 @@ def run_start(run, command: str = '', runtime=None, handler=None,
         elif kind in runtime_dict:
             runner = runtime_dict[kind](run)
         else:
-            raise Exception(f'unsupported runtime ({kind}) or missing command, '
+            raise Exception('unsupported runtime ({}) or missing command, '.format(kind)
                             + 'supported runtimes: {}'.format(
                               ','.join(list(runtime_dict.keys()) + ['local'])))
         runner.set_runtime(runtime)
@@ -290,16 +290,16 @@ def mlrun_op(name: str = '', project: str = '',
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
     file_outputs = {}
     for s in secrets:
-        cmd += ['-s', f'{s}']
+        cmd += ['-s', '{}'.format(s)]
     for p, val in params.items():
-        cmd += ['-p', f'{p}={val}']
+        cmd += ['-p', '{}={}'.format(p, val)]
     for x, val in hyperparams.items():
-        cmd += ['-x', f'{x}={val}']
+        cmd += ['-x', '{}={}'.format(x, val)]
     for i, val in inputs.items():
-        cmd += ['-i', f'{i}={val}']
+        cmd += ['-i', '{}={}'.format(i, val)]
     for o, val in outputs.items():
-        cmd += ['-o', f'{o}={val}']
-        file_outputs[o.replace('.', '-')] = f'/tmp/{o}'
+        cmd += ['-o', '{}={}'.format(o, val)]
+        file_outputs[o.replace('.', '-')] = '/tmp/{}'.format(o)
     if project:
         cmd += ['--project', project]
     if runtime:
@@ -316,7 +316,7 @@ def mlrun_op(name: str = '', project: str = '',
         cmd += ['--mode', mode]
 
     if hyperparams or param_file:
-        file_outputs['iterations'] = f'/tmp/iteration_results.csv'
+        file_outputs['iterations'] = '/tmp/iteration_results.csv'
 
     cop = dsl.ContainerOp(
         name=name,

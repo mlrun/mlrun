@@ -17,8 +17,6 @@ import shutil
 from copy import deepcopy
 from os import environ
 
-from mlrun.utils import update_in
-
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
 
@@ -34,6 +32,8 @@ Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
 
 
+from mlrun.utils import update_in
+
 def tag_test(spec, name):
     spec = deepcopy(spec)
     update_in(spec, 'metadata.name', name)
@@ -42,4 +42,4 @@ def tag_test(spec, name):
 
 
 def has_secrets():
-    return Path('secretes.txt').is_file()
+    return Path('secrets.txt').is_file()

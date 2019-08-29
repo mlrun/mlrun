@@ -117,16 +117,20 @@ runtime_dict = {'remote': RemoteRuntime,
                 'Function': NuclioDeployRuntime}
 
 def run_start(run, command: str = '', runtime=None, handler=None,
-               rundb: str = '', kfp: bool = False, mode: str = ''):
+              name: str = '', project: str = '', params: dict = None,
+              rundb: str = '', kfp: bool = False, mode: str = ''):
     """Run a local or remote task.
 
     :param struct:     run template object or dict (see RunTemplate)
     :param command:    runtime command (filename, function url, ..)
     :param runtime:    runtime object/dict, runtime specific details
+    :param handler:    pointer or name of a function handler
+    :param name:       execution name
+    :param project:    project name
+    :param params:     input parameters (dict)
     :param rundb:      path/url to the metadata and artifact database
     :param kfp:        flag indicating run within kubeflow pipeline
-    :param handler:    pointer or name of a function handler
-    :param mode:       special run mode, e.g. 'noctx'
+    :param mode:       special run mode, e.g. 'noctx', 'pass'
 
     :return: run context object (dict) with run metadata, results and status
     """
@@ -140,6 +144,9 @@ def run_start(run, command: str = '', runtime=None, handler=None,
         run = RunObject.from_template(run)
     if isinstance(run, dict) or run is None:
         run = RunObject.from_dict(run)
+    run.metadata.name = name or run.metadata.name
+    run.metadata.project = project or run.metadata.project
+    run.spec.parameters = params or run.spec.parameters
 
     kind, runtime = process_runtime(command, runtime)
 

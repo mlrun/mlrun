@@ -23,7 +23,7 @@ from .utils import logger
 
 default_image = 'python:3.6-jessie'
 mlrun_package = environ.get('MLRUN_PACKAGE_PATH', 'git+https://github.com/v3io/mlrun.git')
-kaniko_version = 'v0.9.0'
+kaniko_version = environ.get('MLRUN_KANIKO_VER', 'v0.9.0')
 k8s = None
 
 

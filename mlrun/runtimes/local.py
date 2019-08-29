@@ -74,7 +74,6 @@ class LocalRuntime(MLRuntime):
             val, sout, serr = run_exec(self.runtime.command,
                                        self.runtime.args)
 
-        print(sout)
         if self.db_conn:
             uid = runobj.metadata.uid
             project = runobj.metadata.project or ''

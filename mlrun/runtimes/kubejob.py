@@ -24,7 +24,7 @@ from ..builder import build_image
 
 
 def notebook_to_k8job(filename='', handler='', image=None, secret=None, kind=None):
-    from nuclio_jupyter import build_file
+    from nuclio import build_file
     name, spec, code = build_file(filename, handler=handler)
     r = K8sRuntime()
     r.kind = kind or 'job'

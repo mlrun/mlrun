@@ -33,11 +33,13 @@ environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
 
 
 from mlrun.utils import update_in
+from mlrun import RunTemplate
 
-def tag_test(spec, name):
-    spec = deepcopy(spec)
-    update_in(spec, 'metadata.name', name)
-    update_in(spec, 'metadata.lables.test', name)
+
+def tag_test(spec: RunTemplate, name) -> RunTemplate:
+    spec = spec.copy()
+    spec.metadata.name = name
+    spec.metadata.labels['test'] = name
     return spec
 
 

@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import json
-import os
 import inspect
-from os import environ
+import sys
+from os import environ, remove
 from tempfile import mktemp
 
 from ..model import RunObject
@@ -28,6 +28,7 @@ import importlib.util as imputil
 from io import StringIO
 from contextlib import redirect_stdout
 from pathlib import Path
+from nuclio_sdk import Event
 
 
 class HandlerRuntime(MLRuntime):
@@ -35,27 +36,16 @@ class HandlerRuntime(MLRuntime):
 
     def _run(self, runobj: RunObject):
         self._force_handler()
-        if self.rundb:
-            environ['MLRUN_META_DBPATH'] = self.rundb
-
-        args = inspect.signature(self.handler).parameters
-        if len(args) > 1 and list(args.keys())[0] == 'context':
-            # its a nuclio function
-            from .function import fake_nuclio_context
-            context, event = fake_nuclio_context(runobj.to_json())
-            out = self.handler(context, event)
-        elif len(args) >= 1:
-            out = self.handler(runobj.to_dict())
-        else:
-            out = self.handler()
-
-        if not out:
-            return runobj
-        if isinstance(out, MLClientCtx):
-            return out.to_dict()
-        if isinstance(out, dict):
-            return out
-        return json.loads(out)
+        tmp = mktemp('.json')
+        environ['MLRUN_META_TMPFILE'] = tmp
+        context = MLClientCtx.from_dict(runobj.to_dict(),
+                                        rundb=self.rundb,
+                                        autocommit=True,
+                                        tmp=tmp)
+        setattr(sys.modules[__name__], 'mlrun_context', context)
+        sout, serr = exec_from_params(self.handler, runobj, context)
+        log_std(self.db_conn, runobj, sout, serr)
+        return context.to_dict()
 
 
 class LocalRuntime(MLRuntime):
@@ -67,32 +57,35 @@ class LocalRuntime(MLRuntime):
         environ['MLRUN_META_TMPFILE'] = tmp
         if self.rundb:
             environ['MLRUN_META_DBPATH'] = self.rundb
+
         if self.runtime.handler:
-            val, sout, serr = run_func(self.runtime.command,
-                                       self.runtime.handler)
+            mod, fn = load_module(self.runtime.command,
+                                  self.runtime.handler)
+            context = MLClientCtx.from_dict(runobj.to_dict(),
+                                            rundb=self.rundb,
+                                            autocommit=True,
+                                            tmp=tmp)
+            setattr(mod, 'mlrun_context', context)
+            sout, serr = exec_from_params(fn, runobj, context)
+            log_std(self.db_conn, runobj, sout, serr)
+            return context.to_dict()
+
         else:
-            val, sout, serr = run_exec(self.runtime.command,
+            sout, serr = run_exec(self.runtime.command,
                                        self.runtime.args)
+            log_std(self.db_conn, runobj, sout, serr)
 
-        if self.db_conn:
-            uid = runobj.metadata.uid
-            project = runobj.metadata.project or ''
-            self.db_conn.store_log(uid, project, sout)
-        if serr:
-            print(serr, file=stderr)
-            raise RunError(serr)
-
-        try:
-            with open(tmp) as fp:
-                resp = fp.read()
-            os.remove(tmp)
-            if resp:
-                return json.loads(resp)
-        except FileNotFoundError as err:
-            return runobj.to_dict()
+            try:
+                with open(tmp) as fp:
+                    resp = fp.read()
+                remove(tmp)
+                if resp:
+                    return json.loads(resp)
+            except FileNotFoundError as err:
+                return runobj.to_dict()
 
 
-def load_module(file_name):
+def load_module(file_name, handler):
     """Load module from file name"""
     path = Path(file_name)
     mod_name = path.name
@@ -103,7 +96,8 @@ def load_module(file_name):
         raise ImportError(f'cannot import from {file_name!r}')
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod
+    fn = getattr(mod, handler)  # Will raise if name not found
+    return mod, fn
 
 
 def run_exec(command, args):
@@ -114,7 +108,7 @@ def run_exec(command, args):
     print(out.stdout.decode('utf-8'))
 
     err = out.stderr.decode('utf-8') if out.returncode != 0 else ''
-    return None, out.stdout.decode('utf-8'), err
+    return out.stdout.decode('utf-8'), err
 
 
 def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
@@ -142,3 +136,50 @@ def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
             err = str(e)
 
     return val, stdout.getvalue(), err
+
+
+def exec_from_params(handler, runobj, context):
+    params = runobj.spec.parameters or {}
+    args_list = []
+    i = 0
+    args = inspect.signature(handler).parameters
+    if len(args) > 1 and list(args.keys())[0] == 'context':
+        args_list.append(context)
+        i += 1
+    if len(args) > i + 1 and list(args.keys())[i] == 'event':
+        event = Event(runobj.to_dict())
+        args_list.append(event)
+        i += 1
+
+    for key in list(args.keys())[i:]:
+        if args[key].name in params:
+            args_list.append(params[key])
+        elif args[key].default is not inspect.Parameter.empty:
+            args_list.append(args[key].default)
+        else:
+            args_list.append(None)
+
+    stdout = StringIO()
+    err = ''
+    val = None
+    with redirect_stdout(stdout):
+        try:
+            val = handler(*args_list)
+        except Exception as e:
+            err = str(e)
+            context.set_state(error=err)
+
+    if val:
+        context.log_result('return', val)
+    return stdout.getvalue(), err
+
+
+def log_std(db, runobj, out, err=''):
+    print(out)
+    if db:
+        uid = runobj.metadata.uid
+        project = runobj.metadata.project or ''
+        db.store_log(uid, project, out)
+    if err:
+        print(err, file=stderr)
+        raise RunError(err)

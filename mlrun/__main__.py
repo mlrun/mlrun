@@ -106,7 +106,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     try:
         resp = run_start(runobj, runtime=runtime, rundb=rundb, kfp=kfp, mode=mode)
         if resp:
-            print(dict_to_yaml(resp))
+            print(resp.to_yaml())
     except RunError as err:
         print('runtime error: {}'.format(err))
         exit(1)

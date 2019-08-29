@@ -19,7 +19,7 @@ import pytest
 
 from conftest import has_secrets, out_path, rundb_path, tag_test
 from http_srv import create_function
-from mlrun import get_or_create_ctx, run_start
+from mlrun import get_or_create_ctx, run_start, RunObject, NewRun
 from mlrun.utils import run_keys
 
 
@@ -45,38 +45,32 @@ def myfunction(context, event):
     return ctx.to_json()
 
 
-basespec = {'spec': {
-    'parameters':{'p1':8},
-    'secret_sources': [{'kind':'file', 'source': 'secrets.txt'}],
-    run_keys.output_path: out_path,
-    run_keys.input_objects: [{'key':'infile.txt', 'path':'s3://yarons-tests/infile.txt'}],
-}}
+base_spec = NewRun(params={'p1':8}, out_path=out_path)
+base_spec.spec.input_objects = [{'key': 'infile.txt', 'path': ''}]
 
 
-def verify_state(result):
-    state = result['status']['state']
-    assert state == 'completed', f'wrong state ({state}) ' + result['status'].get('error', '')
+def verify_state(result: RunObject):
+    state = result.status.state
+    assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)
 
 
-@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_simple_function():
     Thread(target=create_function, args=(myfunction, 4444)).start()
     time.sleep(2)
 
-    spec = tag_test(basespec, 'simple_function')
+    spec = tag_test(base_spec, 'simple_function')
     result = run_start(spec, command='http://localhost:4444',
                        rundb=rundb_path)
     print(result)
     verify_state(result)
 
 
-@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_hyper_function():
     Thread(target=create_function, args=(myfunction, 4444))
     time.sleep(2)
 
-    spec = tag_test(basespec, 'hyper_function')
-    spec['spec']['hyperparams'] = {'p1': [1, 2, 3]}
+    spec = tag_test(base_spec, 'hyper_function')
+    spec.spec.hyperparams = {'p1': [1, 2, 3]}
     result = run_start(spec, command='http://localhost:4444',
                        rundb=rundb_path)
     print(result)

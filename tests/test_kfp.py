@@ -22,25 +22,14 @@ import yaml
 
 from conftest import has_secrets, out_path, rundb_path
 from mlrun.artifacts import ChartArtifact, TableArtifact
-from mlrun.run import get_or_create_ctx, run_start
+from mlrun import NewRun, run_start
 from mlrun.utils import run_keys
 
-run_spec =  {'metadata':
-                 {'labels': {'owner': 'yaronh', 'tests': 'kfp'}},
-             'spec':
-                 {'parameters': {'p1': 5},
-                  'input_objects': [],
-                  run_keys.output_path: out_path,
-                  'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+
+run_spec = NewRun(params={'p1': 5}, out_path=out_path).set_label('tests', 'kfp')
 
 
-def my_job(struct):
-    # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-    context = get_or_create_ctx('kfp_test', spec=struct)
-
-    # get parameters from the runtime context (or use defaults)
-    p1 = context.get_param('p1', 1)
-    p2 = context.get_param('p2', 'a-string')
+def my_job(context, p1=1, p2='a-string'):
 
     # access input metadata, values, files, and secrets (passwords)
     print(f'Run: {context.name} (uid={context.uid})')
@@ -66,30 +55,29 @@ def my_job(struct):
     for i in range(1, 8):
         chart.add_row([i, i / 20 + 0.75, 0.30 - i / 20])
     context.log_artifact(chart)
-    return context
 
 
-@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_kfp_run():
     tmpdir = mktemp()
-    spec = deepcopy(run_spec)
-    spec['spec'][run_keys.output_path] = tmpdir
+    spec = run_spec.copy()
+    spec.spec.output_path = tmpdir
     print(tmpdir)
     result = run_start(spec, handler=my_job, rundb=rundb_path, kfp=True)
-    print(result['status']['output_artifacts'])
+    print(result.status.output_artifacts)
     alist = listdir(tmpdir)
     expected = ['chart.html', 'dataset.csv', 'model.txt', 'results.html']
     for a in expected:
-        assert a in alist, f'artifact {a} was not generated'
-    assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
+        assert a in alist, 'artifact {} was not generated'.format(a)
+    assert result.output('accuracy') == 10, 'failed to run'
+    assert result.status.state == 'completed', \
+        'wrong state ({}) {}'.format(result.status.state, result.status.error)
 
 
-@pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_kfp_hyper():
     tmpdir = mktemp()
-    spec = deepcopy(run_spec)
-    spec['spec'][run_keys.output_path] = tmpdir
-    spec['spec']['hyperparams'] = {'p1': [1, 2, 3]}
+    spec = run_spec.copy()
+    spec.spec.output_path = tmpdir
+    spec.spec.hyperparams = {'p1': [1, 2, 3]}
     print(tmpdir)
     result = run_start(spec, handler=my_job, rundb=rundb_path,
                        kfp=True)
@@ -100,3 +88,5 @@ def test_kfp_hyper():
         iter = json.load(fp)
         print(yaml.dump(iter))
     assert len(iter) == 3+1, 'didnt see expected iterations file output'
+    assert result.status.state == 'completed', \
+        'wrong state ({}) {}'.format(result.status.state, result.status.error)

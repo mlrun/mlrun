@@ -75,7 +75,7 @@ class ModelObj:
         return pformat(self.to_dict())
 
     def __str__(self):
-        return str(self.to_dict())
+        return self.to_str()
 
     def copy(self):
         return deepcopy(self)
@@ -270,9 +270,12 @@ class RunSpec(ModelObj):
 
 
 class RunStatus(ModelObj):
-    def __init__(self, state=None, outputs=None, output_artifacts=None,
+    def __init__(self, state=None, error=None, commit=None,
+                 outputs=None, output_artifacts=None,
                  start_time=None, last_update=None, iterations=None):
         self.state = state
+        self.error = error
+        self.commit = commit
         self.outputs = outputs
         self.output_artifacts = output_artifacts
         self.start_time = start_time
@@ -348,4 +351,21 @@ class RunObject(RunTemplate):
     def status(self, status):
         self._status = self._verify_dict(status, 'status', RunStatus)
 
+    def output(self, key):
+        if not self.status.outputs or not isinstance(self.status.outputs, dict):
+            return None
+        return self.status.outputs.get(key, None)
 
+
+def NewRun(name=None, project=None, params=None, hyper_params=None,
+           param_file=None, in_path=None, out_path=None):
+
+    run = RunTemplate()
+    run.metadata.name = name
+    run.metadata.project = project
+    run.spec.parameters = params
+    run.spec.hyperparams = hyper_params
+    run.spec.param_file = param_file
+    run.spec.input_path = in_path
+    run.spec.output_path = out_path
+    return run

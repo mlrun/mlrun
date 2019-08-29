@@ -4,7 +4,7 @@ inline = """
 print(1+1)
 """
 
-tst = 1
+tst = 4
 
 # various build examples, need to run inside Kubernetes/jupyter
 # or place the Kubernetes config file for the cluster in the default location
@@ -30,4 +30,5 @@ if tst == 4:
     build_image('yhaviv/ktests3:latest',
           base_image='python:3.6',
           source='git://github.com/hodisr/iguazio_example.git',
+          secret_name='my-docker',
           commands=['python setup.py install'])

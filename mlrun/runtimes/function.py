@@ -96,7 +96,7 @@ async def invoke_async(runs, url, headers, secrets):
 
     async with ClientSession() as session:
         for run in runs:
-            run.spec.secret_sources = secrets
+            run.spec.secret_sources = secrets or []
             tasks.append(asyncio.ensure_future(
                 submit(session, url, run.to_dict(), headers),
             ))

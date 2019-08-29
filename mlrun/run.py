@@ -77,6 +77,9 @@ def get_or_create_ctx(name: str,
 
     """
 
+    if 'mlrun_context' in globals() and not spec and not event:
+        return globals().get('mlrun_context')
+
     newspec = {}
     config = environ.get('MLRUN_EXEC_CONFIG')
     if event:
@@ -116,7 +119,8 @@ runtime_dict = {'remote': RemoteRuntime,
                 'mpijob': MpiRuntime,
                 'Function': NuclioDeployRuntime}
 
-def run_start(run, command: str = '', runtime=None, handler=None,
+
+def run_start(run=None, command: str = '', runtime=None, handler=None,
               name: str = '', project: str = '', params: dict = None,
               rundb: str = '', kfp: bool = False, mode: str = ''):
     """Run a local or remote task.
@@ -134,6 +138,8 @@ def run_start(run, command: str = '', runtime=None, handler=None,
 
     :return: run context object (dict) with run metadata, results and status
     """
+    if not rundb:
+        rundb = environ.get('MLRUN_META_DBPATH', rundb)
 
     if run:
         run = deepcopy(run)
@@ -170,8 +176,10 @@ def run_start(run, command: str = '', runtime=None, handler=None,
     runner.prep_run(rundb, mode, kfp)
 
     results = runner.run()
+    if results:
+        return RunObject.from_dict(results)
 
-    return results
+    return None
 
 
 def process_runtime(command, runtime):

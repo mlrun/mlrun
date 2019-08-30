@@ -17,5 +17,5 @@ from .local import HandlerRuntime, LocalRuntime
 from .function import RemoteRuntime
 from .mpijob import MpiRuntime, MpiJob
 from .dask import DaskRuntime, DaskCluster
-from .kubejob import KubejobRuntime, notebook_to_k8job
+from .kubejob import KubejobRuntime, make_nuclio_job, K8sRuntime
 from .nuclio_deploy import NuclioDeployRuntime

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
 from ..model import RunObject
 from ..utils import update_in, logger, get_in
 from .base import MLRuntime, RunError

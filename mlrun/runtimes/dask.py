@@ -16,8 +16,9 @@ import json
 from os import environ
 from kubernetes import client
 
-from ..model import RunObject, K8sRuntime
+from ..model import RunObject
 from .base import MLRuntime
+from .kubejob import K8sRuntime
 from ..lists import RunList
 
 class DaskCluster(K8sRuntime):

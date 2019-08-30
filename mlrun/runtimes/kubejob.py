@@ -113,6 +113,7 @@ class K8sRuntime(RunRuntime):
     def build_image(self, image, with_mlrun=True):
         self.build.image = image
         _build(self, with_mlrun)
+        return self
 
 
 class KubejobRuntime(MLRuntime):

@@ -290,6 +290,13 @@ class RunObject(RunTemplate):
             return None
         return self.status.outputs.get(key, None)
 
+    def artifact(self, key):
+        if self.status.output_artifacts:
+            for a in self.status.output_artifacts:
+                if a['key'] == key:
+                    return a
+        return None
+
 
 def NewRun(name=None, project=None, params=None, hyper_params=None,
            param_file=None, in_path=None, out_path=None):

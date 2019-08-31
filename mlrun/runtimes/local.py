@@ -100,11 +100,11 @@ def load_module(file_name, handler):
     return mod, fn
 
 
-def run_exec(command, args):
+def run_exec(command, args, env=None):
     cmd = [executable, command]
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE)
+    out = run(cmd, stdout=PIPE, stderr=PIPE, env=env)
     print(out.stdout.decode('utf-8'))
 
     err = out.stderr.decode('utf-8') if out.returncode != 0 else ''
@@ -143,7 +143,8 @@ def exec_from_params(handler, runobj, context):
     args_list = []
     i = 0
     args = inspect.signature(handler).parameters
-    if len(args) > 1 and list(args.keys())[0] == 'context':
+    print(handler.__name__, len(args), args)
+    if len(args) > 0 and list(args.keys())[0] == 'context':
         args_list.append(context)
         i += 1
     if len(args) > i + 1 and list(args.keys())[i] == 'event':
@@ -162,6 +163,7 @@ def exec_from_params(handler, runobj, context):
     stdout = StringIO()
     err = ''
     val = None
+    print('arg list:', args_list)
     with redirect_stdout(stdout):
         try:
             val = handler(*args_list)

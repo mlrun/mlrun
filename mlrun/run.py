@@ -16,13 +16,13 @@ from ast import literal_eval
 from copy import deepcopy
 from os import environ
 import yaml
+import inspect
 
 from .execution import MLClientCtx
-from .render import run_to_html
 from .model import RunTemplate, RunRuntime, RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskRuntime, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
-from .utils import update_in, get_in
+from .utils import update_in, logger
 
 
 def get_or_create_ctx(name: str,
@@ -159,8 +159,11 @@ def run_start(run=None, command: str = '', runtime=None, handler=None,
     if not kind and handler and not isinstance(handler, str):
         runner = HandlerRuntime(run)
     else:
-        if handler and isinstance(handler, str):
-            runtime['handler'] = handler
+        if handler:
+            if inspect.isfunction(handler):
+                runtime['handler'] = handler.__name__
+            else:
+                runtime['handler'] = str(handler)
 
         if kind in ['', 'local'] and runtime.get('command'):
             runner = LocalRuntime(run)
@@ -177,7 +180,8 @@ def run_start(run=None, command: str = '', runtime=None, handler=None,
 
     results = runner.run()
     if results:
-        return RunObject.from_dict(results)
+        run = RunObject.from_dict(results)
+        logger.info('run finished, status={} {}'.format(run.status.state, run.status.error))
 
     return None
 

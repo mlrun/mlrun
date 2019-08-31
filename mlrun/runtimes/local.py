@@ -149,7 +149,6 @@ def exec_from_params(handler, runobj, context):
     args_list = []
     i = 0
     args = inspect.signature(handler).parameters
-    print(handler.__name__, len(args), args)
     if len(args) > 0 and list(args.keys())[0] == 'context':
         args_list.append(context)
         i += 1
@@ -169,7 +168,6 @@ def exec_from_params(handler, runobj, context):
     stdout = StringIO()
     err = ''
     val = None
-    print('arg list:', args_list)
     with redirect_stdout(stdout):
         try:
             val = handler(*args_list)

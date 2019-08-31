@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import re
 from datetime import datetime
 from os import path
 from sys import stdout

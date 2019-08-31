@@ -182,7 +182,7 @@ def list2dict(lines: list):
 def dict_to_list(struct: dict):
     if not struct:
         return []
-    return [f'{k}={v}' for k, v in struct.items()]
+    return ['{}={}'.format(k, v) for k, v in struct.items()]
 
 
 def dict_to_yaml(struct):
@@ -203,7 +203,7 @@ def gen_md_table(header, rows=[]):
     def gen_list(items=[]):
         out = '|'
         for i in items:
-            out += f' {i} |'
+            out += ' {} |'.format(i)
         return out
 
     out = gen_list(header) + '\n' + gen_list(len(header) * ['---']) + '\n'
@@ -225,7 +225,7 @@ def gen_html_table(header, rows=[]):
     def gen_list(items=[], tag='td'):
         out = ''
         for item in items:
-            out += f'<{tag}>{item}</{tag}>'
+            out += '<{}>{}</{}>'.format(tag, item, tag)
         return out
 
     out = '<tr>' + gen_list(header, 'th') + '</tr>\n'

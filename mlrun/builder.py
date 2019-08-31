@@ -30,15 +30,14 @@ k8s = None
 def make_dockerfile(base_image=default_image,
                     commands=None, src_dir=None,
                     requirements=None):
-    dock = f'FROM {base_image}\n'
+    dock = 'FROM {}\n'.format(base_image)
     dock += 'WORKDIR /run\n'
     if src_dir:
-        dock += f'ADD {src_dir} /run\n'
+        dock += 'ADD {} /run\n'.format(src_dir)
     if requirements:
-        #dock += f'ADD {requirements} /run\n'
-        dock += f'RUN pip install -r {requirements}\n'
+        dock += 'RUN pip install -r {}\n'.format(requirements)
     if commands:
-        dock += ''.join([f'RUN {b}\n' for b in commands])
+        dock += ''.join(['RUN {}\n'.format(b) for b in commands])
     dock += 'ENV PYTHONPATH /run'
 
     print(dock)
@@ -140,7 +139,7 @@ def build_image(dest,
     base_image = base_image or default_image
     if with_mlrun:
         commands = commands or []
-        commands.append(f'pip install {mlrun_package}')
+        commands.append('pip install {}'.format(mlrun_package))
 
     if not inline_code and not source and not commands:
         logger.info('skipping build, nothing to add')

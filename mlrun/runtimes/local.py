@@ -14,11 +14,13 @@
 
 import json
 import inspect
+import socket
 import sys
 from os import environ, remove
 from tempfile import mktemp
 
 from ..model import RunObject
+from ..utils import logger
 from ..execution import MLClientCtx
 from .base import MLRuntime, RunError
 from sys import executable, stderr
@@ -41,7 +43,8 @@ class HandlerRuntime(MLRuntime):
         context = MLClientCtx.from_dict(runobj.to_dict(),
                                         rundb=self.rundb,
                                         autocommit=True,
-                                        tmp=tmp)
+                                        tmp=tmp,
+                                        host=socket.gethostname())
         setattr(sys.modules[__name__], 'mlrun_context', context)
         sout, serr = exec_from_params(self.handler, runobj, context)
         log_std(self.db_conn, runobj, sout, serr)
@@ -64,7 +67,8 @@ class LocalRuntime(MLRuntime):
             context = MLClientCtx.from_dict(runobj.to_dict(),
                                             rundb=self.rundb,
                                             autocommit=True,
-                                            tmp=tmp)
+                                            tmp=tmp,
+                                            host=socket.gethostname())
             setattr(mod, 'mlrun_context', context)
             sout, serr = exec_from_params(fn, runobj, context)
             log_std(self.db_conn, runobj, sout, serr)
@@ -81,8 +85,10 @@ class LocalRuntime(MLRuntime):
                 remove(tmp)
                 if resp:
                     return json.loads(resp)
+                logger.error('empty context tmp file')
             except FileNotFoundError as err:
-                return runobj.to_dict()
+                logger.info('no context file found')
+            return runobj.to_dict()
 
 
 def load_module(file_name, handler):

@@ -117,6 +117,8 @@ class DaskRuntime(MLRuntime):
             client = Client()  # todo: k8s client
 
         tasks = list(tasks)
+        for task in tasks:
+            self.store_run(task)
         results = RunList()
         futures = client.map(self.handler, tasks)
         for batch in as_completed(futures, with_results=True).batches():

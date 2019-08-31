@@ -19,7 +19,7 @@ import yaml
 import pathlib
 from datetime import datetime, timedelta
 
-from ..utils import get_in, match_labels, dict_to_yaml
+from ..utils import get_in, match_labels, dict_to_yaml, update_in
 from ..datastore import StoreManager
 from ..render import run_to_html
 from .base import RunDBError, RunDBInterface
@@ -58,6 +58,13 @@ class FileRunDB(RunDBInterface):
             data = json.dumps(struct)
         filepath = self._filepath('runs', project, uid, '') + self.format
         self._datastore.put(filepath, data)
+
+    def update_run(self, updates: dict, uid, project=''):
+        run = self.read_run(uid, project, False)
+        if run and updates:
+            for key, val in updates.items():
+                update_in(run, key, val)
+        self.store_run(run, uid, project, True)
 
     def read_run(self, uid, project='', display=True):
         filepath = self._filepath('runs', project, uid, '') + self.format

@@ -20,8 +20,8 @@ from aiohttp.client import ClientSession
 import logging
 from sys import stdout
 
-from .base import MLRuntime
-from ..utils import update_in
+from .base import MLRuntime, RunError
+from ..utils import logger
 from ..lists import RunList
 from ..model import RunObject
 
@@ -42,12 +42,12 @@ class RemoteRuntime(MLRuntime):
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
-            print('ERROR: %s', str(err))
+            logger.error('error invoking function: {}'.format(err))
             raise OSError('error: cannot run function at url {}'.format(command))
 
         if not resp.ok:
-            print('bad resp!!\n', resp.text)
-            return None
+            logger.error('bad function resp!!\n{}'.format(resp.text))
+            raise RunError('bad function response')
 
         logs = resp.headers.get('X-Nuclio-Logs')
         if logs:
@@ -62,10 +62,36 @@ class RemoteRuntime(MLRuntime):
 
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            invoke_async(tasks, self.runtime.command, headers, secrets))
+            self.invoke_async(tasks, self.runtime.command, headers, secrets))
 
         loop.run_until_complete(future)
         return future.result()
+
+    async def invoke_async(self, runs, url, headers, secrets):
+        results = RunList()
+        tasks = []
+
+        async with ClientSession() as session:
+            for run in runs:
+                self.store_run(run)
+                run.spec.secret_sources = secrets or []
+                tasks.append(asyncio.ensure_future(
+                    submit(session, url, run.to_dict(), headers),
+                ))
+
+            for status, resp, logs in await asyncio.gather(*tasks):
+
+                if status != 200:
+                    logger.error("failed to access {} - {}".format(url, resp))
+                else:
+                    results.append(json.loads(resp))
+
+                if logs:
+                    parsed = parse_logs(logs)
+                    if parsed:
+                        print(parsed, '----------')
+
+        return results
 
 
 def parse_logs(logs):
@@ -88,32 +114,6 @@ async def submit(session, url, body, headers=None):
         text = await response.text()
         logs = response.headers.get('X-Nuclio-Logs', None)
         return response.status, text, logs
-
-
-async def invoke_async(runs, url, headers, secrets):
-    results = RunList()
-    tasks = []
-
-    async with ClientSession() as session:
-        for run in runs:
-            run.spec.secret_sources = secrets or []
-            tasks.append(asyncio.ensure_future(
-                submit(session, url, run.to_dict(), headers),
-            ))
-
-        for status, resp, logs in await asyncio.gather(*tasks):
-
-            if status != 200:
-                print("failed to access {} - {}".format(url, resp))
-            else:
-                results.append(json.loads(resp))
-
-            if logs:
-                parsed = parse_logs(logs)
-                if parsed:
-                    print(parsed, '----------')
-
-    return results
 
 
 def fake_nuclio_context(body, headers=None):

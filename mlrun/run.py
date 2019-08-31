@@ -108,8 +108,8 @@ def get_or_create_ctx(name: str,
     if out:
         autocommit = True
 
-    ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit, tmp=tmp)
-    ctx.set_label('host', socket.gethostname())
+    ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit,
+                                tmp=tmp, host=socket.gethostname())
     return ctx
 
 
@@ -175,13 +175,13 @@ def run_start(run=None, command: str = '', runtime=None, handler=None,
                               ','.join(list(runtime_dict.keys()) + ['local'])))
         runner.set_runtime(runtime)
 
-    runner.handler = handler
-    runner.prep_run(rundb, mode, kfp)
+    runner.prep_run(rundb, mode, kfp=kfp, handler=handler)
 
     results = runner.run()
     if results:
         run = RunObject.from_dict(results)
-        logger.info('run finished, status={} {}'.format(run.status.state, run.status.error))
+        logger.info('run finished, status={} {}'.format(run.status.state, run.status.error or ''))
+        return run
 
     return None
 

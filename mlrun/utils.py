@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+from datetime import datetime
 from os import path
 from sys import stdout
 import yaml
@@ -55,6 +56,35 @@ class run_keys:
     output_artifacts = 'output_artifacts'
     data_stores = 'data_stores'
     secrets = 'secret_sources'
+
+
+def normalize_name(name):
+    # TODO: Must match
+    # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
+    name = re.sub(r'\s+', '-', name)
+    name = name.replace('_', '-')
+    return name.lower()
+
+
+class LogBatchWriter:
+    def __init__(self, func, batch=16, maxtime=5):
+        self.batch = batch
+        self.maxtime = maxtime
+        self.start_time = datetime.now()
+        self.buffer = ''
+        self.func = func
+
+    def write(self, data):
+        self.buffer += data
+        self.batch -= 1
+        elapsed_time = (datetime.now() - self.start_time).seconds
+        if elapsed_time > self.maxtime or self.batch <= 0:
+            self.flush()
+
+    def flush(self):
+        self.func(self.buffer)
+        self.buffer = ''
+        self.start_time = datetime.now()
 
 
 def get_in(obj, keys, default=None):

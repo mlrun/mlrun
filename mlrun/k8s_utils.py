@@ -117,7 +117,7 @@ class k8s_helper:
             return 'error'
         return self.watch(pod_name, namespace, timeout)
 
-    def watch(self, pod_name, namespace, timeout=600):
+    def watch(self, pod_name, namespace, timeout=600, writer=None):
         namespace = self._ns(namespace)
         start_time = datetime.now()
         while True:
@@ -144,9 +144,14 @@ class k8s_helper:
         for out in self.v1api.read_namespaced_pod_log(
                             name=pod_name, namespace=namespace, follow=True, _preload_content=False):
             print(out.decode('utf-8'), end='')
+            if writer:
+                writer.write(out.decode('utf-8'))
+
         pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
         if pod_state == 'failed':
             logger.error('pod exited with error')
+        if writer:
+            writer.flush()
         return pod_state
 
     def create_cfgmap(self, name, data, namespace='', labels=None):

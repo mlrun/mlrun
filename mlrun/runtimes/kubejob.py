@@ -17,7 +17,7 @@ from kubernetes import client
 from os import environ
 
 from ..model import RunObject, ImageBuilder, RunRuntime
-from ..utils import get_in, logger
+from ..utils import get_in, logger, normalize_name
 from ..k8s_utils import k8s_helper
 from .base import MLRuntime, RunError
 from ..builder import build_image
@@ -152,7 +152,8 @@ class KubejobRuntime(MLRuntime):
         name = runobj.metadata.name or 'mlrun'
         runtime.set_label('mlrun/class', self.kind)
         runtime.set_label('mlrun/uid', uid)
-        new_meta = client.V1ObjectMeta(generate_name=f'{name}-',
+        norm_name = '{}-'.format(normalize_name(name))
+        new_meta = client.V1ObjectMeta(generate_name=norm_name,
                                        namespace=namespace,
                                        labels=meta.labels,
                                        annotations=meta.annotations)

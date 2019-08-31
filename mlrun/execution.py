@@ -75,6 +75,7 @@ class MLClientCtx(object):
         self._state = 'created'
         self._error = None
         self._commit = ''
+        self._host = None
         self._start_time = datetime.now()
         self._last_update = datetime.now()
         self._iteration_results = None
@@ -101,7 +102,8 @@ class MLClientCtx(object):
         return resp
 
     @classmethod
-    def from_dict(cls, attrs: dict, rundb='', autocommit=False, tmp='', with_status=False):
+    def from_dict(cls, attrs: dict, rundb='', autocommit=False, tmp='',
+                  host=None):
 
         self = cls(autocommit=autocommit, tmp=tmp)
 
@@ -133,10 +135,10 @@ class MLClientCtx(object):
                 for item in in_list:
                     self._set_object(item['key'], item.get('path'))
 
-        status = attrs.get('status')
-        if status and with_status:
-            self._state = status.get('state', self._state)
-            self._error = status.get('error', self._error)
+        if host:
+            self._host = host
+            self._state = 'running'
+            self.set_label('host', host)
 
         self._update_db(commit=True)
         return self
@@ -339,6 +341,7 @@ class MLClientCtx(object):
 
         set_if_valid(struct['status'], 'error', self._error)
         set_if_valid(struct['status'], 'commit', self._commit)
+        set_if_valid(struct['status'], 'host', self._host)
 
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results

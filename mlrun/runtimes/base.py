@@ -57,19 +57,21 @@ class MLRuntime:
     def set_runtime(self, runtime: RunRuntime):
         self.runtime = RunRuntime.from_dict(runtime)
 
-    def prep_run(self, rundb='', mode='', kfp=None):
+    def prep_run(self, rundb='', mode='', kfp=None, handler=None):
 
         self.mode = mode
         self.with_kfp = kfp
+        self.handler = handler
         spec = self.runspec.spec
         if self.mode in ['noctx', 'args']:
             params = spec.parameters or {}
             for k, v in params.items():
-                self.runtime.args += [f'--{k}', str(v)]
+                self.runtime.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
             self._secrets = SecretsStore.from_dict(spec.to_dict())
 
+        # update run metadata (uid, labels) and store in DB
         meta = self.runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
 
@@ -79,26 +81,32 @@ class MLRuntime:
             self.db_conn = get_run_db(rundb).connect(self._secrets)
 
         meta.labels['kind'] = self.kind
-        meta.labels['host'] = meta.labels.get('host', socket.gethostname())
         meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
         add_code_metadata(meta.labels)
 
         self.execution = MLClientCtx.from_dict(self.runspec.to_dict(), self.db_conn)
 
+        # form child run task generator from spec
         if spec.hyperparams:
             self.task_generator = GridGenerator(spec.hyperparams)
         elif spec.param_file:
             obj = self.execution.get_object('param_file.csv', spec.param_file)
             self.task_generator = ListGenerator(obj.get())
 
-    def run(self):
+    def run(self) -> dict:
         def show(results, resp):
-            results.append(resp)
+            # show ipython/jupyter result table widget
+            if resp:
+                results.append(resp)
+            else:
+                logger.info('no returned result (job maybe still in progress)')
+                results.append(self.runspec.to_dict())
             if is_ipython:
                 results.show()
             return resp
 
         if self.task_generator:
+            # multiple runs (based on hyper params or params file)
             generator = self.task_generator.generate(self.runspec)
             results = self._run_many(generator)
             self.results_to_iter(results)
@@ -107,56 +115,73 @@ class MLRuntime:
                 self.write_kfpmeta(resp)
             return show(results, resp)
         else:
+            # single run
             results = RunList()
             try:
+                self.store_run(self.runspec)
                 resp = self._run(self.runspec)
                 if resp and self.with_kfp:
                     self.write_kfpmeta(resp)
                 return show(results, self._post_run(resp))
             except RunError as err:
                 logger.error(f'run error - {err}')
-                self.execution.set_state(error=err)
-                return show(results, self.execution.to_dict())
+                self.runspec.status.state = 'error'
+                self.runspec.status.error = str(err)
+                return show(results, self._post_run(self.runspec.to_dict()))
 
-    def _run(self, runspec):
+    def _run(self, runspec: RunObject) -> dict:
         pass
 
-    def _run_many(self, tasks):
+    def _run_many(self, tasks) -> RunList:
         results = RunList()
         for task in tasks:
             try:
+                self.store_run(task)
                 resp = self._run(task)
                 resp = self._post_run(resp)
             except RunError as err:
                 task.status.state = 'error'
                 task.status.error = err
-                resp = self._post_run(task)
+                resp = self._post_run(task.to_dict())
             results.append(resp)
         return results
 
-    def _post_run(self, resp):
-        if isinstance(resp, str):
-            resp = json.loads(resp)
-        if isinstance(resp, dict) or resp is None:
-            resp = RunObject.from_dict(resp)
-
-        resp.status.last_update = str(datetime.now())
-        if resp.status.state != 'error':
-            resp.status.state = 'completed'
-
-        self._save_run(resp)
-        return resp.to_dict()
-
-    def _save_run(self, runspec: RunObject):
-        if self.db_conn:
-            project = self.execution.project
-            uid = runspec.metadata.uid
-            iter = runspec.metadata.iteration
+    def store_run(self, runobj: RunObject, commit=True):
+        if self.db_conn and runobj:
+            project = self.runspec.metadata.project
+            uid = runobj.metadata.uid
+            iter = runobj.metadata.iteration
             if iter:
-                uid = f'{uid}-{iter}'
-            self.db_conn.store_run(runspec.to_dict(),
-                                   uid, project, commit=True)
-        return runspec
+                uid = '{}-{}'.format(uid, iter)
+            self.db_conn.store_run(runobj.to_dict(), uid, project, commit)
+
+    def _post_run(self, resp: dict, err=None):
+        """update the task state in the DB"""
+        if resp is None:
+            return None
+
+        if not isinstance(resp, dict):
+            raise ValueError('post_run called with type {}'.format(type(resp)))
+
+        updates = {'status.last_update': str(datetime.now())}
+        if get_in(resp, 'status.state', '') != 'error':
+            updates['status.state'] = 'completed'
+            update_in(resp, 'status.state', 'completed')
+        else:
+            updates['status.state'] = 'error'
+            err = err or get_in(resp, 'status.error')
+            if err:
+                updates['status.error'] = err
+
+        if self.db_conn:
+            project = self.runspec.metadata.project
+            uid = get_in(resp, 'metadata.uid')
+            iter = get_in(resp, 'metadata.iteration', 0)
+            if iter:
+                uid = '{}-{}'.format(uid, iter)
+            self.db_conn.update_run(updates, uid, project)
+
+        return resp
 
     def results_to_iter(self, results):
         iter = []
@@ -171,10 +196,11 @@ class MLRuntime:
                       }
             if state == 'error':
                 failed += 1
-                logger.error(f'error in task  {self.execution.uid}:{id} - ' + get_in(task, ['status', 'error'], ''))
-            elif state != 'completed':
-                self._post_run(task)
+                err = get_in(task, ['status', 'error'], '')
+                logger.error('error in task  {}:{} - {}'.format(
+                    self.runspec.metadata.uid, id, err))
 
+            self._post_run(task)
             iter.append(struct)
 
         df = pd.io.json.json_normalize(iter).sort_values('iter')
@@ -190,7 +216,7 @@ class MLRuntime:
                           header=header,
                           viewer='table'))
         if failed:
-            self.execution.set_state(error=f'{failed} tasks failed, check logs for db for details')
+            self.execution.set_state(error='{} tasks failed, check logs for db for details'.format(failed))
         else:
             self.execution.set_state('completed')
 

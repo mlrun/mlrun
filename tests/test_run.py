@@ -90,7 +90,7 @@ def test_handler_hyper():
 
 def test_handler_hyperlist():
     run_spec = tag_test(base_spec, 'test_handler_hyperlist')
-    run_spec.spec.param_file = 'param_file.csv'
+    run_spec.spec.param_file = '{}/param_file.csv'.format(here)
     result = run_start(run_spec, handler=my_func, rundb=rundb_path)
     print(result)
     assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'

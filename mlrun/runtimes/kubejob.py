@@ -110,8 +110,17 @@ class K8sRuntime(RunRuntime):
         self.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
-    def build_image(self, image, with_mlrun=True):
+    def build_image(self, image, base_image=None, commands: list = None,
+                    secret=None, with_mlrun=True, watch=True):
         self.build.image = image
+        if commands and isinstance(commands, list):
+            self.build.commands = self.build.commands or []
+            self.build.commands += commands
+        if secret:
+            self.build.secret = secret
+        if base_image:
+            self.build.base_image = base_image
+        self.build.interactive = watch
         _build(self, with_mlrun)
         return self
 

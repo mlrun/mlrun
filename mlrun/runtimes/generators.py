@@ -35,9 +35,11 @@ class GridGenerator(TaskGenerator):
 
         while i < max:
             newrun = deepcopy(run)
-            param_dict = newrun.spec.parameters
+            newrun.spec.hyperparams = None
+            param_dict = newrun.spec.parameters or {}
             for key, values in params.items():
                 param_dict[key] = values[i]
+            newrun.spec.parameters = param_dict
             newrun.metadata.iteration = i + 1
             i += 1
             yield newrun
@@ -66,9 +68,11 @@ class ListGenerator(TaskGenerator):
         i = 0
         for idx, row in self.df.iterrows():
             newrun = deepcopy(run)
-            param_dict = newrun.spec.parameters
+            newrun.spec.param_file = None
+            param_dict = newrun.spec.parameters or {}
             for key, values in row.to_dict().items():
                 param_dict[key] = values
+            newrun.spec.parameters = param_dict
             newrun.metadata.iteration = i + 1
             i += 1
             yield newrun

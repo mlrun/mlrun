@@ -178,4 +178,6 @@ def build_image(dest,
     if interactive:
         return k8s.run_job(kpod)
     else:
-        return k8s.create_pod(kpod)
+        pod, ns = k8s.create_pod(kpod)
+        logger.info('started build, to watch build logs use "mlrun watch {} {}"'.format(pod, ns))
+        return pod, ns

@@ -130,6 +130,7 @@ class ImageBuilder(ModelObj):
         self.commands = commands or []
         self.secret = secret
         self.registry = registry
+        self.interactive = True
 
 
 class RunMetadata(ModelObj):

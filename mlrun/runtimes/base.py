@@ -99,7 +99,7 @@ class MLRuntime:
             if resp:
                 results.append(resp)
             else:
-                logger.info('no returned result (job maybe still in progress)')
+                logger.info('no returned result (job may still be in progress)')
                 results.append(self.runspec.to_dict())
             if is_ipython:
                 results.show()
@@ -122,12 +122,21 @@ class MLRuntime:
                 resp = self._run(self.runspec)
                 if resp and self.with_kfp:
                     self.write_kfpmeta(resp)
-                return show(results, self._post_run(resp))
+                return show(results, self._post_run(resp, task=self.runspec))
             except RunError as err:
                 logger.error(f'run error - {err}')
-                self.runspec.status.state = 'error'
-                self.runspec.status.error = str(err)
-                return show(results, self._post_run(self.runspec.to_dict()))
+                return show(results, self._post_run(self.runspec, err=err))
+
+    def _get_db_run(self, task: RunObject=None):
+        if self.db_conn and task:
+            project = self.runspec.metadata.project
+            uid = task.metadata.uid
+            iter = task.metadata.iteration
+            if iter:
+                uid = '{}-{}'.format(uid, iter)
+            return self.db_conn.read_run(uid, project, False)
+        if task:
+            return task.to_dict()
 
     def _run(self, runspec: RunObject) -> dict:
         pass
@@ -138,11 +147,11 @@ class MLRuntime:
             try:
                 self.store_run(task)
                 resp = self._run(task)
-                resp = self._post_run(resp)
+                resp = self._post_run(resp, task=task)
             except RunError as err:
                 task.status.state = 'error'
                 task.status.error = err
-                resp = self._post_run(task.to_dict())
+                resp = self._post_run(task=task, err=err)
             results.append(resp)
         return results
 
@@ -155,8 +164,11 @@ class MLRuntime:
                 uid = '{}-{}'.format(uid, iter)
             self.db_conn.store_run(runobj.to_dict(), uid, project, commit)
 
-    def _post_run(self, resp: dict, err=None):
+    def _post_run(self, resp: dict = None, task: RunObject = None, err=None):
         """update the task state in the DB"""
+        if resp is None and task:
+            resp = self._get_db_run(task)
+
         if resp is None:
             return None
 
@@ -164,12 +176,15 @@ class MLRuntime:
             raise ValueError('post_run called with type {}'.format(type(resp)))
 
         updates = {'status.last_update': str(datetime.now())}
-        if get_in(resp, 'status.state', '') != 'error':
+        if get_in(resp, 'status.state', '') != 'error' and not err:
             updates['status.state'] = 'completed'
             update_in(resp, 'status.state', 'completed')
         else:
             updates['status.state'] = 'error'
-            err = err or get_in(resp, 'status.error')
+            update_in(resp, 'status.state', 'error')
+            if err:
+                update_in(resp, 'status.error', err)
+            err = get_in(resp, 'status.error')
             if err:
                 updates['status.error'] = err
 

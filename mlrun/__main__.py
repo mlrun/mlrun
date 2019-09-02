@@ -52,10 +52,11 @@ def main():
 @click.option('--handler', default='', help='invoke function handler inside the code file')
 @click.option('--mode', default='', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
+@click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
-        param_file, handler, mode, from_env, run_args):
+        param_file, handler, mode, from_env, dump, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -105,7 +106,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
         resp = run_start(runobj, runtime=runtime, rundb=rundb, kfp=kfp, mode=mode)
-        if resp:
+        if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
         print('runtime error: {}'.format(err))

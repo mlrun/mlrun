@@ -29,7 +29,7 @@ def exec_main(op, args):
 
 
 def exec_run(cmd, args, test):
-    args = args + ['--name', test, '--rundb', rundb_path, cmd]
+    args = args + ['--name', test, '--dump', '--rundb', rundb_path, cmd]
     return exec_main('run', args)
 
 

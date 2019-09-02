@@ -187,5 +187,6 @@ def log_std(db, runobj, out, err=''):
         project = runobj.metadata.project or ''
         db.store_log(uid, project, out)
     if err:
+        logger.error('exec error - {}'.format(err))
         print(err, file=stderr)
         raise RunError(err)

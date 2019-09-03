@@ -90,7 +90,7 @@ class MLRuntime:
         if spec.hyperparams:
             self.task_generator = GridGenerator(spec.hyperparams)
         elif spec.param_file:
-            obj = self.execution.get_object('param_file.csv', spec.param_file)
+            obj = self.execution.get_input('param_file.csv', spec.param_file)
             self.task_generator = ListGenerator(obj.get())
 
     def run(self) -> dict:

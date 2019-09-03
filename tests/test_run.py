@@ -25,7 +25,7 @@ from mlrun.utils import run_keys, update_in
 def my_func(context, p1=1, p2='a-string'):
     print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}\n')
-    print('file\n{}\n'.format(context.get_object('infile.txt').get()))
+    print('file\n{}\n'.format(context.get_input('infile.txt').get()))
 
     context.log_result('accuracy', p1 * 2)
     context.log_metric('loss', 7)
@@ -38,10 +38,10 @@ def verify_state(result: RunObject):
 
 
 base_spec = NewRun(params={'p1':8}, out_path=out_path)
-base_spec.spec.input_objects = [{'key': 'infile.txt', 'path': ''}]
+base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 s3_spec = base_spec.copy().with_secrets('file', 'secrets.txt')
-s3_spec.spec.input_objects = [{'key':'infile.txt', 'path':'s3://yarons-tests/infile.txt'}]
+s3_spec.spec.inputs = {'infile.txt': 's3://yarons-tests/infile.txt'}
 
 
 def test_noparams():

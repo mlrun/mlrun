@@ -10,11 +10,11 @@ def my_job():
     criteria = context.get_param('criteria', 'accuracy')    
     max_column = f'output.{criteria}'
     
-    iter_table = context.get_object('iterations.csv').get()
+    iter_table = context.get_input('iterations.csv').get()
     df = pd.read_csv(BytesIO(iter_table), encoding='utf-8')
     print(df.head())    
     
-    #json.loads(context.get_object('iterations').get())
+    #json.loads(context.get_input('iterations').get())
     row = df[max_column].idxmax()
     context.log_result('best_row', int(df.loc[row, 'iter']))
     context.log_result('best_result', df.loc[row].to_json())

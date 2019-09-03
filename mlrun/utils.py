@@ -53,7 +53,7 @@ if is_ipython:
 class run_keys:
     input_path = 'input_path'
     output_path = 'output_path'
-    input_objects = 'input_objects'
+    inputs = 'inputs'
     output_artifacts = 'output_artifacts'
     data_stores = 'data_stores'
     secrets = 'secret_sources'

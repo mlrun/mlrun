@@ -21,7 +21,7 @@ from ast import literal_eval
 from .k8s_utils import k8s_helper
 from .run import run_start
 from .runtimes import RunError
-from .utils import run_keys, dict_to_yaml, logger
+from .utils import run_keys, dict_to_yaml, logger, list2dict
 from .builder import build_image
 from .model import RunTemplate
 
@@ -99,7 +99,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
     set_item(runobj.spec, param_file, 'param_file')
 
-    set_item(runobj.spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))
+    set_item(runobj.spec, in_artifact, run_keys.inputs, list2dict(in_artifact))
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))

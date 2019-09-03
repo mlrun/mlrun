@@ -46,7 +46,7 @@ def myfunction(context, event):
 
 
 base_spec = NewRun(params={'p1':8}, out_path=out_path)
-base_spec.spec.input_objects = [{'key': 'infile.txt', 'path': ''}]
+base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 
 def verify_state(result: RunObject):

@@ -153,14 +153,14 @@ class RunMetadata(ModelObj):
 
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
-                 input_objects=None, output_artifacts=None,
+                 inputs=None, output_artifacts=None,
                  input_path=None, output_path=None,
                  secret_sources=None, data_stores=None):
 
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
-        self._input_objects = input_objects
+        self._inputs = inputs
         self._output_artifacts = output_artifacts
         self.input_path = input_path
         self.output_path = output_path
@@ -168,13 +168,12 @@ class RunSpec(ModelObj):
         self._data_stores = data_stores
 
     @property
-    def input_objects(self):
-        return self._input_objects
+    def inputs(self):
+        return self._inputs
 
-    @input_objects.setter
-    def input_objects(self, input_objects):
-        self._verify_list(input_objects, 'input_objects')
-        self._input_objects = input_objects
+    @inputs.setter
+    def inputs(self, inputs):
+        self._inputs = self._verify_dict(inputs, 'inputs')
 
     @property
     def output_artifacts(self):

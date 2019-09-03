@@ -114,7 +114,7 @@ class ArtifactManager:
 
         if self.artifact_db:
             if not item.sources:
-                item.sources = execution.to_dict()['spec'][run_keys.input_objects]
+                item.sources = execution.to_dict()['spec'][run_keys.inputs]
             item.producer = execution.get_meta()
             self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
 

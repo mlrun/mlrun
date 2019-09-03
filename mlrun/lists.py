@@ -18,7 +18,7 @@ class RunList(list):
                 get_in(run, 'status.state', ''),
                 get_in(run, 'metadata.name', ''),
                 get_in(run, 'metadata.labels', ''),
-                get_in(run, 'spec.input_objects', ''),
+                get_in(run, 'spec.inputs', ''),
                 get_in(run, 'spec.parameters', ''),
                 get_in(run, 'status.outputs', ''),
                 get_in(run, 'status.output_artifacts', []),

@@ -144,8 +144,9 @@ def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
     return val, stdout.getvalue(), err
 
 
-def exec_from_params(handler, runobj, context):
+def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
     params = runobj.spec.parameters or {}
+    inputs = runobj.spec.inputs or {}
     args_list = []
     i = 0
     args = inspect.signature(handler).parameters
@@ -157,9 +158,17 @@ def exec_from_params(handler, runobj, context):
         args_list.append(event)
         i += 1
 
+    logger.info(str(args.keys()))
+    logger.info(str(params))
+    logger.info(str(inputs))
     for key in list(args.keys())[i:]:
         if args[key].name in params:
             args_list.append(params[key])
+        elif args[key].name in inputs:
+            if type(args[key].default) is str:
+                args_list.append(inputs[key])
+            else:
+                args_list.append(context.get_input(key, inputs[key]))
         elif args[key].default is not inspect.Parameter.empty:
             args_list.append(args[key].default)
         else:

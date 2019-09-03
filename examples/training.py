@@ -14,7 +14,7 @@ def my_job():
     print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(context.get_object('infile.txt').get()))
+    print('file\n{}\n'.format(context.get_input('infile.txt').get()))
     
     # RUN some useful code e.g. ML training, data prep, etc.
 

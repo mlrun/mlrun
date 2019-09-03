@@ -121,7 +121,7 @@ runtime_dict = {'remote': RemoteRuntime,
 
 
 def run_start(run=None, command: str = '', runtime=None, handler=None,
-              name: str = '', project: str = '', params: dict = None,
+              name: str = '', project: str = '', params: dict = None, inputs: dict = None,
               rundb: str = '', kfp: bool = False, mode: str = ''):
     """Run a local or remote task.
 
@@ -153,6 +153,7 @@ def run_start(run=None, command: str = '', runtime=None, handler=None,
     run.metadata.name = name or run.metadata.name
     run.metadata.project = project or run.metadata.project
     run.spec.parameters = params or run.spec.parameters
+    run.spec.inputs = inputs or run.spec.inputs
 
     kind, runtime = process_runtime(command, runtime)
 

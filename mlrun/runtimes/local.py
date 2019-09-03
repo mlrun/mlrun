@@ -158,9 +158,6 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
         args_list.append(event)
         i += 1
 
-    logger.info(str(args.keys()))
-    logger.info(str(params))
-    logger.info(str(inputs))
     for key in list(args.keys())[i:]:
         if args[key].name in params:
             args_list.append(params[key])

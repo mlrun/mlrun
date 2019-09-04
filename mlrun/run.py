@@ -20,7 +20,7 @@ import inspect
 
 from .execution import MLClientCtx
 from .model import RunTemplate, RunRuntime, RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
+from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime, RunError,
                        DaskRuntime, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
 from .utils import update_in, logger
 
@@ -181,7 +181,9 @@ def run_start(run=None, command: str = '', runtime=None, handler=None,
     results = runner.run()
     if results:
         run = RunObject.from_dict(results)
-        logger.info('run finished, status={} {}'.format(run.status.state, run.status.error or ''))
+        logger.info('run finished, status={}'.format(run.status.state))
+        if run.status.state == 'error':
+            raise RunError(run.status.error)
         return run
 
     return None

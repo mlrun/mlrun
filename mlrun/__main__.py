@@ -49,6 +49,7 @@ def main():
 @click.option('--hyperparam', '-x', default='', multiple=True,
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
+@click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
 @click.option('--mode', default='', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
@@ -56,7 +57,7 @@ def main():
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
-        param_file, handler, mode, from_env, dump, run_args):
+        param_file, selector, handler, mode, from_env, dump, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -98,6 +99,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
     set_item(runobj.spec, param_file, 'param_file')
+    set_item(runobj.spec, selector, 'selector')
 
     set_item(runobj.spec, in_artifact, run_keys.inputs, list2dict(in_artifact))
     set_item(runobj.spec, in_path, run_keys.input_path)

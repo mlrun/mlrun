@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import socket
+import sys
 import uuid
 from datetime import datetime
 import json
@@ -125,7 +126,7 @@ class MLRuntime:
                 return show(results, self._post_run(resp, task=self.runspec))
             except RunError as err:
                 logger.error(f'run error - {err}')
-                return show(results, self._post_run(self.runspec, err=err))
+                return show(results, self._post_run(task=self.runspec, err=err))
 
     def _get_db_run(self, task: RunObject=None):
         if self.db_conn and task:
@@ -220,8 +221,10 @@ class MLRuntime:
 
         df = pd.io.json.json_normalize(iter).sort_values('iter')
         header = df.columns.values.tolist()
-        results = [header] + df.values.tolist()
-        self.execution.log_iteration_results(results)
+        summary = [header] + df.values.tolist()
+        item, id = selector(results, self.runspec.spec.selector)
+        task = results[item] if id and results else None
+        self.execution.log_iteration_results(id, summary, task)
 
         csv_buffer = StringIO()
         df.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
@@ -309,6 +312,42 @@ def get_kfp_outputs(artifacts):
                 outputs += [meta]
 
     return outputs
+
+
+def selector(results: list, criteria):
+    if not criteria:
+        return 0, 0
+
+    idx = criteria.find('.')
+    if idx < 0:
+        op = 'max'
+    else:
+        op = criteria[:idx]
+        criteria = criteria[idx + 1:]
+
+
+    best_id = 0
+    best_item = 0
+    if op == 'max':
+        best_val = sys.float_info.min
+    elif op == 'min':
+        best_val = sys.float_info.max
+    else:
+        logger.error('unsupported selector {}.{}'.format(op, criteria))
+        return 0, 0
+
+    i = 0
+    for task in results:
+        state = get_in(task, ['status', 'state'])
+        id = get_in(task, ['metadata', 'iteration'])
+        val = get_in(task, ['status', 'outputs', criteria])
+        if state != 'error' and val is not None:
+            if (op == 'max' and val > best_val) \
+                    or (op == 'min' and val < best_val):
+                best_id, best_item, best_val = id, i, val
+        i += 1
+
+    return best_item, best_id
 
 
 def add_code_metadata(labels):

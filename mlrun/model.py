@@ -153,13 +153,14 @@ class RunMetadata(ModelObj):
 
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
-                 inputs=None, output_artifacts=None,
+                 selector=None, inputs=None, output_artifacts=None,
                  input_path=None, output_path=None,
                  secret_sources=None, data_stores=None):
 
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
+        self.selector = selector
         self._inputs = inputs
         self._output_artifacts = output_artifacts
         self.input_path = input_path
@@ -246,12 +247,14 @@ class RunTemplate(ModelObj):
         self.spec.parameters = params
         return self
 
-    def with_hyper_params(self, hyperparams):
+    def with_hyper_params(self, hyperparams, selector=None):
         self.spec.hyperparams = hyperparams
+        self.spec.selector = selector
         return self
 
-    def with_param_file(self, param_file):
+    def with_param_file(self, param_file, selector=None):
         self.spec.param_file = param_file
+        self.spec.selector = selector
         return self
 
     def with_secrets(self, kind, source):

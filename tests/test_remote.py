@@ -14,7 +14,7 @@
 
 import time
 from threading import Thread
-
+import _thread
 import pytest
 
 from conftest import has_secrets, out_path, rundb_path, tag_test
@@ -55,7 +55,8 @@ def verify_state(result: RunObject):
 
 
 def test_simple_function():
-    Thread(target=create_function, args=(myfunction, 4444)).start()
+    #Thread(target=create_function, args=(myfunction, 4444)).start()
+    _thread.start_new_thread(create_function, (myfunction, 4444))
     time.sleep(2)
 
     spec = tag_test(base_spec, 'simple_function')
@@ -66,7 +67,8 @@ def test_simple_function():
 
 
 def test_hyper_function():
-    Thread(target=create_function, args=(myfunction, 4444))
+    #Thread(target=create_function, args=(myfunction, 4444))
+    _thread.start_new_thread(create_function, (myfunction, 4444))
     time.sleep(2)
 
     spec = tag_test(base_spec, 'hyper_function')

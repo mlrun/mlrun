@@ -69,7 +69,14 @@ class ArtifactManager:
     def to_dict(self, struct):
         struct['spec'][run_keys.output_artifacts] = [{'key': k, 'path': v} for k, v in self.outputs_spec.items()]
         struct['spec'][run_keys.output_path] = self.out_path
-        struct['status'][run_keys.output_artifacts] = [item.base_dict() for item in self.output_artifacts.values()]
+
+        artifacts = []
+        for artifact in self.output_artifacts.values():
+            if isinstance(artifact, dict):
+                artifacts.append(artifact)
+            else:
+                artifacts.append(artifact.base_dict())
+        struct['status'][run_keys.output_artifacts] = artifacts
 
     def log_artifact(self, execution, item, body=None, target_path='', src_path='',
                      tag='', viewer='', upload=True, labels=None):

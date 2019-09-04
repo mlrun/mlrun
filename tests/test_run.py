@@ -81,10 +81,11 @@ def test_handler_project():
 
 def test_handler_hyper():
     run_spec = tag_test(base_spec, 'test_handler_hyper')
-    run_spec.with_hyper_params({'p1': [1, 2, 3]})
+    run_spec.with_hyper_params({'p1': [1, 5, 3]}, selector='max.accuracy')
     result = run_start(run_spec, handler=my_func, rundb=rundb_path)
     print(result)
     assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
+    assert result.status.outputs['best_iteration'] == 2, 'failed to select best iteration'
     verify_state(result)
 
 

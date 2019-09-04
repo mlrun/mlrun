@@ -153,6 +153,7 @@ class KubejobRuntime(MLRuntime):
                 runtime.image = runtime.image or runtime.build.base_image
 
         if not runtime.image and (runtime.build.source or runtime.build.commands or self.mode != 'pass'):
+            self.execution.set_state('build')
             _build(runtime, namespace, self.mode != 'pass')
         if not runtime.image:
             raise RunError('job submitted without image, set runtime.image')
@@ -168,6 +169,7 @@ class KubejobRuntime(MLRuntime):
                                        annotations=meta.annotations)
 
         k8s = k8s_helper()
+        self.execution.set_state('submit')
         pod_name, namespace = self._submit(k8s, runtime, new_meta, extra_env)
         status = 'unknown'
         if pod_name:
@@ -195,9 +197,13 @@ class KubejobRuntime(MLRuntime):
 
 
 def image_path(image):
+    if not image.startswith('.'):
+        return image
     if 'DEFAULT_DOCKER_REGISTRY' in environ:
         return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image)
-    return image
+    if 'IGZ_NAMESPACE_DOMAIN' in environ:
+        return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image)
+    raise RunError('local container registry is not defined')
 
 
 def func_to_pod(image, runtime, extra_env=[]):
@@ -244,4 +250,5 @@ def _build(runtime, with_mlrun):
     if status in ['failed', 'error']:
         raise RunError(' build {}!'.format(status))
 
-    runtime.image = build.image
+    local = '' if build.secret else '.'
+    runtime.image = local + build.image

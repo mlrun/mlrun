@@ -263,12 +263,17 @@ class MLClientCtx(object):
             self._outputs[str(p)] = outputs[p]
         self._update_db()
 
-    def log_iteration_results(self, results: list, commit=False):
+    def log_iteration_results(self, best, summary: list, task: dict, commit=False):
         """Reserved for internal use"""
-        if not isinstance(results, list):
-            raise MLCtxValueError('iteration results must be a table (list of lists)')
 
-        self._iteration_results = results
+        if best:
+            self._outputs['best_iteration'] = best
+            for k, v in get_in(task, ['status', 'outputs'], {}).items():
+                self._outputs[k] = v
+            for a in get_in(task, ['status', run_keys.output_artifacts], []):
+                self._artifacts_manager.output_artifacts[a['key']] = a
+
+        self._iteration_results = summary
         if commit:
             self._update_db(commit=True)
 

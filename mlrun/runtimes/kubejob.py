@@ -200,9 +200,9 @@ def image_path(image):
     if not image.startswith('.'):
         return image
     if 'DEFAULT_DOCKER_REGISTRY' in environ:
-        return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image)
+        return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
     if 'IGZ_NAMESPACE_DOMAIN' in environ:
-        return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image)
+        return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
     raise RunError('local container registry is not defined')
 
 

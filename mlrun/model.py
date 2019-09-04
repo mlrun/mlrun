@@ -290,9 +290,12 @@ class RunObject(RunTemplate):
         self._status = self._verify_dict(status, 'status', RunStatus)
 
     def output(self, key):
-        if not self.status.outputs or not isinstance(self.status.outputs, dict):
-            return None
-        return self.status.outputs.get(key, None)
+        if self.status.outputs and key in self.status.outputs:
+            return self.status.outputs.get(key)
+        artifact = self.artifact(key)
+        if artifact:
+            return artifact.get('target_path')
+        return None
 
     def artifact(self, key):
         if self.status.output_artifacts:

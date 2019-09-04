@@ -191,10 +191,12 @@ def dict_to_yaml(struct):
                      sort_keys=False)
 
 
-def uxjoin(base, path):
+def uxjoin(base, path, iter=None):
     if base:
         if not base.endswith('/'):
             base += '/'
+        if iter:
+            base += '{}/'.format(iter)
         return '{}{}'.format(base, path)
     return path
 

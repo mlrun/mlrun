@@ -19,10 +19,9 @@ import base64
 from io import BytesIO, StringIO
 import pathlib
 
-#import pandas as pd
 from .datastore import StoreManager
 from .db import RunDBInterface
-from .utils import uxjoin, run_keys
+from .utils import uxjoin, run_keys, logger
 from .model import ModelObj
 
 
@@ -94,7 +93,7 @@ class ArtifactManager:
         if key in self.outputs_spec.keys():
             target_path = self.outputs_spec[key] or target_path
         if not target_path:
-            target_path = uxjoin(self.out_path, key)
+            target_path = uxjoin(self.out_path, key, execution.iteration)
         item.target_path = target_path
         item.tree = execution.tag
         if labels:

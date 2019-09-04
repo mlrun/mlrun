@@ -29,7 +29,7 @@ def my_func(context, p1=1, p2='a-string'):
 
     context.log_result('accuracy', p1 * 2)
     context.log_metric('loss', 7)
-    context.log_artifact('chart')
+    context.log_artifact('chart', body='abc')
 
 
 def verify_state(result: RunObject):

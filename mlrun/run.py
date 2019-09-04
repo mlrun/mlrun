@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import socket
 from ast import literal_eval
 from copy import deepcopy
@@ -96,7 +97,7 @@ def get_or_create_ctx(name: str,
         newspec = newspec.to_dict()
 
     if newspec and not isinstance(newspec, dict):
-        newspec = yaml.safe_load(newspec)
+        newspec = json.loads(newspec)
 
     if not newspec:
         newspec = {}
@@ -236,7 +237,7 @@ def parse_command(runtime, url):
 def mlrun_op(name: str = '', project: str = '',
              image: str = 'v3io/mlrun', runtime: str = '', command: str = '',
              secrets: list = [], params: dict = {}, hyperparams: dict = {},
-             param_file: str = '', inputs: dict = {}, outputs: dict = {},
+             param_file: str = '', selector: str = '', inputs: dict = {}, outputs: dict = {},
              in_path: str = '', out_path: str = '', rundb: str = '',
              mode: str = ''):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -334,6 +335,8 @@ def mlrun_op(name: str = '', project: str = '',
         cmd += ['--rundb', rundb]
     if param_file:
         cmd += ['--param-file', param_file]
+    if selector:
+        cmd += ['--selector', selector]
     if mode:
         cmd += ['--mode', mode]
 

@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 from base64 import b64decode
 from os import path, environ
 import click
@@ -62,10 +63,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
 
     config = environ.get('MLRUN_EXEC_CONFIG')
     if from_env and config:
-        config = py_eval(config)
-        if not isinstance(config, dict):
-            print('config env var must be a dict')
-            exit(1)
+        config = json.loads(config)
         runobj = RunTemplate.from_dict(config)
     else:
         runobj = RunTemplate()

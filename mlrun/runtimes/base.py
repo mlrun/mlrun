@@ -75,6 +75,7 @@ class MLRuntime:
         # update run metadata (uid, labels) and store in DB
         meta = self.runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
+        logger.info('starting run {} uid={}'.format(meta.name, meta.uid))
 
         rundb = rundb or environ.get('MLRUN_META_DBPATH', '')
         if rundb:

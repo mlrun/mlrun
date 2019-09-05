@@ -122,6 +122,9 @@ class ArtifactManager:
             if not item.sources:
                 item.sources = execution.to_dict()['spec'][run_keys.inputs]
             item.producer = execution.get_meta()
+            if execution.iteration:
+                key = '{}-{}'.format(execution.iteration, key)
+                item.key = key
             self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
 
     def get_store(self, url):
@@ -136,7 +139,7 @@ class Artifact(ModelObj):
 
     def __init__(self, key, body=None, src_path=None, target_path='',
                  viewer=None, inline=False):
-        self._key = key
+        self.key = key
         self.tree = None
         self.updated = None
         self.target_path = target_path
@@ -156,10 +159,6 @@ class Artifact(ModelObj):
 
     def _post_init(self):
         pass
-
-    @property
-    def key(self):
-        return self._key
 
     @property
     def inline(self):

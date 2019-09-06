@@ -60,8 +60,7 @@ def test_simple_function():
     time.sleep(2)
 
     spec = tag_test(base_spec, 'simple_function')
-    result = new_runner(command='http://localhost:4444',
-                        rundb=rundb_path).run(spec)
+    result = new_runner(command='http://localhost:4444').run(spec)
     print(result)
     verify_state(result)
 
@@ -73,7 +72,6 @@ def test_hyper_function():
 
     spec = tag_test(base_spec, 'hyper_function')
     spec.spec.hyperparams = {'p1': [1, 2, 3]}
-    result = new_runner(command='http://localhost:4444',
-                        rundb=rundb_path).run(spec)
+    result = new_runner(command='http://localhost:4444').run(spec)
     print(result)
     verify_state(result)

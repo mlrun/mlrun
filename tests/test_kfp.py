@@ -61,7 +61,7 @@ def test_kfp_run():
     spec = run_spec.copy()
     spec.spec.output_path = tmpdir
     print(tmpdir)
-    result = new_runner(rundb=rundb_path, kfp=True).run(spec, handler=my_job)
+    result = new_runner(kfp=True).run(spec, handler=my_job)
     print(result.status.output_artifacts)
     alist = listdir(tmpdir)
     expected = ['chart.html', 'dataset.csv', 'model.txt', 'results.html']
@@ -78,7 +78,7 @@ def test_kfp_hyper():
     spec.spec.output_path = tmpdir
     spec.spec.hyperparams = {'p1': [1, 2, 3]}
     print(tmpdir)
-    result = new_runner(rundb=rundb_path, kfp=True).run(spec, handler=my_job)
+    result = new_runner(kfp=True).run(spec, handler=my_job)
     alist = listdir(tmpdir)
     print(alist)
     print(listdir('/tmp'))

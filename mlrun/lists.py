@@ -52,7 +52,7 @@ class ArtifactList(list):
 
     def to_rows(self):
         rows = []
-        head = {'tree': '', 'key': '', 'kind': '', 'path': 'target_path', 'hash': '',
+        head = {'tree': '', 'key': '', 'iter': '', 'kind': '', 'path': 'target_path', 'hash': '',
                 'viewer': '', 'updated': '', 'description': '', 'producer': '',
                 'sources': '', 'labels': ''}
         for artifact in self:

@@ -124,7 +124,7 @@ class ArtifactManager:
             item.producer = execution.get_meta()
             if execution.iteration:
                 key = '{}-{}'.format(execution.iteration, key)
-                item.key = key
+                item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
 
     def get_store(self, url):
@@ -133,13 +133,14 @@ class ArtifactManager:
 
 class Artifact(ModelObj):
 
-    _dict_fields = ['key', 'kind', 'tree', 'src_path', 'target_path', 'hash',
+    _dict_fields = ['key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
                     'description', 'viewer', 'inline']
     kind = ''
 
     def __init__(self, key, body=None, src_path=None, target_path='',
-                 viewer=None, inline=False):
+                 viewer=None, inline=False, iter=None):
         self.key = key
+        self.iter = iter
         self.tree = None
         self.updated = None
         self.target_path = target_path

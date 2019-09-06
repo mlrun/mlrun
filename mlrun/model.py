@@ -87,39 +87,6 @@ class BaseMetadata(ModelObj):
         self.annotations = annotations or {}
 
 
-class RunRuntime(ModelObj):
-    def __init__(self, kind=None, command=None, args=None, image=None, handler=None, metadata=None, spec=None):
-        self.kind = kind or ''
-        self.command = command or ''
-        self.image = image or ''
-        self.handler = handler
-        self.args = args or []
-        self._metadata = None
-        self._spec = None
-        self.metadata = metadata
-        self.spec = spec or {}
-
-    @property
-    def spec(self):
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec')
-
-    @property
-    def metadata(self) -> BaseMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
-
-    def set_label(self, key, value):
-        self.metadata.labels[key] = str(value)
-        return self
-
-
 class ImageBuilder(ModelObj):
     def __init__(self, inline_code=None, source=None, image=None, base_image=None,
                  commands=None, secret=None, registry=None):
@@ -153,7 +120,7 @@ class RunMetadata(ModelObj):
 
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
-                 selector=None, inputs=None, output_artifacts=None,
+                 selector=None, handler=None, inputs=None, output_artifacts=None,
                  input_path=None, output_path=None,
                  secret_sources=None, data_stores=None):
 
@@ -161,6 +128,7 @@ class RunSpec(ModelObj):
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
         self.selector = selector
+        self.handler = handler
         self._inputs = inputs
         self._output_artifacts = output_artifacts
         self.input_path = input_path

@@ -20,7 +20,7 @@ from aiohttp.client import ClientSession
 import logging
 from sys import stdout
 
-from .base import MLRuntime, RunError
+from .base import RunRuntime, RunError
 from ..utils import logger
 from ..lists import RunList
 from ..model import RunObject
@@ -30,14 +30,14 @@ from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
 
 
-class RemoteRuntime(MLRuntime):
+class RemoteRuntime(RunRuntime):
     kind = 'remote'
 
-    def _run(self, runobj: RunObject):
+    def _run(self, runobj: RunObject, execution):
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
-        log_level = self.execution.log_level
-        command = self.runtime.command
+        log_level = execution.log_level
+        command = self.command
         headers = {'x-nuclio-log-level': log_level}
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
@@ -55,14 +55,14 @@ class RemoteRuntime(MLRuntime):
 
         return resp.json()
 
-    def _run_many(self, tasks):
+    def _run_many(self, tasks, execution, runobj: RunObject):
         secrets = self._secrets.to_serial() if self._secrets else None
-        log_level = self.execution.log_level
+        log_level = execution.log_level
         headers = {'x-nuclio-log-level': log_level}
 
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            self.invoke_async(tasks, self.runtime.command, headers, secrets))
+            self.invoke_async(tasks, self.command, headers, secrets))
 
         loop.run_until_complete(future)
         return future.result()

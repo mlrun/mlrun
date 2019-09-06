@@ -18,7 +18,7 @@ import pytest
 
 from conftest import (examples_path, has_secrets, here, out_path, rundb_path,
                       tag_test)
-from mlrun import run_start, NewRun, RunObject
+from mlrun import new_runner, NewRun, RunObject
 from mlrun.utils import run_keys, update_in
 
 
@@ -46,7 +46,7 @@ s3_spec.spec.inputs = {'infile.txt': 's3://yarons-tests/infile.txt'}
 
 def test_noparams():
     environ['MLRUN_META_DBPATH'] = rundb_path
-    result = run_start(None, handler=my_func)
+    result = new_runner().run(handler=my_func)
 
     assert result.output('accuracy') == 2, 'failed to run'
     assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
@@ -54,7 +54,7 @@ def test_noparams():
 
 def test_with_params():
     spec = tag_test(base_spec, 'test_with_params')
-    result = run_start(spec, handler=my_func, rundb=rundb_path)
+    result = new_runner(rundb=rundb_path).run(spec, handler=my_func)
 
     assert result.output('accuracy') == 16, 'failed to run'
     assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
@@ -63,7 +63,7 @@ def test_with_params():
 @pytest.mark.skipif(not has_secrets(), reason='no secrets')
 def test_with_params_s3():
     spec = tag_test(s3_spec, 'test_with_params')
-    result = run_start(spec, handler=my_func, rundb=rundb_path)
+    result = new_runner(rundb=rundb_path).run(spec, handler=my_func)
 
     assert result.output('accuracy') == 16, 'failed to run'
     assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
@@ -73,7 +73,7 @@ def test_handler_project():
     spec = tag_test(base_spec, 'test_handler_project')
     spec.metadata.project = 'myproj'
     spec.metadata.labels = {'owner': 'yaronh'}
-    result = run_start(spec, handler=my_func, rundb=rundb_path)
+    result = new_runner(rundb=rundb_path).run(spec, handler=my_func)
     print(result)
     assert result.output('accuracy') == 16, 'failed to run'
     verify_state(result)
@@ -82,7 +82,7 @@ def test_handler_project():
 def test_handler_hyper():
     run_spec = tag_test(base_spec, 'test_handler_hyper')
     run_spec.with_hyper_params({'p1': [1, 5, 3]}, selector='max.accuracy')
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
+    result = new_runner(rundb=rundb_path).run(run_spec, handler=my_func)
     print(result)
     assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
     assert result.status.outputs['best_iteration'] == 2, 'failed to select best iteration'
@@ -92,7 +92,7 @@ def test_handler_hyper():
 def test_handler_hyperlist():
     run_spec = tag_test(base_spec, 'test_handler_hyperlist')
     run_spec.spec.param_file = '{}/param_file.csv'.format(here)
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
+    result = new_runner(rundb=rundb_path).run(run_spec, handler=my_func)
     print(result)
     assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
     verify_state(result)
@@ -100,20 +100,20 @@ def test_handler_hyperlist():
 
 def test_local_runtime():
     spec = tag_test(base_spec, 'test_local_runtime')
-    result = run_start(spec, command='{}/training.py'.format(examples_path),
-                       rundb=rundb_path)
+    result = new_runner(command='{}/training.py'.format(examples_path),
+                       rundb=rundb_path).run(spec)
     verify_state(result)
 
 
 def test_local_handler():
     spec = tag_test(base_spec, 'test_local_runtime')
-    result = run_start(spec, command='{}/handler.py:my_func'.format(examples_path),
-                       rundb=rundb_path)
+    result = new_runner(command='{}/handler.py'.format(examples_path),
+                        rundb=rundb_path).run(spec, handler='my_func')
     verify_state(result)
 
 
 def test_local_no_context():
     spec = tag_test(base_spec, 'test_local_no_context')
-    result = run_start(spec, command='{}/no_ctx.py'.format(here),
-                       rundb=rundb_path, mode='noctx')
+    result = new_runner(command='{}/no_ctx.py'.format(here),
+                        rundb=rundb_path).run(spec, mode='noctx')
     verify_state(result)

@@ -17,20 +17,21 @@ from os import environ
 from kubernetes import client
 
 from ..model import RunObject
-from .base import MLRuntime
-from .kubejob import K8sRuntime
+from .base import RunRuntime
+from .kubejob import KubejobRuntime
 from ..lists import RunList
 
-class DaskCluster(K8sRuntime):
+class DaskCluster(KubejobRuntime):
     kind = 'dask'
+
     def __init__(self, kind=None, command=None, args=None, image=None,
                  metadata=None, build=None, volumes=None, volume_mounts=None,
                  env=None, resources=None, image_pull_policy=None,
-                 service_account=None, extra_pip=None):
+                 service_account=None, rundb=None, extra_pip=None):
         args = args or ['dask-worker']
-        super().__init__(kind, command, args, image, metadata, build, volumes,
+        super().__init__(kind, command, args, image, None, metadata, build, volumes,
                          volume_mounts, env, resources, image_pull_policy,
-                         service_account)
+                         service_account, rundb)
         self._cluster = None
         self.extra_pip = extra_pip
         self.set_label('mlrun/class', self.kind)
@@ -65,8 +66,7 @@ class DaskCluster(K8sRuntime):
     def initialized(self):
         return True if self._cluster else False
 
-    @property
-    def cluster(self):
+    def cluster(self, scale=0):
         if not self._cluster:
             try:
                 from dask_kubernetes import KubeCluster
@@ -74,12 +74,21 @@ class DaskCluster(K8sRuntime):
                 print('missing dask_kubernetes, please run "pip install dask_kubernetes"')
                 raise e
             self._cluster = KubeCluster(self.to_pod())
+            if not scale:
+                self._cluster.adapt()
+            else:
+                self._cluster.scale(scale)
         return self._cluster
 
     @property
     def client(self):
-        import distributed
-        return distributed.Client(self.cluster)
+        from dask.distributed import Client, default_client
+        try:
+            return default_client()
+        except ValueError:
+            if self._cluster:
+                return Client(self.cluster)
+            return Client()  # todo: k8s client
 
     def close(self):
         from dask.distributed import Client, default_client, as_completed
@@ -91,36 +100,27 @@ class DaskCluster(K8sRuntime):
         if self._cluster:
             self._cluster.close()
 
-
-class DaskRuntime(MLRuntime):
-    kind = 'dask'
-
-    def _run(self, runobj: RunObject):
-        self._force_handler()
+    def _run(self, runobj: RunObject, execution):
+        self._force_handler(runobj.handler)
         from dask import delayed
         if self.rundb:
             # todo: remote dask via k8s spec env
             environ['MLRUN_META_DBPATH'] = self.rundb
 
-        task = delayed(self.handler)(runobj.to_dict())
+        task = delayed(runobj.handler)(runobj.to_dict())
         out = task.compute()
         if isinstance(out, dict):
             return out
         return json.loads(out)
 
-    def _run_many(self, tasks):
-        self._force_handler()
-        from dask.distributed import Client, default_client, as_completed
-        try:
-            client = default_client()
-        except ValueError:
-            client = Client()  # todo: k8s client
-
+    def _run_many(self, tasks, execution, runobj: RunObject):
+        self._force_handler(runobj.handler)
+        from dask.distributed import as_completed
         tasks = list(tasks)
         for task in tasks:
             self.store_run(task)
         results = RunList()
-        futures = client.map(self.handler, tasks)
+        futures = self.client.map(runobj.handler, tasks)
         for batch in as_completed(futures, with_results=True).batches():
             for future, result in batch:
                 if result:

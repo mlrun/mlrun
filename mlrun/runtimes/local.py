@@ -22,7 +22,7 @@ from tempfile import mktemp
 from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
-from .base import MLRuntime, RunError
+from .base import RunRuntime, RunError
 from sys import executable, stderr
 from subprocess import run, PIPE
 
@@ -33,11 +33,12 @@ from pathlib import Path
 from nuclio_sdk import Event
 
 
-class HandlerRuntime(MLRuntime):
+class HandlerRuntime(RunRuntime):
     kind = 'handler'
 
-    def _run(self, runobj: RunObject):
-        self._force_handler()
+    def _run(self, runobj: RunObject, execution):
+        handler = runobj.spec.handler
+        self._force_handler(handler)
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         context = MLClientCtx.from_dict(runobj.to_dict(),
@@ -46,24 +47,24 @@ class HandlerRuntime(MLRuntime):
                                         tmp=tmp,
                                         host=socket.gethostname())
         setattr(sys.modules[__name__], 'mlrun_context', context)
-        sout, serr = exec_from_params(self.handler, runobj, context)
-        log_std(self.db_conn, runobj, sout, serr)
+        sout, serr = exec_from_params(handler, runobj, context)
+        log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
 
 
-class LocalRuntime(MLRuntime):
+class LocalRuntime(RunRuntime):
     kind = 'local'
 
-    def _run(self, runobj: RunObject):
+    def _run(self, runobj: RunObject, execution):
         environ['MLRUN_EXEC_CONFIG'] = runobj.to_json()
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         if self.rundb:
             environ['MLRUN_META_DBPATH'] = self.rundb
 
-        if self.runtime.handler:
-            mod, fn = load_module(self.runtime.command,
-                                  self.runtime.handler)
+        handler = runobj.spec.handler
+        if handler:
+            mod, fn = load_module(self.command, handler)
             context = MLClientCtx.from_dict(runobj.to_dict(),
                                             rundb=self.rundb,
                                             autocommit=True,
@@ -71,13 +72,12 @@ class LocalRuntime(MLRuntime):
                                             host=socket.gethostname())
             setattr(mod, 'mlrun_context', context)
             sout, serr = exec_from_params(fn, runobj, context)
-            log_std(self.db_conn, runobj, sout, serr)
+            log_std(self._db_conn, runobj, sout, serr)
             return context.to_dict()
 
         else:
-            sout, serr = run_exec(self.runtime.command,
-                                       self.runtime.args)
-            log_std(self.db_conn, runobj, sout, serr)
+            sout, serr = run_exec(self.command, self.args)
+            log_std(self._db_conn, runobj, sout, serr)
 
             try:
                 with open(tmp) as fp:

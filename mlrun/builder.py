@@ -124,7 +124,7 @@ def build_image(dest,
     global k8s
     if registry:
         dest = '{}/{}'.format(registry, dest)
-    elif 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
+    elif not secret_name and 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
         dest = '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), dest)
 
     if isinstance(requirements, list):

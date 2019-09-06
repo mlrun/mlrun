@@ -18,11 +18,11 @@ from os import environ
 from pprint import pprint
 
 from ..model import RunObject
-from .base import MLRuntime
-from ..utils import dict_to_yaml
-
+from .kubejob import KubejobRuntime
+from ..utils import dict_to_yaml, update_in
+from ..k8s_utils import k8s_helper
+from kubernetes import client
 import importlib
-client = None
 
 
 _mpijob_template = {
@@ -35,11 +35,13 @@ _mpijob_template = {
  'spec': {
      'replicas': 1,
      'template': {
+         'metadata': {},
          'spec': {
              'containers': [{
-                 'image': 'gshatz/horovod:0.1.0',
-                 'name': '',
+                 'image': 'zilbermanor/horovod_cpu:0.2',
+                 'name': 'base',
                  'command': [],
+                 'env': [],
                  'volumeMounts': [],
                  'securityContext': {
                      'capabilities': {'add': ['IPC_LOCK']}},
@@ -49,19 +51,60 @@ _mpijob_template = {
          }}}}
 
 
-class MpiRuntime(MLRuntime):
+def _update_container(struct, key, value):
+    struct['spec']['template']['spec']['containers'][0][key] = value
+
+
+class MpiRuntime(KubejobRuntime):
     kind = 'mpijob'
 
-    def _run(self, runobj: RunObject):
+    def _run(self, runobj: RunObject, execution):
 
-        mpijob = MpiJob.from_dict(self.runtime.spec.to_dict())
+        job = deepcopy(_mpijob_template)
+        meta = self._get_meta(runobj)
+        update_in(job, 'metadata', meta.to_dict())
+        update_in(job, 'spec.template.metadata.labels', meta.labels)
+        update_in(job, 'spec.replicas', self.replicas or 1)
+        #_update_container(job, 'image', self.image)
+        update_in(job, 'spec.template.spec.volumes', self.volumes)
+        _update_container(job, 'volumeMounts', self.volume_mounts)
+        if self.command:
+            _update_container(job, 'command',
+                              ['mpirun', 'python', self.command] + self.args)
 
-        mpijob.env('MLRUN_EXEC_CONFIG', runobj.to_json())
-        if self.rundb:
-            mpijob.env('MLRUN_META_DBPATH', self.rundb)
+        pprint(job)
+        k8s = k8s_helper()
+        resp = self._submit(k8s, job)
 
-        mpijob.submit()
         return None
+
+    def _submit(self, k8s, job):
+        try:
+            api_response = k8s.crdapi.create_namespaced_custom_object(
+                MpiJob.group, MpiJob.version, namespace=self.metadata.namespace,
+                plural='mpijobs', body=job)
+            pprint(api_response)
+            return api_response
+        except client.rest.ApiException as e:
+            print("Exception when creating MPIJob: %s" % e)
+
+    def delete(self):
+        try:
+            # delete the mpi job\
+            body = client.V1DeleteOptions()
+            api_response = self.api_instance.delete_namespaced_custom_object(
+                MpiJob.group, MpiJob.version, self.namespace, MpiJob.plural, self.name, body)
+            pprint(api_response)
+        except client.rest.ApiException as e:
+            print("Exception when deleting MPIJob: %s" % e)
+
+    def status(self):
+        try:
+            api_response = self.api_instance.get_namespaced_custom_object(
+                MpiJob.group, MpiJob.version, self.namespace, MpiJob.plural, self.name)
+            pprint(api_response)
+        except client.rest.ApiException as e:
+            print("Exception when reading MPIJob: %s" % e)
 
 
 class MpiJob:

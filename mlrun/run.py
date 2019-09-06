@@ -20,9 +20,9 @@ import yaml
 import inspect
 
 from .execution import MLClientCtx
-from .model import RunTemplate, RunRuntime, RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime, RunError,
-                       DaskRuntime, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
+from .model import RunTemplate, RunObject
+from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime, RunError, RunRuntime,
+                       DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
 from .utils import update_in, logger
 
 
@@ -115,79 +115,43 @@ def get_or_create_ctx(name: str,
 
 
 runtime_dict = {'remote': RemoteRuntime,
-                'dask': DaskRuntime,
+                'dask': DaskCluster,
                 'job': KubejobRuntime,
                 'mpijob': MpiRuntime,
                 'Function': NuclioDeployRuntime}
 
 
-def run_start(run=None, command: str = '', runtime=None, handler=None,
-              name: str = '', project: str = '', params: dict = None, inputs: dict = None,
-              rundb: str = '', kfp: bool = False, mode: str = ''):
+def new_runner(command: str = '', runtime=None, rundb: str = '',
+               mode=None, kfp=None):
     """Run a local or remote task.
 
-    :param struct:     run template object or dict (see RunTemplate)
     :param command:    runtime command (filename, function url, ..)
     :param runtime:    runtime object/dict, runtime specific details
-    :param handler:    pointer or name of a function handler
-    :param name:       execution name
-    :param project:    project name
-    :param params:     input parameters (dict)
     :param rundb:      path/url to the metadata and artifact database
     :param kfp:        flag indicating run within kubeflow pipeline
-    :param mode:       special run mode, e.g. 'noctx', 'pass'
 
-    :return: run context object (dict) with run metadata, results and status
+    :return: runtime context object
     """
     if not rundb:
         rundb = environ.get('MLRUN_META_DBPATH', rundb)
 
-    if run:
-        run = deepcopy(run)
-        if isinstance(run, str):
-            run = literal_eval(run)
-
-    if isinstance(run, RunTemplate):
-        run = RunObject.from_template(run)
-    if isinstance(run, dict) or run is None:
-        run = RunObject.from_dict(run)
-    run.metadata.name = name or run.metadata.name
-    run.metadata.project = project or run.metadata.project
-    run.spec.parameters = params or run.spec.parameters
-    run.spec.inputs = inputs or run.spec.inputs
-
     kind, runtime = process_runtime(command, runtime)
 
-    if not kind and handler and not isinstance(handler, str):
-        runner = HandlerRuntime(run)
+    if not kind and not runtime.get('command', command):
+        runner = HandlerRuntime()
     else:
-        if handler:
-            if inspect.isfunction(handler):
-                runtime['handler'] = handler.__name__
-            else:
-                runtime['handler'] = str(handler)
-
         if kind in ['', 'local'] and runtime.get('command'):
-            runner = LocalRuntime(run)
+            runner = LocalRuntime.from_dict(runtime)
         elif kind in runtime_dict:
-            runner = runtime_dict[kind](run)
+            runner = runtime_dict[kind].from_dict(runtime)
         else:
             raise Exception('unsupported runtime ({}) or missing command, '.format(kind)
                             + 'supported runtimes: {}'.format(
                               ','.join(list(runtime_dict.keys()) + ['local'])))
-        runner.set_runtime(runtime)
 
-    runner.prep_run(rundb, mode, kfp=kfp, handler=handler)
-
-    results = runner.run()
-    if results:
-        run = RunObject.from_dict(results)
-        logger.info('run finished, status={}'.format(run.status.state))
-        if run.status.state == 'error':
-            raise RunError(run.status.error)
-        return run
-
-    return None
+    runner.rundb = rundb
+    runner.kfp = kfp
+    return runner
 
 
 def process_runtime(command, runtime):
@@ -224,13 +188,7 @@ def parse_command(runtime, url):
 
     if url:
         arg_list = url.split()
-        # avoid parsing windows paths like C://x.py as handlers
-        handler = arg_list[0].replace(':\\', '$$\\').split(':')
-        if len(handler) > 1:
-            runtime['handler'] = handler[1]
-            runtime['command'] = handler[0].replace('$$\\', ':\\')
-        else:
-            runtime['command'] = arg_list[0]
+        runtime['command'] = arg_list[0]
         runtime['args'] = arg_list[1:]
 
 

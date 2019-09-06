@@ -14,20 +14,18 @@
 
 from ..model import RunObject
 from ..utils import update_in, logger, get_in
-from .base import MLRuntime, RunError
+from .base import RunRuntime, RunError
 
 
-class NuclioDeployRuntime(MLRuntime):
+class NuclioDeployRuntime(RunRuntime):
     kind = 'nuclio'
     def __init__(self, run: RunObject):
         super().__init__(run)
         self.dashboard = ''
 
-    def set_runtime(self, runtime):
-        self.dashboard = runtime.pop("command", '')
-        self.runtime = runtime
+    # TODO: dashboard from command
 
-    def _run(self, runobj: RunObject):
+    def _run(self, runobj: RunObject, execution):
 
         from nuclio.deploy import deploy_config
 

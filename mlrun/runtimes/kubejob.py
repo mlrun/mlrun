@@ -16,17 +16,17 @@ from base64 import b64decode, b64encode
 from kubernetes import client
 from os import environ
 
-from ..model import RunObject, ImageBuilder, RunRuntime
+from ..model import RunObject, ImageBuilder, BaseMetadata
 from ..utils import get_in, logger, normalize_name
 from ..k8s_utils import k8s_helper
-from .base import MLRuntime, RunError
+from .base import RunRuntime, RunError
 from ..builder import build_image
 
 
 def make_nuclio_job(filename='', handler='', image=None, secret=None, kind=None):
     from nuclio import build_file
     name, spec, code = build_file(filename, handler=handler)
-    r = K8sRuntime()
+    r = KubejobRuntime()
     r.kind = kind or 'job'
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
@@ -43,27 +43,44 @@ def make_nuclio_job(filename='', handler='', image=None, secret=None, kind=None)
     return r
 
 
-class K8sRuntime(RunRuntime):
+class KubejobRuntime(RunRuntime):
+    kind = 'job'
+
     def __init__(self, kind=None, command=None, args=None, image=None, handler=None,
                  metadata=None, build=None, volumes=None, volume_mounts=None,
-                 env=None, resources=None, image_pull_policy=None,
-                 service_account=None):
+                 env=None, resources=None, replicas=None, image_pull_policy=None,
+                 service_account=None, rundb=None):
         try:
             from kfp.dsl import ContainerOp
         except ImportError as e:
             print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
             raise e
 
-        super().__init__(kind, command, args, image, handler, metadata, None)
+        super().__init__(kind, command, args, image, handler, rundb)
+        self._metadata = None
+        self.metadata = metadata
         self._build = None
         self.build = build
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
-        self.resources = resources
+        self.resources = resources or {}
+        self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self._cop = ContainerOp('name', 'image')
+
+    @property
+    def metadata(self) -> BaseMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
+
+    def set_label(self, key, value):
+        self.metadata.labels[key] = str(value)
+        return self
 
     def apply(self, modify):
         modify(self._cop)
@@ -97,6 +114,10 @@ class K8sRuntime(RunRuntime):
         self.env.append(client.V1EnvVar(name=name, value=value))
         return self
 
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
+        if gpus:
+            self.resources = {'limits' : {gpu_type: gpus}}
+
     def with_code(self, from_file='', body=None):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
             from nuclio import build_file
@@ -124,70 +145,64 @@ class K8sRuntime(RunRuntime):
         _build(self, with_mlrun)
         return self
 
-
-class KubejobRuntime(MLRuntime):
-    kind = 'job'
-
-    def set_runtime(self, runtime: K8sRuntime):
-        self.runtime = K8sRuntime.from_dict(runtime)
-
-    def _run(self, runobj: RunObject):
-
-        runtime = self.runtime
-        meta = runtime.metadata or {}
-        namespace = meta.namespace or 'default-tenant'
+    def _run(self, runobj: RunObject, execution):
 
         extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
         if self.rundb:
             extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
 
-        source_code = runtime.build.inline_code
+        source_code = self.build.inline_code
         if source_code:
             extra_env.append({'name': 'MLRUN_EXEC_CODE', 'value': source_code})
             if self.mode != 'pass':
-                runtime.command = 'mlrun'
-                runtime.args = ['run', '--from-env', 'main.py']
-                if runtime.handler:
-                    runtime.args += ['--handler', runtime.handler]
-            if not runtime.build.commands and self.mode == 'pass':
-                runtime.image = runtime.image or runtime.build.base_image
+                self.command = 'mlrun'
+                self.args = ['run', '--from-env', 'main.py']
+                if runobj.spec.handler:
+                    self.args += ['--handler', runobj.spec.handler]
+            if not self.build.commands and self.mode == 'pass':
+                self.image = self.image or self.build.base_image
 
-        if not runtime.image and (runtime.build.source or runtime.build.commands or self.mode != 'pass'):
-            self.execution.set_state('build')
-            _build(runtime, namespace, self.mode != 'pass')
-        if not runtime.image:
+        new_meta = self._get_meta(runobj)
+        if not self.image and (self.build.source or self.build.commands or self.mode != 'pass'):
+            execution.set_state('build')
+            _build(self, self.mode != 'pass')
+        if not self.image:
             raise RunError('job submitted without image, set runtime.image')
 
-        uid = runobj.metadata.uid
-        name = runobj.metadata.name or 'mlrun'
-        runtime.set_label('mlrun/class', self.kind)
-        runtime.set_label('mlrun/uid', uid)
-        norm_name = '{}-'.format(normalize_name(name))
-        new_meta = client.V1ObjectMeta(generate_name=norm_name,
-                                       namespace=namespace,
-                                       labels=meta.labels,
-                                       annotations=meta.annotations)
-
         k8s = k8s_helper()
-        self.execution.set_state('submit')
-        pod_name, namespace = self._submit(k8s, runtime, new_meta, extra_env)
+        execution.set_state('submit')
+        pod_name, namespace = self._submit(k8s, new_meta, extra_env)
         status = 'unknown'
         if pod_name:
             status = k8s.watch(pod_name, namespace)
 
-        if self.db_conn and pod_name:
+        if self._db_conn and pod_name:
             project = runobj.metadata.project or ''
-            self.db_conn.store_log(uid, project,
+            self._db_conn.store_log(new_meta.uid, project,
                                    k8s.logs(pod_name, namespace))
         if status in ['failed', 'error']:
             raise RunError(f'pod exited with {status}, check logs')
 
         return None
 
+    def _get_meta(self, runobj):
+        meta = self.metadata or {}
+        namespace = meta.namespace or 'default-tenant'
+        meta.namespace = namespace
 
-    @staticmethod
-    def _submit(k8s, runtime, metadata, extra_env):
-        pod_spec = func_to_pod(image_path(runtime.image), runtime, extra_env)
+        uid = runobj.metadata.uid
+        name = runobj.metadata.name or 'mlrun'
+        self.set_label('mlrun/class', self.kind)
+        self.set_label('mlrun/uid', uid)
+        norm_name = '{}-'.format(normalize_name(name))
+        new_meta = client.V1ObjectMeta(generate_name=norm_name,
+                                       namespace=namespace,
+                                       labels=meta.labels,
+                                       annotations=meta.annotations)
+        return new_meta
+
+    def _submit(self, k8s, metadata, extra_env):
+        pod_spec = func_to_pod(image_path(self.image), self, extra_env)
         pod = client.V1Pod(metadata=metadata, spec=pod_spec)
         try:
             return k8s.create_pod(pod)

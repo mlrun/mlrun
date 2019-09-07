@@ -67,6 +67,7 @@ class MpiRuntime(KubejobRuntime):
         pod_labels['mlrun/job'] = meta.name
         update_in(job, 'metadata', meta.to_dict())
         update_in(job, 'spec.template.metadata.labels', pod_labels)
+        #update_in(job, 'spec.template.metadata.namespace', meta.namespace)
         update_in(job, 'spec.replicas', self.replicas or 1)
         #_update_container(job, 'image', self.image)
         update_in(job, 'spec.template.spec.volumes', self.volumes)
@@ -77,14 +78,14 @@ class MpiRuntime(KubejobRuntime):
 
         pprint(job)
         k8s = k8s_helper()
-        self._submit_mpijob(k8s, job)
+        self._submit_mpijob(k8s, job, meta.namespace)
 
         return None
 
-    def _submit_mpijob(self, k8s, job):
+    def _submit_mpijob(self, k8s, job, namespace):
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace=self.metadata.namespace,
+                MpiJob.group, MpiJob.version, namespace=namespace,
                 plural='mpijobs', body=job)
             pprint(resp)
             #logger.info(f'MpiJob {resp.metadata.name} created')

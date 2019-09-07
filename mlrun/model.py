@@ -36,20 +36,21 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
-    def to_dict(self, fields=None):
+    def to_dict(self, fields=None, exclude=None):
         struct = {}
         fields = fields or self._dict_fields
         if not fields:
             fields = list(inspect.signature(self.__init__).parameters.keys())
         for t in fields:
-            val = getattr(self, t, None)
-            if val is not None and not (isinstance(val, dict) and not val):
-                if hasattr(val, 'to_dict'):
-                    val = val.to_dict()
-                    if val:
+            if not exclude or t not in exclude:
+                val = getattr(self, t, None)
+                if val is not None and not (isinstance(val, dict) and not val):
+                    if hasattr(val, 'to_dict'):
+                        val = val.to_dict()
+                        if val:
+                            struct[t] = val
+                    else:
                         struct[t] = val
-                else:
-                    struct[t] = val
         return struct
 
     @classmethod
@@ -135,6 +136,12 @@ class RunSpec(ModelObj):
         self.output_path = output_path
         self._secret_sources = secret_sources or []
         self._data_stores = data_stores
+
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude=['handler'])
+        if self.handler and isinstance(self.handler, str):
+            struct['handler'] = self.handler
+        return struct
 
     @property
     def inputs(self):

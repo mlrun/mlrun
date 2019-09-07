@@ -280,7 +280,7 @@ def NewRun(name=None, project=None, handler=None,
     run = RunTemplate()
     run.metadata.name = name
     run.metadata.project = project
-    run.metadata.handler = handler
+    run.spec.handler = handler
     run.spec.parameters = params
     run.spec.hyperparams = hyper_params
     run.spec.param_file = param_file

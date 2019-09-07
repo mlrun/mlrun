@@ -111,7 +111,6 @@ def run_exec(command, args, env=None):
     if args:
         cmd += args
     out = run(cmd, stdout=PIPE, stderr=PIPE, env=env)
-    print(out.stdout.decode('utf-8'))
 
     err = out.stderr.decode('utf-8') if out.returncode != 0 else ''
     return out.stdout.decode('utf-8'), err
@@ -145,6 +144,24 @@ def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
 
 
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
+    args_list = get_func_arg(handler, runobj, context)
+
+    stdout = StringIO()
+    err = ''
+    val = None
+    with redirect_stdout(stdout):
+        try:
+            val = handler(*args_list)
+        except Exception as e:
+            err = str(e)
+            context.set_state(error=err)
+
+    if val:
+        context.log_result('return', val)
+    return stdout.getvalue(), err
+
+
+def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
     params = runobj.spec.parameters or {}
     inputs = runobj.spec.inputs or {}
     args_list = []
@@ -171,19 +188,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
         else:
             args_list.append(None)
 
-    stdout = StringIO()
-    err = ''
-    val = None
-    with redirect_stdout(stdout):
-        try:
-            val = handler(*args_list)
-        except Exception as e:
-            err = str(e)
-            context.set_state(error=err)
-
-    if val:
-        context.log_result('return', val)
-    return stdout.getvalue(), err
+    return args_list
 
 
 def log_std(db, runobj, out, err=''):

@@ -273,15 +273,19 @@ class RunObject(RunTemplate):
         return None
 
 
-def NewRun(name=None, project=None, params=None, hyper_params=None,
-           param_file=None, in_path=None, out_path=None):
+def NewRun(name=None, project=None, handler=None,
+           params=None, hyper_params=None, param_file=None, selector=None,
+           in_path=None, out_path=None, secrets=None):
 
     run = RunTemplate()
     run.metadata.name = name
     run.metadata.project = project
+    run.metadata.handler = handler
     run.spec.parameters = params
     run.spec.hyperparams = hyper_params
     run.spec.param_file = param_file
+    run.spec.selector = selector
     run.spec.input_path = in_path
     run.spec.output_path = out_path
+    run.spec.secret_sources = secrets or []
     return run

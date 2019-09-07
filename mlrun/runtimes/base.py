@@ -134,7 +134,9 @@ class RunRuntime(ModelObj):
         meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
         add_code_metadata(meta.labels)
 
-        execution = MLClientCtx.from_dict(runspec.to_dict(), self._db_conn)
+        execution = MLClientCtx.from_dict(runspec.to_dict(),
+                                          self._db_conn,
+                                          autocommit=True)
 
         # form child run task generator from spec
         task_generator = None
@@ -247,6 +249,10 @@ class RunRuntime(ModelObj):
         return resp
 
     def _results_to_iter(self, results, runspec, execution):
+        if not results:
+            logger.error('got an empty results list in to_iter')
+            return
+
         iter = []
         failed = 0
         for task in results:

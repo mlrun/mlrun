@@ -16,6 +16,8 @@ import json
 from os import environ
 from kubernetes import client
 
+from ..execution import MLClientCtx
+from .local import get_func_arg
 from ..model import RunObject
 from .base import RunRuntime
 from .kubejob import KubejobRuntime
@@ -101,32 +103,51 @@ class DaskCluster(KubejobRuntime):
             self._cluster.close()
 
     def _run(self, runobj: RunObject, execution):
-        self._force_handler(runobj.handler)
+        handler = runobj.spec.handler
+        self._force_handler(handler)
         from dask import delayed
         if self.rundb:
             # todo: remote dask via k8s spec env
             environ['MLRUN_META_DBPATH'] = self.rundb
 
-        task = delayed(runobj.handler)(runobj.to_dict())
-        out = task.compute()
-        if isinstance(out, dict):
-            return out
-        return json.loads(out)
+        arg_list = get_func_arg(handler, runobj, execution)
+        try:
+            task = delayed(handler)(*arg_list)
+            out = task.compute()
+        except Exception as e:
+            err = str(e)
+            execution.set_state(error=err)
+
+        if out:
+            print('out:', out)
+            execution.log_result('return', out)
+
+        return None
 
     def _run_many(self, tasks, execution, runobj: RunObject):
-        self._force_handler(runobj.handler)
-        from dask.distributed import as_completed
+        handler = runobj.spec.handler
+        self._force_handler(handler)
+        futures = []
+        contexts = []
         tasks = list(tasks)
         for task in tasks:
-            self.store_run(task)
-        results = RunList()
-        futures = self.client.map(runobj.handler, tasks)
-        for batch in as_completed(futures, with_results=True).batches():
-            for future, result in batch:
-                if result:
-                    result = self._post_run(result)
-                    results.append(result)
-                else:
-                    print("Dask RESULT = None")
+            ctx = MLClientCtx.from_dict(task.to_dict(),
+                                        self.rundb,
+                                        autocommit=True)
+            args = get_func_arg(handler, task, ctx)
+            resp = self.client.submit(handler, *args)
+            futures.append(resp)
+            contexts.append(ctx)
 
+        resps = self.client.gather(futures)
+        results = RunList()
+        for r, c, t in zip(resps, contexts, tasks):
+            if r:
+                c.log_result('return', r)
+            # todo: handle task errors
+            resp = self._post_run(task=t)
+            print('resp:', resp)
+            results.append(resp)
+
+        print(resps)
         return results

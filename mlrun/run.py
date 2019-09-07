@@ -151,6 +151,7 @@ def new_runner(command: str = '', runtime=None, rundb: str = '',
 
     runner.rundb = rundb
     runner.kfp = kfp
+    runner.mode = mode
     return runner
 
 

@@ -18,7 +18,7 @@ import pytest
 
 from conftest import (examples_path, has_secrets, here, out_path, rundb_path,
                       tag_test)
-from mlrun import new_runner, NewRun, RunObject
+from mlrun import new_runner, NewRun, RunObject, get_run_db
 from mlrun.utils import run_keys, update_in
 
 
@@ -37,7 +37,7 @@ def verify_state(result: RunObject):
     assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)
 
 
-base_spec = NewRun(params={'p1':8}, out_path=out_path)
+base_spec = NewRun(params={'p1': 8}, out_path=out_path)
 base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 s3_spec = base_spec.copy().with_secrets('file', 'secrets.txt')
@@ -113,6 +113,12 @@ def test_local_handler():
 
 def test_local_no_context():
     spec = tag_test(base_spec, 'test_local_no_context')
+    spec.spec.parameters = {'xyz': '789'}
     result = new_runner(command='{}/no_ctx.py'.format(here),
                         mode='noctx').run(spec)
     verify_state(result)
+
+    db = get_run_db().connect()
+    log = str(db.get_log(result.metadata.uid))
+    print(log)
+    assert log.find(", '--xyz', '789']") != -1, 'params not detected in noctx'

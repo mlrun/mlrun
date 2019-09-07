@@ -29,8 +29,8 @@ class k8s_helper:
         self.v1api = client.CoreV1Api()
         self.crdapi = client.CustomObjectsApi()
 
-    def _ns(self, namespace):
-        return namespace or self.namespace
+    def ns(self, namespace=None):
+        return namespace or self.namespace or 'default-tenant'
 
     def _init_k8s_config(self, config_file):
         try:
@@ -46,7 +46,7 @@ class k8s_helper:
 
     def list_pods(self, namespace=None, selector='', states=None):
         try:
-            resp = self.v1api.list_namespaced_pod(self._ns(namespace), watch=False, label_selector=selector)
+            resp = self.v1api.list_namespaced_pod(self.ns(namespace), watch=False, label_selector=selector)
         except ApiException as e:
             logger.error('failed to list pods: {}'.format(e))
             raise e
@@ -67,7 +67,7 @@ class k8s_helper:
     def create_pod(self, pod):
         if 'pod' in dir(pod):
             pod = pod.pod
-        pod.metadata.namespace = self._ns(pod.metadata.namespace)
+        pod.metadata.namespace = self.ns(pod.metadata.namespace)
         try:
             resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
         except ApiException as e:
@@ -80,7 +80,7 @@ class k8s_helper:
     def del_pod(self, name, namespace=None):
         try:
             api_response = self.v1api.delete_namespaced_pod(name,
-                                                            self._ns(namespace),
+                                                            self.ns(namespace),
                                                             grace_period_seconds=0,
                                                             propagation_policy='Background')
             return api_response
@@ -92,7 +92,7 @@ class k8s_helper:
 
     def get_pod(self, name, namespace=None):
         try:
-            api_response = self.v1api.read_namespaced_pod(name=name, namespace=self._ns(namespace))
+            api_response = self.v1api.read_namespaced_pod(name=name, namespace=self.ns(namespace))
             return api_response
         except ApiException as e:
             if e.status != 404:
@@ -103,7 +103,7 @@ class k8s_helper:
     def logs(self, name, namespace=None):
         try:
             resp = self.v1api.read_namespaced_pod_log(
-                name=name, namespace=self._ns(namespace))
+                name=name, namespace=self.ns(namespace))
         except ApiException as e:
             logger.error('failed to get pod logs: {}'.format(e))
             raise e
@@ -118,7 +118,7 @@ class k8s_helper:
         return self.watch(pod_name, namespace, timeout)
 
     def watch(self, pod_name, namespace, timeout=600, writer=None):
-        namespace = self._ns(namespace)
+        namespace = self.ns(namespace)
         start_time = datetime.now()
         while True:
             try:
@@ -156,7 +156,7 @@ class k8s_helper:
 
     def create_cfgmap(self, name, data, namespace='', labels=None):
         body = client.V1ConfigMap()
-        namespace = self._ns(namespace)
+        namespace = self.ns(namespace)
         body.data = data
         if name.endswith('*'):
             body.metadata = client.V1ObjectMeta(generate_name=name[:-1],
@@ -179,7 +179,7 @@ class k8s_helper:
         try:
             api_response = self.v1api.delete_namespaced_config_map(
                 name,
-                self._ns(namespace),
+                self.ns(namespace),
                 grace_period_seconds=0,
                 propagation_policy='Background')
 
@@ -192,7 +192,7 @@ class k8s_helper:
 
     def list_cfgmap(self, namespace=None, selector=''):
         try:
-            resp = self.v1api.list_namespaced_config_map(self._ns(namespace), watch=False, label_selector=selector)
+            resp = self.v1api.list_namespaced_config_map(self.ns(namespace), watch=False, label_selector=selector)
         except ApiException as e:
             logger.error('failed to list ConfigMaps: {}'.format(e))
             raise e

@@ -36,6 +36,7 @@ class DaskCluster(KubejobRuntime):
                          service_account, rundb)
         self._cluster = None
         self.extra_pip = extra_pip
+        self.build.base_image = self.build.base_image or 'daskdev/dask:latest'
         self.set_label('mlrun/class', self.kind)
 
     def to_pod(self):
@@ -72,6 +73,7 @@ class DaskCluster(KubejobRuntime):
         if not self._cluster:
             try:
                 from dask_kubernetes import KubeCluster
+                from dask.distributed import Client
             except ImportError as e:
                 print('missing dask_kubernetes, please run "pip install dask_kubernetes"')
                 raise e
@@ -80,6 +82,7 @@ class DaskCluster(KubejobRuntime):
                 self._cluster.adapt()
             else:
                 self._cluster.scale(scale)
+            Client(self._cluster)
         return self._cluster
 
     @property
@@ -89,8 +92,8 @@ class DaskCluster(KubejobRuntime):
             return default_client()
         except ValueError:
             if self._cluster:
-                return Client(self.cluster)
-            return Client()  # todo: k8s client
+                return Client(self._cluster)
+            return Client()
 
     def close(self):
         from dask.distributed import Client, default_client, as_completed

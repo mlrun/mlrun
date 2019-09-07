@@ -17,7 +17,7 @@ from kubernetes import client
 from os import environ
 
 from ..model import RunObject, ImageBuilder, BaseMetadata
-from ..utils import get_in, logger, normalize_name
+from ..utils import get_in, logger, normalize_name, update_in
 from ..k8s_utils import k8s_helper
 from .base import RunRuntime, RunError
 from ..builder import build_image
@@ -69,6 +69,12 @@ class KubejobRuntime(RunRuntime):
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self._cop = ContainerOp('name', 'image')
+        self._k8s = None
+
+    def _get_k8s(self):
+        if not self._k8s:
+            self._k8s = k8s_helper()
+        return self._k8s
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -115,8 +121,14 @@ class KubejobRuntime(RunRuntime):
         return self
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
+        limits = {}
         if gpus:
-            self.resources = {'limits' : {gpu_type: gpus}}
+            limits[gpu_type] = gpus
+        if mem:
+            limits['memory'] = mem
+        if cpu:
+            limits['cpu'] = cpu
+        update_in(self.resources, 'limits', limits)
 
     def with_code(self, from_file='', body=None):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
@@ -186,8 +198,7 @@ class KubejobRuntime(RunRuntime):
         return None
 
     def _get_meta(self, runobj, unique=False):
-        namespace = self.metadata.namespace or 'default-tenant'
-
+        namespace = self._get_k8s().ns()
         uid = runobj.metadata.uid
         labels = {'mlrun/class': self.kind, 'mlrun/uid': uid}
         new_meta = client.V1ObjectMeta(namespace=namespace,

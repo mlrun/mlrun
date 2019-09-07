@@ -146,7 +146,6 @@ class DaskCluster(KubejobRuntime):
                 c.log_result('return', r)
             # todo: handle task errors
             resp = self._post_run(task=t)
-            print('resp:', resp)
             results.append(resp)
 
         print(resps)

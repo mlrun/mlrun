@@ -22,6 +22,8 @@ from ..utils import dict_to_yaml, update_in, logger
 from ..k8s_utils import k8s_helper
 import importlib
 
+from kubernetes import client
+
 
 _mpijob_template = {
  'apiVersion': 'kubeflow.org/v1alpha1',
@@ -129,8 +131,6 @@ class MpiJob:
 
     def __init__(self, name, image=None, command=None,
                  replicas=0, namespace='default-tenant', struct=None):
-        global client
-        client = importlib.import_module('.client', 'kubernetes')
         from kubernetes import config
 
         self.api_instance = None

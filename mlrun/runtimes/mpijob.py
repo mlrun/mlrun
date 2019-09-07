@@ -87,7 +87,7 @@ class MpiRuntime(KubejobRuntime):
                 MpiJob.group, MpiJob.version, namespace=self.metadata.namespace,
                 plural='mpijobs', body=job)
             pprint(resp)
-            logger.info(f'MpiJob {resp.metadata.name} created')
+            #logger.info(f'MpiJob {resp.metadata.name} created')
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating MPIJob: %s" % e)

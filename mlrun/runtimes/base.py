@@ -45,11 +45,12 @@ class RunRuntime(ModelObj):
     kind = 'base'
 
     def __init__(self, command=None, args=None, image=None, rundb=None,
-                 kfp=None, mode=''):
+                 kfp=None, mode=None, workers=None):
         self.command = command or ''
         self.image = image or ''
         self.kfp = kfp
-        self.mode = mode
+        self.mode = mode or ''
+        self.workers = workers
         self.args = args or []
         self._spec = None
 
@@ -170,7 +171,7 @@ class RunRuntime(ModelObj):
 
         if result:
             run = RunObject.from_dict(result)
-            logger.info('run finished, status={}'.format(runspec.status.state))
+            logger.info('run executed, status={}'.format(runspec.status.state))
             if runspec.status.state == 'error':
                 raise RunError(runspec.status.error)
             return run

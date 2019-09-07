@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import uuid
 from copy import deepcopy
 from os import environ
@@ -19,9 +18,8 @@ from pprint import pprint
 
 from ..model import RunObject
 from .kubejob import KubejobRuntime
-from ..utils import dict_to_yaml, update_in
+from ..utils import dict_to_yaml, update_in, logger
 from ..k8s_utils import k8s_helper
-from kubernetes import client
 import importlib
 
 
@@ -61,9 +59,12 @@ class MpiRuntime(KubejobRuntime):
     def _run(self, runobj: RunObject, execution):
 
         job = deepcopy(_mpijob_template)
-        meta = self._get_meta(runobj)
+        meta = self._get_meta(runobj, True)
+
+        pod_labels = deepcopy(meta.labels)
+        pod_labels['mlrun/job'] = meta.name
         update_in(job, 'metadata', meta.to_dict())
-        update_in(job, 'spec.template.metadata.labels', meta.labels)
+        update_in(job, 'spec.template.metadata.labels', pod_labels)
         update_in(job, 'spec.replicas', self.replicas or 1)
         #_update_container(job, 'image', self.image)
         update_in(job, 'spec.template.spec.volumes', self.volumes)
@@ -74,19 +75,20 @@ class MpiRuntime(KubejobRuntime):
 
         pprint(job)
         k8s = k8s_helper()
-        resp = self._submit(k8s, job)
+        self._submit_mpijob(k8s, job)
 
         return None
 
-    def _submit(self, k8s, job):
+    def _submit_mpijob(self, k8s, job):
         try:
-            api_response = k8s.crdapi.create_namespaced_custom_object(
+            resp = k8s.crdapi.create_namespaced_custom_object(
                 MpiJob.group, MpiJob.version, namespace=self.metadata.namespace,
                 plural='mpijobs', body=job)
-            pprint(api_response)
-            return api_response
+            pprint(resp)
+            logger.info(f'MpiJob {resp.metadata.name} created')
+            return resp
         except client.rest.ApiException as e:
-            print("Exception when creating MPIJob: %s" % e)
+            logger.error("Exception when creating MPIJob: %s" % e)
 
     def delete(self):
         try:

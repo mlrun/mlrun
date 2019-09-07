@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import uuid
 from base64 import b64decode, b64encode
 from kubernetes import client
 from os import environ
@@ -49,14 +49,14 @@ class KubejobRuntime(RunRuntime):
     def __init__(self, kind=None, command=None, args=None, image=None, handler=None,
                  metadata=None, build=None, volumes=None, volume_mounts=None,
                  env=None, resources=None, replicas=None, image_pull_policy=None,
-                 service_account=None, rundb=None):
+                 service_account=None, rundb=None, kfp=None, mode=''):
         try:
             from kfp.dsl import ContainerOp
         except ImportError as e:
             print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
             raise e
 
-        super().__init__(kind, command, args, image, handler, rundb)
+        super().__init__(command, args, image, rundb, kfp=kfp, mode=mode)
         self._metadata = None
         self.metadata = metadata
         self._build = None
@@ -185,20 +185,22 @@ class KubejobRuntime(RunRuntime):
 
         return None
 
-    def _get_meta(self, runobj):
-        meta = self.metadata or {}
-        namespace = meta.namespace or 'default-tenant'
-        meta.namespace = namespace
+    def _get_meta(self, runobj, unique=False):
+        namespace = self.metadata.namespace or 'default-tenant'
 
         uid = runobj.metadata.uid
+        labels = {'mlrun/class': self.kind, 'mlrun/uid': uid}
+        new_meta = client.V1ObjectMeta(namespace=namespace,
+                                       labels=labels)
+
         name = runobj.metadata.name or 'mlrun'
-        self.set_label('mlrun/class', self.kind)
-        self.set_label('mlrun/uid', uid)
         norm_name = '{}-'.format(normalize_name(name))
-        new_meta = client.V1ObjectMeta(generate_name=norm_name,
-                                       namespace=namespace,
-                                       labels=meta.labels,
-                                       annotations=meta.annotations)
+        if unique:
+            norm_name += uuid.uuid4().hex[:8]
+            new_meta.name = norm_name
+            runobj.set_label('mlrun/job', norm_name)
+        else:
+            new_meta.generate_name = norm_name
         return new_meta
 
     def _submit(self, k8s, metadata, extra_env):

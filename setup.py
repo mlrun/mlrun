@@ -73,7 +73,7 @@ setup(
     author='Yaron Haviv',
     author_email='yaronh@iguazio.com',
     license='MIT',
-    url='https://github.com/v3io/mlrun',
+    url='https://github.com/mlrun/mlrun',
     packages=['mlrun', 'mlrun.runtimes', 'mlrun.db', 'mlrun.platforms'],
     install_requires=install_requires,
     classifiers=[

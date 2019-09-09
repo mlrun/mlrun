@@ -180,4 +180,4 @@ def build_image(dest,
     else:
         pod, ns = k8s.create_pod(kpod)
         logger.info('started build, to watch build logs use "mlrun watch {} {}"'.format(pod, ns))
-        return pod, ns
+        return 'build:{}'.format(pod)

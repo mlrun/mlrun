@@ -100,6 +100,9 @@ class k8s_helper:
                 raise e
             return None
 
+    def get_pod_status(self, name, namespace=None):
+        return self.get_pod(name, namespace).status.phase.lower()
+
     def logs(self, name, namespace=None):
         try:
             resp = self.v1api.read_namespaced_pod_log(

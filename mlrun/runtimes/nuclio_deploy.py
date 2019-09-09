@@ -31,8 +31,8 @@ class NuclioDeployRuntime(RunRuntime):
 
         runtime = self.runtime
         extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
-        if self.rundb:
-            extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.rundb})
+        if self.spec.rundb:
+            extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.spec.rundb})
 
         update_in(runtime, 'spec.env', extra_env, append=True)
 

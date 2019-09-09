@@ -22,7 +22,7 @@ from ast import literal_eval
 from .k8s_utils import k8s_helper
 from .run import new_runner
 from .runtimes import RunError
-from .utils import run_keys, dict_to_yaml, logger, list2dict
+from .utils import run_keys, update_in, logger, list2dict
 from .builder import build_image
 from .model import RunTemplate
 
@@ -88,12 +88,11 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
             exit(1)
     else:
         runtime = {}
-    if handler:
-        runtime['handler'] = handler
     if url:
-        runtime['command'] = url
+        update_in(runtime, 'spec.command', url)
     if run_args:
-        runtime['args'] = list(run_args)
+        update_in(runtime, 'spec.args', list(run_args))
+    set_item(runobj.spec, handler, 'handler')
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
     set_item(runobj.spec, param_file, 'param_file')

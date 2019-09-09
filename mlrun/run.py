@@ -23,7 +23,7 @@ from .execution import MLClientCtx
 from .model import RunTemplate, RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime, RunError, RunRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
-from .utils import update_in, logger
+from .utils import update_in, get_in
 
 
 def get_or_create_ctx(name: str,
@@ -137,10 +137,10 @@ def new_runner(command: str = '', runtime=None, rundb: str = '',
 
     kind, runtime = process_runtime(command, runtime)
 
-    if not kind and not runtime.get('command', command):
+    if not kind and not get_in(runtime, 'spec.command', command):
         runner = HandlerRuntime()
     else:
-        if kind in ['', 'local'] and runtime.get('command'):
+        if kind in ['', 'local'] and get_in(runtime, 'spec.command'):
             runner = LocalRuntime.from_dict(runtime)
         elif kind in runtime_dict:
             runner = runtime_dict[kind].from_dict(runtime)
@@ -149,9 +149,9 @@ def new_runner(command: str = '', runtime=None, rundb: str = '',
                             + 'supported runtimes: {}'.format(
                               ','.join(list(runtime_dict.keys()) + ['local'])))
 
-    runner.rundb = rundb
+    runner.spec.rundb = rundb
     runner.kfp = kfp
-    runner.mode = mode
+    runner.spec.mode = mode
     return runner
 
 
@@ -161,11 +161,11 @@ def process_runtime(command, runtime):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
         kind = runtime.get('kind', '')
-        command = command or runtime.get('command')
+        command = command or get_in(runtime, 'spec.command', '')
     kind, command = get_kind(kind, command)
     if not runtime:
         runtime = {}
-    runtime['command'] = command
+    update_in(runtime, 'spec.command', command)
     runtime['kind'] = kind
     if kind != 'remote':
         parse_command(runtime, command)
@@ -184,13 +184,13 @@ def get_kind(kind, command):
 def parse_command(runtime, url):
     idx = url.find('#')
     if idx > -1:
-        runtime['image'] = url[:idx]
+        update_in(runtime, 'spec.image', url[:idx])
         url = url[idx+1:]
 
     if url:
         arg_list = url.split()
-        runtime['command'] = arg_list[0]
-        runtime['args'] = arg_list[1:]
+        update_in(runtime, 'spec.command', arg_list[0])
+        update_in(runtime, 'spec.args', arg_list[1:])
 
 
 def mlrun_op(name: str = '', project: str = '',

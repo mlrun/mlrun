@@ -24,7 +24,7 @@ import pandas as pd
 from io import StringIO
 
 from ..db import get_run_db
-from ..model import RunObject, ModelObj, RunTemplate
+from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata
 from ..secrets import SecretsStore
 from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
                      update_in, logger, is_ipython)
@@ -41,30 +41,45 @@ class RunError(Exception):
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
 
-class RunRuntime(ModelObj):
-    kind = 'base'
-
+class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, rundb=None,
-                 kfp=None, mode=None, workers=None):
+                 mode=None, workers=None):
+
         self.command = command or ''
         self.image = image or ''
-        self.kfp = kfp
         self.mode = mode or ''
         self.workers = workers
         self.args = args or []
-        self._spec = None
-
         self.rundb = rundb or environ.get('MLRUN_META_DBPATH', '')
+
+
+class RunRuntime(ModelObj):
+    kind = 'base'
+
+    def __init__(self, spec=None, metadata=None):
+        self._metadata = None
+        self.metadata = metadata
+        self.kfp = None
+        self._spec = None
+        self.spec = spec
         self._db_conn = None
         self._secrets = None
 
     @property
-    def spec(self):
+    def metadata(self) -> BaseMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
+
+    @property
+    def spec(self) -> FunctionSpec:
         return self._spec
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec')
+        self._spec = self._verify_dict(spec, 'spec', FunctionSpec)
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,):
@@ -115,10 +130,10 @@ class RunRuntime(ModelObj):
         runspec.spec.handler = handler or runspec.spec.handler
 
         spec = runspec.spec
-        if self.mode in ['noctx', 'args']:
+        if self.spec.mode in ['noctx', 'args']:
             params = spec.parameters or {}
             for k, v in params.items():
-                self.args += ['--{}'.format(k), str(v)]
+                self.spec.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
             self._secrets = SecretsStore.from_dict(spec.to_dict())
@@ -128,8 +143,8 @@ class RunRuntime(ModelObj):
         meta.uid = meta.uid or uuid.uuid4().hex
         logger.info('starting run {} uid={}'.format(meta.name, meta.uid))
 
-        if self.rundb:
-            self._db_conn = get_run_db(self.rundb).connect(self._secrets)
+        if self.spec.rundb:
+            self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
         meta.labels['kind'] = self.kind
         meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())

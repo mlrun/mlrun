@@ -42,7 +42,7 @@ class HandlerRuntime(RunRuntime):
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         context = MLClientCtx.from_dict(runobj.to_dict(),
-                                        rundb=self.rundb,
+                                        rundb=self.spec.rundb,
                                         autocommit=True,
                                         tmp=tmp,
                                         host=socket.gethostname())
@@ -59,14 +59,14 @@ class LocalRuntime(RunRuntime):
         environ['MLRUN_EXEC_CONFIG'] = runobj.to_json()
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
-        if self.rundb:
-            environ['MLRUN_META_DBPATH'] = self.rundb
+        if self.spec.rundb:
+            environ['MLRUN_META_DBPATH'] = self.spec.rundb
 
         handler = runobj.spec.handler
         if handler:
-            mod, fn = load_module(self.command, handler)
+            mod, fn = load_module(self.spec.command, handler)
             context = MLClientCtx.from_dict(runobj.to_dict(),
-                                            rundb=self.rundb,
+                                            rundb=self.spec.rundb,
                                             autocommit=True,
                                             tmp=tmp,
                                             host=socket.gethostname())
@@ -76,7 +76,7 @@ class LocalRuntime(RunRuntime):
             return context.to_dict()
 
         else:
-            sout, serr = run_exec(self.command, self.args)
+            sout, serr = run_exec(self.spec.command, self.spec.args)
             log_std(self._db_conn, runobj, sout, serr)
 
             try:

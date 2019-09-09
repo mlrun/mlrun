@@ -37,7 +37,7 @@ class RemoteRuntime(RunRuntime):
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = execution.log_level
-        command = self.command
+        command = self.spec.command
         headers = {'x-nuclio-log-level': log_level}
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
@@ -62,7 +62,7 @@ class RemoteRuntime(RunRuntime):
 
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            self.invoke_async(tasks, self.command, headers, secrets))
+            self.invoke_async(tasks, self.spec.command, headers, secrets))
 
         loop.run_until_complete(future)
         return future.result()

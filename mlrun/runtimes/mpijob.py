@@ -68,14 +68,14 @@ class MpiRuntime(KubejobRuntime):
         update_in(job, 'metadata', meta.to_dict())
         update_in(job, 'spec.template.metadata.labels', pod_labels)
         #update_in(job, 'spec.template.metadata.namespace', meta.namespace)
-        update_in(job, 'spec.replicas', self.replicas or 1)
-        if self.image:
-            _update_container(job, 'image', self.image)
-        update_in(job, 'spec.template.spec.volumes', self.volumes)
-        _update_container(job, 'volumeMounts', self.volume_mounts)
-        if self.command:
+        update_in(job, 'spec.replicas', self.spec.replicas or 1)
+        if self.spec.image:
+            _update_container(job, 'image', self.spec.image)
+        update_in(job, 'spec.template.spec.volumes', self.spec.volumes)
+        _update_container(job, 'volumeMounts', self.spec.volume_mounts)
+        if self.spec.command:
             _update_container(job, 'command',
-                              ['mpirun', 'python', self.command] + self.args)
+                              ['mpirun', 'python', self.spec.command] + self.spec.args)
 
         self._submit_mpijob(job, meta.namespace)
 

@@ -98,7 +98,7 @@ class ImageBuilder(ModelObj):
         self.commands = commands or []
         self.secret = secret
         self.registry = registry
-        self.interactive = True
+        self.build_pod = None
 
 
 class RunMetadata(ModelObj):

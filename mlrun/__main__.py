@@ -20,7 +20,7 @@ import click
 from ast import literal_eval
 
 from .k8s_utils import k8s_helper
-from .run import new_runner
+from .run import new_function
 from .runtimes import RunError
 from .utils import run_keys, update_in, logger, list2dict
 from .builder import build_image
@@ -104,7 +104,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     set_item(runobj.spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
-        resp = new_runner(runtime=runtime, rundb=rundb, kfp=kfp, mode=mode).run(runobj)
+        resp = new_function(runtime=runtime, rundb=rundb, kfp=kfp, mode=mode).run(runobj)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:

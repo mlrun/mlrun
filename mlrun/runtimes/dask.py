@@ -34,6 +34,7 @@ class DaskSpec(KubejobSpec):
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
                          service_account=service_account)
         self.extra_pip = extra_pip
+        self.args = args or ['dask-worker']
 
 
 class DaskCluster(KubejobRuntime):
@@ -42,7 +43,6 @@ class DaskCluster(KubejobRuntime):
     def __init__(self, spec=None,
                  metadata=None, build=None, extra_pip=None):
         super().__init__(spec, metadata, build)
-        self.spec.args = ['dask-worker']
         self._cluster = None
         self.build.base_image = self.build.base_image or 'daskdev/dask:latest'
         self.set_label('mlrun/class', self.kind)

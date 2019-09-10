@@ -14,7 +14,7 @@
 
 __version__ = '0.2.0'
 
-from .run import get_or_create_ctx, new_runner, mlrun_op
+from .run import get_or_create_ctx, new_function, mlrun_op
 from .db import get_run_db
 from .model import RunTemplate, NewRun, RunObject
 from .runtimes import make_nuclio_job

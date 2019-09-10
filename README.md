@@ -68,7 +68,7 @@ example:
     task = NewRun(handler=handler, name='demo', params={'p1': 5})
     task.with_secrets('file', 'secrets.txt').task.set_label('type', 'demo')
     
-    run = new_runner(command='dask://').run(task)
+    run = new_function(command='dask://').run(task)
     print(run.artifact('model'))
 
 in this example the task defines our run spec (parameters, inputs, secrets, ..) .
@@ -116,7 +116,7 @@ def training(context, p1=1, p2=2):
 The function above can be executed locally with parameters (p1, p2), the results and artifacts 
 will be logged automatically into a database with a single command. 
 
-    train_run = new_runner().run(handler=training, params={'p1': 5})    
+    train_run = new_function().run(handler=training, params={'p1': 5})    
 
 we can swap the `runner` with a serverless runtime and the same will run on a cluster.
 see detailed examples in the [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, or `mpijob` runtimes.
@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
 the code above can be invoked by calling:
 
-    run = new_runner(command='training.py').run(task)
+    run = new_function(command='training.py').run(task)
 
 or using the cli (while substituting the parameter and input values):
 
@@ -199,7 +199,7 @@ In a containerized system like Kubernetes we can launch multiple containers each
 
 In `mlrun` we implement parallelism using a single like:
 
-    run = new_runner(command='training.py').run(task.with_hyper_params({'p1': [5, 2, 3]}, 'min.loss'))
+    run = new_function(command='training.py').run(task.with_hyper_params({'p1': [5, 2, 3]}, 'min.loss'))
     
 The line above tells mlrun to run the same task while choosing the parameters from multiple lists (GridSearch).
 it will record ALL the runs, but mark the one with minimal `loss` as the selected result.
@@ -212,7 +212,7 @@ This can also be done via the CLI:
 We can use a parameter file if we want to control the parameter combinations or if the parameters are more complex.
 
     task = NewRun(handler=handler).with_param_file('params.csv', 'max.accuracy')
-    run = new_runner().run(task)
+    run = new_function().run(task)
 
   
 > Note: parameter list can be used for various tasks, another example is to pass a list of files and 

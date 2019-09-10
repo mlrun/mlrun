@@ -121,7 +121,7 @@ runtime_dict = {'remote': RemoteRuntime,
                 'Function': NuclioDeployRuntime}
 
 
-def new_runner(command: str = '', runtime=None, rundb: str = '',
+def new_function(command: str = '', runtime=None, rundb: str = '',
                mode=None, kfp=None):
     """Run a local or remote task.
 

@@ -60,8 +60,8 @@ Run can be created from a template and run over different `runtimes` or `runners
 * runtime - is a computation framework, we supports multiple `runtimes` such as local, 
 kubernetes job, dask, nuclio, spark, mpijob (Horovod). runtimes may support 
 parallelism and clustering (i.e. distribute the work among processes/containers).
-* runner - a `runtime` specific software package and attributes (e.g. image, command, 
-args, environment, ..). runners can run one or many runs/tasks.
+* function - a `runtime` specific software package and attributes (e.g. image, command, 
+args, environment, ..). function can run one or many runs/tasks.
 
 example:
 
@@ -72,15 +72,15 @@ example:
     print(run.artifact('model'))
 
 in this example the task defines our run spec (parameters, inputs, secrets, ..) .
-we run this task on a `dask` runner (local or clustered), and print out the result 
+we run this task on a `dask` function (local or clustered), and print out the result 
 output (in this case the `model` artifact) or watch the progress of that run.
 
-we can run the same `task` on different runners, enabling code portability and re-use, 
-or we can use the same `runner` to run different tasks or parameter combinations with 
+we can run the same `task` on different functions, enabling code portability and re-use, 
+or we can use the same `function` to run different tasks or parameter combinations with 
 minimal coding effort.
 
 moving from run on a local notebook, to running in a container job, a scaled-out framework
-or an automated workflow engine like KubeFlow is seamless, just swap the runtime/runner.
+or an automated workflow engine like KubeFlow is seamless, just swap the runtime/function.
 
 ### Automated parametrization, artifact tracking and logging 
 
@@ -118,7 +118,7 @@ will be logged automatically into a database with a single command.
 
     train_run = new_function().run(handler=training, params={'p1': 5})    
 
-we can swap the `runner` with a serverless runtime and the same will run on a cluster.
+we can swap the `function` with a serverless runtime and the same will run on a cluster.
 see detailed examples in the [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, or `mpijob` runtimes.
  
 if we run our code from `main` we can get the runtime context by calling the `get_or_create_ctx`

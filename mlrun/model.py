@@ -71,10 +71,10 @@ class ModelObj:
         return json.dumps(self.to_dict())
 
     def to_str(self):
-        return pformat(self.to_dict())
+        return '{}'.format(self.to_dict())
 
     def __str__(self):
-        return self.to_str()
+        return str(self.to_dict())
 
     def copy(self):
         return deepcopy(self)
@@ -218,8 +218,14 @@ class RunTemplate(ModelObj):
     def metadata(self, metadata):
         self._metadata = self._verify_dict(metadata, 'metadata', RunMetadata)
 
-    def with_params(self, params):
-        self.spec.parameters = params
+    def with_params(self, **kwargs):
+        self.spec.parameters = kwargs
+        return self
+
+    def with_input(self, key, path):
+        if not self.spec.inputs:
+            self.spec.inputs = {}
+        self.spec.inputs[key] = path
         return self
 
     def with_hyper_params(self, hyperparams, selector=None):
@@ -282,6 +288,7 @@ class RunObject(RunTemplate):
 
 def NewRun(name=None, project=None, handler=None,
            params=None, hyper_params=None, param_file=None, selector=None,
+           inputs=None, outputs=None,
            in_path=None, out_path=None, secrets=None):
 
     run = RunTemplate()
@@ -292,6 +299,8 @@ def NewRun(name=None, project=None, handler=None,
     run.spec.hyperparams = hyper_params
     run.spec.param_file = param_file
     run.spec.selector = selector
+    run.spec.inputs = inputs
+    run.spec.output_artifacts = outputs or []
     run.spec.input_path = in_path
     run.spec.output_path = out_path
     run.spec.secret_sources = secrets or []

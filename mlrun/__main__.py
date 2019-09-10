@@ -32,7 +32,7 @@ def main():
     pass
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("url", type=str)
+@click.argument("url", type=str, required=False)
 @click.option('--param', '-p', default='', multiple=True,
               help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
 @click.option('--in-artifact', '-i', multiple=True, help='input artifact')
@@ -73,6 +73,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         code = b64decode(code).decode('utf-8')
         with open('main.py', 'w') as fp:
             fp.write(code)
+        url = url or 'main.py'
 
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')

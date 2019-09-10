@@ -15,6 +15,7 @@ import inspect
 import sys
 import uuid
 from ast import literal_eval
+from base64 import b64encode
 from datetime import datetime
 import json
 import getpass
@@ -24,7 +25,7 @@ import pandas as pd
 from io import StringIO
 
 from ..db import get_run_db
-from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata
+from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
 from ..secrets import SecretsStore
 from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
                      update_in, logger, is_ipython)
@@ -56,12 +57,14 @@ class FunctionSpec(ModelObj):
 class RunRuntime(ModelObj):
     kind = 'base'
 
-    def __init__(self, spec=None, metadata=None):
+    def __init__(self, metadata=None, spec=None, build=None):
         self._metadata = None
         self.metadata = metadata
         self.kfp = None
         self._spec = None
         self.spec = spec
+        self._build = None
+        self.build = build
         self._db_conn = None
         self._secrets = None
 
@@ -80,6 +83,27 @@ class RunRuntime(ModelObj):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', FunctionSpec)
+
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, 'build', ImageBuilder)
+
+    def with_code(self, from_file='', body=None):
+        if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
+            from nuclio import build_file
+            name, spec, code = build_file(from_file)
+            self.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+            return self
+
+        if from_file:
+            with open(from_file) as fp:
+                body = fp.read()
+        self.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
+        return self
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,):
@@ -203,6 +227,26 @@ class RunRuntime(ModelObj):
             return self._db_conn.read_run(uid, project, False)
         if task:
             return task.to_dict()
+
+    def _get_cmd_args(self, runobj, with_mlrun):
+        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
+        if self.spec.rundb:
+            extra_env['MLRUN_META_DBPATH'] = self.spec.rundb
+        args = []
+        command = self.spec.command
+        if self.build.inline_code:
+            extra_env['MLRUN_EXEC_CODE'] = self.build.inline_code
+            if with_mlrun:
+                command = 'mlrun'
+                args = ['run', '--from-env']
+        elif with_mlrun:
+            command = 'mlrun'
+            args = ['run', '--from-env', command]
+        if runobj.spec.handler:
+            args += ['--handler', runobj.spec.handler]
+        if self.spec.args:
+            args += self.spec.args
+        return command, args
 
     def _run(self, runspec: RunObject, execution) -> dict:
         pass

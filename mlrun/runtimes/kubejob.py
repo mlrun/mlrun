@@ -16,7 +16,7 @@ from base64 import b64decode, b64encode
 from kubernetes import client
 from os import environ
 
-from ..model import RunObject, ImageBuilder, BaseMetadata
+from ..model import RunObject
 from ..utils import get_in, logger, normalize_name, update_in
 from ..k8s_utils import k8s_helper
 from .base import RunRuntime, RunError, FunctionSpec
@@ -67,9 +67,7 @@ class KubejobRuntime(RunRuntime):
             print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
             raise e
 
-        super().__init__(spec, metadata)
-        self._build = None
-        self.build = build
+        super().__init__(metadata, spec, build)
         self._cop = ContainerOp('name', 'image')
         self._k8s = None
         self._is_built = False
@@ -111,14 +109,6 @@ class KubejobRuntime(RunRuntime):
             [self.spec.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
             self._cop.container.volume_mounts.clear()
 
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, 'build', ImageBuilder)
-
     def set_env(self, name, value):
         self.spec.env.append(client.V1EnvVar(name=name, value=value))
         return self
@@ -132,19 +122,6 @@ class KubejobRuntime(RunRuntime):
         if cpu:
             limits['cpu'] = cpu
         update_in(self.spec.resources, 'limits', limits)
-
-    def with_code(self, from_file='', body=None):
-        if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
-            from nuclio import build_file
-            name, spec, code = build_file(from_file)
-            self.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
-            return self
-
-        if from_file:
-            with open(from_file) as fp:
-                body = fp.read()
-        self.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
-        return self
 
     def build_image(self, image, base_image=None, commands: list = None,
                     secret=None, with_mlrun=True, watch=True):
@@ -190,22 +167,12 @@ class KubejobRuntime(RunRuntime):
 
     def _run(self, runobj: RunObject, execution):
 
-        extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
-        if self.spec.rundb:
-            extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.spec.rundb})
-
-        args = self.spec.args
-        command = self.spec.command
-        if self.build.inline_code:
-            extra_env.append({'name': 'MLRUN_EXEC_CODE', 'value': self.build.inline_code})
-            if self.spec.mode != 'pass':
-                command = 'mlrun'
-                args = ['run', '--from-env', 'main.py']
-                if runobj.spec.handler:
-                    args += ['--handler', runobj.spec.handler]
+        with_mlrun = self.spec.mode != 'pass'
+        command, args, extra_env = self._get_cmd_args(runobj, with_mlrun)
+        extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
 
         if not self._is_built:
-            ready = self._build_image(True, self.spec.mode != 'pass', execution)
+            ready = self._build_image(True, with_mlrun, execution)
             if not ready:
                 raise RunError("can't run task, image is not built/ready")
 

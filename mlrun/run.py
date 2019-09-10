@@ -198,7 +198,7 @@ def mlrun_op(name: str = '', project: str = '',
              secrets: list = [], params: dict = {}, hyperparams: dict = {},
              param_file: str = '', selector: str = '', inputs: dict = {}, outputs: dict = {},
              in_path: str = '', out_path: str = '', rundb: str = '',
-             mode: str = ''):
+             mode: str = '', handler: str = '', more_args: list = None):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
     when using kubeflow pipelines, each step is wrapped in an mlrun_op
@@ -284,6 +284,8 @@ def mlrun_op(name: str = '', project: str = '',
         file_outputs[o.replace('.', '-')] = '/tmp/{}'.format(o)
     if project:
         cmd += ['--project', project]
+    if handler:
+        cmd += ['--handler', runtime]
     if runtime:
         cmd += ['--runtime', runtime]
     if in_path:
@@ -298,9 +300,16 @@ def mlrun_op(name: str = '', project: str = '',
         cmd += ['--selector', selector]
     if mode:
         cmd += ['--mode', mode]
+    if more_args:
+        cmd += more_args
 
     if hyperparams or param_file:
         file_outputs['iterations'] = '/tmp/iteration_results.csv'
+
+    if image.startswith('.'):
+        if 'DOCKER_REGISTRY_SERVICE_HOST' not in environ:
+            raise ValueError('local image registry DOCKER_REGISTRY_SERVICE_HOST env not found')
+        image = '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), image[1:])
 
     cop = dsl.ContainerOp(
         name=name,

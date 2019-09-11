@@ -166,7 +166,7 @@ def process_runtime(command, runtime):
     if runtime and isinstance(runtime, dict):
         kind = runtime.get('kind', '')
         command = command or get_in(runtime, 'spec.command', '')
-    kind, command = get_kind(kind, command)
+    kind, command = get_kind(kind, command or '')
     if not runtime:
         runtime = {}
     update_in(runtime, 'spec.command', command)
@@ -218,7 +218,7 @@ def notebook_function(filename='', handler='', image=None, secret=None, kind=Non
 
 
 def mlrun_op(name: str = '', project: str = '', function=None,
-             image: str = 'v3io/mlrun', runobj: RunTemplate = None, command: str = '',
+             image: str = '', runobj: RunTemplate = None, command: str = '',
              secrets: list = [], params: dict = {}, hyperparams: dict = {},
              param_file: str = '', selector: str = '', inputs: dict = {}, outputs: dict = {},
              in_path: str = '', out_path: str = '', rundb: str = '',
@@ -294,7 +294,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     from kubernetes import client as k8s_client
 
     rundb = rundb or environ.get('MLRUN_META_DBPATH')
-    cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
+    cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow', '{{workflow.uid}}', '--name', name]
     file_outputs = {}
 
     runtime = None
@@ -311,6 +311,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             code_env = '{}'.format(function.build.inline_code)
         else:
             runtime = '{}'.format(function.to_dict())
+
+    image = image or 'mlrun/mlrun'
 
     if runobj:
         handler = handler or runobj.spec.handler_name
@@ -359,9 +361,12 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         file_outputs['iterations'] = '/tmp/iteration_results.csv'
 
     if image.startswith('.'):
-        if 'DOCKER_REGISTRY_SERVICE_HOST' not in environ:
-            raise ValueError('local image registry DOCKER_REGISTRY_SERVICE_HOST env not found')
-        image = '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), image[1:])
+        if 'DEFAULT_DOCKER_REGISTRY' in environ:
+            image =  '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
+        elif 'IGZ_NAMESPACE_DOMAIN' in environ:
+            image = 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
+        else:
+            raise ValueError('local image registry env not found')
 
     cop = dsl.ContainerOp(
         name=name,

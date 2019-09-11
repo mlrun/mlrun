@@ -48,7 +48,7 @@ def test_noparams():
     result = new_function().run(handler=my_func)
 
     assert result.output('accuracy') == 2, 'failed to run'
-    assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
+    assert result.status.artifacts[0].get('key') == 'chart', 'failed to run'
 
 
 def test_with_params():
@@ -56,7 +56,7 @@ def test_with_params():
     result = new_function().run(spec, handler=my_func)
 
     assert result.output('accuracy') == 16, 'failed to run'
-    assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
+    assert result.status.artifacts[0].get('key') == 'chart', 'failed to run'
 
 
 @pytest.mark.skipif(not has_secrets(), reason='no secrets')
@@ -65,7 +65,7 @@ def test_with_params_s3():
     result = new_function().run(spec, handler=my_func)
 
     assert result.output('accuracy') == 16, 'failed to run'
-    assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
+    assert result.status.artifacts[0].get('key') == 'chart', 'failed to run'
 
 
 def test_handler_project():
@@ -84,7 +84,7 @@ def test_handler_hyper():
     result = new_function().run(run_spec, handler=my_func)
     print(result)
     assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
-    assert result.status.outputs['best_iteration'] == 2, 'failed to select best iteration'
+    assert result.status.results['best_iteration'] == 2, 'failed to select best iteration'
     verify_state(result)
 
 

@@ -121,7 +121,7 @@ class RunMetadata(ModelObj):
 
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
-                 selector=None, handler=None, inputs=None, output_artifacts=None,
+                 selector=None, handler=None, inputs=None, outputs=None,
                  input_path=None, output_path=None,
                  secret_sources=None, data_stores=None):
 
@@ -131,7 +131,7 @@ class RunSpec(ModelObj):
         self.selector = selector
         self.handler = handler
         self._inputs = inputs
-        self._output_artifacts = output_artifacts
+        self._outputs = outputs
         self.input_path = input_path
         self.output_path = output_path
         self._secret_sources = secret_sources or []
@@ -152,13 +152,13 @@ class RunSpec(ModelObj):
         self._inputs = self._verify_dict(inputs, 'inputs')
 
     @property
-    def output_artifacts(self):
-        return self._output_artifacts
+    def outputs(self):
+        return self._outputs
 
-    @output_artifacts.setter
-    def output_artifacts(self, output_artifacts):
-        self._verify_list(output_artifacts, 'output_artifacts')
-        self._output_artifacts = output_artifacts
+    @outputs.setter
+    def outputs(self, outputs):
+        self._verify_list(outputs, 'outputs')
+        self._outputs = outputs
 
     @property
     def secret_sources(self):
@@ -190,14 +190,14 @@ class RunSpec(ModelObj):
 
 class RunStatus(ModelObj):
     def __init__(self, state=None, error=None, host=None, commit=None,
-                 outputs=None, output_artifacts=None,
+                 results=None, artifacts=None,
                  start_time=None, last_update=None, iterations=None):
         self.state = state or 'created'
         self.error = error
         self.host = host
         self.commit = commit
-        self.outputs = outputs
-        self.output_artifacts = output_artifacts
+        self.results = results
+        self.artifacts = artifacts
         self.start_time = start_time
         self.last_update = last_update
         self.iterations = iterations
@@ -280,16 +280,16 @@ class RunObject(RunTemplate):
         self._status = self._verify_dict(status, 'status', RunStatus)
 
     def output(self, key):
-        if self.status.outputs and key in self.status.outputs:
-            return self.status.outputs.get(key)
+        if self.status.results and key in self.status.results:
+            return self.status.results.get(key)
         artifact = self.artifact(key)
         if artifact:
             return artifact.get('target_path')
         return None
 
     def artifact(self, key):
-        if self.status.output_artifacts:
-            for a in self.status.output_artifacts:
+        if self.status.artifacts:
+            for a in self.status.artifacts:
                 if a['key'] == key:
                     return a
         return None
@@ -309,7 +309,7 @@ def NewRun(name=None, project=None, handler=None,
     run.spec.param_file = param_file
     run.spec.selector = selector
     run.spec.inputs = inputs
-    run.spec.output_artifacts = outputs or []
+    run.spec.outputs = outputs or []
     run.spec.input_path = in_path
     run.spec.output_path = out_path
     run.spec.secret_sources = secrets or []

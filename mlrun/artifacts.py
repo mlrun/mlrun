@@ -55,27 +55,16 @@ class ArtifactManager:
         self.data_stores = stores
         self.artifact_db = db
         self.input_artifacts = {}
-        self.output_artifacts = {}
-        self.outputs_spec = {}
+        self.artifacts = {}
 
-    def from_dict(self, struct: dict):
-        self.out_path = struct.get(run_keys.output_path, self.out_path)
-        out_list = struct.get(run_keys.output_artifacts)
-        if out_list and isinstance(out_list, list):
-            for item in out_list:
-                self.outputs_spec[item['key']] = item.get('path')
-
-    def to_dict(self, struct):
-        struct['spec'][run_keys.output_artifacts] = [{'key': k, 'path': v} for k, v in self.outputs_spec.items()]
-        struct['spec'][run_keys.output_path] = self.out_path
-
+    def to_dict(self, status):
         artifacts = []
-        for artifact in self.output_artifacts.values():
+        for artifact in self.artifacts.values():
             if isinstance(artifact, dict):
                 artifacts.append(artifact)
             else:
                 artifacts.append(artifact.base_dict())
-        struct['status'][run_keys.output_artifacts] = artifacts
+        status[run_keys.artifacts] = artifacts
 
     def log_artifact(self, execution, item, body=None, target_path='', src_path='',
                      tag='', viewer='', upload=True, labels=None):
@@ -90,8 +79,6 @@ class ArtifactManager:
             item.viewer = viewer or item.viewer
 
         # find the target path from defaults and config
-        if key in self.outputs_spec.keys():
-            target_path = self.outputs_spec[key] or target_path
         if not target_path:
             target_path = uxjoin(self.out_path, key, execution.iteration)
         item.target_path = target_path
@@ -102,7 +89,7 @@ class ArtifactManager:
             for k, v in labels.items():
                 item.labels[k] = str(v)
 
-        self.output_artifacts[key] = item
+        self.artifacts[key] = item
 
         if upload:
             store, ipath = self.get_store(target_path)

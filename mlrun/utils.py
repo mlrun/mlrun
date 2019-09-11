@@ -54,7 +54,8 @@ class run_keys:
     input_path = 'input_path'
     output_path = 'output_path'
     inputs = 'inputs'
-    output_artifacts = 'output_artifacts'
+    artifacts = 'artifacts'
+    outputs = 'outputs'
     data_stores = 'data_stores'
     secrets = 'secret_sources'
 

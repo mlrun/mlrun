@@ -62,7 +62,7 @@ def test_kfp_run():
     spec.spec.output_path = tmpdir
     print(tmpdir)
     result = new_function(kfp=True).run(spec, handler=my_job)
-    print(result.status.output_artifacts)
+    print(result.status.artifacts)
     alist = listdir(tmpdir)
     expected = ['chart.html', 'dataset.csv', 'model.txt', 'results.html']
     for a in expected:

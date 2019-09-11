@@ -220,7 +220,7 @@ def notebook_function(filename='', handler='', image=None, secret=None, kind=Non
 def mlrun_op(name: str = '', project: str = '', function=None,
              image: str = '', runobj: RunTemplate = None, command: str = '',
              secrets: list = [], params: dict = {}, hyperparams: dict = {},
-             param_file: str = '', selector: str = '', inputs: dict = {}, outputs: dict = {},
+             param_file: str = '', selector: str = '', inputs: dict = {}, outputs: list = [],
              in_path: str = '', out_path: str = '', rundb: str = '',
              mode: str = '', handler: str = '', more_args: list = None):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -321,6 +321,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         param_file = param_file or runobj.spec.param_file
         selector = selector or runobj.spec.selector
         inputs = inputs or runobj.spec.inputs
+        outputs = outputs or runobj.spec.outputs
         in_path = in_path or runobj.spec.input_path
         out_path = out_path or runobj.spec.output_path
         secrets = secrets or runobj.spec.secret_sources
@@ -333,8 +334,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['-x', '{}={}'.format(x, val)]
     for i, val in inputs.items():
         cmd += ['-i', '{}={}'.format(i, val)]
-    for o, val in outputs.items():
-        cmd += ['-o', '{}={}'.format(o, val)]
+    for o in outputs:
+        cmd += ['-o', '{}'.format(o)]
         file_outputs[o.replace('.', '-')] = '/tmp/{}'.format(o)
     if project:
         cmd += ['--project', project]

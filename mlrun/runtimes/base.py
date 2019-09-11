@@ -375,7 +375,7 @@ class RunRuntime(ModelObj):
             state = get_in(task, ['status', 'state'])
             id = get_in(task, ['metadata', 'iteration'])
             struct = {'param': get_in(task, ['spec', 'parameters'], {}),
-                      'output': get_in(task, ['status', 'outputs'], {}),
+                      'output': get_in(task, ['status', 'results'], {}),
                       'state': state,
                       'iter': id,
                       }
@@ -416,16 +416,28 @@ def _write_kfpmeta(struct):
     if 'status' not in struct:
         return
 
-    outputs = struct['status'].get('outputs', {})
+    results = struct['status'].get('results', {})
     metrics = {'metrics':
                    [{'name': k,
                      'numberValue': v,
-                     } for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
+                     } for k, v in results.items() if isinstance(v, (int, float, complex))]}
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
 
-    output_artifacts = get_kfp_outputs(
-        struct['status'].get(run_keys.output_artifacts, []))
+    output_artifacts, out_dict = get_kfp_outputs(
+        struct['status'].get(run_keys.artifacts, []))
+
+    for key in struct['spec'].get(run_keys.outputs, []):
+        val = 'None'
+        if key in out_dict:
+            val = out_dict[key]
+        elif key in results:
+            val = results[key]
+        try:
+            with open('/tmp/{}'.format(key), 'w') as fp:
+                fp.write(val)
+        except:
+            pass
 
     text = '# Run Report\n'
     if 'iterations' in struct['status']:
@@ -453,15 +465,12 @@ def _write_kfpmeta(struct):
 
 def get_kfp_outputs(artifacts):
     outputs = []
+    out_dict = {}
     for output in artifacts:
         key = output["key"]
         target = output.get('target_path', '')
         target = output.get('inline', target)
-        try:
-            with open(f'/tmp/{key}', 'w') as fp:
-                fp.write(target)
-        except:
-            pass
+        out_dict[key] = target
 
         if target.startswith('v3io:///'):
             target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
@@ -481,7 +490,7 @@ def get_kfp_outputs(artifacts):
                         'source': target}
                 outputs += [meta]
 
-    return outputs
+    return outputs, out_dict
 
 
 def selector(results: list, criteria):
@@ -510,7 +519,7 @@ def selector(results: list, criteria):
     for task in results:
         state = get_in(task, ['status', 'state'])
         id = get_in(task, ['metadata', 'iteration'])
-        val = get_in(task, ['status', 'outputs', criteria])
+        val = get_in(task, ['status', 'results', criteria])
         if state != 'error' and val is not None:
             if (op == 'max' and val > best_val) \
                     or (op == 'min' and val < best_val):

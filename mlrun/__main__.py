@@ -35,8 +35,8 @@ def main():
 @click.argument("url", type=str, required=False)
 @click.option('--param', '-p', default='', multiple=True,
               help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
-@click.option('--in-artifact', '-i', multiple=True, help='input artifact')
-@click.option('--out-artifact', '-o', multiple=True, help='output artifact')
+@click.option('--inputs', '-i', multiple=True, help='input artifact')
+@click.option('--outputs', '-o', multiple=True, help='output artifact/result for kfp')
 @click.option('--in-path', help='default input path/url (prefix) for artifact')
 @click.option('--out-path', help='default output path/url (prefix) for artifact')
 @click.option('--secrets', '-s', multiple=True, help='secrets file=<filename> or env=ENV_KEY1,..')
@@ -56,7 +56,7 @@ def main():
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
-def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
+def run(url, param, inputs, outputs, in_path, out_path, secrets,
         uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
         param_file, selector, handler, mode, from_env, dump, run_args):
     """Execute a task and inject parameters."""
@@ -99,10 +99,10 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     set_item(runobj.spec, param_file, 'param_file')
     set_item(runobj.spec, selector, 'selector')
 
-    set_item(runobj.spec, in_artifact, run_keys.inputs, list2dict(in_artifact))
+    set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
-    set_item(runobj.spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
+    set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
         resp = new_function(runtime=runtime, rundb=rundb, kfp=kfp, mode=mode).run(runobj)

@@ -12,35 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import uuid
-from base64 import b64decode, b64encode
 from kubernetes import client
 from os import environ
 
 from ..model import RunObject
 from ..utils import get_in, logger, normalize_name, update_in
-from ..k8s_utils import k8s_helper
 from .base import RunRuntime, RunError, FunctionSpec
-from ..builder import build_image
-
-
-def make_nuclio_job(filename='', handler='', image=None, secret=None, kind=None):
-    from nuclio import build_file
-    name, spec, code = build_file(filename, handler=handler)
-    r = KubejobRuntime()
-    r.kind = kind or 'job'
-    h = get_in(spec, 'spec.handler', '').split(':')
-    r.handler = h[0] if len(h) <= 1 else h[1]
-    r.metadata = get_in(spec, 'spec.metadata')
-    r.build.base_image = get_in(spec, 'spec.build.baseImage')
-    r.build.commands = get_in(spec, 'spec.build.commands')
-    r.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
-    r.build.image = get_in(spec, 'spec.build.image', image)
-    r.build.secret = get_in(spec, 'spec.build.secret', secret)
-    r.spec.env = get_in(spec, 'spec.env')
-    for vol in get_in(spec, 'spec.volumes', []):
-        r.spec.volumes.append(vol.get('volume'))
-        r.spec.volume_mounts.append(vol.get('volumeMount'))
-    return r
 
 
 class KubejobSpec(FunctionSpec):
@@ -69,8 +46,6 @@ class KubejobRuntime(RunRuntime):
 
         super().__init__(metadata, spec, build)
         self._cop = ContainerOp('name', 'image')
-        self._k8s = None
-        self._is_built = False
 
     @property
     def spec(self) -> KubejobSpec:
@@ -79,15 +54,6 @@ class KubejobRuntime(RunRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', KubejobSpec)
-
-    def _get_k8s(self):
-        if not self._k8s:
-            self._k8s = k8s_helper()
-        return self._k8s
-
-    def set_label(self, key, value):
-        self.metadata.labels[key] = str(value)
-        return self
 
     def apply(self, modify):
         modify(self._cop)
@@ -122,48 +88,6 @@ class KubejobRuntime(RunRuntime):
         if cpu:
             limits['cpu'] = cpu
         update_in(self.spec.resources, 'limits', limits)
-
-    def build_image(self, image, base_image=None, commands: list = None,
-                    secret=None, with_mlrun=True, watch=True):
-        self.build.image = image
-        self.spec.image = ''
-        if commands and isinstance(commands, list):
-            self.build.commands = self.build.commands or []
-            self.build.commands += commands
-        if secret:
-            self.build.secret = secret
-        if base_image:
-            self.build.base_image = base_image
-        ready = self._build_image(watch, with_mlrun)
-        return self
-
-    def _build_image(self, watch=False, with_mlrun=True, execution=None):
-        pod = self.build.build_pod
-        if not self._is_built and pod:
-            k8s = self._get_k8s()
-            status = k8s.get_pod_status(pod)
-            if status == 'succeeded':
-                self.build.build_pod = None
-                self._is_built = True
-                logger.info('build completed successfully')
-                return True
-            if status in ['failed', 'error']:
-                raise RunError(' build {}, watch the build pod logs: {}'.format(status, pod))
-            logger.info('builder status is: {}, wait for it to complete'.format(status))
-            return False
-
-        if not self.build.commands and self.spec.mode == 'pass' and not self.build.source:
-            if not self.spec.image and not self.build.base_image:
-                raise RunError('image or base_image must be specified')
-            self.spec.image = self.spec.image or self.build.base_image
-        if self.spec.image:
-            self._is_built = True
-            return True
-
-        if execution:
-            execution.set_state('build')
-        ready = _build(self, with_mlrun, watch)
-        self._is_built = ready
 
     def _run(self, runobj: RunObject, execution):
 
@@ -246,39 +170,3 @@ def func_to_pod(image, runtime, extra_env, command, args):
                                 service_account=runtime.spec.service_account)
 
     return pod_spec
-
-
-def _build(runtime, with_mlrun, interactive=False):
-    build = runtime.build
-    namespace = runtime.metadata.namespace
-    inline = None
-    if build.inline_code:
-        inline = b64decode(build.inline_code).decode('utf-8')
-    if not build.image:
-        raise ValueError('build spec must have a taget image, set build.image = <target image>')
-    logger.info(f'building image ({build.image})')
-    status = build_image(build.image,
-                         base_image=build.base_image or 'python:3.6-jessie',
-                         commands=build.commands,
-                         namespace=namespace,
-                         #inline_code=inline,
-                         source=build.source,
-                         secret_name=build.secret,
-                         interactive=interactive,
-                         with_mlrun=with_mlrun)
-    build.build_pod = None
-    if status == 'skipped':
-        runtime.spec.image = runtime.build.base_image
-        return True
-
-    if status.startswith('build:'):
-        build.build_pod = status[6:]
-        return False
-
-    logger.info('build completed with {}'.format(status))
-    if status in ['failed', 'error']:
-        raise RunError(' build {}!'.format(status))
-
-    local = '' if build.secret else '.'
-    runtime.spec.image = local + build.image
-    return True

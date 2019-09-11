@@ -14,7 +14,7 @@
 
 from os import environ, path
 import tarfile
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from tempfile import mktemp
 
 from .k8s_utils import k8s_helper, BasePod
@@ -183,3 +183,39 @@ def build_image(dest,
         pod, ns = k8s.create_pod(kpod)
         logger.info('started build, to watch build logs use "mlrun watch {} {}"'.format(pod, ns))
         return 'build:{}'.format(pod)
+
+
+def build_runtime(runtime, with_mlrun, interactive=False):
+    build = runtime.build
+    namespace = runtime.metadata.namespace
+    inline = None
+    if build.inline_code:
+        inline = b64decode(build.inline_code).decode('utf-8')
+    if not build.image:
+        raise ValueError('build spec must have a taget image, set build.image = <target image>')
+    logger.info(f'building image ({build.image})')
+    status = build_image(build.image,
+                         base_image=build.base_image or 'python:3.6-jessie',
+                         commands=build.commands,
+                         namespace=namespace,
+                         #inline_code=inline,
+                         source=build.source,
+                         secret_name=build.secret,
+                         interactive=interactive,
+                         with_mlrun=with_mlrun)
+    build.build_pod = None
+    if status == 'skipped':
+        runtime.spec.image = runtime.build.base_image
+        return True
+
+    if status.startswith('build:'):
+        build.build_pod = status[6:]
+        return False
+
+    logger.info('build completed with {}'.format(status))
+    if status in ['failed', 'error']:
+        raise ValueError(' build {}!'.format(status))
+
+    local = '' if build.secret else '.'
+    runtime.spec.image = local + build.image
+    return True

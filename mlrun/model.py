@@ -178,6 +178,15 @@ class RunSpec(ModelObj):
         self._verify_list(data_stores, 'data_stores')
         self._data_stores = data_stores
 
+    @property
+    def handler_name(self):
+        if self.handler:
+            if inspect.isfunction(self.handler):
+                return self.handler.__name__
+            else:
+                return str(self.handler)
+        return ''
+
 
 class RunStatus(ModelObj):
     def __init__(self, state=None, error=None, host=None, commit=None,

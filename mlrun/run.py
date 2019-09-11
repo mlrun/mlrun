@@ -121,8 +121,8 @@ runtime_dict = {'remote': RemoteRuntime,
                 'Function': NuclioDeployRuntime}
 
 
-def new_function(command: str = '', runtime=None, rundb: str = '',
-               mode=None, kfp=None):
+def new_function(name: str = '', command: str = '', image: str = '', runtime=None, rundb: str = '',
+                 mode=None, kfp=None):
     """Run a local or remote task.
 
     :param command:    runtime command (filename, function url, ..)
@@ -150,6 +150,10 @@ def new_function(command: str = '', runtime=None, rundb: str = '',
                               ','.join(list(runtime_dict.keys()) + ['local'])))
 
     runner.spec.rundb = rundb
+    if name:
+        runner.metadata.name = name
+    if image:
+        runner.spec.image = image
     runner.kfp = kfp
     runner.spec.mode = mode
     return runner
@@ -193,8 +197,28 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def mlrun_op(name: str = '', project: str = '',
-             image: str = 'v3io/mlrun', runtime: str = '', command: str = '',
+def notebook_function(filename='', handler='', image=None, secret=None, kind=None):
+    from nuclio import build_file
+    name, spec, code = build_file(filename, handler=handler)
+    r = KubejobRuntime()
+    r.kind = kind or 'job'
+    h = get_in(spec, 'spec.handler', '').split(':')
+    r.handler = h[0] if len(h) <= 1 else h[1]
+    r.metadata = get_in(spec, 'spec.metadata')
+    r.build.base_image = get_in(spec, 'spec.build.baseImage')
+    r.build.commands = get_in(spec, 'spec.build.commands')
+    r.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+    r.build.image = get_in(spec, 'spec.build.image', image)
+    r.build.secret = get_in(spec, 'spec.build.secret', secret)
+    r.spec.env = get_in(spec, 'spec.env')
+    for vol in get_in(spec, 'spec.volumes', []):
+        r.spec.volumes.append(vol.get('volume'))
+        r.spec.volume_mounts.append(vol.get('volumeMount'))
+    return r
+
+
+def mlrun_op(name: str = '', project: str = '', function=None,
+             image: str = 'v3io/mlrun', runobj: RunTemplate = None, command: str = '',
              secrets: list = [], params: dict = {}, hyperparams: dict = {},
              param_file: str = '', selector: str = '', inputs: dict = {}, outputs: dict = {},
              in_path: str = '', out_path: str = '', rundb: str = '',
@@ -267,10 +291,38 @@ def mlrun_op(name: str = '', project: str = '',
     """
     from kfp import dsl
     from os import environ
+    from kubernetes import client as k8s_client
 
     rundb = rundb or environ.get('MLRUN_META_DBPATH')
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
     file_outputs = {}
+
+    runtime = None
+    code_env = None
+    if function:
+        if not hasattr(function, 'to_dict'):
+            raise ValueError('function must specify a function runtime object')
+        if function.kind in ['', 'local']:
+            image = image or function.spec.image
+            cmd = cmd or function.spec.command
+            more_args = more_args or function.spec.args
+            mode = mode or function.spec.mode
+            rundb = rundb or function.spec.rundb
+            code_env = '{}'.format(function.build.inline_code)
+        else:
+            runtime = '{}'.format(function.to_dict())
+
+    if runobj:
+        handler = handler or runobj.spec.handler_name
+        params = params or runobj.spec.parameters
+        hyperparams = hyperparams or runobj.spec.hyperparams
+        param_file = param_file or runobj.spec.param_file
+        selector = selector or runobj.spec.selector
+        inputs = inputs or runobj.spec.inputs
+        in_path = in_path or runobj.spec.input_path
+        out_path = out_path or runobj.spec.output_path
+        secrets = secrets or runobj.spec.secret_sources
+
     for s in secrets:
         cmd += ['-s', '{}'.format(s)]
     for p, val in params.items():
@@ -285,7 +337,7 @@ def mlrun_op(name: str = '', project: str = '',
     if project:
         cmd += ['--project', project]
     if handler:
-        cmd += ['--handler', runtime]
+        cmd += ['--handler', handler]
     if runtime:
         cmd += ['--runtime', runtime]
     if in_path:
@@ -317,4 +369,7 @@ def mlrun_op(name: str = '', project: str = '',
         command=cmd + [command],
         file_outputs=file_outputs,
     )
+    if code_env:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_EXEC_CODE', value=code_env))
     return cop

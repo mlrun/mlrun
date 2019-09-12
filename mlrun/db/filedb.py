@@ -182,6 +182,13 @@ class FileRunDB(RunDBInterface):
 
                 self._safe_del(p)
 
+    def store_metric(
+            self, uid, project='', keyvals=None, timestamp=None, labels=None):
+        raise NotImplementedError('store_metric')
+
+    def read_metric(self, keys, project='', query=''):
+        raise NotImplementedError('read_metric')
+
     def _filepath(self, table, project, key='', tag=''):
         if tag == '*':
             tag = ''
@@ -218,6 +225,3 @@ class FileRunDB(RunDBInterface):
             remove(filepath)
         else:
             raise RunDBError(f'run file is not found or valid ({filepath})')
-
-
-

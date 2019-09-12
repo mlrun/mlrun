@@ -12,64 +12,80 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas as pd
-from ..utils import get_in, match_labels, dict_to_yaml, flatten
-from ..render import run_to_html, runs_to_html, artifacts_to_html
+from abc import ABC, abstractmethod
 
 
 class RunDBError(Exception):
     pass
 
 
-class RunDBInterface:
+class RunDBInterface(ABC):
     kind = ''
 
+    @abstractmethod
     def connect(self, secrets=None):
         return self
 
+    @abstractmethod
     def store_log(self, uid, project='', body=None, append=True):
         pass
 
+    @abstractmethod
     def get_log(self, uid, project=''):
         pass
 
+    @abstractmethod
     def store_run(self, struct, uid, project='', commit=False):
         pass
 
+    @abstractmethod
     def update_run(self, updates: dict, uid, project=''):
         pass
 
+    @abstractmethod
     def read_run(self, uid, project=''):
         pass
 
-    def list_runs(self, name='', project='', labels=[],
-                  state='', sort=True, last=0):
+    @abstractmethod
+    def list_runs(
+            self, name='', project='', labels=None, state='', sort=True,
+            last=0):
         pass
 
+    @abstractmethod
     def del_run(self, uid, project=''):
         pass
 
-    def del_runs(self, name='', project='', labels=[], state='', days_ago=0):
+    @abstractmethod
+    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
         pass
 
+    @abstractmethod
     def store_artifact(self, key, artifact, uid, tag='', project=''):
         pass
 
+    @abstractmethod
     def read_artifact(self, key, tag='', project=''):
         pass
 
-    def list_artifacts(self, name='', project='', tag='', labels=[]):
+    @abstractmethod
+    def list_artifacts(self, name='', project='', tag='', labels=None):
         pass
 
+    @abstractmethod
     def del_artifact(self, key, tag='', project=''):
         pass
 
-    def del_artifacts(self, name='', project='', tag='', labels=[], days_ago=0):
+    @abstractmethod
+    def del_artifacts(
+            self, name='', project='', tag='', labels=None, days_ago=0):
         pass
 
-    def store_metric(self, uid, project='', keyvals={}, timestamp=None, labels={}):
+    @abstractmethod
+    def store_metric(
+            self, uid, project='', keyvals=None, timestamp=None, labels=None):
         pass
 
+    @abstractmethod
     def read_metric(self, keys, project='', query=''):
         pass
-

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .filedb import FileRunDB
-from .base import RunDBInterface
+from .base import RunDBInterface, RunDBError  # noqa
 from os import environ
 from urllib.parse import urlparse
 
@@ -29,5 +29,3 @@ def get_run_db(url=''):
     else:
         raise ValueError('unsupported run DB scheme ({})'.format(scheme))
     return db
-
-

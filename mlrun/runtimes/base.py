@@ -332,7 +332,9 @@ class RunRuntime(ModelObj):
 
     def _post_run(self, resp: dict = None, task: RunObject = None, err=None):
         """update the task state in the DB"""
+        was_none = False
         if resp is None and task:
+            was_none = True
             resp = self._get_db_run(task)
 
         if resp is None:
@@ -341,11 +343,9 @@ class RunRuntime(ModelObj):
         if not isinstance(resp, dict):
             raise ValueError('post_run called with type {}'.format(type(resp)))
 
-        updates = {'status.last_update': str(datetime.now())}
-        if get_in(resp, 'status.state', '') != 'error' and not err:
-            updates['status.state'] = 'completed'
-            update_in(resp, 'status.state', 'completed')
-        else:
+        updates = None
+        if get_in(resp, 'status.state', '') == 'error' or err:
+            updates = {'status.last_update': str(datetime.now())}
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
             if err:
@@ -353,8 +353,12 @@ class RunRuntime(ModelObj):
             err = get_in(resp, 'status.error')
             if err:
                 updates['status.error'] = err
+        elif not was_none:
+            updates = {'status.last_update': str(datetime.now())}
+            updates['status.state'] = 'completed'
+            update_in(resp, 'status.state', 'completed')
 
-        if self._db_conn:
+        if self._db_conn and updates:
             project = get_in(resp, 'metadata.project')
             uid = get_in(resp, 'metadata.uid')
             iter = get_in(resp, 'metadata.iteration', 0)

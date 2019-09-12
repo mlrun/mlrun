@@ -319,6 +319,13 @@ class MLClientCtx(object):
             self._state = state
             self._update_db(state, commit=True)
 
+    def set_hostname(self, host: str):
+        """update the hostname"""
+        self._host = host
+        if self._rundb:
+            updates = {'status.host': host}
+            self._rundb.update_run(updates, self.uid, self.project)
+
     def to_dict(self):
         """convert the run context to a dictionary"""
 

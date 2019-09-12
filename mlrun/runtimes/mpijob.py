@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 import uuid
 from copy import deepcopy
 from os import environ
@@ -19,7 +20,7 @@ from pprint import pprint
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import dict_to_yaml, update_in, logger, get_in
-from ..k8s_utils import k8s_helper
+from ..execution import MLClientCtx
 import importlib
 
 from kubernetes import client
@@ -58,7 +59,7 @@ def _update_container(struct, key, value):
 class MpiRuntime(KubejobRuntime):
     kind = 'mpijob'
 
-    def _run(self, runobj: RunObject, execution):
+    def _run(self, runobj: RunObject, execution: MLClientCtx):
 
         job = deepcopy(_mpijob_template)
         meta = self._get_meta(runobj, True)
@@ -77,7 +78,23 @@ class MpiRuntime(KubejobRuntime):
             _update_container(job, 'command',
                               ['mpirun', 'python', self.spec.command] + self.spec.args)
 
-        self._submit_mpijob(job, meta.namespace)
+        resp = self._submit_mpijob(job, meta.namespace)
+        for i in range(20):
+            resp = self.get_job(meta.name, meta.namespace)
+            if resp and resp['status']:
+                break
+            time.sleep(1)
+
+        if resp:
+            state = get_in(resp, 'status.launcherStatus')
+            logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
+            if state:
+                launcher, status = self._get_lancher(meta.name, meta.namespace)
+                execution.set_hostname(launcher)
+                execution.set_state(state.lower())
+                logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+            else:
+                logger.warning('MpiJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
 
         return None
 
@@ -160,9 +177,17 @@ class MpiRuntime(KubejobRuntime):
             logger.error('no pod matches that job name')
             return
         k8s = self._get_k8s()
-        pod, status = list(pods.items())[0]
+        pod, status = self._get_lancher(name, namespace)
         logger.info('watching pod {}, status = {}'.format(pod, status))
         k8s.watch(pod, namespace)
+
+    def _get_lancher(self, name, namespace=None):
+        pods = self.get_pods(name, namespace, lancher=True)
+        if not pods:
+            logger.error('no pod matches that job name')
+            return
+        k8s = self._get_k8s()
+        return list(pods.items())[0]
 
 
 class MpiJob:

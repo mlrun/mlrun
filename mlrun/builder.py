@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import environ, path
+import os
 import tarfile
-from base64 import b64encode, b64decode
+from base64 import b64decode, b64encode
+from os import environ, path
 from tempfile import mktemp
 
-from .k8s_utils import k8s_helper, BasePod
+from mlrun.config import config
+from mlrun.datastore import StoreManager
+from mlrun.k8s_utils import BasePod, k8s_helper
+
 from .datastore import StoreManager
+from .k8s_utils import BasePod, k8s_helper
 from .utils import logger
 
 default_image = 'python:3.6-jessie'
@@ -175,7 +180,7 @@ def build_image(dest,
         kpod.mount_v3io(remote=source, mount_path='/context')
 
     if not k8s:
-        k8s = k8s_helper(namespace or 'default-tenant')
+        k8s = k8s_helper(namespace or config.namespace)
 
     if interactive:
         return k8s.run_job(kpod)

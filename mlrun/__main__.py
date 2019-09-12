@@ -13,23 +13,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-from base64 import b64decode
-from os import path, environ
-import click
-from ast import literal_eval
 
+import json
+from ast import literal_eval
+from base64 import b64decode
+from os import environ, path
+
+import click
+
+from . import config
+from .builder import build_image
 from .k8s_utils import k8s_helper
+from .model import RunTemplate
 from .run import new_function
 from .runtimes import RunError
-from .utils import run_keys, update_in, logger, list2dict
-from .builder import build_image
-from .model import RunTemplate
+from .utils import list2dict, run_keys, update_in
 
 
 @click.group()
 def main():
-    pass
+    config.populate()
+
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("url", type=str, required=False)
@@ -235,5 +239,3 @@ def line2keylist(lines: list, keyname='key', valname='path'):
 
 if __name__ == "__main__":
     main()
-
-

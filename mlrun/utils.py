@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import logging
+import re
+from datetime import datetime
 from os import path
 from sys import stdout
 import yaml
@@ -51,10 +53,39 @@ if is_ipython:
 class run_keys:
     input_path = 'input_path'
     output_path = 'output_path'
-    input_objects = 'input_objects'
+    inputs = 'inputs'
     output_artifacts = 'output_artifacts'
     data_stores = 'data_stores'
     secrets = 'secret_sources'
+
+
+def normalize_name(name):
+    # TODO: Must match
+    # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
+    name = re.sub(r'\s+', '-', name)
+    name = name.replace('_', '-')
+    return name.lower()
+
+
+class LogBatchWriter:
+    def __init__(self, func, batch=16, maxtime=5):
+        self.batch = batch
+        self.maxtime = maxtime
+        self.start_time = datetime.now()
+        self.buffer = ''
+        self.func = func
+
+    def write(self, data):
+        self.buffer += data
+        self.batch -= 1
+        elapsed_time = (datetime.now() - self.start_time).seconds
+        if elapsed_time > self.maxtime or self.batch <= 0:
+            self.flush()
+
+    def flush(self):
+        self.func(self.buffer)
+        self.buffer = ''
+        self.start_time = datetime.now()
 
 
 def get_in(obj, keys, default=None):
@@ -152,7 +183,7 @@ def list2dict(lines: list):
 def dict_to_list(struct: dict):
     if not struct:
         return []
-    return [f'{k}={v}' for k, v in struct.items()]
+    return ['{}={}'.format(k, v) for k, v in struct.items()]
 
 
 def dict_to_yaml(struct):
@@ -160,10 +191,12 @@ def dict_to_yaml(struct):
                      sort_keys=False)
 
 
-def uxjoin(base, path):
+def uxjoin(base, path, iter=None):
     if base:
         if not base.endswith('/'):
             base += '/'
+        if iter:
+            base += '{}/'.format(iter)
         return '{}{}'.format(base, path)
     return path
 
@@ -173,7 +206,7 @@ def gen_md_table(header, rows=[]):
     def gen_list(items=[]):
         out = '|'
         for i in items:
-            out += f' {i} |'
+            out += ' {} |'.format(i)
         return out
 
     out = gen_list(header) + '\n' + gen_list(len(header) * ['---']) + '\n'
@@ -195,7 +228,7 @@ def gen_html_table(header, rows=[]):
     def gen_list(items=[], tag='td'):
         out = ''
         for item in items:
-            out += f'<{tag}>{item}</{tag}>'
+            out += '<{}>{}</{}>'.format(tag, item, tag)
         return out
 
     out = '<tr>' + gen_list(header, 'th') + '</tr>\n'

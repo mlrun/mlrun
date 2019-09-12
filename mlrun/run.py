@@ -11,17 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import socket
 from ast import literal_eval
 from copy import deepcopy
 from os import environ
 import yaml
+import inspect
 
 from .execution import MLClientCtx
-from .render import run_to_html
-from .model import RunTemplate, RunRuntime, RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskRuntime, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
+from .model import RunTemplate, RunObject
+from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime, RunError, RunRuntime,
+                       DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
 from .utils import update_in, get_in
 
 
@@ -62,7 +63,7 @@ def get_or_create_ctx(name: str,
     print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-    print('file: {}'.format(context.get_object('infile.txt').get()))
+    print('file: {}'.format(context.get_input('infile.txt').get()))
 
     # RUN some useful code e.g. ML training, data prep, etc.
 
@@ -76,6 +77,9 @@ def get_or_create_ctx(name: str,
     context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
 
     """
+
+    if 'mlrun_context' in globals() and not spec and not event:
+        return globals().get('mlrun_context')
 
     newspec = {}
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -93,7 +97,7 @@ def get_or_create_ctx(name: str,
         newspec = newspec.to_dict()
 
     if newspec and not isinstance(newspec, dict):
-        newspec = yaml.safe_load(newspec)
+        newspec = json.loads(newspec)
 
     if not newspec:
         newspec = {}
@@ -105,63 +109,54 @@ def get_or_create_ctx(name: str,
     if out:
         autocommit = True
 
-    ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit, tmp=tmp)
-    ctx.set_label('host', socket.gethostname())
+    ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit,
+                                tmp=tmp, host=socket.gethostname())
     return ctx
 
 
 runtime_dict = {'remote': RemoteRuntime,
-                'dask': DaskRuntime,
+                'dask': DaskCluster,
                 'job': KubejobRuntime,
                 'mpijob': MpiRuntime,
                 'Function': NuclioDeployRuntime}
 
-def run_start(run, command: str = '', runtime=None, handler=None,
-               rundb: str = '', kfp: bool = False, mode: str = ''):
+
+def new_function(name: str = '', command: str = '', image: str = '', runtime=None, rundb: str = '',
+                 mode=None, kfp=None):
     """Run a local or remote task.
 
-    :param struct:     run template object or dict (see RunTemplate)
     :param command:    runtime command (filename, function url, ..)
     :param runtime:    runtime object/dict, runtime specific details
     :param rundb:      path/url to the metadata and artifact database
     :param kfp:        flag indicating run within kubeflow pipeline
-    :param handler:    pointer or name of a function handler
-    :param mode:       special run mode, e.g. 'noctx'
 
-    :return: run context object (dict) with run metadata, results and status
+    :return: runtime context object
     """
-
-    if run:
-        run = deepcopy(run)
-        if isinstance(run, str):
-            run = literal_eval(run)
-
-    if isinstance(run, RunTemplate):
-        run = RunObject.from_template(run)
-    if isinstance(run, dict) or run is None:
-        run = RunObject.from_dict(run)
+    if not rundb:
+        rundb = environ.get('MLRUN_META_DBPATH', rundb)
 
     kind, runtime = process_runtime(command, runtime)
 
-    if not kind and handler:
-        runner = HandlerRuntime(run)
+    if not kind and not get_in(runtime, 'spec.command', command):
+        runner = HandlerRuntime()
     else:
-        if kind in ['', 'local'] and runtime.get('command'):
-            runner = LocalRuntime(run)
+        if kind in ['', 'local'] and get_in(runtime, 'spec.command'):
+            runner = LocalRuntime.from_dict(runtime)
         elif kind in runtime_dict:
-            runner = runtime_dict[kind](run)
+            runner = runtime_dict[kind].from_dict(runtime)
         else:
-            raise Exception(f'unsupported runtime ({kind}) or missing command, '
+            raise Exception('unsupported runtime ({}) or missing command, '.format(kind)
                             + 'supported runtimes: {}'.format(
                               ','.join(list(runtime_dict.keys()) + ['local'])))
-        runner.set_runtime(runtime)
 
-    runner.handler = handler
-    runner.prep_run(rundb, mode, kfp)
-
-    results = runner.run()
-
-    return results
+    runner.spec.rundb = rundb
+    if name:
+        runner.metadata.name = name
+    if image:
+        runner.spec.image = image
+    runner.kfp = kfp
+    runner.spec.mode = mode
+    return runner
 
 
 def process_runtime(command, runtime):
@@ -170,13 +165,14 @@ def process_runtime(command, runtime):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
         kind = runtime.get('kind', '')
-        command = command or runtime.get('command')
+        command = command or get_in(runtime, 'spec.command', '')
     kind, command = get_kind(kind, command)
     if not runtime:
         runtime = {}
-    runtime['command'] = command
+    update_in(runtime, 'spec.command', command)
     runtime['kind'] = kind
-    parse_command(runtime, command)
+    if kind != 'remote':
+        parse_command(runtime, command)
     return kind, runtime
 
 
@@ -192,21 +188,41 @@ def get_kind(kind, command):
 def parse_command(runtime, url):
     idx = url.find('#')
     if idx > -1:
-        runtime['image'] = url[:idx]
+        update_in(runtime, 'spec.image', url[:idx])
         url = url[idx+1:]
 
     if url:
         arg_list = url.split()
-        runtime['command'] = arg_list[0]
-        runtime['args'] = arg_list[1:]
+        update_in(runtime, 'spec.command', arg_list[0])
+        update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def mlrun_op(name: str = '', project: str = '',
-             image: str = 'v3io/mlrun', runtime: str = '', command: str = '',
+def notebook_function(filename='', handler='', image=None, secret=None, kind=None):
+    from nuclio import build_file
+    name, spec, code = build_file(filename, handler=handler)
+    r = KubejobRuntime()
+    r.kind = kind or 'job'
+    h = get_in(spec, 'spec.handler', '').split(':')
+    r.handler = h[0] if len(h) <= 1 else h[1]
+    r.metadata = get_in(spec, 'spec.metadata')
+    r.build.base_image = get_in(spec, 'spec.build.baseImage')
+    r.build.commands = get_in(spec, 'spec.build.commands')
+    r.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+    r.build.image = get_in(spec, 'spec.build.image', image)
+    r.build.secret = get_in(spec, 'spec.build.secret', secret)
+    r.spec.env = get_in(spec, 'spec.env')
+    for vol in get_in(spec, 'spec.volumes', []):
+        r.spec.volumes.append(vol.get('volume'))
+        r.spec.volume_mounts.append(vol.get('volumeMount'))
+    return r
+
+
+def mlrun_op(name: str = '', project: str = '', function=None,
+             image: str = 'v3io/mlrun', runobj: RunTemplate = None, command: str = '',
              secrets: list = [], params: dict = {}, hyperparams: dict = {},
-             param_file: str = '', inputs: dict = {}, outputs: dict = {},
+             param_file: str = '', selector: str = '', inputs: dict = {}, outputs: dict = {},
              in_path: str = '', out_path: str = '', rundb: str = '',
-             mode: str = ''):
+             mode: str = '', handler: str = '', more_args: list = None):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
     when using kubeflow pipelines, each step is wrapped in an mlrun_op
@@ -275,23 +291,53 @@ def mlrun_op(name: str = '', project: str = '',
     """
     from kfp import dsl
     from os import environ
+    from kubernetes import client as k8s_client
 
     rundb = rundb or environ.get('MLRUN_META_DBPATH')
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
     file_outputs = {}
+
+    runtime = None
+    code_env = None
+    if function:
+        if not hasattr(function, 'to_dict'):
+            raise ValueError('function must specify a function runtime object')
+        if function.kind in ['', 'local']:
+            image = image or function.spec.image
+            cmd = cmd or function.spec.command
+            more_args = more_args or function.spec.args
+            mode = mode or function.spec.mode
+            rundb = rundb or function.spec.rundb
+            code_env = '{}'.format(function.build.inline_code)
+        else:
+            runtime = '{}'.format(function.to_dict())
+
+    if runobj:
+        handler = handler or runobj.spec.handler_name
+        params = params or runobj.spec.parameters
+        hyperparams = hyperparams or runobj.spec.hyperparams
+        param_file = param_file or runobj.spec.param_file
+        selector = selector or runobj.spec.selector
+        inputs = inputs or runobj.spec.inputs
+        in_path = in_path or runobj.spec.input_path
+        out_path = out_path or runobj.spec.output_path
+        secrets = secrets or runobj.spec.secret_sources
+
     for s in secrets:
-        cmd += ['-s', f'{s}']
+        cmd += ['-s', '{}'.format(s)]
     for p, val in params.items():
-        cmd += ['-p', f'{p}={val}']
+        cmd += ['-p', '{}={}'.format(p, val)]
     for x, val in hyperparams.items():
-        cmd += ['-x', f'{x}={val}']
+        cmd += ['-x', '{}={}'.format(x, val)]
     for i, val in inputs.items():
-        cmd += ['-i', f'{i}={val}']
+        cmd += ['-i', '{}={}'.format(i, val)]
     for o, val in outputs.items():
-        cmd += ['-o', f'{o}={val}']
-        file_outputs[o.replace('.', '-')] = f'/tmp/{o}'
+        cmd += ['-o', '{}={}'.format(o, val)]
+        file_outputs[o.replace('.', '-')] = '/tmp/{}'.format(o)
     if project:
         cmd += ['--project', project]
+    if handler:
+        cmd += ['--handler', handler]
     if runtime:
         cmd += ['--runtime', runtime]
     if in_path:
@@ -302,11 +348,20 @@ def mlrun_op(name: str = '', project: str = '',
         cmd += ['--rundb', rundb]
     if param_file:
         cmd += ['--param-file', param_file]
+    if selector:
+        cmd += ['--selector', selector]
     if mode:
         cmd += ['--mode', mode]
+    if more_args:
+        cmd += more_args
 
     if hyperparams or param_file:
-        file_outputs['iterations'] = f'/tmp/iteration_results.csv'
+        file_outputs['iterations'] = '/tmp/iteration_results.csv'
+
+    if image.startswith('.'):
+        if 'DOCKER_REGISTRY_SERVICE_HOST' not in environ:
+            raise ValueError('local image registry DOCKER_REGISTRY_SERVICE_HOST env not found')
+        image = '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), image[1:])
 
     cop = dsl.ContainerOp(
         name=name,
@@ -314,4 +369,7 @@ def mlrun_op(name: str = '', project: str = '',
         command=cmd + [command],
         file_outputs=file_outputs,
     )
+    if code_env:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_EXEC_CODE', value=code_env))
     return cop

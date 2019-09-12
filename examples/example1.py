@@ -10,7 +10,7 @@ def my_func(ctx):
     print(f'Run: {ctx.name} (uid={ctx.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(ctx.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
+    print('file\n{}\n'.format(ctx.get_input('infile.txt').get()))
 
     # log scalar values (KFP metrics)
     ctx.log_result('accuracy', p1 * 2)

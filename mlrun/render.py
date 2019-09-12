@@ -92,6 +92,16 @@ def artifacts_html(x, pathcol='path'):
     return html
 
 
+def inputs_html(x):
+    if not x:
+        return ''
+    html = ''
+    for k, v in x.items():
+        link, ref = link_to_ipython(v)
+        html += '<div {}title="{}">{}</div>'.format(ref, link, k)
+    return html
+
+
 def run_to_html(results, display=True):
     html = html_dict('Metadata', results['metadata'])
     html += html_dict('Spec', results['spec'])
@@ -287,7 +297,7 @@ def runs_to_html(df, display=True):
         except ValueError:
             return ''
 
-    df['inputs'] = df['inputs'].apply(artifacts_html)
+    df['inputs'] = df['inputs'].apply(inputs_html)
     df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(x, 'target_path'))
     df['labels'] = df['labels'].apply(dict_html)
     df['parameters'] = df['parameters'].apply(dict_html)
@@ -319,7 +329,7 @@ def artifacts_to_html(df, display=True):
         df['tree'] = df['tree'].apply(html_crop)
     df['path'] = df['path'].apply(link_html)
     df['hash'] = df['hash'].apply(html_crop)
-    df['sources'] = df['sources'].apply(artifacts_html)
+    df['sources'] = df['sources'].apply(inputs_html)
     df['labels'] = df['labels'].apply(dict_html)
     df['producer'] = df['producer'].apply(prod_htm)
     df['updated'] = df['updated'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))

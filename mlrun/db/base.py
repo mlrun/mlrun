@@ -36,6 +36,9 @@ class RunDBInterface:
     def store_run(self, struct, uid, project='', commit=False):
         pass
 
+    def update_run(self, updates: dict, uid, project=''):
+        pass
+
     def read_run(self, uid, project=''):
         pass
 
@@ -64,9 +67,9 @@ class RunDBInterface:
     def del_artifacts(self, name='', project='', tag='', labels=[], days_ago=0):
         pass
 
-    def store_metric(self, keyvals={}, timestamp=None, labels={}):
+    def store_metric(self, uid, project='', keyvals={}, timestamp=None, labels={}):
         pass
 
-    def read_metric(self, keys, query=''):
+    def read_metric(self, keys, project='', query=''):
         pass
 

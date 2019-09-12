@@ -20,8 +20,8 @@ from aiohttp.client import ClientSession
 import logging
 from sys import stdout
 
-from .base import MLRuntime
-from ..utils import update_in
+from .base import RunRuntime, RunError
+from ..utils import logger
 from ..lists import RunList
 from ..model import RunObject
 
@@ -30,24 +30,24 @@ from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
 
 
-class RemoteRuntime(MLRuntime):
+class RemoteRuntime(RunRuntime):
     kind = 'remote'
 
-    def _run(self, runobj: RunObject):
+    def _run(self, runobj: RunObject, execution):
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
-        log_level = self.execution.log_level
-        command = self.runtime.command
+        log_level = execution.log_level
+        command = self.spec.command
         headers = {'x-nuclio-log-level': log_level}
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
-            print('ERROR: %s', str(err))
+            logger.error('error invoking function: {}'.format(err))
             raise OSError('error: cannot run function at url {}'.format(command))
 
         if not resp.ok:
-            print('bad resp!!\n', resp.text)
-            return None
+            logger.error('bad function resp!!\n{}'.format(resp.text))
+            raise RunError('bad function response')
 
         logs = resp.headers.get('X-Nuclio-Logs')
         if logs:
@@ -55,17 +55,43 @@ class RemoteRuntime(MLRuntime):
 
         return resp.json()
 
-    def _run_many(self, tasks):
+    def _run_many(self, tasks, execution, runobj: RunObject):
         secrets = self._secrets.to_serial() if self._secrets else None
-        log_level = self.execution.log_level
+        log_level = execution.log_level
         headers = {'x-nuclio-log-level': log_level}
 
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            invoke_async(tasks, self.runtime.command, headers, secrets))
+            self.invoke_async(tasks, self.spec.command, headers, secrets))
 
         loop.run_until_complete(future)
         return future.result()
+
+    async def invoke_async(self, runs, url, headers, secrets):
+        results = RunList()
+        tasks = []
+
+        async with ClientSession() as session:
+            for run in runs:
+                self.store_run(run)
+                run.spec.secret_sources = secrets or []
+                tasks.append(asyncio.ensure_future(
+                    submit(session, url, run.to_dict(), headers),
+                ))
+
+            for status, resp, logs in await asyncio.gather(*tasks):
+
+                if status != 200:
+                    logger.error("failed to access {} - {}".format(url, resp))
+                else:
+                    results.append(json.loads(resp))
+
+                if logs:
+                    parsed = parse_logs(logs)
+                    if parsed:
+                        print(parsed, '----------')
+
+        return results
 
 
 def parse_logs(logs):
@@ -88,32 +114,6 @@ async def submit(session, url, body, headers=None):
         text = await response.text()
         logs = response.headers.get('X-Nuclio-Logs', None)
         return response.status, text, logs
-
-
-async def invoke_async(runs, url, headers, secrets):
-    results = RunList()
-    tasks = []
-
-    async with ClientSession() as session:
-        for run in runs:
-            run.spec.secret_sources = secrets
-            tasks.append(asyncio.ensure_future(
-                submit(session, url, run.to_dict(), headers),
-            ))
-
-        for status, resp, logs in await asyncio.gather(*tasks):
-
-            if status != 200:
-                print("failed to access {} - {}".format(url, resp))
-            else:
-                results.append(json.loads(resp))
-
-            if logs:
-                parsed = parse_logs(logs)
-                if parsed:
-                    print(parsed, '----------')
-
-    return results
 
 
 def fake_nuclio_context(body, headers=None):

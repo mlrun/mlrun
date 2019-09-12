@@ -12,120 +12,113 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.run import get_or_create_ctx, run_start
-from mlrun.utils import run_keys, update_in
 from os import environ
-from conftest import rundb_path, out_path, tag_test, here, examples_path
+
+import pytest
+
+from conftest import (examples_path, has_secrets, here, out_path, rundb_path,
+                      tag_test)
+from mlrun import new_function, NewRun, RunObject, get_run_db
+from mlrun.utils import run_keys, update_in
 
 
-def my_func(spec=None):
-    ctx = get_or_create_ctx('run_test', spec=spec)
-    p1 = ctx.get_param('p1', 1)
-    p2 = ctx.get_param('p2', 'a-string')
-
-    print(f'Run: {ctx.name} (uid={ctx.uid})')
+def my_func(context, p1=1, p2='a-string'):
+    print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}\n')
-    print('file\n{}\n'.format(ctx.get_object('infile.txt').get()))
+    print('file\n{}\n'.format(context.get_input('infile.txt').get()))
 
-    ctx.log_result('accuracy', p1 * 2)
-    ctx.log_metric('loss', 7)
-    ctx.log_artifact('chart')
-    return ctx
+    context.log_result('accuracy', p1 * 2)
+    context.log_metric('loss', 7)
+    context.log_artifact('chart', body='abc')
+
+
+def verify_state(result: RunObject):
+    state = result.status.state
+    assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)
+
+
+base_spec = NewRun(params={'p1': 8}, out_path=out_path)
+base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
+
+s3_spec = base_spec.copy().with_secrets('file', 'secrets.txt')
+s3_spec.spec.inputs = {'infile.txt': 's3://yarons-tests/infile.txt'}
 
 
 def test_noparams():
-    environ['MLRUN_META_DBPATH'] = rundb_path
-    result = my_func().to_dict()
+    result = new_function().run(handler=my_func)
 
-    assert result['status']['outputs'].get('accuracy') == 2, 'failed to run'
-    assert result['status'][run_keys.output_artifacts][0].get('key') == 'chart', 'failed to run'
-
-
-basespec = { 'metadata': {}, 'spec': {
-    'parameters':{'p1':8},
-    'secret_sources': [{'kind':'file', 'source': 'secrets.txt'}],
-    run_keys.output_path: out_path,
-    run_keys.input_objects: [{'key':'infile.txt', 'path':'s3://yarons-tests/infile.txt'}],
-}}
+    assert result.output('accuracy') == 2, 'failed to run'
+    assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
 
 
 def test_with_params():
-    environ['MLRUN_META_DBPATH'] = rundb_path
-    spec = tag_test(basespec, 'test_with_params')
+    spec = tag_test(base_spec, 'test_with_params')
+    result = new_function().run(spec, handler=my_func)
 
-    result = my_func(spec).to_dict()
-    assert result['status']['outputs'].get('accuracy') == 16, 'failed to run'
-    assert result['status'][run_keys.output_artifacts][0].get('key') == 'chart', 'failed to run'
-
-basespec2 =  {'metadata':
-                 {},
-             'spec':
-                 {'parameters': {'p1': 5},
-                  run_keys.input_objects: [],
-                  run_keys.output_path: out_path,
-                  'secret_sources': [
-                      {'kind': 'file', 'source': 'secrets.txt'}]}}
+    assert result.output('accuracy') == 16, 'failed to run'
+    assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
 
 
-basespec_project =  {'metadata':
-                 {'labels': {'owner': 'yaronh'},
-                  'project': 'myproj'},
-             'spec':
-                 {'parameters': {'p1': 5},
-                  'input_objects': [],
-                  run_keys.output_path: out_path,
-                  'secret_sources': [{'kind': 'file', 'source': 'secrets.txt'}]}}
+@pytest.mark.skipif(not has_secrets(), reason='no secrets')
+def test_with_params_s3():
+    spec = tag_test(s3_spec, 'test_with_params')
+    result = new_function().run(spec, handler=my_func)
 
-
-def verify_state(result):
-    state = result['status']['state']
-    assert state == 'completed', f'wrong state ({state}) ' + result['status'].get('error', '')
-
-
-def test_handler():
-    run_spec = tag_test(basespec2, 'test_handler')
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
-    print(result)
-    assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
-    verify_state(result)
+    assert result.output('accuracy') == 16, 'failed to run'
+    assert result.status.output_artifacts[0].get('key') == 'chart', 'failed to run'
 
 
 def test_handler_project():
-    run_spec_project = tag_test(basespec_project, 'test_handler_project')
-    result = run_start(run_spec_project, handler=my_func, rundb=rundb_path)
+    spec = tag_test(base_spec, 'test_handler_project')
+    spec.metadata.project = 'myproj'
+    spec.metadata.labels = {'owner': 'yaronh'}
+    result = new_function().run(spec, handler=my_func)
     print(result)
-    assert result['status']['outputs'].get('accuracy') == 10, 'failed to run'
-    verify_state(result)
-
-def test_handler_empty_hyper():
-    run_spec = tag_test(basespec2, 'test_handler_empty_hyper')
-    run_spec['spec']['hyperparams'] = {'p1': [2, 4]}
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
+    assert result.output('accuracy') == 16, 'failed to run'
     verify_state(result)
 
 
 def test_handler_hyper():
-    run_spec = tag_test(basespec2, 'test_handler_hyper')
-    run_spec['spec']['hyperparams'] = {'p1': [1, 2, 3]}
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
+    run_spec = tag_test(base_spec, 'test_handler_hyper')
+    run_spec.with_hyper_params({'p1': [1, 5, 3]}, selector='max.accuracy')
+    result = new_function().run(run_spec, handler=my_func)
     print(result)
-    assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
+    assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
+    assert result.status.outputs['best_iteration'] == 2, 'failed to select best iteration'
     verify_state(result)
+
 
 def test_handler_hyperlist():
-    run_spec = tag_test(basespec2, 'test_handler_hyperlist')
-    run_spec['spec']['param_file'] = 'param_file.csv'
-    result = run_start(run_spec, handler=my_func, rundb=rundb_path)
+    run_spec = tag_test(base_spec, 'test_handler_hyperlist')
+    run_spec.spec.param_file = '{}/param_file.csv'.format(here)
+    result = new_function().run(run_spec, handler=my_func)
     print(result)
-    assert len(result['status']['iterations']) == 3+1, 'hyper parameters test failed'
+    assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
     verify_state(result)
+
 
 def test_local_runtime():
-    spec = tag_test(basespec, 'test_local_runtime')
-    result = run_start(spec, command=f'{examples_path}/training.py', rundb=rundb_path)
+    spec = tag_test(base_spec, 'test_local_runtime')
+    result = new_function(command='{}/training.py'.format(
+        examples_path)).run(spec)
     verify_state(result)
 
-def test_local_no_context():
-    spec = tag_test(basespec, 'test_local_no_context')
-    result = run_start(spec, command=f'{here}/no_ctx.py', rundb=rundb_path, mode='noctx')
+
+def test_local_handler():
+    spec = tag_test(base_spec, 'test_local_runtime')
+    result = new_function(command='{}/handler.py'.format(
+        examples_path)).run(spec, handler='my_func')
     verify_state(result)
+
+
+def test_local_no_context():
+    spec = tag_test(base_spec, 'test_local_no_context')
+    spec.spec.parameters = {'xyz': '789'}
+    result = new_function(command='{}/no_ctx.py'.format(here),
+                        mode='noctx').run(spec)
+    verify_state(result)
+
+    db = get_run_db().connect()
+    log = str(db.get_log(result.metadata.uid))
+    print(log)
+    assert log.find(", '--xyz', '789']") != -1, 'params not detected in noctx'

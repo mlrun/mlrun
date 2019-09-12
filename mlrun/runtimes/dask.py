@@ -16,42 +16,63 @@ import json
 from os import environ
 from kubernetes import client
 
-from ..model import RunObject, K8sRuntime
-from .base import MLRuntime
+from ..execution import MLClientCtx
+from .local import get_func_arg
+from ..model import RunObject
+from .base import RunRuntime
+from .kubejob import KubejobRuntime, KubejobSpec
 from ..lists import RunList
 
-class DaskCluster(K8sRuntime):
-    kind = 'dask'
-    def __init__(self, kind=None, command=None, args=None, image=None,
-                 metadata=None, build=None, volumes=None, volume_mounts=None,
-                 env=None, resources=None, image_pull_policy=None,
-                 service_account=None, extra_pip=None):
-        args = args or ['dask-worker']
-        super().__init__(kind, command, args, image, metadata, build, volumes,
-                         volume_mounts, env, resources, image_pull_policy,
-                         service_account)
-        self._cluster = None
+
+class DaskSpec(KubejobSpec):
+    def __init__(self, command=None, args=None, image=None, rundb=None, mode=None, workers=None,
+                 volumes=None, volume_mounts=None, env=None, resources=None,
+                 replicas=None, image_pull_policy=None, service_account=None, extra_pip=None ):
+
+        super().__init__(command=command, args=args, image=image, rundb=rundb,
+                         mode=mode, workers=workers, volumes=volumes, volume_mounts=volume_mounts,
+                         env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
+                         service_account=service_account)
         self.extra_pip = extra_pip
+        self.args = args or ['dask-worker']
+
+
+class DaskCluster(KubejobRuntime):
+    kind = 'dask'
+
+    def __init__(self, spec=None,
+                 metadata=None, build=None, extra_pip=None):
+        super().__init__(spec, metadata, build)
+        self._cluster = None
+        self.build.base_image = self.build.base_image or 'daskdev/dask:latest'
         self.set_label('mlrun/class', self.kind)
 
+    @property
+    def spec(self) -> DaskSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, 'spec', DaskSpec)
+
     def to_pod(self):
-        image = self.image or 'daskdev/dask:latest'
-        env = self.env
-        if self.extra_pip:
-            env.append(self.extra_pip)
+        image = self.spec.image or 'daskdev/dask:latest'
+        env = self.spec.env
+        if self.spec.extra_pip:
+            env.append(self.spec.extra_pip)
         container = client.V1Container(name='base',
                                        image=image,
-                                       env=self.env,
+                                       env=env,
                                        command=None,
-                                       args=self.args,
-                                       image_pull_policy=self.image_pull_policy,
-                                       volume_mounts=self.volume_mounts,
-                                       resources=self.resources)
+                                       args=self.spec.args,
+                                       image_pull_policy=self.spec.image_pull_policy,
+                                       volume_mounts=self.spec.volume_mounts,
+                                       resources=self.spec.resources)
 
         pod_spec = client.V1PodSpec(containers=[container],
                                     restart_policy='Never',
-                                    volumes=self.volumes,
-                                    service_account=self.service_account)
+                                    volumes=self.spec.volumes,
+                                    service_account=self.spec.service_account)
 
         meta = client.V1ObjectMeta(namespace=self.metadata.namespace or 'default-tenant',
                                    labels=self.metadata.labels,
@@ -64,56 +85,87 @@ class DaskCluster(K8sRuntime):
     def initialized(self):
         return True if self._cluster else False
 
-    @property
-    def cluster(self):
+    def cluster(self, scale=0):
         if not self._cluster:
             try:
                 from dask_kubernetes import KubeCluster
+                from dask.distributed import Client
             except ImportError as e:
                 print('missing dask_kubernetes, please run "pip install dask_kubernetes"')
                 raise e
             self._cluster = KubeCluster(self.to_pod())
+            if not scale:
+                self._cluster.adapt()
+            else:
+                self._cluster.scale(scale)
+            Client(self._cluster)
         return self._cluster
 
     @property
     def client(self):
-        import distributed
-        return distributed.Client(self.cluster)
+        from dask.distributed import Client, default_client
+        try:
+            return default_client()
+        except ValueError:
+            if self._cluster:
+                return Client(self._cluster)
+            return Client()
 
-
-class DaskRuntime(MLRuntime):
-    kind = 'dask'
-
-    def _run(self, runobj: RunObject):
-        self._force_handler()
-        from dask import delayed
-        if self.rundb:
-            # todo: remote dask via k8s spec env
-            environ['MLRUN_META_DBPATH'] = self.rundb
-
-        task = delayed(self.handler)(runobj.to_dict())
-        out = task.compute()
-        if isinstance(out, dict):
-            return out
-        return json.loads(out)
-
-    def _run_many(self, tasks):
-        self._force_handler()
+    def close(self):
         from dask.distributed import Client, default_client, as_completed
         try:
             client = default_client()
+            client.close()
         except ValueError:
-            client = Client()  # todo: k8s client
+            pass
+        if self._cluster:
+            self._cluster.close()
 
+    def _run(self, runobj: RunObject, execution):
+        handler = runobj.spec.handler
+        self._force_handler(handler)
+        from dask import delayed
+        if self.spec.rundb:
+            # todo: remote dask via k8s spec env
+            environ['MLRUN_META_DBPATH'] = self.spec.rundb
+
+        arg_list = get_func_arg(handler, runobj, execution)
+        try:
+            task = delayed(handler)(*arg_list)
+            out = task.compute()
+        except Exception as e:
+            err = str(e)
+            execution.set_state(error=err)
+
+        if out:
+            print('out:', out)
+            execution.log_result('return', out)
+
+        return None
+
+    def _run_many(self, tasks, execution, runobj: RunObject):
+        handler = runobj.spec.handler
+        self._force_handler(handler)
+        futures = []
+        contexts = []
         tasks = list(tasks)
-        results = RunList()
-        futures = client.map(self.handler, tasks)
-        for batch in as_completed(futures, with_results=True).batches():
-            for future, result in batch:
-                if result:
-                    result = self._post_run(result)
-                    results.append(result)
-                else:
-                    print("Dask RESULT = None")
+        for task in tasks:
+            ctx = MLClientCtx.from_dict(task.to_dict(),
+                                        self.spec.rundb,
+                                        autocommit=True)
+            args = get_func_arg(handler, task, ctx)
+            resp = self.client.submit(handler, *args)
+            futures.append(resp)
+            contexts.append(ctx)
 
+        resps = self.client.gather(futures)
+        results = RunList()
+        for r, c, t in zip(resps, contexts, tasks):
+            if r:
+                c.log_result('return', r)
+            # todo: handle task errors
+            resp = self._post_run(task=t)
+            results.append(resp)
+
+        print(resps)
         return results

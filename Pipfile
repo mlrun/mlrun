@@ -5,6 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 pytest = "*"
+twine = "*"
 
 [packages]
 GitPython = ">=2.1.0"

@@ -14,11 +14,9 @@
 
 import inspect
 import json
-from base64 import b64encode
 from copy import deepcopy
 from os import environ
 from pprint import pformat
-from kubernetes import client
 from .utils import dict_to_yaml
 
 
@@ -38,20 +36,21 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
-    def to_dict(self, fields=None):
+    def to_dict(self, fields=None, exclude=None):
         struct = {}
         fields = fields or self._dict_fields
         if not fields:
             fields = list(inspect.signature(self.__init__).parameters.keys())
         for t in fields:
-            val = getattr(self, t, None)
-            if val is not None and not (isinstance(val, dict) and not val):
-                if hasattr(val, 'to_dict'):
-                    val = val.to_dict()
-                    if val:
+            if not exclude or t not in exclude:
+                val = getattr(self, t, None)
+                if val is not None and not (isinstance(val, dict) and not val):
+                    if hasattr(val, 'to_dict'):
+                        val = val.to_dict()
+                        if val:
+                            struct[t] = val
+                    else:
                         struct[t] = val
-                else:
-                    struct[t] = val
         return struct
 
     @classmethod
@@ -72,7 +71,7 @@ class ModelObj:
         return json.dumps(self.to_dict())
 
     def to_str(self):
-        return pformat(self.to_dict())
+        return '{}'.format(self.to_dict())
 
     def __str__(self):
         return str(self.to_dict())
@@ -89,38 +88,6 @@ class BaseMetadata(ModelObj):
         self.annotations = annotations or {}
 
 
-class RunRuntime(ModelObj):
-    def __init__(self, kind=None, command=None, args=None, image=None, metadata=None, spec=None):
-        self.kind = kind or ''
-        self.command = command or ''
-        self.image = image or ''
-        self.args = args or []
-        self._metadata = None
-        self._spec = None
-        self.metadata = metadata
-        self.spec = spec or {}
-
-    @property
-    def spec(self):
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec')
-
-    @property
-    def metadata(self) -> BaseMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
-
-    def set_label(self, key, value):
-        self.metadata.labels[key] = str(value)
-        return self
-
-
 class ImageBuilder(ModelObj):
     def __init__(self, inline_code=None, source=None, image=None, base_image=None,
                  commands=None, secret=None, registry=None):
@@ -131,70 +98,7 @@ class ImageBuilder(ModelObj):
         self.commands = commands or []
         self.secret = secret
         self.registry = registry
-
-
-class K8sRuntime(RunRuntime):
-    def __init__(self, kind=None, command=None, args=None, image=None,
-                 metadata=None, build=None, volumes=None, volume_mounts=None,
-                 env=None, resources=None, image_pull_policy=None,
-                 service_account=None):
-        try:
-            from kfp.dsl import ContainerOp
-        except ImportError as e:
-            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
-            raise e
-
-        super().__init__(kind, command, args, image, metadata, None)
-        self._build = None
-        self.build = build
-        self.volumes = volumes or []
-        self.volume_mounts = volume_mounts or []
-        self.env = env or []
-        self.resources = resources
-        self.image_pull_policy = image_pull_policy
-        self.service_account = service_account
-        self._cop = ContainerOp('name', 'image')
-
-    def apply(self, modify):
-        modify(self._cop)
-        self._merge()
-        return self
-
-    def _merge(self):
-        for k, v in self._cop.pod_labels.items():
-            self.metadata.labels[k] = v
-        for k, v in self._cop.pod_annotations.items():
-            self.metadata.annotations[k] = v
-        if self._cop.container.env:
-            [self.env.append(e) for e in self._cop.container.env]
-            self._cop.container.env.clear()
-        if self._cop.volumes:
-            [self.volumes.append(v) for v in self._cop.volumes]
-            self._cop.volumes.clear()
-        if self._cop.container.volume_mounts:
-            [self.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
-            self._cop.container.volume_mounts.clear()
-
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, 'build', ImageBuilder)
-
-    def set_env(self, name, value):
-        self.env.append(client.V1EnvVar(name=name, value=value))
-        return self
-
-    def with_code(self, body=None, from_file=None):
-        if not body and not from_file:
-            raise ValueError('specify body or file name')
-        if from_file:
-            with open(from_file) as fp:
-                body = fp.read()
-        self.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
-        return self
+        self.build_pod = None
 
 
 class RunMetadata(ModelObj):
@@ -217,28 +121,35 @@ class RunMetadata(ModelObj):
 
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
-                 input_objects=None, output_artifacts=None,
+                 selector=None, handler=None, inputs=None, output_artifacts=None,
                  input_path=None, output_path=None,
                  secret_sources=None, data_stores=None):
 
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
-        self._input_objects = input_objects
+        self.selector = selector
+        self.handler = handler
+        self._inputs = inputs
         self._output_artifacts = output_artifacts
         self.input_path = input_path
         self.output_path = output_path
         self._secret_sources = secret_sources or []
         self._data_stores = data_stores
 
-    @property
-    def input_objects(self):
-        return self._input_objects
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude=['handler'])
+        if self.handler and isinstance(self.handler, str):
+            struct['handler'] = self.handler
+        return struct
 
-    @input_objects.setter
-    def input_objects(self, input_objects):
-        self._verify_list(input_objects, 'input_objects')
-        self._input_objects = input_objects
+    @property
+    def inputs(self):
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, inputs):
+        self._inputs = self._verify_dict(inputs, 'inputs')
 
     @property
     def output_artifacts(self):
@@ -267,11 +178,24 @@ class RunSpec(ModelObj):
         self._verify_list(data_stores, 'data_stores')
         self._data_stores = data_stores
 
+    @property
+    def handler_name(self):
+        if self.handler:
+            if inspect.isfunction(self.handler):
+                return self.handler.__name__
+            else:
+                return str(self.handler)
+        return ''
+
 
 class RunStatus(ModelObj):
-    def __init__(self, state=None, outputs=None, output_artifacts=None,
+    def __init__(self, state=None, error=None, host=None, commit=None,
+                 outputs=None, output_artifacts=None,
                  start_time=None, last_update=None, iterations=None):
-        self.state = state
+        self.state = state or 'created'
+        self.error = error
+        self.host = host
+        self.commit = commit
         self.outputs = outputs
         self.output_artifacts = output_artifacts
         self.start_time = start_time
@@ -303,16 +227,24 @@ class RunTemplate(ModelObj):
     def metadata(self, metadata):
         self._metadata = self._verify_dict(metadata, 'metadata', RunMetadata)
 
-    def with_params(self, params):
-        self.spec.parameters = params
+    def with_params(self, **kwargs):
+        self.spec.parameters = kwargs
         return self
 
-    def with_hyper_params(self, hyperparams):
+    def with_input(self, key, path):
+        if not self.spec.inputs:
+            self.spec.inputs = {}
+        self.spec.inputs[key] = path
+        return self
+
+    def with_hyper_params(self, hyperparams, selector=None):
         self.spec.hyperparams = hyperparams
+        self.spec.selector = selector
         return self
 
-    def with_param_file(self, param_file):
+    def with_param_file(self, param_file, selector=None):
         self.spec.param_file = param_file
+        self.spec.selector = selector
         return self
 
     def with_secrets(self, kind, source):
@@ -347,4 +279,38 @@ class RunObject(RunTemplate):
     def status(self, status):
         self._status = self._verify_dict(status, 'status', RunStatus)
 
+    def output(self, key):
+        if self.status.outputs and key in self.status.outputs:
+            return self.status.outputs.get(key)
+        artifact = self.artifact(key)
+        if artifact:
+            return artifact.get('target_path')
+        return None
 
+    def artifact(self, key):
+        if self.status.output_artifacts:
+            for a in self.status.output_artifacts:
+                if a['key'] == key:
+                    return a
+        return None
+
+
+def NewRun(name=None, project=None, handler=None,
+           params=None, hyper_params=None, param_file=None, selector=None,
+           inputs=None, outputs=None,
+           in_path=None, out_path=None, secrets=None):
+
+    run = RunTemplate()
+    run.metadata.name = name
+    run.metadata.project = project
+    run.spec.handler = handler
+    run.spec.parameters = params
+    run.spec.hyperparams = hyper_params
+    run.spec.param_file = param_file
+    run.spec.selector = selector
+    run.spec.inputs = inputs
+    run.spec.output_artifacts = outputs or []
+    run.spec.input_path = in_path
+    run.spec.output_path = out_path
+    run.spec.secret_sources = secrets or []
+    return run

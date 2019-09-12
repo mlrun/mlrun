@@ -23,7 +23,7 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in, dict_to_yaml
+from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger
 
 
 class MLCtxValueError(Exception):
@@ -39,7 +39,7 @@ class MLClientCtx(object):
     base metadata include: uid, name, project, and iteration (for hyper params)
     users can set labels and annotations using set_labels(), set_annotation()
     access parameters and secrets using get_param(), get_secret()
-    access input data objects using get_object()
+    access input data objects using get_input()
     store results, artifacts, and real-time metrics using log_xx methods
 
     see doc for the individual params and methods
@@ -56,7 +56,7 @@ class MLClientCtx(object):
         # runtime db service interfaces
         self._rundb = None
         self._tmpfile = tmp
-        self._logger = None
+        self._logger = logger
         self._log_level = 'info'
         self._matrics_db = None
         self._autocommit = autocommit
@@ -69,12 +69,13 @@ class MLClientCtx(object):
         #self._hyper_parameters = {}
         self._in_path = ''
         self._out_path = ''
-        self._objects = {}
+        self._inputs = {}
 
         self._outputs = {}
         self._state = 'created'
         self._error = None
         self._commit = ''
+        self._host = None
         self._start_time = datetime.now()
         self._last_update = datetime.now()
         self._iteration_results = None
@@ -101,7 +102,8 @@ class MLClientCtx(object):
         return resp
 
     @classmethod
-    def from_dict(cls, attrs: dict, rundb='', autocommit=False, tmp='', with_status=False):
+    def from_dict(cls, attrs: dict, rundb='', autocommit=False, tmp='',
+                  host=None):
 
         self = cls(autocommit=autocommit, tmp=tmp)
 
@@ -121,7 +123,7 @@ class MLClientCtx(object):
             self._parameters = spec.get('parameters', self._parameters)
             self._out_path = spec.get(run_keys.output_path, self._out_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
-            in_list = spec.get(run_keys.input_objects)
+            inputs = spec.get(run_keys.inputs)
 
         self._init_dbs(rundb)
 
@@ -129,14 +131,14 @@ class MLClientCtx(object):
             # init data related objects (require DB & Secrets to be set first)
             self._data_stores.from_dict(spec)
             self._artifacts_manager.from_dict(spec)
-            if in_list and isinstance(in_list, list):
-                for item in in_list:
-                    self._set_object(item['key'], item.get('path'))
+            if inputs and isinstance(inputs, dict):
+                for k, v in inputs.items():
+                    self._set_input(k, v)
 
-        status = attrs.get('status')
-        if status and with_status:
-            self._state = status.get('state', self._state)
-            self._error = status.get('error', self._error)
+        if host:
+            self._host = host
+            self._state = 'running'
+            self.set_label('host', host)
 
         self._update_db(commit=True)
         return self
@@ -162,6 +164,11 @@ class MLClientCtx(object):
     def project(self):
         """project name, runs can be categorized by projects"""
         return self._project
+
+    @property
+    def logger(self):
+        """built-in logger interface"""
+        return self._logger
 
     @property
     def log_level(self):
@@ -225,20 +232,22 @@ class MLClientCtx(object):
             return self._secrets_manager.get(key)
         return None
 
-    def _set_object(self, key, realpath=''):
-        if not realpath:
-            realpath = uxjoin(self._in_path, key)
-        object = self._data_stores.object(key, realpath)
-        self._objects[key] = object
-        return object
+    def _set_input(self, key, url=''):
+        if not url:
+            url = key
+        if self.in_path and not (url.startswith('/') or '://' in url):
+            url = uxjoin(self._in_path, key)
+        obj = self._data_stores.object(key, url)
+        self._inputs[key] = obj
+        return obj
 
-    def get_object(self, key: str, realpath: str = ''):
+    def get_input(self, key: str, url: str = ''):
         """get an input data object, data objects have methods such as
          .get(), .download(), .url, .. to access the actual data"""
-        if key not in self._objects:
-            return self._set_object(key, realpath)
+        if key not in self._inputs:
+            return self._set_input(key, url)
         else:
-            return self._objects[key]
+            return self._inputs[key]
 
     def log_result(self, key: str, value):
         """log a scalar result value"""
@@ -254,12 +263,17 @@ class MLClientCtx(object):
             self._outputs[str(p)] = outputs[p]
         self._update_db()
 
-    def log_iteration_results(self, results: list, commit=False):
+    def log_iteration_results(self, best, summary: list, task: dict, commit=False):
         """Reserved for internal use"""
-        if not isinstance(results, list):
-            raise MLCtxValueError('iteration results must be a table (list of lists)')
 
-        self._iteration_results = results
+        if best:
+            self._outputs['best_iteration'] = best
+            for k, v in get_in(task, ['status', 'outputs'], {}).items():
+                self._outputs[k] = v
+            for a in get_in(task, ['status', run_keys.output_artifacts], []):
+                self._artifacts_manager.output_artifacts[a['key']] = a
+
+        self._iteration_results = summary
         if commit:
             self._update_db(commit=True)
 
@@ -323,7 +337,7 @@ class MLClientCtx(object):
                 {'runtime': self._runtime,
                  'log_level': self._log_level,
                  'parameters': self._parameters,
-                 run_keys.input_objects: [item.to_dict() for item in self._objects.values()],
+                 run_keys.inputs: {k: v.url for k, v in self._inputs.items()},
                  },
             'status':
                 {'state': self._state,
@@ -334,6 +348,7 @@ class MLClientCtx(object):
 
         set_if_valid(struct['status'], 'error', self._error)
         set_if_valid(struct['status'], 'commit', self._commit)
+        set_if_valid(struct['status'], 'host', self._host)
 
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results

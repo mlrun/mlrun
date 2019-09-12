@@ -71,7 +71,7 @@ def handler(context, event):
     # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
     mlctx = get_or_create_ctx('mytask', event=event)
     is_tsdb = mlctx.get_param('is_tsdb', False)
-    metrics_table = mlctx.get_object('metrics').url
+    metrics_table = mlctx.get_input('metrics').url
     features_table = mlctx.get_param('features_table', 'features')
     features_table = os.path.join(mlctx.out_path, features_table)
     shards = mlctx.get_param('shards', 1)

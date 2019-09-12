@@ -19,10 +19,9 @@ import base64
 from io import BytesIO, StringIO
 import pathlib
 
-#import pandas as pd
 from .datastore import StoreManager
 from .db import RunDBInterface
-from .utils import uxjoin, run_keys
+from .utils import uxjoin, run_keys, logger
 from .model import ModelObj
 
 
@@ -69,7 +68,14 @@ class ArtifactManager:
     def to_dict(self, struct):
         struct['spec'][run_keys.output_artifacts] = [{'key': k, 'path': v} for k, v in self.outputs_spec.items()]
         struct['spec'][run_keys.output_path] = self.out_path
-        struct['status'][run_keys.output_artifacts] = [item.base_dict() for item in self.output_artifacts.values()]
+
+        artifacts = []
+        for artifact in self.output_artifacts.values():
+            if isinstance(artifact, dict):
+                artifacts.append(artifact)
+            else:
+                artifacts.append(artifact.base_dict())
+        struct['status'][run_keys.output_artifacts] = artifacts
 
     def log_artifact(self, execution, item, body=None, target_path='', src_path='',
                      tag='', viewer='', upload=True, labels=None):
@@ -87,7 +93,7 @@ class ArtifactManager:
         if key in self.outputs_spec.keys():
             target_path = self.outputs_spec[key] or target_path
         if not target_path:
-            target_path = uxjoin(self.out_path, key)
+            target_path = uxjoin(self.out_path, key, execution.iteration)
         item.target_path = target_path
         item.tree = execution.tag
         if labels:
@@ -114,8 +120,11 @@ class ArtifactManager:
 
         if self.artifact_db:
             if not item.sources:
-                item.sources = execution.to_dict()['spec'][run_keys.input_objects]
+                item.sources = execution.to_dict()['spec'][run_keys.inputs]
             item.producer = execution.get_meta()
+            if execution.iteration:
+                key = '{}-{}'.format(execution.iteration, key)
+                item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
 
     def get_store(self, url):
@@ -124,13 +133,14 @@ class ArtifactManager:
 
 class Artifact(ModelObj):
 
-    _dict_fields = ['key', 'kind', 'tree', 'src_path', 'target_path', 'hash',
+    _dict_fields = ['key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
                     'description', 'viewer', 'inline']
     kind = ''
 
     def __init__(self, key, body=None, src_path=None, target_path='',
-                 viewer=None, inline=False):
-        self._key = key
+                 viewer=None, inline=False, iter=None):
+        self.key = key
+        self.iter = iter
         self.tree = None
         self.updated = None
         self.target_path = target_path
@@ -150,10 +160,6 @@ class Artifact(ModelObj):
 
     def _post_init(self):
         pass
-
-    @property
-    def key(self):
-        return self._key
 
     @property
     def inline(self):
@@ -180,7 +186,7 @@ class PlotArtifact(Artifact):
         if not self._body or not isinstance(self._body, matplotlib.figure.Figure):
             raise ValueError('matplotlib fig must be provided as artifact body')
         if not pathlib.Path(self.key).suffix:
-            self._key += '.html'
+            self.key += '.html'
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use using base64 encoding. """

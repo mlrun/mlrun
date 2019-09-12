@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from ast import literal_eval
 from base64 import b64decode
 from os import environ, path
@@ -24,9 +25,9 @@ from . import config
 from .builder import build_image
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
-from .run import run_start
+from .run import new_function
 from .runtimes import RunError
-from .utils import dict_to_yaml, run_keys
+from .utils import list2dict, run_keys, update_in
 
 
 @click.group()
@@ -35,7 +36,7 @@ def main():
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("url", type=str)
+@click.argument("url", type=str, required=False)
 @click.option('--param', '-p', default='', multiple=True,
               help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
 @click.option('--in-artifact', '-i', multiple=True, help='input artifact')
@@ -53,20 +54,20 @@ def main():
 @click.option('--hyperparam', '-x', default='', multiple=True,
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
+@click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
+@click.option('--handler', default='', help='invoke function handler inside the code file')
 @click.option('--mode', default='', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
+@click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
-        param_file, mode, from_env, run_args):
+        param_file, selector, handler, mode, from_env, dump, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
     if from_env and config:
-        config = py_eval(config)
-        if not isinstance(config, dict):
-            print(f'config env var must be a dict')
-            exit(1)
+        config = json.loads(config)
         runobj = RunTemplate.from_dict(config)
     else:
         runobj = RunTemplate()
@@ -76,6 +77,7 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
         code = b64decode(code).decode('utf-8')
         with open('main.py', 'w') as fp:
             fp.write(code)
+        url = url or 'main.py'
 
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')
@@ -87,30 +89,31 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
-            print(f'runtime parameter must be a dict')
+            print('runtime parameter must be a dict')
             exit(1)
     else:
         runtime = {}
-
     if url:
-        runtime['command'] = url
+        update_in(runtime, 'spec.command', url)
     if run_args:
-        runtime['args'] = list(run_args)
+        update_in(runtime, 'spec.args', list(run_args))
+    set_item(runobj.spec, handler, 'handler')
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
     set_item(runobj.spec, param_file, 'param_file')
+    set_item(runobj.spec, selector, 'selector')
 
-    set_item(runobj.spec, in_artifact, run_keys.input_objects, line2keylist(in_artifact))
+    set_item(runobj.spec, in_artifact, run_keys.inputs, list2dict(in_artifact))
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
-        resp = run_start(runobj, runtime=runtime, rundb=rundb, kfp=kfp, mode=mode)
-        if resp:
-            print(dict_to_yaml(resp))
+        resp = new_function(runtime=runtime, rundb=rundb, kfp=kfp, mode=mode).run(runobj)
+        if resp and dump:
+            print(resp.to_yaml())
     except RunError as err:
-        print(f'runtime error: {err}')
+        print('runtime error: {}'.format(err))
         exit(1)
 
 
@@ -188,7 +191,7 @@ def get(kind, name, selector, namespace, extra_args):
                 start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     else:
-        print('currently only ls pods is supported')
+        print('currently only get pods [name] is supported')
 
 
 def fill_params(param):
@@ -199,7 +202,7 @@ def fill_params(param):
             continue
         key, value = param[:i].strip(), param[i + 1:].strip()
         if key is None:
-            raise ValueError(f'cannot find param key in line ({param})')
+            raise ValueError('cannot find param key in line ({})'.format(param))
         params_dict[key] = py_eval(value)
     return params_dict
 

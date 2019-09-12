@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.1.6'
+__version__ = '0.2.0'
 
-from .run import get_or_create_ctx, run_start, mlrun_op
+from .run import get_or_create_ctx, new_function, mlrun_op, notebook_function
 from .db import get_run_db
-from .model import RunTemplate
+from .model import RunTemplate, NewRun, RunObject

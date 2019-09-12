@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import RunError
+from .base import RunError, RunRuntime
 from .local import HandlerRuntime, LocalRuntime
 from .function import RemoteRuntime
 from .mpijob import MpiRuntime, MpiJob
-from .dask import DaskRuntime, DaskCluster
-from .kubejob import KubejobRuntime, nuclio_to_k8s
+from .dask import DaskCluster
+from .kubejob import KubejobRuntime
 from .nuclio_deploy import NuclioDeployRuntime

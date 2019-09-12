@@ -80,7 +80,7 @@ class ArtifactManager:
 
         # find the target path from defaults and config
         if not target_path:
-            target_path = uxjoin(self.out_path, key, execution.iteration)
+            target_path = uxjoin(self.out_path, src_path or key, execution.iteration)
         item.target_path = target_path
         item.tree = execution.tag
         if labels:
@@ -121,18 +121,19 @@ class ArtifactManager:
 class Artifact(ModelObj):
 
     _dict_fields = ['key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
-                    'description', 'viewer', 'inline']
+                    'description', 'viewer', 'inline', 'format']
     kind = ''
 
     def __init__(self, key, body=None, src_path=None, target_path='',
-                 viewer=None, inline=False, iter=None):
+                 viewer=None, inline=False, format=None):
         self.key = key
-        self.iter = iter
+        self.iter = None
         self.tree = None
         self.updated = None
         self.target_path = target_path
         self.src_path = src_path
         self._body = body
+        self.format = format
         self.description = None
         self.viewer = viewer
         self.encoding = None
@@ -165,6 +166,17 @@ class Artifact(ModelObj):
             self._dict_fields + ['updated', 'labels', 'annotations', 'producer', 'sources'])
 
 
+class ModelArtifact(Artifact):
+    _dict_fields = Artifact._dict_fields + ['framework']
+    kind = 'model'
+
+    def __init__(self, key, body=None, src_path=None, target_path='',
+                 viewer=None, inline=False, format=None, framework=None):
+
+        super().__init__(key, body, src_path, target_path, viewer, inline, format)
+        self.framework = framework
+
+
 class PlotArtifact(Artifact):
     kind = 'plot'
     def _post_init(self):
@@ -189,12 +201,13 @@ class PlotArtifact(Artifact):
 
 
 class TableArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['format', 'schema', 'header']
+    _dict_fields = Artifact._dict_fields + ['schema', 'header']
     kind = 'table'
 
     def __init__(self, key, body=None, df=None, src_path=None, target_path='',
                          viewer=None, visible=False, inline=False, format=None, header=None, schema=None):
 
+        super().__init__(key, body, src_path, target_path, viewer, inline, format)
         key_suffix = pathlib.Path(key).suffix
         if not format and key_suffix:
             format = key_suffix[1:]
@@ -249,6 +262,8 @@ chart_template = '''
 
 class ChartArtifact(Artifact):
     kind = 'chart'
+    _dict_fields = ['key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
+                    'description', 'viewer']
 
     def __init__(self, key, data=[], src_path=None, target_path='',
                          viewer='chart', options={}):
@@ -272,6 +287,3 @@ class ChartArtifact(Artifact):
             .replace('$opts$', json.dumps(self.options))\
             .replace('$chart$', self.chart)
 
-
-def write_df(df, format, path):
-    pass

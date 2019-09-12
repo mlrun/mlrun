@@ -192,7 +192,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
 
 
 def log_std(db, runobj, out, err=''):
-    print(out)
+    if out:
+        print(out)
     if db:
         uid = runobj.metadata.uid
         project = runobj.metadata.project or ''

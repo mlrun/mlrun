@@ -524,6 +524,11 @@ def selector(results: list, criteria):
         state = get_in(task, ['status', 'state'])
         id = get_in(task, ['metadata', 'iteration'])
         val = get_in(task, ['status', 'results', criteria])
+        if isinstance(val, str):
+            try:
+                val = float(val)
+            except:
+                val = None
         if state != 'error' and val is not None:
             if (op == 'max' and val > best_val) \
                     or (op == 'min' and val < best_val):

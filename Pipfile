@@ -6,6 +6,9 @@ verify_ssl = true
 [dev-packages]
 pytest = "*"
 twine = "*"
+sklearn = "*"
+xgboost = "*"
+distributed = ">=2.3.0"
 
 [packages]
 GitPython = ">=2.1.0"

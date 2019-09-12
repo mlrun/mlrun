@@ -6,15 +6,17 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 
-ns_env_key = f'{mlconf.env_prefix}_NAMESPACE'
+ns_env_key = f'{mlconf.env_prefix}NAMESPACE'
 
 
 @pytest.fixture
 def config():
     old = mlconf.config
-    mlconf.config = mlconf.Config()
+    mlconf.config = mlconf.Config(mlconf.default_config)
     mlconf._loaded = False
+
     yield mlconf.config
+
     mlconf.config = old
     mlconf._loaded = False
 
@@ -40,7 +42,8 @@ def patch_env(kw):
 
 def test_nothing(config):
     mlconf.populate()
-    assert config.namespace == mlconf.Config.namespace, 'namespace changed'
+    expected = mlconf.default_config['namespace']
+    assert config.namespace == expected, 'namespace changed'
 
 
 def create_yaml_config(**kw):
@@ -82,3 +85,10 @@ def test_env_override(config):
         mlconf.populate()
 
     assert config.namespace == env_ns, 'env did not override'
+
+
+def test_can_set(config):
+    config._cfg['x'] = {'y': 10}
+    val = 90
+    config.x.y = val
+    assert config.x.y == val, 'bad config update'

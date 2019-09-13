@@ -46,7 +46,7 @@ KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, rundb=None,
-                 mode=None, workers=None):
+                 mode=None, workers=None, build=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -55,10 +55,21 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = rundb or environ.get('MLRUN_META_DBPATH', '')
 
+        self._build = None
+        self.build = build
+
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, 'build', ImageBuilder)
+
 
 class RunRuntime(ModelObj):
     kind = 'base'
-    _dict_fields = ['kind', 'metadata', 'spec', 'build']
+    _dict_fields = ['kind', 'metadata', 'spec']
 
     def __init__(self, metadata=None, spec=None, build=None):
         self._metadata = None
@@ -66,8 +77,6 @@ class RunRuntime(ModelObj):
         self.kfp = None
         self._spec = None
         self.spec = spec
-        self._build = None
-        self.build = build
         self._db_conn = None
         self._secrets = None
         self._k8s = None
@@ -89,14 +98,6 @@ class RunRuntime(ModelObj):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', FunctionSpec)
 
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, 'build', ImageBuilder)
-
     def _get_k8s(self):
         if not self._k8s:
             self._k8s = k8s_helper()
@@ -110,13 +111,13 @@ class RunRuntime(ModelObj):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
             from nuclio import build_file
             name, spec, code = build_file(from_file)
-            self.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+            self.spec.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
             return self
 
         if from_file:
             with open(from_file) as fp:
                 body = fp.read()
-        self.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
+        self.spec.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
@@ -248,8 +249,9 @@ class RunRuntime(ModelObj):
             extra_env['MLRUN_META_DBPATH'] = self.spec.rundb
         args = []
         command = self.spec.command
-        if self.build.inline_code:
-            extra_env['MLRUN_EXEC_CODE'] = self.build.inline_code
+        code = self.spec.build.inline_code
+        if code:
+            extra_env['MLRUN_EXEC_CODE'] = code
             if with_mlrun:
                 command = 'mlrun'
                 args = ['run', '--from-env']
@@ -264,25 +266,26 @@ class RunRuntime(ModelObj):
 
     def build_image(self, image, base_image=None, commands: list = None,
                     secret=None, with_mlrun=True, watch=True):
-        self.build.image = image
+        self.spec.build.image = image
         self.spec.image = ''
         if commands and isinstance(commands, list):
-            self.build.commands = self.build.commands or []
-            self.build.commands += commands
+            self.spec.build.commands = self.spec.build.commands or []
+            self.spec.build.commands += commands
         if secret:
-            self.build.secret = secret
+            self.spec.build.secret = secret
         if base_image:
-            self.build.base_image = base_image
+            self.spec.build.base_image = base_image
         ready = self._build_image(watch, with_mlrun)
         return self
 
     def _build_image(self, watch=False, with_mlrun=True, execution=None):
-        pod = self.build.build_pod
+        build = self.spec.build
+        pod = build.build_pod
         if not self._is_built and pod:
             k8s = self._get_k8s()
             status = k8s.get_pod_status(pod)
             if status == 'succeeded':
-                self.build.build_pod = None
+                build.build_pod = None
                 self._is_built = True
                 logger.info('build completed successfully')
                 return True
@@ -291,10 +294,10 @@ class RunRuntime(ModelObj):
             logger.info('builder status is: {}, wait for it to complete'.format(status))
             return False
 
-        if not self.build.commands and self.spec.mode == 'pass' and not self.build.source:
-            if not self.spec.image and not self.build.base_image:
+        if not build.commands and self.spec.mode == 'pass' and not build.source:
+            if not self.spec.image and not build.base_image:
                 raise RunError('image or base_image must be specified')
-            self.spec.image = self.spec.image or self.build.base_image
+            self.spec.image = self.spec.image or build.base_image
         if self.spec.image:
             self._is_built = True
             return True

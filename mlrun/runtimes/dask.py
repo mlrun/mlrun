@@ -26,13 +26,13 @@ from ..lists import RunList
 
 class DaskSpec(KubejobSpec):
     def __init__(self, command=None, args=None, image=None, rundb=None, mode=None, workers=None,
-                 volumes=None, volume_mounts=None, env=None, resources=None,
-                 replicas=None, image_pull_policy=None, service_account=None, extra_pip=None ):
+                 volumes=None, volume_mounts=None, env=None, resources=None, build=None,
+                 replicas=None, image_pull_policy=None, service_account=None, extra_pip=None):
 
         super().__init__(command=command, args=args, image=image, rundb=rundb,
                          mode=mode, workers=workers, volumes=volumes, volume_mounts=volume_mounts,
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
-                         service_account=service_account)
+                         service_account=service_account, build=build)
         self.extra_pip = extra_pip
         self.args = args or ['dask-worker']
 
@@ -41,10 +41,10 @@ class DaskCluster(KubejobRuntime):
     kind = 'dask'
 
     def __init__(self, spec=None,
-                 metadata=None, build=None, extra_pip=None):
-        super().__init__(spec, metadata, build)
+                 metadata=None):
+        super().__init__(spec, metadata)
         self._cluster = None
-        self.build.base_image = self.build.base_image or 'daskdev/dask:latest'
+        self.spec.build.base_image = self.spec.build.base_image or 'daskdev/dask:latest'
         self.set_label('mlrun/class', self.kind)
 
     @property

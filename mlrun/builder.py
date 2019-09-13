@@ -191,7 +191,7 @@ def build_image(dest,
 
 
 def build_runtime(runtime, with_mlrun, interactive=False):
-    build = runtime.build
+    build = runtime.spec.build
     namespace = runtime.metadata.namespace
     inline = None
     if build.inline_code:
@@ -210,7 +210,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
                          with_mlrun=with_mlrun)
     build.build_pod = None
     if status == 'skipped':
-        runtime.spec.image = runtime.build.base_image
+        runtime.spec.image = build.base_image
         return True
 
     if status.startswith('build:'):

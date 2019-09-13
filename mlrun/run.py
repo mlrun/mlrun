@@ -200,20 +200,29 @@ def parse_command(runtime, url):
 def notebook_function(filename='', handler='', image=None, secret=None, kind=None):
     from nuclio import build_file
     name, spec, code = build_file(filename, handler=handler)
-    r = KubejobRuntime()
+
+    if kind is None or kind in ['', 'local']:
+        r = LocalRuntime()
+    elif kind in runtime_dict:
+        r = runtime_dict[kind]()
+    else:
+        raise Exception('unsupported runtime ({})'.format(kind))
+
     r.kind = kind or 'job'
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
-    r.build.base_image = get_in(spec, 'spec.build.baseImage')
-    r.build.commands = get_in(spec, 'spec.build.commands')
-    r.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
-    r.build.image = get_in(spec, 'spec.build.image', image)
-    r.build.secret = get_in(spec, 'spec.build.secret', secret)
-    r.spec.env = get_in(spec, 'spec.env')
-    for vol in get_in(spec, 'spec.volumes', []):
-        r.spec.volumes.append(vol.get('volume'))
-        r.spec.volume_mounts.append(vol.get('volumeMount'))
+    build = r.spec.build
+    build.base_image = get_in(spec, 'spec.build.baseImage')
+    build.commands = get_in(spec, 'spec.build.commands')
+    build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+    build.image = get_in(spec, 'spec.build.image', image)
+    build.secret = get_in(spec, 'spec.build.secret', secret)
+    if kind and kind != 'local':
+        r.spec.env = get_in(spec, 'spec.env')
+        for vol in get_in(spec, 'spec.volumes', []):
+            r.spec.volumes.append(vol.get('volume'))
+            r.spec.volume_mounts.append(vol.get('volumeMount'))
     return r
 
 
@@ -308,7 +317,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             more_args = more_args or function.spec.args
             mode = mode or function.spec.mode
             rundb = rundb or function.spec.rundb
-            code_env = '{}'.format(function.build.inline_code)
+            code_env = '{}'.format(function.spec.build.inline_code)
         else:
             runtime = '{}'.format(function.to_dict())
 
@@ -316,15 +325,15 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
     if runobj:
         handler = handler or runobj.spec.handler_name
-        params = params or runobj.spec.parameters
-        hyperparams = hyperparams or runobj.spec.hyperparams
+        params = params or runobj.spec.parameters or {}
+        hyperparams = hyperparams or runobj.spec.hyperparams or {}
         param_file = param_file or runobj.spec.param_file
         selector = selector or runobj.spec.selector
-        inputs = inputs or runobj.spec.inputs
+        inputs = inputs or runobj.spec.inputs or {}
         outputs = outputs or runobj.spec.outputs
         in_path = in_path or runobj.spec.input_path
         out_path = out_path or runobj.spec.output_path
-        secrets = secrets or runobj.spec.secret_sources
+        secrets = secrets or runobj.spec.secret_sources or []
 
     for s in secrets:
         cmd += ['-s', '{}'.format(s)]

@@ -19,7 +19,7 @@ from .base import RunRuntime, RunError
 
 class NuclioDeployRuntime(RunRuntime):
     kind = 'nuclio'
-    def __init__(self, run: RunObject):
+    def __init__(self, metadata=None, spec=None):
         super().__init__(run)
         self.dashboard = ''
 

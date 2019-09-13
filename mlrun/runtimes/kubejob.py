@@ -23,8 +23,9 @@ from .base import RunRuntime, RunError, FunctionSpec
 class KubejobSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, rundb=None, mode=None, workers=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 replicas=None, image_pull_policy=None, service_account=None):
-        super().__init__(command=command, args=args, image=image, rundb=rundb, mode=mode, workers=workers)
+                 replicas=None, image_pull_policy=None, service_account=None, build=None):
+        super().__init__(command=command, args=args, image=image, rundb=rundb,
+                         mode=mode, workers=workers, build=build)
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
@@ -37,14 +38,14 @@ class KubejobSpec(FunctionSpec):
 class KubejobRuntime(RunRuntime):
     kind = 'job'
 
-    def __init__(self, spec=None, metadata=None, build=None):
+    def __init__(self, spec=None, metadata=None):
         try:
             from kfp.dsl import ContainerOp
         except ImportError as e:
             print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
             raise e
 
-        super().__init__(metadata, spec, build)
+        super().__init__(metadata, spec)
         self._cop = ContainerOp('name', 'image')
 
     @property
@@ -78,6 +79,9 @@ class KubejobRuntime(RunRuntime):
     def set_env(self, name, value):
         self.spec.env.append(client.V1EnvVar(name=name, value=value))
         return self
+
+    def gpus(self, gpus, gpu_type='nvidia.com/gpu'):
+        update_in(self.spec.resources, ['limits', gpu_type], gpus)
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
         limits = {}

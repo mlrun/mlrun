@@ -9,6 +9,7 @@ twine = "*"
 sklearn = "*"
 xgboost = "*"
 distributed = ">=2.3.0"
+nuclio-jupyter = ">=0.7.4"
 
 [packages]
 GitPython = ">=2.1.0"

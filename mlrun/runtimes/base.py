@@ -35,7 +35,7 @@ from ..lists import RunList
 from .generators import GridGenerator, ListGenerator
 from ..k8s_utils import k8s_helper
 from ..builder import build_runtime
-
+from ..config import config
 
 class RunError(Exception):
     pass
@@ -45,7 +45,7 @@ KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
 
 class FunctionSpec(ModelObj):
-    def __init__(self, command=None, args=None, image=None, rundb=None,
+    def __init__(self, command=None, args=None, image=None,
                  mode=None, workers=None, build=None):
 
         self.command = command or ''
@@ -53,7 +53,7 @@ class FunctionSpec(ModelObj):
         self.mode = mode or ''
         self.workers = workers
         self.args = args or []
-        self.rundb = rundb or environ.get('MLRUN_META_DBPATH', '')
+        self.rundb = config.dbpath
 
         self._build = None
         self.build = build
@@ -121,7 +121,8 @@ class RunRuntime(ModelObj):
         return self
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
-            project: str = '', params: dict = None, inputs: dict = None,):
+            project: str = '', params: dict = None, inputs: dict = None,
+            visible = True):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -143,7 +144,7 @@ class RunRuntime(ModelObj):
             else:
                 logger.info('no returned result (job may still be in progress)')
                 results.append(runspec.to_dict())
-            if is_ipython:
+            if is_ipython and visible:
                 results.show()
             return resp
 
@@ -246,7 +247,7 @@ class RunRuntime(ModelObj):
     def _get_cmd_args(self, runobj, with_mlrun):
         extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
         if self.spec.rundb:
-            extra_env['MLRUN_META_DBPATH'] = self.spec.rundb
+            extra_env['MLRUN_DBPATH'] = self.spec.rundb
         args = []
         command = self.spec.command
         code = self.spec.build.inline_code

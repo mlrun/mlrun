@@ -161,7 +161,7 @@ def build(dest, command, source, base_image, secret_name,
               help='timeout in seconds')
 def watch(pod, namespace, timeout):
     """read current or previous task (pod) logs."""
-    k8s = k8s_helper(namespace or 'default-tenant')
+    k8s = k8s_helper(namespace)
     status = k8s.watch(pod, namespace, timeout)
     print('Pod {} last status is: {}'.format(pod, status))
 
@@ -175,7 +175,7 @@ def watch(pod, namespace, timeout):
 def get(kind, name, selector, namespace, extra_args):
     """List/get one or more object per kind/class."""
     if kind.startswith('po'):
-        k8s = k8s_helper(namespace or 'default-tenant')
+        k8s = k8s_helper(namespace)
         if name:
             resp = k8s.get_pod(name, namespace)
             print(resp)

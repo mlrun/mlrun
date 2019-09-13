@@ -18,21 +18,15 @@ from base64 import b64decode, b64encode
 from os import environ, path
 from tempfile import mktemp
 
-from mlrun.config import config
-from mlrun.datastore import StoreManager
-from mlrun.k8s_utils import BasePod, k8s_helper
-
 from .datastore import StoreManager
 from .k8s_utils import BasePod, k8s_helper
 from .utils import logger
+from .config import config
 
-default_image = 'python:3.6-jessie'
-mlrun_package = environ.get('MLRUN_PACKAGE_PATH', 'git+https://github.com/mlrun/mlrun.git')
-kaniko_version = environ.get('MLRUN_KANIKO_VER', 'v0.9.0')
 k8s = None
 
 
-def make_dockerfile(base_image=default_image,
+def make_dockerfile(base_image,
                     commands=None, src_dir=None,
                     requirements=None):
     dock = 'FROM {}\n'.format(base_image)
@@ -73,7 +67,7 @@ def make_kaniko_pod(context, dest,
         args += ["--verbosity", 'debug']
 
     kpod=BasePod('mlrun-build',
-                 'gcr.io/kaniko-project/executor:' + kaniko_version,
+                 'gcr.io/kaniko-project/executor:' + config.kaniko_version,
                  args=args,
                  kind='build')
 
@@ -143,10 +137,10 @@ def build_image(dest,
         requirements_list = None
         requirements_path = requirements
 
-    base_image = base_image or default_image
+    base_image = base_image or config.default_image
     if with_mlrun:
         commands = commands or []
-        commands.append('pip install {}'.format(mlrun_package))
+        commands.append('pip install {}'.format(config.package_path))
 
     if not inline_code and not source and not commands:
         logger.info('skipping build, nothing to add')
@@ -180,7 +174,7 @@ def build_image(dest,
         kpod.mount_v3io(remote=source, mount_path='/context')
 
     if not k8s:
-        k8s = k8s_helper(namespace or config.namespace)
+        k8s = k8s_helper(namespace)
 
     if interactive:
         return k8s.run_job(kpod)

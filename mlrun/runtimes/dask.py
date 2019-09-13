@@ -19,17 +19,16 @@ from kubernetes import client
 from ..execution import MLClientCtx
 from .local import get_func_arg
 from ..model import RunObject
-from .base import RunRuntime
 from .kubejob import KubejobRuntime, KubejobSpec
 from ..lists import RunList
-
+from ..config import config
 
 class DaskSpec(KubejobSpec):
-    def __init__(self, command=None, args=None, image=None, rundb=None, mode=None, workers=None,
+    def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, build=None,
                  replicas=None, image_pull_policy=None, service_account=None, extra_pip=None):
 
-        super().__init__(command=command, args=args, image=image, rundb=rundb,
+        super().__init__(command=command, args=args, image=image,
                          mode=mode, workers=workers, volumes=volumes, volume_mounts=volume_mounts,
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
                          service_account=service_account, build=build)
@@ -58,6 +57,7 @@ class DaskCluster(KubejobRuntime):
     def to_pod(self):
         image = self.spec.image or 'daskdev/dask:latest'
         env = self.spec.env
+        namespace = self.metadata.namespace or config.namespace
         if self.spec.extra_pip:
             env.append(self.spec.extra_pip)
         container = client.V1Container(name='base',
@@ -74,7 +74,7 @@ class DaskCluster(KubejobRuntime):
                                     volumes=self.spec.volumes,
                                     service_account=self.spec.service_account)
 
-        meta = client.V1ObjectMeta(namespace=self.metadata.namespace or 'default-tenant',
+        meta = client.V1ObjectMeta(namespace=namespace,
                                    labels=self.metadata.labels,
                                    annotations=self.metadata.annotations)
 
@@ -127,7 +127,7 @@ class DaskCluster(KubejobRuntime):
         from dask import delayed
         if self.spec.rundb:
             # todo: remote dask via k8s spec env
-            environ['MLRUN_META_DBPATH'] = self.spec.rundb
+            environ['MLRUN_DBPATH'] = self.spec.rundb
 
         arg_list = get_func_arg(handler, runobj, execution)
         try:

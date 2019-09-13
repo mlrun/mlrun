@@ -20,19 +20,19 @@ from .base import RunRuntime, RunError
 class NuclioDeployRuntime(RunRuntime):
     kind = 'nuclio'
     def __init__(self, metadata=None, spec=None):
-        super().__init__(run)
+        super().__init__(metadata, spec)
         self.dashboard = ''
 
     # TODO: dashboard from command
+    # TODO: runtime should use nuclio deploy_file + kinds
 
     def _run(self, runobj: RunObject, execution):
 
         from nuclio.deploy import deploy_config
 
-        runtime = self.runtime
         extra_env = [{'name': 'MLRUN_EXEC_CONFIG', 'value': runobj.to_json()}]
         if self.spec.rundb:
-            extra_env.append({'name': 'MLRUN_META_DBPATH', 'value': self.spec.rundb})
+            extra_env.append({'name': 'MLRUN_DBPATH', 'value': self.spec.rundb})
 
         update_in(runtime, 'spec.env', extra_env, append=True)
 

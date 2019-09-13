@@ -105,7 +105,7 @@ def get_or_create_ctx(name: str,
     update_in(newspec, 'metadata.name', name, replace=False)
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
-    out = environ.get('MLRUN_META_DBPATH', rundb)
+    out = environ.get('MLRUN_DBPATH', rundb)
     if out:
         autocommit = True
 
@@ -133,7 +133,7 @@ def new_function(name: str = '', command: str = '', image: str = '', runtime=Non
     :return: runtime context object
     """
     if not rundb:
-        rundb = environ.get('MLRUN_META_DBPATH', rundb)
+        rundb = environ.get('MLRUN_DBPATH', rundb)
 
     kind, runtime = process_runtime(command, runtime)
 
@@ -259,7 +259,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                      omitted the path will be the out_path/key.
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    path for rundb (or use 'MLRUN_META_DBPATH' env instead)
+    :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'noctx' for pushing params as args
 
     :return: KFP step operation
@@ -302,7 +302,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     from os import environ
     from kubernetes import client as k8s_client
 
-    rundb = rundb or environ.get('MLRUN_META_DBPATH')
+    rundb = rundb or environ.get('MLRUN_DBPATH')
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow', '{{workflow.uid}}', '--name', name]
     file_outputs = {}
 

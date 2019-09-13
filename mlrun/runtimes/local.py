@@ -60,7 +60,7 @@ class LocalRuntime(RunRuntime):
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         if self.spec.rundb:
-            environ['MLRUN_META_DBPATH'] = self.spec.rundb
+            environ['MLRUN_DBPATH'] = self.spec.rundb
 
         handler = runobj.spec.handler
         if handler:

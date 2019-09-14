@@ -197,7 +197,7 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def notebook_function(filename='', handler='', image=None, secret=None, kind=None):
+def notebook_to_function(filename='', handler='', image=None, secret=None, kind=None):
     from nuclio import build_file
     name, spec, code = build_file(filename, handler=handler)
 

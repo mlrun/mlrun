@@ -41,7 +41,7 @@ class KubejobRuntime(RunRuntime):
     def __init__(self, spec=None, metadata=None):
         try:
             from kfp.dsl import ContainerOp
-        except ImportError as e:
+        except (ImportError, ModuleNotFoundError) as e:
             print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
             raise e
 

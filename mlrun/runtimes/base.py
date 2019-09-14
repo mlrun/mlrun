@@ -226,9 +226,9 @@ class RunRuntime(ModelObj):
 
         if result:
             run = RunObject.from_dict(result)
-            logger.info('run executed, status={}'.format(runspec.status.state))
-            if runspec.status.state == 'error':
-                raise RunError(runspec.status.error)
+            logger.info('run executed, status={}'.format(run.status.state))
+            if run.status.state == 'error':
+                raise RunError(run.status.error)
             return run
 
         return None
@@ -263,7 +263,7 @@ class RunRuntime(ModelObj):
             args += ['--handler', runobj.spec.handler]
         if self.spec.args:
             args += self.spec.args
-        return command, args
+        return command, args, extra_env
 
     def build_image(self, image, base_image=None, commands: list = None,
                     secret=None, with_mlrun=True, watch=True):

@@ -36,7 +36,7 @@ _loaded = False
 
 default_config = {
     'namespace': 'default-tenant',
-    'dbpath': './',
+    'dbpath': '',
     'kaniko_version': 'v0.9.0',
     'package_path': 'git+https://github.com/mlrun/mlrun.git',
     'default_image': 'python:3.6-jessie',
@@ -76,10 +76,11 @@ class Config:
     def update(self, cfg):
         for key, value in cfg.items():
             # TODO: Warn on unknown keys?
-            if isinstance(value, dict):
-                getattr(self, key).update(value)
-            else:
-                setattr(self, key, value)
+            if hasattr(self, key):
+                if isinstance(value, dict):
+                    getattr(self, key).update(value)
+                else:
+                    setattr(self, key, value)
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)

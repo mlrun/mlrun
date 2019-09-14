@@ -9,7 +9,7 @@ twine = "*"
 sklearn = "*"
 xgboost = "*"
 distributed = ">=2.3.0"
-nuclio-jupyter = ">=0.7.4"
+kfp = ">=0.1.29"
 
 [packages]
 GitPython = ">=2.1.0"
@@ -22,6 +22,7 @@ nuclio-sdk = ">=0.0.3"
 pandas = ">=0.23.0"
 pyyaml = ">=5.1.0"
 requests = ">=2.20.1"
+nuclio-jupyter = ">=0.7.4"
 
 [requires]
 python_version = "3.6"

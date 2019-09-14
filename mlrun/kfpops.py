@@ -178,7 +178,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     from kubernetes import client as k8s_client
 
     rundb = rundb or environ.get('MLRUN_DBPATH')
-    cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow', '{{workflow.uid}}', '--name', name]
+    cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow', '{{workflow.uid}}']
     file_outputs = {}
 
     runtime = None
@@ -212,6 +212,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         secrets = secrets or runobj.spec.secret_sources or []
         project = project or runobj.metadata.project
 
+    if name:
+        cmd += ['--name', name]
     for s in secrets:
         cmd += ['-s', '{}'.format(s)]
     for p, val in params.items():

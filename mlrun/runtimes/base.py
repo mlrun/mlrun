@@ -152,7 +152,7 @@ class RunRuntime(ModelObj):
             runspec = RunObject.from_template(runspec)
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
-        runspec.metadata.name = name or runspec.metadata.name
+        runspec.metadata.name = name or runspec.metadata.name or self.metadata.name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
@@ -437,7 +437,6 @@ class RunRuntime(ModelObj):
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs,
                         out_path=out_path, in_path=in_path)
-
 
 
 def selector(results: list, criteria):

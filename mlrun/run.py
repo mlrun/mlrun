@@ -197,9 +197,22 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def code_to_function(name='', filename='', handler='', runtime=None, kind=None):
+def code_to_function(name='', filename='', handler='', runtime=None,
+                     image=None, kind=None):
+    """convert code or notebook to function object
+
+    :param name:      function name
+    :param filename:  blank for current notebook, or path to .py/.ipynb file
+    :param handler:   name of function handler (if not main)
+    :param runtime:   optional, runtime type local, job, dask, mpijob, ..
+    :param image:     optional, container image
+    :param kind:      for nuclio functions
+
+    :return:
+           function object
+    """
     from nuclio import build_file
-    bname, spec, code = build_file(filename, handler=handler, kind=kind)
+    bname, spec, code = build_file(filename, handler=handler)
 
     if runtime is None or runtime in ['', 'local']:
         r = LocalRuntime()
@@ -212,6 +225,7 @@ def code_to_function(name='', filename='', handler='', runtime=None, kind=None):
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
     r.metadata.name = name or bname or 'mlrun'
+    r.spec.image = get_in(spec, 'spec.image', image)
     build = r.spec.build
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')

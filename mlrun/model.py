@@ -298,19 +298,22 @@ class RunObject(RunTemplate):
 def NewRun(name=None, project=None, handler=None,
            params=None, hyper_params=None, param_file=None, selector=None,
            inputs=None, outputs=None,
-           in_path=None, out_path=None, secrets=None):
+           in_path=None, out_path=None, secrets=None, base=None):
 
-    run = RunTemplate()
-    run.metadata.name = name
-    run.metadata.project = project
-    run.spec.handler = handler
-    run.spec.parameters = params
-    run.spec.hyperparams = hyper_params
-    run.spec.param_file = param_file
-    run.spec.selector = selector
-    run.spec.inputs = inputs
-    run.spec.outputs = outputs or []
-    run.spec.input_path = in_path
-    run.spec.output_path = out_path
-    run.spec.secret_sources = secrets or []
+    if base:
+        run = deepcopy(base)
+    else:
+        run = RunTemplate()
+    run.metadata.name = name or run.metadata.name
+    run.metadata.project = project or run.metadata.project
+    run.spec.handler = handler or run.spec.handler
+    run.spec.parameters = params or run.spec.parameters
+    run.spec.hyperparams = hyper_params or run.spec.hyperparams
+    run.spec.param_file = param_file or run.spec.param_file
+    run.spec.selector = selector or run.spec.selector
+    run.spec.inputs = inputs or run.spec.inputs
+    run.spec.outputs = outputs or run.spec.outputs or []
+    run.spec.input_path = in_path or run.spec.input_path
+    run.spec.output_path = out_path or run.spec.output_path
+    run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run

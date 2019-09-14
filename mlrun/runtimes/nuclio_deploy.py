@@ -15,12 +15,14 @@
 from ..model import RunObject
 from ..utils import update_in, logger, get_in
 from .base import RunRuntime, RunError
+import nuclio
 
 
 class NuclioDeployRuntime(RunRuntime):
     kind = 'nuclio'
     def __init__(self, metadata=None, spec=None):
         super().__init__(metadata, spec)
+        self._config = None
         self.dashboard = ''
 
     # TODO: dashboard from command

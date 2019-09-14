@@ -216,6 +216,10 @@ def code_to_function(name='', filename='', handler='', runtime=None,
 
     if runtime is None or runtime in ['', 'local']:
         r = LocalRuntime()
+    elif runtime == 'nuclio':
+        r = RemoteRuntime()
+        r.metadata.name = name
+        return r
     elif runtime in runtime_dict:
         r = runtime_dict[runtime]()
     else:

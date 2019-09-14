@@ -78,23 +78,6 @@ def v3io_cred(api='', user='', access_key=''):
     return _use_v3io_cred
 
 
-def add_env(env={}):
-    """
-        Modifier function to add env vars from dict
-        Usage:
-            train = train_op(...)
-            train.apply(add_env({'MY_ENV':'123'}))
-    """
-
-    def _add_env(task):
-        from kubernetes import client as k8s_client
-        for k, v in env:
-            task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
-        return task
-
-    return _add_env
-
-
 def split_path(mntpath=''):
     if mntpath[0] == '/':
         mntpath = mntpath[1:]
@@ -104,35 +87,6 @@ def split_path(mntpath=''):
     if len(paths) > 1:
         subpath = mntpath[len(container):]
     return container, subpath
-
-
-def kaniko_op(image, context_path, secret_name='docker-secret'):
-    """use kaniko to build Docker image."""
-
-    from kubernetes import client as k8s_client
-    cops = dsl.ContainerOp(
-        name='kaniko',
-        image='gcr.io/kaniko-project/executor:latest',
-        arguments=["--dockerfile", "/context/Dockerfile",
-                   "--context", "/context",
-                   "--destination", image],
-    )
-
-    cops.add_volume(
-        k8s_client.V1Volume(
-            name='registry-creds',
-            secret=k8s_client.V1SecretVolumeSource(
-                secret_name=secret_name,
-                items=[{'key': '.dockerconfigjson', 'path': '.docker/config.json'}],
-            )
-        ))
-    cops.container.add_volume_mount(
-        k8s_client.V1VolumeMount(
-            name='registry-creds',
-            mount_path='/root/',
-        )
-    )
-    return cops.apply(mount_v3io(remote=context_path, mount_path='/context'))
 
 
 def v3io_to_vol(name, remote='~/', access_key='', user=''):

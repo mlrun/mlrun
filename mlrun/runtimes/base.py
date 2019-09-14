@@ -17,18 +17,16 @@ import uuid
 from ast import literal_eval
 from base64 import b64encode
 from datetime import datetime
-import json
 import getpass
 from copy import deepcopy
-from os import environ
 import pandas as pd
 from io import StringIO
 
+from ..kfpops import _write_kfpmeta, mlrun_op
 from ..db import get_run_db
 from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
 from ..secrets import SecretsStore
-from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
-                     update_in, logger, is_ipython)
+from ..utils import get_in, update_in, logger, is_ipython
 from ..execution import MLClientCtx
 from ..artifacts import TableArtifact
 from ..lists import RunList
@@ -39,9 +37,6 @@ from ..config import config
 
 class RunError(Exception):
     pass
-
-
-KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
 
 class FunctionSpec(ModelObj):
@@ -419,86 +414,30 @@ class RunRuntime(ModelObj):
         if not handler:
             raise RunError('handler must be provided for {} runtime'.format(self.kind))
 
+    def to_step(self, runspec: RunObject = None, handler=None, name: str = '',
+                project: str = '', params: dict = None, hyperparams=None, selector='',
+                inputs: dict = None, outputs: dict = None,
+                in_path: str = '', out_path: str = ''):
+        """Run a local or remote task.
 
-def _write_kfpmeta(struct):
-    if 'status' not in struct:
-        return
+        :param runspec:    run template object or dict (see RunTemplate)
+        :param handler:    name of the function handler
+        :param name:       execution name
+        :param project:    project name
+        :param params:     input parameters (dict)
+        :param hyperparams: hyper parameters
+        :param selector:   selection criteria for hyper params
+        :param inputs:     input objects (dict of key: path)
+        :param outputs:    list of outputs which can pass in the workflow
 
-    results = struct['status'].get('results', {})
-    metrics = {'metrics':
-                   [{'name': k,
-                     'numberValue': v,
-                     } for k, v in results.items() if isinstance(v, (int, float, complex))]}
-    with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
-        json.dump(metrics, f)
+        :return: KubeFlow containerOp
+        """
+        return mlrun_op(name, project, self,
+                        runobj=runspec, handler=handler, params=params,
+                        hyperparams=hyperparams, selector=selector,
+                        inputs=inputs, outputs=outputs,
+                        out_path=out_path, in_path=in_path)
 
-    output_artifacts, out_dict = get_kfp_outputs(
-        struct['status'].get(run_keys.artifacts, []))
-
-    for key in struct['spec'].get(run_keys.outputs, []):
-        val = 'None'
-        if key in out_dict:
-            val = out_dict[key]
-        elif key in results:
-            val = results[key]
-        try:
-            with open('/tmp/{}'.format(key), 'w') as fp:
-                fp.write(val)
-        except:
-            pass
-
-    text = '# Run Report\n'
-    if 'iterations' in struct['status']:
-        iter = struct['status']['iterations']
-        iter_html = gen_md_table(iter[0], iter[1:])
-        text += '## Iterations\n' + iter_html
-        struct = deepcopy(struct)
-        del struct['status']['iterations']
-
-    text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
-
-    #with open('sum.md', 'w') as fp:
-    #    fp.write(text)
-
-    metadata = {
-        'outputs': output_artifacts + [{
-            'type': 'markdown',
-            'storage': 'inline',
-            'source': text
-        }]
-    }
-    with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
-        json.dump(metadata, f)
-
-
-def get_kfp_outputs(artifacts):
-    outputs = []
-    out_dict = {}
-    for output in artifacts:
-        key = output["key"]
-        target = output.get('target_path', '')
-        target = output.get('inline', target)
-        out_dict[key] = target
-
-        if target.startswith('v3io:///'):
-            target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
-
-        viewer = output.get('viewer', '')
-        if viewer in ['web-app', 'chart']:
-            meta = {'type': 'web-app',
-                    'source': target}
-            outputs += [meta]
-
-        elif viewer == 'table':
-            header = output.get('header', None)
-            if header and target.endswith('.csv'):
-                meta = {'type': 'table',
-                        'format': 'csv',
-                        'header': header,
-                        'source': target}
-                outputs += [meta]
-
-    return outputs, out_dict
 
 
 def selector(results: list, criteria):

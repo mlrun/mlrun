@@ -85,7 +85,7 @@ class MpiRuntime(KubejobRuntime):
         resp = self._submit_mpijob(job, meta.namespace)
         for i in range(20):
             resp = self.get_job(meta.name, meta.namespace)
-            if resp and resp['status']:
+            if resp and resp.get('status'):
                 break
             time.sleep(1)
 

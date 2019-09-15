@@ -129,7 +129,7 @@ class BaseRuntime(ModelObj):
                 results.append(runspec.to_dict())
             if is_ipython and visible:
                 results.show()
-            print('type result.show() detailed status/results or use CLI:')
+            print('type result.show() to see detailed results/progress or use CLI:')
             uid = runspec.metadata.uid
             project = '--project {}'.format(runspec.metadata.project) if runspec.metadata.project else ''
             print('!mlrun get run --uid {} {}'.format(uid, project))

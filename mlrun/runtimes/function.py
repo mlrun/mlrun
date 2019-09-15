@@ -40,6 +40,7 @@ class RemoteRuntime(BaseRuntime):
         self._config = nuclio.ConfigSpec()
         self.verbose = False
         self.dashboard = ''
+        self.kind = ''
 
     def set_env(self, name, value):
         self._config.set_env(name, value)
@@ -76,6 +77,7 @@ class RemoteRuntime(BaseRuntime):
                                   spec=self._config, tag=tag, handler=handler, kind=kind,
                                   archive=archive, files=files, output_dir=output_dir)
         self.spec.command = 'http://{}'.format(addr)
+        self.kind = kind
         return self.spec.command
 
     def _run(self, runobj: RunObject, execution):
@@ -83,6 +85,8 @@ class RemoteRuntime(BaseRuntime):
             runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = execution.log_level
         command = self.spec.command
+        if runobj.spec.handler:
+            command = '{}/{}'.format(command, runobj.spec.handler_name)
         headers = {'x-nuclio-log-level': log_level}
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
@@ -105,9 +109,12 @@ class RemoteRuntime(BaseRuntime):
         log_level = execution.log_level
         headers = {'x-nuclio-log-level': log_level}
 
+        command = self.spec.command
+        if runobj.spec.handler:
+            command = '{}/{}'.format(command, runobj.spec.handler_name)
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            self.invoke_async(tasks, self.spec.command, headers, secrets))
+            self.invoke_async(tasks, command, headers, secrets))
 
         loop.run_until_complete(future)
         return future.result()

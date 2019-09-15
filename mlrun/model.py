@@ -16,8 +16,9 @@ import inspect
 import json
 from copy import deepcopy
 from os import environ
-from pprint import pformat
-from .utils import dict_to_yaml
+
+from .db import get_run_db
+from .utils import dict_to_yaml, get_in
 
 
 class ModelObj:
@@ -293,6 +294,19 @@ class RunObject(RunTemplate):
                 if a['key'] == key:
                     return a
         return None
+
+    def uid(self):
+        return self.metadata.uid
+
+    def state(self):
+        db = get_run_db().connect()
+        run = db.read_run(uid=self.metadata.uid, project=self.metadata.project)
+        if run:
+            return get_in(run, 'status.state', 'unknown')
+
+    def show(self):
+        db = get_run_db().connect()
+        db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
 
 def NewRun(name=None, project=None, handler=None,

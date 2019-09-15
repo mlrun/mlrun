@@ -119,7 +119,8 @@ class BaseRuntime(ModelObj):
         :return: run context object (dict) with run metadata, results and status
         """
 
-        def show(results, resp):
+        def show(resp):
+            results = RunList()
             # show ipython/jupyter result table widget
             if resp:
                 results.append(resp)
@@ -128,6 +129,10 @@ class BaseRuntime(ModelObj):
                 results.append(runspec.to_dict())
             if is_ipython and visible:
                 results.show()
+            print('type result.show() detailed status/results or use CLI:')
+            uid = runspec.metadata.uid
+            project = '--project {}'.format(runspec.metadata.project) if runspec.metadata.project else ''
+            print('!mlrun get run --uid {} {}'.format(uid, project))
             return resp
 
         if runspec:
@@ -189,19 +194,18 @@ class BaseRuntime(ModelObj):
             resp = execution.to_dict()
             if resp and self.kfp:
                 write_kfpmeta(resp)
-            result = show(results, resp)
+            result = show(resp)
         else:
             # single run
-            results = RunList()
             try:
                 self.store_run(runspec)
                 resp = self._run(runspec, execution)
                 if resp and self.kfp:
                     write_kfpmeta(resp)
-                result = show(results, self._post_run(resp, task=runspec))
+                result = show(self._post_run(resp, task=runspec))
             except RunError as err:
                 logger.error(f'run error - {err}')
-                result = show(results, self._post_run(task=runspec, err=err))
+                result = show(self._post_run(task=runspec, err=err))
 
         if result:
             run = RunObject.from_dict(result)

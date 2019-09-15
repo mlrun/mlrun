@@ -18,9 +18,11 @@ import json
 from ast import literal_eval
 from base64 import b64decode
 from os import environ, path
+from tabulate import  tabulate
 
 import click
 
+from .db import get_run_db
 from . import config
 from .builder import build_image
 from .k8s_utils import k8s_helper
@@ -168,11 +170,15 @@ def watch(pod, namespace, timeout):
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument('kind', type=str)
-@click.argument('name', type=str, required=False)
+@click.argument('name', type=str, default='', required=False)
 @click.option('--selector', '-s', default='', help='label selector')
 @click.option('--namespace', '-n', help='kubernetes namespace')
+@click.option('--uid', help='unique ID')
+@click.option('--project', help='project name')
+@click.option('--tag', default='', help='artifact tag')
+@click.option('--db', help='db path/url')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
-def get(kind, name, selector, namespace, extra_args):
+def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     """List/get one or more object per kind/class."""
     if kind.startswith('po'):
         k8s = k8s_helper(namespace)
@@ -190,6 +196,27 @@ def get(kind, name, selector, namespace, extra_args):
                 state = i.status.phase
                 start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
+    elif kind.startswith('run'):
+        mldb = get_run_db(db).connect()
+        runs = mldb.list_runs(name, uid=uid, project=project)
+        df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']]
+        #df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
+        df['start'] = df['start'].apply(time_str)
+        df['parameters'] = df['parameters'].apply(dict_to_str)
+        df['results'] = df['results'].apply(dict_to_str)
+        print(tabulate(df, headers='keys'))
+
+    elif kind.startswith('art'):
+        mldb = get_run_db(db).connect()
+        artifacts = mldb.list_artifacts(name, project=project, tag=tag)
+        df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
+        df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
+        df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
+        #df['start'] = df['start'].apply(time_str)
+        #df['parameters'] = df['parameters'].apply(dict_to_str)
+        #df['results'] = df['results'].apply(dict_to_str)
+        print(tabulate(df, headers='keys'))
+
     else:
         print('currently only get pods [name] is supported')
 
@@ -235,6 +262,19 @@ def line2keylist(lines: list, keyname='key', valname='path'):
         value = path.expandvars(value)
         out += [{keyname: key, valname: value}]
     return out
+
+
+def time_str(x):
+    try:
+        return x.strftime("%b %d %H:%M:%S")
+    except ValueError:
+        return ''
+
+
+def dict_to_str(struct: dict):
+    if not struct:
+        return []
+    return ','.join(['{}={}'.format(k, v) for k, v in struct.items()])
 
 
 if __name__ == "__main__":

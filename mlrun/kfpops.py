@@ -15,12 +15,12 @@ import json
 from copy import deepcopy
 from os import environ
 
-from .utils import run_keys, gen_md_table, dict_to_yaml
+from .utils import run_keys, gen_md_table, dict_to_yaml, logger
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
 
-def _write_kfpmeta(struct):
+def write_kfpmeta(struct):
     if 'status' not in struct:
         return
 
@@ -42,6 +42,7 @@ def _write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
+            logger.info('writing artifact output: /tmp/{} = {}'.format(key, val))
             with open('/tmp/{}'.format(key), 'w') as fp:
                 fp.write(val)
         except:

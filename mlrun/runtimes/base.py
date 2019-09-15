@@ -21,7 +21,7 @@ from copy import deepcopy
 import pandas as pd
 from io import StringIO
 
-from ..kfpops import _write_kfpmeta, mlrun_op
+from ..kfpops import write_kfpmeta, mlrun_op
 from ..db import get_run_db
 from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
 from ..secrets import SecretsStore
@@ -188,7 +188,7 @@ class BaseRuntime(ModelObj):
             self._results_to_iter(results, runspec, execution)
             resp = execution.to_dict()
             if resp and self.kfp:
-                _write_kfpmeta(resp)
+                write_kfpmeta(resp)
             result = show(results, resp)
         else:
             # single run
@@ -197,7 +197,7 @@ class BaseRuntime(ModelObj):
                 self.store_run(runspec)
                 resp = self._run(runspec, execution)
                 if resp and self.kfp:
-                    _write_kfpmeta(resp)
+                    write_kfpmeta(resp)
                 result = show(results, self._post_run(resp, task=runspec))
             except RunError as err:
                 logger.error(f'run error - {err}')

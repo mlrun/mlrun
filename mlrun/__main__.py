@@ -194,10 +194,9 @@ def get(kind, name, selector, namespace, extra_args):
         print('currently only get pods [name] is supported')
 
 
-def fill_params(param):
+def fill_params(params):
     params_dict = {}
-    for param in param:
-        print('param:', param, '*{}*'.format(param))
+    for param in params:
         i = param.find('=')
         if i == -1:
             continue

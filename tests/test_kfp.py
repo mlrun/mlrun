@@ -25,7 +25,9 @@ from mlrun import NewRun, new_function
 from mlrun.utils import run_keys
 
 
-run_spec = NewRun(params={'p1': 5}, out_path=out_path).set_label('tests', 'kfp')
+run_spec = NewRun(params={'p1': 5},
+                  out_path=out_path,
+                  outputs=['model.txt', 'chart.html']).set_label('tests', 'kfp')
 
 
 def my_job(context, p1=1, p2='a-string'):
@@ -76,12 +78,15 @@ def test_kfp_hyper():
     tmpdir = mktemp()
     spec = run_spec.copy()
     spec.spec.output_path = tmpdir
-    spec.spec.hyperparams = {'p1': [1, 2, 3]}
+    spec.with_hyper_params({'p1': [1, 2, 3]}, selector='min.loss')
     print(tmpdir)
     result = new_function(kfp=True).run(spec, handler=my_job)
     alist = listdir(tmpdir)
     print(alist)
     print(listdir('/tmp'))
+    with open('/tmp/iteration_results.csv') as fp:
+        print('XXXXXXXXXXXXXXXXX\nXXXXXXXXXXXXXXXXXX')
+        print(fp.read())
     with open('/tmp/iterations') as fp:
         iter = json.load(fp)
         print(yaml.dump(iter))

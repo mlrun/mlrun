@@ -72,7 +72,8 @@ class RemoteRuntime(BaseRuntime):
                 tag='', archive=False, files=[], output_dir='', kind=None):
 
         self.set_config('metadata.labels.mlrun/class', self.kind)
-        addr = nuclio.deploy_file(source, name=self.metadata.name, project=project or 'mlrun',
+        project = project or self.metadata.project or 'mlrun'
+        addr = nuclio.deploy_file(source, name=self.metadata.name, project=project,
                                   dashboard_url=self.dashboard, verbose=self.verbose,
                                   spec=self._config, tag=tag, handler=handler, kind=kind,
                                   archive=archive, files=files, output_dir=output_dir)

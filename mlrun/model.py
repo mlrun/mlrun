@@ -82,9 +82,11 @@ class ModelObj:
 
 
 class BaseMetadata(ModelObj):
-    def __init__(self, name=None, namespace=None, labels=None, annotations=None):
+    def __init__(self, name=None, namespace=None, project=None,
+                 labels=None, annotations=None):
         self.name = name
         self.namespace = namespace
+        self.project = project
         self.labels = labels or {}
         self.annotations = annotations or {}
 

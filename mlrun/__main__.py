@@ -197,6 +197,7 @@ def get(kind, name, selector, namespace, extra_args):
 def fill_params(param):
     params_dict = {}
     for param in param:
+        print('param:', param, '*{}*'.format(param))
         i = param.find('=')
         if i == -1:
             continue

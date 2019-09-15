@@ -14,11 +14,11 @@
 
 from ..model import RunObject
 from ..utils import update_in, logger, get_in
-from .base import RunRuntime, RunError
+from .base import BaseRuntime, RunError
 import nuclio
 
 
-class NuclioDeployRuntime(RunRuntime):
+class NuclioDeployRuntime(BaseRuntime):
     kind = 'nuclio'
     def __init__(self, metadata=None, spec=None):
         super().__init__(metadata, spec)

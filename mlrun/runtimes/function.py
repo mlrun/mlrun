@@ -20,7 +20,7 @@ from aiohttp.client import ClientSession
 import logging
 from sys import stdout
 
-from .base import RunRuntime, RunError
+from .base import BaseRuntime, RunError
 from ..utils import logger
 from ..lists import RunList
 from ..model import RunObject
@@ -31,9 +31,10 @@ from nuclio_sdk import Event
 import nuclio
 
 
-class RemoteRuntime(RunRuntime):
+class RemoteRuntime(BaseRuntime):
     kind = 'remote'
     #kind = 'nuclio'
+
     def __init__(self, metadata=None, spec=None):
         super().__init__(metadata, spec)
         self._config = nuclio.ConfigSpec()
@@ -66,13 +67,10 @@ class RemoteRuntime(RunRuntime):
         self._config.with_v3io()
         return self
 
-    def with_spec(self, env={}, config={}, cmd=[], v3io=False):
-        self._config = nuclio.ConfigSpec(env=env, config=config, cmd=cmd, v3io=v3io)
-        return self._config
-
     def deploy(self, source='', project='', handler='',
                 tag='', archive=False, files=[], output_dir='', kind=None):
 
+        self.set_config('metadata.labels.mlrun/class', self.kind)
         addr = nuclio.deploy_file(source, name=self.metadata.name, project=project or 'mlrun',
                                   dashboard_url=self.dashboard, verbose=self.verbose,
                                   spec=self._config, tag=tag, handler=handler, kind=kind,

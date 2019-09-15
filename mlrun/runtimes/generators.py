@@ -19,6 +19,14 @@ from ..utils import get_in, update_in
 from ..model import RunObject
 
 
+def get_generator(spec, execution):
+    if spec.hyperparams:
+        return GridGenerator(spec.hyperparams)
+    elif spec.param_file:
+        obj = execution.get_input('param_file.csv', spec.param_file)
+        return ListGenerator(obj.get())
+
+
 class TaskGenerator:
     def generate(self, run: RunObject):
         pass

@@ -13,15 +13,12 @@
 # limitations under the License.
 import json
 import socket
-from ast import literal_eval
 from copy import deepcopy
 from os import environ
-import yaml
-import inspect
 
 from .execution import MLClientCtx
 from .model import RunTemplate, RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime, RunError, RunRuntime,
+from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
 from .utils import update_in, get_in
 
@@ -121,16 +118,28 @@ runtime_dict = {'remote': RemoteRuntime,
                 'Function': NuclioDeployRuntime}
 
 
-def new_function(name: str = '', command: str = '', image: str = '', runtime=None, rundb: str = '',
-                 mode=None, kfp=None):
-    """Run a local or remote task.
+def new_function(name: str = '', command: str = '', image: str = '', runtime=None,
+                 rundb: str = '', mode=None, kfp=None):
+    """Create a new ML function from base properties
 
-    :param command:    runtime command (filename, function url, ..)
-    :param runtime:    runtime object/dict, runtime specific details
-    :param rundb:      path/url to the metadata and artifact database
-    :param kfp:        flag indicating run within kubeflow pipeline
+    e.g.:
+           # define a container based function
+           f = new_function(command='job://training.py -v', image='myrepo/image:latest')
 
-    :return: runtime context object
+           # define a handler function (execute a local function handler)
+           f = new_function().run(task, handler=myfunction)
+
+    :param name :    function template name
+    :param command:  runtime type + command/url + args (e.g.: mpijob://training.py --verbose)
+                     runtime prefixes: None, local, job, spark, dask, mpijob, nuclio
+    :param image:    default container image
+    :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
+                     store runtime specific details and preferences
+    :param rundb:    optional, path/url to the metadata and artifact database
+    :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
+    :param kfp:      flag indicating running within kubeflow pipeline
+
+    :return: function object
     """
     if not rundb:
         rundb = environ.get('MLRUN_DBPATH', rundb)
@@ -198,28 +207,30 @@ def parse_command(runtime, url):
 
 
 def code_to_function(name='', filename='', handler='', runtime=None,
-                     image=None, kind=None):
-    """convert code or notebook to function object
+                     image=None):
+    """convert code or notebook to function object with embedded code
+    code stored in the function spec and can be refreshed using .with_code()
+    eliminate the need to build container images everytime we edit the code
 
     :param name:      function name
     :param filename:  blank for current notebook, or path to .py/.ipynb file
     :param handler:   name of function handler (if not main)
     :param runtime:   optional, runtime type local, job, dask, mpijob, ..
     :param image:     optional, container image
-    :param kind:      for nuclio functions
 
     :return:
            function object
     """
+    if runtime == 'nuclio':
+        r = RemoteRuntime()
+        r.metadata.name = name
+        return r
+
     from nuclio import build_file
     bname, spec, code = build_file(filename, handler=handler)
 
     if runtime is None or runtime in ['', 'local']:
         r = LocalRuntime()
-    elif runtime == 'nuclio':
-        r = RemoteRuntime()
-        r.metadata.name = name
-        return r
     elif runtime in runtime_dict:
         r = runtime_dict[runtime]()
     else:

@@ -17,10 +17,11 @@ from os import environ
 
 from ..model import RunObject
 from ..utils import get_in, logger, normalize_name, update_in
-from .base import RunRuntime, RunError, FunctionSpec
+from .base import RunError
+from .container import ContainerJobSpec, ContainerRuntime
 
 
-class KubejobSpec(FunctionSpec):
+class KubejobSpec(ContainerJobSpec):
     def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
                  replicas=None, image_pull_policy=None, service_account=None, build=None):
@@ -35,8 +36,9 @@ class KubejobSpec(FunctionSpec):
         self.service_account = service_account
 
 
-class KubejobRuntime(RunRuntime):
+class KubejobRuntime(ContainerRuntime):
     kind = 'job'
+    _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
         try:

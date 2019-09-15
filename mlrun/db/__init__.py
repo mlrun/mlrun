@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .filedb import FileRunDB
+from .web import HTTPRunDB
 from .base import RunDBInterface, RunDBError  # noqa
 from os import environ
 from urllib.parse import urlparse
@@ -26,6 +27,8 @@ def get_run_db(url=''):
     scheme = p.scheme.lower()
     if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
         db = FileRunDB(url)
+    elif scheme in ('http', 'https'):
+        db = HTTPRunDB(url)
     else:
         raise ValueError('unsupported run DB scheme ({})'.format(scheme))
     return db

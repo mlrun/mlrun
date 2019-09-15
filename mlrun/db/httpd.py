@@ -109,7 +109,7 @@ def list_runs(project):
     return jsonify(ok=True, runs=runs)
 
 # curl -X DELETE http://localhost:8080/runs?project=p1&name=x&days_ago=3
-@app.route('/runs', methods=['GET'])
+@app.route('/runs', methods=['DELETE'])
 @catch_err
 def del_runs(project):
     name = request.args.get('name', '')
@@ -184,8 +184,17 @@ def del_artifacts():
     return jsonify(ok=True)
 
 
+@app.route('/healthz', methods=['GET'])
+def health():
+    return 'OK\n'
+
+
 if __name__ == '__main__':
-    dirpath = '/tmp/mlrun-db'  # FIXME: env, command line
-    db = FileRunDB(dirpath, '.yaml')
-    db.connect()
+    from os import environ
+    from os.path import expanduser
+
+    default_dirpath = expanduser('~/.mlrun/db')
+    dirpath = environ.get('MLRUN_HTTPDB_DIRPATH', default_dirpath)
+    _file_db = FileRunDB(dirpath, '.yaml')
+    _file_db.connect()
     app.run()

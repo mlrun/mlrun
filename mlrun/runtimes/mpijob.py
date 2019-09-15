@@ -51,6 +51,10 @@ _mpijob_template = {
              'volumes': []
          }}}}
 
+mpi_group = 'kubeflow.org'
+mpi_version = 'v1alpha1'
+mpi_plural = 'mpijobs'
+
 
 def _update_container(struct, key, value):
     struct['spec']['template']['spec']['containers'][0][key] = value
@@ -103,8 +107,8 @@ class MpiRuntime(KubejobRuntime):
         namespace = k8s.ns(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace=namespace,
-                plural='mpijobs', body=job)
+                mpi_group, mpi_version, namespace=namespace,
+                plural=mpi_plural, body=job)
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('MpiJob {} created'.format(name))
             logger.info('use runner.watch({}) to see logs'.format(name))
@@ -119,7 +123,7 @@ class MpiRuntime(KubejobRuntime):
             # delete the mpi job\
             body = client.V1DeleteOptions()
             resp = k8s.crdapi.delete_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace, MpiJob.plural, name, body)
+                mpi_group, mpi_version, namespace, mpi_plural, name, body)
             logger.info('del status: {}'.format(get_in(resp, 'status', 'unknown')))
         except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
@@ -129,7 +133,7 @@ class MpiRuntime(KubejobRuntime):
         namespace = k8s.ns(namespace)
         try:
             resp = k8s.crdapi.list_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace, MpiJob.plural,
+                mpi_group, mpi_version, namespace, mpi_plural,
                 watch=False, label_selector=selector)
         except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
@@ -154,7 +158,7 @@ class MpiRuntime(KubejobRuntime):
         namespace = k8s.ns(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace, MpiJob.plural, name)
+                mpi_group, mpi_version, namespace, mpi_plural, name)
         except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
         return resp

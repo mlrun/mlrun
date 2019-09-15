@@ -213,6 +213,9 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         secrets = secrets or runobj.spec.secret_sources or []
         project = project or runobj.metadata.project
 
+    if hyperparams or param_file:
+        outputs.append('iteration_results.csv')
+
     if name:
         cmd += ['--name', name]
     for s in secrets:
@@ -246,9 +249,6 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['--mode', mode]
     if more_args:
         cmd += more_args
-
-    if hyperparams or param_file:
-        file_outputs['iterations'] = '/tmp/iteration_results.csv'
 
     if image.startswith('.'):
         if 'DEFAULT_DOCKER_REGISTRY' in environ:

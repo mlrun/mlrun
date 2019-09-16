@@ -17,11 +17,12 @@ Configuration system.
 Configuration can be in either a configuration file specified by
 MLRUN_CONFIG_FILE environment variable or by environmenet variables.
 
-Environment variables are in the format "MLRUN_http_db.port=8080". This will be
-mapped to config.http_db.port. Values should be in JSON format.
+Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
+mapped to config.httpdb.port. Values should be in JSON format.
 """
 
 import os
+from os import path
 from collections.abc import Mapping
 from threading import Lock
 import json
@@ -40,8 +41,10 @@ default_config = {
     'kaniko_version': 'v0.9.0',
     'package_path': 'git+https://github.com/mlrun/mlrun.git',
     'default_image': 'python:3.6-jessie',
-    'http_db': {
-        'port': 9999,
+    'httpdb': {
+        'port': 8080,
+        'dirpath': path.expanduser('~/.mlrun/db'),
+        'debug': False,
     },
 }
 
@@ -83,6 +86,10 @@ class Config:
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
+
+    @staticmethod
+    def populate():
+        populate()
 
 
 # Global configuration
@@ -133,10 +140,17 @@ def read_env(env=None, prefix=env_prefix):
         except ValueError:
             pass  # Leave as string
         key = key[len(env_prefix):]  # Trim MLRUN_
-        path = key.lower().split('.')  # 'A.B' → ['a', 'b']
+        path = key.lower().split('__')  # 'A__B' → ['a', 'b']
         cfg = config
         while len(path) > 1:
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
     return config
+
+
+if __name__ == '__main__':
+    import sys
+
+    populate()
+    yaml.dump(config._cfg, sys.stdout, default_flow_style=False)

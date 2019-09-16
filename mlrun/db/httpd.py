@@ -195,6 +195,11 @@ if __name__ == '__main__':
 
     default_dirpath = expanduser('~/.mlrun/db')
     dirpath = environ.get('MLRUN_HTTPDB_DIRPATH', default_dirpath)
+    port = int(environ.get('MLRUN_HTTPDB_PORT', 8080))
     _file_db = FileRunDB(dirpath, '.yaml')
     _file_db.connect()
-    app.run()
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug='MLRUN_HTTPDB_DEBUG' in environ,
+    )

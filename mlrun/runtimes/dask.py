@@ -56,7 +56,7 @@ class DaskCluster(KubejobRuntime):
         self._spec = self._verify_dict(spec, 'spec', DaskSpec)
 
     def to_pod(self):
-        image = self.spec.image or 'daskdev/dask:latest'
+        image = self._image_path() or 'daskdev/dask:latest'
         env = self.spec.env
         namespace = self.metadata.namespace or config.namespace
         if self.spec.extra_pip:

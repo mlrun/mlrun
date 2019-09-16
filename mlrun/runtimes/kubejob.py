@@ -110,7 +110,7 @@ class KubejobRuntime(ContainerRuntime):
         execution.set_state('submit')
         new_meta = self._get_meta(runobj)
 
-        pod_spec = func_to_pod(image_path(self.spec.image), self, extra_env, command, args)
+        pod_spec = func_to_pod(self._image_path(), self, extra_env, command, args)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace =  k8s.create_pod(pod)
@@ -148,15 +148,15 @@ class KubejobRuntime(ContainerRuntime):
             new_meta.generate_name = norm_name
         return new_meta
 
-
-def image_path(image):
-    if not image.startswith('.'):
-        return image
-    if 'DEFAULT_DOCKER_REGISTRY' in environ:
-        return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
-    if 'IGZ_NAMESPACE_DOMAIN' in environ:
-        return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
-    raise RunError('local container registry is not defined')
+    def _image_path(self):
+        image = self.spec.image
+        if not image.startswith('.'):
+            return image
+        if 'DEFAULT_DOCKER_REGISTRY' in environ:
+            return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
+        if 'IGZ_NAMESPACE_DOMAIN' in environ:
+            return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
+        raise RunError('local container registry is not defined')
 
 
 def func_to_pod(image, runtime, extra_env, command, args):

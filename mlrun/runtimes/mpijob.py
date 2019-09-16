@@ -76,7 +76,7 @@ class MpiRuntime(KubejobRuntime):
         #update_in(job, 'spec.template.metadata.namespace', meta.namespace)
         update_in(job, 'spec.replicas', self.spec.replicas or 1)
         if self.spec.image:
-            _update_container(job, 'image', self.spec.image)
+            _update_container(job, 'image', self._image_path())
         update_in(job, 'spec.template.spec.volumes', self.spec.volumes)
         _update_container(job, 'volumeMounts', self.spec.volume_mounts)
         if self.spec.command:

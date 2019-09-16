@@ -11,8 +11,10 @@ from http import HTTPStatus
 
 import pytest
 
+from mlrun.db.httpdb import HTTPRunDB
+
 here = Path(__file__).absolute().parent
-Server = namedtuple('Server', 'process port')
+Server = namedtuple('Server', 'process url log_file')
 
 
 def free_port():
@@ -37,17 +39,39 @@ def wait_for_server(url, timeout_sec):
 def start_server(dirpath, log_file):
     port = free_port()
     env = environ.copy()
-    env['MLRUN_HTTPDB_PORT'] = port
-    env['MLRUN_HTTPDB_DIRPATH'] = dirpath
-    fp = open(log_file, 'w')
+    env['MLRUN_httpdb__port'] = str(port)
+    env['MLRUN_httpdb__dirpath'] = dirpath
 
     cmd = [
         executable,
         f'{here}/../mlrun/db/httpd.py',
     ]
-    proc = Popen(cmd, env=env, stdout=fp, stderr=fp)
-    url = 'http://localhost:{port}/helathz'
+    proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file)
+    url = f'http://localhost:{port}'
+
+    health_url = f'{url}/healthz'
     timeout = 30
-    if not wait_for_server(url, timeout):
+    if not wait_for_server(health_url, timeout):
         raise RuntimeError('server did not start after {timeout}sec')
-    return Server(proc, port)
+    return Server(proc, url, log_file)
+
+
+@pytest.fixture
+def server():
+    root = mkdtemp(prefix='mlrun-test')
+    print(f'root={root!r}')
+    dirpath = f'{root}/db'
+    with open(f'{root}/server.log', 'w+') as log_file:
+        server = start_server(dirpath, log_file)
+        yield server
+        server.process.kill()
+
+
+def test_run(server: Server):
+    db = HTTPRunDB(server.url)
+    db.connect()
+    prj, uid, body = 'p19', '3920', b'log data'
+    db.store_log(uid, prj, body)
+
+    data = db.get_log(uid, prj)
+    assert data == body, 'bad log data'

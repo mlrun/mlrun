@@ -36,7 +36,7 @@ class HTTPRunDB(RunDBInterface):
         url = f'{self.base_url}/{path}'
         kw = {
             key: value
-            for key, value in (('params', params), ('body', body))
+            for key, value in (('params', params), ('data', body))
             if value is not None
         }
 
@@ -48,12 +48,12 @@ class HTTPRunDB(RunDBInterface):
             error = error or '{method} {url}'
             raise RunDBError(error) from err
 
-    def _path_of(prefix, project, uid):
+    def _path_of(self, prefix, project, uid):
         project = project or default_project
         return f'{prefix}/{project}/{uid}'
 
     def connect(self, secrets=None):
-        self._api_call('healthz')
+        self._api_call('GET', 'healthz')
 
     def store_log(self, uid, project='', body=None, append=True):
         if not body:

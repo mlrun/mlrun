@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 from ..config import config
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
-from .web import HTTPRunDB
+from .httpdb import HTTPRunDB
 
 
 def get_run_db(url=''):

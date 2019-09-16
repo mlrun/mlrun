@@ -190,16 +190,14 @@ def health():
 
 
 if __name__ == '__main__':
-    from os import environ
-    from os.path import expanduser
+    from mlrun.config import config
 
-    default_dirpath = expanduser('~/.mlrun/db')
-    dirpath = environ.get('MLRUN_HTTPDB_DIRPATH', default_dirpath)
-    port = int(environ.get('MLRUN_HTTPDB_PORT', 8080))
-    _file_db = FileRunDB(dirpath, '.yaml')
+    config.populate()
+
+    _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()
     app.run(
         host='0.0.0.0',
-        port=port,
-        debug='MLRUN_HTTPDB_DEBUG' in environ,
+        port=config.httpdb.port,
+        debug=config.httpdb.debug,
     )

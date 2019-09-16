@@ -27,14 +27,14 @@ out_path = f'{results}/out'
 root_path = str(Path(here).parent)
 examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
-environ['MLRUN_META_DBPATH'] = rundb_path
+environ['MLRUN_DBPATH'] = rundb_path
 
 Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
 
 
 from mlrun.utils import update_in
-from mlrun import RunTemplate
+from mlrun import RunTemplate, RunObject
 
 
 def tag_test(spec: RunTemplate, name) -> RunTemplate:
@@ -46,3 +46,8 @@ def tag_test(spec: RunTemplate, name) -> RunTemplate:
 
 def has_secrets():
     return Path('secrets.txt').is_file()
+
+
+def verify_state(result: RunObject):
+    state = result.status.state
+    assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)

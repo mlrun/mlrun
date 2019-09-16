@@ -13,17 +13,14 @@
 # limitations under the License.
 import json
 import socket
-from ast import literal_eval
 from copy import deepcopy
 from os import environ
-import yaml
-import inspect
 
 from .execution import MLClientCtx
 from .model import RunTemplate, RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime, RunError, RunRuntime,
+from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
-from .utils import update_in, logger
+from .utils import update_in, get_in
 
 
 def get_or_create_ctx(name: str,
@@ -105,7 +102,7 @@ def get_or_create_ctx(name: str,
     update_in(newspec, 'metadata.name', name, replace=False)
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
-    out = environ.get('MLRUN_META_DBPATH', rundb)
+    out = environ.get('MLRUN_DBPATH', rundb)
     if out:
         autocommit = True
 
@@ -121,26 +118,39 @@ runtime_dict = {'remote': RemoteRuntime,
                 'Function': NuclioDeployRuntime}
 
 
-def new_runner(command: str = '', runtime=None, rundb: str = '',
-               mode=None, kfp=None):
-    """Run a local or remote task.
+def new_function(name: str = '', command: str = '', image: str = '', runtime=None,
+                 args: list = None, rundb: str = '', mode=None, kfp=None):
+    """Create a new ML function from base properties
 
-    :param command:    runtime command (filename, function url, ..)
-    :param runtime:    runtime object/dict, runtime specific details
-    :param rundb:      path/url to the metadata and artifact database
-    :param kfp:        flag indicating run within kubeflow pipeline
+    e.g.:
+           # define a container based function
+           f = new_function(command='job://training.py -v', image='myrepo/image:latest')
 
-    :return: runtime context object
+           # define a handler function (execute a local function handler)
+           f = new_function().run(task, handler=myfunction)
+
+    :param name :    function template name
+    :param command:  runtime type + command/url + args (e.g.: mpijob://training.py --verbose)
+                     runtime prefixes: None, local, job, spark, dask, mpijob, nuclio
+    :param args:     command line arguments (override the ones in command)
+    :param image:    default container image
+    :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
+                     store runtime specific details and preferences
+    :param rundb:    optional, path/url to the metadata and artifact database
+    :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
+    :param kfp:      flag indicating running within kubeflow pipeline
+
+    :return: function object
     """
     if not rundb:
-        rundb = environ.get('MLRUN_META_DBPATH', rundb)
+        rundb = environ.get('MLRUN_DBPATH', rundb)
 
     kind, runtime = process_runtime(command, runtime)
 
-    if not kind and not runtime.get('command', command):
+    if not kind and not get_in(runtime, 'spec.command', command):
         runner = HandlerRuntime()
     else:
-        if kind in ['', 'local'] and runtime.get('command'):
+        if kind in ['', 'local'] and get_in(runtime, 'spec.command'):
             runner = LocalRuntime.from_dict(runtime)
         elif kind in runtime_dict:
             runner = runtime_dict[kind].from_dict(runtime)
@@ -149,9 +159,15 @@ def new_runner(command: str = '', runtime=None, rundb: str = '',
                             + 'supported runtimes: {}'.format(
                               ','.join(list(runtime_dict.keys()) + ['local'])))
 
-    runner.rundb = rundb
+    runner.spec.rundb = rundb
+    if name:
+        runner.metadata.name = name
+    if image:
+        runner.spec.image = image
+    if args:
+        runner.spec.args = args
     runner.kfp = kfp
-    runner.mode = mode
+    runner.spec.mode = mode
     return runner
 
 
@@ -161,11 +177,11 @@ def process_runtime(command, runtime):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
         kind = runtime.get('kind', '')
-        command = command or runtime.get('command')
-    kind, command = get_kind(kind, command)
+        command = command or get_in(runtime, 'spec.command', '')
+    kind, command = get_kind(kind, command or '')
     if not runtime:
         runtime = {}
-    runtime['command'] = command
+    update_in(runtime, 'spec.command', command)
     runtime['kind'] = kind
     if kind != 'remote':
         parse_command(runtime, command)
@@ -184,128 +200,61 @@ def get_kind(kind, command):
 def parse_command(runtime, url):
     idx = url.find('#')
     if idx > -1:
-        runtime['image'] = url[:idx]
+        update_in(runtime, 'spec.image', url[:idx])
         url = url[idx+1:]
 
     if url:
         arg_list = url.split()
-        runtime['command'] = arg_list[0]
-        runtime['args'] = arg_list[1:]
+        update_in(runtime, 'spec.command', arg_list[0])
+        update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def mlrun_op(name: str = '', project: str = '',
-             image: str = 'v3io/mlrun', runtime: str = '', command: str = '',
-             secrets: list = [], params: dict = {}, hyperparams: dict = {},
-             param_file: str = '', selector: str = '', inputs: dict = {}, outputs: dict = {},
-             in_path: str = '', out_path: str = '', rundb: str = '',
-             mode: str = ''):
-    """mlrun KubeFlow pipelines operator, use to form pipeline steps
+def code_to_function(name='', filename='', handler='', runtime=None,
+                     image=None):
+    """convert code or notebook to function object with embedded code
+    code stored in the function spec and can be refreshed using .with_code()
+    eliminate the need to build container images everytime we edit the code
 
-    when using kubeflow pipelines, each step is wrapped in an mlrun_op
-    one step can pass state and data to the next step, see example below.
+    :param name:      function name
+    :param filename:  blank for current notebook, or path to .py/.ipynb file
+    :param handler:   name of function handler (if not main)
+    :param runtime:   optional, runtime type local, job, dask, mpijob, ..
+    :param image:     optional, container image
 
-    :param name:    name used for the step
-    :param project: optional, project name
-    :param image:   optional, run container image (will be executing the step)
-                    the container should host all requiered packages + code
-                    for the run, alternatively user can mount packages/code via
-                    shared file volumes like v3io (see example below)
-    :param runtime: optional, runtime specification
-    :param command: exec command (or URL for functions)
-    :param secrets: extra secrets specs, will be injected into the runtime
-                    e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
-    :param params:  dictionary of run parameters and values
-    :param hyperparams: dictionary of hyper parameters and list values, each
-                        hyperparam holds a list of values, the run will be
-                        executed for every parameter combination (GridSearch)
-    :param param_file:  a csv file with parameter combinations, first row hold
-                        the parameter names, following rows hold param values
-    :param inputs:   dictionary of input objects + optional paths (if path is
-                     omitted the path will be the in_path/key.
-    :param outputs:  dictionary of input objects + optional paths (if path is
-                     omitted the path will be the out_path/key.
-    :param in_path:  default input path/url (prefix) for inputs
-    :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    path for rundb (or use 'MLRUN_META_DBPATH' env instead)
-    :param mode:     run mode, e.g. 'noctx' for pushing params as args
-
-    :return: KFP step operation
-
-    Example:
-    from kfp import dsl
-    from mlrun import mlrun_op
-    from mlrun.platforms import mount_v3io
-
-    def mlrun_train(p1, p2):
-    return mlrun_op('training',
-                    command = '/User/kubeflow/training.py',
-                    params = {'p1':p1, 'p2':p2},
-                    outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
-
-    # use data from the first step
-    def mlrun_validate(modelfile):
-        return mlrun_op('validation',
-                    command = '/User/kubeflow/validation.py',
-                    inputs = {'model.txt':modelfile},
-                    out_path ='v3io:///bigdata/mlrun/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
-
-    @dsl.pipeline(
-        name='My MLRUN pipeline', description='Shows how to use mlrun.'
-    )
-    def mlrun_pipeline(
-        p1 = 5 , p2 = '"text"'
-    ):
-        # run training, mount_v3io will mount "/User" into the pipeline step
-        train = mlrun_train(p1, p2).apply(mount_v3io())
-
-        # feed 1st step results into the secound step
-        validate = mlrun_validate(train.outputs['model-txt']).apply(mount_v3io())
-
+    :return:
+           function object
     """
-    from kfp import dsl
-    from os import environ
+    if runtime == 'nuclio':
+        r = RemoteRuntime()
+        r.metadata.name = name
+        return r
 
-    rundb = rundb or environ.get('MLRUN_META_DBPATH')
-    cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--workflow', '{{workflow.uid}}', '--name', name]
-    file_outputs = {}
-    for s in secrets:
-        cmd += ['-s', '{}'.format(s)]
-    for p, val in params.items():
-        cmd += ['-p', '{}={}'.format(p, val)]
-    for x, val in hyperparams.items():
-        cmd += ['-x', '{}={}'.format(x, val)]
-    for i, val in inputs.items():
-        cmd += ['-i', '{}={}'.format(i, val)]
-    for o, val in outputs.items():
-        cmd += ['-o', '{}={}'.format(o, val)]
-        file_outputs[o.replace('.', '-')] = '/tmp/{}'.format(o)
-    if project:
-        cmd += ['--project', project]
-    if runtime:
-        cmd += ['--runtime', runtime]
-    if in_path:
-        cmd += ['--in-path', in_path]
-    if out_path:
-        cmd += ['--out-path', out_path]
-    if rundb:
-        cmd += ['--rundb', rundb]
-    if param_file:
-        cmd += ['--param-file', param_file]
-    if selector:
-        cmd += ['--selector', selector]
-    if mode:
-        cmd += ['--mode', mode]
+    from nuclio import build_file
+    bname, spec, code = build_file(filename, handler=handler)
 
-    if hyperparams or param_file:
-        file_outputs['iterations'] = '/tmp/iteration_results.csv'
+    if runtime is None or runtime in ['', 'local']:
+        r = LocalRuntime()
+    elif runtime in runtime_dict:
+        r = runtime_dict[runtime]()
+    else:
+        raise Exception('unsupported runtime ({})'.format(runtime))
 
-    cop = dsl.ContainerOp(
-        name=name,
-        image=image,
-        command=cmd + [command],
-        file_outputs=file_outputs,
-    )
-    return cop
+    h = get_in(spec, 'spec.handler', '').split(':')
+    r.handler = h[0] if len(h) <= 1 else h[1]
+    r.metadata = get_in(spec, 'spec.metadata')
+    r.metadata.name = name or bname or 'mlrun'
+    r.spec.image = get_in(spec, 'spec.image', image)
+    build = r.spec.build
+    build.base_image = get_in(spec, 'spec.build.baseImage')
+    build.commands = get_in(spec, 'spec.build.commands')
+    build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+    build.image = get_in(spec, 'spec.build.image')
+    build.secret = get_in(spec, 'spec.build.secret')
+    if r.kind != 'local':
+        r.spec.env = get_in(spec, 'spec.env')
+        for vol in get_in(spec, 'spec.volumes', []):
+            r.spec.volumes.append(vol.get('volume'))
+            r.spec.volume_mounts.append(vol.get('volumeMount'))
+    return r
+
+

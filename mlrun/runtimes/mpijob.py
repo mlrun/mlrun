@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 import uuid
 from copy import deepcopy
 from os import environ
@@ -19,7 +20,7 @@ from pprint import pprint
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import dict_to_yaml, update_in, logger, get_in
-from ..k8s_utils import k8s_helper
+from ..execution import MLClientCtx
 import importlib
 
 from kubernetes import client
@@ -50,6 +51,10 @@ _mpijob_template = {
              'volumes': []
          }}}}
 
+mpi_group = 'kubeflow.org'
+mpi_version = 'v1alpha1'
+mpi_plural = 'mpijobs'
+
 
 def _update_container(struct, key, value):
     struct['spec']['template']['spec']['containers'][0][key] = value
@@ -57,8 +62,9 @@ def _update_container(struct, key, value):
 
 class MpiRuntime(KubejobRuntime):
     kind = 'mpijob'
+    _is_nested = False
 
-    def _run(self, runobj: RunObject, execution):
+    def _run(self, runobj: RunObject, execution: MLClientCtx):
 
         job = deepcopy(_mpijob_template)
         meta = self._get_meta(runobj, True)
@@ -68,16 +74,32 @@ class MpiRuntime(KubejobRuntime):
         update_in(job, 'metadata', meta.to_dict())
         update_in(job, 'spec.template.metadata.labels', pod_labels)
         #update_in(job, 'spec.template.metadata.namespace', meta.namespace)
-        update_in(job, 'spec.replicas', self.replicas or 1)
-        if self.image:
-            _update_container(job, 'image', self.image)
-        update_in(job, 'spec.template.spec.volumes', self.volumes)
-        _update_container(job, 'volumeMounts', self.volume_mounts)
-        if self.command:
+        update_in(job, 'spec.replicas', self.spec.replicas or 1)
+        if self.spec.image:
+            _update_container(job, 'image', self._image_path())
+        update_in(job, 'spec.template.spec.volumes', self.spec.volumes)
+        _update_container(job, 'volumeMounts', self.spec.volume_mounts)
+        if self.spec.command:
             _update_container(job, 'command',
-                              ['mpirun', 'python', self.command] + self.args)
+                              ['mpirun', 'python', self.spec.command] + self.spec.args)
 
-        self._submit_mpijob(job, meta.namespace)
+        resp = self._submit_mpijob(job, meta.namespace)
+        for i in range(20):
+            resp = self.get_job(meta.name, meta.namespace)
+            if resp and resp.get('status'):
+                break
+            time.sleep(1)
+
+        if resp:
+            state = get_in(resp, 'status.launcherStatus')
+            logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
+            if state:
+                launcher, status = self._get_lancher(meta.name, meta.namespace)
+                execution.set_hostname(launcher)
+                execution.set_state(state.lower())
+                logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+            else:
+                logger.warning('MpiJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
 
         return None
 
@@ -86,11 +108,11 @@ class MpiRuntime(KubejobRuntime):
         namespace = k8s.ns(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace=namespace,
-                plural='mpijobs', body=job)
+                mpi_group, mpi_version, namespace=namespace,
+                plural=mpi_plural, body=job)
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('MpiJob {} created'.format(name))
-            logger.info('use runner.watch({}) to see logs'.format(name))
+            logger.info('use .watch({}) to see logs'.format(name))
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating MPIJob: %s" % e)
@@ -102,7 +124,7 @@ class MpiRuntime(KubejobRuntime):
             # delete the mpi job\
             body = client.V1DeleteOptions()
             resp = k8s.crdapi.delete_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace, MpiJob.plural, name, body)
+                mpi_group, mpi_version, namespace, mpi_plural, name, body)
             logger.info('del status: {}'.format(get_in(resp, 'status', 'unknown')))
         except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
@@ -112,7 +134,7 @@ class MpiRuntime(KubejobRuntime):
         namespace = k8s.ns(namespace)
         try:
             resp = k8s.crdapi.list_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace, MpiJob.plural,
+                mpi_group, mpi_version, namespace, mpi_plural,
                 watch=False, label_selector=selector)
         except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
@@ -137,7 +159,7 @@ class MpiRuntime(KubejobRuntime):
         namespace = k8s.ns(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
-                MpiJob.group, MpiJob.version, namespace, MpiJob.plural, name)
+                mpi_group, mpi_version, namespace, mpi_plural, name)
         except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
         return resp
@@ -160,54 +182,16 @@ class MpiRuntime(KubejobRuntime):
             logger.error('no pod matches that job name')
             return
         k8s = self._get_k8s()
-        pod, status = list(pods.items())[0]
+        pod, status = self._get_lancher(name, namespace)
         logger.info('watching pod {}, status = {}'.format(pod, status))
         k8s.watch(pod, namespace)
 
+    def _get_lancher(self, name, namespace=None):
+        pods = self.get_pods(name, namespace, lancher=True)
+        if not pods:
+            logger.error('no pod matches that job name')
+            return
+        k8s = self._get_k8s()
+        return list(pods.items())[0]
 
-class MpiJob:
-    """
-    A wrapper over Kubernetes MPIJob (Horovod).
-
-    Example:
-
-       from mpijob import MpiJob
-
-       job = MpiJob('myname', 'img', ['a','b'])
-       job.volume()   # add v3io volume
-       print(job.to_yaml())
-       job.submit()
-
-    """
-    group = 'kubeflow.org'
-    version = 'v1alpha1'
-    plural = 'mpijobs'
-
-    def __init__(self, name, image=None, command=None,
-                 replicas=0, namespace='default-tenant', struct=None):
-        from kubernetes import config
-
-        self.api_instance = None
-        self.name = name
-        self.namespace = namespace
-        if struct:
-            self._struct = struct
-        else:
-            self._struct = deepcopy(_mpijob_template)
-            self._struct['metadata'] = {'name': name, 'namespace': namespace}
-        self._update_container('name', name)
-        if image:
-            self._update_container('image', image)
-        if command:
-            self._update_container('command', ['mpirun', 'python'] + command)
-        if replicas:
-            self._struct['spec']['replicas'] = replicas
-        config.load_incluster_config()
-        self.api_instance = client.CustomObjectsApi()
-
-
-
-    def gpus(self, num, gpu_type='nvidia.com/gpu'):
-        self._update_container('resources', {'limits' : {gpu_type: num}})
-        return self
 

@@ -20,17 +20,17 @@ from kubernetes import config, client
 from kubernetes.client.rest import ApiException
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
-
+from .config import config as mlconfig
 
 class k8s_helper:
     def __init__(self, namespace=None, config_file=None):
-        self.namespace = namespace
+        self.namespace = namespace or mlconfig.namespace
         self._init_k8s_config(config_file)
         self.v1api = client.CoreV1Api()
         self.crdapi = client.CustomObjectsApi()
 
     def ns(self, namespace=None):
-        return namespace or self.namespace or 'default-tenant'
+        return namespace or self.namespace
 
     def _init_k8s_config(self, config_file):
         try:
@@ -99,6 +99,9 @@ class k8s_helper:
                 logger.error('failed to get pod: {}'.format(e))
                 raise e
             return None
+
+    def get_pod_status(self, name, namespace=None):
+        return self.get_pod(name, namespace).status.phase.lower()
 
     def logs(self, name, namespace=None):
         try:

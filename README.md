@@ -30,21 +30,22 @@ and the idea is to make all the resources pluggable, this way developers code to
 
 ## Content
 
-<b>Architecture</b>
+<b>Architecture and tutorial</b>
 
-* [Managed and portable execution](#managed-and-portable-execution)
+* [Managed and portable execution a.k.a Serverless](#managed-and-portable-execution)
 * [Automated parametrization, artifact tracking and logging](#automated-parametrization-artifact-tracking-and-logging)
 * [Using hyper parameters for job scaling](#using-hyper-parameters-for-job-scaling)
 * [Automated code deployment and containerization](#automated-code-deployment-and-containerization)
+* [Running with KubeFlow ML Pipeline](#running-with-kubeflow-ml-pipeline)
 * [Run and Artifact Database](#run-and-artifact-database)
 
 <b>Examples & Notebooks</b>
 * [Various run examples](examples/mlrun_games.ipynb)
 * [From local runs to a scalable Kubernetes cluster](examples/nuclio_jobs.ipynb)
-* [Automated workflows with KubeFlow Pipelines](examples/ml_pipe.ipynb)
+* [Automated workflows with KubeFlow Pipelines](examples/pipe_code.ipynb)
 * [Using MLRUN with Dask](examples/mlrun_dask.ipynb)
 * [Using MLRUN with Horovod and MpiJob](examples/mlrun_mpijob.ipynb)
-* [Using MLRUN with Nuclio](examples/mlrun_nuclio.ipynb)
+* [Using MLRUN with Nuclio](examples/train_xgboost_serverless.ipynb)
 * [Using MLRUN with Spark - TBD]()
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 * [Automating container build](examples/build.py)
@@ -56,31 +57,31 @@ and the idea is to make all the resources pluggable, this way developers code to
 We have few main elements:
 
 * task (run) - define the desired parameters, inputs, outputs and tracking of a run. 
-Run can be created from a template and run over different `runtimes` or `runners`.
+Run can be created from a template and run over different `runtimes` or `functions`.
 * runtime - is a computation framework, we supports multiple `runtimes` such as local, 
 kubernetes job, dask, nuclio, spark, mpijob (Horovod). runtimes may support 
 parallelism and clustering (i.e. distribute the work among processes/containers).
-* runner - a `runtime` specific software package and attributes (e.g. image, command, 
-args, environment, ..). runners can run one or many runs/tasks.
+* function - a `runtime` specific software package and attributes (e.g. image, command, 
+args, environment, ..). function can run one or many runs/tasks and can be created from templates.
 
 example:
 
     task = NewRun(handler=handler, name='demo', params={'p1': 5})
-    task.with_secrets('file', 'secrets.txt').task.set_label('type', 'demo')
+    task.with_secrets('file', 'secrets.txt').set_label('type', 'demo')
     
-    run = new_runner(command='dask://').run(task)
+    run = new_function(command='dask://').run(task)
     print(run.artifact('model'))
 
 in this example the task defines our run spec (parameters, inputs, secrets, ..) .
-we run this task on a `dask` runner (local or clustered), and print out the result 
+we run this task on a `dask` function (local or clustered), and print out the result 
 output (in this case the `model` artifact) or watch the progress of that run.
 
-we can run the same `task` on different runners, enabling code portability and re-use, 
-or we can use the same `runner` to run different tasks or parameter combinations with 
+we can run the same `task` on different functions, enabling code portability and re-use, 
+or we can use the same `function` to run different tasks or parameter combinations with 
 minimal coding effort.
 
 moving from run on a local notebook, to running in a container job, a scaled-out framework
-or an automated workflow engine like KubeFlow is seamless, just swap the runtime/runner.
+or an automated workflow engine like KubeFlow is seamless, just swap the runtime/function.
 
 ### Automated parametrization, artifact tracking and logging 
 
@@ -90,36 +91,69 @@ get parameters and inputs from the context as well as log outputs, artifacts,
 tag, and time-series metrics.
 
 
-<b>Example, simple function</b>
+<b>Example, XGBoost training function</b>
 
 ```python
-def training(context, p1=1, p2=2):
-    # access input metadata, values, and inputs
-    print(f'Run: {context.name} (uid={context.uid})')
-    print(f'Params: p1={p1}, p2={p2}')
-    context.logger.info('started training')
-    
-    # do some training 
-    
-    # log the run results (scalar values)
-    context.log_result('accuracy', p1 * 2)
-    context.log_result('loss', p1 * 3)
-    
-    # add a lable/tag to this run 
-    context.set_label('category', 'tests')
-    
-    # log a simple artifact + label the artifact 
-    context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
+import xgboost as xgb
+import os
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+import numpy as np
+from sklearn.metrics import accuracy_score
+
+dtrain = dtest = Y_test = None
+
+def load_dataset():
+    global dtrain, dtest, Y_test
+    iris = load_iris()
+    y = iris['target']
+    X = iris['data']
+    X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2)
+    dtrain = xgb.DMatrix(X_train, label=Y_train)
+    dtest = xgb.DMatrix(X_test, label=Y_test)
+
+
+def xgb_train(context, model_name='iris_v1.bst',
+            max_depth=6,
+            num_class=10,
+            eta=0.2,
+            gamma=0.1,
+            steps=20):
+    global dtrain, dtest, Y_test
+
+    if dtrain is None:
+        load_dataset()
+
+    # Get params from event
+    param = {"max_depth": max_depth,
+             "eta": eta, "nthread": 4,
+             "num_class": num_class,
+             "gamma": gamma,
+             "objective": "multi:softprob"}
+
+    # Train model
+    xgb_model = xgb.train(param, dtrain, steps)
+
+    preds = xgb_model.predict(dtest)
+    best_preds = np.asarray([np.argmax(line) for line in preds])
+
+    context.log_result('accuracy', float(accuracy_score(Y_test, best_preds)))
+
+    os.makedirs('models', exist_ok=True)
+    model_file = model_name #os.path.join('models', model_name)
+    xgb_model.save_model(model_file)
+    context.log_artifact('model', src_path=model_file, labels={'framework': 'xgboost'})
 ```  
 
 
 The function above can be executed locally with parameters (p1, p2), the results and artifacts 
 will be logged automatically into a database with a single command. 
 
-    train_run = new_runner().run(handler=training, params={'p1': 5})    
+    train_run = new_function().run(handler=xgb_train).with_params(eta=0.3)    
 
-we can swap the `runner` with a serverless runtime and the same will run on a cluster.
-see detailed examples in the [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, or `mpijob` runtimes.
+we can swap the `function` with a serverless runtime and the same will run on a cluster.<br>
+this can result in 10x performance boost, see [this notebook](examples/train_xgboost_serverless.ipynb) for details.
+more examples can be found in [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, or `mpijob` runtimes.
  
 if we run our code from `main` we can get the runtime context by calling the `get_or_create_ctx`
 method. 
@@ -177,7 +211,7 @@ if __name__ == "__main__":
 
 the code above can be invoked by calling:
 
-    run = new_runner(command='training.py').run(task)
+    run = new_function(command='training.py').run(task)
 
 or using the cli (while substituting the parameter and input values):
 
@@ -197,9 +231,18 @@ the parallelism implementation is left to the `runtime`, each may have its own w
 for example `nuclio` serverless engine manage many micro-threads in the same process which can run multiple tasks in parallel. 
 In a containerized system like Kubernetes we can launch multiple containers each processing a different task.
 
-In `mlrun` we implement parallelism using a single like:
+In `mlrun` we implement parallelism you can run many parameter combinations for the `xgboost` 
+function above by using `hyper params`:
 
-    run = new_runner(command='training.py').run(task.with_hyper_params({'p1': [5, 2, 3]}, 'min.loss'))
+    parameters = {
+         "eta":       [0.05, 0.10, 0.20, 0.30],
+         "max_depth": [3, 4, 5, 6, 8, 10],
+         "gamma":     [0.0, 0.1, 0.2, 0.3],
+         }
+
+    task = NewRun(handler=xgb_train, out_path='/User/mlrun/data').with_hyper_params(parameters, 'max.accuracy')
+    run = new_function().run(task)
+
     
 The line above tells mlrun to run the same task while choosing the parameters from multiple lists (GridSearch).
 it will record ALL the runs, but mark the one with minimal `loss` as the selected result.
@@ -211,8 +254,8 @@ This can also be done via the CLI:
 
 We can use a parameter file if we want to control the parameter combinations or if the parameters are more complex.
 
-    task = NewRun(handler=handler).with_param_file('params.csv', 'max.accuracy')
-    run = new_runner().run(task)
+    task = NewRun(handler=xgb_train).with_param_file('params.csv', 'max.accuracy')
+    run = new_function().run(task)
 
   
 > Note: parameter list can be used for various tasks, another example is to pass a list of files and 
@@ -245,17 +288,50 @@ build_image('yhaviv/ktests3:latest',
       commands=['python setup.py install'])
 ```
 
-or this we can convert our notebook into acontainerizedd job:
+or this we can convert our notebook into a containerized job:
 
 ```python
-# create a job from the notebook, attache it to iguazio data fabric (v3io)
-job = make_nuclio_job().apply(mount_v3io())
+# create an ML function from the notebook, attache it to iguazio data fabric (v3io)
+fn = code_to_function(runtime='job').apply(mount_v3io())
 
 # prepare an image from the dependencies, so we wont need to build the image every run 
-job.build_image(image='mlrun/nuctest:latest')
+fn.build(image='mlrun/nuctest:latest')
 ``` 
 
-### Run and Artifact Database
+see [detailed example](examples/nuclio_jobs.ipynb)
+
+## Running with KubeFlow ML Pipeline
+
+Running in a pipeline would be similar to running using the command line
+mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
+
+see the [pipelines notebook example](examples/pipe_code.ipynb)
+```python
+# create a job from the notebook, attache it to iguazio data fabric (v3io)
+fn = code_to_function('training')
+
+# builf the container image
+fn.build(image='mlrun/xgb:latest') 
+
+# define the pipeline
+@dsl.pipeline(
+    name='My XGBoost training pipeline',
+    description='Shows how to use mlrun.'
+)
+def xgb_pipeline(
+   eta = [0.1, 0.2, 0.3], gamma = 0.2
+):
+    run = NewRun(handler='xgb_train', out_path=artifacts_path, outputs=['model']).with_hyper_params({'eta': eta}, selector='max.accuracy').with_params(gamma=gamma)
+    train = fn.with_code().to_step(run).apply(mount_v3io())
+
+
+# run the pipeline
+client = kfp.Client(namespace='default-tenant')
+arguments = {'eta': [0.1, 0.2, 0.4]}
+run_result = client.create_run_from_pipeline_func(xgb_pipeline, arguments, run_name='xgb 1', experiment_name='xgb')    
+```
+
+## Run and Artifact Database
 
 if you have specified a `rundb` the results and artifacts from each run are recorded 
 
@@ -297,99 +373,21 @@ The same code can be implemented as a remote HTTP endpoint e.g. using [nuclio se
 
 for example the same code can be wrapped in a nuclio handler and be remotely executed using the same CLI
 
-#### Function Code
-
-```python
-from mlrun import get_or_create_ctx
-import time
-
-
-def handler(context, event):
-    ctx = get_or_create_ctx('myfunc', event=event)
-    p1 = ctx.get_param('p1', 1)
-    p2 = ctx.get_param('p2', 'a-string')
-
-    context.logger.info(
-        f'Run: {ctx.name} uid={ctx.uid}:{ctx.iteration} Params: p1={p1}, p2={p2}')
-
-    time.sleep(1)
-
-    # log scalar values (KFP metrics)
-    ctx.log_result('accuracy', p1 * 2)
-    ctx.log_result('latency', p1 * 3)
-
-    # log various types of artifacts (and set UI viewers)
-    ctx.log_artifact('test.txt', body=b'abc is 123')
-    ctx.log_artifact('test.html', body=b'<b> Some HTML <b>', viewer='web-app')
-
-    context.logger.info('run complete!')
-    return ctx.to_json()
-```
-
 #### Function Deployment
 
 to deploy the function into a cluster you can run the following commands
 (make sure you first installed the nuclio-jupyter package)
 
 ```python
-import nuclio
+# create the function from the notebook code + annotations, add volumes and parallel HTTP trigger
+fn = code_to_function('xgb_train', runtime='nuclio')
+fn.add_volume('User','~/').with_http(workers=32)
 
-spec = nuclio.ConfigSpec(env={'MYENV_VAR': 'something'}, 
-                         cmd=['pip install git+https://github.com/mlrun/mlrun.git@development'],
-                         config={'spec.build.baseImage': 'python:3.6-jessie', 'spec.build.noCache': True},
-                         mount=nuclio.Volume('User','~/'))
-spec.add_trigger('web', nuclio.triggers.HttpTrigger(workers=8))
-
-addr = nuclio.deploy_file('',name='myfunc', project='mlrun', verbose=False, spec=spec)
+run = fn.run(task, handler='xgb_train')
 ```
 
-
-> Note: add this repo to nuclio build commands (`pip install git+https://github.com/v3io/mlrun.git`)
 
 To execute the code remotely just substitute the file name with the function URL
 
 `python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt http://<function-endpoint>`
 
-### Running Inside a KubeFlow Pipeline
-
-Running in a pipeline would be similar to running using the command line
-mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
-
-see the [pipelines notebook example](examples/ml_pipe.ipynb)
-```python
-# run training using params p1 and p2, generate 2 registered outputs (model, dataset) to be listed in the pipeline UI
-# user can specify the target path per output e.g. 'model.txt':'<some-path>', or leave blank to use the default out_path
-def mlrun_train(p1, p2):
-    return mlrun_op('training', 
-                    command = this_path + '/training.py', 
-                    params = {'p1':p1, 'p2':p2},
-                    outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path = artifacts_path,
-                    rundb = db_path)
-                    
-# use data (model) from the first step as an input
-def mlrun_validate(modelfile):
-    return mlrun_op('validation', 
-                    command = this_path + '/validation.py', 
-                    inputs = {'model.txt':modelfile},
-                    out_path = artifacts_path,
-                    rundb = db_path)
-```
-
-You can use the function inside a DAG:
-
-```python
-@dsl.pipeline(
-    name='My MLRUN pipeline',
-    description='Shows how to use mlrun.'
-)
-def mlrun_pipeline(
-   p1 = 5 , p2 = '"text"'
-):
-    # create a train step, apply v3io mount to it (will add the /User mount to the container)
-    train = mlrun_train(p1, p2).apply(mount_v3io())
-    
-    # feed 1st step results into the secound step
-    # Note: the '.' in model.txt must be substituted with '-'
-    validate = mlrun_validate(train.outputs['model-txt']).apply(mount_v3io())
-```

@@ -16,8 +16,9 @@ import inspect
 import json
 from copy import deepcopy
 from os import environ
-from pprint import pformat
-from .utils import dict_to_yaml
+
+from .db import get_run_db
+from .utils import dict_to_yaml, get_in
 
 
 class ModelObj:
@@ -71,19 +72,21 @@ class ModelObj:
         return json.dumps(self.to_dict())
 
     def to_str(self):
-        return pformat(self.to_dict())
+        return '{}'.format(self.to_dict())
 
     def __str__(self):
-        return self.to_str()
+        return str(self.to_dict())
 
     def copy(self):
         return deepcopy(self)
 
 
 class BaseMetadata(ModelObj):
-    def __init__(self, name=None, namespace=None, labels=None, annotations=None):
+    def __init__(self, name=None, namespace=None, project=None,
+                 labels=None, annotations=None):
         self.name = name
         self.namespace = namespace
+        self.project = project
         self.labels = labels or {}
         self.annotations = annotations or {}
 
@@ -98,7 +101,7 @@ class ImageBuilder(ModelObj):
         self.commands = commands or []
         self.secret = secret
         self.registry = registry
-        self.interactive = True
+        self.build_pod = None
 
 
 class RunMetadata(ModelObj):
@@ -121,7 +124,7 @@ class RunMetadata(ModelObj):
 
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
-                 selector=None, handler=None, inputs=None, output_artifacts=None,
+                 selector=None, handler=None, inputs=None, outputs=None,
                  input_path=None, output_path=None,
                  secret_sources=None, data_stores=None):
 
@@ -131,7 +134,7 @@ class RunSpec(ModelObj):
         self.selector = selector
         self.handler = handler
         self._inputs = inputs
-        self._output_artifacts = output_artifacts
+        self._outputs = outputs
         self.input_path = input_path
         self.output_path = output_path
         self._secret_sources = secret_sources or []
@@ -152,13 +155,13 @@ class RunSpec(ModelObj):
         self._inputs = self._verify_dict(inputs, 'inputs')
 
     @property
-    def output_artifacts(self):
-        return self._output_artifacts
+    def outputs(self):
+        return self._outputs
 
-    @output_artifacts.setter
-    def output_artifacts(self, output_artifacts):
-        self._verify_list(output_artifacts, 'output_artifacts')
-        self._output_artifacts = output_artifacts
+    @outputs.setter
+    def outputs(self, outputs):
+        self._verify_list(outputs, 'outputs')
+        self._outputs = outputs
 
     @property
     def secret_sources(self):
@@ -178,17 +181,26 @@ class RunSpec(ModelObj):
         self._verify_list(data_stores, 'data_stores')
         self._data_stores = data_stores
 
+    @property
+    def handler_name(self):
+        if self.handler:
+            if inspect.isfunction(self.handler):
+                return self.handler.__name__
+            else:
+                return str(self.handler)
+        return ''
+
 
 class RunStatus(ModelObj):
     def __init__(self, state=None, error=None, host=None, commit=None,
-                 outputs=None, output_artifacts=None,
+                 results=None, artifacts=None,
                  start_time=None, last_update=None, iterations=None):
         self.state = state or 'created'
         self.error = error
         self.host = host
         self.commit = commit
-        self.outputs = outputs
-        self.output_artifacts = output_artifacts
+        self.results = results
+        self.artifacts = artifacts
         self.start_time = start_time
         self.last_update = last_update
         self.iterations = iterations
@@ -218,8 +230,14 @@ class RunTemplate(ModelObj):
     def metadata(self, metadata):
         self._metadata = self._verify_dict(metadata, 'metadata', RunMetadata)
 
-    def with_params(self, params):
-        self.spec.parameters = params
+    def with_params(self, **kwargs):
+        self.spec.parameters = kwargs
+        return self
+
+    def with_input(self, key, path):
+        if not self.spec.inputs:
+            self.spec.inputs = {}
+        self.spec.inputs[key] = path
         return self
 
     def with_hyper_params(self, hyperparams, selector=None):
@@ -265,34 +283,53 @@ class RunObject(RunTemplate):
         self._status = self._verify_dict(status, 'status', RunStatus)
 
     def output(self, key):
-        if self.status.outputs and key in self.status.outputs:
-            return self.status.outputs.get(key)
+        if self.status.results and key in self.status.results:
+            return self.status.results.get(key)
         artifact = self.artifact(key)
         if artifact:
             return artifact.get('target_path')
         return None
 
     def artifact(self, key):
-        if self.status.output_artifacts:
-            for a in self.status.output_artifacts:
+        if self.status.artifacts:
+            for a in self.status.artifacts:
                 if a['key'] == key:
                     return a
         return None
 
+    def uid(self):
+        return self.metadata.uid
+
+    def state(self):
+        db = get_run_db().connect()
+        run = db.read_run(uid=self.metadata.uid, project=self.metadata.project, display=False)
+        if run:
+            return get_in(run, 'status.state', 'unknown')
+
+    def show(self):
+        db = get_run_db().connect()
+        db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
+
 
 def NewRun(name=None, project=None, handler=None,
            params=None, hyper_params=None, param_file=None, selector=None,
-           in_path=None, out_path=None, secrets=None):
+           inputs=None, outputs=None,
+           in_path=None, out_path=None, secrets=None, base=None):
 
-    run = RunTemplate()
-    run.metadata.name = name
-    run.metadata.project = project
-    run.spec.handler = handler
-    run.spec.parameters = params
-    run.spec.hyperparams = hyper_params
-    run.spec.param_file = param_file
-    run.spec.selector = selector
-    run.spec.input_path = in_path
-    run.spec.output_path = out_path
-    run.spec.secret_sources = secrets or []
+    if base:
+        run = deepcopy(base)
+    else:
+        run = RunTemplate()
+    run.metadata.name = name or run.metadata.name
+    run.metadata.project = project or run.metadata.project
+    run.spec.handler = handler or run.spec.handler
+    run.spec.parameters = params or run.spec.parameters
+    run.spec.hyperparams = hyper_params or run.spec.hyperparams
+    run.spec.param_file = param_file or run.spec.param_file
+    run.spec.selector = selector or run.spec.selector
+    run.spec.inputs = inputs or run.spec.inputs
+    run.spec.outputs = outputs or run.spec.outputs or []
+    run.spec.input_path = in_path or run.spec.input_path
+    run.spec.output_path = out_path or run.spec.output_path
+    run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run

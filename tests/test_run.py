@@ -17,7 +17,7 @@ from os import environ
 import pytest
 
 from conftest import (examples_path, has_secrets, here, out_path, rundb_path,
-                      tag_test)
+                      tag_test, verify_state)
 from mlrun import new_function, NewRun, RunObject, get_run_db
 from mlrun.utils import run_keys, update_in
 
@@ -30,11 +30,6 @@ def my_func(context, p1=1, p2='a-string'):
     context.log_result('accuracy', p1 * 2)
     context.log_metric('loss', 7)
     context.log_artifact('chart', body='abc')
-
-
-def verify_state(result: RunObject):
-    state = result.status.state
-    assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)
 
 
 base_spec = NewRun(params={'p1': 8}, out_path=out_path)

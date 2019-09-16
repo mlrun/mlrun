@@ -85,7 +85,6 @@ def test_kfp_hyper():
     print(alist)
     print(listdir('/tmp'))
     with open('/tmp/iteration_results.csv') as fp:
-        print('XXXXXXXXXXXXXXXXX\nXXXXXXXXXXXXXXXXXX')
         print(fp.read())
     with open('/tmp/iterations') as fp:
         iter = json.load(fp)

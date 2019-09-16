@@ -38,6 +38,7 @@ class DaskSpec(KubejobSpec):
 
 class DaskCluster(KubejobRuntime):
     kind = 'dask'
+    _is_nested = False
 
     def __init__(self, spec=None,
                  metadata=None):
@@ -138,10 +139,9 @@ class DaskCluster(KubejobRuntime):
             execution.set_state(error=err)
 
         if out:
-            print('out:', out)
             execution.log_result('return', out)
 
-        return None
+        return execution.to_dict()
 
     def _run_many(self, tasks, execution, runobj: RunObject):
         handler = runobj.spec.handler

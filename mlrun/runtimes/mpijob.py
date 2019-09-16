@@ -62,6 +62,7 @@ def _update_container(struct, key, value):
 
 class MpiRuntime(KubejobRuntime):
     kind = 'mpijob'
+    _is_nested = False
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
 
@@ -111,7 +112,7 @@ class MpiRuntime(KubejobRuntime):
                 plural=mpi_plural, body=job)
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('MpiJob {} created'.format(name))
-            logger.info('use runner.watch({}) to see logs'.format(name))
+            logger.info('use .watch({}) to see logs'.format(name))
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating MPIJob: %s" % e)

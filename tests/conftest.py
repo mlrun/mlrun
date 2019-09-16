@@ -34,7 +34,7 @@ environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
 
 
 from mlrun.utils import update_in
-from mlrun import RunTemplate
+from mlrun import RunTemplate, RunObject
 
 
 def tag_test(spec: RunTemplate, name) -> RunTemplate:
@@ -46,3 +46,8 @@ def tag_test(spec: RunTemplate, name) -> RunTemplate:
 
 def has_secrets():
     return Path('secrets.txt').is_file()
+
+
+def verify_state(result: RunObject):
+    state = result.status.state
+    assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)

@@ -119,7 +119,7 @@ runtime_dict = {'remote': RemoteRuntime,
 
 
 def new_function(name: str = '', command: str = '', image: str = '', runtime=None,
-                 rundb: str = '', mode=None, kfp=None):
+                 args: list = None, rundb: str = '', mode=None, kfp=None):
     """Create a new ML function from base properties
 
     e.g.:
@@ -132,6 +132,7 @@ def new_function(name: str = '', command: str = '', image: str = '', runtime=Non
     :param name :    function template name
     :param command:  runtime type + command/url + args (e.g.: mpijob://training.py --verbose)
                      runtime prefixes: None, local, job, spark, dask, mpijob, nuclio
+    :param args:     command line arguments (override the ones in command)
     :param image:    default container image
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
@@ -163,6 +164,8 @@ def new_function(name: str = '', command: str = '', image: str = '', runtime=Non
         runner.metadata.name = name
     if image:
         runner.spec.image = image
+    if args:
+        runner.spec.args = args
     runner.kfp = kfp
     runner.spec.mode = mode
     return runner

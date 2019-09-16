@@ -22,7 +22,8 @@ from tempfile import mktemp
 from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
-from .base import RunRuntime, RunError
+from .base import BaseRuntime, RunError
+from .container import ContainerRuntime
 from sys import executable, stderr
 from subprocess import run, PIPE
 
@@ -33,7 +34,7 @@ from pathlib import Path
 from nuclio_sdk import Event
 
 
-class HandlerRuntime(RunRuntime):
+class HandlerRuntime(BaseRuntime):
     kind = 'handler'
 
     def _run(self, runobj: RunObject, execution):
@@ -52,7 +53,7 @@ class HandlerRuntime(RunRuntime):
         return context.to_dict()
 
 
-class LocalRuntime(RunRuntime):
+class LocalRuntime(ContainerRuntime):
     kind = 'local'
 
     def _run(self, runobj: RunObject, execution):
@@ -60,7 +61,7 @@ class LocalRuntime(RunRuntime):
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         if self.spec.rundb:
-            environ['MLRUN_META_DBPATH'] = self.spec.rundb
+            environ['MLRUN_DBPATH'] = self.spec.rundb
 
         handler = runobj.spec.handler
         if handler:
@@ -192,7 +193,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
 
 
 def log_std(db, runobj, out, err=''):
-    print(out)
+    if out:
+        print(out)
     if db:
         uid = runobj.metadata.uid
         project = runobj.metadata.project or ''

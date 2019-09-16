@@ -36,6 +36,10 @@ _loaded = False
 
 default_config = {
     'namespace': 'default-tenant',
+    'dbpath': '',
+    'kaniko_version': 'v0.9.0',
+    'package_path': 'git+https://github.com/mlrun/mlrun.git',
+    'default_image': 'python:3.6-jessie',
     'http_db': {
         'port': 9999,
     },
@@ -71,10 +75,11 @@ class Config:
 
     def update(self, cfg):
         for key, value in cfg.items():
-            if isinstance(value, dict):
-                getattr(self, key).update(value)
-            else:
-                setattr(self, key, value)
+            if hasattr(self, key):
+                if isinstance(value, dict):
+                    getattr(self, key).update(value)
+                else:
+                    setattr(self, key, value)
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)

@@ -75,7 +75,7 @@ class FileRunDB(RunDBInterface):
 
         return result
 
-    def list_runs(self, name='', project='', labels=[],
+    def list_runs(self, name='', uid=None, project='', labels=[],
                   state='', sort=True, last=30):
         filepath = self._filepath('runs', project)
         results = RunList()
@@ -84,7 +84,8 @@ class FileRunDB(RunDBInterface):
         for run, _ in self._load_list(filepath, '*'):
             if (name == '' or name in get_in(run, 'metadata.name', ''))\
                     and match_labels(get_in(run, 'metadata.labels', {}), labels)\
-                    and (state == '' or get_in(run, 'status.state', '') == state):
+                    and (state == '' or get_in(run, 'status.state', '') == state)\
+                    and (not uid or uid == get_in(run, 'metadata.uid', '')):
                 results.append(run)
 
         if sort or last:

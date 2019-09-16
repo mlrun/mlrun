@@ -13,30 +13,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-from base64 import b64decode
-from os import path, environ
-import click
-from ast import literal_eval
 
+import json
+from ast import literal_eval
+from base64 import b64decode
+from os import environ, path
+from tabulate import  tabulate
+
+import click
+
+from .db import get_run_db
+from . import config
+from .builder import build_image
 from .k8s_utils import k8s_helper
+from .model import RunTemplate
 from .run import new_function
 from .runtimes import RunError
-from .utils import run_keys, update_in, logger, list2dict
-from .builder import build_image
-from .model import RunTemplate
+from .utils import list2dict, run_keys, update_in
 
 
 @click.group()
 def main():
-    pass
+    config.populate()
+
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("url", type=str, required=False)
 @click.option('--param', '-p', default='', multiple=True,
               help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
-@click.option('--in-artifact', '-i', multiple=True, help='input artifact')
-@click.option('--out-artifact', '-o', multiple=True, help='output artifact')
+@click.option('--inputs', '-i', multiple=True, help='input artifact')
+@click.option('--outputs', '-o', multiple=True, help='output artifact/result for kfp')
 @click.option('--in-path', help='default input path/url (prefix) for artifact')
 @click.option('--out-path', help='default output path/url (prefix) for artifact')
 @click.option('--secrets', '-s', multiple=True, help='secrets file=<filename> or env=ENV_KEY1,..')
@@ -56,7 +62,7 @@ def main():
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
-def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
+def run(url, param, inputs, outputs, in_path, out_path, secrets,
         uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
         param_file, selector, handler, mode, from_env, dump, run_args):
     """Execute a task and inject parameters."""
@@ -99,10 +105,10 @@ def run(url, param, in_artifact, out_artifact, in_path, out_path, secrets,
     set_item(runobj.spec, param_file, 'param_file')
     set_item(runobj.spec, selector, 'selector')
 
-    set_item(runobj.spec, in_artifact, run_keys.inputs, list2dict(in_artifact))
+    set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
-    set_item(runobj.spec, out_artifact, run_keys.output_artifacts, line2keylist(out_artifact))
+    set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
         resp = new_function(runtime=runtime, rundb=rundb, kfp=kfp, mode=mode).run(runobj)
@@ -157,21 +163,25 @@ def build(dest, command, source, base_image, secret_name,
               help='timeout in seconds')
 def watch(pod, namespace, timeout):
     """read current or previous task (pod) logs."""
-    k8s = k8s_helper(namespace or 'default-tenant')
+    k8s = k8s_helper(namespace)
     status = k8s.watch(pod, namespace, timeout)
     print('Pod {} last status is: {}'.format(pod, status))
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument('kind', type=str)
-@click.argument('name', type=str, required=False)
+@click.argument('name', type=str, default='', required=False)
 @click.option('--selector', '-s', default='', help='label selector')
 @click.option('--namespace', '-n', help='kubernetes namespace')
+@click.option('--uid', help='unique ID')
+@click.option('--project', help='project name')
+@click.option('--tag', default='', help='artifact tag')
+@click.option('--db', help='db path/url')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
-def get(kind, name, selector, namespace, extra_args):
+def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     """List/get one or more object per kind/class."""
     if kind.startswith('po'):
-        k8s = k8s_helper(namespace or 'default-tenant')
+        k8s = k8s_helper(namespace)
         if name:
             resp = k8s.get_pod(name, namespace)
             print(resp)
@@ -186,13 +196,34 @@ def get(kind, name, selector, namespace, extra_args):
                 state = i.status.phase
                 start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
+    elif kind.startswith('run'):
+        mldb = get_run_db(db).connect()
+        runs = mldb.list_runs(name, uid=uid, project=project)
+        df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']]
+        #df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
+        df['start'] = df['start'].apply(time_str)
+        df['parameters'] = df['parameters'].apply(dict_to_str)
+        df['results'] = df['results'].apply(dict_to_str)
+        print(tabulate(df, headers='keys'))
+
+    elif kind.startswith('art'):
+        mldb = get_run_db(db).connect()
+        artifacts = mldb.list_artifacts(name, project=project, tag=tag)
+        df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
+        df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
+        df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
+        #df['start'] = df['start'].apply(time_str)
+        #df['parameters'] = df['parameters'].apply(dict_to_str)
+        #df['results'] = df['results'].apply(dict_to_str)
+        print(tabulate(df, headers='keys'))
+
     else:
         print('currently only get pods [name] is supported')
 
 
-def fill_params(param):
+def fill_params(params):
     params_dict = {}
-    for param in param:
+    for param in params:
         i = param.find('=')
         if i == -1:
             continue
@@ -233,7 +264,18 @@ def line2keylist(lines: list, keyname='key', valname='path'):
     return out
 
 
+def time_str(x):
+    try:
+        return x.strftime("%b %d %H:%M:%S")
+    except ValueError:
+        return ''
+
+
+def dict_to_str(struct: dict):
+    if not struct:
+        return []
+    return ','.join(['{}={}'.format(k, v) for k, v in struct.items()])
+
+
 if __name__ == "__main__":
     main()
-
-

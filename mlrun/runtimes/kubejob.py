@@ -17,14 +17,16 @@ from os import environ
 
 from ..model import RunObject
 from ..utils import get_in, logger, normalize_name, update_in
-from .base import RunRuntime, RunError, FunctionSpec
+from .base import RunError
+from .container import ContainerJobSpec, ContainerRuntime
 
 
-class KubejobSpec(FunctionSpec):
-    def __init__(self, command=None, args=None, image=None, rundb=None, mode=None, workers=None,
+class KubejobSpec(ContainerJobSpec):
+    def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 replicas=None, image_pull_policy=None, service_account=None):
-        super().__init__(command=command, args=args, image=image, rundb=rundb, mode=mode, workers=workers)
+                 replicas=None, image_pull_policy=None, service_account=None, build=None):
+        super().__init__(command=command, args=args, image=image,
+                         mode=mode, workers=workers, build=build)
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
@@ -34,17 +36,18 @@ class KubejobSpec(FunctionSpec):
         self.service_account = service_account
 
 
-class KubejobRuntime(RunRuntime):
+class KubejobRuntime(ContainerRuntime):
     kind = 'job'
+    _is_nested = True
 
-    def __init__(self, spec=None, metadata=None, build=None):
+    def __init__(self, spec=None, metadata=None):
         try:
             from kfp.dsl import ContainerOp
-        except ImportError as e:
+        except (ImportError, ModuleNotFoundError) as e:
             print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
             raise e
 
-        super().__init__(metadata, spec, build)
+        super().__init__(metadata, spec)
         self._cop = ContainerOp('name', 'image')
 
     @property
@@ -79,6 +82,9 @@ class KubejobRuntime(RunRuntime):
         self.spec.env.append(client.V1EnvVar(name=name, value=value))
         return self
 
+    def gpus(self, gpus, gpu_type='nvidia.com/gpu'):
+        update_in(self.spec.resources, ['limits', gpu_type], gpus)
+
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
         limits = {}
         if gpus:
@@ -104,7 +110,7 @@ class KubejobRuntime(RunRuntime):
         execution.set_state('submit')
         new_meta = self._get_meta(runobj)
 
-        pod_spec = func_to_pod(image_path(self.spec.image), self, extra_env, command, args)
+        pod_spec = func_to_pod(self._image_path(), self, extra_env, command, args)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace =  k8s.create_pod(pod)
@@ -142,15 +148,15 @@ class KubejobRuntime(RunRuntime):
             new_meta.generate_name = norm_name
         return new_meta
 
-
-def image_path(image):
-    if not image.startswith('.'):
-        return image
-    if 'DEFAULT_DOCKER_REGISTRY' in environ:
-        return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
-    if 'IGZ_NAMESPACE_DOMAIN' in environ:
-        return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
-    raise RunError('local container registry is not defined')
+    def _image_path(self):
+        image = self.spec.image
+        if not image.startswith('.'):
+            return image
+        if 'DEFAULT_DOCKER_REGISTRY' in environ:
+            return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
+        if 'IGZ_NAMESPACE_DOMAIN' in environ:
+            return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
+        raise RunError('local container registry is not defined')
 
 
 def func_to_pod(image, runtime, extra_env, command, args):

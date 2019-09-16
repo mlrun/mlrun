@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .iguazio import v3io_cred, mount_v3io, add_env, xcp_op, kaniko_op
+from .iguazio import v3io_cred, mount_v3io

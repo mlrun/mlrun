@@ -36,6 +36,7 @@ clean:
 test: clean
 	pipenv run python -m pytest -v \
 	    --disable-warnings \
+	    -rf \
 	    tests
 
 .PHONY: update-deps

@@ -1,7 +1,7 @@
-FROM python:3.7-slim
+FROM python:3.6
 WORKDIR /mlrun
 COPY . .
 RUN python setup.py install &&\
-    pip install pyarrow &&\
-    pip install v3io_frames
+    pip install kfp &&\
+    pip install kubernetes==10.0.0
 

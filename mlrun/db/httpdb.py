@@ -21,6 +21,15 @@ from .base import RunDBError, RunDBInterface
 
 default_project = 'default'  # TODO: Name?
 
+_artifact_keys = [
+    'format',
+    'inline',
+    'key',
+    'src_path',
+    'target_path',
+    'viewer',
+]
+
 
 def bool2str(val):
     return 'yes' if val else 'no'
@@ -123,16 +132,20 @@ class HTTPRunDB(RunDBInterface):
         self._api_call('DELETE', 'runs', error, params=params)
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
-        path = self._path_of(project, uid)
+        path = self._path_of('artifact', project, uid)
         params = {
             'key': key,
             'tag': tag,
         }
+
+        data = {key: getattr(artifact, key) for key in _artifact_keys}
+        data['body'] = artifact.get_body()
         error = f'store artifact {project}/{uid}'
-        self._api_call('POST', path, error, parmas=params, body=artifact)
+        self._api_call(
+            'POST', path, error, params=params, body=json.dumps(data))
 
     def read_artifact(self, key, tag='', project=''):
-        path = self._path_of(project, key)  # TODO: uid?
+        path = self._path_of('artifact', project, key)  # TODO: uid?
         params = {
             'key': key,
             'tag': tag,
@@ -142,7 +155,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.content
 
     def del_artifact(self, key, tag='', project=''):
-        path = self._path_of(project, key)  # TODO: uid?
+        path = self._path_of('artifact', project, key)  # TODO: uid?
         params = {
             'key': key,
             'tag': tag,

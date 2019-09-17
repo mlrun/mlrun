@@ -1,13 +1,27 @@
-import logging
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
-from sys import stdout
 
 from flask import Flask, jsonify, request
 
+from mlrun.artifacts import Artifact
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
+from mlrun.utils import logger
 
 _file_db: FileRunDB = None
 app = Flask(__name__)
@@ -15,7 +29,7 @@ app = Flask(__name__)
 
 def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
     kw.setdefault('ok', False)
-    logging.error(str(kw))
+    logger.error(str(kw))
     reply = jsonify(**kw)
     reply.status_code = status
     return reply
@@ -98,7 +112,7 @@ def del_run(project, uid):
 # curl http://localhost:8080/runs?project=p1&name=x&label=l1&label=l2&sort=no
 @app.route('/runs', methods=['GET'])
 @catch_err
-def list_runs(project):
+def list_runs():
     name = request.args.get('name', '')
     project = request.args.get('project', '')
     labels = request.args.getlist('label')
@@ -106,13 +120,20 @@ def list_runs(project):
     sort = strtobool(request.args.get('sort', 'on'))
     last = int(request.args.get('last', '30'))
 
-    runs = _file_db.list_runs(name, project, labels, state, sort, last)
+    runs = _file_db.list_runs(
+        name=name,
+        project=project,
+        labels=labels,
+        state=state,
+        sort=sort,
+        last=last,
+    )
     return jsonify(ok=True, runs=runs)
 
 # curl -X DELETE http://localhost:8080/runs?project=p1&name=x&days_ago=3
 @app.route('/runs', methods=['DELETE'])
 @catch_err
-def del_runs(project):
+def del_runs():
     name = request.args.get('name', '')
     project = request.args.get('project', '')
     labels = request.args.getlist('label')
@@ -127,12 +148,15 @@ def del_runs(project):
 @app.route('/artifact/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_artifact(project, uid):
-    artifact = request.get_data()
-    key = request.args.get('key')
-    if (not artifact) or (not key):
-        return json_error(HTTPStatus.BAD_REQUEST, reason='missing data')
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    artifact = Artifact(**data)
+    key = request.args.get('key')
     tag = request.args.get('tag', '')
+
     _file_db.store_artifact(key, artifact, uid, tag, project)
     return jsonify(ok=True)
 
@@ -194,12 +218,6 @@ if __name__ == '__main__':
     from mlrun.config import config
 
     config.populate()
-    logging.basicConfig(
-        stream=stdout,
-        level=config.log_level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-    )
-
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()
     app.run(

@@ -45,7 +45,7 @@ def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key='', user
     def _mount_v3io(task):
         from kubernetes import client as k8s_client
         vol = v3io_to_vol(name, remote, access_key, user)
-        task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path=mount_path, name=name))
+        task.add_volume(vol).add_volume_mount({'mountPath': mount_path, 'name': name})
 
         task = v3io_cred(access_key=access_key)(task)
         return (task)
@@ -65,8 +65,8 @@ def v3io_cred(api='', user='', access_key=''):
         from kubernetes import client as k8s_client
         from os import environ
         web_api = api or environ.get('V3IO_API')
-        _user = environ.get('V3IO_USERNAME')
-        _access_key = environ.get('V3IO_ACCESS_KEY')
+        _user = user or environ.get('V3IO_USERNAME')
+        _access_key = access_key or environ.get('V3IO_ACCESS_KEY')
 
         return (
             task
@@ -106,5 +106,6 @@ def v3io_to_vol(name, remote='~/', access_key='', user=''):
     container, subpath = split_path(remote)
 
     opts = {'accessKey': access_key, 'container': container, 'subPath': subpath}
-    vol = client.V1Volume(name=name, flex_volume=client.V1FlexVolumeSource('v3io/fuse', options=opts))
+    # vol = client.V1Volume(name=name, flex_volume=client.V1FlexVolumeSource('v3io/fuse', options=opts))
+    vol = {'flexVolume': client.V1FlexVolumeSource('v3io/fuse', options=opts), 'name': name}
     return vol

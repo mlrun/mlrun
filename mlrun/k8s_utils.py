@@ -71,7 +71,7 @@ class k8s_helper:
         try:
             resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
         except ApiException as e:
-            logger.error('spec:\n{}'.format(pod.spec.container[0].volume_mounts.to_dict()))
+            logger.error('spec:\n{}'.format(pod.spec))
             logger.error('failed to create pod: {}'.format(e))
             raise e
 
@@ -159,7 +159,7 @@ class k8s_helper:
         return pod_state
 
     def create_cfgmap(self, name, data, namespace='', labels=None):
-        body = client.V1ConfigMap()
+        body = client.api_client.V1ConfigMap()
         namespace = self.ns(namespace)
         body.data = data
         if name.endswith('*'):

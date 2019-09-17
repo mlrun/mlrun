@@ -18,6 +18,8 @@ import json
 from ast import literal_eval
 from base64 import b64decode
 from os import environ, path
+from pprint import pprint
+
 from tabulate import  tabulate
 
 import click
@@ -93,6 +95,11 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
         if not isinstance(runtime, dict):
             print('runtime parameter must be a dict')
             exit(1)
+        if kfp:
+            print('Runtime:')
+            pprint(runtime)
+            print('Run:')
+            pprint(runobj.to_dict())
     else:
         runtime = {}
     if url:

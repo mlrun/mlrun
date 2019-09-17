@@ -16,6 +16,7 @@ from copy import deepcopy
 from os import environ
 
 from .utils import run_keys, gen_md_table, dict_to_yaml, logger
+from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
@@ -198,7 +199,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             runtime = '{}'.format(function.to_dict())
         name = name or function.metadata.name
 
-    image = image or 'mlrun/mlrun'
+    image = image or config.kfp_image
 
     if runobj:
         handler = handler or runobj.spec.handler_name

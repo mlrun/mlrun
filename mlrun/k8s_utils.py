@@ -71,6 +71,7 @@ class k8s_helper:
         try:
             resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
         except ApiException as e:
+            logger.error('spec:\n{}'.format(pod.to_dict()))
             logger.error('failed to create pod: {}'.format(e))
             raise e
 

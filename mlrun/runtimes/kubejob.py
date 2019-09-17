@@ -117,8 +117,6 @@ class KubejobRuntime(ContainerRuntime):
         try:
             pod_name, namespace =  k8s.create_pod(pod)
         except client.rest.ApiException as e:
-            print(str(e))
-            pprint(pod.to_dict())
             raise RunError(str(e))
 
         status = 'unknown'

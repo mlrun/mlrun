@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import uuid
+from pprint import pprint
+
 from kubernetes import client
 from os import environ
 
@@ -116,6 +118,7 @@ class KubejobRuntime(ContainerRuntime):
             pod_name, namespace =  k8s.create_pod(pod)
         except client.rest.ApiException as e:
             print(str(e))
+            pprint(pod.to_dict())
             raise RunError(str(e))
 
         status = 'unknown'

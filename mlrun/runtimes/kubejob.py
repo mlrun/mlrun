@@ -114,6 +114,7 @@ class KubejobRuntime(ContainerRuntime):
 
         pod_spec = func_to_pod(self._image_path(), self, extra_env, command, args)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
+        pprint(pod.to_dict())
         try:
             pod_name, namespace =  k8s.create_pod(pod)
         except client.rest.ApiException as e:

@@ -11,7 +11,8 @@ from http import HTTPStatus
 
 import pytest
 
-from mlrun.db.httpdb import HTTPRunDB
+from mlrun.db import HTTPRunDB
+from mlrun import RunObject
 
 here = Path(__file__).absolute().parent
 Server = namedtuple('Server', 'process url log_file')
@@ -61,13 +62,13 @@ def server():
     root = mkdtemp(prefix='mlrun-test')
     print(f'root={root!r}')
     dirpath = f'{root}/db'
-    with open(f'{root}/server.log', 'w+') as log_file:
+    with open(f'{root}/httpd.log', 'w+') as log_file:
         server = start_server(dirpath, log_file)
         yield server
         server.process.kill()
 
 
-def test_run(server: Server):
+def test_log(server: Server):
     db = HTTPRunDB(server.url)
     db.connect()
     prj, uid, body = 'p19', '3920', b'log data'
@@ -75,3 +76,24 @@ def test_run(server: Server):
 
     data = db.get_log(uid, prj)
     assert data == body, 'bad log data'
+
+
+def test_run(server: Server):
+    db = HTTPRunDB(server.url)
+    db.connect()
+    prj, uid = 'p18', '3i920'
+    run = RunObject().to_dict()
+    run['metadata'].update({
+        'algorithm': 'svm',
+        'C': 3,
+    })
+    db.store_run(run, uid, prj, commit=True)
+
+    data = db.read_run(uid, prj)
+    assert data == run, 'read_run'
+
+    new_c = 4
+    updates = {'metadata.C': new_c}
+    db.update_run(updates, uid, prj)
+    data = db.read_run(uid, prj)
+    assert data['metadata']['C'] == new_c, 'update_run'

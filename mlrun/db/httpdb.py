@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 
 import requests
 
@@ -74,18 +76,20 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of('run', project, uid)
         error = f'store run {project}/{uid}'
         params = {'commit': bool2str(commit)}
-        self._api_call('POST', path, error, params, struct)
+        body = json.dumps(struct)
+        self._api_call('POST', path, error, params, body=body)
 
     def update_run(self, updates: dict, uid, project=''):
         path = self._path_of('run', project, uid)
         error = f'update run {project}/{uid}'
-        self._api_call('PATCH', path, error, body=updates)
+        body = json.dumps(updates)
+        self._api_call('PATCH', path, error, body=body)
 
     def read_run(self, uid, project=''):
         path = self._path_of('run', project, uid)
         error = f'get run {project}/{uid}'
         resp = self._api_call('GET', path, error)
-        return resp.content
+        return resp.json()['data']
 
     def del_run(self, uid, project=''):
         path = self._path_of('run', project, uid)

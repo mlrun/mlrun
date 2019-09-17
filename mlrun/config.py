@@ -41,6 +41,7 @@ default_config = {
     'kaniko_version': 'v0.9.0',
     'package_path': 'git+https://github.com/mlrun/mlrun.git',
     'default_image': 'python:3.6-jessie',
+    'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,
         'dirpath': path.expanduser('~/.mlrun/db'),

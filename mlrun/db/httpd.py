@@ -1,20 +1,21 @@
+import logging
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
+from sys import stdout
 
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 
-from mlrun.db.filedb import FileRunDB
 from mlrun.db import RunDBError
+from mlrun.db.filedb import FileRunDB
 
 _file_db: FileRunDB = None
-
-
 app = Flask(__name__)
 
 
 def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
     kw.setdefault('ok', False)
+    logging.error(str(kw))
     reply = jsonify(**kw)
     reply.status_code = status
     return reply
@@ -193,6 +194,11 @@ if __name__ == '__main__':
     from mlrun.config import config
 
     config.populate()
+    logging.basicConfig(
+        stream=stdout,
+        level=config.log_level,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+    )
 
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()

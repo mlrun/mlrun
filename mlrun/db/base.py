@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+import warnings
 
 
 class RunDBError(Exception):
@@ -81,11 +82,10 @@ class RunDBInterface(ABC):
             self, name='', project='', tag='', labels=None, days_ago=0):
         pass
 
-    @abstractmethod
+    # TODO: Make these abstract once filedb implements them
     def store_metric(
             self, uid, project='', keyvals=None, timestamp=None, labels=None):
-        pass
+        warnings.warn('store_metric not implemented yet')
 
-    @abstractmethod
     def read_metric(self, keys, project='', query=''):
-        pass
+        warnings.warn('store_metric not implemented yet')

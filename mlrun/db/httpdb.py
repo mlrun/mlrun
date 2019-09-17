@@ -185,10 +185,3 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'del artifacts'
         self._api_call('DELETE', 'artifacts', error, params=params)
-
-    def store_metric(
-            self, uid, project='', keyvals=None, timestamp=None, labels=None):
-        raise NotImplementedError('store_metric')
-
-    def read_metric(self, keys, project='', query=''):
-        raise NotImplementedError('read_metric')

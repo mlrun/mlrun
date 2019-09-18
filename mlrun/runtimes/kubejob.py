@@ -66,16 +66,8 @@ class KubejobRuntime(ContainerRuntime):
         self._merge()
         return self
 
-    def to_dict(self, fields=None, exclude=None):
-        d = super().to_dict(fields, exclude)
-        api = client.ApiClient()
-        if self.spec.volumes:
-            d['spec']['volumes'] = api.sanitize_for_serialization(self.spec.volumes)
-        if self.spec.volumes:
-            d['spec']['volume_mounts'] = api.sanitize_for_serialization(self.spec.volume_mounts)
-        return d
-
     def _merge(self):
+        api = client.ApiClient()
         for k, v in self._cop.pod_labels.items():
             self.metadata.labels[k] = v
         for k, v in self._cop.pod_annotations.items():
@@ -84,10 +76,12 @@ class KubejobRuntime(ContainerRuntime):
             [self.spec.env.append(e) for e in self._cop.container.env]
             self._cop.container.env.clear()
         if self._cop.volumes:
-            [self.spec.volumes.append(v) for v in self._cop.volumes]
+            [self.spec.volumes.append(v) for v in
+             api.sanitize_for_serialization(self._cop.volumes)]
             self._cop.volumes.clear()
         if self._cop.container.volume_mounts:
-            [self.spec.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
+            [self.spec.volume_mounts.append(v) for v in
+             api.sanitize_for_serialization(self._cop.container.volume_mounts)]
             self._cop.container.volume_mounts.clear()
 
     def set_env(self, name, value):
@@ -158,16 +152,6 @@ class KubejobRuntime(ContainerRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
-
-    def _image_path(self):
-        image = self.spec.image
-        if not image.startswith('.'):
-            return image
-        if 'DEFAULT_DOCKER_REGISTRY' in environ:
-            return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
-        if 'IGZ_NAMESPACE_DOMAIN' in environ:
-            return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
-        raise RunError('local container registry is not defined')
 
 
 def func_to_pod(image, runtime, extra_env, command, args):

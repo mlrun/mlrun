@@ -118,8 +118,9 @@ runtime_dict = {'remote': RemoteRuntime,
                 'Function': NuclioDeployRuntime}
 
 
-def new_function(name: str = '', command: str = '', image: str = '', runtime=None,
-                 args: list = None, rundb: str = '', mode=None, kfp=None):
+def new_function(name: str = '', command: str = '', image: str = '',
+                 runtime=None, args: list = None, rundb: str = '',
+                 mode=None, kfp=None, interactive=False):
     """Create a new ML function from base properties
 
     e.g.:
@@ -168,6 +169,7 @@ def new_function(name: str = '', command: str = '', image: str = '', runtime=Non
         runner.spec.args = args
     runner.kfp = kfp
     runner.spec.mode = mode
+    runner.interactive = interactive
     return runner
 
 

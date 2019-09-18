@@ -18,6 +18,8 @@ from ast import literal_eval
 from datetime import datetime
 import getpass
 from copy import deepcopy
+from os import environ
+
 import pandas as pd
 from io import StringIO
 
@@ -31,7 +33,6 @@ from ..artifacts import TableArtifact
 from ..lists import RunList
 from .generators import get_generator, GridGenerator, ListGenerator
 from ..k8s_utils import k8s_helper
-from ..builder import build_runtime
 from ..config import config
 
 class RunError(Exception):
@@ -76,6 +77,7 @@ class BaseRuntime(ModelObj):
         self._secrets = None
         self._k8s = None
         self._is_built = False
+        self.interactive = False
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -200,9 +202,9 @@ class BaseRuntime(ModelObj):
             try:
                 self.store_run(runspec)
                 resp = self._run(runspec, execution)
-                if resp and self.kfp:
-                    write_kfpmeta(resp)
                 result = show(self._post_run(resp, task=runspec))
+                if result and self.kfp:
+                    write_kfpmeta(result)
             except RunError as err:
                 logger.error(f'run error - {err}')
                 result = show(self._post_run(task=runspec, err=err))
@@ -360,6 +362,16 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError('handler must be provided for {} runtime'.format(self.kind))
 
+    def _image_path(self):
+        image = self.spec.image
+        if not image.startswith('.'):
+            return image
+        if 'DEFAULT_DOCKER_REGISTRY' in environ:
+            return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
+        if 'IGZ_NAMESPACE_DOMAIN' in environ:
+            return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
+        raise RunError('local container registry is not defined')
+
     def to_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None, selector='',
                 inputs: dict = None, outputs: dict = None,
@@ -378,6 +390,10 @@ class BaseRuntime(ModelObj):
 
         :return: KubeFlow containerOp
         """
+
+        # expand local registry path, TODO: copy self to avoid modify the fn?
+        self.spec.image = self._image_path()
+
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,

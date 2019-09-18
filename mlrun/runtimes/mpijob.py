@@ -97,7 +97,12 @@ class MpiRuntime(KubejobRuntime):
                 launcher, status = self._get_lancher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state(state.lower())
-                logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+                if self.interactive or self.kfp:
+                    status = self._get_k8s().watch(launcher)
+                    logger.info('MpiJob {} finished with state {}'.format(meta.name, status))
+                else:
+                    logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+                    logger.info('use .watch({}) to see logs'.format(meta.name))
             else:
                 logger.warning('MpiJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
 
@@ -112,7 +117,6 @@ class MpiRuntime(KubejobRuntime):
                 plural=mpi_plural, body=job)
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('MpiJob {} created'.format(name))
-            logger.info('use .watch({}) to see logs'.format(name))
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating MPIJob: %s" % e)

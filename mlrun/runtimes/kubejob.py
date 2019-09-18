@@ -15,6 +15,7 @@ import uuid
 from pprint import pprint
 
 from kubernetes import client
+
 from os import environ
 
 from ..model import RunObject
@@ -64,6 +65,15 @@ class KubejobRuntime(ContainerRuntime):
         modify(self._cop)
         self._merge()
         return self
+
+    def to_dict(self, fields=None, exclude=None):
+        d = super().to_dict(fields, exclude)
+        api = client.ApiClient()
+        if self.spec.volumes:
+            d['spec']['volumes'] = api.sanitize_for_serialization(self.spec.volumes)
+        if self.spec.volumes:
+            d['spec']['volume_mounts'] = api.sanitize_for_serialization(self.spec.volume_mounts)
+        return d
 
     def _merge(self):
         for k, v in self._cop.pod_labels.items():

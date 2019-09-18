@@ -45,7 +45,7 @@ def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key='', user
     def _mount_v3io(task):
         from kubernetes import client as k8s_client
         vol = v3io_to_vol(name, remote, access_key, user)
-        task.add_volume(vol).add_volume_mount({'mountPath': mount_path, 'name': name})
+        task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path=mount_path, name=name))
 
         task = v3io_cred(access_key=access_key)(task)
         return (task)

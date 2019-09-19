@@ -101,6 +101,15 @@ class KubejobRuntime(ContainerRuntime):
             limits['cpu'] = cpu
         update_in(self.spec.resources, 'limits', limits)
 
+    # TODO: Verify if gpus are needed here too
+    def with_requests(self, mem=None, cpu=None):
+        requests = {}
+        if mem:
+            requests['memory'] = mem
+        if cpu:
+            requests['cpu'] = cpu
+        update_in(self.spec.resources, 'requests', requests)
+
     def _run(self, runobj: RunObject, execution):
 
         with_mlrun = self.spec.mode != 'pass'

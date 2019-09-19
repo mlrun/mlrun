@@ -19,7 +19,7 @@ from os import environ
 from .execution import MLClientCtx
 from .model import RunTemplate, RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime)
+                       DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime, SparkRuntime)
 from .utils import update_in, get_in
 
 
@@ -115,6 +115,7 @@ runtime_dict = {'remote': RemoteRuntime,
                 'dask': DaskCluster,
                 'job': KubejobRuntime,
                 'mpijob': MpiRuntime,
+                'spark': SparkRuntime,
                 'Function': NuclioDeployRuntime}
 
 

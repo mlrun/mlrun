@@ -92,9 +92,9 @@ class BaseMetadata(ModelObj):
 
 
 class ImageBuilder(ModelObj):
-    def __init__(self, inline_code=None, source=None, image=None, base_image=None,
+    def __init__(self, functionSourceCode=None, source=None, image=None, base_image=None,
                  commands=None, secret=None, registry=None):
-        self.inline_code = inline_code
+        self.functionSourceCode = functionSourceCode
         self.source = source
         self.image = image
         self.base_image = base_image

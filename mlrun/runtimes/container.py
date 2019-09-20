@@ -57,13 +57,13 @@ class ContainerRuntime(BaseRuntime):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
             from nuclio import build_file
             name, spec, code = build_file(from_file)
-            self.spec.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+            self.spec.build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
             return self
 
         if from_file:
             with open(from_file) as fp:
                 body = fp.read()
-        self.spec.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
+        self.spec.build.functionSourceCode = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
     def build(self, image, base_image=None, commands: list = None,

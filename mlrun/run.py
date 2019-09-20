@@ -249,7 +249,7 @@ def code_to_function(name='', filename='', handler='', runtime=None,
     build = r.spec.build
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')
-    build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
+    build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
     build.image = get_in(spec, 'spec.build.image')
     build.secret = get_in(spec, 'spec.build.secret')
     if r.kind != 'local':

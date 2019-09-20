@@ -236,7 +236,7 @@ class BaseRuntime(ModelObj):
         args = []
         command = self.spec.command
         if hasattr(self.spec, 'build'):
-            code = self.spec.build.inline_code
+            code = self.spec.build.functionSourceCode
             if code:
                 extra_env['MLRUN_EXEC_CODE'] = code
                 if with_mlrun:

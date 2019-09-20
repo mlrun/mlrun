@@ -194,7 +194,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             more_args = more_args or function.spec.args
             mode = mode or function.spec.mode
             rundb = rundb or function.spec.rundb
-            code_env = '{}'.format(function.spec.build.inline_code)
+            code_env = '{}'.format(function.spec.build.functionSourceCode)
         else:
             runtime = '{}'.format(function.to_dict())
         name = name or function.metadata.name

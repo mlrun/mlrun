@@ -84,14 +84,15 @@ class MpiRuntime(KubejobRuntime):
                               ['mpirun', 'python', self.spec.command] + self.spec.args)
 
         resp = self._submit_mpijob(job, meta.namespace)
-        for i in range(20):
+        state = None
+        for i in range(30):
             resp = self.get_job(meta.name, meta.namespace)
-            if resp and resp.get('status'):
+            state = get_in(resp, 'status.launcherStatus')
+            if resp and state:
                 break
             time.sleep(1)
 
         if resp:
-            state = get_in(resp, 'status.launcherStatus')
             logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
             if state:
                 launcher, status = self._get_lancher(meta.name, meta.namespace)

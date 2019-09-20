@@ -26,7 +26,7 @@ from mlrun import NewRun, new_function
 run_spec = NewRun(
     params={'p1': 5},
     out_path=out_path,
-    outputs=['model.txt', 'chart.html']).set_label('tests', 'kfp')
+    outputs=['model.txt', 'chart.html', 'iteration_results']).set_label('tests', 'kfp')
 
 
 def my_job(context, p1=1, p2='a-string'):

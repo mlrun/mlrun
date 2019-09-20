@@ -51,9 +51,6 @@ def write_kfpmeta(struct):
 
     text = '# Run Report\n'
     if 'iterations' in struct['status']:
-        iter = struct['status']['iterations']
-        iter_html = gen_md_table(iter[0], iter[1:])
-        text += '## Iterations\n' + iter_html
         struct = deepcopy(struct)
         del struct['status']['iterations']
 

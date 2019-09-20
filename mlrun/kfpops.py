@@ -283,7 +283,7 @@ def add_env(env={}):
 
     def _add_env(task):
         from kubernetes import client as k8s_client
-        for k, v in env:
+        for k, v in env.items():
             task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
         return task
 

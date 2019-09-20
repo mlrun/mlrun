@@ -349,7 +349,8 @@ class BaseRuntime(ModelObj):
         csv_buffer = StringIO()
         df.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
         execution.log_artifact(
-            TableArtifact('iteration_results.csv',
+            TableArtifact('iteration_results',
+                          src_path='iteration_results.csv',
                           body=csv_buffer.getvalue(),
                           header=header,
                           viewer='table'))

@@ -215,7 +215,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         project = project or runobj.metadata.project
 
     if hyperparams or param_file:
-        outputs.append('iteration_results.csv')
+        outputs.append('iteration_results')
 
     if name:
         cmd += ['--name', name]
@@ -229,7 +229,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['-i', '{}={}'.format(i, val)]
     for o in outputs:
         cmd += ['-o', '{}'.format(o)]
-        file_outputs[o.replace('.', '-')] = '/tmp/{}'.format(o)
+        file_outputs[o.replace('.', '_')] = '/tmp/{}'.format(o)
     if project:
         cmd += ['--project', project]
     if handler:

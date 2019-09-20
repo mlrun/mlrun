@@ -70,17 +70,16 @@ class ArtifactManager:
                      tag='', viewer='', upload=True, labels=None):
         if isinstance(item, str):
             key = item
-            item = Artifact(key, body, src_path=src_path,
-                            viewer=viewer)
+            item = Artifact(key, body)
         else:
             key = item.key
             target_path = target_path or item.target_path
-            item.src_path = src_path or item.src_path
-            item.viewer = viewer or item.viewer
 
         # find the target path from defaults and config
+        item.viewer = viewer or item.viewer
+        item.src_path = src_path or item.src_path
         if not target_path:
-            target_path = uxjoin(self.out_path, src_path or key, execution.iteration)
+            target_path = uxjoin(self.out_path, item.src_path or key, execution.iteration)
         item.target_path = target_path
         item.tree = execution.tag
         if labels:

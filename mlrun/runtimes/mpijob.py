@@ -98,7 +98,7 @@ class MpiRuntime(KubejobRuntime):
                 execution.set_hostname(launcher)
                 execution.set_state(state.lower())
                 if self.interactive or self.kfp:
-                    status = self._get_k8s().watch(launcher)
+                    status = self._get_k8s().watch(launcher, meta.namespace)
                     logger.info('MpiJob {} finished with state {}'.format(meta.name, status))
                 else:
                     logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))

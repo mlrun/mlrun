@@ -121,7 +121,7 @@ class k8s_helper:
             return 'error'
         return self.watch(pod_name, namespace, timeout)
 
-    def watch(self, pod_name, namespace, timeout=600, writer=None):
+    def watch(self, pod_name, namespace=None, timeout=600, writer=None):
         namespace = self.ns(namespace)
         start_time = datetime.now()
         while True:

@@ -21,6 +21,9 @@ from aiohttp.client import ClientSession
 import logging
 from sys import stdout
 
+from nuclio.deploy import deploy_config
+
+from ..platforms.iguazio import v3io_to_vol
 from .base import BaseRuntime, RunError, FunctionSpec
 from ..utils import logger, update_in
 from ..lists import RunList
@@ -98,10 +101,11 @@ class RemoteRuntime(BaseRuntime):
         self.spec.config[key] = value
         return self
 
-    def add_volume(self, local, remote, kind='', name='fs',
-                   key='', readonly=False):
-        vol = nuclio.Volume(local, remote, kind, name, key, readonly)
-        self.spec.volumes.append(vol)
+    def add_volume(self, local, remote, name='fs',
+                   access_key='', user=''):
+        vol = v3io_to_vol(name, remote=remote, access_key=access_key, user=user)
+        self.spec.volumes.append({'volume': vol,
+                                  'volumeMount': {'name': name, 'mountPath': local}})
         return self
 
     def add_trigger(self, name, spec):
@@ -153,7 +157,6 @@ class RemoteRuntime(BaseRuntime):
         self.set_config('metadata.labels.mlrun/class', self.kind)
         spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
         spec.cmd = self.spec.build_commands
-        spec.mounts = self.spec.volumes
         kind = kind or self.spec.function_kind
         project = project or self.metadata.project or 'mlrun'
         source = source or self.spec.source
@@ -163,15 +166,24 @@ class RemoteRuntime(BaseRuntime):
             config = nuclio.config.extend_config(self.spec.base_spec, spec, tag,
                                                  self.spec.source)
             update_in(config, 'metadata.name', self.metadata.name)
+            update_in(config, 'spec.volumes', self.spec.volumes)
 
             addr = nuclio.deploy.deploy_config(
                 config, dashboard, name=self.metadata.name,
                 project=project, tag=tag, verbose=self.verbose,
                 create_new=True)
         else:
-            addr = nuclio.deploy_file(source, name=self.metadata.name, project=project,
-                                      dashboard_url=dashboard, verbose=self.verbose,
-                                      spec=spec, tag=tag, handler=handler, kind=kind)
+
+            name, config, code = nuclio.build_file(source, name=self.metadata.name,
+                                            project=project,
+                                            handler=handler,
+                                            tag=tag, spec=spec,
+                                            kind=kind, verbose=self.verbose)
+
+            update_in(config, 'spec.volumes', self.spec.volumes)
+            addr = deploy_config(config, dashboard_url=dashboard, name=name, project=project,
+                                 tag=tag, verbose=self.verbose, create_new=True)
+
         self.spec.command = 'http://{}'.format(addr)
         return self.spec.command
 

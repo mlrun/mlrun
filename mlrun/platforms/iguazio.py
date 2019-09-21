@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def xcp_op(src, dst, f='', recursive=False, mtime='', log_level='info', minsize=0, maxsize=0):
     """Parallel cloud copy."""
     from kfp import dsl
@@ -52,6 +53,7 @@ def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key='', user
 
     return _mount_v3io
 
+
 def mount_spark_conf():
     def _mount_spark(task):
         from kubernetes import client as k8s_client
@@ -59,6 +61,7 @@ def mount_spark_conf():
         return (task)
 
     return _mount_spark
+
 
 def mount_v3iod(namespace='default-tenant', v3io_config_configmap='spark-operator-v3io-config', v3io_auth_secret='spark-operator-v3io-auth'):
     def _mount_v3iod(task):

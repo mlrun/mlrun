@@ -81,10 +81,6 @@ class RemoteRuntime(BaseRuntime):
         super().__init__(metadata, spec)
         self.verbose = False
 
-    def __init__(self, spec=None, metadata=None):
-
-        super().__init__(metadata, spec)
-
     @property
     def spec(self) -> NuclioSpec:
         return self._spec

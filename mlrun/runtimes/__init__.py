@@ -14,7 +14,7 @@
 
 from .base import RunError, BaseRuntime
 from .local import HandlerRuntime, LocalRuntime
-from .function import RemoteRuntime
+from .function import RemoteRuntime, new_model_server
 from .mpijob import MpiRuntime
 from .dask import DaskCluster
 from .kubejob import KubejobRuntime

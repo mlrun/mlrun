@@ -30,8 +30,8 @@ from .builder import build_image
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
 from .run import new_function
-from .runtimes import RunError
-from .utils import list2dict, run_keys, update_in
+from .runtimes import RunError, RemoteRuntime
+from .utils import list2dict, run_keys, update_in, logger
 
 
 @click.group()
@@ -93,7 +93,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
-            print('runtime parameter must be a dict')
+            print('runtime parameter must be a dict, not {}'.format(type(runtime)))
             exit(1)
         if kfp:
             print('Runtime:')
@@ -154,13 +154,39 @@ def build(dest, command, source, base_image, secret_name,
     print(dest, cmd, source, inline_code, base_image,
           secret_name, requirements, namespace)
 
-    build_image(dest, command, source,
-                inline_code=inline_code,
-                base_image=base_image,
-                secret_name=secret_name,
-                requirements=requirements,
-                namespace=namespace,
-                interactive=not silent)
+    status = build_image(dest, command, source,
+                         inline_code=inline_code,
+                         base_image=base_image,
+                         secret_name=secret_name,
+                         requirements=requirements,
+                         namespace=namespace,
+                         interactive=not silent)
+
+    logger.info('build completed with {}'.format(status))
+    if status in ['failed', 'error']:
+        exit(1)
+
+
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("spec", type=str)
+@click.option('--source', '-s', default='', help='location/url of the source')
+@click.option('--dashboard', '-d', default='', help='nuclio dashboard url')
+@click.option('--project', '-p', default='', help='container registry secret name')
+@click.option('--kind', '-k', default='nuclio', help='runtime kind')
+@click.option('--tag', default='', help='version tag')
+@click.option('--verbose', is_flag=True, help='verbose log')
+def deploy(spec, source, dashboard, project, tag, kind, verbose):
+    runtime = py_eval(spec)
+    if not isinstance(runtime, dict):
+        print('runtime parameter must be a dict, not {}'.format(type(runtime)))
+        exit(1)
+
+    f = RemoteRuntime.from_dict(runtime)
+    f.verbose = verbose
+    addr = f.deploy(source=source, dashboard=dashboard, project=project, tag=tag)
+    print('function deployed, address={}'.format(addr))
+    with open('/tmp/output', 'w') as fp:
+        fp.write(addr)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))

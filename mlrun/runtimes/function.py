@@ -20,7 +20,7 @@ import asyncio
 from aiohttp.client import ClientSession
 import logging
 from sys import stdout
-
+from kubernetes import client
 from nuclio.deploy import deploy_config
 
 from ..platforms.iguazio import v3io_to_vol
@@ -100,6 +100,8 @@ class RemoteRuntime(BaseRuntime):
     def add_volume(self, local, remote, name='fs',
                    access_key='', user=''):
         vol = v3io_to_vol(name, remote=remote, access_key=access_key, user=user)
+        api = client.ApiClient()
+        vol = api.sanitize_for_serialization(vol)
         self.spec.volumes.append({'volume': vol,
                                   'volumeMount': {'name': name, 'mountPath': local}})
         return self

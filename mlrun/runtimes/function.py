@@ -23,6 +23,7 @@ from sys import stdout
 from kubernetes import client
 from nuclio.deploy import deploy_config
 
+from ..kfpops import deploy_op
 from ..platforms.iguazio import v3io_to_vol
 from .base import BaseRuntime, RunError, FunctionSpec
 from ..utils import logger, update_in
@@ -184,6 +185,11 @@ class RemoteRuntime(BaseRuntime):
 
         self.spec.command = 'http://{}'.format(addr)
         return self.spec.command
+
+    def deploy_step(self, source='', dashboard='', project=''):
+        name = 'deploy_{}'.format(self.metadata.name or 'function')
+        return deploy_op(name, self, source=source, dashboard=dashboard,
+                         project=project)
 
     def _run(self, runobj: RunObject, execution):
         if self._secrets:

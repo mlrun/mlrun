@@ -270,6 +270,27 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     return cop
 
 
+def deploy_op(name, function, source='', dashboard='',
+              project='', tag='', verbose=False):
+    from kfp import dsl
+    runtime = '{}'.format(function.to_dict())
+    cmd = ['python', '-m', 'mlrun', 'deploy', runtime]
+    if project:
+        cmd += ['-s', source]
+    if dashboard:
+        cmd += ['-d', dashboard]
+    if project:
+        cmd += ['-p', project]
+
+    cop = dsl.ContainerOp(
+        name=name,
+        image=config.kfp_image,
+        command=cmd,
+        file_outputs={'endpoint': '/tmp/output'},
+    )
+    return cop
+
+
 def add_env(env={}):
     """
         Modifier function to add env vars from dict

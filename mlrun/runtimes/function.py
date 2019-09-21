@@ -31,7 +31,7 @@ from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
 import nuclio
 
-serving_handler = 'serving_template:handler'
+serving_handler = 'handler'
 
 
 def new_model_server(name, models: dict, model_class: str, filename='',
@@ -40,7 +40,7 @@ def new_model_server(name, models: dict, model_class: str, filename='',
     f = RemoteRuntime()
     f.metadata.name = name
     if not image:
-        bname, spec, code = nuclio.build_file(filename, handler=serving_handler)
+        bname, spec, code = nuclio.build_file(filename, handler=serving_handler, kind='serving')
         f.spec.base_spec = spec
 
     f.serving(models, model_class, protocol, image=image, endpoint=endpoint,

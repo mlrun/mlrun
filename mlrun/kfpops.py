@@ -271,7 +271,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
 
 def deploy_op(name, function, source='', dashboard='',
-              project='', tag='', verbose=False):
+              project='', models: dict = {}, tag='', verbose=False):
     from kfp import dsl
     runtime = '{}'.format(function.to_dict())
     cmd = ['python', '-m', 'mlrun', 'deploy', runtime]
@@ -281,6 +281,8 @@ def deploy_op(name, function, source='', dashboard='',
         cmd += ['-d', dashboard]
     if project:
         cmd += ['-p', project]
+    for m, val in models.items():
+        cmd += ['-m', '{}={}'.format(m, val)]
 
     cop = dsl.ContainerOp(
         name=name,

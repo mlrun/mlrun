@@ -38,7 +38,7 @@ import nuclio
 serving_handler = 'handler'
 
 
-def new_model_server(name, models: dict, model_class: str, filename='',
+def new_model_server(name, models: dict = None, model_class: str = '', filename='',
                      protocol='', image='', endpoint='', explainer=False,
                      workers=8, canary=None):
     f = RemoteRuntime()
@@ -128,11 +128,20 @@ class RemoteRuntime(BaseRuntime):
             workers, port=port, host=host, paths=paths, canary=canary))
         return self
 
-    def serving(self, models: dict, model_class='', protocol='', image='',
+    def add_model(self, key, model):
+        if '://' not in model:
+            model = 'file://' + model
+        if not model.endswith('/'):
+            model = model[:model.rfind('/')]
+        self.set_env('SERVING_MODEL_{}'.format(key), model)
+        return self
+
+    def serving(self, models: dict = None, model_class='', protocol='', image='',
                 endpoint='', explainer=False, workers=8, canary=None):
 
-        for k, v in models.items():
-            self.set_env('SERVING_MODEL_{}'.format(k), v)
+        if models:
+            for k, v in models.items():
+                self.set_env('SERVING_MODEL_{}'.format(k), v)
 
         self.set_env('TRANSPORT_PROTOCOL', protocol or 'seldon')
         self.set_env('ENABLE_EXPLAINER', str(explainer))
@@ -151,7 +160,8 @@ class RemoteRuntime(BaseRuntime):
 
         return self
 
-    def deploy(self, source='', dashboard='', project='', tag='', kind=None):
+    def deploy(self, source='', dashboard='', project='', tag='',
+               kind=None):
 
         self.set_config('metadata.labels.mlrun/class', self.kind)
         spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
@@ -186,10 +196,10 @@ class RemoteRuntime(BaseRuntime):
         self.spec.command = 'http://{}'.format(addr)
         return self.spec.command
 
-    def deploy_step(self, source='', dashboard='', project=''):
+    def deploy_step(self, source='', dashboard='', project='', models={}):
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         return deploy_op(name, self, source=source, dashboard=dashboard,
-                         project=project)
+                         project=project, models=models)
 
     def _run(self, runobj: RunObject, execution):
         if self._secrets:

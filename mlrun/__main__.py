@@ -19,19 +19,21 @@ from ast import literal_eval
 from base64 import b64decode
 from os import environ, path
 from pprint import pprint
-
-from tabulate import  tabulate
+from subprocess import Popen
+from sys import executable
 
 import click
 
-from .db import get_run_db
+from tabulate import tabulate
+
 from . import config
 from .builder import build_image
+from .db import get_run_db
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
 from .run import new_function
-from .runtimes import RunError, RemoteRuntime
-from .utils import list2dict, run_keys, update_in, logger
+from .runtimes import RemoteRuntime, RunError
+from .utils import list2dict, logger, run_keys, update_in
 
 
 @click.group()
@@ -177,6 +179,7 @@ def build(dest, command, source, base_image, secret_name,
 @click.option('--tag', default='', help='version tag')
 @click.option('--verbose', is_flag=True, help='verbose log')
 def deploy(spec, source, dashboard, project, model, tag, kind, verbose):
+    """Deploy model"""
     runtime = py_eval(spec)
     if not isinstance(runtime, dict):
         print('runtime parameter must be a dict, not {}'.format(type(runtime)))
@@ -201,7 +204,7 @@ def deploy(spec, source, dashboard, project, model, tag, kind, verbose):
 @click.option('--timeout', '-t', default=600, show_default=True,
               help='timeout in seconds')
 def watch(pod, namespace, timeout):
-    """read current or previous task (pod) logs."""
+    """Read current or previous task (pod) logs."""
     k8s = k8s_helper(namespace)
     status = k8s.watch(pod, namespace, timeout)
     print('Pod {} last status is: {}'.format(pod, status))
@@ -251,13 +254,31 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
         df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
         df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
-        #df['start'] = df['start'].apply(time_str)
-        #df['parameters'] = df['parameters'].apply(dict_to_str)
-        #df['results'] = df['results'].apply(dict_to_str)
+        # df['start'] = df['start'].apply(time_str)
+        # df['parameters'] = df['parameters'].apply(dict_to_str)
+        # df['results'] = df['results'].apply(dict_to_str)
         print(tabulate(df, headers='keys'))
 
     else:
         print('currently only get pods [name] is supported')
+
+
+@main.command()
+@click.option('--port', '-p', help='port to listen on', type=int)
+@click.option('--dirpath', '-d', help='database directory (dirpath)')
+def db(port, dirpath):
+    """Run HTTP database server"""
+    env = environ.copy()
+    if port is not None:
+        env['MLRUN_httpdb__port'] = str(port)
+    if dirpath is not None:
+        env['MLRUN_httpdb__dirpath'] = dirpath
+
+    cmd = [executable, '-m', 'mlrun.db.httpd']
+    child = Popen(cmd, env=env)
+    returncode = child.wait()
+    if returncode != 0:
+        raise SystemExit(returncode)
 
 
 def fill_params(params):
@@ -268,7 +289,8 @@ def fill_params(params):
             continue
         key, value = param[:i].strip(), param[i + 1:].strip()
         if key is None:
-            raise ValueError('cannot find param key in line ({})'.format(param))
+            raise ValueError(
+                'cannot find param key in line ({})'.format(param))
         params_dict[key] = py_eval(value)
     return params_dict
 

@@ -219,19 +219,14 @@ def main():
     global _file_db
 
     from mlrun.config import config
-    from argparse import ArgumentParser
-
-    parser = ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '--port', type=int, help='port to run on')
-    args = parser.parse_args()
 
     config.populate()
+    logger.info('configuration dump\n%s', config.dump_yaml())
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()
     app.run(
         host='0.0.0.0',
-        port=args.port or config.httpdb.port,
+        port=config.httpdb.port,
         debug=config.httpdb.debug,
     )
 

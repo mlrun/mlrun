@@ -52,3 +52,4 @@ docker-db:
 	docker build \
 	    -f Dockerfile.db \
 	    --tag mlrun/mlrun-db \
+	    .

@@ -154,7 +154,7 @@ class RemoteRuntime(BaseRuntime):
         if image:
             config = nuclio.config.new_config()
             update_in(config, 'spec.handler',
-                      self.function_handler or serving_handler)
+                      self.spec.function_handler or serving_handler)
             update_in(config, 'spec.image', image)
             update_in(config, 'spec.build.baseImage', image + '_base')
             update_in(config, 'spec.build.codeEntryType', 'image')

@@ -26,7 +26,7 @@ import click
 
 from tabulate import tabulate
 
-from . import config
+from .config import config
 from .builder import build_image
 from .db import get_run_db
 from .k8s_utils import k8s_helper
@@ -279,6 +279,12 @@ def db(port, dirpath):
     returncode = child.wait()
     if returncode != 0:
         raise SystemExit(returncode)
+
+
+@main.command(name='config')
+def show_config():
+    """Show configuration & exit"""
+    print(config.dump_yaml())
 
 
 def fill_params(params):

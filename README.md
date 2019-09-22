@@ -391,3 +391,26 @@ To execute the code remotely just substitute the file name with the function URL
 
 `python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt http://<function-endpoint>`
 
+
+### Running HTTP Database
+
+#### Docker
+
+Run with `docker run -p8080:8080 -v /path/to/db:/mlrun/db`
+
+
+You can pass `MLRUN_httpdb__port` environment variable to change port.
+
+#### Command Line
+
+```
+$ mlrun db --help
+Usage: mlrun db [OPTIONS]
+
+  Run HTTP database server
+
+Options:
+  -p, --port INTEGER  port to listen on
+  -d, --dirpath TEXT  database directory (dirpath)
+  --help              Show this message and exit.
+```

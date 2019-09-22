@@ -216,6 +216,8 @@ def health():
 
 
 def main():
+    global _file_db
+
     from mlrun.config import config
     from argparse import ArgumentParser
 

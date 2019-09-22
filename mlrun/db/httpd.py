@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""mlrun database HTTP server"""
 
 from distutils.util import strtobool
 from functools import wraps
@@ -214,14 +215,24 @@ def health():
     return 'OK\n'
 
 
-if __name__ == '__main__':
+def main():
     from mlrun.config import config
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '--port', type=int, help='port to run on')
+    args = parser.parse_args()
 
     config.populate()
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()
     app.run(
         host='0.0.0.0',
-        port=config.httpdb.port,
+        port=args.port or config.httpdb.port,
         debug=config.httpdb.debug,
     )
+
+
+if __name__ == '__main__':
+    main()

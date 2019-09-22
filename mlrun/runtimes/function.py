@@ -38,7 +38,7 @@ import nuclio
 serving_handler = 'handler'
 
 
-def new_model_server(name, models: dict = None, model_class: str = '', filename='',
+def new_model_server(name, model_class: str, models: dict = None, filename='',
                      protocol='', image='', endpoint='', explainer=False,
                      workers=8, canary=None):
     f = RemoteRuntime()
@@ -129,6 +129,9 @@ class RemoteRuntime(BaseRuntime):
         return self
 
     def add_model(self, key, model):
+        if model.startswith('v3io://users/'):
+            model = model[13:]
+            model = '/User' + model[model.find('/'):]
         if '://' not in model:
             model = 'file://' + model
         if not model.endswith('/'):

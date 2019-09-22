@@ -22,4 +22,5 @@ RUN pipenv sync
 COPY . .
 ENV MLRUN_httpd__dirpath=/mlrun/db
 VOLUME /mlrun/db
-CMD ["pipenv", "run", "python", "-m", "mlrun.db.httpd"]
+# TODO: gunicorn/uwsgi? (underlying filedb & concurrency issues)
+CMD ["pipenv", "run", "python", "-m", "mlrun", "db"]

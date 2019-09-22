@@ -129,9 +129,8 @@ class RemoteRuntime(BaseRuntime):
         return self
 
     def add_model(self, key, model):
-        if model.startswith('v3io://users/'):
-            model = model[13:]
-            model = '/User' + model[model.find('/'):]
+        if model.startswith('v3io://'):
+            model = '/User/' + '/'.join(model.split('/')[5:])
         if '://' not in model:
             model = 'file://' + model
         if not model.endswith('/'):

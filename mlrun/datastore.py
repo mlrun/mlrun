@@ -147,9 +147,12 @@ class DataStore:
         pass
 
     def download(self, key, target_path):
-        text = self.get(key)
-        with open(target_path, 'w') as fp:
-            fp.write(text)
+        data = self.get(key)
+        mode = 'wb'
+        if isinstance(data, str):
+            mode = 'w'
+        with open(target_path, mode) as fp:
+            fp.write(data)
             fp.close()
 
     def upload(self, key, src_path):

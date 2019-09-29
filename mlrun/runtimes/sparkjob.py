@@ -103,7 +103,7 @@ class SparkJobSpec(KubejobSpec):
         self.spark_version = spark_version
         self.restart_policy = restart_policy
         self.deps = deps
-        self.job_name = ''
+        self.job_resp = ''
         self.wait_for_completion = 0   # Seconds to wait for job to complete 0 = no wait
         self.job_check_interval = 10   # Check job status every N seconds (Only relevant if wait_for completion is set)
 
@@ -144,7 +144,7 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, 'spec.args', self.spec.args)
         resp = self._submit_job(job, meta.namespace)
         name = get_in(resp, 'metadata.name', 'unknown')
-        self.job_name = name
+        self.job_resp = resp
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
@@ -174,9 +174,9 @@ class SparkRuntime(KubejobRuntime):
             self.spec.deps = deps
 
     def sparkjob_status(self):
-        appName = self.job_name
-        appstatus = client.ApisApi().api_client.call_api(_preload_content=False, method='GET',
-                                                         resource_path='/apis/sparkoperator.k8s.io/v1beta1/namespaces/default/sparkapplications/' + appName)
+        appname = get_in(self.job_resp, 'metadata.name', 'unknown')
+        namespace = get_in(self.job_resp, 'metadata.namespace', 'unknown')
+        appstatus = client.ApisApi().api_client.call_api(_preload_content=False, method='GET', resource_path='/apis/sparkoperator.k8s.io/v1beta1/namespaces/' + namespace + '/sparkapplications/' + appname)
         status = json.loads(appstatus[0].data.decode('utf-8'))
         return json.dumps(status['status'], indent=4, sort_keys=True)
         #print(status['status']['applicationState']['state'])

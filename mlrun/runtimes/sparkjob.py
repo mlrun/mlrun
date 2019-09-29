@@ -141,7 +141,9 @@ class SparkRuntime(KubejobRuntime):
         if self.spec.command:
             update_in(job, 'spec.mainApplicationFile', self.spec.command)
         update_in(job, 'spec.args', self.spec.args)
-        self._submit_job(job, meta.namespace)
+        resp = self._submit_job(job, meta.namespace)
+        name = get_in(resp, 'metadata.name', 'unknown')
+        self.job_name = name
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
@@ -171,7 +173,7 @@ class SparkRuntime(KubejobRuntime):
             self.spec.deps = deps
 
     def sparkjob_status(self):
-        appName = self.metadata.name
+        appName = self.job_name
         appstatus = client.ApisApi().api_client.call_api(_preload_content=False, method='GET',
                                                          resource_path='/apis/sparkoperator.k8s.io/v1beta1/namespaces/default/sparkapplications/' + appName)
         status = json.loads(appstatus[0].data.decode('utf-8'))

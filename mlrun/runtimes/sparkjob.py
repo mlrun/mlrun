@@ -103,6 +103,7 @@ class SparkJobSpec(KubejobSpec):
         self.spark_version = spark_version
         self.restart_policy = restart_policy
         self.deps = deps
+        self.job_name = ''
         self.wait_for_completion = 0   # Seconds to wait for job to complete 0 = no wait
         self.job_check_interval = 10   # Check job status every N seconds (Only relevant if wait_for completion is set)
 

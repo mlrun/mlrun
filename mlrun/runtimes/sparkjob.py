@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 from pprint import pprint
 import yaml
 from copy import deepcopy
@@ -116,7 +116,6 @@ class SparkRuntime(KubejobRuntime):
     def _run(self, runobj: RunObject, execution):
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runobj, True)
-
         pod_labels = deepcopy(meta.labels)
         pod_labels['mlrun/job'] = meta.name
         update_in(job, 'metadata', meta.to_dict())
@@ -170,6 +169,15 @@ class SparkRuntime(KubejobRuntime):
                 self.spec.deps['files'] += deps['files']
         else:
             self.spec.deps = deps
+
+    def sparkjob_status(self):
+        appName = self.metadata.name
+        appstatus = client.ApisApi().api_client.call_api(_preload_content=False, method='GET',
+                                                         resource_path='/apis/sparkoperator.k8s.io/v1beta1/namespaces/default/sparkapplications/' + appName)
+        status = json.loads(appstatus[0].data.decode('utf-8'))
+        return json.dumps(status['status'], indent=4, sort_keys=True)
+        #print(status['status']['applicationState']['state'])
+        #print(status['status']['executorState'])
 
     def with_igz_spark(self):
         self._update_igz_jars(deps=igz_23_deps)

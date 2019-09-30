@@ -176,9 +176,12 @@ class SparkRuntime(KubejobRuntime):
     def sparkjob_status(self):
         appname = get_in(self.job_resp, 'metadata.name', 'unknown')
         namespace = get_in(self.job_resp, 'metadata.namespace', 'unknown')
-        appstatus = client.ApisApi().api_client.call_api(_preload_content=False, method='GET', resource_path='/apis/sparkoperator.k8s.io/v1beta1/namespaces/' + namespace + '/sparkapplications/' + appname)
+        k8s = self._get_k8s()
+        appstatus = k8s.v1api.api_client.call_api(_preload_content=False, method='GET', resource_path='/apis/sparkoperator.k8s.io/v1beta1/namespaces/' + namespace + '/sparkapplications/' + appname)
         status = json.loads(appstatus[0].data.decode('utf-8'))
-        return json.dumps(status['status'], indent=4, sort_keys=True)
+        #return json.dumps(status['status'], indent=4, sort_keys=True)
+        return json.dumps(status, indent=4, sort_keys=True)
+
         #print(status['status']['applicationState']['state'])
         #print(status['status']['executorState'])
 

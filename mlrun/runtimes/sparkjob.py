@@ -15,6 +15,7 @@ import json
 from pprint import pprint
 import yaml
 from copy import deepcopy
+from .base import RunError
 from .kubejob import KubejobRuntime, KubejobSpec
 from ..model import ModelObj
 from ..utils import logger, get_in
@@ -106,6 +107,7 @@ class SparkJobSpec(KubejobSpec):
         self.job_resp = ''
         self.wait_for_completion = 0   # Seconds to wait for job to complete 0 = no wait
         self.job_check_interval = 10   # Check job status every N seconds (Only relevant if wait_for completion is set)
+        self.wait_timeout = 0          # Wait N seconds before killing the job
 
 class SparkRuntime(KubejobRuntime):
     group = 'sparkoperator.k8s.io'
@@ -145,6 +147,38 @@ class SparkRuntime(KubejobRuntime):
         resp = self._submit_job(job, meta.namespace)
         name = get_in(resp, 'metadata.name', 'unknown')
         self.job_resp = resp
+        # If wait is set
+        if self.spec.wait_for_completion > 0:
+            import time
+            import subprocess
+            try:
+                response = subprocess.run(['kubectl', 'version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except:
+                raise RunError('kubectl is not installed. kuebctl is required to wait for completion')
+
+            running = "STARTING"
+            appname = get_in(self.job_resp, 'metadata.name', 'unknown')
+
+            while running not in ["RUNNING", "COMPLETED", "FAILED"]:
+                result = subprocess.run(
+                    ['kubectl', 'get', 'sparkapplications', appname, '-o', 'json',
+                     "-o=jsonpath='{.status.applicationState.state}'"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                running = result.stdout.decode('utf-8').replace("'", '')
+                time.sleep(self.spec.job_check_interval)
+
+            logger.info('Application status:' + running)
+            if running == "FAILED":
+                raise RunError('Failed to execute application')
+
+            wait_cmd = subprocess.run(['kubectl', 'logs', appname + '-driver', '-f'],
+                                      stdout=subprocess.PIPE)
+            result = subprocess.run(
+                ['kubectl', 'get', 'sparkapplications', appname, '-o', 'json',
+                 "-o=jsonpath='{.status.applicationState.state}'"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            running = result.stdout.decode('utf-8').replace("'", '')
+
+            if running == "FAILED":
+                raise RunError('Execution failed check the pod logs')
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
@@ -172,18 +206,6 @@ class SparkRuntime(KubejobRuntime):
                 self.spec.deps['files'] += deps['files']
         else:
             self.spec.deps = deps
-
-    def sparkjob_status(self):
-        appname = get_in(self.job_resp, 'metadata.name', 'unknown')
-        namespace = get_in(self.job_resp, 'metadata.namespace', 'unknown')
-        k8s = self._get_k8s()
-        appstatus = k8s.v1api.api_client.call_api(_preload_content=False, method='GET', resource_path='/apis/sparkoperator.k8s.io/v1beta1/namespaces/' + namespace + '/sparkapplications/' + appname)
-        status = json.loads(appstatus[0].data.decode('utf-8'))
-        #return json.dumps(status['status'], indent=4, sort_keys=True)
-        return json.dumps(status, indent=4, sort_keys=True)
-
-        #print(status['status']['applicationState']['state'])
-        #print(status['status']['executorState'])
 
     def with_igz_spark(self):
         self._update_igz_jars(deps=igz_23_deps)

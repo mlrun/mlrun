@@ -171,9 +171,9 @@ class SparkRuntime(KubejobRuntime):
             if running == "FAILED":
                 raise RunError('Failed to execute application')
 
+            logger.info('Waiting for application to complete')
             wait_cmd = subprocess.run(['kubectl', 'logs', appname + '-driver', '-f'],
                                       stdout=subprocess.PIPE)
-            logger.info('Waiting for application to complete')
 
             result = subprocess.run(
                 ['kubectl', 'get', 'sparkapplications', appname, '-o', 'json',

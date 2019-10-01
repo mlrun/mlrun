@@ -14,6 +14,7 @@
 
 from pprint import pprint
 import yaml
+import time
 from copy import deepcopy
 from .kubejob import KubejobRuntime, KubejobSpec
 from ..model import ModelObj
@@ -24,17 +25,11 @@ from ..platforms.iguazio import mount_v3io, mount_v3iod, mount_spark_conf
 
 from kubernetes import client
 
-igz_23_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-2.3_b118_20190707140045.jar',
-                        '/igz/java/libs/v3io-spark2-streaming_2.11-2.3_b118_20190707140045.jar',
-                        '/igz/java/libs/v3io-spark2-object-dataframe_2.11-2.3_b118_20190707140045.jar',
-                        '/igz/java/libs/scala-library-2.11.12.jar'],
-               'files': ['/igz/java/libs/v3io-py-2.3_b118_20190707140045.zip']}
-
-# igz_25_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-.jar',
-#                         '/igz/java/libs/v3io-spark2-streaming_2.11-.jar',
-#                         '/igz/java/libs/v3io-spark2-object-dataframe_2.11-.jar',
-#                         '/igz/java/libs/scala-library-2.11.12.jar'],
-#                'files': ['/igz/java/libs/v3io-py-.zip']}
+igz_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
+                     '/igz/java/libs/v3io-spark2-streaming_2.11-{0}.jar',
+                     '/igz/java/libs/v3io-spark2-object-dataframe_2.11-{0}.jar',
+                     '/igz/java/libs/scala-library-2.11.12.jar'],
+            'files': ['/igz/java/libs/v3io-py-{0}.zip']}
 
 _sparkjob_template = {
  'apiVersion': 'sparkoperator.k8s.io/v1beta1',
@@ -151,26 +146,24 @@ class SparkRuntime(KubejobRuntime):
                 plural=SparkRuntime.plural, body=job)
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('SparkJob {} created'.format(name))
-            logger.info('use runner.watch({}) to see logs'.format(name))
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating SparkJob: %s" % e)
 
-    def _update_igz_jars(self, deps):
-        if self.spec.deps:
-            if 'jars' in deps:
-                if 'jars' not in self.spec.deps:
-                    self.spec.deps['jars'] = []
-                self.spec.deps['jars'] += deps['jars']
-            if 'files' in deps:
-                if 'files' not in self.spec.deps:
-                    self.spec.deps['files'] = []
-                self.spec.deps['files'] += deps['files']
-        else:
-            self.spec.deps = deps
+    def _update_igz_jars(self, igz_version, deps=igz_deps):
+        if not self.spec.deps:
+            self.spec.deps = {}
+        if 'jars' in deps:
+            if 'jars' not in self.spec.deps:
+                self.spec.deps['jars'] = []
+            self.spec.deps['jars'] += [x.format(igz_version) for x in deps['jars']]
+        if 'files' in deps:
+            if 'files' not in self.spec.deps:
+                self.spec.deps['files'] = []
+            self.spec.deps['files'] += [x.format(igz_version) for x in deps['files']]
 
-    def with_igz_spark(self):
-        self._update_igz_jars(deps=igz_23_deps)
+    def with_igz_spark(self, igz_version):
+        self._update_igz_jars(igz_version=igz_version)
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
         self.apply(mount_v3iod())
         self.apply(mount_spark_conf())

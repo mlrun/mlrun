@@ -29,7 +29,7 @@ from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB
 from mlrun import RunObject
 
-here = Path(__file__).absolute().parent
+root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'process url log_file conn')
 
 
@@ -60,9 +60,9 @@ def start_server(dirpath, log_file):
 
     cmd = [
         executable,
-        f'{here}/../mlrun/db/httpd.py',
+        '-m', 'mlrun.db.httpd',
     ]
-    proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file)
+    proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
     url = f'http://localhost:{port}'
 
     health_url = f'{url}/healthz'

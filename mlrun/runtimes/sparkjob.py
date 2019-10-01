@@ -158,6 +158,7 @@ class SparkRuntime(KubejobRuntime):
 
             running = "STARTING"
             appname = get_in(self.job_resp, 'metadata.name', 'unknown')
+            logger.info('Waiting for application to start')
 
             while running not in ["RUNNING", "COMPLETED", "FAILED"]:
                 result = subprocess.run(
@@ -172,6 +173,8 @@ class SparkRuntime(KubejobRuntime):
 
             wait_cmd = subprocess.run(['kubectl', 'logs', appname + '-driver', '-f'],
                                       stdout=subprocess.PIPE)
+            logger.info('Waiting for application to complete')
+
             result = subprocess.run(
                 ['kubectl', 'get', 'sparkapplications', appname, '-o', 'json',
                  "-o=jsonpath='{.status.applicationState.state}'"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -179,6 +182,7 @@ class SparkRuntime(KubejobRuntime):
 
             if running == "FAILED":
                 raise RunError('Execution failed check the pod logs')
+            logger.info('Application completed:')
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()

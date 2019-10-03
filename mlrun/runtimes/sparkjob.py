@@ -227,7 +227,7 @@ class SparkRuntime(KubejobRuntime):
             self.spec.deps = deps
 
     def with_igz_spark(self):
-        self._update_igz_jars(deps=igz_23_deps)
+        self._update_igz_jars(igz_version=igz_version)
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
         self.apply(mount_v3iod())
         self.apply(mount_spark_conf())

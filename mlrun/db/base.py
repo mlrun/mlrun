@@ -89,3 +89,15 @@ class RunDBInterface(ABC):
 
     def read_metric(self, keys, project='', query=''):
         warnings.warn('store_metric not implemented yet')
+
+    @abstractmethod
+    def store_function(self, func, name, project='', version='', labels=None):
+        pass
+
+    @abstractmethod
+    def get_function(self, name, project='', version=''):
+        pass
+
+    @abstractmethod
+    def list_functions(self, name, project='', tag='', labels=None):
+        pass

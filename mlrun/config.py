@@ -47,6 +47,9 @@ default_config = {
         'port': 8080,
         'dirpath': path.expanduser('~/.mlrun/db'),
         'debug': False,
+        'user': '',
+        'password': '',
+        'token': '',
     },
 }
 

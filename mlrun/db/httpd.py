@@ -13,6 +13,7 @@
 # limitations under the License.
 """mlrun database HTTP server"""
 
+from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
@@ -23,9 +24,12 @@ from mlrun.artifacts import Artifact
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger
+from mlrun.config import config
 
 _file_db: FileRunDB = None
 app = Flask(__name__)
+basic_prefix = 'Basic '
+bearer_prefix = 'Bearer '
 
 
 def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
@@ -34,6 +38,56 @@ def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
     reply = jsonify(**kw)
     reply.status_code = status
     return reply
+
+
+def parse_basic_auth(header):
+    """
+    >>> parse_basic_auth('Basic YnVnczpidW5ueQ==')
+    ['bugs', 'bunny']
+    """
+    b64value = header[len(basic_prefix):]
+    value = b64decode(b64value).decode()
+    return value.split(':', 1)
+
+
+class AuthError(Exception):
+    pass
+
+
+def basic_auth_required(cfg):
+    return cfg.user or cfg.password
+
+
+def bearer_auth_required(cfg):
+    return cfg.token
+
+
+@app.before_request
+def check_auth():
+    if request.path == '/healthz':
+        return
+
+    cfg = config.httpdb
+
+    header = request.headers.get('Authorization', '')
+    print(header)
+    try:
+        if basic_auth_required(cfg):
+            if not header.startswith(basic_prefix):
+                raise AuthError('missing basic auth')
+            user, passwd = parse_basic_auth(header)
+            if user != cfg.user or passwd != cfg.password:
+                raise AuthError('bad basic auth')
+        elif bearer_auth_required(cfg):
+            if not header.startswith(bearer_prefix):
+                raise AuthError('missing bearer auth')
+            token = header[len(bearer_prefix):]
+            if token != cfg.token:
+                raise AuthError('bad bearer auth')
+    except AuthError as err:
+        resp = jsonify(ok=False, error=str(err))
+        resp.status_code = HTTPStatus.UNAUTHORIZED
+        return resp
 
 
 def catch_err(fn):

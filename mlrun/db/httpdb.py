@@ -36,8 +36,11 @@ def bool2str(val):
 
 
 class HTTPRunDB(RunDBInterface):
-    def __init__(self, base_url):
+    def __init__(self, base_url, user='', password='', token=''):
         self.base_url = base_url
+        self.user = user
+        self.password = password
+        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -50,6 +53,11 @@ class HTTPRunDB(RunDBInterface):
             for key, value in (('params', params), ('data', body))
             if value is not None
         }
+
+        if self.user:
+            kw['auth'] = (self.user, self.password)
+        elif self.token:
+            kw['headers'] = {'Authorization': 'Bearer ' + self.token}
 
         try:
             resp = requests.request(method, url, **kw)

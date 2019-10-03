@@ -26,7 +26,7 @@ from http import HTTPStatus
 import pytest
 
 from mlrun.artifacts import Artifact
-from mlrun.db import HTTPRunDB
+from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
 
 root = Path(__file__).absolute().parent.parent
@@ -52,11 +52,12 @@ def wait_for_server(url, timeout_sec):
     return False
 
 
-def start_server(dirpath, log_file):
+def start_server(dirpath, log_file, env_config):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
     env['MLRUN_httpdb__dirpath'] = dirpath
+    env.update(env_config or {})
 
     cmd = [
         executable,
@@ -74,19 +75,30 @@ def start_server(dirpath, log_file):
 
 
 @pytest.fixture
-def server():
-    root = mkdtemp(prefix='mlrun-test')
-    print(f'root={root!r}')
-    dirpath = f'{root}/db'
-    with open(f'{root}/httpd.log', 'w+') as log_file:
-        proc, url, log_file = start_server(dirpath, log_file)
+def create_server():
+    proc, log_fp = None, None
+
+    def create(env=None):
+        nonlocal proc, log_fp
+        root = mkdtemp(prefix='mlrun-test')
+        print(f'root={root!r}')
+        dirpath = f'{root}/db'
+        log_fp = open(f'{root}/httpd.log', 'w+')
+        proc, url, log_file = start_server(dirpath, log_fp, env)
         conn = HTTPRunDB(url)
         conn.connect()
-        yield Server(proc, url, log_file, conn)
+        return Server(proc, url, log_file, conn)
+
+    yield create
+
+    if proc:
         proc.kill()
+    if log_fp:
+        log_fp.close()
 
 
-def test_log(server: Server):
+def test_log(create_server):
+    server: Server = create_server()
     db = server.conn
     prj, uid, body = 'p19', '3920', b'log data'
     db.store_log(uid, prj, body)
@@ -95,7 +107,8 @@ def test_log(server: Server):
     assert data == body, 'bad log data'
 
 
-def test_run(server: Server):
+def test_run(create_server):
+    server: Server = create_server()
     db = server.conn
     prj, uid = 'p18', '3i920'
     run = RunObject().to_dict()
@@ -117,7 +130,8 @@ def test_run(server: Server):
     db.del_run(uid, prj)
 
 
-def test_runs(server):
+def test_runs(create_server):
+    server: Server = create_server()
     db = server.conn
 
     runs = db.list_runs()
@@ -138,7 +152,8 @@ def test_runs(server):
     assert not runs, 'found runs in after delete'
 
 
-def test_artifact(server):
+def test_artifact(create_server):
+    server: Server = create_server()
     db = server.conn
 
     prj, uid, key, body = 'p7', 'u199', 'k800', 'cucumber'
@@ -149,7 +164,8 @@ def test_artifact(server):
     # db.del_artifact(key, project=prj)
 
 
-def test_artifacts(server):
+def test_artifacts(create_server):
+    server: Server = create_server()
     db = server.conn
     prj, uid, key, body = 'p9', 'u19', 'k802', 'tomato'
     artifact = Artifact(key, body)
@@ -161,3 +177,35 @@ def test_artifacts(server):
     db.del_artifacts(project=prj)
     artifacts = db.list_artifacts(project=prj)
     assert len(artifacts) == 0, 'bad number of artifacs after del'
+
+
+def test_basic_auth(create_server):
+    user, passwd = 'bugs', 'bunny'
+    env = {
+        'MLRUN_httpdb__user': user,
+        'MLRUN_httpdb__password': passwd,
+    }
+    server: Server = create_server(env)
+
+    db: HTTPRunDB = server.conn
+
+    with pytest.raises(RunDBError):
+        db.list_runs()
+
+    db.user = user
+    db.password = passwd
+    db.list_runs()
+
+
+def test_bearer_auth(create_server):
+    token = 'banana'
+    env = {'MLRUN_httpdb__token': token}
+    server: Server = create_server(env)
+
+    db: HTTPRunDB = server.conn
+
+    with pytest.raises(RunDBError):
+        db.list_runs()
+
+    db.token = token
+    db.list_runs()

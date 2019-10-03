@@ -220,7 +220,6 @@ def main():
 
     from mlrun.config import config
 
-    config.populate()
     logger.info('configuration dump\n%s', config.dump_yaml())
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()

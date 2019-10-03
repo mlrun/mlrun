@@ -38,7 +38,7 @@ from .utils import list2dict, logger, run_keys, update_in
 
 @click.group()
 def main():
-    config.populate()
+    pass
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))

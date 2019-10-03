@@ -184,7 +184,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
             if type(args[key].default) is str:
                 filepath = obj.url
                 if obj.kind != 'file':
-                    dot = filepath.find('.')
+                    dot = filepath.rfind('.')
                     filepath = mktemp() if dot == -1 else mktemp(filepath[dot:])
                     logger.info('downloading {} to local tmp'.format(obj.url))
                     obj.download(filepath)

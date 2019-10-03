@@ -18,9 +18,6 @@ from .run import get_or_create_ctx, new_function, code_to_function
 from .db import get_run_db
 from .model import RunTemplate, NewRun, RunObject
 from .kfpops import mlrun_op
-from .config import populate
 from .config import config as mlconf
 from .runtimes import new_model_server
 from .platforms import mount_v3io
-
-populate()

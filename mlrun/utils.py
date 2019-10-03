@@ -27,8 +27,10 @@ def create_logger():
     handler.setFormatter(
         logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
     logger = logging.getLogger('mlrun')
-    logger.addHandler(handler)
+    if not len(logger.handlers):
+        logger.addHandler(handler)
     logger.setLevel(logging.INFO)
+    logger.propagate = False
     return logger
 
 

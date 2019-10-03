@@ -159,7 +159,7 @@ class BaseRuntime(ModelObj):
         runspec.spec.handler = handler or runspec.spec.handler
 
         spec = runspec.spec
-        if self.spec.mode in ['noctx', 'args']:
+        if self.spec.mode == 'noctx':
             params = spec.parameters or {}
             for k, v in params.items():
                 self.spec.args += ['--{}'.format(k), str(v)]

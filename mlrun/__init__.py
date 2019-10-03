@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.2.5'
+__version__ = '0.2.7'
 
 from .run import get_or_create_ctx, new_function, code_to_function
 from .db import get_run_db
-from .model import RunTemplate, NewRun, RunObject
+from .model import RunTemplate, NewRun, NewTask, RunObject
 from .kfpops import mlrun_op
 from .config import config as mlconf
 from .runtimes import new_model_server

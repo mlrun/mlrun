@@ -81,6 +81,10 @@ _sparkjob_template = {
  },
 }
 
+group = 'sparkoperator.k8s.io'
+version = 'v1beta1'
+plural = 'sparkapplications'
+
 class SparkJobSpec(KubejobSpec):
     def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, replicas=None,
@@ -197,6 +201,17 @@ class SparkRuntime(KubejobRuntime):
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating SparkJob: %s" % e)
+
+    def get_current_job(self, namespace=None):
+        k8s = self._get_k8s()
+        namespace = k8s.ns(namespace)
+        try:
+            appname = get_in(self.job_resp, 'metadata.name', 'unknown')
+            resp = k8s.crdapi.get_namespaced_custom_object(
+                group, version, namespace, plural, appname)
+        except client.rest.ApiException as e:
+            print("Exception when reading SparkJob: %s" % e)
+        return resp
 
     def _update_igz_jars(self, deps):
         if self.spec.deps:

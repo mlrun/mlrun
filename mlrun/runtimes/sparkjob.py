@@ -25,11 +25,17 @@ from ..platforms.iguazio import mount_v3io, mount_v3iod, mount_spark_conf
 
 from kubernetes import client
 
-igz_23_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-2.3_b118_20190707140045.jar',
-                        '/igz/java/libs/v3io-spark2-streaming_2.11-2.3_b118_20190707140045.jar',
-                        '/igz/java/libs/v3io-spark2-object-dataframe_2.11-2.3_b118_20190707140045.jar',
-                        '/igz/java/libs/scala-library-2.11.12.jar'],
-               'files': ['/igz/java/libs/v3io-py-2.3_b118_20190707140045.zip']}
+#igz_23_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-2.3_b118_20190707140045.jar',
+#                        '/igz/java/libs/v3io-spark2-streaming_2.11-2.3_b118_20190707140045.jar',
+#                        '/igz/java/libs/v3io-spark2-object-dataframe_2.11-2.3_b118_20190707140045.jar',
+#                        '/igz/java/libs/scala-library-2.11.12.jar'],
+#               'files': ['/igz/java/libs/v3io-py-2.3_b118_20190707140045.zip']}
+
+igz_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
+                     '/igz/java/libs/v3io-spark2-streaming_2.11-{0}.jar',
+                     '/igz/java/libs/v3io-spark2-object-dataframe_2.11-{0}.jar',
+                     '/igz/java/libs/scala-library-2.11.12.jar'],
+            'files': ['/igz/java/libs/v3io-py-{0}.zip']}
 
 # igz_25_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-.jar',
 #                         '/igz/java/libs/v3io-spark2-streaming_2.11-.jar',

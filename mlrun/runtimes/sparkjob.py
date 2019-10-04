@@ -213,18 +213,17 @@ class SparkRuntime(KubejobRuntime):
             print("Exception when reading SparkJob: %s" % e)
         return resp
 
-    def _update_igz_jars(self, deps):
-        if self.spec.deps:
-            if 'jars' in deps:
-                if 'jars' not in self.spec.deps:
-                    self.spec.deps['jars'] = []
-                self.spec.deps['jars'] += deps['jars']
-            if 'files' in deps:
-                if 'files' not in self.spec.deps:
-                    self.spec.deps['files'] = []
-                self.spec.deps['files'] += deps['files']
-        else:
-            self.spec.deps = deps
+    def _update_igz_jars(self, igz_version, deps=igz_deps):
+        if not self.spec.deps:
+            self.spec.deps = {}
+        if 'jars' in deps:
+            if 'jars' not in self.spec.deps:
+                self.spec.deps['jars'] = []
+            self.spec.deps['jars'] += [x.format(igz_version) for x in deps['jars']]
+        if 'files' in deps:
+            if 'files' not in self.spec.deps:
+                self.spec.deps['files'] = []
+            self.spec.deps['files'] += [x.format(igz_version) for x in deps['files']]
 
     def with_igz_spark(self, igz_version):
         self._update_igz_jars(igz_version=igz_version)

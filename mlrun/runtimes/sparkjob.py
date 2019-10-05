@@ -164,10 +164,10 @@ class SparkRuntime(KubejobRuntime):
             running = "STARTING"
             appname = get_in(self.job_resp, 'metadata.name', 'unknown')
             logger.info('Waiting for application to start')
-
             while running not in ["RUNNING", "COMPLETED", "FAILED"]:
                 result = self.get_job_status()
-                running = result['status']['applicationState']['state']
+                if 'status' in result:
+                    running = result['status']['applicationState']['state']
                 time.sleep(self.spec.job_check_interval)
 
             logger.info('Application status:' + running)
@@ -179,8 +179,6 @@ class SparkRuntime(KubejobRuntime):
                 result = self.get_job_status()
                 running = result['status']['applicationState']['state']
                 time.sleep(self.spec.job_check_interval)
-
-            running = result['status']['applicationState']['state']
 
             if running == "FAILED":
                 raise RunError('Execution failed check the pod logs')

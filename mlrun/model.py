@@ -314,7 +314,7 @@ class RunObject(RunTemplate):
 
     def state(self):
         db = get_run_db().connect()
-        run = db.read_run(uid=self.metadata.uid, project=self.metadata.project, display=False)
+        run = db.read_run(uid=self.metadata.uid, project=self.metadata.project)
         if run:
             return get_in(run, 'status.state', 'unknown')
 

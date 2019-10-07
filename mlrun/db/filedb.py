@@ -60,20 +60,16 @@ class FileRunDB(RunDBInterface):
         self._datastore.put(filepath, data)
 
     def update_run(self, updates: dict, uid, project=''):
-        run = self.read_run(uid, project, False)
+        run = self.read_run(uid, project)
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
         self.store_run(run, uid, project, True)
 
-    def read_run(self, uid, project='', display=True):
+    def read_run(self, uid, project=''):
         filepath = self._filepath('runs', project, uid, '') + self.format
         data = self._datastore.get(filepath)
-        result = self._loads(data)
-
-        run_to_html(result, display)
-
-        return result
+        return self._loads(data)
 
     def list_runs(self, name='', uid=None, project='', labels=[],
                   state='', sort=True, last=30):

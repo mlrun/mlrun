@@ -241,7 +241,7 @@ class BaseRuntime(ModelObj):
             iter = task.metadata.iteration
             if iter:
                 uid = '{}-{}'.format(uid, iter)
-            return self._db_conn.read_run(uid, project, False)
+            return self._db_conn.read_run(uid, project)
         if task:
             return task.to_dict()
 

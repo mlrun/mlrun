@@ -18,6 +18,7 @@ import json
 import requests
 
 from .base import RunDBError, RunDBInterface
+from ..lists import RunList, ArtifactList
 
 default_project = 'default'  # TODO: Name?
 
@@ -128,7 +129,7 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'list runs'
         resp = self._api_call('GET', 'runs', error, params=params)
-        return resp.json()['runs']
+        return RunList(resp.json()['runs'])
 
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
         project = project or default_project
@@ -182,7 +183,7 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'list artifacts'
         resp = self._api_call('GET', 'artifacts', error, params=params)
-        return resp.json()['artifacts']
+        return ArtifactList(resp.json()['artifacts'])
 
     def del_artifacts(
             self, name='', project='', tag='', labels=None, days_ago=0):

@@ -73,6 +73,7 @@ class HTTPRunDB(RunDBInterface):
 
     def connect(self, secrets=None):
         self._api_call('GET', 'healthz')
+        return self
 
     def store_log(self, uid, project='', body=None, append=True):
         if not body:
@@ -117,6 +118,7 @@ class HTTPRunDB(RunDBInterface):
             self, name='', project='', labels=None, state='', sort=True,
             last=0):
 
+        project = project or default_project
         params = {
             'name': name,
             'project': project,
@@ -129,6 +131,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()['runs']
 
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+        project = project or default_project
         params = {
             'name': name,
             'project': project,
@@ -170,6 +173,7 @@ class HTTPRunDB(RunDBInterface):
         self._api_call('DELETE', path, error, params=params)
 
     def list_artifacts(self, name='', project='', tag='', labels=None):
+        project = project or default_project
         params = {
             'name': name,
             'project': project,
@@ -182,6 +186,7 @@ class HTTPRunDB(RunDBInterface):
 
     def del_artifacts(
             self, name='', project='', tag='', labels=None, days_ago=0):
+        project = project or default_project
         params = {
             'name': name,
             'project': project,

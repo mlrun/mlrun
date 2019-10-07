@@ -183,7 +183,9 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'list artifacts'
         resp = self._api_call('GET', 'artifacts', error, params=params)
-        return ArtifactList(resp.json()['artifacts'])
+        values = ArtifactList(resp.json()['artifacts'])
+        values.tag = tag
+        return values
 
     def del_artifacts(
             self, name='', project='', tag='', labels=None, days_ago=0):

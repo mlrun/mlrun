@@ -138,7 +138,8 @@ class FileRunDB(RunDBInterface):
         tag = tag or 'latest'
         print(f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
         filepath = self._filepath('artifacts', project, tag=tag)
-        results = ArtifactList(tag)
+        results = ArtifactList()
+        results.tag = tag
         if isinstance(labels, str):
             labels = labels.split(',')
         if tag == '*':

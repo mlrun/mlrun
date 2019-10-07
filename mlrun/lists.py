@@ -47,8 +47,9 @@ class RunList(list):
 
 
 class ArtifactList(list):
-    def __init__(self, tag='*'):
-        self.tag = tag
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.tag = ''
 
     def to_rows(self):
         rows = []

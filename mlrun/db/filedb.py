@@ -123,11 +123,11 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
-        artifact.updated = time.time()
+        artifact['updated'] = time.time()
         if self.format == '.yaml':
-            data = artifact.to_yaml()
+            data = dict_to_yaml(artifact)
         else:
-            data = artifact.to_json()
+            data = json.dumps(artifact)
         filepath = self._filepath('artifacts', project, key, uid) + self.format
         self._datastore.put(filepath, data)
         filepath = self._filepath('artifacts', project, key, tag or 'latest') + self.format

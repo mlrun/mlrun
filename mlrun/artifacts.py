@@ -111,7 +111,8 @@ class ArtifactManager:
             if execution.iteration:
                 key = '{}-{}'.format(execution.iteration, key)
                 item.iter = execution.iteration
-            self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
+            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
+                                            tag, execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)

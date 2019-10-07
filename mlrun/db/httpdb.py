@@ -146,11 +146,9 @@ class HTTPRunDB(RunDBInterface):
             'tag': tag,
         }
 
-        data = {key: getattr(artifact, key) for key in _artifact_keys}
-        data['body'] = artifact.get_body()
         error = f'store artifact {project}/{uid}'
         self._api_call(
-            'POST', path, error, params=params, body=json.dumps(data))
+            'POST', path, error, params=params, body=json.dumps(artifact))
 
     def read_artifact(self, key, tag='', project=''):
         path = self._path_of('artifact', project, key)  # TODO: uid?

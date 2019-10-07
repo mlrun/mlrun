@@ -208,11 +208,10 @@ def store_artifact(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    artifact = Artifact(**data)
     key = request.args.get('key')
     tag = request.args.get('tag', '')
 
-    _file_db.store_artifact(key, artifact, uid, tag, project)
+    _file_db.store_artifact(key, data, uid, tag, project)
     return jsonify(ok=True)
 
 # curl http://localhost:8080/artifact/p1&key=k&tag=t

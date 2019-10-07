@@ -20,7 +20,7 @@ from .execution import MLClientCtx
 from .model import RunTemplate, RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime, SparkRuntime)
-from .utils import update_in, get_in
+from .utils import update_in, get_in, logger
 
 
 def get_or_create_ctx(name: str,
@@ -105,6 +105,7 @@ def get_or_create_ctx(name: str,
     out = environ.get('MLRUN_DBPATH', rundb)
     if out:
         autocommit = True
+        logger.info('logging run results to: {}'.format(out))
 
     ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit,
                                 tmp=tmp, host=socket.gethostname())

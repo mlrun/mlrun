@@ -26,7 +26,7 @@ import click
 
 from tabulate import tabulate
 
-from .config import config
+from .config import config as mlconf
 from .builder import build_image
 from .db import get_run_db
 from .k8s_utils import k8s_helper
@@ -93,7 +93,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
         runobj.metadata.labels['workflow'] = workflow
 
     if rundb:
-        config.dbpath = rundb
+        mlconf.dbpath = rundb
 
     if runtime:
         runtime = py_eval(runtime)
@@ -287,7 +287,7 @@ def db(port, dirpath):
 @main.command(name='config')
 def show_config():
     """Show configuration & exit"""
-    print(config.dump_yaml())
+    print(mlconf.dump_yaml())
 
 
 def fill_params(params):

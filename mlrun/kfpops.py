@@ -238,8 +238,6 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['--in-path', in_path]
     if out_path:
         cmd += ['--out-path', out_path]
-    if rundb:
-        cmd += ['--rundb', rundb]
     if param_file:
         cmd += ['--param-file', param_file]
     if selector:
@@ -265,6 +263,9 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         output_artifact_paths={'mlpipeline-ui-metadata': '/mlpipeline-ui-metadata.json',
                                'mlpipeline-metrics': '/mlpipeline-metrics.json'},
     )
+    if rundb:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_DBPATH', value=rundb))
     if code_env:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='MLRUN_EXEC_CODE', value=code_env))

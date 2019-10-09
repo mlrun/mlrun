@@ -21,10 +21,6 @@ from .httpdb import HTTPRunDB
 
 
 def default_dbpath():
-    # look for mlrun db k8s service
-    value = environ.get('MLRUN_DB_PORT')
-    if value and not config.dbpath:
-        return 'http://' + urlparse(value).netloc
     return config.dbpath
 
 

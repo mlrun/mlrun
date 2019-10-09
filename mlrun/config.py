@@ -26,6 +26,7 @@ from os import path
 from collections.abc import Mapping
 from threading import Lock
 import json
+from urllib.parse import urlparse
 
 import yaml
 
@@ -150,6 +151,12 @@ def read_env(env=None, prefix=env_prefix):
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
+
+    # check for mlrun-db kubernetes service
+    svc = env.get('MLRUN_DB_PORT')
+    if svc and not config.get('dbpath'):
+        config['dbpath'] = 'http://' + urlparse(svc).netloc
+
     return config
 
 

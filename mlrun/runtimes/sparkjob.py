@@ -114,7 +114,6 @@ class SparkJobSpec(KubejobSpec):
         self.spark_version = spark_version
         self.restart_policy = restart_policy
         self.deps = deps
-        self.job_resp = ''
         self.wait_for_completion = 0   # Seconds to wait for job to complete 0 = no wait
         self.job_check_interval = 10   # Check job status every N seconds (Only relevant if wait_for completion is set)
         self.wait_timeout = 0          # Wait N seconds before killing the job
@@ -156,16 +155,16 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, 'spec.args', self.spec.args)
         resp = self._submit_job(job, meta.namespace)
         name = get_in(resp, 'metadata.name', 'unknown')
-        self.job_resp = resp
+        job_response = resp
         # If wait is set
         if self.spec.wait_for_completion > 0:
             import time
 
             running = "STARTING"
-            appname = get_in(self.job_resp, 'metadata.name', 'unknown')
+            job_name = get_in(job_response, 'metadata.name', 'unknown')
             logger.info('Waiting for application to start')
             while running not in ["RUNNING", "COMPLETED", "FAILED"]:
-                result = self.get_job_status()
+                result = self._get_job_status(job_name=job_name)
                 if 'status' in result:
                     running = result['status']['applicationState']['state']
                 time.sleep(self.spec.job_check_interval)
@@ -176,7 +175,7 @@ class SparkRuntime(KubejobRuntime):
 
             logger.info('Waiting for application to complete')
             while running not in ["COMPLETED", "FAILED"]:
-                result = self.get_job_status()
+                result = self._get_job_status(job_name=job_name)
                 running = result['status']['applicationState']['state']
                 time.sleep(self.spec.job_check_interval)
 
@@ -198,13 +197,12 @@ class SparkRuntime(KubejobRuntime):
         except client.rest.ApiException as e:
             logger.error("Exception when creating SparkJob: %s" % e)
 
-    def get_job_status(self, namespace=None, jobname=None):
+    def _get_job_status(self, namespace=None, job_name=None):
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
-        appname = get_in(self.job_resp, 'metadata.name', jobname)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
-                group, version, namespace, plural, appname)
+                group, version, namespace, plural, job_name)
         except client.rest.ApiException as e:
             print("Exception when reading SparkJob: %s" % e)
         return resp

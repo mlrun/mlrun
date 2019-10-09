@@ -169,7 +169,7 @@ def del_run(project, uid):
 @catch_err
 def list_runs():
     name = request.args.get('name', '')
-    project = request.args.get('project', '')
+    project = request.args.get('project', 'default')
     labels = request.args.getlist('label')
     state = request.args.get('state', '')
     sort = strtobool(request.args.get('sort', 'on'))
@@ -243,7 +243,7 @@ def del_artifact(project, uid):
 @catch_err
 def list_artifacts():
     name = request.args.get('name', '')
-    project = request.args.get('project', '')
+    project = request.args.get('project', 'default')
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 

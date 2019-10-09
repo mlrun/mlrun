@@ -65,7 +65,7 @@ class HTTPRunDB(RunDBInterface):
             resp.raise_for_status()
             return resp
         except requests.RequestException as err:
-            error = error or '{method} {url}'
+            error = error or '{} {}'.format(method, url)
             raise RunDBError(error) from err
 
     def _path_of(self, prefix, project, uid):

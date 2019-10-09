@@ -23,6 +23,7 @@ from os import environ
 import pandas as pd
 from io import StringIO
 
+from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
 from ..db import get_run_db, default_dbpath
 from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
@@ -31,9 +32,8 @@ from ..utils import get_in, update_in, logger, is_ipython
 from ..execution import MLClientCtx
 from ..artifacts import TableArtifact
 from ..lists import RunList
-from .generators import get_generator, GridGenerator, ListGenerator
+from .generators import get_generator
 from ..k8s_utils import k8s_helper
-from ..config import config
 
 
 class RunError(Exception):
@@ -417,6 +417,15 @@ class BaseRuntime(ModelObj):
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs,
                         out_path=out_path, in_path=in_path)
+
+    def save(self, target, format='.yaml', secrets=None):
+        if self.format == '.yaml':
+            data = self.to_yaml()
+        else:
+            data = self.to_json()
+        stores = StoreManager(secrets)
+        datastore, subpath = stores.get_or_create_store(target)
+        datastore.put(subpath, data)
 
 
 def selector(results: list, criteria):

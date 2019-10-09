@@ -121,7 +121,7 @@ runtime_dict = {'remote': RemoteRuntime,
 
 
 def new_function(name: str = '', command: str = '', image: str = '',
-                 runtime=None, args: list = None, rundb: str = '',
+                 runtime=None, args: list = None,
                  mode=None, kfp=None, interactive=False):
     """Create a new ML function from base properties
 
@@ -145,9 +145,6 @@ def new_function(name: str = '', command: str = '', image: str = '',
 
     :return: function object
     """
-    if not rundb:
-        rundb = environ.get('MLRUN_DBPATH', rundb)
-
     kind, runtime = process_runtime(command, runtime)
 
     if not kind and not get_in(runtime, 'spec.command', command):
@@ -162,7 +159,6 @@ def new_function(name: str = '', command: str = '', image: str = '',
                             + 'supported runtimes: {}'.format(
                               ','.join(list(runtime_dict.keys()) + ['local'])))
 
-    runner.spec.rundb = rundb
     if name:
         runner.metadata.name = name
     if image:

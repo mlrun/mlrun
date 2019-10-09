@@ -92,6 +92,9 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
     if workflow:
         runobj.metadata.labels['workflow'] = workflow
 
+    if rundb:
+        config.dbpath = rundb
+
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -120,7 +123,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
-        resp = new_function(runtime=runtime, rundb=rundb, kfp=kfp, mode=mode).run(runobj)
+        resp = new_function(runtime=runtime, kfp=kfp, mode=mode).run(runobj)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:

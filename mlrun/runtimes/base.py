@@ -186,7 +186,8 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
-        logger.info('starting run {} uid={}'.format(meta.name, meta.uid))
+        logger.info('starting run {} uid={}  -> {}'.format(
+            meta.name, meta.uid, self.spec.rundb))
 
         if self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)

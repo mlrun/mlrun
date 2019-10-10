@@ -151,8 +151,9 @@ class HTTPRunDB(RunDBInterface):
         }
 
         error = f'store artifact {project}/{uid}'
+        body = artifact.to_json()
         self._api_call(
-            'POST', path, error, params=params, body=json.dumps(artifact))
+            'POST', path, error, params=params, body=body)
 
     def read_artifact(self, key, tag='', project=''):
         path = self._path_of('artifact', project, key)  # TODO: uid?

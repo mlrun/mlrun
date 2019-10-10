@@ -311,13 +311,19 @@ class MLClientCtx(object):
 
     def set_state(self, state: str = None, error: str = None):
         """modify and store the run state or mark an error"""
+        updates = {'status.last_update': str(datetime.now())}
+
         if error:
             self._state = 'error'
             self._error = str(error)
-            self._update_db('error', commit=True)
+            updates['status.state'] = 'error'
+            updates['status.error'] = error
         elif state and state != self._state and self._state != 'error':
             self._state = state
-            self._update_db(state, commit=True)
+            updates['status.state'] = 'completed'
+
+        if self._rundb:
+            self._rundb.update_run(updates, self.uid, self.project)
 
     def set_hostname(self, host: str):
         """update the hostname"""

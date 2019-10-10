@@ -132,6 +132,7 @@ def store_run(project, uid):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     _file_db.store_run(data, uid, project, commit)
+    print(data)
     return jsonify(ok=True)
 
 
@@ -145,6 +146,7 @@ def update_run(project, uid):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     _file_db.update_run(data, uid, project)
+    print(data)
     return jsonify(ok=True)
 
 

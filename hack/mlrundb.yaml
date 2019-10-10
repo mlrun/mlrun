@@ -24,7 +24,7 @@ spec:
           value: "/mlrun/db"
         ports:
         - containerPort: 8080
-        command: ["pipenv", "run", "python", "-m", "mlrun", "db"]
+        command: ["python", "-m", "mlrun", "db"]
         args: []
 ---
 kind: Service

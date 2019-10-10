@@ -18,11 +18,11 @@ all:
 
 .PHONY: upload
 upload: wheel
-	pipenv run twine upload dist/mlrun-*.whl
+	python -m twine upload dist/mlrun-*.whl
 
 .PHONY: wheel
 wheel: clean
-	pipenv run python setup.py bdist_wheel
+	python setup.py bdist_wheel
 
 .PHONY: clean
 clean:
@@ -34,23 +34,14 @@ clean:
 
 .PHONY: test
 test: clean
-	pipenv run python -m pytest -v \
+	python -m pytest -v \
 	    --disable-warnings \
 	    -rf \
 	    tests
 
-.PHONY: update-deps
-update-deps:
-	pipenv update --dev
-
-.PHONY: sync-deps
-sync-deps:
-	pipenv sync --dev
-
-
 .PHONY: run-httpd
 run-httpd:
-	pipenv run python -m mlrun db
+	python -m mlrun db
 
 .PHONY: docker-db
 docker-db:

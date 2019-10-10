@@ -18,7 +18,7 @@ from copy import deepcopy
 from os import environ
 
 from .db import get_run_db
-from .utils import dict_to_yaml, get_in
+from .utils import dict_to_yaml, get_in, dict_to_json
 
 
 class ModelObj:
@@ -69,7 +69,7 @@ class ModelObj:
         return dict_to_yaml(self.to_dict())
 
     def to_json(self):
-        return json.dumps(self.to_dict())
+        return dict_to_json(self.to_dict())
 
     def to_str(self):
         return '{}'.format(self.to_dict())

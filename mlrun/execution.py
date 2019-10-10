@@ -23,7 +23,7 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger
+from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger, dict_to_json
 
 
 class MLCtxValueError(Exception):
@@ -378,7 +378,7 @@ class MLClientCtx(object):
 
     def to_json(self):
         """convert the run context to a json buffer"""
-        return json.dumps(self.to_dict())
+        return dict_to_json(self.to_dict())
 
     def _update_db(self, state='', commit=False, message=''):
         self.last_update = datetime.now()

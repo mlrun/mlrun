@@ -21,3 +21,4 @@ from .kfpops import mlrun_op
 from .config import config as mlconf
 from .runtimes import new_model_server
 from .platforms import mount_v3io
+from .datastore import get_object

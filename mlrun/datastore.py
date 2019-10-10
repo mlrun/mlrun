@@ -23,6 +23,12 @@ import requests
 V3IO_LOCAL_ROOT = 'v3io'
 
 
+def get_object(url, secrets=None):
+    stores = StoreManager(secrets)
+    datastore, subpath = stores.get_or_create_store(url)
+    return datastore.get(subpath)
+
+
 def parseurl(url):
     p = urlparse(url)
     schema = p.scheme.lower()

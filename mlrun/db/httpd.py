@@ -171,6 +171,7 @@ def del_run(project, uid):
 @catch_err
 def list_runs():
     name = request.args.get('name', '')
+    uid = request.args.get('uid', '')
     project = request.args.get('project', 'default')
     labels = request.args.getlist('label')
     state = request.args.get('state', '')
@@ -179,6 +180,7 @@ def list_runs():
 
     runs = _file_db.list_runs(
         name=name,
+        uid=uid,
         project=project,
         labels=labels,
         state=state,

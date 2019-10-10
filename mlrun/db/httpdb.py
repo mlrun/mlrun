@@ -113,13 +113,13 @@ class HTTPRunDB(RunDBInterface):
         error = f'del run {project}/{uid}'
         self._api_call('DELETE', path, error)
 
-    def list_runs(
-            self, name='', project='', labels=None, state='', sort=True,
-            last=0):
+    def list_runs(self, name='', uid=None, project='', labels=None,
+                  state='', sort=True, last=0):
 
         project = project or default_project
         params = {
             'name': name,
+            'uid': uid,
             'project': project,
             'label': labels or [],
             'state': state,

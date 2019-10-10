@@ -156,13 +156,11 @@ class HTTPRunDB(RunDBInterface):
             'POST', path, error, params=params, body=body)
 
     def read_artifact(self, key, tag='', project=''):
-        path = self._path_of('artifact', project, key)  # TODO: uid?
-        params = {
-            'key': key,
-            'tag': tag,
-        }
+        project = project or default_project
+        tag = tag or 'latest'
+        path = self._path_of('artifact', project, tag, key)
         error = f'read artifact {project}/{key}'
-        resp = self._api_call('GET', path, error, params=params)
+        resp = self._api_call('GET', path, error)
         return resp.content
 
     def del_artifact(self, key, tag='', project=''):

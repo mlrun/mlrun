@@ -215,14 +215,9 @@ def store_artifact(project, uid):
     return jsonify(ok=True)
 
 # curl http://localhost:8080/artifact/p1&key=k&tag=t
-@app.route('/artifact/<project>/<uid>', methods=['GET'])
+@app.route('/artifact/<project>/<tag>/key', methods=['GET'])
 @catch_err
-def read_artifact(project, uid):
-    key = request.args.get('key')
-    if not key:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='missing data')
-
-    tag = request.args.get('tag', '')
+def read_artifact(project, tag, key):
     data = _file_db.read_artifact(key, tag, project)
     return data
 

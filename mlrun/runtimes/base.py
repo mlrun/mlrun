@@ -23,35 +23,52 @@ from os import environ
 import pandas as pd
 from io import StringIO
 
+from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
-from ..db import get_run_db
+from ..db import get_run_db, default_dbpath
 from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython
 from ..execution import MLClientCtx
 from ..artifacts import TableArtifact
 from ..lists import RunList
-from .generators import get_generator, GridGenerator, ListGenerator
+from .generators import get_generator
 from ..k8s_utils import k8s_helper
-from ..config import config
+
 
 class RunError(Exception):
     pass
 
 
+class EntrypointParam(ModelObj):
+    def __init__(self, type=None, default=None, help=None):
+        self.type = type
+        self.default = default
+        self.help = help
+
+
+class FunctionEntrypoint(ModelObj):
+    def __init__(self, doc=None, parameters=None, outputs=None):
+        self.doc = doc
+        self.parameters = parameters or {}  # todo: type verification, EntrypointParam dict
+        self.outputs = outputs or {}
+
+
 class FunctionSpec(ModelObj):
-    def __init__(self, command=None, args=None, image=None,
-                 mode=None, workers=None, build=None):
+    def __init__(self, command=None, args=None, image=None, mode=None,
+                 workers=None, build=None, entry_points=None, description=None):
 
         self.command = command or ''
         self.image = image or ''
         self.mode = mode or ''
         self.workers = workers
         self.args = args or []
-        self.rundb = config.dbpath
+        self.rundb = default_dbpath()
+        self.description = description or ''
 
         self._build = None
         self.build = build
+        self.entry_points = entry_points or {}  # TODO: type verification (FunctionEntrypoint dict)
 
     @property
     def build(self) -> ImageBuilder:
@@ -115,8 +132,7 @@ class BaseRuntime(ModelObj):
         :param project:    project name
         :param params:     input parameters (dict)
         :param inputs:     input objects (dict of key: path)
-        :param rundb:      path/url to the metadata and artifact database
-        :param mode:       special run mode, e.g. 'noctx', 'pass'
+        :param visible:    show run results in Jupyter
 
         :return: run context object (dict) with run metadata, results and status
         """
@@ -170,7 +186,8 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
-        logger.info('starting run {} uid={}'.format(meta.name, meta.uid))
+        logger.info('starting run {} uid={}  -> {}'.format(
+            meta.name, meta.uid, self.spec.rundb))
 
         if self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
@@ -225,7 +242,7 @@ class BaseRuntime(ModelObj):
             iter = task.metadata.iteration
             if iter:
                 uid = '{}-{}'.format(uid, iter)
-            return self._db_conn.read_run(uid, project, False)
+            return self._db_conn.read_run(uid, project)
         if task:
             return task.to_dict()
 
@@ -400,6 +417,15 @@ class BaseRuntime(ModelObj):
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs,
                         out_path=out_path, in_path=in_path)
+
+    def save(self, target, format='.yaml', secrets=None):
+        if self.format == '.yaml':
+            data = self.to_yaml()
+        else:
+            data = self.to_json()
+        stores = StoreManager(secrets)
+        datastore, subpath = stores.get_or_create_store(target)
+        datastore.put(subpath, data)
 
 
 def selector(results: list, criteria):

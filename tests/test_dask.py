@@ -26,7 +26,7 @@ def my_func(context, p1=1, p2='a-string'):
 @pytest.mark.skipif(not has_dask, reason='missing dask')
 def test_dask_local():
     spec = tag_test(NewRun(params={'p1': 3, 'p2': 'vv'}), 'test_dask_local')
-    run = new_function(command='dask://', rundb=rundb_path).run(
+    run = new_function(command='dask://').run(
         spec, handler=my_func)
     verify_state(run)
 

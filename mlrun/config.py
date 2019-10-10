@@ -26,13 +26,13 @@ from os import path
 from collections.abc import Mapping
 from threading import Lock
 import json
+from urllib.parse import urlparse
 
 import yaml
 
 env_prefix = 'MLRUN_'
 env_file_key = f'{env_prefix}CONIFG_FILE'
 _load_lock = Lock()
-_loaded = False
 
 
 default_config = {
@@ -47,6 +47,9 @@ default_config = {
         'port': 8080,
         'dirpath': path.expanduser('~/.mlrun/db'),
         'debug': False,
+        'user': '',
+        'password': '',
+        'token': '',
     },
 }
 
@@ -90,15 +93,15 @@ class Config:
         return yaml.dump(self._cfg, stream, default_flow_style=False)
 
     @staticmethod
-    def populate():
-        populate()
+    def reload():
+        _populate()
 
 
 # Global configuration
 config = Config(default_config)
 
 
-def populate():
+def _populate():
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -107,13 +110,13 @@ def populate():
     global _loaded
 
     with _load_lock:
-        if _loaded:
-            return
-        _populate(config)
-        _loaded = True
+        _do_populate()
 
 
-def _populate(config, env=None):
+def _do_populate(env=None):
+    global config
+
+    config = Config(default_config)
     config_path = os.environ.get(env_file_key)
     if config_path:
         with open(config_path) as fp:
@@ -148,11 +151,13 @@ def read_env(env=None, prefix=env_prefix):
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
+
+    # check for mlrun-db kubernetes service
+    svc = env.get('MLRUN_DB_PORT')
+    if svc and not config.get('dbpath'):
+        config['dbpath'] = 'http://' + urlparse(svc).netloc
+
     return config
 
 
-if __name__ == '__main__':
-    import sys
-
-    populate()
-    yaml.dump(config._cfg, sys.stdout, default_flow_style=False)
+_populate()

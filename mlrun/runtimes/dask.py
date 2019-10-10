@@ -26,12 +26,14 @@ from ..config import config
 class DaskSpec(KubejobSpec):
     def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, build=None,
-                 replicas=None, image_pull_policy=None, service_account=None, extra_pip=None):
+                 entry_points=None, description=None, replicas=None,
+                 image_pull_policy=None, service_account=None, extra_pip=None):
 
         super().__init__(command=command, args=args, image=image,
                          mode=mode, workers=workers, volumes=volumes, volume_mounts=volume_mounts,
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
-                         service_account=service_account, build=build)
+                         service_account=service_account, build=build,
+                         entry_points=entry_points, description=description)
         self.extra_pip = extra_pip
         self.args = args or ['dask-worker']
 

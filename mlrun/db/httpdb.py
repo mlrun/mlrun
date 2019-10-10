@@ -18,6 +18,7 @@ import json
 import requests
 
 from .base import RunDBError, RunDBInterface
+from ..lists import RunList, ArtifactList
 
 default_project = 'default'  # TODO: Name?
 
@@ -36,8 +37,11 @@ def bool2str(val):
 
 
 class HTTPRunDB(RunDBInterface):
-    def __init__(self, base_url):
+    def __init__(self, base_url, user='', password='', token=''):
         self.base_url = base_url
+        self.user = user
+        self.password = password
+        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -51,12 +55,17 @@ class HTTPRunDB(RunDBInterface):
             if value is not None
         }
 
+        if self.user:
+            kw['auth'] = (self.user, self.password)
+        elif self.token:
+            kw['headers'] = {'Authorization': 'Bearer ' + self.token}
+
         try:
             resp = requests.request(method, url, **kw)
             resp.raise_for_status()
             return resp
         except requests.RequestException as err:
-            error = error or '{method} {url}'
+            error = error or '{} {}'.format(method, url)
             raise RunDBError(error) from err
 
     def _path_of(self, prefix, project, uid):
@@ -65,6 +74,7 @@ class HTTPRunDB(RunDBInterface):
 
     def connect(self, secrets=None):
         self._api_call('GET', 'healthz')
+        return self
 
     def store_log(self, uid, project='', body=None, append=True):
         if not body:
@@ -109,6 +119,7 @@ class HTTPRunDB(RunDBInterface):
             self, name='', project='', labels=None, state='', sort=True,
             last=0):
 
+        project = project or default_project
         params = {
             'name': name,
             'project': project,
@@ -118,9 +129,10 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'list runs'
         resp = self._api_call('GET', 'runs', error, params=params)
-        return resp.json()['runs']
+        return RunList(resp.json()['runs'])
 
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+        project = project or default_project
         params = {
             'name': name,
             'project': project,
@@ -138,11 +150,9 @@ class HTTPRunDB(RunDBInterface):
             'tag': tag,
         }
 
-        data = {key: getattr(artifact, key) for key in _artifact_keys}
-        data['body'] = artifact.get_body()
         error = f'store artifact {project}/{uid}'
         self._api_call(
-            'POST', path, error, params=params, body=json.dumps(data))
+            'POST', path, error, params=params, body=json.dumps(artifact))
 
     def read_artifact(self, key, tag='', project=''):
         path = self._path_of('artifact', project, key)  # TODO: uid?
@@ -164,6 +174,7 @@ class HTTPRunDB(RunDBInterface):
         self._api_call('DELETE', path, error, params=params)
 
     def list_artifacts(self, name='', project='', tag='', labels=None):
+        project = project or default_project
         params = {
             'name': name,
             'project': project,
@@ -172,10 +183,13 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'list artifacts'
         resp = self._api_call('GET', 'artifacts', error, params=params)
-        return resp.json()['artifacts']
+        values = ArtifactList(resp.json()['artifacts'])
+        values.tag = tag
+        return values
 
     def del_artifacts(
             self, name='', project='', tag='', labels=None, days_ago=0):
+        project = project or default_project
         params = {
             'name': name,
             'project': project,

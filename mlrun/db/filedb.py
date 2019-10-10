@@ -60,20 +60,16 @@ class FileRunDB(RunDBInterface):
         self._datastore.put(filepath, data)
 
     def update_run(self, updates: dict, uid, project=''):
-        run = self.read_run(uid, project, False)
+        run = self.read_run(uid, project)
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
         self.store_run(run, uid, project, True)
 
-    def read_run(self, uid, project='', display=True):
+    def read_run(self, uid, project=''):
         filepath = self._filepath('runs', project, uid, '') + self.format
         data = self._datastore.get(filepath)
-        result = self._loads(data)
-
-        run_to_html(result, display)
-
-        return result
+        return self._loads(data)
 
     def list_runs(self, name='', uid=None, project='', labels=[],
                   state='', sort=True, last=30):
@@ -123,11 +119,11 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
-        artifact.updated = time.time()
+        artifact['updated'] = time.time()
         if self.format == '.yaml':
-            data = artifact.to_yaml()
+            data = dict_to_yaml(artifact)
         else:
-            data = artifact.to_json()
+            data = json.dumps(artifact)
         filepath = self._filepath('artifacts', project, key, uid) + self.format
         self._datastore.put(filepath, data)
         filepath = self._filepath('artifacts', project, key, tag or 'latest') + self.format
@@ -142,7 +138,8 @@ class FileRunDB(RunDBInterface):
         tag = tag or 'latest'
         print(f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
         filepath = self._filepath('artifacts', project, tag=tag)
-        results = ArtifactList(tag)
+        results = ArtifactList()
+        results.tag = tag
         if isinstance(labels, str):
             labels = labels.split(',')
         if tag == '*':

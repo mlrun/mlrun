@@ -26,7 +26,7 @@ import click
 
 from tabulate import tabulate
 
-from .config import config
+from .config import config as mlconf
 from .builder import build_image
 from .db import get_run_db
 from .k8s_utils import k8s_helper
@@ -38,7 +38,7 @@ from .utils import list2dict, logger, run_keys, update_in
 
 @click.group()
 def main():
-    config.populate()
+    pass
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -92,6 +92,9 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
     if workflow:
         runobj.metadata.labels['workflow'] = workflow
 
+    if rundb:
+        mlconf.dbpath = rundb
+
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -120,7 +123,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
-        resp = new_function(runtime=runtime, rundb=rundb, kfp=kfp, mode=mode).run(runobj)
+        resp = new_function(runtime=runtime, kfp=kfp, mode=mode).run(runobj)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -284,7 +287,7 @@ def db(port, dirpath):
 @main.command(name='config')
 def show_config():
     """Show configuration & exit"""
-    print(config.dump_yaml())
+    print(mlconf.dump_yaml())
 
 
 def fill_params(params):

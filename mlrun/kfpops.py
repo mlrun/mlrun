@@ -15,7 +15,8 @@ import json
 from copy import deepcopy
 from os import environ
 
-from .utils import run_keys, gen_md_table, dict_to_yaml, logger
+from .db import default_dbpath
+from .utils import run_keys, dict_to_yaml, logger
 from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
@@ -176,7 +177,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     from os import environ
     from kubernetes import client as k8s_client
 
-    rundb = rundb or environ.get('MLRUN_DBPATH')
+    rundb = rundb or default_dbpath()
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow', '{{workflow.uid}}']
     file_outputs = {}
 
@@ -237,8 +238,6 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['--in-path', in_path]
     if out_path:
         cmd += ['--out-path', out_path]
-    if rundb:
-        cmd += ['--rundb', rundb]
     if param_file:
         cmd += ['--param-file', param_file]
     if selector:
@@ -264,6 +263,9 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         output_artifact_paths={'mlpipeline-ui-metadata': '/mlpipeline-ui-metadata.json',
                                'mlpipeline-metrics': '/mlpipeline-metrics.json'},
     )
+    if rundb:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_DBPATH', value=rundb))
     if code_env:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='MLRUN_EXEC_CODE', value=code_env))

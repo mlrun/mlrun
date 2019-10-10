@@ -175,6 +175,10 @@ class DataItem:
         self._path = subpath
 
     @property
+    def kind(self):
+        return self._store.kind
+
+    @property
     def url(self):
         return self._url
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 """mlrun database HTTP server"""
 
+from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
@@ -23,9 +24,12 @@ from mlrun.artifacts import Artifact
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger
+from mlrun.config import config
 
 _file_db: FileRunDB = None
 app = Flask(__name__)
+basic_prefix = 'Basic '
+bearer_prefix = 'Bearer '
 
 
 def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
@@ -34,6 +38,56 @@ def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
     reply = jsonify(**kw)
     reply.status_code = status
     return reply
+
+
+def parse_basic_auth(header):
+    """
+    >>> parse_basic_auth('Basic YnVnczpidW5ueQ==')
+    ['bugs', 'bunny']
+    """
+    b64value = header[len(basic_prefix):]
+    value = b64decode(b64value).decode()
+    return value.split(':', 1)
+
+
+class AuthError(Exception):
+    pass
+
+
+def basic_auth_required(cfg):
+    return cfg.user or cfg.password
+
+
+def bearer_auth_required(cfg):
+    return cfg.token
+
+
+@app.before_request
+def check_auth():
+    if request.path == '/healthz':
+        return
+
+    cfg = config.httpdb
+
+    header = request.headers.get('Authorization', '')
+    print(header)
+    try:
+        if basic_auth_required(cfg):
+            if not header.startswith(basic_prefix):
+                raise AuthError('missing basic auth')
+            user, passwd = parse_basic_auth(header)
+            if user != cfg.user or passwd != cfg.password:
+                raise AuthError('bad basic auth')
+        elif bearer_auth_required(cfg):
+            if not header.startswith(bearer_prefix):
+                raise AuthError('missing bearer auth')
+            token = header[len(bearer_prefix):]
+            if token != cfg.token:
+                raise AuthError('bad bearer auth')
+    except AuthError as err:
+        resp = jsonify(ok=False, error=str(err))
+        resp.status_code = HTTPStatus.UNAUTHORIZED
+        return resp
 
 
 def catch_err(fn):
@@ -115,7 +169,7 @@ def del_run(project, uid):
 @catch_err
 def list_runs():
     name = request.args.get('name', '')
-    project = request.args.get('project', '')
+    project = request.args.get('project', 'default')
     labels = request.args.getlist('label')
     state = request.args.get('state', '')
     sort = strtobool(request.args.get('sort', 'on'))
@@ -154,11 +208,10 @@ def store_artifact(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    artifact = Artifact(**data)
     key = request.args.get('key')
     tag = request.args.get('tag', '')
 
-    _file_db.store_artifact(key, artifact, uid, tag, project)
+    _file_db.store_artifact(key, data, uid, tag, project)
     return jsonify(ok=True)
 
 # curl http://localhost:8080/artifact/p1&key=k&tag=t
@@ -190,7 +243,7 @@ def del_artifact(project, uid):
 @catch_err
 def list_artifacts():
     name = request.args.get('name', '')
-    project = request.args.get('project', '')
+    project = request.args.get('project', 'default')
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 
@@ -220,7 +273,6 @@ def main():
 
     from mlrun.config import config
 
-    config.populate()
     logger.info('configuration dump\n%s', config.dump_yaml())
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()

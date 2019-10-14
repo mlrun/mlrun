@@ -158,7 +158,6 @@ class RemoteRuntime(BaseRuntime):
             update_in(config, 'spec.handler',
                       self.spec.function_handler or serving_handler)
             update_in(config, 'spec.image', image)
-            update_in(config, 'spec.build.baseImage', image + '_base')
             update_in(config, 'spec.build.codeEntryType', 'image')
             self.spec.base_spec = config
 

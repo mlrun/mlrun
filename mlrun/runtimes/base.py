@@ -16,95 +16,58 @@ import sys
 import uuid
 from ast import literal_eval
 from datetime import datetime
+import json
 import getpass
 from copy import deepcopy
+from os import environ
 import pandas as pd
 from io import StringIO
 
-from ..kfpops import write_kfpmeta, mlrun_op
 from ..db import get_run_db
-from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
+from ..model import RunObject, ModelObj, RunTemplate
 from ..secrets import SecretsStore
-from ..utils import get_in, update_in, logger, is_ipython
+from ..utils import (run_keys, gen_md_table, dict_to_yaml, get_in,
+                     update_in, logger, is_ipython)
 from ..execution import MLClientCtx
 from ..artifacts import TableArtifact
 from ..lists import RunList
-from .generators import get_generator, GridGenerator, ListGenerator
-from ..k8s_utils import k8s_helper
-from ..builder import build_runtime
-from ..config import config
+from .generators import GridGenerator, ListGenerator
+
 
 class RunError(Exception):
     pass
 
 
-class FunctionSpec(ModelObj):
-    def __init__(self, command=None, args=None, image=None,
-                 mode=None, workers=None, build=None):
+KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
+
+class RunRuntime(ModelObj):
+    kind = 'base'
+
+    def __init__(self, command=None, args=None, image=None, rundb=None,
+                 kfp=None, mode=None, workers=None):
         self.command = command or ''
         self.image = image or ''
+        self.kfp = kfp
         self.mode = mode or ''
         self.workers = workers
         self.args = args or []
-        self.rundb = config.dbpath
-
-        self._build = None
-        self.build = build
-
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, 'build', ImageBuilder)
-
-
-class BaseRuntime(ModelObj):
-    kind = 'base'
-    _is_nested = False
-    _dict_fields = ['kind', 'metadata', 'spec']
-
-    def __init__(self, metadata=None, spec=None, build=None):
-        self._metadata = None
-        self.metadata = metadata
-        self.kfp = None
         self._spec = None
-        self.spec = spec
+
+        self.rundb = rundb or environ.get('MLRUN_META_DBPATH', '')
         self._db_conn = None
         self._secrets = None
-        self._k8s = None
-        self._is_built = False
 
     @property
-    def metadata(self) -> BaseMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
-
-    @property
-    def spec(self) -> FunctionSpec:
+    def spec(self):
         return self._spec
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', FunctionSpec)
-
-    def _get_k8s(self):
-        if not self._k8s:
-            self._k8s = k8s_helper()
-        return self._k8s
-
-    def set_label(self, key, value):
-        self.metadata.labels[key] = str(value)
-        return self
+        self._spec = self._verify_dict(spec, 'spec')
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
-            project: str = '', params: dict = None, inputs: dict = None,
-            visible = True):
+            project: str = '', params: dict = None, inputs: dict = None,):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -119,20 +82,15 @@ class BaseRuntime(ModelObj):
         :return: run context object (dict) with run metadata, results and status
         """
 
-        def show(resp):
-            results = RunList()
+        def show(results, resp):
             # show ipython/jupyter result table widget
             if resp:
                 results.append(resp)
             else:
                 logger.info('no returned result (job may still be in progress)')
                 results.append(runspec.to_dict())
-            if is_ipython and visible:
+            if is_ipython:
                 results.show()
-            print('type result.show() to see detailed results/progress or use CLI:')
-            uid = runspec.metadata.uid
-            project = '--project {}'.format(runspec.metadata.project) if runspec.metadata.project else ''
-            print('!mlrun get run --uid {} {}'.format(uid, project))
             return resp
 
         if runspec:
@@ -144,7 +102,7 @@ class BaseRuntime(ModelObj):
             runspec = RunObject.from_template(runspec)
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
-        runspec.metadata.name = name or runspec.metadata.name or self.metadata.name
+        runspec.metadata.name = name or runspec.metadata.name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
@@ -157,10 +115,10 @@ class BaseRuntime(ModelObj):
         runspec.spec.handler = handler or runspec.spec.handler
 
         spec = runspec.spec
-        if self.spec.mode in ['noctx', 'args']:
+        if self.mode in ['noctx', 'args']:
             params = spec.parameters or {}
             for k, v in params.items():
-                self.spec.args += ['--{}'.format(k), str(v)]
+                self.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
             self._secrets = SecretsStore.from_dict(spec.to_dict())
@@ -170,8 +128,8 @@ class BaseRuntime(ModelObj):
         meta.uid = meta.uid or uuid.uuid4().hex
         logger.info('starting run {} uid={}'.format(meta.name, meta.uid))
 
-        if self.spec.rundb:
-            self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
+        if self.rundb:
+            self._db_conn = get_run_db(self.rundb).connect(self._secrets)
 
         meta.labels['kind'] = self.kind
         meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
@@ -183,8 +141,11 @@ class BaseRuntime(ModelObj):
 
         # form child run task generator from spec
         task_generator = None
-        if not self._is_nested:
-            task_generator = get_generator(spec, execution)
+        if spec.hyperparams:
+            task_generator = GridGenerator(spec.hyperparams)
+        elif spec.param_file:
+            obj = execution.get_input('param_file.csv', spec.param_file)
+            task_generator = ListGenerator(obj.get())
 
         if task_generator:
             # multiple runs (based on hyper params or params file)
@@ -193,25 +154,26 @@ class BaseRuntime(ModelObj):
             self._results_to_iter(results, runspec, execution)
             resp = execution.to_dict()
             if resp and self.kfp:
-                write_kfpmeta(resp)
-            result = show(resp)
+                _write_kfpmeta(resp)
+            result = show(results, resp)
         else:
             # single run
+            results = RunList()
             try:
                 self.store_run(runspec)
                 resp = self._run(runspec, execution)
                 if resp and self.kfp:
-                    write_kfpmeta(resp)
-                result = show(self._post_run(resp, task=runspec))
+                    _write_kfpmeta(resp)
+                result = show(results, self._post_run(resp, task=runspec))
             except RunError as err:
                 logger.error(f'run error - {err}')
-                result = show(self._post_run(task=runspec, err=err))
+                result = show(results, self._post_run(task=runspec, err=err))
 
         if result:
             run = RunObject.from_dict(result)
-            logger.info('run executed, status={}'.format(run.status.state))
-            if run.status.state == 'error':
-                raise RunError(run.status.error)
+            logger.info('run executed, status={}'.format(runspec.status.state))
+            if runspec.status.state == 'error':
+                raise RunError(runspec.status.error)
             return run
 
         return None
@@ -226,28 +188,6 @@ class BaseRuntime(ModelObj):
             return self._db_conn.read_run(uid, project, False)
         if task:
             return task.to_dict()
-
-    def _get_cmd_args(self, runobj, with_mlrun):
-        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
-        if self.spec.rundb:
-            extra_env['MLRUN_DBPATH'] = self.spec.rundb
-        args = []
-        command = self.spec.command
-        if hasattr(self.spec, 'build'):
-            code = self.spec.build.inline_code
-            if code:
-                extra_env['MLRUN_EXEC_CODE'] = code
-                if with_mlrun:
-                    command = 'mlrun'
-                    args = ['run', '--from-env']
-        elif with_mlrun:
-            command = 'mlrun'
-            args = ['run', '--from-env', command]
-        if runobj.spec.handler:
-            args += ['--handler', runobj.spec.handler]
-        if self.spec.args:
-            args += self.spec.args
-        return command, args, extra_env
 
     def _run(self, runspec: RunObject, execution) -> dict:
         pass
@@ -277,9 +217,7 @@ class BaseRuntime(ModelObj):
 
     def _post_run(self, resp: dict = None, task: RunObject = None, err=None):
         """update the task state in the DB"""
-        was_none = False
         if resp is None and task:
-            was_none = True
             resp = self._get_db_run(task)
 
         if resp is None:
@@ -288,9 +226,11 @@ class BaseRuntime(ModelObj):
         if not isinstance(resp, dict):
             raise ValueError('post_run called with type {}'.format(type(resp)))
 
-        updates = None
-        if get_in(resp, 'status.state', '') == 'error' or err:
-            updates = {'status.last_update': str(datetime.now())}
+        updates = {'status.last_update': str(datetime.now())}
+        if get_in(resp, 'status.state', '') != 'error' and not err:
+            updates['status.state'] = 'completed'
+            update_in(resp, 'status.state', 'completed')
+        else:
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
             if err:
@@ -298,12 +238,8 @@ class BaseRuntime(ModelObj):
             err = get_in(resp, 'status.error')
             if err:
                 updates['status.error'] = err
-        elif not was_none:
-            updates = {'status.last_update': str(datetime.now())}
-            updates['status.state'] = 'completed'
-            update_in(resp, 'status.state', 'completed')
 
-        if self._db_conn and updates:
+        if self._db_conn:
             project = get_in(resp, 'metadata.project')
             uid = get_in(resp, 'metadata.uid')
             iter = get_in(resp, 'metadata.iteration', 0)
@@ -324,7 +260,7 @@ class BaseRuntime(ModelObj):
             state = get_in(task, ['status', 'state'])
             id = get_in(task, ['metadata', 'iteration'])
             struct = {'param': get_in(task, ['spec', 'parameters'], {}),
-                      'output': get_in(task, ['status', 'results'], {}),
+                      'output': get_in(task, ['status', 'outputs'], {}),
                       'state': state,
                       'iter': id,
                       }
@@ -360,29 +296,77 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError('handler must be provided for {} runtime'.format(self.kind))
 
-    def to_step(self, runspec: RunObject = None, handler=None, name: str = '',
-                project: str = '', params: dict = None, hyperparams=None, selector='',
-                inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = ''):
-        """Run a local or remote task.
 
-        :param runspec:    run template object or dict (see RunTemplate)
-        :param handler:    name of the function handler
-        :param name:       execution name
-        :param project:    project name
-        :param params:     input parameters (dict)
-        :param hyperparams: hyper parameters
-        :param selector:   selection criteria for hyper params
-        :param inputs:     input objects (dict of key: path)
-        :param outputs:    list of outputs which can pass in the workflow
+def _write_kfpmeta(struct):
+    if 'status' not in struct:
+        return
 
-        :return: KubeFlow containerOp
-        """
-        return mlrun_op(name, project, self,
-                        runobj=runspec, handler=handler, params=params,
-                        hyperparams=hyperparams, selector=selector,
-                        inputs=inputs, outputs=outputs,
-                        out_path=out_path, in_path=in_path)
+    outputs = struct['status'].get('outputs', {})
+    metrics = {'metrics':
+                   [{'name': k,
+                     'numberValue': v,
+                     } for k, v in outputs.items() if isinstance(v, (int, float, complex))]}
+    with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
+        json.dump(metrics, f)
+
+    output_artifacts = get_kfp_outputs(
+        struct['status'].get(run_keys.output_artifacts, []))
+
+    text = '# Run Report\n'
+    if 'iterations' in struct['status']:
+        iter = struct['status']['iterations']
+        iter_html = gen_md_table(iter[0], iter[1:])
+        text += '## Iterations\n' + iter_html
+        struct = deepcopy(struct)
+        del struct['status']['iterations']
+
+    text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
+
+    #with open('sum.md', 'w') as fp:
+    #    fp.write(text)
+
+    metadata = {
+        'outputs': output_artifacts + [{
+            'type': 'markdown',
+            'storage': 'inline',
+            'source': text
+        }]
+    }
+    with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
+        json.dump(metadata, f)
+
+
+def get_kfp_outputs(artifacts):
+    outputs = []
+    for output in artifacts:
+        key = output["key"]
+        target = output.get('target_path', '')
+        target = output.get('inline', target)
+        try:
+            with open(f'/tmp/{key}', 'w') as fp:
+                fp.write(target)
+        except:
+            pass
+
+        if target.startswith('v3io:///'):
+            target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
+
+        viewer = output.get('viewer', '')
+        if viewer in ['web-app', 'chart']:
+            meta = {'type': 'web-app',
+                    'source': target}
+            outputs += [meta]
+
+        elif viewer == 'table':
+            header = output.get('header', None)
+            if header and target.endswith('.csv'):
+                meta = {'type': 'table',
+                        'format': 'csv',
+                        'header': header,
+                        'source': target}
+                outputs += [meta]
+
+    return outputs
 
 
 def selector(results: list, criteria):
@@ -411,12 +395,7 @@ def selector(results: list, criteria):
     for task in results:
         state = get_in(task, ['status', 'state'])
         id = get_in(task, ['metadata', 'iteration'])
-        val = get_in(task, ['status', 'results', criteria])
-        if isinstance(val, str):
-            try:
-                val = float(val)
-            except:
-                val = None
+        val = get_in(task, ['status', 'outputs', criteria])
         if state != 'error' and val is not None:
             if (op == 'max' and val > best_val) \
                     or (op == 'min' and val < best_val):

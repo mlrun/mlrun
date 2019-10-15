@@ -20,8 +20,8 @@ class RunList(list):
                 get_in(run, 'metadata.labels', ''),
                 get_in(run, 'spec.inputs', ''),
                 get_in(run, 'spec.parameters', ''),
-                get_in(run, 'status.results', ''),
-                get_in(run, 'status.artifacts', []),
+                get_in(run, 'status.outputs', ''),
+                get_in(run, 'status.output_artifacts', []),
                 get_in(run, 'status.error', ''),
             ]
             rows.append(row)
@@ -36,7 +36,7 @@ class RunList(list):
         if flat:
             df = flatten(df, 'labels')
             df = flatten(df, 'parameters', 'param_')
-            df = flatten(df, 'results', 'out_')
+            df = flatten(df, 'outputs', 'out_')
 
         return df
 

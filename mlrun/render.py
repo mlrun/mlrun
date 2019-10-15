@@ -105,7 +105,7 @@ def inputs_html(x):
 def run_to_html(results, display=True):
     html = html_dict('Metadata', results['metadata'])
     html += html_dict('Spec', results['spec'])
-    html += html_dict('results', results['status'].get('results'), True, True)
+    html += html_dict('Outputs', results['status'].get('outputs'), True, True)
 
     if 'iterations' in results['status']:
         iter = results['status']['iterations']
@@ -113,7 +113,7 @@ def run_to_html(results, display=True):
             df = pd.DataFrame(iter[1:], columns=iter[0]).set_index('iter')
             html += table_sum('Iterations', df)
 
-    artifacts = results['status'].get('artifacts', None)
+    artifacts = results['status'].get('output_artifacts', None)
     if artifacts:
         df = pd.DataFrame(artifacts)
         if 'description' not in df.columns.values:

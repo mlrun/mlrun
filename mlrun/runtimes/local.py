@@ -22,8 +22,7 @@ from tempfile import mktemp
 from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
-from .base import BaseRuntime, RunError
-from .container import ContainerRuntime
+from .base import RunRuntime, RunError
 from sys import executable, stderr
 from subprocess import run, PIPE
 
@@ -34,7 +33,7 @@ from pathlib import Path
 from nuclio_sdk import Event
 
 
-class HandlerRuntime(BaseRuntime):
+class HandlerRuntime(RunRuntime):
     kind = 'handler'
 
     def _run(self, runobj: RunObject, execution):
@@ -43,7 +42,7 @@ class HandlerRuntime(BaseRuntime):
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         context = MLClientCtx.from_dict(runobj.to_dict(),
-                                        rundb=self.spec.rundb,
+                                        rundb=self.rundb,
                                         autocommit=True,
                                         tmp=tmp,
                                         host=socket.gethostname())
@@ -53,21 +52,21 @@ class HandlerRuntime(BaseRuntime):
         return context.to_dict()
 
 
-class LocalRuntime(ContainerRuntime):
+class LocalRuntime(RunRuntime):
     kind = 'local'
 
     def _run(self, runobj: RunObject, execution):
         environ['MLRUN_EXEC_CONFIG'] = runobj.to_json()
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
-        if self.spec.rundb:
-            environ['MLRUN_DBPATH'] = self.spec.rundb
+        if self.rundb:
+            environ['MLRUN_META_DBPATH'] = self.rundb
 
         handler = runobj.spec.handler
         if handler:
-            mod, fn = load_module(self.spec.command, handler)
+            mod, fn = load_module(self.command, handler)
             context = MLClientCtx.from_dict(runobj.to_dict(),
-                                            rundb=self.spec.rundb,
+                                            rundb=self.rundb,
                                             autocommit=True,
                                             tmp=tmp,
                                             host=socket.gethostname())
@@ -77,7 +76,7 @@ class LocalRuntime(ContainerRuntime):
             return context.to_dict()
 
         else:
-            sout, serr = run_exec(self.spec.command, self.spec.args)
+            sout, serr = run_exec(self.command, self.args)
             log_std(self._db_conn, runobj, sout, serr)
 
             try:
@@ -193,8 +192,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
 
 
 def log_std(db, runobj, out, err=''):
-    if out:
-        print(out)
+    print(out)
     if db:
         uid = runobj.metadata.uid
         project = runobj.metadata.project or ''

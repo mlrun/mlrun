@@ -79,25 +79,42 @@ class MpiRuntime(KubejobRuntime):
             _update_container(job, 'image', self._image_path())
         update_in(job, 'spec.template.spec.volumes', self.spec.volumes)
         _update_container(job, 'volumeMounts', self.spec.volume_mounts)
+
+        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
+        if self.spec.rundb:
+            extra_env['MLRUN_DBPATH'] = self.spec.rundb
+        extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
+        _update_container(job, 'env', extra_env + self.spec.env)
+        if self.spec.image_pull_policy:
+            _update_container(job, 'imagePullPolicy', self.spec.image_pull_policy)
+
         if self.spec.command:
             _update_container(job, 'command',
                               ['mpirun', 'python', self.spec.command] + self.spec.args)
 
         resp = self._submit_mpijob(job, meta.namespace)
-        for i in range(20):
+        state = None
+        for i in range(30):
             resp = self.get_job(meta.name, meta.namespace)
-            if resp and resp.get('status'):
+            state = get_in(resp, 'status.launcherStatus')
+            if resp and state:
                 break
             time.sleep(1)
 
         if resp:
-            state = get_in(resp, 'status.launcherStatus')
             logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
             if state:
                 launcher, status = self._get_lancher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state(state.lower())
-                logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+                if self.interactive or self.kfp:
+                    status = self._get_k8s().watch(launcher, meta.namespace)
+                    logger.info('MpiJob {} finished with state {}'.format(meta.name, status))
+                    if status == 'succeeded':
+                        execution.set_state('completed')
+                else:
+                    logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+                    logger.info('use .watch({}) to see logs'.format(meta.name))
             else:
                 logger.warning('MpiJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
 
@@ -112,7 +129,6 @@ class MpiRuntime(KubejobRuntime):
                 plural=mpi_plural, body=job)
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('MpiJob {} created'.format(name))
-            logger.info('use .watch({}) to see logs'.format(name))
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating MPIJob: %s" % e)

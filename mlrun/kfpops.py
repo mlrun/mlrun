@@ -15,7 +15,9 @@ import json
 from copy import deepcopy
 from os import environ
 
-from .utils import run_keys, gen_md_table, dict_to_yaml, logger
+from .db import default_dbpath
+from .utils import run_keys, dict_to_yaml, logger
+from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
@@ -50,9 +52,6 @@ def write_kfpmeta(struct):
 
     text = '# Run Report\n'
     if 'iterations' in struct['status']:
-        iter = struct['status']['iterations']
-        iter_html = gen_md_table(iter[0], iter[1:])
-        text += '## Iterations\n' + iter_html
         struct = deepcopy(struct)
         del struct['status']['iterations']
 
@@ -178,7 +177,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     from os import environ
     from kubernetes import client as k8s_client
 
-    rundb = rundb or environ.get('MLRUN_DBPATH')
+    rundb = rundb or default_dbpath()
     cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow', '{{workflow.uid}}']
     file_outputs = {}
 
@@ -193,12 +192,12 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             more_args = more_args or function.spec.args
             mode = mode or function.spec.mode
             rundb = rundb or function.spec.rundb
-            code_env = '{}'.format(function.spec.build.inline_code)
+            code_env = '{}'.format(function.spec.build.functionSourceCode)
         else:
             runtime = '{}'.format(function.to_dict())
         name = name or function.metadata.name
 
-    image = image or 'mlrun/mlrun'
+    image = image or config.kfp_image
 
     if runobj:
         handler = handler or runobj.spec.handler_name
@@ -214,7 +213,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         project = project or runobj.metadata.project
 
     if hyperparams or param_file:
-        outputs.append('iteration_results.csv')
+        outputs.append('iteration_results')
 
     if name:
         cmd += ['--name', name]
@@ -228,7 +227,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['-i', '{}={}'.format(i, val)]
     for o in outputs:
         cmd += ['-o', '{}'.format(o)]
-        file_outputs[o.replace('.', '-')] = '/tmp/{}'.format(o)
+        file_outputs[o.replace('.', '_')] = '/tmp/{}'.format(o)
     if project:
         cmd += ['--project', project]
     if handler:
@@ -239,8 +238,6 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['--in-path', in_path]
     if out_path:
         cmd += ['--out-path', out_path]
-    if rundb:
-        cmd += ['--rundb', rundb]
     if param_file:
         cmd += ['--param-file', param_file]
     if selector:
@@ -266,9 +263,35 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         output_artifact_paths={'mlpipeline-ui-metadata': '/mlpipeline-ui-metadata.json',
                                'mlpipeline-metrics': '/mlpipeline-metrics.json'},
     )
+    if rundb:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_DBPATH', value=rundb))
     if code_env:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='MLRUN_EXEC_CODE', value=code_env))
+    return cop
+
+
+def deploy_op(name, function, source='', dashboard='',
+              project='', models: dict = {}, tag='', verbose=False):
+    from kfp import dsl
+    runtime = '{}'.format(function.to_dict())
+    cmd = ['python', '-m', 'mlrun', 'deploy', runtime]
+    if project:
+        cmd += ['-s', source]
+    if dashboard:
+        cmd += ['-d', dashboard]
+    if project:
+        cmd += ['-p', project]
+    for m, val in models.items():
+        cmd += ['-m', '{}={}'.format(m, val)]
+
+    cop = dsl.ContainerOp(
+        name=name,
+        image=config.kfp_image,
+        command=cmd,
+        file_outputs={'endpoint': '/tmp/output'},
+    )
     return cop
 
 
@@ -282,7 +305,7 @@ def add_env(env={}):
 
     def _add_env(task):
         from kubernetes import client as k8s_client
-        for k, v in env:
+        for k, v in env.items():
             task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
         return task
 

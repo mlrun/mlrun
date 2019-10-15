@@ -282,14 +282,15 @@ tblframe = """
 </div>
 """
 
-def get_tblframe(df, display):
-    table = tblframe.format(df.to_html(escape=False, index=False, notebook=True))
+
+def get_tblframe(df, display, classes=None):
+    table = tblframe.format(df.to_html(escape=False, index=False, notebook=True, classes=classes))
     rnd = 'result' + str(uuid.uuid4())[:8]
     html = style + jscripts + table.replace('="result', '="' + rnd)
     return ipython_display(html, display)
 
 
-def runs_to_html(df, display=True):
+def runs_to_html(df, display=True, classes=None):
 
     def time_str(x):
         try:
@@ -313,10 +314,10 @@ def runs_to_html(df, display=True):
     df = df.apply(expand_error, axis=1)
     df.drop('error', axis=1, inplace=True)
     pd.set_option('display.max_colwidth', -1)
-    return get_tblframe(df, display)
+    return get_tblframe(df, display, classes=classes)
 
 
-def artifacts_to_html(df, display=True):
+def artifacts_to_html(df, display=True, classes=None):
     def prod_htm(x):
         if not x or not isinstance(x, dict):
             return ''
@@ -335,4 +336,4 @@ def artifacts_to_html(df, display=True):
     df['updated'] = df['updated'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))
     pd.set_option('display.max_colwidth', -1)
 
-    return get_tblframe(df, display)
+    return get_tblframe(df, display, classes=classes)

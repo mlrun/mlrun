@@ -1,7 +1,13 @@
 # MLrun
+
+[![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
+
 A generic an easy to use mechanism for data scientists and developers/engineers 
 to describe and run machine learning related tasks in various scalable runtime environments 
-while automatically tracking code, metadata, inputs, and outputs of (executions).
+while automatically tracking code, metadata, inputs, and outputs of executions.
+MLrun is integrated with [Nuclio serverless project](https://github.com/nuclio/nuclio).
 
 Read more details in [this doc link](https://docs.google.com/document/d/1JRoWx4X7ld3fzQtdTGVIbcZx-5HzlYmkFiQz6ei8izE/edit?usp=sharing)
 
@@ -43,9 +49,9 @@ and the idea is to make all the resources pluggable, this way developers code to
 * [Various run examples](examples/mlrun_games.ipynb)
 * [From local runs to a scalable Kubernetes cluster](examples/nuclio_jobs.ipynb)
 * [Automated workflows with KubeFlow Pipelines](examples/pipe_code.ipynb)
-* [Using MLRUN with Dask](examples/mlrun_dask.ipynb)
 * [Using MLRUN with Horovod and MpiJob](examples/mlrun_mpijob.ipynb)
 * [Using MLRUN with Nuclio](examples/train_xgboost_serverless.ipynb)
+* [Using MLRUN with Dask](examples/mlrun_dask.ipynb)
 * [Using MLRUN with Spark - TBD]()
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 * [Automating container build](examples/build.py)
@@ -58,15 +64,15 @@ We have few main elements:
 
 * task (run) - define the desired parameters, inputs, outputs and tracking of a run. 
 Run can be created from a template and run over different `runtimes` or `functions`.
+* function - a `runtime` specific software package and attributes (e.g. image, command, 
+args, environment, ..). function can run one or many runs/tasks and can be created from templates.
 * runtime - is a computation framework, we supports multiple `runtimes` such as local, 
 kubernetes job, dask, nuclio, spark, mpijob (Horovod). runtimes may support 
 parallelism and clustering (i.e. distribute the work among processes/containers).
-* function - a `runtime` specific software package and attributes (e.g. image, command, 
-args, environment, ..). function can run one or many runs/tasks and can be created from templates.
 
 example:
 
-    task = NewRun(handler=handler, name='demo', params={'p1': 5})
+    task = NewTask(handler=handler, name='demo', params={'p1': 5})
     task.with_secrets('file', 'secrets.txt').set_label('type', 'demo')
     
     run = new_function(command='dask://').run(task)
@@ -240,7 +246,7 @@ function above by using `hyper params`:
          "gamma":     [0.0, 0.1, 0.2, 0.3],
          }
 
-    task = NewRun(handler=xgb_train, out_path='/User/mlrun/data').with_hyper_params(parameters, 'max.accuracy')
+    task = NewTask(handler=xgb_train, out_path='/User/mlrun/data').with_hyper_params(parameters, 'max.accuracy')
     run = new_function().run(task)
 
     
@@ -254,7 +260,7 @@ This can also be done via the CLI:
 
 We can use a parameter file if we want to control the parameter combinations or if the parameters are more complex.
 
-    task = NewRun(handler=xgb_train).with_param_file('params.csv', 'max.accuracy')
+    task = NewTask(handler=xgb_train).with_param_file('params.csv', 'max.accuracy')
     run = new_function().run(task)
 
   
@@ -321,7 +327,7 @@ fn.build(image='mlrun/xgb:latest')
 def xgb_pipeline(
    eta = [0.1, 0.2, 0.3], gamma = 0.2
 ):
-    run = NewRun(handler='xgb_train', out_path=artifacts_path, outputs=['model']).with_hyper_params({'eta': eta}, selector='max.accuracy').with_params(gamma=gamma)
+    run = NewTask(handler='xgb_train', out_path=artifacts_path, outputs=['model']).with_hyper_params({'eta': eta}, selector='max.accuracy').with_params(gamma=gamma)
     train = fn.with_code().to_step(run).apply(mount_v3io())
 
 
@@ -391,3 +397,25 @@ To execute the code remotely just substitute the file name with the function URL
 
 `python -m mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt http://<function-endpoint>`
 
+
+### Running HTTP Database
+
+#### Docker
+
+Run with `docker run -p8080:8080 -v /path/to/db:/mlrun/db`
+
+
+You can pass `MLRUN_httpdb__port` environment variable to change port.
+
+#### Command Line
+
+$ mlrun db --help
+Usage: mlrun db [OPTIONS]
+
+  Run HTTP database server
+
+Options:
+  -p, --port INTEGER  port to listen on
+  -d, --dirpath TEXT  database directory (dirpath)
+  --help              Show this message and exit.
+```

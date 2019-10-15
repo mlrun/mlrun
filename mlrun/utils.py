@@ -18,8 +18,11 @@ from datetime import datetime
 from os import path
 from sys import stdout
 import yaml
+import json
+import numpy as np
 
-yaml.Dumper.ignore_aliases = lambda *args : True
+
+yaml.Dumper.ignore_aliases = lambda *args: True
 
 
 def create_logger():
@@ -27,8 +30,10 @@ def create_logger():
     handler.setFormatter(
         logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
     logger = logging.getLogger('mlrun')
-    logger.addHandler(handler)
+    if not len(logger.handlers):
+        logger.addHandler(handler)
     logger.setLevel(logging.INFO)
+    logger.propagate = False
     return logger
 
 
@@ -190,6 +195,23 @@ def dict_to_list(struct: dict):
 def dict_to_yaml(struct):
     return yaml.dump(struct, default_flow_style=False,
                      sort_keys=False)
+
+
+# solve numpy json serialization
+class MyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(MyEncoder, self).default(obj)
+
+
+def dict_to_json(struct):
+    return json.dumps(struct, cls=MyEncoder)
 
 
 def uxjoin(base, path, iter=None):

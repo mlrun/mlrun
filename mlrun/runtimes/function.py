@@ -13,15 +13,20 @@
 # limitations under the License.
 
 import json
+from os import environ
 import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
 import logging
 from sys import stdout
+from kubernetes import client
+from nuclio.deploy import deploy_config
 
-from .base import BaseRuntime, RunError
-from ..utils import logger
+from ..kfpops import deploy_op
+from ..platforms.iguazio import v3io_to_vol
+from .base import BaseRuntime, RunError, FunctionSpec
+from ..utils import logger, update_in
 from ..lists import RunList
 from ..model import RunObject
 
@@ -30,6 +35,46 @@ from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
 import nuclio
 
+serving_handler = 'handler'
+
+
+def new_model_server(name, model_class: str, models: dict = None, filename='',
+                     protocol='', image='', endpoint='', explainer=False,
+                     workers=8, canary=None):
+    f = RemoteRuntime()
+    f.metadata.name = name
+    if not image:
+        bname, spec, code = nuclio.build_file(filename, handler=serving_handler, kind='serving')
+        f.spec.base_spec = spec
+
+    f.serving(models, model_class, protocol, image=image, endpoint=endpoint,
+              explainer=explainer, workers=workers, canary=canary)
+    return f
+
+
+class NuclioSpec(FunctionSpec):
+    def __init__(self, command=None, args=None, image=None, mode=None,
+                 workers=None, entry_points=None, description=None,
+                 volumes=None, env=None, resources=None,
+                 config=None, build_commands=None, base_spec=None,
+                 source=None, image_pull_policy=None, function_kind=None,
+                 service_account=None):
+        super().__init__(command=command, args=args, image=image,
+                         mode=mode, workers=workers, build=None,
+                         entry_points=entry_points, description=description)
+
+        self.base_spec = base_spec or ''
+        self.function_kind = function_kind or 'mlrun'
+        self.source = source or ''
+        self.volumes = volumes or []
+        self.build_commands = build_commands or []
+        self.env = env or {}
+        self.config = config or {}
+        self.resources = resources or {}
+        self.image_pull_policy = image_pull_policy
+        self.service_account = service_account
+        self.function_handler = ''
+
 
 class RemoteRuntime(BaseRuntime):
     kind = 'remote'
@@ -37,49 +82,127 @@ class RemoteRuntime(BaseRuntime):
 
     def __init__(self, metadata=None, spec=None):
         super().__init__(metadata, spec)
-        self._config = nuclio.ConfigSpec()
         self.verbose = False
-        self.dashboard = ''
-        self.kind = ''
+
+    @property
+    def spec(self) -> NuclioSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, 'spec', NuclioSpec)
 
     def set_env(self, name, value):
-        self._config.set_env(name, value)
+        self.spec.env[name] = value
         return self
 
     def set_config(self, key, value):
-        self._config.set_config(key, value)
+        self.spec.config[key] = value
         return self
 
-    def add_volume(self, local, remote, kind='', name='fs',
-                   key='', readonly=False):
-        self._config.add_volume(local, remote, kind, name, key, readonly)
+    def add_volume(self, local, remote, name='fs',
+                   access_key='', user=''):
+        vol = v3io_to_vol(name, remote=remote, access_key=access_key, user=user)
+        api = client.ApiClient()
+        vol = api.sanitize_for_serialization(vol)
+        self.spec.volumes.append({'volume': vol,
+                                  'volumeMount': {'name': name, 'mountPath': local}})
         return self
 
     def add_trigger(self, name, spec):
-        self._config.add_trigger(name, spec)
+        if hasattr(spec, 'to_dict'):
+            spec = spec.to_dict()
+        self.spec.config['spec.triggers.{}'.format(name)] = spec
+        return self
+
+    def with_v3io(self, local='', remote=''):
+        for key in ['V3IO_FRAMESD', 'V3IO_USERNAME',
+                    'V3IO_ACCESS_KEY', 'V3IO_API']:
+            if key in environ:
+                self.spec.env[key] = environ[key]
+        if local and remote:
+            self.add_volume(local, remote)
         return self
 
     def with_http(self, workers=8, port=0,
                   host=None, paths=None, canary=None):
-        self._config.with_http(workers, port, host, paths, canary)
+        self.add_trigger('http', nuclio.HttpTrigger(
+            workers, port=port, host=host, paths=paths, canary=canary))
         return self
 
-    def with_v3io(self):
-        self._config.with_v3io()
+    def add_model(self, key, model):
+        if model.startswith('v3io://'):
+            model = '/User/' + '/'.join(model.split('/')[5:])
+        if '://' not in model:
+            model = 'file://' + model
+        if not model.endswith('/'):
+            model = model[:model.rfind('/')]
+        self.set_env('SERVING_MODEL_{}'.format(key), model)
         return self
 
-    def deploy(self, source='', project='', handler='',
-                tag='', archive=False, files=[], output_dir='', kind=None):
+    def serving(self, models: dict = None, model_class='', protocol='', image='',
+                endpoint='', explainer=False, workers=8, canary=None):
+
+        if models:
+            for k, v in models.items():
+                self.set_env('SERVING_MODEL_{}'.format(k), v)
+
+        self.set_env('TRANSPORT_PROTOCOL', protocol or 'seldon')
+        self.set_env('ENABLE_EXPLAINER', str(explainer))
+        self.set_env('MODEL_CLASS', model_class)
+        self.with_http(workers, host=endpoint, canary=canary)
+        self.spec.function_kind = 'serving'
+
+        if image:
+            config = nuclio.config.new_config()
+            update_in(config, 'spec.handler',
+                      self.spec.function_handler or serving_handler)
+            update_in(config, 'spec.image', image)
+            update_in(config, 'spec.build.codeEntryType', 'image')
+            self.spec.base_spec = config
+
+        return self
+
+    def deploy(self, source='', dashboard='', project='', tag='',
+               kind=None):
 
         self.set_config('metadata.labels.mlrun/class', self.kind)
+        spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
+        spec.cmd = self.spec.build_commands
+        kind = kind or self.spec.function_kind
         project = project or self.metadata.project or 'mlrun'
-        addr = nuclio.deploy_file(source, name=self.metadata.name, project=project,
-                                  dashboard_url=self.dashboard, verbose=self.verbose,
-                                  spec=self._config, tag=tag, handler=handler, kind=kind,
-                                  archive=archive, files=files, output_dir=output_dir)
+        source = source or self.spec.source
+        handler = self.spec.function_handler
+
+        if self.spec.base_spec:
+            config = nuclio.config.extend_config(self.spec.base_spec, spec, tag,
+                                                 self.spec.source)
+            update_in(config, 'metadata.name', self.metadata.name)
+            update_in(config, 'spec.volumes', self.spec.volumes)
+
+            addr = nuclio.deploy.deploy_config(
+                config, dashboard, name=self.metadata.name,
+                project=project, tag=tag, verbose=self.verbose,
+                create_new=True)
+        else:
+
+            name, config, code = nuclio.build_file(source, name=self.metadata.name,
+                                            project=project,
+                                            handler=handler,
+                                            tag=tag, spec=spec,
+                                            kind=kind, verbose=self.verbose)
+
+            update_in(config, 'spec.volumes', self.spec.volumes)
+            addr = deploy_config(config, dashboard_url=dashboard, name=name, project=project,
+                                 tag=tag, verbose=self.verbose, create_new=True)
+
         self.spec.command = 'http://{}'.format(addr)
-        self.kind = kind
         return self.spec.command
+
+    def deploy_step(self, source='', dashboard='', project='', models={}):
+        name = 'deploy_{}'.format(self.metadata.name or 'function')
+        return deploy_op(name, self, source=source, dashboard=dashboard,
+                         project=project, models=models)
 
     def _run(self, runobj: RunObject, execution):
         if self._secrets:

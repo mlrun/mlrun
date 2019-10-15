@@ -13,20 +13,21 @@
 # limitations under the License.
 import uuid
 from kubernetes import client
-from os import environ
 
 from ..model import RunObject
-from ..utils import get_in, logger, normalize_name, update_in
-from .base import RunError
-from .container import ContainerJobSpec, ContainerRuntime
+from ..utils import normalize_name, update_in
+from .base import RunError, FunctionSpec
+from .container import ContainerRuntime
 
 
-class KubejobSpec(ContainerJobSpec):
+class KubejobSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 replicas=None, image_pull_policy=None, service_account=None, build=None):
+                 entry_points=None, description=None, replicas=None,
+                 image_pull_policy=None, service_account=None, build=None):
         super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers, build=build)
+                         mode=mode, workers=workers, build=build,
+                         entry_points=entry_points, description=description)
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
@@ -64,6 +65,7 @@ class KubejobRuntime(ContainerRuntime):
         return self
 
     def _merge(self):
+        api = client.ApiClient()
         for k, v in self._cop.pod_labels.items():
             self.metadata.labels[k] = v
         for k, v in self._cop.pod_annotations.items():
@@ -72,10 +74,12 @@ class KubejobRuntime(ContainerRuntime):
             [self.spec.env.append(e) for e in self._cop.container.env]
             self._cop.container.env.clear()
         if self._cop.volumes:
-            [self.spec.volumes.append(v) for v in self._cop.volumes]
+            [self.spec.volumes.append(v) for v in
+             api.sanitize_for_serialization(self._cop.volumes)]
             self._cop.volumes.clear()
         if self._cop.container.volume_mounts:
-            [self.spec.volume_mounts.append(v) for v in self._cop.container.volume_mounts]
+            [self.spec.volume_mounts.append(v) for v in
+             api.sanitize_for_serialization(self._cop.container.volume_mounts)]
             self._cop.container.volume_mounts.clear()
 
     def set_env(self, name, value):
@@ -94,6 +98,15 @@ class KubejobRuntime(ContainerRuntime):
         if cpu:
             limits['cpu'] = cpu
         update_in(self.spec.resources, 'limits', limits)
+
+    # TODO: Verify if gpus are needed here too
+    def with_requests(self, mem=None, cpu=None):
+        requests = {}
+        if mem:
+            requests['memory'] = mem
+        if cpu:
+            requests['cpu'] = cpu
+        update_in(self.spec.resources, 'requests', requests)
 
     def _run(self, runobj: RunObject, execution):
 
@@ -147,16 +160,6 @@ class KubejobRuntime(ContainerRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
-
-    def _image_path(self):
-        image = self.spec.image
-        if not image.startswith('.'):
-            return image
-        if 'DEFAULT_DOCKER_REGISTRY' in environ:
-            return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
-        if 'IGZ_NAMESPACE_DOMAIN' in environ:
-            return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
-        raise RunError('local container registry is not defined')
 
 
 def func_to_pod(image, runtime, extra_env, command, args):

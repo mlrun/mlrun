@@ -23,7 +23,7 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger
+from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger, dict_to_json
 
 
 class MLCtxValueError(Exception):
@@ -311,13 +311,26 @@ class MLClientCtx(object):
 
     def set_state(self, state: str = None, error: str = None):
         """modify and store the run state or mark an error"""
+        updates = {'status.last_update': str(datetime.now())}
+
         if error:
             self._state = 'error'
             self._error = str(error)
-            self._update_db('error', commit=True)
+            updates['status.state'] = 'error'
+            updates['status.error'] = error
         elif state and state != self._state and self._state != 'error':
             self._state = state
-            self._update_db(state, commit=True)
+            updates['status.state'] = 'completed'
+
+        if self._rundb:
+            self._rundb.update_run(updates, self.uid, self.project)
+
+    def set_hostname(self, host: str):
+        """update the hostname"""
+        self._host = host
+        if self._rundb:
+            updates = {'status.host': host}
+            self._rundb.update_run(updates, self.uid, self.project)
 
     def set_hostname(self, host: str):
         """update the hostname"""
@@ -372,7 +385,7 @@ class MLClientCtx(object):
 
     def to_json(self):
         """convert the run context to a json buffer"""
-        return json.dumps(self.to_dict())
+        return dict_to_json(self.to_dict())
 
     def _update_db(self, state='', commit=False, message=''):
         self.last_update = datetime.now()

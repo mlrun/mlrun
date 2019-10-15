@@ -20,7 +20,7 @@ from aiohttp.client import ClientSession
 import logging
 from sys import stdout
 
-from .base import BaseRuntime, RunError
+from .base import RunRuntime, RunError
 from ..utils import logger
 from ..lists import RunList
 from ..model import RunObject
@@ -28,66 +28,16 @@ from ..model import RunObject
 from nuclio_sdk import Context as _Context, Logger
 from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
-import nuclio
 
 
-class RemoteRuntime(BaseRuntime):
+class RemoteRuntime(RunRuntime):
     kind = 'remote'
-    #kind = 'nuclio'
-
-    def __init__(self, metadata=None, spec=None):
-        super().__init__(metadata, spec)
-        self._config = nuclio.ConfigSpec()
-        self.verbose = False
-        self.dashboard = ''
-        self.kind = ''
-
-    def set_env(self, name, value):
-        self._config.set_env(name, value)
-        return self
-
-    def set_config(self, key, value):
-        self._config.set_config(key, value)
-        return self
-
-    def add_volume(self, local, remote, kind='', name='fs',
-                   key='', readonly=False):
-        self._config.add_volume(local, remote, kind, name, key, readonly)
-        return self
-
-    def add_trigger(self, name, spec):
-        self._config.add_trigger(name, spec)
-        return self
-
-    def with_http(self, workers=8, port=0,
-                  host=None, paths=None, canary=None):
-        self._config.with_http(workers, port, host, paths, canary)
-        return self
-
-    def with_v3io(self):
-        self._config.with_v3io()
-        return self
-
-    def deploy(self, source='', project='', handler='',
-                tag='', archive=False, files=[], output_dir='', kind=None):
-
-        self.set_config('metadata.labels.mlrun/class', self.kind)
-        project = project or self.metadata.project or 'mlrun'
-        addr = nuclio.deploy_file(source, name=self.metadata.name, project=project,
-                                  dashboard_url=self.dashboard, verbose=self.verbose,
-                                  spec=self._config, tag=tag, handler=handler, kind=kind,
-                                  archive=archive, files=files, output_dir=output_dir)
-        self.spec.command = 'http://{}'.format(addr)
-        self.kind = kind
-        return self.spec.command
 
     def _run(self, runobj: RunObject, execution):
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = execution.log_level
-        command = self.spec.command
-        if runobj.spec.handler:
-            command = '{}/{}'.format(command, runobj.spec.handler_name)
+        command = self.command
         headers = {'x-nuclio-log-level': log_level}
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
@@ -110,12 +60,9 @@ class RemoteRuntime(BaseRuntime):
         log_level = execution.log_level
         headers = {'x-nuclio-log-level': log_level}
 
-        command = self.spec.command
-        if runobj.spec.handler:
-            command = '{}/{}'.format(command, runobj.spec.handler_name)
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            self.invoke_async(tasks, command, headers, secrets))
+            self.invoke_async(tasks, self.command, headers, secrets))
 
         loop.run_until_complete(future)
         return future.result()

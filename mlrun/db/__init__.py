@@ -14,14 +14,13 @@
 
 from .filedb import FileRunDB
 from .base import RunDBInterface
-from ..config import config
 from os import environ
 from urllib.parse import urlparse
 
 
 def get_run_db(url=''):
     if not url:
-        url = config.dbpath or './'
+        url = environ.get('MLRUN_META_DBPATH', './')
 
     p = urlparse(url)
     scheme = p.scheme.lower()

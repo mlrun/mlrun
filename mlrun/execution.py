@@ -70,9 +70,8 @@ class MLClientCtx(object):
         self._in_path = ''
         self._out_path = ''
         self._inputs = {}
-        self._outputs = []
 
-        self._results = {}
+        self._outputs = {}
         self._state = 'created'
         self._error = None
         self._commit = ''
@@ -90,7 +89,7 @@ class MLClientCtx(object):
                 self._rundb = rundb
         self._data_stores = StoreManager(self._secrets_manager)
         self._artifacts_manager = ArtifactManager(
-            self._data_stores, db=self._rundb, out_path=self._out_path)
+            self._data_stores, db=self._rundb)
 
     def get_meta(self):
         """Reserved for internal use"""
@@ -122,7 +121,6 @@ class MLClientCtx(object):
             self._log_level = spec.get('log_level', self._log_level)
             self._runtime = spec.get('runtime', self._runtime)
             self._parameters = spec.get('parameters', self._parameters)
-            self._outputs = spec.get('outputs', self._outputs)
             self._out_path = spec.get(run_keys.output_path, self._out_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
@@ -132,6 +130,7 @@ class MLClientCtx(object):
         if spec:
             # init data related objects (require DB & Secrets to be set first)
             self._data_stores.from_dict(spec)
+            self._artifacts_manager.from_dict(spec)
             if inputs and isinstance(inputs, dict):
                 for k, v in inputs.items():
                     self._set_input(k, v)
@@ -252,27 +251,27 @@ class MLClientCtx(object):
 
     def log_result(self, key: str, value):
         """log a scalar result value"""
-        self._results[str(key)] = value
+        self._outputs[str(key)] = value
         self._update_db()
 
-    def log_results(self, results: dict):
+    def log_results(self, outputs: dict):
         """log a set of scalar result values"""
-        if not isinstance(results, dict):
-            raise MLCtxValueError('(multiple) results must be in the form of dict')
+        if not isinstance(outputs, dict):
+            raise MLCtxValueError('(multiple) outputs must be in the form of dict')
 
-        for p in results.keys():
-            self._results[str(p)] = results[p]
+        for p in outputs.keys():
+            self._outputs[str(p)] = outputs[p]
         self._update_db()
 
     def log_iteration_results(self, best, summary: list, task: dict, commit=False):
         """Reserved for internal use"""
 
         if best:
-            self._results['best_iteration'] = best
-            for k, v in get_in(task, ['status', 'results'], {}).items():
-                self._results[k] = v
-            for a in get_in(task, ['status', run_keys.artifacts], []):
-                self._artifacts_manager.artifacts[a['key']] = a
+            self._outputs['best_iteration'] = best
+            for k, v in get_in(task, ['status', 'outputs'], {}).items():
+                self._outputs[k] = v
+            for a in get_in(task, ['status', run_keys.output_artifacts], []):
+                self._artifacts_manager.output_artifacts[a['key']] = a
 
         self._iteration_results = summary
         if commit:
@@ -319,13 +318,6 @@ class MLClientCtx(object):
             self._state = state
             self._update_db(state, commit=True)
 
-    def set_hostname(self, host: str):
-        """update the hostname"""
-        self._host = host
-        if self._rundb:
-            updates = {'status.host': host}
-            self._rundb.update_run(updates, self.uid, self.project)
-
     def to_dict(self):
         """convert the run context to a dictionary"""
 
@@ -345,13 +337,11 @@ class MLClientCtx(object):
                 {'runtime': self._runtime,
                  'log_level': self._log_level,
                  'parameters': self._parameters,
-                 'outputs': self._outputs,
-                 run_keys.output_path: self._out_path,
                  run_keys.inputs: {k: v.url for k, v in self._inputs.items()},
                  },
             'status':
                 {'state': self._state,
-                 'results': self._results,
+                 'outputs': self._outputs,
                  'start_time': str(self._start_time),
                  'last_update': str(self._last_update)},
             }
@@ -363,7 +353,7 @@ class MLClientCtx(object):
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
         self._data_stores.to_dict(struct['spec'])
-        self._artifacts_manager.to_dict(struct['status'])
+        self._artifacts_manager.to_dict(struct)
         return struct
 
     def to_yaml(self):

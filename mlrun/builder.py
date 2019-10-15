@@ -12,21 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import tarfile
-from base64 import b64decode, b64encode
 from os import environ, path
+import tarfile
+from base64 import b64encode
 from tempfile import mktemp
 
+from .k8s_utils import k8s_helper, BasePod
 from .datastore import StoreManager
-from .k8s_utils import BasePod, k8s_helper
 from .utils import logger
-from .config import config
 
+default_image = 'python:3.6-jessie'
+mlrun_package = environ.get('MLRUN_PACKAGE_PATH', 'git+https://github.com/v3io/mlrun.git')
+kaniko_version = environ.get('MLRUN_KANIKO_VER', 'v0.9.0')
 k8s = None
 
 
-def make_dockerfile(base_image,
+def make_dockerfile(base_image=default_image,
                     commands=None, src_dir=None,
                     requirements=None):
     dock = 'FROM {}\n'.format(base_image)
@@ -67,7 +68,7 @@ def make_kaniko_pod(context, dest,
         args += ["--verbosity", 'debug']
 
     kpod=BasePod('mlrun-build',
-                 'gcr.io/kaniko-project/executor:' + config.kaniko_version,
+                 'gcr.io/kaniko-project/executor:' + kaniko_version,
                  args=args,
                  kind='build')
 
@@ -124,8 +125,6 @@ def build_image(dest,
     if registry:
         dest = '{}/{}'.format(registry, dest)
     elif not secret_name and 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
-        if dest.startswith('.'):
-            dest = dest[1:]
         dest = '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), dest)
 
     if isinstance(requirements, list):
@@ -137,10 +136,10 @@ def build_image(dest,
         requirements_list = None
         requirements_path = requirements
 
-    base_image = base_image or config.default_image
+    base_image = base_image or default_image
     if with_mlrun:
         commands = commands or []
-        commands.append('pip install {}'.format(config.package_path))
+        commands.append('pip install {}'.format(mlrun_package))
 
     if not inline_code and not source and not commands:
         logger.info('skipping build, nothing to add')
@@ -174,47 +173,11 @@ def build_image(dest,
         kpod.mount_v3io(remote=source, mount_path='/context')
 
     if not k8s:
-        k8s = k8s_helper(namespace)
+        k8s = k8s_helper(namespace or 'default-tenant')
 
     if interactive:
         return k8s.run_job(kpod)
     else:
         pod, ns = k8s.create_pod(kpod)
         logger.info('started build, to watch build logs use "mlrun watch {} {}"'.format(pod, ns))
-        return 'build:{}'.format(pod)
-
-
-def build_runtime(runtime, with_mlrun, interactive=False):
-    build = runtime.spec.build
-    namespace = runtime.metadata.namespace
-    inline = None
-    if build.inline_code:
-        inline = b64decode(build.inline_code).decode('utf-8')
-    if not build.image:
-        raise ValueError('build spec must have a taget image, set build.image = <target image>')
-    logger.info(f'building image ({build.image})')
-    status = build_image(build.image,
-                         base_image=build.base_image or 'python:3.6-jessie',
-                         commands=build.commands,
-                         namespace=namespace,
-                         #inline_code=inline,
-                         source=build.source,
-                         secret_name=build.secret,
-                         interactive=interactive,
-                         with_mlrun=with_mlrun)
-    build.build_pod = None
-    if status == 'skipped':
-        runtime.spec.image = build.base_image
-        return True
-
-    if status.startswith('build:'):
-        build.build_pod = status[6:]
-        return False
-
-    logger.info('build completed with {}'.format(status))
-    if status in ['failed', 'error']:
-        raise ValueError(' build {}!'.format(status))
-
-    local = '' if build.secret else '.'
-    runtime.spec.image = local + build.image
-    return True
+        return pod, ns

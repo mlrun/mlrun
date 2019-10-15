@@ -19,7 +19,7 @@ import pytest
 
 from conftest import has_secrets, out_path, rundb_path, tag_test
 from http_srv import create_function
-from mlrun import get_or_create_ctx, new_function, RunObject, NewRun
+from mlrun import get_or_create_ctx, new_runner, RunObject, NewRun
 from mlrun.utils import run_keys
 
 
@@ -60,7 +60,7 @@ def test_simple_function():
     time.sleep(2)
 
     spec = tag_test(base_spec, 'simple_function')
-    result = new_function(command='http://localhost:4444').run(spec)
+    result = new_runner(command='http://localhost:4444').run(spec)
     print(result)
     verify_state(result)
 
@@ -72,6 +72,6 @@ def test_hyper_function():
 
     spec = tag_test(base_spec, 'hyper_function')
     spec.spec.hyperparams = {'p1': [1, 2, 3]}
-    result = new_function(command='http://localhost:4444').run(spec)
+    result = new_runner(command='http://localhost:4444').run(spec)
     print(result)
     verify_state(result)

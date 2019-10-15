@@ -230,9 +230,6 @@ class FileStore(DataStore):
         fullpath = self._join(key)
         if fullpath == src_path:
             return
-        dir = path.dirname(fullpath)
-        if dir:
-            makedirs(dir, exist_ok=True)
         copyfile(src_path, fullpath)
 
 

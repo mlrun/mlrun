@@ -19,63 +19,46 @@ from kubernetes import client
 from ..execution import MLClientCtx
 from .local import get_func_arg
 from ..model import RunObject
-from .kubejob import KubejobRuntime, KubejobSpec
+from .base import RunRuntime
+from .kubejob import KubejobRuntime
 from ..lists import RunList
-from ..config import config
-
-class DaskSpec(KubejobSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
-                 volumes=None, volume_mounts=None, env=None, resources=None, build=None,
-                 replicas=None, image_pull_policy=None, service_account=None, extra_pip=None):
-
-        super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers, volumes=volumes, volume_mounts=volume_mounts,
-                         env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
-                         service_account=service_account, build=build)
-        self.extra_pip = extra_pip
-        self.args = args or ['dask-worker']
-
 
 class DaskCluster(KubejobRuntime):
     kind = 'dask'
-    _is_nested = False
 
-    def __init__(self, spec=None,
-                 metadata=None):
-        super().__init__(spec, metadata)
+    def __init__(self, kind=None, command=None, args=None, image=None,
+                 metadata=None, build=None, volumes=None, volume_mounts=None,
+                 env=None, resources=None, image_pull_policy=None,
+                 service_account=None, rundb=None, extra_pip=None):
+        args = args or ['dask-worker']
+        super().__init__(kind, command, args, image, None, metadata, build, volumes,
+                         volume_mounts, env, resources, image_pull_policy,
+                         service_account, rundb)
         self._cluster = None
-        self.spec.build.base_image = self.spec.build.base_image or 'daskdev/dask:latest'
+        self.extra_pip = extra_pip
+        self.build.base_image = self.build.base_image or 'daskdev/dask:latest'
         self.set_label('mlrun/class', self.kind)
 
-    @property
-    def spec(self) -> DaskSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', DaskSpec)
-
     def to_pod(self):
-        image = self._image_path() or 'daskdev/dask:latest'
-        env = self.spec.env
-        namespace = self.metadata.namespace or config.namespace
-        if self.spec.extra_pip:
-            env.append(self.spec.extra_pip)
+        image = self.image or 'daskdev/dask:latest'
+        env = self.env
+        if self.extra_pip:
+            env.append(self.extra_pip)
         container = client.V1Container(name='base',
                                        image=image,
-                                       env=env,
+                                       env=self.env,
                                        command=None,
-                                       args=self.spec.args,
-                                       image_pull_policy=self.spec.image_pull_policy,
-                                       volume_mounts=self.spec.volume_mounts,
-                                       resources=self.spec.resources)
+                                       args=self.args,
+                                       image_pull_policy=self.image_pull_policy,
+                                       volume_mounts=self.volume_mounts,
+                                       resources=self.resources)
 
         pod_spec = client.V1PodSpec(containers=[container],
                                     restart_policy='Never',
-                                    volumes=self.spec.volumes,
-                                    service_account=self.spec.service_account)
+                                    volumes=self.volumes,
+                                    service_account=self.service_account)
 
-        meta = client.V1ObjectMeta(namespace=namespace,
+        meta = client.V1ObjectMeta(namespace=self.metadata.namespace or 'default-tenant',
                                    labels=self.metadata.labels,
                                    annotations=self.metadata.annotations)
 
@@ -126,9 +109,9 @@ class DaskCluster(KubejobRuntime):
         handler = runobj.spec.handler
         self._force_handler(handler)
         from dask import delayed
-        if self.spec.rundb:
+        if self.rundb:
             # todo: remote dask via k8s spec env
-            environ['MLRUN_DBPATH'] = self.spec.rundb
+            environ['MLRUN_META_DBPATH'] = self.rundb
 
         arg_list = get_func_arg(handler, runobj, execution)
         try:
@@ -139,9 +122,10 @@ class DaskCluster(KubejobRuntime):
             execution.set_state(error=err)
 
         if out:
+            print('out:', out)
             execution.log_result('return', out)
 
-        return execution.to_dict()
+        return None
 
     def _run_many(self, tasks, execution, runobj: RunObject):
         handler = runobj.spec.handler
@@ -151,7 +135,7 @@ class DaskCluster(KubejobRuntime):
         tasks = list(tasks)
         for task in tasks:
             ctx = MLClientCtx.from_dict(task.to_dict(),
-                                        self.spec.rundb,
+                                        self.rundb,
                                         autocommit=True)
             args = get_func_arg(handler, task, ctx)
             resp = self.client.submit(handler, *args)

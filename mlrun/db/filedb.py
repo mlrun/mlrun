@@ -19,7 +19,7 @@ import yaml
 import pathlib
 from datetime import datetime, timedelta
 
-from ..utils import get_in, match_labels, dict_to_yaml, update_in, dict_to_json
+from ..utils import get_in, match_labels, dict_to_yaml, update_in
 from ..datastore import StoreManager
 from ..render import run_to_html
 from .base import RunDBError, RunDBInterface
@@ -55,21 +55,25 @@ class FileRunDB(RunDBInterface):
         if self.format == '.yaml':
             data = dict_to_yaml(struct)
         else:
-            data = dict_to_json(struct)
+            data = json.dumps(struct)
         filepath = self._filepath('runs', project, uid, '') + self.format
         self._datastore.put(filepath, data)
 
     def update_run(self, updates: dict, uid, project=''):
-        run = self.read_run(uid, project)
+        run = self.read_run(uid, project, False)
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
         self.store_run(run, uid, project, True)
 
-    def read_run(self, uid, project=''):
+    def read_run(self, uid, project='', display=True):
         filepath = self._filepath('runs', project, uid, '') + self.format
         data = self._datastore.get(filepath)
-        return self._loads(data)
+        result = self._loads(data)
+
+        run_to_html(result, display)
+
+        return result
 
     def list_runs(self, name='', uid=None, project='', labels=[],
                   state='', sort=True, last=30):
@@ -119,11 +123,11 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
-        artifact['updated'] = time.time()
+        artifact.updated = time.time()
         if self.format == '.yaml':
-            data = dict_to_yaml(artifact)
+            data = artifact.to_yaml()
         else:
-            data = dict_to_json(artifact)
+            data = artifact.to_json()
         filepath = self._filepath('artifacts', project, key, uid) + self.format
         self._datastore.put(filepath, data)
         filepath = self._filepath('artifacts', project, key, tag or 'latest') + self.format
@@ -138,8 +142,7 @@ class FileRunDB(RunDBInterface):
         tag = tag or 'latest'
         print(f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
         filepath = self._filepath('artifacts', project, tag=tag)
-        results = ArtifactList()
-        results.tag = tag
+        results = ArtifactList(tag)
         if isinstance(labels, str):
             labels = labels.split(',')
         if tag == '*':
@@ -216,3 +219,6 @@ class FileRunDB(RunDBInterface):
             remove(filepath)
         else:
             raise RunDBError(f'run file is not found or valid ({filepath})')
+
+
+

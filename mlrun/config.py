@@ -17,39 +17,31 @@ Configuration system.
 Configuration can be in either a configuration file specified by
 MLRUN_CONFIG_FILE environment variable or by environmenet variables.
 
-Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
-mapped to config.httpdb.port. Values should be in JSON format.
+Environment variables are in the format "MLRUN_http_db.port=8080". This will be
+mapped to config.http_db.port. Values should be in JSON format.
 """
 
 import os
-from os import path
 from collections.abc import Mapping
 from threading import Lock
 import json
-from urllib.parse import urlparse
 
 import yaml
 
 env_prefix = 'MLRUN_'
 env_file_key = f'{env_prefix}CONIFG_FILE'
 _load_lock = Lock()
+_loaded = False
 
 
 default_config = {
     'namespace': 'default-tenant',
     'dbpath': '',
-    'kfp_image': 'mlrun/mlrun:latest',
     'kaniko_version': 'v0.9.0',
     'package_path': 'git+https://github.com/mlrun/mlrun.git',
     'default_image': 'python:3.6-jessie',
-    'log_level': 'ERROR',
-    'httpdb': {
-        'port': 8080,
-        'dirpath': path.expanduser('~/.mlrun/db'),
-        'debug': False,
-        'user': '',
-        'password': '',
-        'token': '',
+    'http_db': {
+        'port': 9999,
     },
 }
 
@@ -83,6 +75,7 @@ class Config:
 
     def update(self, cfg):
         for key, value in cfg.items():
+            # TODO: Warn on unknown keys?
             if hasattr(self, key):
                 if isinstance(value, dict):
                     getattr(self, key).update(value)
@@ -92,16 +85,12 @@ class Config:
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
 
-    @staticmethod
-    def reload():
-        _populate()
-
 
 # Global configuration
 config = Config(default_config)
 
 
-def _populate():
+def populate():
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -110,13 +99,13 @@ def _populate():
     global _loaded
 
     with _load_lock:
-        _do_populate()
+        if _loaded:
+            return
+        _populate(config)
+        _loaded = True
 
 
-def _do_populate(env=None):
-    global config
-
-    config = Config(default_config)
+def _populate(config, env=None):
     config_path = os.environ.get(env_file_key)
     if config_path:
         with open(config_path) as fp:
@@ -145,19 +134,10 @@ def read_env(env=None, prefix=env_prefix):
         except ValueError:
             pass  # Leave as string
         key = key[len(env_prefix):]  # Trim MLRUN_
-        path = key.lower().split('__')  # 'A__B' → ['a', 'b']
+        path = key.lower().split('.')  # 'A.B' → ['a', 'b']
         cfg = config
         while len(path) > 1:
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
-
-    # check for mlrun-db kubernetes service
-    svc = env.get('MLRUN_DB_PORT')
-    if svc and not config.get('dbpath'):
-        config['dbpath'] = 'http://' + urlparse(svc).netloc
-
     return config
-
-
-_populate()

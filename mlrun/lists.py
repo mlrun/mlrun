@@ -40,16 +40,15 @@ class RunList(list):
 
         return df
 
-    def show(self, display=True, classes=None):
-        html = runs_to_html(self.to_df(), display, classes=classes)
+    def show(self, display=True):
+        html = runs_to_html(self.to_df(), display)
         if not display:
             return html
 
 
 class ArtifactList(list):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.tag = ''
+    def __init__(self, tag='*'):
+        self.tag = tag
 
     def to_rows(self):
         rows = []
@@ -73,10 +72,10 @@ class ArtifactList(list):
 
         return df
 
-    def show(self, display=True, classes=None):
+    def show(self, display=True):
         df = self.to_df()
         if self.tag != '*':
             df.drop('tree', axis=1, inplace=True)
-        html = artifacts_to_html(df, display, classes=classes)
+        html = artifacts_to_html(df, display)
         if not display:
             return html

@@ -19,7 +19,7 @@ import pytest
 
 from conftest import has_secrets, out_path, rundb_path, tag_test
 from http_srv import create_function
-from mlrun import get_or_create_ctx, new_function, RunObject, NewTask
+from mlrun import get_or_create_ctx, new_function, RunObject, NewRun
 from mlrun.utils import run_keys
 
 
@@ -45,7 +45,7 @@ def myfunction(context, event):
     return ctx.to_json()
 
 
-base_spec = NewTask(params={'p1':8}, out_path=out_path)
+base_spec = NewRun(params={'p1':8}, out_path=out_path)
 base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 

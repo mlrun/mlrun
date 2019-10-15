@@ -21,7 +21,7 @@ import pathlib
 
 from .datastore import StoreManager
 from .db import RunDBInterface
-from .utils import uxjoin, run_keys, dict_to_json
+from .utils import uxjoin, run_keys, logger
 from .model import ModelObj
 
 
@@ -70,16 +70,17 @@ class ArtifactManager:
                      tag='', viewer='', upload=True, labels=None):
         if isinstance(item, str):
             key = item
-            item = Artifact(key, body)
+            item = Artifact(key, body, src_path=src_path,
+                            viewer=viewer)
         else:
             key = item.key
             target_path = target_path or item.target_path
+            item.src_path = src_path or item.src_path
+            item.viewer = viewer or item.viewer
 
         # find the target path from defaults and config
-        item.viewer = viewer or item.viewer
-        item.src_path = src_path or item.src_path
         if not target_path:
-            target_path = uxjoin(self.out_path, item.src_path or key, execution.iteration)
+            target_path = uxjoin(self.out_path, src_path or key, execution.iteration)
         item.target_path = target_path
         item.tree = execution.tag
         if labels:
@@ -111,8 +112,7 @@ class ArtifactManager:
             if execution.iteration:
                 key = '{}-{}'.format(execution.iteration, key)
                 item.iter = execution.iteration
-            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            tag, execution.project)
+            self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
@@ -283,7 +283,7 @@ class ChartArtifact(Artifact):
         if not self.options.get('title'):
             self.options['title'] = self.key
         data = [self.header] + self._rows
-        return chart_template.replace('$data$', dict_to_json(data))\
-            .replace('$opts$', dict_to_json(self.options))\
+        return chart_template.replace('$data$', json.dumps(data))\
+            .replace('$opts$', json.dumps(self.options))\
             .replace('$chart$', self.chart)
 

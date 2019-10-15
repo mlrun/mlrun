@@ -1,6 +1,6 @@
 # Example usage of this function with hyper params
 #
-# from mlrun import new_function, NewTask
+# from mlrun import new_function, NewRun
 #
 # parameters = {
 #      "eta":       [0.05, 0.10, 0.20, 0.30],
@@ -8,7 +8,7 @@
 #      "gamma":     [0.0, 0.1, 0.2, 0.3],
 #      }
 #
-# task = NewTask(handler='handler').with_hyper_params(parameters, 'max.accuracy')
+# task = NewRun(handler='handler').with_hyper_params(parameters, 'max.accuracy')
 # run = new_function(command='iris_xgb.py').run(task)
 # print(run.to_df())
 #

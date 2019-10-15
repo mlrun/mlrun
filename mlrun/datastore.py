@@ -23,12 +23,6 @@ import requests
 V3IO_LOCAL_ROOT = 'v3io'
 
 
-def get_object(url, secrets=None):
-    stores = StoreManager(secrets)
-    datastore, subpath = stores.get_or_create_store(url)
-    return datastore.get(subpath)
-
-
 def parseurl(url):
     p = urlparse(url)
     schema = p.scheme.lower()
@@ -153,12 +147,9 @@ class DataStore:
         pass
 
     def download(self, key, target_path):
-        data = self.get(key)
-        mode = 'wb'
-        if isinstance(data, str):
-            mode = 'w'
-        with open(target_path, mode) as fp:
-            fp.write(data)
+        text = self.get(key)
+        with open(target_path, 'w') as fp:
+            fp.write(text)
             fp.close()
 
     def upload(self, key, src_path):
@@ -179,10 +170,6 @@ class DataItem:
         self._key = key
         self._url = url
         self._path = subpath
-
-    @property
-    def kind(self):
-        return self._store.kind
 
     @property
     def url(self):

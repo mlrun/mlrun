@@ -12,21 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import csv
+import json
 from os import listdir
 from tempfile import mktemp
 
+import pytest
 import yaml
 
-from conftest import out_path
+from conftest import has_secrets, out_path, rundb_path
 from mlrun.artifacts import ChartArtifact, TableArtifact
-from mlrun import NewTask, new_function
+from mlrun import NewRun, new_function
+from mlrun.utils import run_keys
 
 
-run_spec = NewTask(
-    params={'p1': 5},
-    out_path=out_path,
-    outputs=['model.txt', 'chart.html', 'iteration_results']).set_label('tests', 'kfp')
+run_spec = NewRun(params={'p1': 5},
+                  out_path=out_path,
+                  outputs=['model.txt', 'chart.html']).set_label('tests', 'kfp')
 
 
 def my_job(context, p1=1, p2='a-string'):
@@ -43,13 +44,9 @@ def my_job(context, p1=1, p2='a-string'):
     context.log_result('accuracy', p1 * 2)
     context.log_result('loss', p1 * 3)
 
-    # log various types of artifacts (file, web page, table), will be
-    # versioned and visible in the UI
+    # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
     context.log_artifact('model.txt', body=b'abc is 123')
-    context.log_artifact(
-        'results.html',
-        body=b'<b> Some HTML <b>',
-        viewer='web-app')
+    context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
     context.log_artifact(TableArtifact('dataset.csv', '1,2,3\n4,5,6\n',
                                        viewer='table', header=['A', 'B', 'C']))
 
@@ -87,12 +84,11 @@ def test_kfp_hyper():
     alist = listdir(tmpdir)
     print(alist)
     print(listdir('/tmp'))
-    res_file = tmpdir + '/' + 'iteration_results.csv'
-    with open(res_file) as fp:
-        count = 0
-        for row in csv.DictReader(fp):
-            print(yaml.dump(row))
-            count += 1
-    assert count == 3, 'didnt see expected iterations file output'
+    with open('/tmp/iteration_results.csv') as fp:
+        print(fp.read())
+    with open('/tmp/iterations') as fp:
+        iter = json.load(fp)
+        print(yaml.dump(iter))
+    assert len(iter) == 3+1, 'didnt see expected iterations file output'
     assert result.status.state == 'completed', \
         'wrong state ({}) {}'.format(result.status.state, result.status.error)

@@ -41,6 +41,7 @@ def patch_env(kw):
 
 
 def test_nothing(config):
+    mlconf.populate()
     expected = mlconf.default_config['namespace']
     assert config.namespace == expected, 'namespace changed'
 
@@ -57,7 +58,7 @@ def test_file(config):
     config_path = create_yaml_config(namespace=ns)
 
     with patch_env({mlconf.env_file_key: config_path}):
-        mlconf.config.reload()
+        mlconf.populate()
 
     assert config.namespace == ns, 'not populated from file'
 
@@ -65,7 +66,7 @@ def test_file(config):
 def test_env(config):
     ns = 'orange'
     with patch_env({ns_env_key: ns}):
-        mlconf.config.reload()
+        mlconf.populate()
 
     assert config.namespace == ns, 'not populated from env'
 
@@ -81,7 +82,7 @@ def test_env_override(config):
     }
 
     with patch_env(env):
-        mlconf.config.reload()
+        mlconf.populate()
 
     assert config.namespace == env_ns, 'env did not override'
 

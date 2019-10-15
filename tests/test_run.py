@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os import environ
+
 import pytest
 
-from conftest import (
-    examples_path, has_secrets, here, out_path, tag_test, verify_state
-)
-from mlrun import NewTask, get_run_db, new_function
+from conftest import (examples_path, has_secrets, here, out_path, rundb_path,
+                      tag_test, verify_state)
+from mlrun import new_function, NewRun, RunObject, get_run_db
+from mlrun.utils import run_keys, update_in
 
 
 def my_func(context, p1=1, p2='a-string'):
@@ -30,7 +32,7 @@ def my_func(context, p1=1, p2='a-string'):
     context.log_artifact('chart', body='abc')
 
 
-base_spec = NewTask(params={'p1': 8}, out_path=out_path)
+base_spec = NewRun(params={'p1': 8}, out_path=out_path)
 base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 s3_spec = base_spec.copy().with_secrets('file', 'secrets.txt')
@@ -77,8 +79,7 @@ def test_handler_hyper():
     result = new_function().run(run_spec, handler=my_func)
     print(result)
     assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
-    assert result.status.results['best_iteration'] == 2, \
-        'failed to select best iteration'
+    assert result.status.results['best_iteration'] == 2, 'failed to select best iteration'
     verify_state(result)
 
 
@@ -108,9 +109,8 @@ def test_local_handler():
 def test_local_no_context():
     spec = tag_test(base_spec, 'test_local_no_context')
     spec.spec.parameters = {'xyz': '789'}
-    result = new_function(
-        command='{}/no_ctx.py'.format(here),
-        mode='noctx').run(spec)
+    result = new_function(command='{}/no_ctx.py'.format(here),
+                        mode='noctx').run(spec)
     verify_state(result)
 
     db = get_run_db().connect()

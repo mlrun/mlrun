@@ -16,23 +16,54 @@ from base64 import b64encode
 
 from ..builder import build_runtime
 from ..utils import get_in, logger
-from .base import BaseRuntime, RunError
+from .base import BaseRuntime, FunctionSpec, RunError
+from ..model import ImageBuilder
+
+
+class ContainerJobSpec(FunctionSpec):
+    def __init__(self, command=None, args=None, image=None, mode=None,
+                 workers=None, build=None):
+        super().__init__(command=command, args=args, image=image,
+                         mode=mode, workers=workers)
+
+        self._build = None
+        self.build = build
+
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, 'build', ImageBuilder)
 
 
 class ContainerRuntime(BaseRuntime):
     kind = 'container'
 
+    def __init__(self, spec=None, metadata=None):
+
+        super().__init__(metadata, spec)
+
+    @property
+    def spec(self) -> ContainerJobSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, 'spec', ContainerJobSpec)
+
     def with_code(self, from_file='', body=None):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
             from nuclio import build_file
             name, spec, code = build_file(from_file)
-            self.spec.build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+            self.spec.build.inline_code = get_in(spec, 'spec.build.functionSourceCode')
             return self
 
         if from_file:
             with open(from_file) as fp:
                 body = fp.read()
-        self.spec.build.functionSourceCode = b64encode(body.encode('utf-8')).decode('utf-8')
+        self.spec.build.inline_code = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
     def build(self, image, base_image=None, commands: list = None,

@@ -188,8 +188,8 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     inline = None
-    if build.functionSourceCode:
-        inline = b64decode(build.functionSourceCode).decode('utf-8')
+    if build.inline_code:
+        inline = b64decode(build.inline_code).decode('utf-8')
     if not build.image:
         raise ValueError('build spec must have a taget image, set build.image = <target image>')
     logger.info(f'building image ({build.image})')

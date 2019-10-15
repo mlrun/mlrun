@@ -71,6 +71,7 @@ class k8s_helper:
         try:
             resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
         except ApiException as e:
+            logger.error('spec:\n{}'.format(pod.spec))
             logger.error('failed to create pod: {}'.format(e))
             raise e
 
@@ -120,7 +121,7 @@ class k8s_helper:
             return 'error'
         return self.watch(pod_name, namespace, timeout)
 
-    def watch(self, pod_name, namespace, timeout=600, writer=None):
+    def watch(self, pod_name, namespace=None, timeout=600, writer=None):
         namespace = self.ns(namespace)
         start_time = datetime.now()
         while True:
@@ -158,7 +159,7 @@ class k8s_helper:
         return pod_state
 
     def create_cfgmap(self, name, data, namespace='', labels=None):
-        body = client.V1ConfigMap()
+        body = client.api_client.V1ConfigMap()
         namespace = self.ns(namespace)
         body.data = data
         if name.endswith('*'):

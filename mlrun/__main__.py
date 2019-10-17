@@ -31,7 +31,7 @@ from .builder import build_image
 from .db import get_run_db
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
-from .run import new_function
+from .run import new_function, import_function_to_dict
 from .runtimes import RemoteRuntime, RunError
 from .utils import list2dict, logger, run_keys, update_in
 
@@ -61,14 +61,15 @@ def main():
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
+@click.option('--func-url', '-f', default='', help='path/url of function yaml')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
 @click.option('--mode', default='', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
-def run(url, param, inputs, outputs, in_path, out_path, secrets,
-        uid, name, workflow, project, rundb, runtime, kfp, hyperparam,
-        param_file, selector, handler, mode, from_env, dump, run_args):
+def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
+        name, workflow, project, rundb, runtime, kfp, hyperparam, param_file,
+        selector, func_url, handler, mode, from_env, dump, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -95,7 +96,9 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets,
     if rundb:
         mlconf.dbpath = rundb
 
-    if runtime:
+    if func_url:
+        runtime = import_function_to_dict(func_url, {})
+    elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
             print('runtime parameter must be a dict, not {}'.format(type(runtime)))

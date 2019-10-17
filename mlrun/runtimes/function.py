@@ -35,7 +35,7 @@ from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
 import nuclio
 
-serving_handler = 'handler'
+serving_handler = 'main:handler'
 
 
 def new_model_server(name, model_class: str, models: dict = None, filename='',

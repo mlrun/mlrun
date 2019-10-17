@@ -21,9 +21,9 @@ from tempfile import mktemp
 import yaml
 
 from .execution import MLClientCtx
-from .model import RunTemplate, RunObject
+from .model import RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime, SparkRuntime)
+                       DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
 from .utils import update_in, get_in, logger
 from .datastore import get_object
 
@@ -118,15 +118,20 @@ def get_or_create_ctx(name: str,
 
 
 runtime_dict = {'remote': RemoteRuntime,
+                'nuclio': RemoteRuntime,
                 'dask': DaskCluster,
                 'job': KubejobRuntime,
                 'mpijob': MpiRuntime,
-                'spark': SparkRuntime,
-                'Function': NuclioDeployRuntime}
+                'spark': SparkRuntime}
 
 
 def import_function(url, name='', project: str = '', tag: str = '',
                     secrets=None):
+    runtime = import_function_to_dict(url, secrets)
+    return new_function(name, project=project, tag=tag, runtime=runtime)
+
+
+def import_function_to_dict(url, secrets=None):
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
     runtime = yaml.load(obj, Loader=yaml.FullLoader)
@@ -149,7 +154,7 @@ def import_function(url, name='', project: str = '', tag: str = '',
             with open(cmd, 'w') as fp:
                 fp.write(code)
 
-    return new_function(name, project=project, tag=tag, runtime=runtime)
+    return runtime
 
 
 def new_function(name: str = '', project: str = '', tag: str = '',

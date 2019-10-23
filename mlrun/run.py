@@ -13,14 +13,19 @@
 # limitations under the License.
 import json
 import socket
+from base64 import b64decode
 from copy import deepcopy
 from os import environ
+from tempfile import mktemp
+
+import yaml
 
 from .execution import MLClientCtx
-from .model import RunTemplate, RunObject
+from .model import RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime, SparkRuntime)
+                       DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
 from .utils import update_in, get_in, logger
+from .datastore import get_object
 
 
 def get_or_create_ctx(name: str,
@@ -113,14 +118,47 @@ def get_or_create_ctx(name: str,
 
 
 runtime_dict = {'remote': RemoteRuntime,
+                'nuclio': RemoteRuntime,
                 'dask': DaskCluster,
                 'job': KubejobRuntime,
                 'mpijob': MpiRuntime,
-                'spark': SparkRuntime,
-                'Function': NuclioDeployRuntime}
+                'spark': SparkRuntime}
 
 
-def new_function(name: str = '', command: str = '', image: str = '',
+def import_function(url, name='', project: str = '', tag: str = '',
+                    secrets=None):
+    runtime = import_function_to_dict(url, secrets)
+    return new_function(name, project=project, tag=tag, runtime=runtime)
+
+
+def import_function_to_dict(url, secrets=None):
+    """Load function spec from local/remote YAML file"""
+    obj = get_object(url, secrets)
+    runtime = yaml.load(obj, Loader=yaml.FullLoader)
+
+    code = get_in(runtime, 'spec.build.functionSourceCode')
+    if runtime['kind'] in ['', 'local'] and code:
+        if code:
+            fpath = mktemp('.py')
+            code = b64decode(code).decode('utf-8')
+            update_in(runtime, 'spec.command', fpath)
+            with open(fpath, 'w') as fp:
+                fp.write(code)
+        else:
+            cmd = get_in(runtime, 'spec.command', '')
+            if '/' in cmd:
+                raise ValueError('exec path (spec.command) must be in the same path (no "/")')
+            if '/' in url:
+                url = url[:url.rfind('/')+1] + cmd
+            code = get_object(url, secrets)
+            with open(cmd, 'w') as fp:
+                fp.write(code)
+
+    return runtime
+
+
+def new_function(name: str = '', project: str = '', tag: str = '',
+                 command: str = '', image: str = '',
                  runtime=None, args: list = None,
                  mode=None, kfp=None, interactive=False):
     """Create a new ML function from base properties
@@ -132,7 +170,9 @@ def new_function(name: str = '', command: str = '', image: str = '',
            # define a handler function (execute a local function handler)
            f = new_function().run(task, handler=myfunction)
 
-    :param name :    function template name
+    :param name:     function name
+    :param project:  function project (none for 'default')
+    :param tag:      function version tag (none for 'latest')
     :param command:  runtime type + command/url + args (e.g.: mpijob://training.py --verbose)
                      runtime prefixes: None, local, job, spark, dask, mpijob, nuclio
     :param args:     command line arguments (override the ones in command)
@@ -142,6 +182,7 @@ def new_function(name: str = '', command: str = '', image: str = '',
     :param rundb:    optional, path/url to the metadata and artifact database
     :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
     :param kfp:      flag indicating running within kubeflow pipeline
+    :param interactive:   run the tasks synchronously and print the output
 
     :return: function object
     """
@@ -161,6 +202,10 @@ def new_function(name: str = '', command: str = '', image: str = '',
 
     if name:
         runner.metadata.name = name
+    if project:
+        runner.metadata.project = project
+    if tag:
+        runner.metadata.tag = tag
     if image:
         runner.spec.image = image
     if args:

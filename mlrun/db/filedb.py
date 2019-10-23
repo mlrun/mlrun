@@ -19,7 +19,7 @@ import yaml
 import pathlib
 from datetime import datetime, timedelta
 
-from ..utils import get_in, match_labels, dict_to_yaml, update_in
+from ..utils import get_in, match_labels, dict_to_yaml, update_in, dict_to_json
 from ..datastore import StoreManager
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList, FunctionList
@@ -233,12 +233,21 @@ class FileRunDB(RunDBInterface):
         else:
             return path.join(self.dirpath, '{}/{}{}'.format(table, tag, key))
 
+    _encodings = {
+        '.yaml': ('to_yaml', dict_to_yaml),
+        '.json': ('to_json', dict_to_json),
+    }
+
     def _dumps(self, obj):
-        if self.format == '.yaml':
-            fn = getattr(obj, 'to_yaml', None)
-            return fn() if callable(fn) else dict_to_yaml(obj)
-        else:
-            return obj.to_json()
+        meth_name, enc_fn = self._encodings.get(self.format, (None, None))
+        if meth_name is None:
+            raise ValueError(f'unsupported format - {self.format}')
+
+        meth = getattr(obj, meth_name, None)
+        if meth:
+            return meth()
+
+        return enc_fn(obj)
 
     def _loads(self, data):
         if self.format == '.yaml':

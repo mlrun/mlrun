@@ -85,6 +85,8 @@ class MpiRuntime(KubejobRuntime):
             extra_env['MLRUN_DBPATH'] = self.spec.rundb
         extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
         _update_container(job, 'env', extra_env + self.spec.env)
+        if self.spec.image_pull_policy:
+            _update_container(job, 'imagePullPolicy', self.spec.image_pull_policy)
 
         if self.spec.command:
             _update_container(job, 'command',

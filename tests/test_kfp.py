@@ -20,10 +20,10 @@ import yaml
 
 from conftest import out_path
 from mlrun.artifacts import ChartArtifact, TableArtifact
-from mlrun import NewRun, new_function
+from mlrun import NewTask, new_function
 
 
-run_spec = NewRun(
+run_spec = NewTask(
     params={'p1': 5},
     out_path=out_path,
     outputs=['model.txt', 'chart.html', 'iteration_results']).set_label('tests', 'kfp')

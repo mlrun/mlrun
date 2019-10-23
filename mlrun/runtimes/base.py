@@ -123,7 +123,7 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            visible = True):
+            out_path: str = '', visible: bool = True):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -132,6 +132,7 @@ class BaseRuntime(ModelObj):
         :param project:    project name
         :param params:     input parameters (dict)
         :param inputs:     input objects (dict of key: path)
+        :param out_path:   default artifact output path
         :param visible:    show run results in Jupyter
 
         :return: run context object (dict) with run metadata, results and status
@@ -166,6 +167,7 @@ class BaseRuntime(ModelObj):
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.output_path = out_path or runspec.spec.output_path
 
         if handler and self.kind not in ['handler', 'dask']:
             if inspect.isfunction(handler):
@@ -418,8 +420,11 @@ class BaseRuntime(ModelObj):
                         inputs=inputs, outputs=outputs,
                         out_path=out_path, in_path=in_path)
 
-    def save(self, target, format='.yaml', secrets=None):
-        if self.format == '.yaml':
+    def export(self, target, format='.yaml', secrets=None):
+        if self.kind == 'handler':
+            raise ValueError('cannot export local handler function, use ' +
+                             'code_to_function() to serialize your function')
+        if format == '.yaml':
             data = self.to_yaml()
         else:
             data = self.to_json()

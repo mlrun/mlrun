@@ -35,7 +35,7 @@ from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
 import nuclio
 
-serving_handler = 'handler'
+serving_handler = 'main:handler'
 
 
 def new_model_server(name, model_class: str, models: dict = None, filename='',
@@ -158,7 +158,6 @@ class RemoteRuntime(BaseRuntime):
             update_in(config, 'spec.handler',
                       self.spec.function_handler or serving_handler)
             update_in(config, 'spec.image', image)
-            update_in(config, 'spec.build.baseImage', image + '_base')
             update_in(config, 'spec.build.codeEntryType', 'image')
             self.spec.base_spec = config
 

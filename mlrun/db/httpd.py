@@ -20,7 +20,6 @@ from http import HTTPStatus
 
 from flask import Flask, jsonify, request
 
-from mlrun.artifacts import Artifact
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger
@@ -218,15 +217,10 @@ def store_artifact(project, uid):
     _file_db.store_artifact(key, data, uid, tag, project)
     return jsonify(ok=True)
 
-# curl http://localhost:8080/artifact/p1&key=k&tag=t
-@app.route('/artifact/<project>/<uid>', methods=['GET'])
+# curl http://localhost:8080/artifact/p1/tag/key
+@app.route('/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
-def read_artifact(project, uid):
-    key = request.args.get('key')
-    if not key:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='missing data')
-
-    tag = request.args.get('tag', '')
+def read_artifact(project, tag, key):
     data = _file_db.read_artifact(key, tag, project)
     return data
 

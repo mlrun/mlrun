@@ -93,13 +93,13 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of('run', project, uid)
         error = f'store run {project}/{uid}'
         params = {'commit': bool2str(commit)}
-        body = dict_to_json(struct)
+        body = _as_json(struct)
         self._api_call('POST', path, error, params, body=body)
 
     def update_run(self, updates: dict, uid, project=''):
         path = self._path_of('run', project, uid)
         error = f'update run {project}/{uid}'
-        body = dict_to_json(updates)
+        body = _as_json(updates)
         self._api_call('PATCH', path, error, body=body)
 
     def read_run(self, uid, project=''):
@@ -149,17 +149,17 @@ class HTTPRunDB(RunDBInterface):
         }
 
         error = f'store artifact {project}/{uid}'
+
+        body = _as_json(artifact)
         self._api_call(
-            'POST', path, error, params=params, body=dict_to_json(artifact))
+            'POST', path, error, params=params, body=body)
 
     def read_artifact(self, key, tag='', project=''):
-        path = self._path_of('artifact', project, key)  # TODO: uid?
-        params = {
-            'key': key,
-            'tag': tag,
-        }
+        project = project or default_project
+        tag = tag or 'latest'
+        path = self._path_of('artifact', project, tag, key)
         error = f'read artifact {project}/{key}'
-        resp = self._api_call('GET', path, error, params=params)
+        resp = self._api_call('GET', path, error)
         return resp.content
 
     def del_artifact(self, key, tag='', project=''):
@@ -197,3 +197,10 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'del artifacts'
         self._api_call('DELETE', 'artifacts', error, params=params)
+
+
+def _as_json(obj):
+    fn = getattr(obj, 'to_json', None)
+    if fn:
+        return fn()
+    return dict_to_json(obj)

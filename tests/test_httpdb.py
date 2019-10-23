@@ -157,7 +157,7 @@ def test_artifact(create_server):
     db = server.conn
 
     prj, uid, key, body = 'p7', 'u199', 'k800', 'cucumber'
-    artifact = Artifact(key, body).to_dict()
+    artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
     # TODO: Need a run file
@@ -168,7 +168,7 @@ def test_artifacts(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, key, body = 'p9', 'u19', 'k802', 'tomato'
-    artifact = Artifact(key, body).to_dict()
+    artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
     artifacts = db.list_artifacts(project=prj)

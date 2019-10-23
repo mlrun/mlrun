@@ -21,12 +21,12 @@ from .container import ContainerRuntime
 
 
 class KubejobSpec(FunctionSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
+    def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
                  entry_points=None, description=None, replicas=None,
                  image_pull_policy=None, service_account=None, build=None):
         super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers, build=build,
+                         mode=mode, build=build,
                          entry_points=entry_points, description=description)
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []

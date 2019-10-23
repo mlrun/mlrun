@@ -54,13 +54,13 @@ def new_model_server(name, model_class: str, models: dict = None, filename='',
 
 class NuclioSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 workers=None, entry_points=None, description=None,
+                 entry_points=None, description=None,
                  volumes=None, env=None, resources=None,
                  config=None, build_commands=None, base_spec=None,
                  source=None, image_pull_policy=None, function_kind=None,
                  service_account=None):
         super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers, build=None,
+                         mode=mode, build=None,
                          entry_points=entry_points, description=description)
 
         self.base_spec = base_spec or ''

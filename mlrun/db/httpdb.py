@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
-
 import requests
 
+from ..utils import dict_to_json
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
 
@@ -95,13 +93,13 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of('run', project, uid)
         error = f'store run {project}/{uid}'
         params = {'commit': bool2str(commit)}
-        body = json.dumps(struct)
+        body = _as_json(struct)
         self._api_call('POST', path, error, params, body=body)
 
     def update_run(self, updates: dict, uid, project=''):
         path = self._path_of('run', project, uid)
         error = f'update run {project}/{uid}'
-        body = json.dumps(updates)
+        body = _as_json(updates)
         self._api_call('PATCH', path, error, body=body)
 
     def read_run(self, uid, project=''):
@@ -115,13 +113,13 @@ class HTTPRunDB(RunDBInterface):
         error = f'del run {project}/{uid}'
         self._api_call('DELETE', path, error)
 
-    def list_runs(
-            self, name='', project='', labels=None, state='', sort=True,
-            last=0):
+    def list_runs(self, name='', uid=None, project='', labels=None,
+                  state='', sort=True, last=0):
 
         project = project or default_project
         params = {
             'name': name,
+            'uid': uid,
             'project': project,
             'label': labels or [],
             'state': state,
@@ -151,7 +149,8 @@ class HTTPRunDB(RunDBInterface):
         }
 
         error = f'store artifact {project}/{uid}'
-        body = artifact.to_json()
+
+        body = _as_json(artifact)
         self._api_call(
             'POST', path, error, params=params, body=body)
 
@@ -198,3 +197,10 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'del artifacts'
         self._api_call('DELETE', 'artifacts', error, params=params)
+
+
+def _as_json(obj):
+    fn = getattr(obj, 'to_json', None)
+    if fn:
+        return fn()
+    return dict_to_json(obj)

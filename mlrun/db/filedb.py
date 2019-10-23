@@ -19,7 +19,7 @@ import yaml
 import pathlib
 from datetime import datetime, timedelta
 
-from ..utils import get_in, match_labels, dict_to_yaml, update_in
+from ..utils import get_in, match_labels, dict_to_yaml, update_in, dict_to_json
 from ..datastore import StoreManager
 from ..render import run_to_html
 from .base import RunDBError, RunDBInterface
@@ -55,7 +55,7 @@ class FileRunDB(RunDBInterface):
         if self.format == '.yaml':
             data = dict_to_yaml(struct)
         else:
-            data = json.dumps(struct)
+            data = dict_to_json(struct)
         filepath = self._filepath('runs', project, uid, '') + self.format
         self._datastore.put(filepath, data)
 
@@ -123,7 +123,7 @@ class FileRunDB(RunDBInterface):
         if self.format == '.yaml':
             data = dict_to_yaml(artifact)
         else:
-            data = json.dumps(artifact)
+            data = dict_to_json(artifact)
         filepath = self._filepath('artifacts', project, key, uid) + self.format
         self._datastore.put(filepath, data)
         filepath = self._filepath('artifacts', project, key, tag or 'latest') + self.format

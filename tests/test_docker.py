@@ -14,12 +14,27 @@
 
 from subprocess import PIPE, run
 from uuid import uuid4
+from sys import platform
 
 import pytest
 
 from conftest import here, wait_for_server
 
 prj_dir = here.parent
+
+
+def check_docker():
+    if not platform.startswith('linux'):
+        return False
+
+    with open('/proc/1/cgroup') as fp:
+        for line in fp:
+            if '/docker/' in line:
+                return True
+    return False
+
+
+in_docker = check_docker()
 
 
 @pytest.fixture
@@ -54,6 +69,7 @@ def build_docker():
 dockerfiles = ['Dockerfile.db', 'Dockerfile.db-gunicorn']
 
 
+@pytest.mark.skipif(in_docker, reason='in docker container')
 @pytest.mark.parametrize('dockerfile', dockerfiles)
 def test_docker(build_docker, dockerfile):
     build_docker(dockerfile)

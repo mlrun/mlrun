@@ -25,23 +25,11 @@ from ..platforms.iguazio import mount_v3io, mount_v3iod, mount_spark_conf
 
 from kubernetes import client
 
-#igz_23_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-2.3_b118_20190707140045.jar',
-#                        '/igz/java/libs/v3io-spark2-streaming_2.11-2.3_b118_20190707140045.jar',
-#                        '/igz/java/libs/v3io-spark2-object-dataframe_2.11-2.3_b118_20190707140045.jar',
-#                        '/igz/java/libs/scala-library-2.11.12.jar'],
-#               'files': ['/igz/java/libs/v3io-py-2.3_b118_20190707140045.zip']}
-
 igz_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
                      '/igz/java/libs/v3io-spark2-streaming_2.11-{0}.jar',
                      '/igz/java/libs/v3io-spark2-object-dataframe_2.11-{0}.jar',
                      '/igz/java/libs/scala-library-2.11.12.jar'],
             'files': ['/igz/java/libs/v3io-py-{0}.zip']}
-
-# igz_25_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-.jar',
-#                         '/igz/java/libs/v3io-spark2-streaming_2.11-.jar',
-#                         '/igz/java/libs/v3io-spark2-object-dataframe_2.11-.jar',
-#                         '/igz/java/libs/scala-library-2.11.12.jar'],
-#                'files': ['/igz/java/libs/v3io-py-.zip']}
 
 _sparkjob_template = {
  'apiVersion': 'sparkoperator.k8s.io/v1beta1',
@@ -86,10 +74,6 @@ _sparkjob_template = {
      },
  },
 }
-
-group = 'sparkoperator.k8s.io'
-version = 'v1beta1'
-plural = 'sparkapplications'
 
 class SparkJobSpec(KubejobSpec):
     def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
@@ -164,7 +148,7 @@ class SparkRuntime(KubejobRuntime):
             job_name = get_in(job_response, 'metadata.name', 'unknown')
             logger.info('Waiting for application to start')
             while running not in ["RUNNING", "COMPLETED", "FAILED"]:
-                result = self._get_job_status(job_name=job_name)
+                result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
                 if 'status' in result:
                     running = result['status']['applicationState']['state']
                 time.sleep(self.spec.job_check_interval)
@@ -175,7 +159,7 @@ class SparkRuntime(KubejobRuntime):
 
             logger.info('Waiting for application to complete')
             while running not in ["COMPLETED", "FAILED"]:
-                result = self._get_job_status(job_name=job_name)
+                result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
                 running = result['status']['applicationState']['state']
                 time.sleep(self.spec.job_check_interval)
 

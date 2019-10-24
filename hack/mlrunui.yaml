@@ -1,0 +1,38 @@
+# example Kubernetes spec, should add volume for persisting data
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlrun-ui
+  labels:
+    app: mlrun-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlrun-ui
+  template:
+    metadata:
+      labels:
+        app: mlrun-ui
+    spec:
+      containers:
+      - name: mlrun-ui
+        image: iguazio/mlrun-frontend
+        imagePullPolicy: Always
+        env:
+        ports:
+        - containerPort: 8080
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mlrun-ui
+spec:
+  type: NodePort
+  selector:
+    app: mlrun-ui
+  ports:
+  - protocol: TCP
+    nodePort: 30088
+    port: 8080
+    targetPort: 8080

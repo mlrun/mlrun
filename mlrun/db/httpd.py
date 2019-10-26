@@ -24,6 +24,8 @@ from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger
 from mlrun.config import config
+from mlrun.runtimes import RunError
+from mlrun.run import new_function
 
 _file_db: FileRunDB = None
 app = Flask(__name__)
@@ -99,6 +101,31 @@ def catch_err(fn):
                 HTTPStatus.INTERNAL_SERVER_ERROR, ok=False, reason=str(err))
 
     return wrapper
+
+
+# curl -d@/path/to/job.json http://localhost:8080/submit
+@app.route('/submit', methods=['POST'])
+@catch_err
+def submit_job():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    function = data.get('function')
+    task = data.get('task')
+    if not function or not task:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON, need to include function and task objects')
+
+    # TODO: block exec for function['kind'] in ['', 'local]  (must be a remote/container runtime)
+
+    try:
+        resp = new_function(runtime=function).run(task)
+        print(resp.to_yaml())
+    except RunError as err:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='runtime error: {}'.format(err))
+
+    return jsonify(ok=True, data=resp.to_dict())
 
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true

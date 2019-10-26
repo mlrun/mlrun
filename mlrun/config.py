@@ -39,7 +39,7 @@ default_config = {
     'namespace': 'default-tenant',
     'dbpath': '',
     'kfp_image': 'mlrun/mlrun:latest',
-    'kaniko_version': 'v0.13.0',
+    'kaniko_version': 'v0.9.0',
     'package_path': 'git+https://github.com/mlrun/mlrun.git',
     'default_image': 'python:3.6-jessie',
     'log_level': 'ERROR',

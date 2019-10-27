@@ -142,13 +142,12 @@ class HTTPRunDB(RunDBInterface):
         self._api_call('DELETE', 'runs', error, params=params)
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
-        path = self._path_of('artifact', project, uid)
+        path = self._path_of('artifact', project, uid) + '/' + key
         params = {
-            'key': key,
             'tag': tag,
         }
 
-        error = f'store artifact {project}/{uid}'
+        error = f'store artifact {project}/{uid}/{key}'
 
         body = _as_json(artifact)
         self._api_call(
@@ -157,7 +156,7 @@ class HTTPRunDB(RunDBInterface):
     def read_artifact(self, key, tag='', project=''):
         project = project or default_project
         tag = tag or 'latest'
-        path = self._path_of('artifact', project, tag, key)
+        path = self._path_of('artifact', project, tag) + '/' + key
         error = f'read artifact {project}/{key}'
         resp = self._api_call('GET', path, error)
         return resp.content

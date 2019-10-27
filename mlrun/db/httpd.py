@@ -105,22 +105,30 @@ def catch_err(fn):
 
 # curl -d@/path/to/job.json http://localhost:8080/submit
 @app.route('/submit', methods=['POST'])
+@app.route('/submit/', methods=['POST'])
+@app.route('/submit/<path:func>', methods=['POST'])
 @catch_err
-def submit_job():
+def submit_job(func=''):
     try:
         data = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    print("FUNC: ", func)
+    url = data.get('functionUrl')
     function = data.get('function')
     task = data.get('task')
-    if not function or not task:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON, need to include function and task objects')
+    if not (function or url) or not task:
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='bad JSON, need to include function/url and task objects')
 
     # TODO: block exec for function['kind'] in ['', 'local]  (must be a remote/container runtime)
 
     try:
-        resp = new_function(runtime=function).run(task)
+        if url:
+            resp = new_function(command=url).run(task)
+        else:
+            resp = new_function(runtime=function).run(task)
         print(resp.to_yaml())
     except RunError as err:
         return json_error(HTTPStatus.BAD_REQUEST, reason='runtime error: {}'.format(err))
@@ -230,19 +238,18 @@ def del_runs():
 
 
 # curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
-@app.route('/artifact/<project>/<uid>', methods=['POST'])
+@app.route('/artifact/<project>/<uid>/<path:key>', methods=['POST'])
 @catch_err
-def store_artifact(project, uid):
+def store_artifact(project, uid, key):
     try:
         data = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    key = request.args.get('key')
     tag = request.args.get('tag', '')
-
     _file_db.store_artifact(key, data, uid, tag, project)
     return jsonify(ok=True)
+
 
 # curl http://localhost:8080/artifact/p1/tag/key
 @app.route('/artifact/<project>/<tag>/<path:key>', methods=['GET'])

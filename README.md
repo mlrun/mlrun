@@ -1,4 +1,4 @@
-# MLrun
+# MLRun
 
 [![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -7,7 +7,7 @@
 A generic an easy to use mechanism for data scientists and developers/engineers 
 to describe and run machine learning related tasks in various scalable runtime environments 
 while automatically tracking code, metadata, inputs, and outputs of executions.
-MLrun is integrated with [Nuclio serverless project](https://github.com/nuclio/nuclio).
+MLRun is integrated with [Nuclio serverless project](https://github.com/nuclio/nuclio).
 
 Read more details in [this doc link](https://docs.google.com/document/d/1JRoWx4X7ld3fzQtdTGVIbcZx-5HzlYmkFiQz6ei8izE/edit?usp=sharing)
 
@@ -49,6 +49,7 @@ and the idea is to make all the resources pluggable, this way developers code to
 * [Various run examples](examples/mlrun_games.ipynb)
 * [From local runs to a scalable Kubernetes cluster](examples/nuclio_jobs.ipynb)
 * [Automated workflows with KubeFlow Pipelines](examples/pipe_code.ipynb)
+* [Using MLRUN with Kubernetes Job](examples/mlrun_jobs.ipynb)
 * [Using MLRUN with Horovod and MpiJob](examples/mlrun_mpijob.ipynb)
 * [Using MLRUN with Nuclio](examples/train_xgboost_serverless.ipynb)
 * [Using MLRUN with Dask](examples/mlrun_dask.ipynb)

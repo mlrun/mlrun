@@ -15,15 +15,15 @@ import json
 import socket
 from base64 import b64decode
 from copy import deepcopy
-from os import environ
+from os import environ, path, makedirs
 from tempfile import mktemp
 
 import yaml
 
 from .execution import MLClientCtx
-from .model import RunTemplate, RunObject
+from .model import RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskCluster, MpiRuntime, KubejobRuntime, NuclioDeployRuntime, SparkRuntime)
+                       DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
 from .utils import update_in, get_in, logger
 from .datastore import get_object
 
@@ -118,20 +118,29 @@ def get_or_create_ctx(name: str,
 
 
 runtime_dict = {'remote': RemoteRuntime,
+                'nuclio': RemoteRuntime,
                 'dask': DaskCluster,
                 'job': KubejobRuntime,
                 'mpijob': MpiRuntime,
-                'spark': SparkRuntime,
-                'Function': NuclioDeployRuntime}
+                'spark': SparkRuntime}
 
 
 def import_function(url, name='', project: str = '', tag: str = '',
                     secrets=None):
+    runtime = import_function_to_dict(url, secrets)
+    return new_function(name, project=project, tag=tag, runtime=runtime)
+
+
+def import_function_to_dict(url, secrets=None):
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
     runtime = yaml.load(obj, Loader=yaml.FullLoader)
+    remote = '://' in url
 
     code = get_in(runtime, 'spec.build.functionSourceCode')
+    cmd = code_file = get_in(runtime, 'spec.command', '')
+    if ' ' in cmd:
+        code_file = cmd[:cmd.find(' ')]
     if runtime['kind'] in ['', 'local'] and code:
         if code:
             fpath = mktemp('.py')
@@ -139,17 +148,28 @@ def import_function(url, name='', project: str = '', tag: str = '',
             update_in(runtime, 'spec.command', fpath)
             with open(fpath, 'w') as fp:
                 fp.write(code)
-        else:
-            cmd = get_in(runtime, 'spec.command', '')
-            if '/' in cmd:
-                raise ValueError('exec path (spec.command) must be in the same path (no "/")')
-            if '/' in url:
-                url = url[:url.rfind('/')+1] + cmd
+        elif remote and cmd:
+            if cmd.startswith('/'):
+                raise ValueError('exec path (spec.command) must be relative')
+            url = url[:url.rfind('/')+1] + code_file
             code = get_object(url, secrets)
-            with open(cmd, 'w') as fp:
+            dir = path.dirname(code_file)
+            if dir:
+                makedirs(dir, exist_ok=True)
+            with open(code_file, 'w') as fp:
                 fp.write(code)
+        elif cmd:
+            if not path.isfile(code_file):
+                # look for the file in a relative path to the yaml
+                slash = url.rfind('/')
+                if slash >= 0 and path.isfile(url[:url.rfind('/') + 1] + code_file):
+                    raise ValueError('exec file spec.command={}'.format(code_file) +
+                                     ' is relative, change working dir')
+                raise ValueError('no file in exec path (spec.command={})'.format(code_file))
+        else:
+            raise ValueError('command or code not specified in function spec')
 
-    return new_function(name, project=project, tag=tag, runtime=runtime)
+    return runtime
 
 
 def new_function(name: str = '', project: str = '', tag: str = '',

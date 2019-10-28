@@ -18,5 +18,4 @@ from .function import RemoteRuntime, new_model_server
 from .mpijob import MpiRuntime
 from .dask import DaskCluster
 from .kubejob import KubejobRuntime
-from .nuclio_deploy import NuclioDeployRuntime
 from .sparkjob import SparkRuntime

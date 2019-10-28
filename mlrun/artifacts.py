@@ -21,7 +21,7 @@ import pathlib
 
 from .datastore import StoreManager
 from .db import RunDBInterface
-from .utils import uxjoin, run_keys, logger
+from .utils import uxjoin, run_keys, dict_to_json
 from .model import ModelObj
 
 
@@ -111,7 +111,8 @@ class ArtifactManager:
             if execution.iteration:
                 key = '{}-{}'.format(execution.iteration, key)
                 item.iter = execution.iteration
-            self.artifact_db.store_artifact(key, item, item.tree, tag, execution.project)
+            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
+                                            tag, execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
@@ -282,7 +283,7 @@ class ChartArtifact(Artifact):
         if not self.options.get('title'):
             self.options['title'] = self.key
         data = [self.header] + self._rows
-        return chart_template.replace('$data$', json.dumps(data))\
-            .replace('$opts$', json.dumps(self.options))\
+        return chart_template.replace('$data$', dict_to_json(data))\
+            .replace('$opts$', dict_to_json(self.options))\
             .replace('$chart$', self.chart)
 

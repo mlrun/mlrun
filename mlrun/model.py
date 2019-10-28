@@ -18,7 +18,7 @@ from copy import deepcopy
 from os import environ
 
 from .db import get_run_db
-from .utils import dict_to_yaml, get_in
+from .utils import dict_to_yaml, get_in, dict_to_json
 
 
 class ModelObj:
@@ -69,7 +69,7 @@ class ModelObj:
         return dict_to_yaml(self.to_dict())
 
     def to_json(self):
-        return json.dumps(self.to_dict())
+        return dict_to_json(self.to_dict())
 
     def to_str(self):
         return '{}'.format(self.to_dict())
@@ -82,9 +82,10 @@ class ModelObj:
 
 
 class BaseMetadata(ModelObj):
-    def __init__(self, name=None, namespace=None, project=None,
+    def __init__(self, name=None, tag=None, namespace=None, project=None,
                  labels=None, annotations=None):
         self.name = name
+        self.tag = tag
         self.namespace = namespace
         self.project = project
         self.labels = labels or {}
@@ -95,6 +96,7 @@ class ImageBuilder(ModelObj):
     def __init__(self, functionSourceCode=None, source=None, image=None, base_image=None,
                  commands=None, secret=None, registry=None):
         self.functionSourceCode = functionSourceCode
+        self.codeEntryType = ''
         self.source = source
         self.image = image
         self.base_image = base_image
@@ -290,6 +292,16 @@ class RunObject(RunTemplate):
             return artifact.get('target_path')
         return None
 
+    @property
+    def outputs(self):
+        outputs = {}
+        if self.status.results:
+            outputs = {k: v for k, v in self.status.results.items()}
+        if self.status.artifacts:
+            for a in self.status.artifacts:
+                outputs[a['key']] = a['target_path']
+        return outputs
+
     def artifact(self, key):
         if self.status.artifacts:
             for a in self.status.artifacts:
@@ -302,7 +314,7 @@ class RunObject(RunTemplate):
 
     def state(self):
         db = get_run_db().connect()
-        run = db.read_run(uid=self.metadata.uid, project=self.metadata.project, display=False)
+        run = db.read_run(uid=self.metadata.uid, project=self.metadata.project)
         if run:
             return get_in(run, 'status.state', 'unknown')
 
@@ -311,10 +323,10 @@ class RunObject(RunTemplate):
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
 
-def NewRun(name=None, project=None, handler=None,
-           params=None, hyper_params=None, param_file=None, selector=None,
-           inputs=None, outputs=None,
-           in_path=None, out_path=None, secrets=None, base=None):
+def NewTask(name=None, project=None, handler=None,
+            params=None, hyper_params=None, param_file=None, selector=None,
+            inputs=None, outputs=None,
+            in_path=None, out_path=None, secrets=None, base=None):
 
     if base:
         run = deepcopy(base)
@@ -333,3 +345,7 @@ def NewRun(name=None, project=None, handler=None,
     run.spec.output_path = out_path or run.spec.output_path
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run
+
+
+# for backwards compatibility
+NewRun = NewTask

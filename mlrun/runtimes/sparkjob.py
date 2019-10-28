@@ -14,6 +14,7 @@
 import json
 from pprint import pprint
 import yaml
+import time
 from copy import deepcopy
 from .base import RunError
 from .kubejob import KubejobRuntime, KubejobSpec
@@ -76,7 +77,7 @@ _sparkjob_template = {
 }
 
 class SparkJobSpec(KubejobSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
+    def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, replicas=None,
                  image_pull_policy=None, service_account=None, driver_resources=None,
                  type=None, python_version=None, spark_version=None, restart_policy=None, deps=None):
@@ -84,7 +85,6 @@ class SparkJobSpec(KubejobSpec):
                          args=args,
                          image=image,
                          mode=mode,
-                         workers=workers,
                          volumes=volumes,
                          volume_mounts=volume_mounts,
                          env=env,
@@ -176,7 +176,6 @@ class SparkRuntime(KubejobRuntime):
                 plural=SparkRuntime.plural, body=job)
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('SparkJob {} created'.format(name))
-            logger.info('use runner.watch({}) to see logs'.format(name))
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating SparkJob: %s" % e)
@@ -190,6 +189,7 @@ class SparkRuntime(KubejobRuntime):
         except client.rest.ApiException as e:
             print("Exception when reading SparkJob: %s" % e)
         return resp
+
 
     def _update_igz_jars(self, igz_version, deps=igz_deps):
         if not self.spec.deps:

@@ -54,12 +54,14 @@ def new_model_server(name, model_class: str, models: dict = None, filename='',
 
 class NuclioSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 workers=None, volumes=None, env=None, resources=None,
+                 entry_points=None, description=None,
+                 volumes=None, env=None, resources=None,
                  config=None, build_commands=None, base_spec=None,
                  source=None, image_pull_policy=None, function_kind=None,
                  service_account=None):
         super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers, build=None)
+                         mode=mode, build=None,
+                         entry_points=entry_points, description=description)
 
         self.base_spec = base_spec or ''
         self.function_kind = function_kind or 'mlrun'
@@ -154,9 +156,8 @@ class RemoteRuntime(BaseRuntime):
         if image:
             config = nuclio.config.new_config()
             update_in(config, 'spec.handler',
-                      self.spec.function_handler or serving_handler)
+                      self.spec.function_handler or 'main:{}'.format(serving_handler))
             update_in(config, 'spec.image', image)
-            update_in(config, 'spec.build.baseImage', image + '_base')
             update_in(config, 'spec.build.codeEntryType', 'image')
             self.spec.base_spec = config
 

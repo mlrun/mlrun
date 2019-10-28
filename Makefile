@@ -46,3 +46,15 @@ update-deps:
 .PHONY: sync-deps
 sync-deps:
 	pipenv sync --dev
+
+
+.PHONY: run-httpd
+run-httpd:
+	pipenv run python -m mlrun db
+
+.PHONY: docker-db
+docker-db:
+	docker build \
+	    -f Dockerfile.db \
+	    --tag mlrun/mlrun-db \
+	    .

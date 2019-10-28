@@ -17,7 +17,7 @@ import pytest
 from conftest import (
     examples_path, has_secrets, here, out_path, tag_test, verify_state
 )
-from mlrun import NewRun, get_run_db, new_function
+from mlrun import NewTask, get_run_db, new_function
 
 
 def my_func(context, p1=1, p2='a-string'):
@@ -30,7 +30,7 @@ def my_func(context, p1=1, p2='a-string'):
     context.log_artifact('chart', body='abc')
 
 
-base_spec = NewRun(params={'p1': 8}, out_path=out_path)
+base_spec = NewTask(params={'p1': 8}, out_path=out_path)
 base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 s3_spec = base_spec.copy().with_secrets('file', 'secrets.txt')

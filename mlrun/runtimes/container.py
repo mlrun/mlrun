@@ -16,42 +16,11 @@ from base64 import b64encode
 
 from ..builder import build_runtime
 from ..utils import get_in, logger
-from .base import BaseRuntime, FunctionSpec, RunError
-from ..model import ImageBuilder
-
-
-class ContainerJobSpec(FunctionSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None,
-                 workers=None, build=None):
-        super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers)
-
-        self._build = None
-        self.build = build
-
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, 'build', ImageBuilder)
+from .base import BaseRuntime, RunError
 
 
 class ContainerRuntime(BaseRuntime):
     kind = 'container'
-
-    def __init__(self, spec=None, metadata=None):
-
-        super().__init__(metadata, spec)
-
-    @property
-    def spec(self) -> ContainerJobSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', ContainerJobSpec)
 
     def with_code(self, from_file='', body=None):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):

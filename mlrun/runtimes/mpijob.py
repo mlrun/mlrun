@@ -79,6 +79,15 @@ class MpiRuntime(KubejobRuntime):
             _update_container(job, 'image', self._image_path())
         update_in(job, 'spec.template.spec.volumes', self.spec.volumes)
         _update_container(job, 'volumeMounts', self.spec.volume_mounts)
+
+        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
+        if self.spec.rundb:
+            extra_env['MLRUN_DBPATH'] = self.spec.rundb
+        extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
+        _update_container(job, 'env', extra_env + self.spec.env)
+        if self.spec.image_pull_policy:
+            _update_container(job, 'imagePullPolicy', self.spec.image_pull_policy)
+
         if self.spec.command:
             _update_container(job, 'command',
                               ['mpirun', 'python', self.spec.command] + self.spec.args)

@@ -186,7 +186,7 @@ class SparkRuntime(KubejobRuntime):
         namespace = k8s.ns(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
-                SparkRuntime.group, SparkRuntime.version, namespace, plural, job_name)
+                SparkRuntime.group, SparkRuntime.version, namespace, SparkRuntime.plural, job_name)
         except client.rest.ApiException as e:
             print("Exception when reading SparkJob: %s" % e)
         return resp

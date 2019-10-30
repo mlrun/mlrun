@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
+import json
 import logging
 import re
 from datetime import datetime
 from os import path
 from sys import stdout
-import yaml
-import json
-import numpy as np
 
+import numpy as np
+import yaml
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 
@@ -258,3 +259,27 @@ def gen_html_table(header, rows=[]):
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
     return style + '<table class="tg">\n' + out + '</table>\n\n'
+
+
+def type_name(ann):
+    if ann is inspect.Signature.empty:
+        return ''
+    return getattr(ann, '__name__', str(ann))
+
+
+def param_dict(param: inspect.Parameter) -> dict:
+    return {
+        'name': param.name,
+        'type': type_name(param.annotation),
+    }
+
+
+def func_info(fn) -> dict:
+    sig = inspect.signature(fn)
+    # TODO: If sig is empty, parse docstring
+    return {
+        'name': fn.__name__,
+        'doc': fn.__doc__ or '',
+        'params': [param_dict(p) for p in sig.parameters.values()],
+        'return': type_name(sig.return_annotation),
+    }

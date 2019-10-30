@@ -76,7 +76,7 @@ _sparkjob_template = {
 }
 
 class SparkJobSpec(KubejobSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
+    def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, replicas=None,
                  image_pull_policy=None, service_account=None, driver_resources=None,
                  type=None, python_version=None, spark_version=None, restart_policy=None, deps=None):
@@ -84,7 +84,6 @@ class SparkJobSpec(KubejobSpec):
                          args=args,
                          image=image,
                          mode=mode,
-                         workers=workers,
                          volumes=volumes,
                          volume_mounts=volume_mounts,
                          env=env,

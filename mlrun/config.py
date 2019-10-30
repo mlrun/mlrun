@@ -40,7 +40,7 @@ default_config = {
     'dbpath': '',
     'kfp_image': 'mlrun/mlrun:latest',
     'kaniko_version': 'v0.13.0',
-    'package_path': 'git+https://github.com/mlrun/mlrun.git',
+    'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
     'log_level': 'ERROR',
     'httpdb': {

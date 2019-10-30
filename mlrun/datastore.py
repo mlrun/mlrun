@@ -226,9 +226,9 @@ class FileStore(DataStore):
         dir = path.dirname(self._join(key))
         if dir:
             makedirs(dir, exist_ok=True)
-        mode = 'w'
+        mode = 'a' if append else 'w'
         if isinstance(data, bytes):
-            mode = 'wb'
+            mode = mode + 'b'
         with open(self._join(key), mode) as fp:
             fp.write(data)
             fp.close()

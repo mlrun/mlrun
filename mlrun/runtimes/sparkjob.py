@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 from pprint import pprint
 import yaml
 import time
 from copy import deepcopy
+from .base import RunError
 from .kubejob import KubejobRuntime, KubejobSpec
 from ..model import ModelObj
 from ..utils import logger, get_in
@@ -97,6 +98,9 @@ class SparkJobSpec(KubejobSpec):
         self.spark_version = spark_version
         self.restart_policy = restart_policy
         self.deps = deps
+        self.wait_for_completion = 0   # Seconds to wait for job to complete 0 = no wait
+        self.job_check_interval = 10   # Check job status every N seconds (Only relevant if wait_for completion is set)
+        self.wait_timeout = 0          # Wait N seconds before killing the job
 
 class SparkRuntime(KubejobRuntime):
     group = 'sparkoperator.k8s.io'
@@ -108,7 +112,6 @@ class SparkRuntime(KubejobRuntime):
     def _run(self, runobj: RunObject, execution):
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runobj, True)
-
         pod_labels = deepcopy(meta.labels)
         pod_labels['mlrun/job'] = meta.name
         update_in(job, 'metadata', meta.to_dict())
@@ -134,7 +137,35 @@ class SparkRuntime(KubejobRuntime):
         if self.spec.command:
             update_in(job, 'spec.mainApplicationFile', self.spec.command)
         update_in(job, 'spec.args', self.spec.args)
-        self._submit_job(job, meta.namespace)
+        resp = self._submit_job(job, meta.namespace)
+        name = get_in(resp, 'metadata.name', 'unknown')
+        job_response = resp
+        # If wait is set
+        if self.spec.wait_for_completion > 0:
+            import time
+
+            running = "STARTING"
+            job_name = get_in(job_response, 'metadata.name', 'unknown')
+            logger.info('Waiting for application to start')
+            while running not in ["RUNNING", "COMPLETED", "FAILED"]:
+                result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
+                if 'status' in result:
+                    running = result['status']['applicationState']['state']
+                time.sleep(self.spec.job_check_interval)
+
+            logger.info('Application status:' + running)
+            if running == "FAILED":
+                raise RunError('Failed to execute application')
+
+            logger.info('Waiting for application to complete')
+            while running not in ["COMPLETED", "FAILED"]:
+                result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
+                running = result['status']['applicationState']['state']
+                time.sleep(self.spec.job_check_interval)
+
+            if running == "FAILED":
+                raise RunError('Execution failed check the pod logs')
+            logger.info('Application completed:')
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
@@ -148,6 +179,17 @@ class SparkRuntime(KubejobRuntime):
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating SparkJob: %s" % e)
+
+    def _get_job_status(self, namespace=None, job_name=None):
+        k8s = self._get_k8s()
+        namespace = k8s.ns(namespace)
+        try:
+            resp = k8s.crdapi.get_namespaced_custom_object(
+                SparkRuntime.group, SparkRuntime.version, namespace, SparkRuntime.plural, job_name)
+        except client.rest.ApiException as e:
+            print("Exception when reading SparkJob: %s" % e)
+        return resp
+
 
     def _update_igz_jars(self, igz_version, deps=igz_deps):
         if not self.spec.deps:

@@ -209,3 +209,29 @@ def test_bearer_auth(create_server):
 
     db.token = token
     db.list_runs()
+
+
+def test_set_get_function(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
+    db.store_function(func, name, proj)
+    db_func = db.get_function(name, proj)
+    assert db_func == func, 'wrong func'
+
+
+def test_list_functions(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    proj = 'p4'
+    count = 5
+    for i in range(count):
+        name = f'func{i}'
+        func = {'fid': i}
+        db.store_function(func, name, proj)
+    db.store_function({}, 'f2', 'p7')
+
+    out = db.list_functions('', proj)
+    assert len(out) == count, 'bad list'

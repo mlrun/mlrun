@@ -56,12 +56,11 @@ class FunctionEntrypoint(ModelObj):
 
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 workers=None, build=None, entry_points=None, description=None):
+                 build=None, entry_points=None, description=None):
 
         self.command = command or ''
         self.image = image or ''
         self.mode = mode or ''
-        self.workers = workers
         self.args = args or []
         self.rundb = default_dbpath()
         self.description = description or ''
@@ -420,7 +419,8 @@ class BaseRuntime(ModelObj):
                         inputs=inputs, outputs=outputs,
                         out_path=out_path, in_path=in_path)
 
-    def export(self, target, format='.yaml', secrets=None):
+    def export(self, target='', format='.yaml', secrets=None):
+        """save function spec to a local/remote path (default to ./function.yaml)"""
         if self.kind == 'handler':
             raise ValueError('cannot export local handler function, use ' +
                              'code_to_function() to serialize your function')
@@ -429,8 +429,10 @@ class BaseRuntime(ModelObj):
         else:
             data = self.to_json()
         stores = StoreManager(secrets)
-        datastore, subpath = stores.get_or_create_store(target)
+        target = target or 'function.yaml'
+        datastore, subpath = stores.get_or_create_store()
         datastore.put(subpath, data)
+        logger.info('function spec saved to path: {}'.format(target))
 
 
 def selector(results: list, criteria):

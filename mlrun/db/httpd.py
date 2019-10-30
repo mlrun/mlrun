@@ -24,6 +24,8 @@ from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger
 from mlrun.config import config
+from mlrun.runtimes import RunError
+from mlrun.run import new_function
 
 _file_db: FileRunDB = None
 app = Flask(__name__)
@@ -99,6 +101,39 @@ def catch_err(fn):
                 HTTPStatus.INTERNAL_SERVER_ERROR, ok=False, reason=str(err))
 
     return wrapper
+
+
+# curl -d@/path/to/job.json http://localhost:8080/submit
+@app.route('/submit', methods=['POST'])
+@app.route('/submit/', methods=['POST'])
+@app.route('/submit/<path:func>', methods=['POST'])
+@catch_err
+def submit_job(func=''):
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    print("FUNC: ", func)
+    url = data.get('functionUrl')
+    function = data.get('function')
+    task = data.get('task')
+    if not (function or url) or not task:
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='bad JSON, need to include function/url and task objects')
+
+    # TODO: block exec for function['kind'] in ['', 'local]  (must be a remote/container runtime)
+
+    try:
+        if url:
+            resp = new_function(command=url).run(task)
+        else:
+            resp = new_function(runtime=function).run(task)
+        print(resp.to_yaml())
+    except RunError as err:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='runtime error: {}'.format(err))
+
+    return jsonify(ok=True, data=resp.to_dict())
 
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
@@ -203,29 +238,23 @@ def del_runs():
 
 
 # curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
-@app.route('/artifact/<project>/<uid>', methods=['POST'])
+@app.route('/artifact/<project>/<uid>/<path:key>', methods=['POST'])
 @catch_err
-def store_artifact(project, uid):
+def store_artifact(project, uid, key):
     try:
         data = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    key = request.args.get('key')
     tag = request.args.get('tag', '')
-
     _file_db.store_artifact(key, data, uid, tag, project)
     return jsonify(ok=True)
 
-# curl http://localhost:8080/artifact/p1&key=k&tag=t
-@app.route('/artifact/<project>/<uid>', methods=['GET'])
-@catch_err
-def read_artifact(project, uid):
-    key = request.args.get('key')
-    if not key:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='missing data')
 
-    tag = request.args.get('tag', '')
+# curl http://localhost:8080/artifact/p1/tag/key
+@app.route('/artifact/<project>/<tag>/<path:key>', methods=['GET'])
+@catch_err
+def read_artifact(project, tag, key):
     data = _file_db.read_artifact(key, tag, project)
     return data
 

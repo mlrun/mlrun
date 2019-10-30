@@ -35,7 +35,7 @@ from nuclio_sdk.logger import HumanReadableFormatter
 from nuclio_sdk import Event
 import nuclio
 
-serving_handler = 'main:handler'
+serving_handler = 'handler'
 
 
 def new_model_server(name, model_class: str, models: dict = None, filename='',
@@ -54,13 +54,13 @@ def new_model_server(name, model_class: str, models: dict = None, filename='',
 
 class NuclioSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 workers=None, entry_points=None, description=None,
+                 entry_points=None, description=None,
                  volumes=None, env=None, resources=None,
                  config=None, build_commands=None, base_spec=None,
                  source=None, image_pull_policy=None, function_kind=None,
                  service_account=None):
         super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers, build=None,
+                         mode=mode, build=None,
                          entry_points=entry_points, description=description)
 
         self.base_spec = base_spec or ''
@@ -156,7 +156,7 @@ class RemoteRuntime(BaseRuntime):
         if image:
             config = nuclio.config.new_config()
             update_in(config, 'spec.handler',
-                      self.spec.function_handler or serving_handler)
+                      self.spec.function_handler or 'main:{}'.format(serving_handler))
             update_in(config, 'spec.image', image)
             update_in(config, 'spec.build.codeEntryType', 'image')
             self.spec.base_spec = config

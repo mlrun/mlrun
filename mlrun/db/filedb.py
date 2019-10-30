@@ -25,7 +25,7 @@ from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList, FunctionList
 from ..utils import logger
 
-runs_dir = 'runs'
+run_logs = 'runs'
 artifacts_dir = 'artifacts'
 functions_dir = 'functions'
 _missing = object()
@@ -46,12 +46,12 @@ class FileRunDB(RunDBInterface):
         return self
 
     def store_log(self, uid, project='', body=None, append=True):
-        filepath = self._filepath(runs_dir, project, uid, '') + '.log'
+        filepath = self._filepath(run_logs, project, uid, '') + '.log'
         # TODO: handle append
         self._datastore.put(filepath, body)
 
     def get_log(self, uid, project='', offset=0):
-        filepath = self._filepath(runs_dir, project, uid, '') + '.log'
+        filepath = self._filepath(run_logs, project, uid, '') + '.log'
         if pathlib.Path(filepath).is_file():
             with open(filepath, 'rb') as fp:
                 if offset:
@@ -61,7 +61,7 @@ class FileRunDB(RunDBInterface):
 
     def store_run(self, struct, uid, project='', commit=False):
         data = self._dumps(struct)
-        filepath = self._filepath(runs_dir, project, uid, '') + self.format
+        filepath = self._filepath(run_logs, project, uid, '') + self.format
         self._datastore.put(filepath, data)
 
     def update_run(self, updates: dict, uid, project=''):
@@ -72,13 +72,13 @@ class FileRunDB(RunDBInterface):
         self.store_run(run, uid, project, True)
 
     def read_run(self, uid, project=''):
-        filepath = self._filepath(runs_dir, project, uid, '') + self.format
+        filepath = self._filepath(run_logs, project, uid, '') + self.format
         data = self._datastore.get(filepath)
         return self._loads(data)
 
     def list_runs(self, name='', uid=None, project='', labels=[],
                   state='', sort=True, last=30):
-        filepath = self._filepath(runs_dir, project)
+        filepath = self._filepath(run_logs, project)
         results = RunList()
         if isinstance(labels, str):
             labels = labels.split(',')
@@ -97,7 +97,7 @@ class FileRunDB(RunDBInterface):
         return results
 
     def del_run(self, uid, project=''):
-        filepath = self._filepath(runs_dir, project, uid, '') + self.format
+        filepath = self._filepath(run_logs, project, uid, '') + self.format
         self._safe_del(filepath)
 
     def del_runs(self, name='', project='', labels=[], state='', days_ago=0):
@@ -105,7 +105,7 @@ class FileRunDB(RunDBInterface):
             raise RunDBError(
                 'filter is too wide, select name and/or state and/or days_ago')
 
-        filepath = self._filepath(runs_dir, project)
+        filepath = self._filepath(run_logs, project)
         if isinstance(labels, str):
             labels = labels.split(',')
 

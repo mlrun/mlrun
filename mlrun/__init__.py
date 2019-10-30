@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 from .run import get_or_create_ctx, new_function, code_to_function, import_function
 from .db import get_run_db

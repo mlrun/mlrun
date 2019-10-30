@@ -19,7 +19,6 @@ from pathlib import Path
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
-from mlrun import RunObject, RunTemplate
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
@@ -35,6 +34,9 @@ environ['MLRUN_DBPATH'] = rundb_path
 
 Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
+
+# This must be *after* environment changes above
+from mlrun import RunObject, RunTemplate  # noqa
 
 
 def tag_test(spec: RunTemplate, name) -> RunTemplate:

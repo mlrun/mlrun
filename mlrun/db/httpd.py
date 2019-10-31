@@ -340,7 +340,8 @@ def health():
     return 'OK\n'
 
 
-def main():
+@app.before_first_request
+def init_app():
     global _file_db
 
     from mlrun.config import config
@@ -348,6 +349,10 @@ def main():
     logger.info('configuration dump\n%s', config.dump_yaml())
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()
+
+
+# Don't remove this function, it's an entry point in setup.py
+def main():
     app.run(
         host='0.0.0.0',
         port=config.httpdb.port,

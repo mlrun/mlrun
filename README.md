@@ -53,7 +53,7 @@ and the idea is to make all the resources pluggable, this way developers code to
 * [Using MLRUN with Horovod and MpiJob](examples/mlrun_mpijob.ipynb)
 * [Using MLRUN with Nuclio](examples/train_xgboost_serverless.ipynb)
 * [Using MLRUN with Dask](examples/mlrun_dask.ipynb)
-* [Using MLRUN with Spark - TBD]()
+* [Using MLRUN with Spark](examples/mlrun_sparkk8s.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 * [Automating container build](examples/build.py)
 

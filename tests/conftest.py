@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 import shutil
-from copy import deepcopy
+from http import HTTPStatus
 from os import environ
+from pathlib import Path
+from time import monotonic, sleep
+from urllib.request import URLError, urlopen
+
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
@@ -32,9 +35,8 @@ environ['MLRUN_DBPATH'] = rundb_path
 Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
 
-
-from mlrun.utils import update_in
-from mlrun import RunTemplate, RunObject
+# This must be *after* environment changes above
+from mlrun import RunObject, RunTemplate  # noqa
 
 
 def tag_test(spec: RunTemplate, name) -> RunTemplate:
@@ -50,4 +52,18 @@ def has_secrets():
 
 def verify_state(result: RunObject):
     state = result.status.state
-    assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)
+    assert state == 'completed', \
+        'wrong state ({}) {}'.format(state, result.status.error)
+
+
+def wait_for_server(url, timeout_sec):
+    start = monotonic()
+    while monotonic() - start <= timeout_sec:
+        try:
+            with urlopen(url) as resp:
+                if resp.status == HTTPStatus.OK:
+                    return True
+        except (URLError, ConnectionError):
+            pass
+        sleep(0.1)
+    return False

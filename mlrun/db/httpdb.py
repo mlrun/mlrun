@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 import requests
 
 from ..utils import dict_to_json
@@ -196,6 +198,34 @@ class HTTPRunDB(RunDBInterface):
         }
         error = 'del artifacts'
         self._api_call('DELETE', 'artifacts', error, params=params)
+
+    def store_function(self, func, name, project='', tag=''):
+        params = {'tag': tag}
+        project = project or default_project
+        path = self._path_of('func', project, name)
+
+        error = f'store function {project}/{name}'
+        self._api_call(
+            'POST', path, error, params=params, body=json.dumps(func))
+
+    def get_function(self, name, project='', tag=''):
+        params = {'tag': tag}
+        project = project or default_project
+        path = self._path_of('func', project, name)
+        error = f'get function {project}/{name}'
+        resp = self._api_call('GET', path, error, params=params)
+        return resp.json()['func']
+
+    def list_functions(self, name, project='', tag='', labels=None):
+        params = {
+            'project': project or default_project,
+            'name': name,
+            'tag': tag,
+            'label': labels or [],
+        }
+        error = f'list functions'
+        resp = self._api_call('GET', 'funcs', error, params=params)
+        return resp.json()['funcs']
 
 
 def _as_json(obj):

@@ -49,13 +49,15 @@ and the idea is to make all the resources pluggable, this way developers code to
 * [Various run examples](examples/mlrun_games.ipynb)
 * [From local runs to a scalable Kubernetes cluster](examples/nuclio_jobs.ipynb)
 * [Automated workflows with KubeFlow Pipelines](examples/pipe_code.ipynb)
-* [Using MLRUN with Kubernetes Job](examples/mlrun_jobs.ipynb)
-* [Using MLRUN with Horovod and MpiJob](examples/mlrun_mpijob.ipynb)
-* [Using MLRUN with Nuclio](examples/train_xgboost_serverless.ipynb)
-* [Using MLRUN with Dask](examples/mlrun_dask.ipynb)
-* [Using MLRUN with Spark](examples/mlrun_sparkk8s.ipynb)
+* Examples for MLRun with different runtimes
+  * [Kubernetes Job](examples/mlrun_jobs.ipynb)
+  * [Horovod (TensorFlow) and MpiJob](examples/mlrun_mpijob.ipynb)
+  * [Nuclio](examples/train_xgboost_serverless.ipynb)
+  * [Dask](examples/mlrun_dask.ipynb)
+  * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 * [Automating container build](examples/build.py)
+* [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 
 ## Architecture
 

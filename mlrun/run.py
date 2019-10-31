@@ -127,6 +127,7 @@ runtime_dict = {'remote': RemoteRuntime,
 
 def import_function(url, name='', project: str = '', tag: str = '',
                     secrets=None):
+    """create function object from local/remote YAML file"""
     runtime = import_function_to_dict(url, secrets)
     return new_function(name, project=project, tag=tag, runtime=runtime)
 
@@ -141,7 +142,7 @@ def import_function_to_dict(url, secrets=None):
     cmd = code_file = get_in(runtime, 'spec.command', '')
     if ' ' in cmd:
         code_file = cmd[:cmd.find(' ')]
-    if runtime['kind'] in ['', 'local'] and code:
+    if runtime['kind'] in ['', 'local']:
         if code:
             fpath = mktemp('.py')
             code = b64decode(code).decode('utf-8')
@@ -156,7 +157,7 @@ def import_function_to_dict(url, secrets=None):
             dir = path.dirname(code_file)
             if dir:
                 makedirs(dir, exist_ok=True)
-            with open(code_file, 'w') as fp:
+            with open(code_file, 'wb') as fp:
                 fp.write(code)
         elif cmd:
             if not path.isfile(code_file):

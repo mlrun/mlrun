@@ -255,7 +255,7 @@ class SparkRuntime(KubejobRuntime):
     def get_pods(self, name=None, namespace=None, launcher=False):
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
-        selector = 'mlrun/class=sparkjob'
+        selector = 'mlrun/class=SparkApplication'
         if name:
             selector += ',spark_job_name={}'.format(name)
         if launcher:

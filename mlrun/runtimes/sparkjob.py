@@ -224,7 +224,15 @@ class SparkRuntime(KubejobRuntime):
             print("Exception when reading SparkJob: %s" % e)
         return resp
     """
-
+    def get_job(self, name, namespace=None):
+        k8s = self._get_k8s()
+        namespace = k8s.ns(namespace)
+        try:
+            resp = k8s.crdapi.get_namespaced_custom_object(
+                mpi_group, mpi_version, namespace, mpi_plural, name)
+        except client.rest.ApiException as e:
+            print("Exception when reading MPIJob: %s" % e)
+        return resp
 
     def _update_igz_jars(self, igz_version, deps=igz_deps):
         if not self.spec.deps:

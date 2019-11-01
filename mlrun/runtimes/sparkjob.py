@@ -14,6 +14,7 @@
 import json
 from pprint import pprint
 import yaml
+import time
 from copy import deepcopy
 from .base import RunError
 from .kubejob import KubejobRuntime, KubejobSpec
@@ -99,8 +100,10 @@ class SparkJobSpec(KubejobSpec):
         self.restart_policy = restart_policy
         self.deps = deps
         self.wait_for_completion = 0   # Seconds to wait for job to complete 0 = no wait
+        """
         self.job_check_interval = 10   # Check job status every N seconds (Only relevant if wait_for completion is set)
         self.wait_timeout = 0          # Wait N seconds before killing the job
+        """
 
 class SparkRuntime(KubejobRuntime):
     group = 'sparkoperator.k8s.io'
@@ -139,33 +142,65 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, 'spec.args', self.spec.args)
         resp = self._submit_job(job, meta.namespace)
         name = get_in(resp, 'metadata.name', 'unknown')
+
+        """
         job_response = resp
-        # If wait is set
-        if self.spec.wait_for_completion > 0:
-            import time
+        """
+        state = None
+        for i in range(30):
+            resp = self.get_job(meta.name, meta.namespace)
+            state = get_in(resp, 'status.launcherStatus')
+            if resp and state:
+                break
+            time.sleep(1)
 
-            running = "STARTING"
-            job_name = get_in(job_response, 'metadata.name', 'unknown')
-            logger.info('Waiting for application to start')
-            while running not in ["RUNNING", "COMPLETED", "FAILED"]:
-                result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
-                if 'status' in result:
+        if resp:
+            logger.info('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
+            if state:
+                launcher, status = self._get_launcher(meta.name, meta.namespace)
+                execution.set_hostname(launcher)
+                execution.set_state(state.lower())
+                if self.interactive or self.kfp:
+                    status = self._get_k8s().watch(launcher, meta.namespace)
+                    logger.info('SparkJob {} finished with state {}'.format(meta.name, status))
+                    if status == 'succeeded':
+                        execution.set_state('completed')
+                else:
+                    logger.info('SparkJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+                    logger.info('use .watch({}) to see logs'.format(meta.name))
+            else:
+                logger.warning('SparkJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
+
+        return None
+
+    """
+            # If wait is set
+            if self.spec.wait_for_completion > 0:
+                import time
+
+                running = "STARTING"
+                job_name = get_in(job_response, 'metadata.name', 'unknown')
+                logger.info('Waiting for application to start')
+                while running not in ["RUNNING", "COMPLETED", "FAILED"]:
+                    result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
+                    if 'status' in result:
+                        running = result['status']['applicationState']['state']
+                    time.sleep(self.spec.job_check_interval)
+
+                logger.info('Application status:' + running)
+                if running == "FAILED":
+                    raise RunError('Failed to execute application')
+
+                logger.info('Waiting for application to complete')
+                while running not in ["COMPLETED", "FAILED"]:
+                    result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
                     running = result['status']['applicationState']['state']
-                time.sleep(self.spec.job_check_interval)
+                    time.sleep(self.spec.job_check_interval)
 
-            logger.info('Application status:' + running)
-            if running == "FAILED":
-                raise RunError('Failed to execute application')
-
-            logger.info('Waiting for application to complete')
-            while running not in ["COMPLETED", "FAILED"]:
-                result = self._get_job_status(namespace=meta.namespace, job_name=job_name)
-                running = result['status']['applicationState']['state']
-                time.sleep(self.spec.job_check_interval)
-
-            if running == "FAILED":
-                raise RunError('Execution failed check the pod logs')
-            logger.info('Application completed:')
+                if running == "FAILED":
+                    raise RunError('Execution failed check the pod logs')
+                logger.info('Application completed:')
+    """
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
@@ -180,7 +215,7 @@ class SparkRuntime(KubejobRuntime):
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating SparkJob: %s" % e)
-
+    """
     def _get_job_status(self, namespace=None, job_name=None):
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
@@ -190,6 +225,7 @@ class SparkRuntime(KubejobRuntime):
         except client.rest.ApiException as e:
             print("Exception when reading SparkJob: %s" % e)
         return resp
+    """
 
     def _update_igz_jars(self, igz_version, deps=igz_deps):
         if not self.spec.deps:
@@ -208,6 +244,14 @@ class SparkRuntime(KubejobRuntime):
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
         self.apply(mount_v3iod())
         self.apply(mount_spark_conf())
+
+    def _get_launcher(self, name, namespace=None):
+        pods = self.get_pods(name, namespace, launcher=True)
+        if not pods:
+            logger.error('no pod matches that job name')
+            return
+        k8s = self._get_k8s()
+        return list(pods.items())[0]
 
     @property
     def spec(self) -> SparkJobSpec:

@@ -165,15 +165,13 @@ class RemoteRuntime(BaseRuntime):
 
         return self
 
-    def deploy(self, source='', dashboard='', project='', tag='',
-               kind=None):
+    def deploy(self, dashboard='', project='', tag='', kind=None):
 
         self.set_config('metadata.labels.mlrun/class', self.kind)
         spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
         spec.cmd = self.spec.build_commands
-        kind = kind or self.spec.function_kind
+        kind = kind if kind is not None else self.spec.function_kind
         project = project or self.metadata.project or 'mlrun'
-        source = source or self.spec.source
         handler = self.spec.function_handler
 
         if self.spec.base_spec:
@@ -189,11 +187,13 @@ class RemoteRuntime(BaseRuntime):
                 create_new=True)
         else:
 
-            name, config, code = nuclio.build_file(source, name=self.metadata.name,
-                                            project=project,
-                                            handler=handler,
-                                            tag=tag, spec=spec,
-                                            kind=kind, verbose=self.verbose)
+            name, config, code = nuclio.build_file(self.spec.source,
+                                                   name=self.metadata.name,
+                                                   project=project,
+                                                   handler=handler,
+                                                   tag=tag, spec=spec,
+                                                   kind=kind,
+                                                   verbose=self.verbose)
 
             update_in(config, 'spec.volumes', self.spec.volumes)
             addr = deploy_config(config, dashboard_url=dashboard, name=name, project=project,

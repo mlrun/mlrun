@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from os import environ
 from urllib.parse import urlparse
 
 from ..config import config
@@ -20,9 +20,13 @@ from .filedb import FileRunDB
 from .httpdb import HTTPRunDB
 
 
+def default_dbpath():
+    return config.dbpath
+
+
 def get_run_db(url=''):
     if not url:
-        url = config.dbpath or './'
+        url = default_dbpath() or './'
 
     p = urlparse(url)
     scheme = p.scheme.lower()

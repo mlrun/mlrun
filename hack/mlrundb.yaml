@@ -1,0 +1,42 @@
+# example Kubernetes spec, should add volume for persisting data
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlrun-db
+  labels:
+    app: mlrun-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlrun-db
+  template:
+    metadata:
+      labels:
+        app: mlrun-db
+    spec:
+      containers:
+      - name: mlrun-db
+        image: mlrun/mlrun-db:latest
+        imagePullPolicy: Always
+        env:
+        - name: MLRUN_HTTPDB__DIRPATH
+          value: "/mlrun/db"
+        ports:
+        - containerPort: 8080
+        command: ["pipenv", "run", "python", "-m", "mlrun", "db"]
+        args: []
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mlrun-db
+spec:
+  type: NodePort
+  selector:
+    app: mlrun-db
+  ports:
+  - protocol: TCP
+    nodePort: 30080
+    port: 8080
+    targetPort: 8080

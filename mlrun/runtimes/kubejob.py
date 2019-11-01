@@ -12,24 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import uuid
-from pprint import pprint
-
 from kubernetes import client
 
-from os import environ
-
 from ..model import RunObject
-from ..utils import get_in, logger, normalize_name, update_in
-from .base import RunError
-from .container import ContainerJobSpec, ContainerRuntime
+from ..utils import normalize_name, update_in
+from .base import RunError, FunctionSpec
+from .container import ContainerRuntime
 
 
-class KubejobSpec(ContainerJobSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None, workers=None,
+class KubejobSpec(FunctionSpec):
+    def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 replicas=None, image_pull_policy=None, service_account=None, build=None):
+                 entry_points=None, description=None, replicas=None,
+                 image_pull_policy=None, service_account=None, build=None):
         super().__init__(command=command, args=args, image=image,
-                         mode=mode, workers=workers, build=build)
+                         mode=mode, build=build,
+                         entry_points=entry_points, description=description)
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []

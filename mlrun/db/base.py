@@ -49,8 +49,8 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_runs(
-            self, name='', project='', labels=None, state='', sort=True,
-            last=0):
+            self, name='', uid=None, project='', labels=None,
+            state='', sort=True, last=0):
         pass
 
     @abstractmethod

@@ -95,7 +95,7 @@ class MpiRuntime(KubejobRuntime):
         if resp:
             logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
             if state:
-                launcher, status = self._get_lancher(meta.name, meta.namespace)
+                launcher, status = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state(state.lower())
                 if self.interactive or self.kfp:
@@ -171,30 +171,30 @@ class MpiRuntime(KubejobRuntime):
             print("Exception when reading MPIJob: %s" % e)
         return resp
 
-    def get_pods(self, name=None, namespace=None, lancher=False):
+    def get_pods(self, name=None, namespace=None, launcher=False):
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
         selector = 'mlrun/class=mpijob'
         if name:
             selector += ',mpi_job_name={}'.format(name)
-        if lancher:
+        if launcher:
             selector += ',mpi_role_type=launcher'
         pods = k8s.list_pods(selector=selector, namespace=namespace)
         if pods:
             return {p.metadata.name: p.status.phase for p in pods}
 
     def watch(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, lancher=True)
+        pods = self.get_pods(name, namespace, launcher=True)
         if not pods:
             logger.error('no pod matches that job name')
             return
         k8s = self._get_k8s()
-        pod, status = self._get_lancher(name, namespace)
+        pod, status = self._get_launcher(name, namespace)
         logger.info('watching pod {}, status = {}'.format(pod, status))
         k8s.watch(pod, namespace)
 
-    def _get_lancher(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, lancher=True)
+    def _get_launcher(self, name, namespace=None):
+        pods = self.get_pods(name, namespace, launcher=True)
         if not pods:
             logger.error('no pod matches that job name')
             return

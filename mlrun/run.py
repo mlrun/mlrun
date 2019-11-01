@@ -246,6 +246,8 @@ def process_runtime(command, runtime):
     runtime['kind'] = kind
     if kind != 'remote':
         parse_command(runtime, command)
+    else:
+        update_in(runtime, 'spec.function_kind', 'mlrun')
     return kind, runtime
 
 
@@ -288,6 +290,8 @@ def code_to_function(name='', filename='', handler='', runtime=None,
     if runtime == 'nuclio':
         r = RemoteRuntime()
         r.metadata.name = name
+        r.spec.source = filename
+        r.spec.function_handler = handler
         return r
 
     from nuclio import build_file

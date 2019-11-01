@@ -40,12 +40,14 @@ serving_handler = 'handler'
 
 def new_model_server(name, model_class: str, models: dict = None, filename='',
                      protocol='', image='', endpoint='', explainer=False,
-                     workers=8, canary=None):
+                     workers=8, canary=None, handler=None):
     f = RemoteRuntime()
     f.metadata.name = name
     if not image:
         bname, spec, code = nuclio.build_file(filename, handler=serving_handler, kind='serving')
         f.spec.base_spec = spec
+    elif handler:
+        f.spec.function_handler = handler
 
     f.serving(models, model_class, protocol, image=image, endpoint=endpoint,
               explainer=explainer, workers=workers, canary=canary)
@@ -64,7 +66,7 @@ class NuclioSpec(FunctionSpec):
                          entry_points=entry_points, description=description)
 
         self.base_spec = base_spec or ''
-        self.function_kind = function_kind or 'mlrun'
+        self.function_kind = function_kind
         self.source = source or ''
         self.volumes = volumes or []
         self.build_commands = build_commands or []
@@ -180,6 +182,7 @@ class RemoteRuntime(BaseRuntime):
             update_in(config, 'metadata.name', self.metadata.name)
             update_in(config, 'spec.volumes', self.spec.volumes)
 
+            logger.info('deploy started')
             addr = nuclio.deploy.deploy_config(
                 config, dashboard, name=self.metadata.name,
                 project=project, tag=tag, verbose=self.verbose,
@@ -204,7 +207,13 @@ class RemoteRuntime(BaseRuntime):
         return deploy_op(name, self, source=source, dashboard=dashboard,
                          project=project, models=models)
 
+    def _raise_mlrun(self):
+        if self.spec.function_kind != 'mlrun':
+            raise RunError('.run() can only be execute on "mlrun" kind'
+                           ', set function spec.function_kind to "mlrun"')
+
     def _run(self, runobj: RunObject, execution):
+        self._raise_mlrun()
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = execution.log_level
@@ -229,6 +238,7 @@ class RemoteRuntime(BaseRuntime):
         return resp.json()
 
     def _run_many(self, tasks, execution, runobj: RunObject):
+        self._raise_mlrun()
         secrets = self._secrets.to_serial() if self._secrets else None
         log_level = execution.log_level
         headers = {'x-nuclio-log-level': log_level}

@@ -252,6 +252,18 @@ class SparkRuntime(KubejobRuntime):
         self.apply(mount_v3iod())
         self.apply(mount_spark_conf())
 
+    def get_pods(self, name=None, namespace=None, launcher=False):
+        k8s = self._get_k8s()
+        namespace = k8s.ns(namespace)
+        selector = 'mlrun/class=sparkjob'
+        if name:
+            selector += ',spark_job_name={}'.format(name)
+        if launcher:
+            selector += ',spark_role_type=launcher'
+        pods = k8s.list_pods(selector=selector, namespace=namespace)
+        if pods:
+            return {p.metadata.name: p.status.phase for p in pods}
+
     def _get_launcher(self, name, namespace=None):
         pods = self.get_pods(name, namespace, launcher=True)
         if not pods:

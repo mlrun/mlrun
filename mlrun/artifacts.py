@@ -104,7 +104,7 @@ class ArtifactManager:
                 store.put(ipath, body)
             else:
                 src_path = src_path or key
-                if os.path.isfile(src_path):
+                if src_path and os.path.isfile(src_path):
                     if self.calc_hash:
                         item.hash = file_hash(src_path)
                     store.upload(ipath, src_path)

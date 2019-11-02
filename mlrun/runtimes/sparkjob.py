@@ -23,6 +23,8 @@ from ..utils import logger, get_in
 from ..model import RunObject
 from ..utils import dict_to_yaml, update_in, logger, get_in
 from ..platforms.iguazio import mount_v3io, mount_v3iod, mount_spark_conf
+from ..execution import MLClientCtx
+
 
 from kubernetes import client
 
@@ -107,7 +109,7 @@ class SparkRuntime(KubejobRuntime):
     kind = 'SparkApplication'
     plural = 'sparkapplications'
 
-    def _run(self, runobj: RunObject, execution):
+    def _run(self, runobj: RunObject, execution: MLClientCtx):
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runobj, True)
         pod_labels = deepcopy(meta.labels)
@@ -146,7 +148,7 @@ class SparkRuntime(KubejobRuntime):
 
         if state == "FAILED":
             logger.error('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
-            raise RunError('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
+            execution.set_state('error', 'SparkJob {} finished with state {}'.format(meta.name, status))
 
         if resp:
             logger.info('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
@@ -160,13 +162,13 @@ class SparkRuntime(KubejobRuntime):
                     if status == 'succeeded':
                         execution.set_state('completed')
                     else:
-                        raise RunError('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
+                        execution.set_state('error', 'SparkJob {} finished with state {}'.format(meta.name, status))
                 else:
                     logger.info('SparkJob {} driver pod {} state {}'.format(meta.name, driver, status))
                     logger.info('use .watch({}) to see logs'.format(meta.name))
             else:
                 logger.error('SparkJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
-                raise RunError('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
+                execution.set_state('error', 'SparkJob {} finished with state {}'.format(meta.name, status))
 
         return None
 

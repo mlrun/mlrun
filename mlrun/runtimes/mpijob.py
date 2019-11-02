@@ -16,7 +16,7 @@ import uuid
 from copy import deepcopy
 from os import environ
 from pprint import pprint
-
+from .base import RunError
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import dict_to_yaml, update_in, logger, get_in
@@ -112,11 +112,14 @@ class MpiRuntime(KubejobRuntime):
                     logger.info('MpiJob {} finished with state {}'.format(meta.name, status))
                     if status == 'succeeded':
                         execution.set_state('completed')
+                    else:
+                        execution.set_state('completed')
                 else:
                     logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
                     logger.info('use .watch({}) to see logs'.format(meta.name))
             else:
                 logger.warning('MpiJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
+                execution.set_state('error')
 
         return None
 

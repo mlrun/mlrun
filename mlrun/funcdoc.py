@@ -18,11 +18,12 @@ def param_dict(param: inspect.Parameter) -> dict:
 
 def func_info(fn) -> dict:
     sig = inspect.signature(fn)
+    doc = inspect.getdoc(fn)
 
     # TODO: If sig is empty, parse docstring
     out = {
         'name': fn.__name__,
-        'doc': fn.__doc__ or '',
+        'doc': doc,
         'params': [param_dict(p) for p in sig.parameters.values()],
         'return': {
             'type': type_name(sig.return_annotation),
@@ -33,8 +34,9 @@ def func_info(fn) -> dict:
     if not fn.__doc__ or not fn.__doc__.strip():
         return out
 
-    doc, params, ret = parse_rst(fn.__doc__)
+    doc, params, ret = parse_rst(doc)
     out['doc'] = doc
+
     # TODO: Check that doc matches params
     for tparam, param in zip(out['params'], params):
         tparam['doc'] = param['doc']

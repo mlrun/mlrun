@@ -38,6 +38,28 @@ def test_func_info_no_ann():
     assert out == expected, 'inc'
 
 
+def test_func_info_ann_doc():
+    def inc(n: int) -> int:
+        """increment n
+
+        :param n: number to increment
+        :returns: a number
+        :rtype: int
+        """
+        return n + 1
+
+    out = funcdoc.func_info(inc)
+    expected = {
+        'name': inc.__name__,
+        'doc': 'increment n',
+        'return': {'type': 'int', 'doc': 'a number'},
+        'params': [
+            {'name': 'n', 'type': 'int', 'doc': 'number to increment'},
+        ],
+    }
+    assert out == expected, 'inc'
+
+
 def load_cases(name):
     with open(here / name) as fp:
         data = yaml.load(fp)

@@ -17,8 +17,8 @@ from base64 import b64decode
 from copy import deepcopy
 from os import environ, path, makedirs
 from tempfile import mktemp
-
 import yaml
+from nuclio import build_file
 
 from .execution import MLClientCtx
 from .model import RunObject
@@ -272,29 +272,35 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def code_to_function(name='', filename='', handler='', runtime=None,
-                     image=None):
+def code_to_function(name='', filename='', handler='', runtime='',
+                     image=None, embed_code = True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
-    eliminate the need to build container images everytime we edit the code
+    eliminate the need to build container images every time we edit the code
 
-    :param name:      function name
-    :param filename:  blank for current notebook, or path to .py/.ipynb file
-    :param handler:   name of function handler (if not main)
-    :param runtime:   optional, runtime type local, job, dask, mpijob, ..
-    :param image:     optional, container image
+    :param name:       function name
+    :param filename:   blank for current notebook, or path to .py/.ipynb file
+    :param handler:    name of function handler (if not main)
+    :param runtime:    optional, runtime type local, job, dask, mpijob, ..
+    :param image:      optional, container image
+    :param embed_code: embed the source code into the function spec
 
     :return:
            function object
     """
-    if runtime == 'nuclio':
+    if runtime.startswith('nuclio'):
         r = RemoteRuntime()
+        kind = runtime[runtime.rfind(':')+1:] if ':' in runtime else None
+        if embed_code:
+            bname, spec, code = build_file(filename, handler=handler or 'handler', kind=kind)
+            name = name or bname
+            r.spec.base_spec = spec
+        else:
+            r.spec.source = filename
+            r.spec.function_handler = handler
         r.metadata.name = name
-        r.spec.source = filename
-        r.spec.function_handler = handler
         return r
 
-    from nuclio import build_file
     bname, spec, code = build_file(filename, handler=handler)
 
     if runtime is None or runtime in ['', 'local']:

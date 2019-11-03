@@ -28,6 +28,7 @@ from ..utils import logger
 run_logs = 'runs'
 artifacts_dir = 'artifacts'
 functions_dir = 'functions'
+default_project = 'default'
 _missing = object()
 
 
@@ -232,11 +233,9 @@ class FileRunDB(RunDBInterface):
             tag = ''
         if tag:
             key = '/' + key
-        if project:
-            return path.join(self.dirpath, '{}/{}/{}{}'.format(
-                table, project, tag, key))
-        else:
-            return path.join(self.dirpath, '{}/{}{}'.format(table, tag, key))
+        project = project or default_project
+        return path.join(self.dirpath, '{}/{}/{}{}'.format(
+            table, project, tag, key))
 
     _encodings = {
         '.yaml': ('to_yaml', dict_to_yaml),

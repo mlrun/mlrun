@@ -19,15 +19,13 @@ from socket import socket
 from subprocess import Popen
 from sys import executable
 from tempfile import mkdtemp
-from time import monotonic, sleep
-from urllib.request import urlopen, URLError
-from http import HTTPStatus
 
 import pytest
 
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
+from conftest import wait_for_server
 
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'process url log_file conn')
@@ -37,19 +35,6 @@ def free_port():
     with socket() as sock:
         sock.bind(('localhost', 0))
         return sock.getsockname()[1]
-
-
-def wait_for_server(url, timeout_sec):
-    start = monotonic()
-    while monotonic() - start <= timeout_sec:
-        try:
-            with urlopen(url) as resp:
-                if resp.status == HTTPStatus.OK:
-                    return True
-        except URLError:
-            pass
-        sleep(0.1)
-    return False
 
 
 def start_server(dirpath, log_file, env_config):
@@ -209,3 +194,29 @@ def test_bearer_auth(create_server):
 
     db.token = token
     db.list_runs()
+
+
+def test_set_get_function(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
+    db.store_function(func, name, proj)
+    db_func = db.get_function(name, proj)
+    assert db_func == func, 'wrong func'
+
+
+def test_list_functions(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    proj = 'p4'
+    count = 5
+    for i in range(count):
+        name = f'func{i}'
+        func = {'fid': i}
+        db.store_function(func, name, proj)
+    db.store_function({}, 'f2', 'p7')
+
+    out = db.list_functions('', proj)
+    assert len(out) == count, 'bad list'

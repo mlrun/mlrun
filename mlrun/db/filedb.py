@@ -50,13 +50,15 @@ class FileRunDB(RunDBInterface):
         # TODO: handle append
         self._datastore.put(filepath, body)
 
-    def get_log(self, uid, project='', offset=0):
+    def get_log(self, uid, project='', offset=0, size=0):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
         if pathlib.Path(filepath).is_file():
             with open(filepath, 'rb') as fp:
                 if offset:
                     fp.seek(offset)
-                return fp.read()
+                if not size:
+                    size = 2**18
+                return fp.read(size)
         return None
 
     def store_run(self, struct, uid, project='', commit=False):

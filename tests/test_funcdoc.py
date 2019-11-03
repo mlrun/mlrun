@@ -14,9 +14,9 @@ def test_func_info_ann():
     expected = {
         'name': inc.__name__,
         'doc': inc.__doc__,
-        'return': 'int',
+        'return': {'type': 'int', 'doc': ''},
         'params': [
-            {'name': 'n', 'type': 'int'},
+            {'name': 'n', 'type': 'int', 'doc': ''},
         ],
     }
     assert out == expected, 'inc'
@@ -30,9 +30,9 @@ def test_func_info_no_ann():
     expected = {
         'name': inc.__name__,
         'doc': '',
-        'return': '',
+        'return': {'type': '', 'doc': ''},
         'params': [
-            {'name': 'n', 'type': ''},
+            {'name': 'n', 'type': '', 'doc': ''},
         ],
     }
     assert out == expected, 'inc'

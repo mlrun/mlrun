@@ -12,18 +12,38 @@ def param_dict(param: inspect.Parameter) -> dict:
     return {
         'name': param.name,
         'type': type_name(param.annotation),
+        'doc': '',
     }
 
 
 def func_info(fn) -> dict:
     sig = inspect.signature(fn)
+
     # TODO: If sig is empty, parse docstring
-    return {
+    out = {
         'name': fn.__name__,
         'doc': fn.__doc__ or '',
         'params': [param_dict(p) for p in sig.parameters.values()],
-        'return': type_name(sig.return_annotation),
+        'return': {
+            'type': type_name(sig.return_annotation),
+            'doc': '',
+        },
     }
+
+    if not fn.__doc__ or not fn.__doc__.strip():
+        return out
+
+    doc, params, ret = parse_rst(fn.__doc__)
+    out['doc'] = doc
+    # TODO: Check that doc matches params
+    for tparam, param in zip(out['params'], params):
+        tparam['doc'] = param['doc']
+        if not tparam['type']:
+            tparam['type'] = param['type']
+    out['return']['doc'] = ret['doc']
+    if not out['return']['type']:
+        out['return']['type'] = ret['type']
+    return out
 
 
 def rst_read_doc(lines):

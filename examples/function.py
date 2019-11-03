@@ -2,7 +2,7 @@
 # - set the python base image e.g.:
 #     python:3.6-jessie
 # - add mlrun package install to the Build commands:
-#     pip install git+https://github.com/v3io/mlrun.git
+#     pip install mlrun
 
 
 from mlrun import get_or_create_ctx

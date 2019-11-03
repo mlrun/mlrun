@@ -221,6 +221,8 @@ def uxjoin(base, path, iter=None):
             base += '/'
         if iter:
             base += '{}/'.format(iter)
+        if path.startswith('/'):
+            path = path[1:]
         return '{}{}'.format(base, path)
     return path
 

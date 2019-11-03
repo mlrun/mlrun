@@ -113,13 +113,12 @@ class MpiRuntime(KubejobRuntime):
                     if status == 'succeeded':
                         execution.set_state('completed')
                     else:
-                        execution.set_state('completed')
+                        execution.set_state('error', 'MpiJob {} finished with state {}'.format(meta.name, status))
                 else:
                     logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
                     logger.info('use .watch({}) to see logs'.format(meta.name))
             else:
                 logger.warning('MpiJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
-                execution.set_state('error')
 
         return None
 

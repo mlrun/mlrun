@@ -87,6 +87,8 @@ class MpiRuntime(KubejobRuntime):
         _update_container(job, 'env', extra_env + self.spec.env)
         if self.spec.image_pull_policy:
             _update_container(job, 'imagePullPolicy', self.spec.image_pull_policy)
+        if self.spec.resources:
+            _update_container(job, 'resources', self.spec.resources)
 
         if self.spec.command:
             _update_container(job, 'command',

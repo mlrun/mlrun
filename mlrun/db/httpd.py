@@ -294,13 +294,54 @@ def del_artifacts():
     _file_db.del_artifacts(name, project, tag, labels)
     return jsonify(ok=True)
 
+# curl -d@/path/to/func.json http://localhost:8080/func/prj/7?tag=0.3.2
+@app.route('/func/<project>/<name>', methods=['POST'])
+@catch_err
+def store_function(project, name):
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    tag = request.args.get('tag', '')
+
+    _file_db.store_function(data, name, project, tag)
+    return jsonify(ok=True)
+
+
+# curl http://localhost:8080/log/prj/7?tag=0.2.3
+@app.route('/func/<project>/<name>', methods=['GET'])
+@catch_err
+def get_function(project, name):
+    tag = request.args.get('tag', '')
+    func = _file_db.get_function(name, project, tag)
+    return jsonify(ok=True, func=func)
+
+
+# curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
+@app.route('/funcs', methods=['GET'])
+@catch_err
+def list_functions():
+    name = request.args.get('name', '')
+    project = request.args.get('project', 'default')
+    tag = request.args.get('tag', '')
+    labels = request.args.getlist('label')
+
+    out = _file_db.list_functions(name, project, tag, labels)
+    return jsonify(
+        ok=True,
+        funcs=list(out),
+        tag=out.tag,
+    )
+
 
 @app.route('/healthz', methods=['GET'])
 def health():
     return 'OK\n'
 
 
-def main():
+@app.before_first_request
+def init_app():
     global _file_db
 
     from mlrun.config import config
@@ -308,6 +349,10 @@ def main():
     logger.info('configuration dump\n%s', config.dump_yaml())
     _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
     _file_db.connect()
+
+
+# Don't remove this function, it's an entry point in setup.py
+def main():
     app.run(
         host='0.0.0.0',
         port=config.httpdb.port,

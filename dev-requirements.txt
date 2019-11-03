@@ -2,5 +2,6 @@ distributed>=2.3.0
 kfp>=0.1.29
 pytest
 sklearn
+sklearn
 twine
 xgboost

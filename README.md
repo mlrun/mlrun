@@ -36,7 +36,7 @@ and the idea is to make all the resources pluggable, this way developers code to
 
 ## Content
 
-<b>Architecture and tutorial</b>
+#### Architecture and tutorial
 
 * [Managed and portable execution a.k.a Serverless](#managed-and-portable-execution)
 * [Automated parametrization, artifact tracking and logging](#automated-parametrization-artifact-tracking-and-logging)
@@ -45,17 +45,24 @@ and the idea is to make all the resources pluggable, this way developers code to
 * [Running with KubeFlow ML Pipeline](#running-with-kubeflow-ml-pipeline)
 * [Run and Artifact Database](#run-and-artifact-database)
 
-<b>Examples & Notebooks</b>
+#### Examples & Notebooks
 * [Various run examples](examples/mlrun_games.ipynb)
 * [From local runs to a scalable Kubernetes cluster](examples/nuclio_jobs.ipynb)
 * [Automated workflows with KubeFlow Pipelines](examples/pipe_code.ipynb)
-* [Using MLRUN with Kubernetes Job](examples/mlrun_jobs.ipynb)
-* [Using MLRUN with Horovod and MpiJob](examples/mlrun_mpijob.ipynb)
-* [Using MLRUN with Nuclio](examples/train_xgboost_serverless.ipynb)
-* [Using MLRUN with Dask](examples/mlrun_dask.ipynb)
-* [Using MLRUN with Spark - TBD]()
+* Examples for MLRun with different runtimes
+  * [Kubernetes Job](examples/mlrun_jobs.ipynb)
+  * [Horovod (TensorFlow) and MpiJob](examples/mlrun_mpijob_classify.ipynb)
+  * [Nuclio](examples/train_xgboost_serverless.ipynb)
+  * [Dask](examples/mlrun_dask.ipynb)
+  * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 * [Automating container build](examples/build.py)
+* [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
+
+#### Additional Examples
+
+* Complete demos can be found in [mlrun/demos repo](https://github.com/mlrun/demos)
+* MLRun Functions Library (work in progress) is in [mlrun/functions repo](https://github.com/mlrun/functions)
 
 ## Architecture
 

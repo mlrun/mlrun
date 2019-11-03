@@ -49,3 +49,10 @@ docker-db:
 	    -f Dockerfile.db \
 	    --tag mlrun/mlrun-db \
 	    .
+
+.PHONY: docker-db-gunicorn
+docker-db-gunicorn:
+	docker build \
+	    -f Dockerfile.db-gunicorn \
+	    --tag mlrun/mlrun-db-gunicorn \
+	    .

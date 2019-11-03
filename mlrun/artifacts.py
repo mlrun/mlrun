@@ -78,9 +78,14 @@ class ArtifactManager:
         # find the target path from defaults and config
         item.viewer = viewer or item.viewer
         item.src_path = src_path or item.src_path
+        if item.src_path and '://' in item.src_path:
+            raise ValueError('source path cannot be a remote URL')
         if not target_path:
             target_path = uxjoin(self.out_path, item.src_path or key, execution.iteration)
+        elif not (target_path.startswith('/') or '://' in target_path):
+            target_path = uxjoin(self.out_path, target_path, execution.iteration)
         item.target_path = target_path
+
         item.tree = execution.tag
         if labels:
             if not item.labels:
@@ -99,7 +104,7 @@ class ArtifactManager:
                 store.put(ipath, body)
             else:
                 src_path = src_path or key
-                if os.path.isfile(src_path):
+                if src_path and os.path.isfile(src_path):
                     if self.calc_hash:
                         item.hash = file_hash(src_path)
                     store.upload(ipath, src_path)

@@ -237,7 +237,7 @@ class MLClientCtx(object):
         if not url:
             url = key
         if self.in_path and not (url.startswith('/') or '://' in url):
-            url = uxjoin(self._in_path, key)
+            url = uxjoin(self._in_path, url)
         obj = self._data_stores.object(key, url)
         self._inputs[key] = obj
         return obj

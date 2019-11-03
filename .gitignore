@@ -8,3 +8,4 @@ mlrun.egg-info/
 model.txt
 results.html
 tests/test_results/
+dask-worker-space

@@ -1,0 +1,61 @@
+- name: flat with empty line
+  text: |
+    convert code or notebook to function object with embedded code
+    code stored in the function spec and can be refreshed using .with_code()
+    eliminate the need to build container images everytime we edit the code
+
+    :param name:      function name
+    :param filename:  blank for current notebook, or path to .py/.ipynb file
+    :param handler:   name of function handler (if not main)
+    :param runtime:   optional, runtime type local, job, dask, mpijob, ..
+    :param image:     optional, container image
+
+    :returns:
+           function object
+  expected:
+    doc: |
+      convert code or notebook to function object with embedded code
+      code stored in the function spec and can be refreshed using .with_code()
+      eliminate the need to build container images everytime we edit the code
+    params:
+      - name: name
+        doc: function name
+      - name: filename
+        doc: blank for current notebook, or path to .py/.ipynb file
+      - name: handler
+        doc: name of function handler (if not main)
+      - name: runtime
+        doc: optional, runtime type local, job, dask, mpijob, ..
+      - name: image
+        doc: optional, container image
+    ret:
+      doc: function object
+      type: ""
+- name: indent line
+  text: |
+    Wrap a file with storage from
+
+    :param path: The path of the file to wrap
+    :type path: str
+    :param field_storage: The :class:`FileStorage` instance to wrap
+    :type field_storage: FileStorage
+    :param temporary: Whether or not to delete the file when the File
+       instance is destructed
+    :type temporary: bool
+    :returns: A buffered writable file descriptor
+    :rtype: BufferedFileStorage
+  expected:
+    doc: Wrap a file with storage from
+    params:
+      - name: path
+        doc: The path of the file to wrap
+        type: str
+      - name: field_storage
+        doc: The :class:`FileStorage` instance to wrap
+        type: FileStorage
+      - name: temporary
+        doc: Whether or not to delete the file when the File instance is destructed
+        type: bool
+    ret:
+        doc: A buffered writable file descriptor
+        type: BufferedFileStorage

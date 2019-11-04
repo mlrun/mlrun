@@ -35,7 +35,7 @@ def write_kfpmeta(struct):
         json.dump(metrics, f)
 
     output_artifacts, out_dict = get_kfp_outputs(
-        struct['status'].get(run_keys.artifacts, []))
+        struct['status'].get(run_keys.artifacts, []), struct['metadata'].get('labels', {}))
 
     for key in struct['spec'].get(run_keys.outputs, []):
         val = 'None'
@@ -71,7 +71,7 @@ def write_kfpmeta(struct):
         json.dump(metadata, f)
 
 
-def get_kfp_outputs(artifacts):
+def get_kfp_outputs(artifacts, labels):
     outputs = []
     out_dict = {}
     for output in artifacts:
@@ -82,6 +82,10 @@ def get_kfp_outputs(artifacts):
 
         if target.startswith('v3io:///'):
             target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
+
+        user = labels.get('v3io_user', '') or environ.get('V3IO_USERNAME', '')
+        if target.startswith('/User/') and user:
+            target = 'http://v3io-webapi:8081/users/' + user + target[5:]
 
         viewer = output.get('viewer', '')
         if viewer in ['web-app', 'chart']:

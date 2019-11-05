@@ -48,7 +48,7 @@ class HTTPRunDB(RunDBInterface):
         return f'{cls}({self.base_url!r})'
 
     def _api_call(self, method, path, error=None, params=None, body=None):
-        url = f'{self.base_url}/{path}'
+        url = f'{self.base_url}/api/{path}'
         kw = {
             key: value
             for key, value in (('params', params), ('data', body))

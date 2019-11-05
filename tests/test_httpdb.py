@@ -51,7 +51,7 @@ def start_server(dirpath, log_file, env_config):
     proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
     url = f'http://localhost:{port}'
 
-    health_url = f'{url}/healthz'
+    health_url = f'{url}/api/healthz'
     timeout = 30
     if not wait_for_server(health_url, timeout):
         raise RuntimeError('server did not start after {timeout}sec')

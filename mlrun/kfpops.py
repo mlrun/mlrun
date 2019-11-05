@@ -84,7 +84,9 @@ def get_kfp_outputs(artifacts, labels):
             target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
 
         user = labels.get('v3io_user', '') or environ.get('V3IO_USERNAME', '')
-        if target.startswith('/User/') and user:
+        print('user: {}'.format(user))
+        if target.startswith('/User/'):
+            user = user or 'admin'
             target = 'http://v3io-webapi:8081/users/' + user + target[5:]
 
         viewer = output.get('viewer', '')
@@ -205,19 +207,24 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
     if runobj:
         handler = handler or runobj.spec.handler_name
-        params = params or runobj.spec.parameters or {}
-        hyperparams = hyperparams or runobj.spec.hyperparams or {}
+        params = params or runobj.spec.parameters
+        hyperparams = hyperparams or runobj.spec.hyperparams
         param_file = param_file or runobj.spec.param_file
         selector = selector or runobj.spec.selector
-        inputs = inputs or runobj.spec.inputs or {}
+        inputs = inputs or runobj.spec.inputs
         outputs = outputs or runobj.spec.outputs
         in_path = in_path or runobj.spec.input_path
         out_path = out_path or runobj.spec.output_path
-        secrets = secrets or runobj.spec.secret_sources or []
+        secrets = secrets or runobj.spec.secret_sources
         project = project or runobj.metadata.project
 
     if hyperparams or param_file:
         outputs.append('iteration_results')
+
+    params = params or {}
+    hyperparams = hyperparams or {}
+    inputs = inputs or {}
+    secrets = secrets or []
 
     if name:
         cmd += ['--name', name]

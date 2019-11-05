@@ -1,3 +1,18 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import ast
 import inspect
 import re
 
@@ -33,6 +48,10 @@ def func_info(fn) -> dict:
     if not fn.__doc__ or not fn.__doc__.strip():
         return out
 
+    return merge_doc(out, doc)
+
+
+def merge_doc(out, doc):
     doc, params, ret = parse_rst(doc)
     out['doc'] = doc
 
@@ -100,3 +119,59 @@ def parse_rst(docstring: str):
 
     params = [params[name] for name in names]
     return doc, params, ret
+
+
+def ast_func_info(func: ast.FunctionDef):
+    doc = ast_doc(func)
+
+    out = {
+        'name': func.name,
+        'doc': doc,
+        'params': [ast_param_dict(p) for p in func.args.args],
+        'return': {
+            'type': func.returns.id if func.returns else '',
+            'doc': '',
+        },
+    }
+
+    if not doc.strip():
+        return out
+
+    return merge_doc(out, doc)
+
+
+def ast_doc(func: ast.FunctionDef) -> str:
+    if not func.body:
+        return ''
+
+    if not isinstance(func.body[0], ast.Expr):
+        return ''
+
+    if not isinstance(func.body[0].value, ast.Str):
+        return ''
+
+    return inspect.cleandoc(func.body[0].value.s)
+
+
+def ast_param_dict(param: ast.arg) -> dict:
+    return {
+        'name': param.arg,
+        'type': param.annotation.id if param.annotation else '',
+        'doc': '',
+    }
+
+
+class FunctionFinder(ast.NodeVisitor):
+    def __init__(self):
+        self.funcs = []
+
+    def visit_FunctionDef(self, node):
+        self.funcs.append(node)
+        self.generic_visit(node)
+
+
+def find_functions(code: str):
+    mod = ast.parse(code)
+    finder = FunctionFinder()
+    finder.visit(mod)
+    return [ast_func_info(fn) for fn in finder.funcs]

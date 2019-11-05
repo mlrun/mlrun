@@ -20,14 +20,7 @@ from conftest import here
 from mlrun import funcdoc
 
 
-def eval_func(code):
-    out = {}
-    exec(code, None, out)
-    assert len(out) == 1, f'more than one function in:\n{code}'
-    return next(iter(out.values()))
-
-
-def load_cases(name):
+def load_rst_cases(name):
     with open(here / name) as fp:
         data = yaml.load(fp)
 
@@ -37,7 +30,7 @@ def load_cases(name):
         yield pytest.param(case['text'], case['expected'], id=tid)
 
 
-@pytest.mark.parametrize('text, expected', load_cases('rst_cases.yml'))
+@pytest.mark.parametrize('text, expected', load_rst_cases('rst_cases.yml'))
 def test_rst(text, expected):
     doc, params, ret = funcdoc.parse_rst(text)
     assert expected['doc'].strip() == doc.strip(), 'doc'
@@ -45,8 +38,22 @@ def test_rst(text, expected):
     assert expected['ret'] == ret, 'ret'
 
 
+def is_ast_func(obj):
+    return isinstance(obj, ast.FunctionDef)
+
+
 def ast_func(code):
-    return ast.parse(code).body[0]
+    funcs = [s for s in ast.parse(code).body if is_ast_func(s)]
+    assert len(funcs) == 1, f'more than one function in:\n{code}'
+    return funcs[0]
+
+
+def eval_func(code):
+    out = {}
+    exec(code, None, out)
+    funcs = [obj for obj in out.values() if callable(obj)]
+    assert len(funcs) == 1, f'more than one function in:\n{code}'
+    return funcs[0]
 
 
 info_handlers = [

@@ -18,9 +18,8 @@ def param_dict(param: inspect.Parameter) -> dict:
 
 def func_info(fn) -> dict:
     sig = inspect.signature(fn)
-    doc = inspect.getdoc(fn)
+    doc = inspect.getdoc(fn) or ''
 
-    # TODO: If sig is empty, parse docstring
     out = {
         'name': fn.__name__,
         'doc': doc,
@@ -37,7 +36,7 @@ def func_info(fn) -> dict:
     doc, params, ret = parse_rst(doc)
     out['doc'] = doc
 
-    # TODO: Check that doc matches params
+    # TODO: Check that doc matches signature
     for tparam, param in zip(out['params'], params):
         tparam['doc'] = param['doc']
         if not tparam['type']:
@@ -68,7 +67,7 @@ def rst_read_section(lines, i):
         raise ValueError(f'{i}: bad line - {lines[i]!r}')
 
     tag = match.group(1)
-    value = match.group(2).strip() if match.group(2) else None
+    value = match.group(2).strip() if match.group(2) else ''
     text = lines[i][match.end():].lstrip()
     for i in range(i+1, len(lines)):
         if re.match(r'\t+| {3,}', lines[i]):

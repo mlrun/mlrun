@@ -16,67 +16,15 @@ import ast
 
 import pytest
 import yaml
-
 from conftest import here
 from mlrun import funcdoc
 
-ann_expected = {
-    'name': 'inc',
-    'doc': 'increment n',
-    'return': {'type': 'int', 'doc': ''},
-    'params': [
-        {'name': 'n', 'type': 'int', 'doc': ''},
-    ],
-}
 
-no_ann_expected = {
-    'name': 'inc',
-    'doc': '',
-    'return': {'type': '', 'doc': ''},
-    'params': [
-        {'name': 'n', 'type': '', 'doc': ''},
-    ],
-}
-
-ann_doc_expected = {
-    'name': 'inc',
-    'doc': 'increment n',
-    'return': {'type': 'int', 'doc': 'a number'},
-    'params': [
-        {'name': 'n', 'type': 'int', 'doc': 'number to increment'},
-    ],
-}
-
-
-def test_func_info_ann():
-    def inc(n: int) -> int:
-        """increment n"""
-        return n + 1
-
-    out = funcdoc.func_info(inc)
-    assert out == ann_expected, 'inc'
-
-
-def test_func_info_no_ann():
-    def inc(n):
-        return n + 1
-
-    out = funcdoc.func_info(inc)
-    assert out == no_ann_expected, 'inc'
-
-
-def test_func_info_ann_doc():
-    def inc(n: int) -> int:
-        """increment n
-
-        :param n: number to increment
-        :returns: a number
-        :rtype: int
-        """
-        return n + 1
-
-    out = funcdoc.func_info(inc)
-    assert out == ann_doc_expected, 'inc'
+def eval_func(code):
+    out = {}
+    exec(code, None, out)
+    assert len(out) == 1, f'more than one function in:\n{code}'
+    return next(iter(out.values()))
 
 
 def load_cases(name):
@@ -97,44 +45,28 @@ def test_rst(text, expected):
     assert expected['ret'] == ret, 'ret'
 
 
-def test_ast_func_info_ann():
-    code = '''
-def inc(n: int) -> int:
-    """increment n"""
-    return n + 1
-    '''
-
-    func = ast.parse(code).body[0]
-
-    out = funcdoc.ast_func_info(func)
-    assert out == ann_expected, 'inc'
+def ast_func(code):
+    return ast.parse(code).body[0]
 
 
-def test_ast_func_info_no_ann():
-    code = '''
-def inc(n):
-    return n + 1
-    '''
-
-    func = ast.parse(code).body[0]
-
-    out = funcdoc.ast_func_info(func)
-    assert out == no_ann_expected, 'inc'
+info_handlers = [
+    (funcdoc.func_info, eval_func),
+    (funcdoc.ast_func_info, ast_func),
+]
 
 
-def test_ast_func_info_ann_doc():
-    code = '''
-def inc(n: int) -> int:
-    """increment n
+def load_info_cases():
+    with open(here / 'info_cases.yml') as fp:
+        cases = yaml.load(fp)
 
-    :param n: number to increment
-    :returns: a number
-    :rtype: int
-    """
-    return n + 1
-    '''
+    for case in cases:
+        for info_fn, conv in info_handlers:
+            obj = conv(case['code'])
+            tid = f'{case["id"]}-{info_fn.__name__}'
+            yield pytest.param(info_fn, obj, case['expected'], id=tid)
 
-    func = ast.parse(code).body[0]
 
-    out = funcdoc.ast_func_info(func)
-    assert out == ann_doc_expected, 'inc'
+@pytest.mark.parametrize('info_fn, obj, expected', load_info_cases())
+def test_func_info(info_fn, obj, expected):
+    out = info_fn(obj)
+    assert out == expected

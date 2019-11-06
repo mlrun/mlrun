@@ -84,7 +84,6 @@ def get_kfp_outputs(artifacts, labels):
             target = target.replace('v3io:///', 'http://v3io-webapi:8081/')
 
         user = labels.get('v3io_user', '') or environ.get('V3IO_USERNAME', '')
-        print('user: {}'.format(user))
         if target.startswith('/User/'):
             user = user or 'admin'
             target = 'http://v3io-webapi:8081/users/' + user + target[5:]

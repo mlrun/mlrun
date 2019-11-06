@@ -22,15 +22,21 @@ from .config import config
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
 
 
+def is_num(v):
+    return isinstance(v, (int, float, complex))
+
+
 def write_kfpmeta(struct):
     if 'status' not in struct:
         return
 
     results = struct['status'].get('results', {})
-    metrics = {'metrics':
-                   [{'name': k,
-                     'numberValue': v,
-                     } for k, v in results.items() if isinstance(v, (int, float, complex))]}
+    metrics = {
+        'metrics': [
+            {'name': k, 'numberValue': v, }
+            for k, v in results.items() if is_num(v)
+        ],
+    }
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
 
@@ -44,10 +50,11 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            logger.info('writing artifact output: /tmp/{} = {}'.format(key, val))
+            logger.info(
+                'writing artifact output: /tmp/{} = {}'.format(key, val))
             with open('/tmp/{}'.format(key), 'w') as fp:
                 fp.write(val)
-        except:
+        except Exception:
             pass
 
     text = '# Run Report\n'
@@ -56,9 +63,6 @@ def write_kfpmeta(struct):
         del struct['status']['iterations']
 
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
-
-    #with open('sum.md', 'w') as fp:
-    #    fp.write(text)
 
     metadata = {
         'outputs': output_artifacts + [{
@@ -108,8 +112,9 @@ def get_kfp_outputs(artifacts, labels):
 
 def mlrun_op(name: str = '', project: str = '', function=None,
              image: str = '', runobj=None, command: str = '',
-             secrets: list = [], params: dict = {}, hyperparams: dict = {},
-             param_file: str = '', selector: str = '', inputs: dict = {}, outputs: list = [],
+             secrets: list = None, params: dict = None,
+             hyperparams: dict = None, param_file: str = '',
+             selector: str = '', inputs: dict = None, outputs: list = None,
              in_path: str = '', out_path: str = '', rundb: str = '',
              mode: str = '', handler: str = '', more_args: list = None):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -175,15 +180,25 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         train = mlrun_train(p1, p2).apply(mount_v3io())
 
         # feed 1st step results into the secound step
-        validate = mlrun_validate(train.outputs['model-txt']).apply(mount_v3io())
+        validate = mlrun_validate(
+            train.outputs['model-txt']).apply(mount_v3io())
 
     """
     from kfp import dsl
     from os import environ
     from kubernetes import client as k8s_client
 
+    secrets = [] if secrets is None else secrets
+    params = {} if params is None else params
+    hyperparams = {} if hyperparams is None else hyperparams
+    inputs = {} if inputs is None else inputs
+    outputs = [] if outputs is None else outputs
+
     rundb = rundb or default_dbpath()
-    cmd = ['python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow', '{{workflow.uid}}']
+    cmd = [
+        'python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow',
+        '{{workflow.uid}}'
+    ]
     file_outputs = {}
 
     runtime = None
@@ -259,9 +274,11 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
     if image.startswith('.'):
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
-            image =  '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
+            image = '{}/{}'.format(
+                environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
         elif 'IGZ_NAMESPACE_DOMAIN' in environ:
-            image = 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
+            image = 'docker-registry.{}:80/{}'.format(
+                environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
         else:
             raise ValueError('local image registry env not found')
 
@@ -270,8 +287,10 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         image=image,
         command=cmd + [command],
         file_outputs=file_outputs,
-        output_artifact_paths={'mlpipeline-ui-metadata': '/mlpipeline-ui-metadata.json',
-                               'mlpipeline-metrics': '/mlpipeline-metrics.json'},
+        output_artifact_paths={
+            'mlpipeline-ui-metadata': '/mlpipeline-ui-metadata.json',
+            'mlpipeline-metrics': '/mlpipeline-metrics.json',
+        },
     )
     if rundb:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
@@ -283,8 +302,10 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
 
 def deploy_op(name, function, source='', dashboard='',
-              project='', models: dict = {}, tag='', verbose=False):
+              project='', models: dict = None, tag='', verbose=False):
     from kfp import dsl
+
+    models = {} if models is None else models
     runtime = '{}'.format(function.to_dict())
     cmd = ['python', '-m', 'mlrun', 'deploy', runtime]
     if project:
@@ -305,13 +326,15 @@ def deploy_op(name, function, source='', dashboard='',
     return cop
 
 
-def add_env(env={}):
+def add_env(env=None):
     """
         Modifier function to add env vars from dict
         Usage:
             train = train_op(...)
             train.apply(add_env({'MY_ENV':'123'}))
     """
+
+    env = {} if env is None else env
 
     def _add_env(task):
         from kubernetes import client as k8s_client
@@ -326,6 +349,8 @@ def build_op(image, context_path, secret_name='docker-secret'):
     """use kaniko to build Docker image."""
 
     from kubernetes import client as k8s_client
+    from kfp import dsl
+
     cops = dsl.ContainerOp(
         name='kaniko',
         image='gcr.io/kaniko-project/executor:latest',
@@ -339,7 +364,10 @@ def build_op(image, context_path, secret_name='docker-secret'):
             name='registry-creds',
             secret=k8s_client.V1SecretVolumeSource(
                 secret_name=secret_name,
-                items=[{'key': '.dockerconfigjson', 'path': '.docker/config.json'}],
+                items=[{
+                    'key': '.dockerconfigjson',
+                    'path': '.docker/config.json',
+                }],
             )
         ))
     cops.container.add_volume_mount(
@@ -349,7 +377,3 @@ def build_op(image, context_path, secret_name='docker-secret'):
         )
     )
     return cops
-
-#.apply(mount_v3io(remote=context_path, mount_path='/context'))
-
-

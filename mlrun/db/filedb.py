@@ -79,8 +79,9 @@ class FileRunDB(RunDBInterface):
         data = self._datastore.get(filepath)
         return self._loads(data)
 
-    def list_runs(self, name='', uid=None, project='', labels=[],
+    def list_runs(self, name='', uid=None, project='', labels=None,
                   state='', sort=True, last=30):
+        labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()
         if isinstance(labels, str):
@@ -103,7 +104,9 @@ class FileRunDB(RunDBInterface):
         filepath = self._filepath(run_logs, project, uid, '') + self.format
         self._safe_del(filepath)
 
-    def del_runs(self, name='', project='', labels=[], state='', days_ago=0):
+    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+
+        labels = [] if labels is None else labels
         if not name and not state and not days_ago:
             raise RunDBError(
                 'filter is too wide, select name and/or state and/or days_ago')
@@ -142,7 +145,8 @@ class FileRunDB(RunDBInterface):
         data = self._datastore.get(filepath)
         return self._loads(data)
 
-    def list_artifacts(self, name='', project='', tag='', labels=[]):
+    def list_artifacts(self, name='', project='', tag='', labels=None):
+        labels = [] if labels is None else labels
         tag = tag or 'latest'
         logger.info(
             f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
@@ -171,7 +175,8 @@ class FileRunDB(RunDBInterface):
             artifacts_dir, project, key, tag) + self.format
         self._safe_del(filepath)
 
-    def del_artifacts(self, name='', project='', tag='', labels=[]):
+    def del_artifacts(self, name='', project='', tag='', labels=None):
+        labels = [] if labels is None else labels
         tag = tag or 'latest'
         filepath = self._filepath(artifacts_dir, project, tag=tag)
 

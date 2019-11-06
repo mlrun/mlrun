@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
 import hashlib
 import base64
@@ -66,8 +65,9 @@ class ArtifactManager:
                 artifacts.append(artifact.base_dict())
         status[run_keys.artifacts] = artifacts
 
-    def log_artifact(self, execution, item, body=None, target_path='', src_path='',
-                     tag='', viewer='', upload=True, labels=None):
+    def log_artifact(
+        self, execution, item, body=None, target_path='', src_path='', tag='',
+            viewer='', upload=True, labels=None):
         if isinstance(item, str):
             key = item
             item = Artifact(key, body)
@@ -81,9 +81,11 @@ class ArtifactManager:
         if item.src_path and '://' in item.src_path:
             raise ValueError('source path cannot be a remote URL')
         if not target_path:
-            target_path = uxjoin(self.out_path, item.src_path or key, execution.iteration)
+            target_path = uxjoin(
+                self.out_path, item.src_path or key, execution.iteration)
         elif not (target_path.startswith('/') or '://' in target_path):
-            target_path = uxjoin(self.out_path, target_path, execution.iteration)
+            target_path = uxjoin(
+                self.out_path, target_path, execution.iteration)
         item.target_path = target_path
 
         item.tree = execution.tag
@@ -125,8 +127,9 @@ class ArtifactManager:
 
 class Artifact(ModelObj):
 
-    _dict_fields = ['key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
-                    'description', 'viewer', 'inline', 'format']
+    _dict_fields = [
+        'key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
+        'description', 'viewer', 'inline', 'format']
     kind = ''
 
     def __init__(self, key, body=None, src_path=None, target_path='',
@@ -168,7 +171,8 @@ class Artifact(ModelObj):
 
     def to_dict(self, fields=None):
         return super().to_dict(
-            self._dict_fields + ['updated', 'labels', 'annotations', 'producer', 'sources'])
+            self._dict_fields + [
+                'updated', 'labels', 'annotations', 'producer', 'sources'])
 
 
 class ModelArtifact(Artifact):
@@ -178,23 +182,29 @@ class ModelArtifact(Artifact):
     def __init__(self, key, body=None, src_path=None, target_path='',
                  viewer=None, inline=False, format=None, framework=None):
 
-        super().__init__(key, body, src_path, target_path, viewer, inline, format)
+        super().__init__(
+            key, body, src_path, target_path, viewer, inline, format)
         self.framework = framework
 
 
 class PlotArtifact(Artifact):
     kind = 'plot'
+
     def _post_init(self):
         self.viewer = 'chart'
         import matplotlib
-        if not self._body or not isinstance(self._body, matplotlib.figure.Figure):
-            raise ValueError('matplotlib fig must be provided as artifact body')
+        if not self._body or not isinstance(
+           self._body, matplotlib.figure.Figure):
+            raise ValueError(
+                'matplotlib fig must be provided as artifact body')
         if not pathlib.Path(self.key).suffix:
             self.key += '.html'
 
     def get_body(self):
-        """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use using base64 encoding. """
-        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+        """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use
+        using base64 encoding. """
+        from matplotlib.backends.backend_agg import \
+            FigureCanvasAgg as FigureCanvas
 
         canvas = FigureCanvas(self._body)
         png_output = BytesIO()
@@ -202,7 +212,8 @@ class PlotArtifact(Artifact):
         data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode('utf-8')
-        return '<img title="{}" src="data:image/png;base64,{}">'.format(self.key, data_uri)
+        return '<img title="{}" src="data:image/png;base64,{}">'.format(
+            self.key, data_uri)
 
 
 class TableArtifact(Artifact):
@@ -210,9 +221,11 @@ class TableArtifact(Artifact):
     kind = 'table'
 
     def __init__(self, key, body=None, df=None, src_path=None, target_path='',
-                         viewer=None, visible=False, inline=False, format=None, header=None, schema=None):
+                 viewer=None, visible=False, inline=False, format=None,
+                 header=None, schema=None):
 
-        super().__init__(key, body, src_path, target_path, viewer, inline, format)
+        super().__init__(
+            key, body, src_path, target_path, viewer, inline, format)
         key_suffix = pathlib.Path(key).suffix
         if not format and key_suffix:
             format = key_suffix[1:]
@@ -240,21 +253,25 @@ class TableArtifact(Artifact):
         if not self._is_df:
             return self._body
         csv_buffer = StringIO()
-        self._body.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
+        self._body.to_csv(
+            csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
         return csv_buffer.getvalue()
 
 
 chart_template = '''
 <html>
   <head>
-    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script
+        type="text/javascript"
+        src="https://www.gstatic.com/charts/loader.js"></script>
     <script type="text/javascript">
       google.charts.load('current', {'packages':['corechart']});
       google.charts.setOnLoadCallback(drawChart);
       function drawChart() {
         var data = google.visualization.arrayToDataTable($data$);
         var options = $opts$;
-        var chart = new google.visualization.$chart$(document.getElementById('chart_div'));
+        var chart = new google.visualization.$chart$(
+            document.getElementById('chart_div'));
         chart.draw(data, options);
       }
     </script>
@@ -265,13 +282,18 @@ chart_template = '''
 </html>
 '''
 
+
 class ChartArtifact(Artifact):
     kind = 'chart'
-    _dict_fields = ['key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
-                    'description', 'viewer']
+    _dict_fields = [
+        'key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
+        'description', 'viewer',
+    ]
 
-    def __init__(self, key, data=[], src_path=None, target_path='',
-                         viewer='chart', options={}):
+    def __init__(self, key, data=None, src_path=None, target_path='',
+                 viewer='chart', options=None):
+        data = [] if data is None else data
+        options = {} if options is None else options
         super().__init__(key, None, src_path, target_path, viewer)
         self.header = []
         self._rows = []
@@ -291,4 +313,3 @@ class ChartArtifact(Artifact):
         return chart_template.replace('$data$', dict_to_json(data))\
             .replace('$opts$', dict_to_json(self.options))\
             .replace('$chart$', self.chart)
-

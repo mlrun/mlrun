@@ -47,7 +47,7 @@ class HandlerRuntime(BaseRuntime):
                                         autocommit=True,
                                         tmp=tmp,
                                         host=socket.gethostname())
-        setattr(sys.modules[__name__], 'mlrun_context', context)
+        sys.modules[__name__].mlrun_context = context
         sout, serr = exec_from_params(handler, runobj, context)
         log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
@@ -71,7 +71,7 @@ class LocalRuntime(ContainerRuntime):
                                             autocommit=True,
                                             tmp=tmp,
                                             host=socket.gethostname())
-            setattr(mod, 'mlrun_context', context)
+            mod.mlrun_context = context
             sout, serr = exec_from_params(fn, runobj, context)
             log_std(self._db_conn, runobj, sout, serr)
             return context.to_dict()
@@ -87,7 +87,7 @@ class LocalRuntime(ContainerRuntime):
                 if resp:
                     return json.loads(resp)
                 logger.error('empty context tmp file')
-            except FileNotFoundError as err:
+            except FileNotFoundError:
                 logger.info('no context file found')
             return runobj.to_dict()
 
@@ -185,7 +185,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
                 filepath = obj.url
                 if obj.kind != 'file':
                     dot = filepath.rfind('.')
-                    filepath = mktemp() if dot == -1 else mktemp(filepath[dot:])
+                    filepath = mktemp() if dot == -1 else \
+                        mktemp(filepath[dot:])
                     logger.info('downloading {} to local tmp'.format(obj.url))
                     obj.download(filepath)
                 args_list.append(filepath)

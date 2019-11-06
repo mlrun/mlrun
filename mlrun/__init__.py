@@ -20,5 +20,5 @@ from .model import RunTemplate, NewRun, NewTask, RunObject
 from .kfpops import mlrun_op
 from .config import config as mlconf
 from .runtimes import new_model_server
-from .platforms import mount_v3io
+from .platforms import mount_v3io, v3io_cred
 from .datastore import get_object

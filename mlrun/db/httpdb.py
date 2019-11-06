@@ -85,7 +85,7 @@ class HTTPRunDB(RunDBInterface):
         error = f'store log {project}/{uid}'
         self._api_call('POST', path, error, params, body)
 
-    def get_log(self, uid, project=''):
+    def get_log(self, uid, project='', offset=0, size=0):
         path = self._path_of('log', project, uid)
         error = f'get log {project}/{uid}'
         resp = self._api_call('GET', path, error)

@@ -193,6 +193,8 @@ class BaseRuntime(ModelObj):
         if self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
+        if 'V3IO_USERNAME' in environ:
+            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
         meta.labels['kind'] = self.kind
         meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
         add_code_metadata(meta.labels)

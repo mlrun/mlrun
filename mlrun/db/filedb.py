@@ -28,6 +28,7 @@ from ..utils import logger
 run_logs = 'runs'
 artifacts_dir = 'artifacts'
 functions_dir = 'functions'
+default_project = 'default'
 _missing = object()
 
 
@@ -50,13 +51,15 @@ class FileRunDB(RunDBInterface):
         # TODO: handle append
         self._datastore.put(filepath, body)
 
-    def get_log(self, uid, project='', offset=0):
+    def get_log(self, uid, project='', offset=0, size=0):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
         if pathlib.Path(filepath).is_file():
             with open(filepath, 'rb') as fp:
                 if offset:
                     fp.seek(offset)
-                return fp.read()
+                if not size:
+                    size = 2**18
+                return fp.read(size)
         return None
 
     def store_run(self, struct, uid, project='', commit=False):
@@ -76,8 +79,9 @@ class FileRunDB(RunDBInterface):
         data = self._datastore.get(filepath)
         return self._loads(data)
 
-    def list_runs(self, name='', uid=None, project='', labels=[],
+    def list_runs(self, name='', uid=None, project='', labels=None,
                   state='', sort=True, last=30):
+        labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()
         if isinstance(labels, str):
@@ -100,7 +104,9 @@ class FileRunDB(RunDBInterface):
         filepath = self._filepath(run_logs, project, uid, '') + self.format
         self._safe_del(filepath)
 
-    def del_runs(self, name='', project='', labels=[], state='', days_ago=0):
+    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+
+        labels = [] if labels is None else labels
         if not name and not state and not days_ago:
             raise RunDBError(
                 'filter is too wide, select name and/or state and/or days_ago')
@@ -139,7 +145,8 @@ class FileRunDB(RunDBInterface):
         data = self._datastore.get(filepath)
         return self._loads(data)
 
-    def list_artifacts(self, name='', project='', tag='', labels=[]):
+    def list_artifacts(self, name='', project='', tag='', labels=None):
+        labels = [] if labels is None else labels
         tag = tag or 'latest'
         logger.info(
             f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
@@ -168,7 +175,8 @@ class FileRunDB(RunDBInterface):
             artifacts_dir, project, key, tag) + self.format
         self._safe_del(filepath)
 
-    def del_artifacts(self, name='', project='', tag='', labels=[]):
+    def del_artifacts(self, name='', project='', tag='', labels=None):
+        labels = [] if labels is None else labels
         tag = tag or 'latest'
         filepath = self._filepath(artifacts_dir, project, tag=tag)
 
@@ -230,11 +238,9 @@ class FileRunDB(RunDBInterface):
             tag = ''
         if tag:
             key = '/' + key
-        if project:
-            return path.join(self.dirpath, '{}/{}/{}{}'.format(
-                table, project, tag, key))
-        else:
-            return path.join(self.dirpath, '{}/{}{}'.format(table, tag, key))
+        project = project or default_project
+        return path.join(self.dirpath, '{}/{}/{}{}'.format(
+            table, project, tag, key))
 
     _encodings = {
         '.yaml': ('to_yaml', dict_to_yaml),

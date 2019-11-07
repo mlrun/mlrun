@@ -141,6 +141,7 @@ class SparkRuntime(KubejobRuntime):
         name = get_in(resp, 'metadata.name', 'unknown')
 
         state = get_in(resp, 'status.applicationState.state','SUBMITTED')
+        logger.info('SparkJob {} state={}'.format(meta.name, 'STARTING'))
         while state not in ["RUNNING", "COMPLETED", "FAILED"]:
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.applicationState.state')

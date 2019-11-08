@@ -83,6 +83,6 @@ class ArtifactList(list):
 
 
 class FunctionList(list):
-    def __init__(self, tag):
-        self.tag = tag
+    def __init__(self):
+        pass
         # TODO

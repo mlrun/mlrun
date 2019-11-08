@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from base64 import b64encode
-from os import path, environ, makedirs
+from os import path, environ, makedirs, listdir
 from shutil import copyfile
 from urllib.parse import urlparse
 from .utils import run_keys
@@ -328,7 +328,7 @@ class HttpStore(DataStore):
 class V3ioStore(DataStore):
     def __init__(self, parent: StoreManager, schema, name, endpoint=''):
         super().__init__(parent, name, schema, endpoint)
-        self.endpoint = self.endpoint or environ.get('V3IO_API')
+        self.endpoint = self.endpoint or environ.get('V3IO_API', 'v3io-webapi:8081')
 
         token = self._secret('V3IO_ACCESS_KEY') or environ.get('V3IO_ACCESS_KEY')
         username = self._secret('V3IO_USERNAME') or environ.get('V3IO_USERNAME')

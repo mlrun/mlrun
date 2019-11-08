@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """mlrun database HTTP server"""
-
+import mimetypes
 from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
+from os import environ, path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 
+from mlrun import get_object
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger
@@ -139,6 +141,37 @@ def submit_job(func=''):
         )
 
     return jsonify(ok=True, data=resp.to_dict())
+
+
+# curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
+@app.route('/api/files', methods=['GET'])
+@catch_err
+def get_files():
+    schema = request.args.get('schema', '')
+    path = request.args.get('path', '')
+    # size = int(request.args.get('size', '16')) * 1024
+
+    _, filename = path.split(path)
+
+    if schema:
+        path = schema + '://' + path
+    elif path.startswith('/User/'):
+        user = environ.get('V3IO_USERNAME', 'admin')
+        path = 'v3io:///users/' + user + path[5:]
+
+    try:
+        body = get_object(path)
+    except FileNotFoundError as e:
+        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+    if body is None:
+        return json_error(HTTPStatus.NOT_FOUND, path=path)
+
+    ctype, _ = mimetypes.guess_type(path)
+    if not ctype:
+        ctype = 'application/octet-stream'
+
+    print(body)
+    return Response(body, mimetype=ctype, headers={"x-suggested-filename": filename})
 
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
@@ -336,7 +369,6 @@ def list_functions():
     return jsonify(
         ok=True,
         funcs=list(out),
-        tag=out.tag,
     )
 
 

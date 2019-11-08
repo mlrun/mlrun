@@ -62,7 +62,7 @@ class MLClientCtx(object):
         self._labels = {}
         self._annotations = {}
 
-        self._runtime = {}
+        self._function = ''
         self._parameters = {}
         self._in_path = ''
         self._out_path = ''
@@ -120,7 +120,7 @@ class MLClientCtx(object):
         if spec:
             self._secrets_manager = SecretsStore.from_dict(spec)
             self._log_level = spec.get('log_level', self._log_level)
-            self._runtime = spec.get('runtime', self._runtime)
+            self._function = spec.get('function', self._function)
             self._parameters = spec.get('parameters', self._parameters)
             self._outputs = spec.get('outputs', self._outputs)
             self._out_path = spec.get(run_keys.output_path, self._out_path)
@@ -352,7 +352,7 @@ class MLClientCtx(object):
                  'labels': self._labels,
                  'annotations': self._annotations},
             'spec':
-                {'runtime': self._runtime,
+                {'function': self._function,
                  'log_level': self._log_level,
                  'parameters': self._parameters,
                  'outputs': self._outputs,

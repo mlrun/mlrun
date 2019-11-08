@@ -79,7 +79,7 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def del_artifacts(
-            self, name='', project='', tag='', labels=None, days_ago=0):
+            self, name='', project='', tag='', labels=None):
         pass
 
     # TODO: Make these abstract once filedb implements them

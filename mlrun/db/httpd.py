@@ -369,7 +369,6 @@ def list_functions():
     return jsonify(
         ok=True,
         funcs=list(out),
-        tag=out.tag,
     )
 
 

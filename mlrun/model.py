@@ -84,10 +84,11 @@ class ModelObj:
 
 
 class BaseMetadata(ModelObj):
-    def __init__(self, name=None, tag=None, namespace=None, project=None,
-                 labels=None, annotations=None):
+    def __init__(self, name=None, tag=None, hash=None, namespace=None,
+                 project=None, labels=None, annotations=None):
         self.name = name
         self.tag = tag
+        self.hash = hash
         self.namespace = namespace
         self.project = project
         self.labels = labels or {}
@@ -132,7 +133,7 @@ class RunMetadata(ModelObj):
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  selector=None, handler=None, inputs=None, outputs=None,
-                 input_path=None, output_path=None,
+                 input_path=None, output_path=None, function=None,
                  secret_sources=None, data_stores=None):
 
         self.parameters = parameters or {}
@@ -144,6 +145,7 @@ class RunSpec(ModelObj):
         self._outputs = outputs
         self.input_path = input_path
         self.output_path = output_path
+        self.function = function
         self._secret_sources = secret_sources or []
         self._data_stores = data_stores
 

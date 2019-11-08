@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import hashlib
 import inspect
 import sys
 import uuid
@@ -123,6 +124,16 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
+    def calc_hash(self):
+        #hashkey = self.metadata.hash
+        self.metadata.hash = ''
+        data = self.to_json().encode()
+        h = hashlib.sha1()
+        h.update(data)
+        hashkey = h.hexdigest()
+        self.metadata.hash = hashkey
+        return hashkey
+
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
             out_path: str = '', visible: bool = True):
@@ -207,6 +218,15 @@ class BaseRuntime(ModelObj):
         meta.labels['kind'] = self.kind
         meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
         add_code_metadata(meta.labels)
+
+        hashkey = self.calc_hash()
+        if self._db_conn:
+            self._db_conn.store_function(self.to_dict(), self.metadata.name,
+                                         self.metadata.project, hashkey)
+        furi = '{}:{}'.format(self.metadata.name, hashkey)
+        if self.metadata.project and self.metadata.project != 'default':
+            furi = '{}/{}'.format(self.metadata.project, furi)
+        runspec.spec.function = furi
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           self._db_conn,
@@ -442,6 +462,7 @@ class BaseRuntime(ModelObj):
         if self.kind == 'handler':
             raise ValueError('cannot export local handler function, use ' +
                              'code_to_function() to serialize your function')
+        self.calc_hash()
         if format == '.yaml':
             data = self.to_yaml()
         else:

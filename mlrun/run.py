@@ -27,6 +27,7 @@ from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
 from .utils import update_in, get_in, logger
 from .datastore import get_object
+from .db import get_run_db, default_dbpath
 
 
 def get_or_create_ctx(name: str,
@@ -126,9 +127,14 @@ runtime_dict = {'remote': RemoteRuntime,
                 'spark': SparkRuntime}
 
 
-def import_function(url, name='', project: str = '', tag: str = '',
-                    secrets=None):
-    """create function object from local/remote YAML file"""
+def import_function(url='', name='', project: str = '', tag: str = '',
+                    secrets=None, rundb=''):
+    """create function object from DB or local/remote YAML file"""
+    if not url:
+        db = get_run_db(rundb or default_dbpath()).connect(secrets)
+        runtime = db.get_function(name, project, tag)
+        return new_function(runtime=runtime)
+
     runtime = import_function_to_dict(url, secrets)
     return new_function(name, project=project, tag=tag, runtime=runtime)
 

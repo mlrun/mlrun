@@ -85,7 +85,7 @@ class ModelObj:
 
 class BaseMetadata(ModelObj):
     def __init__(self, name=None, tag=None, hash=None, namespace=None,
-                 project=None, labels=None, annotations=None):
+                 project=None, labels=None, annotations=None, updated=None):
         self.name = name
         self.tag = tag
         self.hash = hash
@@ -93,6 +93,7 @@ class BaseMetadata(ModelObj):
         self.project = project
         self.labels = labels or {}
         self.annotations = annotations or {}
+        self.updated = updated
 
 
 class ImageBuilder(ModelObj):

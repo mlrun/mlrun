@@ -311,6 +311,7 @@ def code_to_function(name='', filename='', handler='', runtime='',
     if runtime.startswith('nuclio'):
         r = RemoteRuntime()
         kind = runtime[runtime.rfind(':')+1:] if ':' in runtime else None
+        r.spec.function_kind = kind
         if embed_code:
             name, spec, code = build_file(filename, name=name,
                                           handler=handler or 'handler',

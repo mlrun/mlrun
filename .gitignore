@@ -1,6 +1,7 @@
 build
 chart
 chart.html
+dask-worker-space/
 dataset.csv
 dist
 iteration_results.csv

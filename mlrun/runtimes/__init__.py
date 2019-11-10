@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import RunError, BaseRuntime
-from .local import HandlerRuntime, LocalRuntime
-from .function import RemoteRuntime, new_model_server
-from .mpijob import MpiRuntime
-from .dask import DaskCluster
-from .kubejob import KubejobRuntime
-from .sparkjob import SparkRuntime
+from .base import RunError, BaseRuntime  # noqa
+from .local import HandlerRuntime, LocalRuntime  # noqa
+from .function import RemoteRuntime, new_model_server  # noqa
+from .mpijob import MpiRuntime  # noqa
+from .dask import DaskCluster  # noqa
+from .kubejob import KubejobRuntime  # noqa
+from .sparkjob import SparkRuntime  # noqa

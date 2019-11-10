@@ -44,7 +44,8 @@ def new_model_server(name, model_class: str, models: dict = None, filename='',
     f = RemoteRuntime()
     f.metadata.name = name
     if not image:
-        bname, spec, code = nuclio.build_file(filename, handler=serving_handler, kind='serving')
+        bname, spec, code = nuclio.build_file(
+            filename, handler=serving_handler, kind='serving')
         f.spec.base_spec = spec
     elif handler:
         f.spec.function_handler = handler
@@ -80,7 +81,6 @@ class NuclioSpec(FunctionSpec):
 
 class RemoteRuntime(BaseRuntime):
     kind = 'remote'
-    #kind = 'nuclio'
 
     def __init__(self, metadata=None, spec=None):
         super().__init__(metadata, spec)
@@ -104,11 +104,14 @@ class RemoteRuntime(BaseRuntime):
 
     def add_volume(self, local, remote, name='fs',
                    access_key='', user=''):
-        vol = v3io_to_vol(name, remote=remote, access_key=access_key, user=user)
+        vol = v3io_to_vol(
+            name, remote=remote, access_key=access_key, user=user)
         api = client.ApiClient()
         vol = api.sanitize_for_serialization(vol)
-        self.spec.volumes.append({'volume': vol,
-                                  'volumeMount': {'name': name, 'mountPath': local}})
+        self.spec.volumes.append({
+            'volume': vol,
+            'volumeMount': {'name': name, 'mountPath': local},
+        })
         return self
 
     def add_trigger(self, name, spec):
@@ -135,15 +138,16 @@ class RemoteRuntime(BaseRuntime):
     def add_model(self, key, model):
         if model.startswith('v3io://'):
             model = '/User/' + '/'.join(model.split('/')[5:])
-        if '://' not in model:
-            model = 'file://' + model
+        #if '://' not in model:
+        #    model = 'file://' + model
         if not model.endswith('/'):
             model = model[:model.rfind('/')]
         self.set_env('SERVING_MODEL_{}'.format(key), model)
         return self
 
-    def serving(self, models: dict = None, model_class='', protocol='', image='',
-                endpoint='', explainer=False, workers=8, canary=None):
+    def serving(
+      self, models: dict = None, model_class='', protocol='', image='',
+      endpoint='', explainer=False, workers=8, canary=None):
 
         if models:
             for k, v in models.items():
@@ -158,7 +162,8 @@ class RemoteRuntime(BaseRuntime):
         if image:
             config = nuclio.config.new_config()
             update_in(config, 'spec.handler',
-                      self.spec.function_handler or 'main:{}'.format(serving_handler))
+                      self.spec.function_handler or 'main:{}'.format(
+                          serving_handler))
             update_in(config, 'spec.image', image)
             update_in(config, 'spec.build.codeEntryType', 'image')
             self.spec.base_spec = config
@@ -175,8 +180,8 @@ class RemoteRuntime(BaseRuntime):
         handler = self.spec.function_handler
 
         if self.spec.base_spec:
-            config = nuclio.config.extend_config(self.spec.base_spec, spec, tag,
-                                                 self.spec.source)
+            config = nuclio.config.extend_config(
+                self.spec.base_spec, spec, tag, self.spec.source)
             update_in(config, 'metadata.name', self.metadata.name)
             update_in(config, 'spec.volumes', self.spec.volumes)
 
@@ -196,13 +201,15 @@ class RemoteRuntime(BaseRuntime):
                                                    verbose=self.verbose)
 
             update_in(config, 'spec.volumes', self.spec.volumes)
-            addr = deploy_config(config, dashboard_url=dashboard, name=name, project=project,
-                                 tag=tag, verbose=self.verbose, create_new=True)
+            addr = deploy_config(
+                config, dashboard_url=dashboard, name=name, project=project,
+                tag=tag, verbose=self.verbose, create_new=True)
 
         self.spec.command = 'http://{}'.format(addr)
         return self.spec.command
 
-    def deploy_step(self, source='', dashboard='', project='', models={}):
+    def deploy_step(self, source='', dashboard='', project='', models=None):
+        models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         return deploy_op(name, self, source=source, dashboard=dashboard,
                          project=project, models=models)
@@ -222,10 +229,12 @@ class RemoteRuntime(BaseRuntime):
             command = '{}/{}'.format(command, runobj.spec.handler_name)
         headers = {'x-nuclio-log-level': log_level}
         try:
-            resp = requests.put(command, json=runobj.to_dict(), headers=headers)
+            resp = requests.put(
+                command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
             logger.error('error invoking function: {}'.format(err))
-            raise OSError('error: cannot run function at url {}'.format(command))
+            raise OSError(
+                'error: cannot run function at url {}'.format(command))
 
         if not resp.ok:
             logger.error('bad function resp!!\n{}'.format(resp.text))
@@ -289,7 +298,8 @@ def parse_logs(logs):
             if k not in ['time', 'level', 'name', 'message']:
                 extra.append('{}={}'.format(k, v))
         line['extra'] = ', '.join(extra)
-        line['time'] = datetime.fromtimestamp(float(line['time'])/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        line['time'] = datetime.fromtimestamp(
+            float(line['time'])/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
         lines += '{time}  {level:<6} {message}  {extra}\n'.format(**line)
 
     return lines
@@ -325,5 +335,3 @@ def fake_nuclio_context(body, headers=None):
             value.set_handler('mlrun', stdout, HumanReadableFormatter())
 
     return FunctionContext(), Event(body=body, headers=headers)
-
-

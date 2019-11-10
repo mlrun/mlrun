@@ -53,7 +53,7 @@ def build_docker():
         out = run(cmd, stdout=PIPE, check=True)
         cid = out.stdout.decode('utf-8').strip()
 
-        url = f'http://localhost:{port}/healthz'
+        url = f'http://localhost:{port}/api/healthz'
         timeout = 30
         assert wait_for_server(url, timeout), \
             f'server failed to start after {timeout} seconds, url={url}'

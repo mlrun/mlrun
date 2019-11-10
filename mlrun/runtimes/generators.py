@@ -15,7 +15,6 @@
 from io import BytesIO
 import pandas as pd
 from copy import deepcopy
-from ..utils import get_in, update_in
 from ..model import RunObject
 
 
@@ -74,7 +73,7 @@ class ListGenerator(TaskGenerator):
 
     def generate(self, run: RunObject):
         i = 0
-        for idx, row in self.df.iterrows():
+        for _, row in self.df.iterrows():
             newrun = deepcopy(run)
             newrun.spec.param_file = None
             param_dict = newrun.spec.parameters or {}
@@ -84,7 +83,3 @@ class ListGenerator(TaskGenerator):
             newrun.metadata.iteration = i + 1
             i += 1
             yield newrun
-
-
-
-

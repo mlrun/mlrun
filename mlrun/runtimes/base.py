@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import hashlib
 import inspect
 import sys
 import uuid
@@ -26,7 +27,8 @@ from io import StringIO
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
 from ..db import get_run_db, default_dbpath
-from ..model import RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder
+from ..model import (
+    RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython
 from ..execution import MLClientCtx
@@ -50,7 +52,8 @@ class EntrypointParam(ModelObj):
 class FunctionEntrypoint(ModelObj):
     def __init__(self, doc=None, parameters=None, outputs=None):
         self.doc = doc
-        self.parameters = parameters or {}  # todo: type verification, EntrypointParam dict
+        # TODO: type verification, EntrypointParam dict
+        self.parameters = parameters or {}
         self.outputs = outputs or {}
 
 
@@ -67,7 +70,8 @@ class FunctionSpec(ModelObj):
 
         self._build = None
         self.build = build
-        self.entry_points = entry_points or {}  # TODO: type verification (FunctionEntrypoint dict)
+        # TODO: type verification (FunctionEntrypoint dict)
+        self.entry_points = entry_points or {}
 
     @property
     def build(self) -> ImageBuilder:
@@ -120,6 +124,16 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
+    def calc_hash(self):
+        #hashkey = self.metadata.hash
+        self.metadata.hash = ''
+        data = self.to_json().encode()
+        h = hashlib.sha1()
+        h.update(data)
+        hashkey = h.hexdigest()
+        self.metadata.hash = hashkey
+        return hashkey
+
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
             out_path: str = '', visible: bool = True):
@@ -134,7 +148,8 @@ class BaseRuntime(ModelObj):
         :param out_path:   default artifact output path
         :param visible:    show run results in Jupyter
 
-        :return: run context object (dict) with run metadata, results and status
+        :return: run context object (dict) with run metadata, results and
+            status
         """
 
         def show(resp):
@@ -143,13 +158,17 @@ class BaseRuntime(ModelObj):
             if resp:
                 results.append(resp)
             else:
-                logger.info('no returned result (job may still be in progress)')
+                logger.info(
+                    'no returned result (job may still be in progress)')
                 results.append(runspec.to_dict())
             if is_ipython and visible:
                 results.show()
-            print('type result.show() to see detailed results/progress or use CLI:')
+            print(
+                'type result.show() to see detailed results/progress or '
+                'use CLI:')
             uid = runspec.metadata.uid
-            project = '--project {}'.format(runspec.metadata.project) if runspec.metadata.project else ''
+            project = '--project {}'.format(
+                runspec.metadata.project) if runspec.metadata.project else ''
             print('!mlrun get run --uid {} {}'.format(uid, project))
             return resp
 
@@ -162,7 +181,8 @@ class BaseRuntime(ModelObj):
             runspec = RunObject.from_template(runspec)
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
-        runspec.metadata.name = name or runspec.metadata.name or self.metadata.name
+        runspec.metadata.name = name or runspec.metadata.name or \
+            self.metadata.name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
@@ -193,9 +213,20 @@ class BaseRuntime(ModelObj):
         if self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
+        if 'V3IO_USERNAME' in environ:
+            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
         meta.labels['kind'] = self.kind
         meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
         add_code_metadata(meta.labels)
+
+        hashkey = self.calc_hash()
+        if self._db_conn:
+            self._db_conn.store_function(self.to_dict(), self.metadata.name,
+                                         self.metadata.project, hashkey)
+        furi = '{}:{}'.format(self.metadata.name, hashkey)
+        if self.metadata.project and self.metadata.project != 'default':
+            furi = '{}/{}'.format(self.metadata.project, furi)
+        runspec.spec.function = furi
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           self._db_conn,
@@ -365,7 +396,8 @@ class BaseRuntime(ModelObj):
         execution.log_iteration_results(id, summary, task)
 
         csv_buffer = StringIO()
-        df.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
+        df.to_csv(
+            csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
         execution.log_artifact(
             TableArtifact('iteration_results',
                           src_path='iteration_results.csv',
@@ -373,27 +405,32 @@ class BaseRuntime(ModelObj):
                           header=header,
                           viewer='table'))
         if failed:
-            execution.set_state(error='{} tasks failed, check logs for db for details'.format(failed))
+            execution.set_state(
+                error='{} tasks failed, check logs for db for details'.format(
+                    failed))
         else:
             execution.set_state('completed')
 
     def _force_handler(self, handler):
         if not handler:
-            raise RunError('handler must be provided for {} runtime'.format(self.kind))
+            raise RunError(
+                'handler must be provided for {} runtime'.format(self.kind))
 
     def _image_path(self):
         image = self.spec.image
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
-            return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
+            return '{}/{}'.format(
+                environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
         if 'IGZ_NAMESPACE_DOMAIN' in environ:
-            return 'docker-registry.{}:80/{}'.format(environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
+            return 'docker-registry.{}:80/{}'.format(
+                environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
         raise RunError('local container registry is not defined')
 
     def to_step(self, runspec: RunObject = None, handler=None, name: str = '',
-                project: str = '', params: dict = None, hyperparams=None, selector='',
-                inputs: dict = None, outputs: dict = None,
+                project: str = '', params: dict = None, hyperparams=None,
+                selector='', inputs: dict = None, outputs: dict = None,
                 in_path: str = '', out_path: str = ''):
         """Run a local or remote task.
 
@@ -420,10 +457,12 @@ class BaseRuntime(ModelObj):
                         out_path=out_path, in_path=in_path)
 
     def export(self, target='', format='.yaml', secrets=None):
-        """save function spec to a local/remote path (default to ./function.yaml)"""
+        """save function spec to a local/remote path (default to
+        ./function.yaml)"""
         if self.kind == 'handler':
             raise ValueError('cannot export local handler function, use ' +
                              'code_to_function() to serialize your function')
+        self.calc_hash()
         if format == '.yaml':
             data = self.to_yaml()
         else:
@@ -446,7 +485,6 @@ def selector(results: list, criteria):
         op = criteria[:idx]
         criteria = criteria[idx + 1:]
 
-
     best_id = 0
     best_item = 0
     if op == 'max':
@@ -465,7 +503,7 @@ def selector(results: list, criteria):
         if isinstance(val, str):
             try:
                 val = float(val)
-            except:
+            except Exception:
                 val = None
         if state != 'error' and val is not None:
             if (op == 'max' and val > best_val) \

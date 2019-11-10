@@ -13,12 +13,13 @@
 # limitations under the License.
 import json
 import socket
+import uuid
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, path, makedirs
 from tempfile import mktemp
-
 import yaml
+from nuclio import build_file
 
 from .execution import MLClientCtx
 from .model import RunObject
@@ -139,6 +140,7 @@ def import_function_to_dict(url, secrets=None):
     remote = '://' in url
 
     code = get_in(runtime, 'spec.build.functionSourceCode')
+    update_in(runtime, 'metadata.labels.source', url)
     cmd = code_file = get_in(runtime, 'spec.command', '')
     if ' ' in cmd:
         code_file = cmd[:cmd.find(' ')]
@@ -195,7 +197,6 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     :param image:    default container image
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param rundb:    optional, path/url to the metadata and artifact database
     :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
     :param kfp:      flag indicating running within kubeflow pipeline
     :param interactive:   run the tasks synchronously and print the output
@@ -203,11 +204,13 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     :return: function object
     """
     kind, runtime = process_runtime(command, runtime)
+    command = get_in(runtime, 'spec.command', command)
+    name = name or get_in(runtime, 'metadata.name', '')
 
-    if not kind and not get_in(runtime, 'spec.command', command):
+    if not kind and not command:
         runner = HandlerRuntime()
     else:
-        if kind in ['', 'local'] and get_in(runtime, 'spec.command'):
+        if kind in ['', 'local'] and command:
             runner = LocalRuntime.from_dict(runtime)
         elif kind in runtime_dict:
             runner = runtime_dict[kind].from_dict(runtime)
@@ -216,8 +219,13 @@ def new_function(name: str = '', project: str = '', tag: str = '',
                             + 'supported runtimes: {}'.format(
                               ','.join(list(runtime_dict.keys()) + ['local'])))
 
-    if name:
-        runner.metadata.name = name
+    if not name:
+        # todo: regex check for valid name
+        if command and kind not in ['remote']:
+            name, _ = path.splitext(path.basename(command))
+        else:
+            name = 'mlrun-' + uuid.uuid4().hex[0:6]
+    runner.metadata.name = name
     if project:
         runner.metadata.project = project
     if tag:
@@ -272,30 +280,48 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def code_to_function(name='', filename='', handler='', runtime=None,
-                     image=None):
+def code_to_function(name='', filename='', handler='', runtime='',
+                     image=None, embed_code = True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
-    eliminate the need to build container images everytime we edit the code
+    eliminate the need to build container images every time we edit the code
 
-    :param name:      function name
-    :param filename:  blank for current notebook, or path to .py/.ipynb file
-    :param handler:   name of function handler (if not main)
-    :param runtime:   optional, runtime type local, job, dask, mpijob, ..
-    :param image:     optional, container image
+    :param name:       function name
+    :param filename:   blank for current notebook, or path to .py/.ipynb file
+    :param handler:    name of function handler (if not main)
+    :param runtime:    optional, runtime type local, job, dask, mpijob, ..
+    :param image:      optional, container image
+    :param embed_code: embed the source code into the function spec
 
     :return:
            function object
     """
-    if runtime == 'nuclio':
+    filebase, _ = path.splitext(path.basename(filename))
+
+    def tag_name(labels, nbname):
+        if filename:
+            labels['filename'] = filename
+        elif nbname:
+            labels['filename'] = '{}.ipynb'.format(nbname)
+
+    nbname = ''
+    if runtime.startswith('nuclio'):
         r = RemoteRuntime()
-        r.metadata.name = name
-        r.spec.source = filename
-        r.spec.function_handler = handler
+        kind = runtime[runtime.rfind(':')+1:] if ':' in runtime else None
+        if embed_code:
+            nbname, spec, code = build_file(filename, handler=handler or 'handler', kind=kind)
+            name = name or nbname
+            r.spec.base_spec = spec
+        else:
+            r.spec.source = filename
+            r.spec.function_handler = handler
+        r.metadata.name = name or filebase
+        if not r.metadata.name:
+            raise ValueError('name must be specified')
+        tag_name(r.metadata.labels, nbname)
         return r
 
-    from nuclio import build_file
-    bname, spec, code = build_file(filename, handler=handler)
+    nbname, spec, code = build_file(filename, handler=handler)
 
     if runtime is None or runtime in ['', 'local']:
         r = LocalRuntime()
@@ -307,8 +333,11 @@ def code_to_function(name='', filename='', handler='', runtime=None,
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
-    r.metadata.name = name or bname or 'mlrun'
+    r.metadata.name = name or nbname or filebase
+    if not r.metadata.name:
+        raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
+    tag_name(r.metadata.labels, nbname)
     build = r.spec.build
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')

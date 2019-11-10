@@ -234,7 +234,7 @@ def ast_code(expr):
     children = None
     if isinstance(expr, ast.Dict):
         children = zip(expr.keys, expr.values)
-        children = [f'{k.s}={ast_code(v)}' for k, v in children]
+        children = [f'{ast_code(k)}: {ast_code(v)}' for k, v in children]
         inner = ', '.join(children)
         return f'{{{inner}}}'
     elif isinstance(expr, ast.Set):

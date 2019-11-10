@@ -23,15 +23,27 @@ def type_name(ann):
     return getattr(ann, '__name__', str(ann))
 
 
+def inspect_default(value):
+    if value is inspect.Signature.empty:
+        return ''
+    return repr(value)
+
+
 def inspect_param(param: inspect.Parameter) -> dict:
-    return param_dict(param.name, type_name(param.annotation))
+    name = param.name
+    typ = type_name(param.annotation)
+    default = inspect_default(param.default)
+    return param_dict(name, typ, '', default)
 
 
-def param_dict(name='', type='', doc=''):
+# We're using dict and not classes (here and in func_dict) since this goes
+# directly to YAML
+def param_dict(name='', type='', doc='', default=''):
     return {
+        'default': default,
+        'doc': doc,
         'name': name,
         'type': type,
-        'doc': doc,
     }
 
 
@@ -141,13 +153,18 @@ def parse_rst(docstring: str):
 
 
 def ast_func_info(func: ast.FunctionDef):
-    doc = ast_doc(func)
+    doc = ast.get_docstring(func) or ''
     rtype = func.returns.id if func.returns else ''
+    params = [ast_param_dict(p) for p in func.args.args]
+    defaults = func.args.defaults
+    if defaults:
+        for param, default in zip(params[-len(defaults):], defaults):
+            param['default'] = ast_code(default)
 
     out = func_dict(
         name=func.name,
         doc=doc,
-        params=[ast_param_dict(p) for p in func.args.args],
+        params=params,
         returns=param_dict(type=rtype),
         lineno=func.lineno,
     )
@@ -158,30 +175,23 @@ def ast_func_info(func: ast.FunctionDef):
     return merge_doc(out, doc)
 
 
-def ast_doc(func: ast.FunctionDef) -> str:
-    if not func.body:
-        return ''
-
-    if not isinstance(func.body[0], ast.Expr):
-        return ''
-
-    if not isinstance(func.body[0].value, ast.Str):
-        return ''
-
-    return inspect.cleandoc(func.body[0].value.s)
-
-
 def ast_param_dict(param: ast.arg) -> dict:
     return {
         'name': param.arg,
         'type': param.annotation.id if param.annotation else '',
         'doc': '',
+        'default': '',
     }
 
 
-class FunctionFinder(ast.NodeVisitor):
+class ASTVisitor(ast.NodeVisitor):
     def __init__(self):
         self.funcs = []
+        self.exprs = []
+
+    def generic_visit(self, node):
+        self.exprs.append(node)
+        super().generic_visit(node)
 
     def visit_FunctionDef(self, node):
         self.funcs.append(node)
@@ -190,9 +200,9 @@ class FunctionFinder(ast.NodeVisitor):
 
 def find_functions(code: str):
     mod = ast.parse(code)
-    finder = FunctionFinder()
-    finder.visit(mod)
-    funcs = [ast_func_info(fn) for fn in finder.funcs]
+    visitor = ASTVisitor()
+    visitor.visit(mod)
+    funcs = [ast_func_info(fn) for fn in visitor.funcs]
     markers = find_handler_markers(code)
     return filter_funcs(funcs, markers)
 
@@ -217,3 +227,28 @@ def find_handler_markers(code: str):
         # '# mlrun:handler'
         if re.match(r'#\s*mlrun:handler', line):
             yield lnum
+
+
+def ast_code(expr):
+    # Sadly, not such built in
+    children = None
+    if isinstance(expr, ast.Dict):
+        children = zip(expr.keys, expr.values)
+        children = [f'{k.s}={ast_code(v)}' for k, v in children]
+        inner = ', '.join(children)
+        return f'{{{inner}}}'
+    elif isinstance(expr, ast.Set):
+        start, end, children = '{', '}', expr.elts
+        if not children:
+            return 'set()'
+    elif isinstance(expr, ast.Tuple):
+        start, end, children = '(', ')', expr.elts
+    elif isinstance(expr, ast.List):
+        start, end, children = '[', ']', expr.elts
+    elif isinstance(expr, ast.Call):
+        start, end, children = f'{expr.func.id}(', ')', expr.args
+    else:  # Leaf (number, str ...)
+        return repr(getattr(expr, expr._fields[0]))
+
+    inner = ', '.join(ast_code(e) for e in children)
+    return f'{start}{inner}{end}'

@@ -96,9 +96,9 @@ find_funcs_expected = [
     {
         'name': 'inc',
         'doc': '',
-        'return': {'name': '', 'type': '', 'doc': ''},
+        'return': funcdoc.param_dict(),
         'params': [
-            {'name': 'n', 'type': '', 'doc': ''},
+            funcdoc.param_dict('n'),
         ],
         'lineno': 6,
     },
@@ -108,3 +108,26 @@ find_funcs_expected = [
 def test_find_functions():
     funcs = funcdoc.find_functions(find_funcs_code)
     assert find_funcs_expected == funcs
+
+
+ast_code_cases = [
+    '{1, 2}',
+    '{}',
+    '[1, 2]',
+    '[]',
+    '(1, 2)',
+    '()',
+    '{1, 2}',
+    'set()',
+    'Point(1, 2)',
+    '3',
+    "'hello'",
+    'None',
+]
+
+
+@pytest.mark.parametrize('expr', ast_code_cases)
+def test_ast_code(expr):
+    node = ast.parse(expr).body[0].value
+    code = funcdoc.ast_code(node)
+    assert expr == code

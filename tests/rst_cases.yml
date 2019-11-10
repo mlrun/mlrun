@@ -21,22 +21,28 @@
       - name: name
         doc: function name
         type: ""
+        default: ""
       - name: filename
         doc: blank for current notebook, or path to .py/.ipynb file
         type: ""
+        default: ""
       - name: handler
         doc: name of function handler (if not main)
         type: ""
+        default: ""
       - name: runtime
         doc: optional, runtime type local, job, dask, mpijob, ..
         type: ""
+        default: ""
       - name: image
         doc: optional, container image
         type: ""
+        default: ""
     ret:
       name: ""
       doc: function object
       type: ""
+      default: ""
     lineno: -1
 - name: indent line
   text: |
@@ -57,14 +63,18 @@
       - name: path
         doc: The path of the file to wrap
         type: str
+        default: ""
       - name: field_storage
         doc: The :class:`FileStorage` instance to wrap
         type: FileStorage
+        default: ""
       - name: temporary
         doc: Whether or not to delete the file when the File instance is destructed
         type: bool
+        default: ""
     ret:
         name: ""
         doc: A buffered writable file descriptor
         type: BufferedFileStorage
+        default: ""
     lineno: -1

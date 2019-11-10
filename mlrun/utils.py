@@ -226,6 +226,19 @@ def uxjoin(base, path, iter=None):
     return path
 
 
+def parse_function_uri(uri):
+    project = tag = ''
+    if '/' in uri:
+        loc = uri.find('/')
+        project = uri[:loc]
+        uri = uri[loc+1:]
+    if ':' in uri:
+        loc = uri.find(':')
+        tag = uri[loc+1:]
+        uri = uri[:loc]
+    return project, uri, tag
+
+
 def gen_md_table(header, rows=None):
     rows = [] if rows is None else rows
 

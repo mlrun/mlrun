@@ -87,6 +87,7 @@ def mount_v3iod(namespace='default-tenant', v3io_config_configmap='spark-operato
 
     return _mount_v3iod
 
+
 def v3io_cred(api='', user='', access_key=''):
     """
         Modifier function to copy local v3io env vars to task

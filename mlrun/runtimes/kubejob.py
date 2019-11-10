@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import uuid
 from kubernetes import client
 
@@ -66,7 +67,7 @@ class KubejobRuntime(ContainerRuntime):
 
     def to_json(self):
         api = client.ApiClient()
-        return api.sanitize_for_serialization(self.to_dict())
+        return json.dumps(api.sanitize_for_serialization(self.to_dict()))
 
     def _merge(self):
         api = client.ApiClient()

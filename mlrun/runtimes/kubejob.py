@@ -65,9 +65,10 @@ class KubejobRuntime(ContainerRuntime):
         self._merge()
         return self
 
-    def to_json(self):
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude)
         api = client.ApiClient()
-        return json.dumps(api.sanitize_for_serialization(self.to_dict()))
+        return api.sanitize_for_serialization(struct)
 
     def _merge(self):
         api = client.ApiClient()

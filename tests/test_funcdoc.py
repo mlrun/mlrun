@@ -112,6 +112,7 @@ def test_find_functions():
 
 ast_code_cases = [
     "{'x': 1, 'y': 2}",
+    'dict(x=1, y=2)',
     '{}',
     '[1, 2]',
     '[]',

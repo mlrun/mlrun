@@ -246,7 +246,10 @@ def ast_code(expr):
     elif isinstance(expr, ast.List):
         start, end, children = '[', ']', expr.elts
     elif isinstance(expr, ast.Call):
-        start, end, children = f'{expr.func.id}(', ')', expr.args
+        children = [ast_code(e) for e in expr.args]
+        children += [f'{k.arg}={ast_code(k.value)}' for k in expr.keywords]
+        inner = ', '.join(children)
+        return f'{expr.func.id}({inner})'
     else:  # Leaf (number, str ...)
         return repr(getattr(expr, expr._fields[0]))
 

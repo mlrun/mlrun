@@ -24,10 +24,10 @@ from flask import Flask, jsonify, request, Response
 from mlrun import get_object
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger
+from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
 from mlrun.runtimes import RunError
-from mlrun.run import new_function
+from mlrun.run import new_function, import_function
 
 _file_db: FileRunDB = None
 app = Flask(__name__)
@@ -116,9 +116,11 @@ def submit_job(func=''):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     logger.info('submit_job: func %s', func)
-    url = data.get('functionUrl')
-    function = data.get('function')
     task = data.get('task')
+    function = data.get('function')
+    url = data.get('functionUrl')
+    if not url and task:
+        url = get_in(task, 'spec.function')
     if not (function or url) or not task:
         return json_error(
             HTTPStatus.BAD_REQUEST,
@@ -129,10 +131,16 @@ def submit_job(func=''):
     # remote/container runtime)
 
     try:
-        if url:
-            resp = new_function(command=url).run(task)
-        else:
+        if function:
             resp = new_function(runtime=function).run(task)
+        else:
+            if '://' in url:
+                resp = import_function(url=url).run(task)
+            else:
+                project, name, tag = parse_function_uri(url)
+                resp = import_function(
+                    project=project, name=name, tag=tag).run(task)
+
         logger.info('resp: %s', resp.to_yaml())
     except RunError as err:
         return json_error(
@@ -170,7 +178,6 @@ def get_files():
     if not ctype:
         ctype = 'application/octet-stream'
 
-    print(body)
     return Response(body, mimetype=ctype, headers={"x-suggested-filename": filename})
 
 

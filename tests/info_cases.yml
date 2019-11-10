@@ -6,12 +6,14 @@
       name: inc
       doc: increment n
       return:
+        name: ""
         type: int
         doc: ""
       params:
         - name: n
           type: int
           doc: ""
+      lineno: 1
   id: inc_ann
 - code: |
     def inc(n):
@@ -20,12 +22,14 @@
       name: inc
       doc: ""
       return:
+        name: ""
         type: ""
         doc: ""
       params:
         - name: n
           type: ""
           doc: ""
+      lineno: 1
   id: inc_no_ann
 - code: |
     def inc(n: int) -> int:
@@ -40,10 +44,12 @@
       name: inc
       doc: increment n
       return:
+        name: ""
         type: int
         doc: a number
       params:
         - name: n
           type: int
           doc: number to increment
+      lineno: 1
   id: inc_ann_doc

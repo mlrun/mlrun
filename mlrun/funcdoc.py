@@ -23,11 +23,25 @@ def type_name(ann):
     return getattr(ann, '__name__', str(ann))
 
 
-def param_dict(param: inspect.Parameter) -> dict:
+def inspect_param(param: inspect.Parameter) -> dict:
+    return param_dict(param.name, type_name(param.annotation))
+
+
+def param_dict(name='', type='', doc=''):
     return {
-        'name': param.name,
-        'type': type_name(param.annotation),
-        'doc': '',
+        'name': name,
+        'type': type,
+        'doc': doc,
+    }
+
+
+def func_dict(name, doc, params, returns, lineno):
+    return {
+        'name': name,
+        'doc': doc,
+        'params': params,
+        'return': returns,
+        'lineno': lineno,
     }
 
 
@@ -35,20 +49,25 @@ def func_info(fn) -> dict:
     sig = inspect.signature(fn)
     doc = inspect.getdoc(fn) or ''
 
-    out = {
-        'name': fn.__name__,
-        'doc': doc,
-        'params': [param_dict(p) for p in sig.parameters.values()],
-        'return': {
-            'type': type_name(sig.return_annotation),
-            'doc': '',
-        },
-    }
+    out = func_dict(
+        name=fn.__name__,
+        doc=doc,
+        params=[inspect_param(p) for p in sig.parameters.values()],
+        returns=param_dict(type=type_name(sig.return_annotation), doc=doc),
+        lineno=func_lineno(fn),
+    )
 
     if not fn.__doc__ or not fn.__doc__.strip():
         return out
 
     return merge_doc(out, doc)
+
+
+def func_lineno(fn):
+    try:
+        return inspect.getsourcelines(fn)[1]
+    except (TypeError, OSError):
+        return -1
 
 
 def merge_doc(out, doc):
@@ -100,12 +119,12 @@ def parse_rst(docstring: str):
     lines = docstring.splitlines()
     i, doc = rst_read_doc(lines)
     params, names = {}, []
-    ret = {'doc': '', 'type': ''}
+    ret = param_dict()
 
     while i != -1:
         tag, value, text, i = rst_read_section(lines, i)
         if tag == 'param':
-            params[value] = {'name': value, 'doc': text}
+            params[value] = param_dict(name=value, doc=text)
             names.append(value)
         elif tag == 'type':
             # TODO: Check param
@@ -123,16 +142,15 @@ def parse_rst(docstring: str):
 
 def ast_func_info(func: ast.FunctionDef):
     doc = ast_doc(func)
+    rtype = func.returns.id if func.returns else ''
 
-    out = {
-        'name': func.name,
-        'doc': doc,
-        'params': [ast_param_dict(p) for p in func.args.args],
-        'return': {
-            'type': func.returns.id if func.returns else '',
-            'doc': '',
-        },
-    }
+    out = func_dict(
+        name=func.name,
+        doc=doc,
+        params=[ast_param_dict(p) for p in func.args.args],
+        returns=param_dict(type=rtype),
+        lineno=func.lineno,
+    )
 
     if not doc.strip():
         return out
@@ -174,4 +192,28 @@ def find_functions(code: str):
     mod = ast.parse(code)
     finder = FunctionFinder()
     finder.visit(mod)
-    return [ast_func_info(fn) for fn in finder.funcs]
+    funcs = [ast_func_info(fn) for fn in finder.funcs]
+    markers = find_handler_markers(code)
+    return filter_funcs(funcs, markers)
+
+
+def filter_funcs(funcs, markers):
+    markers = list(markers)
+    if not markers:
+        return funcs
+
+    return [func for func in funcs if is_marked(func, markers)]
+
+
+def is_marked(func, markers):
+    for marker in markers:
+        if func['lineno'] - marker == 1:
+            return True
+    return False
+
+
+def find_handler_markers(code: str):
+    for lnum, line in enumerate(code.splitlines(), 1):
+        # '# mlrun:handler'
+        if re.match(r'#\s*mlrun:handler', line):
+            yield lnum

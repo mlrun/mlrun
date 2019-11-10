@@ -70,10 +70,41 @@ def load_info_cases():
         for info_fn, conv in info_handlers:
             obj = conv(case['code'])
             tid = f'{case["id"]}-{info_fn.__name__}'
-            yield pytest.param(info_fn, obj, case['expected'], id=tid)
+            expected = case['expected'].copy()
+            # No line info in evaled functions
+            if info_fn is funcdoc.func_info:
+                expected['lineno'] = -1
+            yield pytest.param(info_fn, obj, expected, id=tid)
 
 
 @pytest.mark.parametrize('info_fn, obj, expected', load_info_cases())
 def test_func_info(info_fn, obj, expected):
     out = info_fn(obj)
-    assert out == expected
+    assert expected == out
+
+
+find_funcs_code = '''
+def dec(n):
+    return n - 1
+
+# mlrun:handler
+def inc(n):
+    return n + 1
+'''
+
+find_funcs_expected = [
+    {
+        'name': 'inc',
+        'doc': '',
+        'return': {'name': '', 'type': '', 'doc': ''},
+        'params': [
+            {'name': 'n', 'type': '', 'doc': ''},
+        ],
+        'lineno': 6,
+    },
+]
+
+
+def test_find_functions():
+    funcs = funcdoc.find_functions(find_funcs_code)
+    assert find_funcs_expected == funcs

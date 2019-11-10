@@ -20,17 +20,24 @@
     params:
       - name: name
         doc: function name
+        type: ""
       - name: filename
         doc: blank for current notebook, or path to .py/.ipynb file
+        type: ""
       - name: handler
         doc: name of function handler (if not main)
+        type: ""
       - name: runtime
         doc: optional, runtime type local, job, dask, mpijob, ..
+        type: ""
       - name: image
         doc: optional, container image
+        type: ""
     ret:
+      name: ""
       doc: function object
       type: ""
+    lineno: -1
 - name: indent line
   text: |
     Wrap a file with storage from
@@ -57,5 +64,7 @@
         doc: Whether or not to delete the file when the File instance is destructed
         type: bool
     ret:
+        name: ""
         doc: A buffered writable file descriptor
         type: BufferedFileStorage
+    lineno: -1

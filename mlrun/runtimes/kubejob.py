@@ -64,6 +64,10 @@ class KubejobRuntime(ContainerRuntime):
         self._merge()
         return self
 
+    def to_json(self):
+        api = client.ApiClient()
+        return api.sanitize_for_serialization(self.to_dict())
+
     def _merge(self):
         api = client.ApiClient()
         for k, v in self._cop.pod_labels.items():

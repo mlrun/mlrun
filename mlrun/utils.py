@@ -227,9 +227,11 @@ def uxjoin(base, path, iter=None):
     return path
 
 
-def gen_md_table(header, rows=[]):
+def gen_md_table(header, rows=None):
+    rows = [] if rows is None else rows
 
-    def gen_list(items=[]):
+    def gen_list(items=None):
+        items = [] if items is None else items
         out = '|'
         for i in items:
             out += ' {} |'.format(i)
@@ -241,9 +243,10 @@ def gen_md_table(header, rows=[]):
     return out
 
 
-def gen_html_table(header, rows=[]):
+def gen_html_table(header, rows=None):
+    rows = [] if rows is None else rows
 
-    style = '''    
+    style = '''
 <style type="text/css">
 .tg  {border-collapse:collapse;border-spacing:0;}
 .tg td{border-style:solid;border-width:1px;padding:6px 4px;}
@@ -251,7 +254,8 @@ def gen_html_table(header, rows=[]):
 </style>
 '''
 
-    def gen_list(items=[], tag='td'):
+    def gen_list(items=None, tag='td'):
+        items = [] if items is None else items
         out = ''
         for item in items:
             out += '<{}>{}</{}>'.format(tag, item, tag)

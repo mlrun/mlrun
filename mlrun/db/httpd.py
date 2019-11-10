@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """mlrun database HTTP server"""
-
+import mimetypes
 from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
+from os import environ, path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 
+from mlrun import get_object
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger
@@ -65,13 +67,12 @@ def bearer_auth_required(cfg):
 
 @app.before_request
 def check_auth():
-    if request.path == '/healthz':
+    if request.path == '/api/healthz':
         return
 
     cfg = config.httpdb
 
     header = request.headers.get('Authorization', '')
-    print(header)
     try:
         if basic_auth_required(cfg):
             if not header.startswith(basic_prefix):
@@ -104,9 +105,9 @@ def catch_err(fn):
 
 
 # curl -d@/path/to/job.json http://localhost:8080/submit
-@app.route('/submit', methods=['POST'])
-@app.route('/submit/', methods=['POST'])
-@app.route('/submit/<path:func>', methods=['POST'])
+@app.route('/api/submit', methods=['POST'])
+@app.route('/api/submit/', methods=['POST'])
+@app.route('/api/submit/<path:func>', methods=['POST'])
 @catch_err
 def submit_job(func=''):
     try:
@@ -114,30 +115,67 @@ def submit_job(func=''):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    print("FUNC: ", func)
+    logger.info('submit_job: func %s', func)
     url = data.get('functionUrl')
     function = data.get('function')
     task = data.get('task')
     if not (function or url) or not task:
-        return json_error(HTTPStatus.BAD_REQUEST,
-                          reason='bad JSON, need to include function/url and task objects')
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='bad JSON, need to include function/url and task objects',
+        )
 
-    # TODO: block exec for function['kind'] in ['', 'local]  (must be a remote/container runtime)
+    # TODO: block exec for function['kind'] in ['', 'local]  (must be a
+    # remote/container runtime)
 
     try:
         if url:
             resp = new_function(command=url).run(task)
         else:
             resp = new_function(runtime=function).run(task)
-        print(resp.to_yaml())
+        logger.info('resp: %s', resp.to_yaml())
     except RunError as err:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='runtime error: {}'.format(err))
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
 
     return jsonify(ok=True, data=resp.to_dict())
 
 
+# curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
+@app.route('/api/files', methods=['GET'])
+@catch_err
+def get_files():
+    schema = request.args.get('schema', '')
+    path = request.args.get('path', '')
+    # size = int(request.args.get('size', '16')) * 1024
+
+    _, filename = path.split(path)
+
+    if schema:
+        path = schema + '://' + path
+    elif path.startswith('/User/'):
+        user = environ.get('V3IO_USERNAME', 'admin')
+        path = 'v3io:///users/' + user + path[5:]
+
+    try:
+        body = get_object(path)
+    except FileNotFoundError as e:
+        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+    if body is None:
+        return json_error(HTTPStatus.NOT_FOUND, path=path)
+
+    ctype, _ = mimetypes.guess_type(path)
+    if not ctype:
+        ctype = 'application/octet-stream'
+
+    print(body)
+    return Response(body, mimetype=ctype, headers={"x-suggested-filename": filename})
+
+
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
-@app.route('/log/<project>/<uid>', methods=['POST'])
+@app.route('/api/log/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_log(project, uid):
     append = strtobool(request.args.get('append', 'no'))
@@ -147,7 +185,7 @@ def store_log(project, uid):
 
 
 # curl http://localhost:8080/log/prj/7
-@app.route('/log/<project>/<uid>', methods=['GET'])
+@app.route('/api/log/<project>/<uid>', methods=['GET'])
 def get_log(project, uid):
     data = _file_db.get_log(uid, project)
     if data is None:
@@ -156,7 +194,7 @@ def get_log(project, uid):
     return data
 
 # curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
-@app.route('/run/<project>/<uid>', methods=['POST'])
+@app.route('/api/run/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_run(project, uid):
     commit = strtobool(request.args.get('commit', 'no'))
@@ -171,7 +209,7 @@ def store_run(project, uid):
 
 
 # curl -X PATCH -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
-@app.route('/run/<project>/<uid>', methods=['PATCH'])
+@app.route('/api/run/<project>/<uid>', methods=['PATCH'])
 @catch_err
 def update_run(project, uid):
     try:
@@ -185,7 +223,7 @@ def update_run(project, uid):
 
 
 # curl http://localhost:8080/run/p1/3
-@app.route('/run/<project>/<uid>', methods=['GET'])
+@app.route('/api/run/<project>/<uid>', methods=['GET'])
 @catch_err
 def read_run(project, uid):
     data = _file_db.read_run(uid, project)
@@ -193,7 +231,7 @@ def read_run(project, uid):
 
 
 # curl -X DELETE http://localhost:8080/run/p1/3
-@app.route('/run/<project>/<uid>', methods=['DELETE'])
+@app.route('/api/run/<project>/<uid>', methods=['DELETE'])
 @catch_err
 def del_run(project, uid):
     _file_db.del_run(uid, project)
@@ -201,7 +239,7 @@ def del_run(project, uid):
 
 
 # curl http://localhost:8080/runs?project=p1&name=x&label=l1&label=l2&sort=no
-@app.route('/runs', methods=['GET'])
+@app.route('/api/runs', methods=['GET'])
 @catch_err
 def list_runs():
     name = request.args.get('name', '')
@@ -224,7 +262,7 @@ def list_runs():
     return jsonify(ok=True, runs=runs)
 
 # curl -X DELETE http://localhost:8080/runs?project=p1&name=x&days_ago=3
-@app.route('/runs', methods=['DELETE'])
+@app.route('/api/runs', methods=['DELETE'])
 @catch_err
 def del_runs():
     name = request.args.get('name', '')
@@ -238,7 +276,7 @@ def del_runs():
 
 
 # curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
-@app.route('/artifact/<project>/<uid>/<path:key>', methods=['POST'])
+@app.route('/api/artifact/<project>/<uid>/<path:key>', methods=['POST'])
 @catch_err
 def store_artifact(project, uid, key):
     try:
@@ -252,14 +290,14 @@ def store_artifact(project, uid, key):
 
 
 # curl http://localhost:8080/artifact/p1/tag/key
-@app.route('/artifact/<project>/<tag>/<path:key>', methods=['GET'])
+@app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
 def read_artifact(project, tag, key):
     data = _file_db.read_artifact(key, tag, project)
     return data
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
-@app.route('/artifact/<project>/<uid>', methods=['DELETE'])
+@app.route('/api/artifact/<project>/<uid>', methods=['DELETE'])
 @catch_err
 def del_artifact(project, uid):
     key = request.args.get('key')
@@ -271,7 +309,7 @@ def del_artifact(project, uid):
     return jsonify(ok=True)
 
 # curl http://localhost:8080/artifacts?project=p1?label=l1
-@app.route('/artifacts', methods=['GET'])
+@app.route('/api/artifacts', methods=['GET'])
 @catch_err
 def list_artifacts():
     name = request.args.get('name', '')
@@ -283,7 +321,7 @@ def list_artifacts():
     return jsonify(ok=True, artifacts=artifacts)
 
 # curl -X DELETE http://localhost:8080/artifacts?project=p1?label=l1
-@app.route('/artifacts', methods=['DELETE'])
+@app.route('/api/artifacts', methods=['DELETE'])
 @catch_err
 def del_artifacts():
     name = request.args.get('name', '')
@@ -295,7 +333,7 @@ def del_artifacts():
     return jsonify(ok=True)
 
 # curl -d@/path/to/func.json http://localhost:8080/func/prj/7?tag=0.3.2
-@app.route('/func/<project>/<name>', methods=['POST'])
+@app.route('/api/func/<project>/<name>', methods=['POST'])
 @catch_err
 def store_function(project, name):
     try:
@@ -310,7 +348,7 @@ def store_function(project, name):
 
 
 # curl http://localhost:8080/log/prj/7?tag=0.2.3
-@app.route('/func/<project>/<name>', methods=['GET'])
+@app.route('/api/func/<project>/<name>', methods=['GET'])
 @catch_err
 def get_function(project, name):
     tag = request.args.get('tag', '')
@@ -319,7 +357,7 @@ def get_function(project, name):
 
 
 # curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
-@app.route('/funcs', methods=['GET'])
+@app.route('/api/funcs', methods=['GET'])
 @catch_err
 def list_functions():
     name = request.args.get('name', '')
@@ -331,11 +369,10 @@ def list_functions():
     return jsonify(
         ok=True,
         funcs=list(out),
-        tag=out.tag,
     )
 
 
-@app.route('/healthz', methods=['GET'])
+@app.route('/api/healthz', methods=['GET'])
 def health():
     return 'OK\n'
 

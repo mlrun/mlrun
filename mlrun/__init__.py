@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.3.1'
+__version__ = '0.3.2'
 
 from .run import get_or_create_ctx, new_function, code_to_function, import_function
 from .db import get_run_db
@@ -20,5 +20,5 @@ from .model import RunTemplate, NewRun, NewTask, RunObject
 from .kfpops import mlrun_op
 from .config import config as mlconf
 from .runtimes import new_model_server
-from .platforms import mount_v3io
+from .platforms import mount_v3io, v3io_cred
 from .datastore import get_object

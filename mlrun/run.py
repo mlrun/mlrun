@@ -304,30 +304,28 @@ def code_to_function(name='', filename='', handler='', runtime='',
     """
     filebase, _ = path.splitext(path.basename(filename))
 
-    def tag_name(labels, nbname):
+    def tag_name(labels):
         if filename:
             labels['filename'] = filename
-        elif nbname:
-            labels['filename'] = '{}.ipynb'.format(nbname)
 
-    nbname = ''
     if runtime.startswith('nuclio'):
         r = RemoteRuntime()
         kind = runtime[runtime.rfind(':')+1:] if ':' in runtime else None
         if embed_code:
-            nbname, spec, code = build_file(filename, handler=handler or 'handler', kind=kind)
-            name = name or nbname
+            name, spec, code = build_file(filename, name=name,
+                                          handler=handler or 'handler',
+                                          kind=kind)
             r.spec.base_spec = spec
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
-        r.metadata.name = name or filebase
+        r.metadata.name = name
         if not r.metadata.name:
             raise ValueError('name must be specified')
-        tag_name(r.metadata.labels, nbname)
+        tag_name(r.metadata.labels)
         return r
 
-    nbname, spec, code = build_file(filename, handler=handler)
+    name, spec, code = build_file(filename, name=name, handler=handler)
 
     if runtime is None or runtime in ['', 'local']:
         r = LocalRuntime()
@@ -339,11 +337,11 @@ def code_to_function(name='', filename='', handler='', runtime='',
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
-    r.metadata.name = name or nbname or filebase
+    r.metadata.name = name
     if not r.metadata.name:
         raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
-    tag_name(r.metadata.labels, nbname)
+    tag_name(r.metadata.labels)
     build = r.spec.build
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')

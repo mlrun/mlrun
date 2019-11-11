@@ -21,7 +21,7 @@ from os import environ, path
 
 from flask import Flask, jsonify, request, Response
 
-from mlrun import get_object
+from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger, parse_function_uri, get_in
@@ -157,7 +157,8 @@ def submit_job(func=''):
 def get_files():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
-    # size = int(request.args.get('size', '16')) * 1024
+    size = int(request.args.get('size', '0'))
+    offset = int(request.args.get('offset', '0'))
 
     _, filename = path.split(path)
 
@@ -168,7 +169,7 @@ def get_files():
         path = 'v3io:///users/' + user + path[5:]
 
     try:
-        body = get_object(path)
+        body = get_object(path, size, offset)
     except FileNotFoundError as e:
         return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
     if body is None:
@@ -179,6 +180,35 @@ def get_files():
         ctype = 'application/octet-stream'
 
     return Response(body, mimetype=ctype, headers={"x-suggested-filename": filename})
+
+
+# curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
+@app.route('/api/filestat', methods=['GET'])
+@catch_err
+def get_filestat():
+    schema = request.args.get('schema', '')
+    path = request.args.get('path', '')
+
+    _, filename = path.split(path)
+
+    if schema:
+        path = schema + '://' + path
+    elif path.startswith('/User/'):
+        user = environ.get('V3IO_USERNAME', 'admin')
+        path = 'v3io:///users/' + user + path[5:]
+
+    try:
+        stat = get_object_stat(path)
+    except FileNotFoundError as e:
+        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+
+    ctype, _ = mimetypes.guess_type(path)
+    if not ctype:
+        ctype = 'application/octet-stream'
+
+    return jsonify(ok=True, size=stat.size,
+                   modified=stat.modified,
+                   mimetype=ctype)
 
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true

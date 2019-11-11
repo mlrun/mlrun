@@ -433,7 +433,10 @@ class BaseRuntime(ModelObj):
                 environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
         raise RunError('local container registry is not defined')
 
-    def to_step(self, runspec: RunObject = None, handler=None, name: str = '',
+    def to_step(self, **kw):
+        raise ValueError('.to_step() is deprecated, us .as_step() instead')
+
+    def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
                 in_path: str = '', out_path: str = ''):

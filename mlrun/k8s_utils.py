@@ -22,6 +22,7 @@ from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 from .config import config as mlconfig
 
+
 class k8s_helper:
     def __init__(self, namespace=None, config_file=None):
         self.namespace = namespace or mlconfig.namespace
@@ -36,17 +37,20 @@ class k8s_helper:
         try:
             config.load_incluster_config()
             logger.info('using in-cluster config.')
-        except:
+        except Exception:
             try:
                 config.load_kube_config(config_file)
                 logger.info('using local kubernetes config.')
-            except:
-                raise RuntimeError('cannot find local kubernetes config file,'
-                                   ' place it in ~/.kube/config or specify it in KUBECONFIG env var')
+            except Exception:
+                raise RuntimeError(
+                    'cannot find local kubernetes config file,'
+                    ' place it in ~/.kube/config or specify it in '
+                    'KUBECONFIG env var')
 
     def list_pods(self, namespace=None, selector='', states=None):
         try:
-            resp = self.v1api.list_namespaced_pod(self.ns(namespace), watch=False, label_selector=selector)
+            resp = self.v1api.list_namespaced_pod(
+                self.ns(namespace), watch=False, label_selector=selector)
         except ApiException as e:
             logger.error('failed to list pods: {}'.format(e))
             raise e
@@ -59,7 +63,8 @@ class k8s_helper:
 
     def clean_pods(self, namespace=None, selector='', states=None):
         if not selector and not states:
-            raise ValueError('labels selector or states list must be specified')
+            raise ValueError(
+                'labels selector or states list must be specified')
         items = self.list_pods(namespace, selector, states)
         for item in items:
             self.del_pod(item.metadata.name, item.metadata.namespace)
@@ -69,7 +74,8 @@ class k8s_helper:
             pod = pod.pod
         pod.metadata.namespace = self.ns(pod.metadata.namespace)
         try:
-            resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
+            resp = self.v1api.create_namespaced_pod(
+                pod.metadata.namespace, pod)
         except ApiException as e:
             logger.error('spec:\n{}'.format(pod.spec))
             logger.error('failed to create pod: {}'.format(e))
@@ -80,10 +86,11 @@ class k8s_helper:
 
     def del_pod(self, name, namespace=None):
         try:
-            api_response = self.v1api.delete_namespaced_pod(name,
-                                                            self.ns(namespace),
-                                                            grace_period_seconds=0,
-                                                            propagation_policy='Background')
+            api_response = self.v1api.delete_namespaced_pod(
+                name,
+                self.ns(namespace),
+                grace_period_seconds=0,
+                propagation_policy='Background')
             return api_response
         except ApiException as e:
             # ignore error if pod is already removed
@@ -93,7 +100,8 @@ class k8s_helper:
 
     def get_pod(self, name, namespace=None):
         try:
-            api_response = self.v1api.read_namespaced_pod(name=name, namespace=self.ns(namespace))
+            api_response = self.v1api.read_namespaced_pod(
+                name=name, namespace=self.ns(namespace))
             return api_response
         except ApiException as e:
             if e.status != 404:
@@ -145,8 +153,10 @@ class k8s_helper:
             except ApiException as e:
                 logger.error('failed waiting for pod: {}\n'.format(str(e)))
                 return 'error'
-        for out in self.v1api.read_namespaced_pod_log(
-                            name=pod_name, namespace=namespace, follow=True, _preload_content=False):
+        outputs = self.v1api.read_namespaced_pod_log(
+            name=pod_name, namespace=namespace, follow=True,
+            _preload_content=False)
+        for out in outputs:
             print(out.decode('utf-8'), end='')
             if writer:
                 writer.write(out.decode('utf-8'))
@@ -196,7 +206,8 @@ class k8s_helper:
 
     def list_cfgmap(self, namespace=None, selector=''):
         try:
-            resp = self.v1api.list_namespaced_config_map(self.ns(namespace), watch=False, label_selector=selector)
+            resp = self.v1api.list_namespaced_config_map(
+                self.ns(namespace), watch=False, label_selector=selector)
         except ApiException as e:
             logger.error('failed to list ConfigMaps: {}'.format(e))
             raise e
@@ -209,7 +220,9 @@ class k8s_helper:
 
 class BasePod:
 
-    def __init__(self, task_name='', image=None, command=None, args=None, namespace='', kind='job'):
+    def __init__(
+      self, task_name='', image=None, command=None, args=None, namespace='',
+      kind='job'):
         self.namespace = namespace
         self.name = ''
         self.task_name = task_name
@@ -252,14 +265,18 @@ class BasePod:
         self._annotations[key] = str(value)
 
     def add_volume(self, volume: client.V1Volume, mount_path):
-        self._mounts.append(client.V1VolumeMount(name=volume.name, mount_path=mount_path))
+        self._mounts.append(client.V1VolumeMount(
+            name=volume.name, mount_path=mount_path))
         self._volumes.append(volume)
 
     def mount_empty(self, name='empty', mount_path='/empty'):
-        self.add_volume(client.V1Volume(name=name, empty_dir=client.V1EmptyDirVolumeSource()),
-                        mount_path=mount_path)
+        self.add_volume(client.V1Volume(
+            name=name, empty_dir=client.V1EmptyDirVolumeSource()),
+            mount_path=mount_path)
 
-    def mount_v3io(self, name='v3io', remote='~/', mount_path='/User', access_key='', user=''):
+    def mount_v3io(
+      self, name='v3io', remote='~/', mount_path='/User', access_key='',
+      user=''):
         self.add_volume(v3io_to_vol(name, remote, access_key, user),
                         mount_path=mount_path)
 
@@ -283,7 +300,8 @@ class BasePod:
         pod_obj = client.V1PodTemplate if template else client.V1Pod
 
         if self.env and isinstance(self.env, dict):
-            env = [client.V1EnvVar(name=k, value=v) for k, v in self.env.items()]
+            env = [
+                client.V1EnvVar(name=k, value=v) for k, v in self.env.items()]
         else:
             env = self.env
         container = client.V1Container(name='base',

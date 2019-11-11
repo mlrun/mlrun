@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import inspect
-import json
 from copy import deepcopy
 from os import environ
 
@@ -31,7 +30,10 @@ class ModelObj:
 
     @staticmethod
     def _verify_dict(param, name, new_type=None):
-        if param is not None and not isinstance(param, dict) and not hasattr(param, 'to_dict'):
+        if (
+          param is not None and
+          not isinstance(param, dict) and
+          not hasattr(param, 'to_dict')):
             raise ValueError(f'parameter {name} must be a dict or object')
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
@@ -55,7 +57,8 @@ class ModelObj:
         return struct
 
     @classmethod
-    def from_dict(cls, struct={}):
+    def from_dict(cls, struct=None):
+        struct = {} if struct is None else struct
         fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
         if struct:
@@ -63,7 +66,6 @@ class ModelObj:
                 if key in fields:
                     setattr(new_obj, key, val)
         return new_obj
-
 
     def to_yaml(self):
         return dict_to_yaml(self.to_dict())
@@ -82,19 +84,22 @@ class ModelObj:
 
 
 class BaseMetadata(ModelObj):
-    def __init__(self, name=None, tag=None, namespace=None, project=None,
-                 labels=None, annotations=None):
+    def __init__(self, name=None, tag=None, hash=None, namespace=None,
+                 project=None, labels=None, annotations=None, updated=None):
         self.name = name
         self.tag = tag
+        self.hash = hash
         self.namespace = namespace
         self.project = project
         self.labels = labels or {}
         self.annotations = annotations or {}
+        self.updated = updated
 
 
 class ImageBuilder(ModelObj):
-    def __init__(self, functionSourceCode=None, source=None, image=None, base_image=None,
-                 commands=None, secret=None, registry=None):
+    def __init__(
+        self, functionSourceCode=None, source=None, image=None,
+            base_image=None, commands=None, secret=None, registry=None):
         self.functionSourceCode = functionSourceCode
         self.codeEntryType = ''
         self.source = source
@@ -107,7 +112,9 @@ class ImageBuilder(ModelObj):
 
 
 class RunMetadata(ModelObj):
-    def __init__(self, uid=None, name=None, project=None, labels=None, annotations=None, iteration=None):
+    def __init__(
+        self, uid=None, name=None, project=None, labels=None,
+            annotations=None, iteration=None):
         self.uid = uid
         self._iteration = iteration
         self.name = name
@@ -127,7 +134,7 @@ class RunMetadata(ModelObj):
 class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  selector=None, handler=None, inputs=None, outputs=None,
-                 input_path=None, output_path=None,
+                 input_path=None, output_path=None, function=None,
                  secret_sources=None, data_stores=None):
 
         self.parameters = parameters or {}
@@ -139,6 +146,7 @@ class RunSpec(ModelObj):
         self._outputs = outputs
         self.input_path = input_path
         self.output_path = output_path
+        self.function = function
         self._secret_sources = secret_sources or []
         self._data_stores = data_stores
 
@@ -320,7 +328,8 @@ class RunObject(RunTemplate):
 
     def show(self):
         db = get_run_db().connect()
-        db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
+        db.list_runs(
+            uid=self.metadata.uid, project=self.metadata.project).show()
 
 
 def NewTask(name=None, project=None, handler=None,

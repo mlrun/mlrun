@@ -80,3 +80,9 @@ class ArtifactList(list):
         html = artifacts_to_html(df, display, classes=classes)
         if not display:
             return html
+
+
+class FunctionList(list):
+    def __init__(self):
+        pass
+        # TODO

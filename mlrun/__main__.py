@@ -176,29 +176,39 @@ def build(dest, command, source, base_image, secret_name,
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("spec", type=str)
+@click.argument("spec", type=str, required=False)
 @click.option('--source', '-s', default='', help='location/url of the source')
 @click.option('--dashboard', '-d', default='', help='nuclio dashboard url')
 @click.option('--project', '-p', default='', help='container registry secret name')
 @click.option('--model', '-m', multiple=True, help='input artifact')
-@click.option('--kind', '-k', default='nuclio', help='runtime kind')
+@click.option('--kind', '-k', default=None, help='runtime sub kind')
 @click.option('--tag', default='', help='version tag')
+@click.option('--env', '-e', multiple=True, help='environment variables')
 @click.option('--verbose', is_flag=True, help='verbose log')
-def deploy(spec, source, dashboard, project, model, tag, kind, verbose):
-    """Deploy model"""
-    runtime = py_eval(spec)
+def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
+    """Deploy model or function"""
+    if spec:
+        runtime = py_eval(spec)
+    else:
+        runtime = {}
     if not isinstance(runtime, dict):
         print('runtime parameter must be a dict, not {}'.format(type(runtime)))
         exit(1)
 
     f = RemoteRuntime.from_dict(runtime)
+    f.spec.source = source
+    if kind:
+        f.spec.function_kind = kind
+    if env:
+        for k, v in list2dict(env).items():
+            f.set_env(k, v)
     f.verbose = verbose
     if model:
         models = list2dict(model)
         for k, v in models.items():
             f.add_model(k, v)
 
-    addr = f.deploy(source=source, dashboard=dashboard, project=project, tag=tag)
+    addr = f.deploy(dashboard=dashboard, project=project, tag=tag, kind=kind)
     print('function deployed, address={}'.format(addr))
     with open('/tmp/output', 'w') as fp:
         fp.write(addr)
@@ -242,7 +252,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             if task:
                 name = i.metadata.name
                 state = i.status.phase
-                start = i.status.start_time.strftime("%b %d %H:%M:%S")
+                start = ''
+                if i.status.start_time:
+                    start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     elif kind.startswith('run'):
         mldb = get_run_db(db).connect()
@@ -260,13 +272,10 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
         df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
         df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
-        # df['start'] = df['start'].apply(time_str)
-        # df['parameters'] = df['parameters'].apply(dict_to_str)
-        # df['results'] = df['results'].apply(dict_to_str)
         print(tabulate(df, headers='keys'))
 
     else:
-        print('currently only get pods [name] is supported')
+        print('currently only get pods | runs | artifacts [name] are supported')
 
 
 @main.command()

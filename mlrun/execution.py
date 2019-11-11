@@ -13,8 +13,6 @@
 # limitations under the License.
 
 from copy import deepcopy
-import yaml
-import json
 from datetime import datetime
 import uuid
 
@@ -64,9 +62,8 @@ class MLClientCtx(object):
         self._labels = {}
         self._annotations = {}
 
-        self._runtime = {}
+        self._function = ''
         self._parameters = {}
-        #self._hyper_parameters = {}
         self._in_path = ''
         self._out_path = ''
         self._inputs = {}
@@ -94,10 +91,13 @@ class MLClientCtx(object):
 
     def get_meta(self):
         """Reserved for internal use"""
-        resp = {'name': self.name,
-                'kind': 'run',
-                'uri': f'{self._project}/{self.uid}' if self._project else self.uid,
-                'owner': get_in(self._labels, 'owner')}
+        uri = f'{self._project}/{self.uid}' if self._project else self.uid
+        resp = {
+            'name': self.name,
+            'kind': 'run',
+            'uri': uri,
+            'owner': get_in(self._labels, 'owner'),
+        }
         if 'workflow' in self._labels:
             resp['workflow'] = self._labels['workflow']
         return resp
@@ -120,7 +120,7 @@ class MLClientCtx(object):
         if spec:
             self._secrets_manager = SecretsStore.from_dict(spec)
             self._log_level = spec.get('log_level', self._log_level)
-            self._runtime = spec.get('runtime', self._runtime)
+            self._function = spec.get('function', self._function)
             self._parameters = spec.get('parameters', self._parameters)
             self._outputs = spec.get('outputs', self._outputs)
             self._out_path = spec.get(run_keys.output_path, self._out_path)
@@ -237,7 +237,7 @@ class MLClientCtx(object):
         if not url:
             url = key
         if self.in_path and not (url.startswith('/') or '://' in url):
-            url = uxjoin(self._in_path, key)
+            url = uxjoin(self._in_path, url)
         obj = self._data_stores.object(key, url)
         self._inputs[key] = obj
         return obj
@@ -258,13 +258,15 @@ class MLClientCtx(object):
     def log_results(self, results: dict):
         """log a set of scalar result values"""
         if not isinstance(results, dict):
-            raise MLCtxValueError('(multiple) results must be in the form of dict')
+            raise MLCtxValueError(
+                '(multiple) results must be in the form of dict')
 
         for p in results.keys():
             self._results[str(p)] = results[p]
         self._update_db()
 
-    def log_iteration_results(self, best, summary: list, task: dict, commit=False):
+    def log_iteration_results(
+      self, best, summary: list, task: dict, commit=False):
         """Reserved for internal use"""
 
         if best:
@@ -278,15 +280,17 @@ class MLClientCtx(object):
         if commit:
             self._update_db(commit=True)
 
-    def log_metric(self, key: str, value, timestamp=None, labels={}):
+    def log_metric(self, key: str, value, timestamp=None, labels=None):
         """TBD, log a real-time time-series metric"""
+        labels = {} if labels is None else labels
         if not timestamp:
             timestamp = datetime.now()
         if self._rundb:
             self._rundb.store_metric({key: value}, timestamp, labels)
 
-    def log_metrics(self, keyvals: dict, timestamp=None, labels={}):
+    def log_metrics(self, keyvals: dict, timestamp=None, labels=None):
         """TBD, log a set of real-time time-series metrics"""
+        labels = {} if labels is None else labels
         if not timestamp:
             timestamp = datetime.now()
         if self._rundb:
@@ -348,7 +352,7 @@ class MLClientCtx(object):
                  'labels': self._labels,
                  'annotations': self._annotations},
             'spec':
-                {'runtime': self._runtime,
+                {'function': self._function,
                  'log_level': self._log_level,
                  'parameters': self._parameters,
                  'outputs': self._outputs,
@@ -392,5 +396,5 @@ class MLClientCtx(object):
         if commit or self._autocommit:
             self._commit = message
             if self._rundb:
-                self._rundb.store_run(self.to_dict(), self.uid, self.project, commit)
-
+                self._rundb.store_run(
+                    self.to_dict(), self.uid, self.project, commit)

@@ -12,10 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import RunError, BaseRuntime  # noqa
-from .local import HandlerRuntime, LocalRuntime  # noqa
-from .function import RemoteRuntime, new_model_server  # noqa
-from .mpijob import MpiRuntime  # noqa
-from .dask import DaskCluster  # noqa
-from .kubejob import KubejobRuntime  # noqa
-from .sparkjob import SparkRuntime  # noqa
+FROM python:3.6-slim
+RUN apt-get update && apt-get install -y gcc
+RUN pip install --upgrade --no-cache pip pipenv
+WORKDIR /mlrun
+RUN pip install pipenv
+COPY Pipfile* ./
+RUN pipenv sync
+COPY . .
+ENV MLRUN_httpdb__dirpath=/mlrun/db
+ENV MLRUN_httpdb__port=8080
+VOLUME /mlrun/db
+# TODO: gunicorn/uwsgi? (underlying filedb & concurrency issues)
+CMD pipenv run gunicorn \
+    --workers=8 \
+    --bind=0.0.0.0:$MLRUN_httpdb__port \
+    mlrun.db.httpd:app

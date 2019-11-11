@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-import uuid
 from copy import deepcopy
-from os import environ
-from pprint import pprint
 
 from ..model import RunObject
 from .kubejob import KubejobRuntime
-from ..utils import dict_to_yaml, update_in, logger, get_in
+from ..utils import update_in, logger, get_in
 from ..execution import MLClientCtx
-import importlib
 
 from kubernetes import client
 
@@ -73,7 +69,6 @@ class MpiRuntime(KubejobRuntime):
         pod_labels['mlrun/job'] = meta.name
         update_in(job, 'metadata', meta.to_dict())
         update_in(job, 'spec.template.metadata.labels', pod_labels)
-        #update_in(job, 'spec.template.metadata.namespace', meta.namespace)
         update_in(job, 'spec.replicas', self.spec.replicas or 1)
         if self.spec.image:
             _update_container(job, 'image', self._image_path())
@@ -86,15 +81,19 @@ class MpiRuntime(KubejobRuntime):
         extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
         _update_container(job, 'env', extra_env + self.spec.env)
         if self.spec.image_pull_policy:
-            _update_container(job, 'imagePullPolicy', self.spec.image_pull_policy)
+            _update_container(
+                job, 'imagePullPolicy', self.spec.image_pull_policy)
+        if self.spec.resources:
+            _update_container(job, 'resources', self.spec.resources)
 
         if self.spec.command:
-            _update_container(job, 'command',
-                              ['mpirun', 'python', self.spec.command] + self.spec.args)
+            _update_container(
+                job, 'command',
+                ['mpirun', 'python', self.spec.command] + self.spec.args)
 
         resp = self._submit_mpijob(job, meta.namespace)
         state = None
-        for i in range(30):
+        for _ in range(60):
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.launcherStatus')
             if resp and state:
@@ -102,21 +101,29 @@ class MpiRuntime(KubejobRuntime):
             time.sleep(1)
 
         if resp:
-            logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
+            logger.info('MpiJob {} state={}'.format(
+                meta.name, state or 'unknown'))
             if state:
-                launcher, status = self._get_lancher(meta.name, meta.namespace)
+                launcher, status = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state(state.lower())
                 if self.interactive or self.kfp:
                     status = self._get_k8s().watch(launcher, meta.namespace)
-                    logger.info('MpiJob {} finished with state {}'.format(meta.name, status))
+                    logger.info(
+                        'MpiJob {} finished with state {}'.format(
+                            meta.name, status))
                     if status == 'succeeded':
                         execution.set_state('completed')
+                    else:
+                        execution.set_state('error', 'MpiJob {} finished with state {}'.format(meta.name, status))
                 else:
-                    logger.info('MpiJob {} launcher pod {} state {}'.format(meta.name, launcher, status))
+                    logger.info('MpiJob {} launcher pod {} state {}'.format(
+                        meta.name, launcher, status))
                     logger.info('use .watch({}) to see logs'.format(meta.name))
             else:
-                logger.warning('MpiJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
+                logger.warning(
+                    'MpiJob status unknown or failed, check pods: {}'.format(
+                        self.get_pods(meta.name, meta.namespace)))
 
         return None
 
@@ -141,7 +148,8 @@ class MpiRuntime(KubejobRuntime):
             body = client.V1DeleteOptions()
             resp = k8s.crdapi.delete_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name, body)
-            logger.info('del status: {}'.format(get_in(resp, 'status', 'unknown')))
+            logger.info('del status: {}'.format(
+                get_in(resp, 'status', 'unknown')))
         except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
 
@@ -180,34 +188,33 @@ class MpiRuntime(KubejobRuntime):
             print("Exception when reading MPIJob: %s" % e)
         return resp
 
-    def get_pods(self, name=None, namespace=None, lancher=False):
+    def get_pods(self, name=None, namespace=None, launcher=False):
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
         selector = 'mlrun/class=mpijob'
         if name:
             selector += ',mpi_job_name={}'.format(name)
-        if lancher:
+        if launcher:
             selector += ',mpi_role_type=launcher'
         pods = k8s.list_pods(selector=selector, namespace=namespace)
         if pods:
             return {p.metadata.name: p.status.phase for p in pods}
 
     def watch(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, lancher=True)
+        pods = self.get_pods(name, namespace, launcher=True)
         if not pods:
             logger.error('no pod matches that job name')
             return
         k8s = self._get_k8s()
-        pod, status = self._get_lancher(name, namespace)
+        pod, status = self._get_launcher(name, namespace)
         logger.info('watching pod {}, status = {}'.format(pod, status))
         k8s.watch(pod, namespace)
 
-    def _get_lancher(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, lancher=True)
+    def _get_launcher(self, name, namespace=None):
+        pods = self.get_pods(name, namespace, launcher=True)
         if not pods:
             logger.error('no pod matches that job name')
             return
-        k8s = self._get_k8s()
+        # TODO: Why was this here?
+        # k8s = self._get_k8s()
         return list(pods.items())[0]
-
-

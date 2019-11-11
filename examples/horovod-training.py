@@ -3,8 +3,9 @@ import os
 import sys
 import json
 import keras
+from keras.applications.vgg16 import VGG16
 from keras.datasets import mnist
-from keras.models import Sequential
+from keras.models import Model
 from keras.layers import Conv2D, MaxPooling2D, Dropout, Flatten, Dense, \
     Activation, BatchNormalization
 from keras.preprocessing.image import ImageDataGenerator
@@ -13,6 +14,7 @@ import tensorflow as tf
 import horovod.keras as hvd
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import io
 
 from mlrun import get_or_create_ctx
 from mlrun.artifacts import ChartArtifact
@@ -22,15 +24,26 @@ mlctx = get_or_create_ctx('horovod-trainer')
 
 # Get env variables
 mlctx.logger.info('Getting env variables')
-DATA_PATH = mlctx.get_param('data_path')#, '/User/horovod-trainer/data/cats_n_dogs')
-MODEL_PATH = mlctx.get_param('model_path')#, '/User/horovod-trainer/models/catsndogs.hd5')
+DATA_PATH = mlctx.get_input('data_path').url #, '/User/horovod-trainer/data/cats_n_dogs')
+MODEL_PATH = mlctx.get_param('model_path', '/tmp/models/model.hd5')#, '/User/horovod-trainer/models/catsndogs.hd5')
 CHECKPOINTS_DIR = mlctx.get_param('checkpoints_dir')#, '/User/horovod--trainer/checkpoints')
+
 mlctx.logger.info(f'Validating paths:\n'\
                   f'Data_path:\t{DATA_PATH}\n'\
                   f'Model_path:\t{MODEL_PATH}\n')
-os.makedirs(DATA_PATH, exist_ok=True)
-os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+#os.makedirs(DATA_PATH, exist_ok=True)
 os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
+os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+
+
+categories_map = str(mlctx.get_input('categories_map').get())
+mlctx.logger.info(f'Categories map: {categories_map}')
+df = pd.read_csv(str(mlctx.get_input('file_categories')))
+
+
+mlctx.logger.info(f'Got {df.shape[0]} files in {DATA_PATH}')
+mlctx.logger.info(f'Training data has {df.size} samples')
+mlctx.logger.info(f'{df.category.value_counts()}')
 
 # Get image parameters
 IMAGE_WIDTH = mlctx.get_param('image_width')#, 128)
@@ -50,32 +63,6 @@ if tf.test.gpu_device_name():
 mlctx.logger.info(f'Is GPU available?\t{is_gpu_available}')
 
 
-# Create a file-names list (JPG image-files only)
-filenames = [file for file in os.listdir(DATA_PATH) if file.endswith('jpg')]
-categories = []
-mlctx.logger.info(f'Got {len(filenames)} files in {DATA_PATH}')
-
-# Create a categories and prediction classes map
-categories_map = {
-    'dog': 1,
-    'cat': 0,
-}
-
-# Create a pandas DataFrame for the full sample
-for filename in filenames:
-    category = filename.split('.')[0]
-    categories.append([categories_map[category]])
-
-df = pd.DataFrame({
-    'filename': filenames,
-    'category': categories
-})
-df['category'] = df['category'].astype('str');
-
-mlctx.logger.info(f'Training data has {df.size} samples')
-mlctx.logger.info(f'{df.category.value_counts()}')
-
-
 #
 # Training
 #
@@ -86,6 +73,7 @@ train_df, validate_df = train_test_split(df, test_size=0.20, random_state=42)
 train_df = train_df.reset_index(drop=True)
 validate_df = validate_df.reset_index(drop=True)
 train_df['category'] = train_df['category'].astype('str');
+validate_df['category'] = validate_df['category'].astype('str');
 total_train = train_df.shape[0]
 total_validate = validate_df.shape[0]
 
@@ -100,31 +88,23 @@ if is_gpu_available:
     config.gpu_options.visible_device_list = str(hvd.local_rank())
 K.set_session(tf.Session(config=config))
 
-model = Sequential()
+# load model
+model = VGG16(include_top=False, input_shape=(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_CHANNELS))
 
-model.add(Conv2D(32, (3, 3), activation='relu',
-                 input_shape=(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_CHANNELS)))
-model.add(BatchNormalization())
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
+# mark loaded layers as not trainable
+for layer in model.layers:
+    layer.trainable = False
 
-model.add(Conv2D(64, (3, 3), activation='relu'))
-model.add(BatchNormalization())
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
+    # add new classifier layers
+flat1 = Flatten()(model.layers[-1].output)
+class1 = Dense(128, activation='relu', kernel_initializer='he_uniform')(flat1)
+output = Dense(1, activation='sigmoid')(class1)
 
-model.add(Conv2D(128, (3, 3), activation='relu'))
-model.add(BatchNormalization())
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
-
-model.add(Flatten())
-model.add(Dense(512, activation='relu'))
-model.add(BatchNormalization())
-model.add(Dropout(0.5))
-model.add(Dense(1, activation='sigmoid'))
+# define new model
+model = Model(inputs=model.inputs, outputs=output)
 
 # Horovod: adjust learning rate based on number of GPUs.
+# opt = keras.optimizers.SGD(lr=0.001, momentum=0.9)
 opt = keras.optimizers.Adadelta(lr=1.0 * hvd.size())
 
 # Horovod: add Horovod Distributed Optimizer.
@@ -171,6 +151,8 @@ train_datagen = ImageDataGenerator(
     width_shift_range=0.1,
     height_shift_range=0.1
 )
+train_datagen.mean = [123.68, 116.779, 103.939]
+
 train_generator = train_datagen.flow_from_dataframe(
     train_df,
     DATA_PATH,
@@ -180,8 +162,10 @@ train_generator = train_datagen.flow_from_dataframe(
     class_mode='binary',
     batch_size=batch_size
 )
+mlctx.logger.info(f'classes: {train_generator.class_indices}')
 
 validation_datagen = ImageDataGenerator(rescale=1. / 255)
+validation_datagen.mean = [123.68, 116.779, 103.939]
 validation_generator = validation_datagen.flow_from_dataframe(
     validate_df,
     DATA_PATH,
@@ -205,19 +189,21 @@ history = model.fit_generator(
 
 # save the model only on worker 0 to prevent failures ("cannot lock file")
 if hvd.rank() == 0:
-    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+    MODEL_DIR = os.path.dirname(MODEL_PATH)
     model.save(MODEL_PATH)
+    with open(os.path.join(MODEL_DIR, 'model-architecture.json'), 'w') as f:
+        f.write(model.to_json())
+    model.save_weights(os.path.join(MODEL_DIR, 'model-weights.h5'))
     mlctx.logger.info(f'history: {history.history}')
-    mlctx.log_artifact('model', src_path=MODEL_PATH, labels={'framework': 'tensorflow'})
+    mlctx.log_artifact('model', target_path=MODEL_PATH, labels={'framework': 'tensorflow'})
     
     chart = ChartArtifact('summary.html')
-    chart.header = ['epoch', 'accuracy', 'val_accuracy', 'loss', 'val_loss', 'lr']
+    chart.header = ['epoch', 'accuracy', 'val_accuracy', 'loss', 'val_loss']
     for i in range(epochs):
         chart.add_row([i+1, history.history['accuracy'][i], 
                        history.history['val_accuracy'][i], 
                        history.history['loss'][i], 
-                       history.history['val_loss'][i], 
-                       history.history['lr'][i]])
+                       history.history['val_loss'][i]])
     mlctx.log_artifact(chart)
-    mlctx.log_result('loss', history.history['loss'][epochs-1])
-    mlctx.log_result('accuracy', history.history['accuracy'][epochs-1])
+    mlctx.log_result('loss', float(history.history['loss'][epochs-1]))
+    mlctx.log_result('accuracy', float(history.history['accuracy'][epochs-1]))

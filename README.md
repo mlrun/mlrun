@@ -36,26 +36,35 @@ and the idea is to make all the resources pluggable, this way developers code to
 
 ## Content
 
-<b>Architecture and tutorial</b>
+#### Architecture and tutorial
 
 * [Managed and portable execution a.k.a Serverless](#managed-and-portable-execution)
 * [Automated parametrization, artifact tracking and logging](#automated-parametrization-artifact-tracking-and-logging)
 * [Using hyper parameters for job scaling](#using-hyper-parameters-for-job-scaling)
 * [Automated code deployment and containerization](#automated-code-deployment-and-containerization)
 * [Running with KubeFlow ML Pipeline](#running-with-kubeflow-ml-pipeline)
+* [MLRun UI - WIP](#mlrun-user-interface)
 * [Run and Artifact Database](#run-and-artifact-database)
 
-<b>Examples & Notebooks</b>
+#### Examples & Notebooks
 * [Various run examples](examples/mlrun_games.ipynb)
 * [From local runs to a scalable Kubernetes cluster](examples/nuclio_jobs.ipynb)
 * [Automated workflows with KubeFlow Pipelines](examples/pipe_code.ipynb)
-* [Using MLRUN with Kubernetes Job](examples/mlrun_jobs.ipynb)
-* [Using MLRUN with Horovod and MpiJob](examples/mlrun_mpijob.ipynb)
-* [Using MLRUN with Nuclio](examples/train_xgboost_serverless.ipynb)
-* [Using MLRUN with Dask](examples/mlrun_dask.ipynb)
-* [Using MLRUN with Spark - TBD]()
+* Examples for MLRun with different runtimes
+  * [Kubernetes Job](examples/mlrun_jobs.ipynb)
+  * [Horovod (TensorFlow) and MpiJob](examples/mlrun_mpijob_classify.ipynb)
+  * [Nuclio](examples/train_xgboost_serverless.ipynb)
+  * [Dask](examples/mlrun_dask.ipynb)
+  * [Spark](examples/mlrun_sparkk8s.ipynb)
+* [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 * [Automating container build](examples/build.py)
+
+#### Additional Examples
+
+* Complete demos can be found in [mlrun/demos repo](https://github.com/mlrun/demos)
+  * [Deep learning pipeline](https://github.com/mlrun/demos/blob/master/image_classification/README.md) (data collection, labeling, training, serving + automated workflow)
+* MLRun Functions Library (work in progress) is in [mlrun/functions repo](https://github.com/mlrun/functions)
 
 ## Architecture
 
@@ -160,13 +169,14 @@ will be logged automatically into a database with a single command.
 
 we can swap the `function` with a serverless runtime and the same will run on a cluster.<br>
 this can result in 10x performance boost, see [this notebook](examples/train_xgboost_serverless.ipynb) for details.
-more examples can be found in [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, or `mpijob` runtimes.
+more examples can be found in [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, `Spark`, or `mpijob` runtimes.
  
 if we run our code from `main` we can get the runtime context by calling the `get_or_create_ctx`
 method. 
 
 The example below shows us how we can use the `context` object provide us various ways to
-read and write metadata, secrets, inputs, or outputs.
+read and write metadata, secrets, inputs, or outputs. see the [horovod-training.py](examples/horovod-training.py) 
+example for more details.
 
 <b>Example, obtaining and using the context</b>
 
@@ -220,7 +230,7 @@ the code above can be invoked by calling:
 
     run = new_function(command='training.py').run(task)
 
-or using the cli (while substituting the parameter and input values):
+or using the cli (while substituting the parameter and input data with remote S3 file):
 
     mlrun run --name train -p p2=5 -i infile.txt=s3://my-bocket/infile.txt -s file=secrets.txt training.py
 
@@ -253,7 +263,7 @@ function above by using `hyper params`:
     
 The line above tells mlrun to run the same task while choosing the parameters from multiple lists (GridSearch).
 it will record ALL the runs, but mark the one with minimal `loss` as the selected result.
-for parallelism it would be freffered to use `runtimes` like `dask`, `nuclio`, or `jobs`.
+for parallelism it would be better to use `runtimes` like `dask`, `nuclio`, or `jobs`.
 
 This can also be done via the CLI:
 
@@ -295,7 +305,7 @@ build_image('yhaviv/ktests3:latest',
       commands=['python setup.py install'])
 ```
 
-or this we can convert our notebook into a containerized job:
+or this we can convert our notebook into a containerized job, see [detailed example](examples/mlrun_jobs.ipynb):
 
 ```python
 # create an ML function from the notebook, attache it to iguazio data fabric (v3io)
@@ -329,7 +339,7 @@ def xgb_pipeline(
    eta = [0.1, 0.2, 0.3], gamma = 0.2
 ):
     run = NewTask(handler='xgb_train', out_path=artifacts_path, outputs=['model']).with_hyper_params({'eta': eta}, selector='max.accuracy').with_params(gamma=gamma)
-    train = fn.with_code().to_step(run).apply(mount_v3io())
+    train = fn.with_code().as_step(run).apply(mount_v3io())
 
 
 # run the pipeline
@@ -337,6 +347,12 @@ client = kfp.Client(namespace='default-tenant')
 arguments = {'eta': [0.1, 0.2, 0.4]}
 run_result = client.create_run_from_pipeline_func(xgb_pipeline, arguments, run_name='xgb 1', experiment_name='xgb')    
 ```
+
+## MLRun User Interface
+
+The UI require running the DB/API server, see k8s YAML files under [/hack](./hack), this is still under development.
+
+<br><p align="center"><img src="mlrunui.png" width="800"/></p><br>
 
 ## Run and Artifact Database
 
@@ -387,7 +403,7 @@ to deploy the function into a cluster you can run the following commands
 
 ```python
 # create the function from the notebook code + annotations, add volumes and parallel HTTP trigger
-fn = code_to_function('xgb_train', runtime='nuclio')
+fn = code_to_function('xgb_train', runtime='nuclio:mlrun')
 fn.add_volume('User','~/').with_http(workers=32)
 
 run = fn.run(task, handler='xgb_train')

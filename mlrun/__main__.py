@@ -252,7 +252,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             if task:
                 name = i.metadata.name
                 state = i.status.phase
-                start = i.status.start_time.strftime("%b %d %H:%M:%S")
+                start = ''
+                if i.status.start_time:
+                    start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     elif kind.startswith('run'):
         mldb = get_run_db(db).connect()
@@ -270,9 +272,6 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
         df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
         df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
-        # df['start'] = df['start'].apply(time_str)
-        # df['parameters'] = df['parameters'].apply(dict_to_str)
-        # df['results'] = df['results'].apply(dict_to_str)
         print(tabulate(df, headers='keys'))
 
     else:

@@ -16,18 +16,22 @@ import socket
 import uuid
 from base64 import b64decode
 from copy import deepcopy
-from os import environ, path, makedirs
+from os import environ, makedirs, path
 from tempfile import mktemp
+
 import yaml
 from nuclio import build_file
 
-from .execution import MLClientCtx
-from .model import RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
-from .utils import update_in, get_in, logger
 from .datastore import get_object
-from .db import get_run_db, default_dbpath
+from .db import default_dbpath, get_run_db
+from .execution import MLClientCtx
+from .funcdoc import find_handlers
+from .model import RunObject
+from .runtimes import (
+    DaskCluster, HandlerRuntime, KubejobRuntime, LocalRuntime, MpiRuntime,
+    RemoteRuntime, SparkRuntime
+)
+from .utils import get_in, logger, update_in
 
 
 def get_or_create_ctx(name: str,
@@ -317,6 +321,8 @@ def code_to_function(name='', filename='', handler='', runtime='',
                                           handler=handler or 'handler',
                                           kind=kind)
             r.spec.base_spec = spec
+            handlers = find_handlers(code)
+            r.spec.entry_points = {h[name]: h for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -333,7 +339,7 @@ def code_to_function(name='', filename='', handler='', runtime='',
     elif runtime in runtime_dict:
         r = runtime_dict[runtime]()
     else:
-        raise Exception('unsupported runtime ({})'.format(runtime))
+        raise ValueError('unsupported runtime ({})'.format(runtime))
 
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
@@ -354,6 +360,8 @@ def code_to_function(name='', filename='', handler='', runtime='',
         for vol in get_in(spec, 'spec.volumes', []):
             r.spec.volumes.append(vol.get('volume'))
             r.spec.volume_mounts.append(vol.get('volumeMount'))
+
+    handlers = find_handlers(code)
+    r.spec.entry_points = {h[name]: h for h in handlers}
+
     return r
-
-

@@ -198,7 +198,7 @@ class ASTVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def find_functions(code: str):
+def find_handlers(code: str):
     mod = ast.parse(code)
     visitor = ASTVisitor()
     visitor.visit(mod)

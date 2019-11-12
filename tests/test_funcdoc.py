@@ -83,7 +83,7 @@ def test_func_info(info_fn, obj, expected):
     assert expected == out
 
 
-find_funcs_code = '''
+find_handlers_code = '''
 def dec(n):
     return n - 1
 
@@ -92,7 +92,7 @@ def inc(n):
     return n + 1
 '''
 
-find_funcs_expected = [
+find_handlers_expected = [
     {
         'name': 'inc',
         'doc': '',
@@ -105,9 +105,9 @@ find_funcs_expected = [
 ]
 
 
-def test_find_functions():
-    funcs = funcdoc.find_functions(find_funcs_code)
-    assert find_funcs_expected == funcs
+def test_find_handlers():
+    funcs = funcdoc.find_handlers(find_handlers_code)
+    assert find_handlers_expected == funcs
 
 
 ast_code_cases = [

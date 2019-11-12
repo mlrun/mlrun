@@ -22,7 +22,7 @@ import traceback
 
 here = Path(__file__).absolute().parent
 notebooks_dir = here / 'notebooks'
-tmp_dockerfile = Path('/tmp/Dockerfile.mlrul-test-nb')
+tmp_dockerfile = Path('./Dockerfile.mlrul-test-nb')
 tag_name = 'mlrun/test-notebook'
 
 
@@ -59,16 +59,16 @@ if __name__ == '__main__':
     failed = []
     for i, nb in enumerate(notebooks, 1):
         name = nb.name
-        print('[NB] Testing {!r} ({}/{})'.format(name, i, count))
+        print(f'[NB] Testing {name!r} ({i}/{count})')
         tb = None
         result = 'OK'
         try:
             check_notebook(name, template)
         except Exception as err:
-            result = 'FAIL ({})'.format(err)
+            result = f'FAIL ({err})'
             failed.append(name)
             tb = traceback.format_exc()
-        print('[NB] {!r} {}'.format(name, result))
+        print(f'[NB] {name!r} {result}')
         if tb:
             print(tb)
 

@@ -130,7 +130,7 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
-        artifact['updated'] = time.time()
+        artifact['updated'] = datetime.now()
         data = self._dumps(artifact)
         filepath = self._filepath(
             artifacts_dir, project, key, uid) + self.format
@@ -196,6 +196,7 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_function(self, func, name, project='', tag=''):
+        update_in(func, 'metadata.updated', datetime.now())
         data = self._dumps(func)
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or default_project, name,

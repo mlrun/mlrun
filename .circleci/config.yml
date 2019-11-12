@@ -5,3 +5,4 @@ jobs:
     steps:
       - checkout
       - run: docker build -f Dockerfile.test .
+      - run: python tests/run_notebook_tests.py

@@ -22,7 +22,6 @@ from urllib.request import URLError, urlopen
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
-notebooks_dir = here / 'notebooks'
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
 

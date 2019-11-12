@@ -26,7 +26,8 @@ tmp_dockerfile = Path('/tmp/Dockerfile.mlrul-test-nb')
 tag_name = 'mlrun/test-notebook'
 
 
-def test_notebook(notebook, template):
+# Must not start with "test_", otherwise pytset will catch it
+def check_notebook(notebook, template):
     code = template.format(notebook=notebook)
     with tmp_dockerfile.open('w') as out:
         out.write(code)
@@ -62,7 +63,7 @@ if __name__ == '__main__':
         tb = None
         result = 'OK'
         try:
-            test_notebook(name, template)
+            check_notebook(name, template)
         except Exception as err:
             result = f'FAIL ({err})'
             failed.append(name)

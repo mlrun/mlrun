@@ -23,7 +23,6 @@ import traceback
 here = Path(__file__).absolute().parent
 notebooks_dir = here / 'notebooks'
 tmp_dockerfile = Path('./Dockerfile.mlrul-test-nb')
-tag_name = 'mlrun/test-notebook'
 
 
 # Must not start with "test_", otherwise pytset will catch it
@@ -34,7 +33,6 @@ def check_notebook(notebook, template):
 
     cmd = [
         'docker', 'build',
-        '--tag', tag_name,
         '--file', tmp_dockerfile,
         '.',
     ]

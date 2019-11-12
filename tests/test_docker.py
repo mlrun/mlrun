@@ -18,7 +18,7 @@ from sys import platform
 
 import pytest
 
-from conftest import here, wait_for_server
+from conftest import here, wait_for_server, is_ci
 
 prj_dir = here.parent
 
@@ -35,6 +35,7 @@ def check_docker():
 
 
 in_docker = check_docker()
+should_run = (not in_docker) and is_ci
 
 
 @pytest.fixture
@@ -69,7 +70,7 @@ def build_docker():
 dockerfiles = ['Dockerfile.db', 'Dockerfile.db-gunicorn']
 
 
-@pytest.mark.skipif(in_docker, reason='in docker container')
+@pytest.mark.skipif(not should_run, reason='in docker container or not CI')
 @pytest.mark.parametrize('dockerfile', dockerfiles)
 def test_docker(build_docker, dockerfile):
     build_docker(dockerfile)

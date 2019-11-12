@@ -203,6 +203,7 @@ def test_set_get_function(create_server):
     func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
     db.store_function(func, name, proj)
     db_func = db.get_function(name, proj)
+    del db_func['metadata']
     assert db_func == func, 'wrong func'
 
 

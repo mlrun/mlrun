@@ -175,11 +175,12 @@ class RemoteRuntime(BaseRuntime):
         self.set_config('metadata.labels.mlrun/class', self.kind)
         spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
         spec.cmd = self.spec.build_commands
-        kind = kind if kind is not None else self.spec.function_kind
         project = project or self.metadata.project or 'mlrun'
         handler = self.spec.function_handler
 
         if self.spec.base_spec:
+            if kind:
+                raise ValueError('kind cannot be specified on built functions')
             config = nuclio.config.extend_config(
                 self.spec.base_spec, spec, tag, self.spec.source)
             update_in(config, 'metadata.name', self.metadata.name)
@@ -192,6 +193,7 @@ class RemoteRuntime(BaseRuntime):
                 create_new=True)
         else:
 
+            kind = kind if kind is not None else self.spec.function_kind
             name, config, code = nuclio.build_file(self.spec.source,
                                                    name=self.metadata.name,
                                                    project=project,

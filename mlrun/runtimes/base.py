@@ -124,13 +124,18 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
-    def calc_hash(self):
-        #hashkey = self.metadata.hash
+    def calc_hash(self, tag=''):
+        # remove tag, hash, date from calculation
+        tag = tag or self.metadata.tag
+        self.metadata.tag = ''
         self.metadata.hash = ''
+        self.metadata.updated = None
+
         data = self.to_json().encode()
         h = hashlib.sha1()
         h.update(data)
         hashkey = h.hexdigest()
+        self.metadata.tag = tag
         self.metadata.hash = hashkey
         return hashkey
 
@@ -428,7 +433,10 @@ class BaseRuntime(ModelObj):
                 environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
         raise RunError('local container registry is not defined')
 
-    def to_step(self, runspec: RunObject = None, handler=None, name: str = '',
+    def to_step(self, **kw):
+        raise ValueError('.to_step() is deprecated, us .as_step() instead')
+
+    def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
                 in_path: str = '', out_path: str = ''):
@@ -472,6 +480,20 @@ class BaseRuntime(ModelObj):
         datastore, subpath = stores.get_or_create_store(target)
         datastore.put(subpath, data)
         logger.info('function spec saved to path: {}'.format(target))
+
+    def save(self, tag=''):
+        if not self._db_conn:
+            logger.error('database connection is not configured')
+            return
+
+        tag = tag or 'latest'
+        hashkey = self.calc_hash()
+        self.metadata.tag = tag
+        obj = self.to_dict()
+        self._db_conn.store_function(obj, self.metadata.name,
+                                     self.metadata.project, hashkey)
+        self._db_conn.store_function(obj, self.metadata.name,
+                                     self.metadata.project, tag)
 
 
 def selector(results: list, criteria):

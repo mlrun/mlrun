@@ -59,16 +59,16 @@ if __name__ == '__main__':
     failed = []
     for i, nb in enumerate(notebooks, 1):
         name = nb.name
-        print(f'[NB] Testing {name!r} ({i}/{count})')
+        print('[NB] Testing {!r} ({}/{})'.format(name, i, count))
         tb = None
         result = 'OK'
         try:
             check_notebook(name, template)
         except Exception as err:
-            result = f'FAIL ({err})'
+            result = 'FAIL ({})'.format(err)
             failed.append(name)
             tb = traceback.format_exc()
-        print(f'[NB] {name!r} {result}')
+        print('[NB] {!r} {}'.format(name, result))
         if tb:
             print(tb)
 

@@ -91,12 +91,11 @@ class HTTPRunDB(RunDBInterface):
         resp = self._api_call('GET', path, error)
         return resp.content
 
-    def store_run(self, struct, uid, project='', commit=False):
+    def store_run(self, struct, uid, project=''):
         path = self._path_of('run', project, uid)
         error = f'store run {project}/{uid}'
-        params = {'commit': bool2str(commit)}
         body = _as_json(struct)
-        self._api_call('POST', path, error, params, body=body)
+        self._api_call('POST', path, error, body=body)
 
     def update_run(self, updates: dict, uid, project=''):
         path = self._path_of('run', project, uid)

@@ -36,7 +36,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_run(self, struct, uid, project='', commit=False):
+    def store_run(self, struct, uid, project=''):
         pass
 
     @abstractmethod

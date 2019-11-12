@@ -218,10 +218,8 @@ class BaseRuntime(ModelObj):
         if self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
-        if 'V3IO_USERNAME' in environ:
-            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
         meta.labels['kind'] = self.kind
-        meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
+        meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
         add_code_metadata(meta.labels)
 
         hashkey = self.calc_hash()
@@ -235,7 +233,7 @@ class BaseRuntime(ModelObj):
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           self._db_conn,
-                                          autocommit=True)
+                                          autocommit=False)
 
         # form child run task generator from spec
         task_generator = None
@@ -250,11 +248,12 @@ class BaseRuntime(ModelObj):
             resp = execution.to_dict()
             if resp and self.kfp:
                 write_kfpmeta(resp)
+
             result = show(resp)
         else:
             # single run
             try:
-                self.store_run(runspec)
+                #self.store_run(runspec)
                 resp = self._run(runspec, execution)
                 result = show(self._post_run(resp, task=runspec))
                 if result and self.kfp:
@@ -312,7 +311,7 @@ class BaseRuntime(ModelObj):
         results = RunList()
         for task in tasks:
             try:
-                self.store_run(task)
+                #self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
             except RunError as err:
@@ -322,14 +321,14 @@ class BaseRuntime(ModelObj):
             results.append(resp)
         return results
 
-    def store_run(self, runobj: RunObject, commit=True):
+    def store_run(self, runobj: RunObject):
         if self._db_conn and runobj:
             project = runobj.metadata.project
             uid = runobj.metadata.uid
             iter = runobj.metadata.iteration
             if iter:
                 uid = '{}-{}'.format(uid, iter)
-            self._db_conn.store_run(runobj.to_dict(), uid, project, commit)
+            self._db_conn.store_run(runobj.to_dict(), uid, project)
 
     def _post_run(self, resp: dict = None, task: RunObject = None, err=None):
         """update the task state in the DB"""
@@ -345,7 +344,8 @@ class BaseRuntime(ModelObj):
             raise ValueError('post_run called with type {}'.format(type(resp)))
 
         updates = None
-        if get_in(resp, 'status.state', '') == 'error' or err:
+        last_state = get_in(resp, 'status.state', '')
+        if last_state == 'error' or err:
             updates = {'status.last_update': str(datetime.now())}
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
@@ -354,7 +354,7 @@ class BaseRuntime(ModelObj):
             err = get_in(resp, 'status.error')
             if err:
                 updates['status.error'] = err
-        elif not was_none:
+        elif not was_none and last_state != 'completed':
             updates = {'status.last_update': str(datetime.now())}
             updates['status.state'] = 'completed'
             update_in(resp, 'status.state', 'completed')
@@ -412,9 +412,10 @@ class BaseRuntime(ModelObj):
         if failed:
             execution.set_state(
                 error='{} tasks failed, check logs for db for details'.format(
-                    failed))
+                    failed), commit=False)
         else:
-            execution.set_state('completed')
+            execution.set_state('completed', commit=False)
+        execution.commit()
 
     def _force_handler(self, handler):
         if not handler:

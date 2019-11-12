@@ -62,6 +62,7 @@ class MpiRuntime(KubejobRuntime):
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
 
+        self.store_run(runobj)
         job = deepcopy(_mpijob_template)
         meta = self._get_meta(runobj, True)
 

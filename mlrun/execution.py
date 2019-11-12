@@ -221,7 +221,8 @@ class MLClientCtx(object):
         """get a run parameter, or use the provided default if not set"""
         if key not in self._parameters:
             self._parameters[key] = default
-            self._update_db()
+            if default:
+                self._update_db()
             return default
         return self._parameters[key]
 
@@ -250,12 +251,12 @@ class MLClientCtx(object):
         else:
             return self._inputs[key]
 
-    def log_result(self, key: str, value):
+    def log_result(self, key: str, value, commit=False):
         """log a scalar result value"""
         self._results[str(key)] = value
-        self._update_db()
+        self._update_db(commit=commit)
 
-    def log_results(self, results: dict):
+    def log_results(self, results: dict, commit=False):
         """log a set of scalar result values"""
         if not isinstance(results, dict):
             raise MLCtxValueError(
@@ -263,7 +264,7 @@ class MLClientCtx(object):
 
         for p in results.keys():
             self._results[str(p)] = results[p]
-        self._update_db()
+        self._update_db(commit=commit)
 
     def log_iteration_results(
       self, best, summary: list, task: dict, commit=False):
@@ -310,10 +311,11 @@ class MLClientCtx(object):
 
     def commit(self, message: str = ''):
         """save run state and add a commit message"""
-        self._annotations['message'] = message
+        if message:
+            self._annotations['message'] = message
         self._update_db(commit=True, message=message)
 
-    def set_state(self, state: str = None, error: str = None):
+    def set_state(self, state: str = None, error: str = None, commit=True):
         """modify and store the run state or mark an error"""
         updates = {'status.last_update': str(datetime.now())}
 
@@ -324,9 +326,9 @@ class MLClientCtx(object):
             updates['status.error'] = error
         elif state and state != self._state and self._state != 'error':
             self._state = state
-            updates['status.state'] = 'completed'
+            updates['status.state'] = state
 
-        if self._rundb:
+        if self._rundb and commit:
             self._rundb.update_run(updates, self.uid, self.project)
 
     def set_hostname(self, host: str):
@@ -386,7 +388,8 @@ class MLClientCtx(object):
 
     def _update_db(self, state='', commit=False, message=''):
         self.last_update = datetime.now()
-        self._state = state or 'running'
+        if state or self._state == 'created':
+            self._state = state or 'running'
         if self._tmpfile:
             data = self.to_json()
             with open(self._tmpfile, 'w') as fp:
@@ -397,4 +400,4 @@ class MLClientCtx(object):
             self._commit = message
             if self._rundb:
                 self._rundb.store_run(
-                    self.to_dict(), self.uid, self.project, commit)
+                    self.to_dict(), self.uid, self.project)

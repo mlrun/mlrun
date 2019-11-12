@@ -44,11 +44,12 @@ class HandlerRuntime(BaseRuntime):
         environ['MLRUN_META_TMPFILE'] = tmp
         context = MLClientCtx.from_dict(runobj.to_dict(),
                                         rundb=self.spec.rundb,
-                                        autocommit=True,
+                                        autocommit=False,
                                         tmp=tmp,
                                         host=socket.gethostname())
         sys.modules[__name__].mlrun_context = context
         sout, serr = exec_from_params(handler, runobj, context)
+        context.commit()
         log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
 
@@ -68,11 +69,12 @@ class LocalRuntime(ContainerRuntime):
             mod, fn = load_module(self.spec.command, handler)
             context = MLClientCtx.from_dict(runobj.to_dict(),
                                             rundb=self.spec.rundb,
-                                            autocommit=True,
+                                            autocommit=False,
                                             tmp=tmp,
                                             host=socket.gethostname())
             mod.mlrun_context = context
             sout, serr = exec_from_params(fn, runobj, context)
+            context.commit()
             log_std(self._db_conn, runobj, sout, serr)
             return context.to_dict()
 
@@ -153,6 +155,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
     with redirect_stdout(stdout):
         try:
             val = handler(*args_list)
+            context.set_state('completed', commit=False)
         except Exception as e:
             err = str(e)
             context.set_state(error=err)

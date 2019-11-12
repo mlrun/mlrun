@@ -234,13 +234,12 @@ def get_log(project, uid):
 @app.route('/api/run/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_run(project, uid):
-    commit = strtobool(request.args.get('commit', 'no'))
     try:
         data = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    _file_db.store_run(data, uid, project, commit)
+    _file_db.store_run(data, uid, project)
     app.logger.info('store run: {}'.format(data))
     return jsonify(ok=True)
 

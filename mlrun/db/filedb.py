@@ -62,7 +62,7 @@ class FileRunDB(RunDBInterface):
                 return fp.read(size)
         return None
 
-    def store_run(self, struct, uid, project='', commit=False):
+    def store_run(self, struct, uid, project=''):
         data = self._dumps(struct)
         filepath = self._filepath(run_logs, project, uid, '') + self.format
         self._datastore.put(filepath, data)
@@ -72,7 +72,7 @@ class FileRunDB(RunDBInterface):
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
-        self.store_run(run, uid, project, True)
+        self.store_run(run, uid, project)
 
     def read_run(self, uid, project=''):
         filepath = self._filepath(run_logs, project, uid, '') + self.format

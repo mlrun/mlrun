@@ -219,10 +219,11 @@ class RemoteRuntime(BaseRuntime):
     def _raise_mlrun(self):
         if self.spec.function_kind != 'mlrun':
             raise RunError('.run() can only be execute on "mlrun" kind'
-                           ', set function spec.function_kind to "mlrun"')
+                           ', recreate with function kind "mlrun"')
 
     def _run(self, runobj: RunObject, execution):
         self._raise_mlrun()
+        self.store_run(runobj)
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = execution.log_level
@@ -246,7 +247,9 @@ class RemoteRuntime(BaseRuntime):
         if logs:
             print(parse_logs(logs))
 
-        return resp.json()
+        run = resp.json()
+
+        return run
 
     def _run_many(self, tasks, execution, runobj: RunObject):
         self._raise_mlrun()

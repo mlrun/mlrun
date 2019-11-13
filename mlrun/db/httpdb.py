@@ -91,31 +91,35 @@ class HTTPRunDB(RunDBInterface):
         resp = self._api_call('GET', path, error)
         return resp.content
 
-    def store_run(self, struct, uid, project=''):
+    def store_run(self, struct, uid, project='', iter=0):
         path = self._path_of('run', project, uid)
+        params = {'iter': iter}
         error = f'store run {project}/{uid}'
         body = _as_json(struct)
-        self._api_call('POST', path, error, body=body)
+        self._api_call('POST', path, error, params=params, body=body)
 
-    def update_run(self, updates: dict, uid, project=''):
+    def update_run(self, updates: dict, uid, project='', iter=0):
         path = self._path_of('run', project, uid)
+        params = {'iter': iter}
         error = f'update run {project}/{uid}'
         body = _as_json(updates)
-        self._api_call('PATCH', path, error, body=body)
+        self._api_call('PATCH', path, error, params=params, body=body)
 
-    def read_run(self, uid, project=''):
+    def read_run(self, uid, project='', iter=0):
         path = self._path_of('run', project, uid)
+        params = {'iter': iter}
         error = f'get run {project}/{uid}'
-        resp = self._api_call('GET', path, error)
+        resp = self._api_call('GET', path, error, params=params)
         return resp.json()['data']
 
-    def del_run(self, uid, project=''):
+    def del_run(self, uid, project='', iter=0):
         path = self._path_of('run', project, uid)
+        params = {'iter': iter}
         error = f'del run {project}/{uid}'
-        self._api_call('DELETE', path, error)
+        self._api_call('DELETE', path, error, params=params)
 
     def list_runs(self, name='', uid=None, project='', labels=None,
-                  state='', sort=True, last=0):
+                  state='', sort=True, last=0, iter=False):
 
         project = project or default_project
         params = {
@@ -125,6 +129,7 @@ class HTTPRunDB(RunDBInterface):
             'label': labels or [],
             'state': state,
             'sort': bool2str(sort),
+            'iter': bool2str(iter),
         }
         error = 'list runs'
         resp = self._api_call('GET', 'runs', error, params=params)

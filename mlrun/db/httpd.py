@@ -239,7 +239,8 @@ def store_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    _file_db.store_run(data, uid, project)
+    iter = int(request.args.get('iter', '0'))
+    _file_db.store_run(data, uid, project, iter=iter)
     app.logger.info('store run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -253,7 +254,8 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    _file_db.update_run(data, uid, project)
+    iter = int(request.args.get('iter', '0'))
+    _file_db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -262,7 +264,8 @@ def update_run(project, uid):
 @app.route('/api/run/<project>/<uid>', methods=['GET'])
 @catch_err
 def read_run(project, uid):
-    data = _file_db.read_run(uid, project)
+    iter = int(request.args.get('iter', '0'))
+    data = _file_db.read_run(uid, project, iter=iter)
     return jsonify(ok=True, data=data)
 
 
@@ -270,7 +273,8 @@ def read_run(project, uid):
 @app.route('/api/run/<project>/<uid>', methods=['DELETE'])
 @catch_err
 def del_run(project, uid):
-    _file_db.del_run(uid, project)
+    iter = int(request.args.get('iter', '0'))
+    _file_db.del_run(uid, project, iter=iter)
     return jsonify(ok=True)
 
 
@@ -284,7 +288,8 @@ def list_runs():
     labels = request.args.getlist('label')
     state = request.args.get('state', '')
     sort = strtobool(request.args.get('sort', 'on'))
-    last = int(request.args.get('last', '30'))
+    iter = strtobool(request.args.get('iter', 'on'))
+    last = int(request.args.get('last', '0'))
 
     runs = _file_db.list_runs(
         name=name,
@@ -294,6 +299,7 @@ def list_runs():
         state=state,
         sort=sort,
         last=last,
+        iter=iter,
     )
     return jsonify(ok=True, runs=runs)
 

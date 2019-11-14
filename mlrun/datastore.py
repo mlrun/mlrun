@@ -213,8 +213,8 @@ class DataItem:
     def download(self, target_path):
         self._store.download(self._path, target_path)
 
-    def put(self, data):
-        self._store.put(self._path, data)
+    def put(self, data, append=False):
+        self._store.put(self._path, data, append=append)
 
     def upload(self, src_path):
         self._store.upload(self._path, src_path)

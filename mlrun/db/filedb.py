@@ -14,7 +14,7 @@
 
 import json
 import time
-from os import path, remove
+from os import path, remove, makedirs
 import yaml
 import pathlib
 from datetime import datetime, timedelta
@@ -48,8 +48,11 @@ class FileRunDB(RunDBInterface):
 
     def store_log(self, uid, project='', body=None, append=True):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
-        # TODO: handle append
-        self._datastore.put(filepath, body)
+        makedirs(path.join(self.dirpath, run_logs, project), exist_ok=True)
+        mode = 'ab' if append else 'wb'
+        with open(filepath, mode) as fp:
+            fp.write(body)
+            fp.close()
 
     def get_log(self, uid, project='', offset=0, size=0):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
@@ -74,12 +77,11 @@ class FileRunDB(RunDBInterface):
         self._datastore.put(filepath, data)
 
     def update_run(self, updates: dict, uid, project='', iter=0):
-        uid = self._run_path(uid, iter)
-        run = self.read_run(uid, project)
+        run = self.read_run(uid, project, iter=iter)
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
-        self.store_run(run, uid, project)
+        self.store_run(run, uid, project, iter=iter)
 
     def read_run(self, uid, project='', iter=0):
         filepath = self._filepath(

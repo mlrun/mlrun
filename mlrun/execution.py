@@ -137,10 +137,9 @@ class MLClientCtx(object):
                     self._set_input(k, v)
 
         if host:
-            self._host = host
-            self._state = 'running'
             self.set_label('host', host)
 
+        self._state = 'running'
         self._update_db(commit=True)
         return self
 
@@ -329,14 +328,16 @@ class MLClientCtx(object):
             updates['status.state'] = state
 
         if self._rundb and commit:
-            self._rundb.update_run(updates, self.uid, self.project)
+            self._rundb.update_run(updates, self._uid,
+                                   self.project, iter=self._iteration)
 
     def set_hostname(self, host: str):
         """update the hostname"""
         self._host = host
         if self._rundb:
             updates = {'status.host': host}
-            self._rundb.update_run(updates, self.uid, self.project)
+            self._rundb.update_run(updates, self._uid,
+                                   self.project, iter=self._iteration)
 
     def to_dict(self):
         """convert the run context to a dictionary"""
@@ -370,7 +371,6 @@ class MLClientCtx(object):
 
         set_if_valid(struct['status'], 'error', self._error)
         set_if_valid(struct['status'], 'commit', self._commit)
-        set_if_valid(struct['status'], 'host', self._host)
 
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
@@ -386,10 +386,8 @@ class MLClientCtx(object):
         """convert the run context to a json buffer"""
         return dict_to_json(self.to_dict())
 
-    def _update_db(self, state='', commit=False, message=''):
+    def _update_db(self, commit=False, message=''):
         self.last_update = datetime.now()
-        if state or self._state == 'created':
-            self._state = state or 'running'
         if self._tmpfile:
             data = self.to_json()
             with open(self._tmpfile, 'w') as fp:
@@ -400,4 +398,4 @@ class MLClientCtx(object):
             self._commit = message
             if self._rundb:
                 self._rundb.store_run(
-                    self.to_dict(), self.uid, self.project)
+                    self.to_dict(), self._uid, self.project, iter=self._iteration)

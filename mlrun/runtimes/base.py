@@ -87,7 +87,7 @@ class BaseRuntime(ModelObj):
     _is_nested = False
     _dict_fields = ['kind', 'metadata', 'spec']
 
-    def __init__(self, metadata=None, spec=None, build=None):
+    def __init__(self, metadata=None, spec=None):
         self._metadata = None
         self.metadata = metadata
         self.kfp = None
@@ -98,6 +98,7 @@ class BaseRuntime(ModelObj):
         self._k8s = None
         self._is_built = False
         self.interactive = False
+        self.is_child = False
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -222,14 +223,15 @@ class BaseRuntime(ModelObj):
         meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
         add_code_metadata(meta.labels)
 
-        hashkey = self.calc_hash()
-        if self._db_conn:
-            self._db_conn.store_function(self.to_dict(), self.metadata.name,
-                                         self.metadata.project, hashkey)
-        furi = '{}:{}'.format(self.metadata.name, hashkey)
-        if self.metadata.project and self.metadata.project != 'default':
-            furi = '{}/{}'.format(self.metadata.project, furi)
-        runspec.spec.function = furi
+        if not self.is_child:
+            hashkey = self.calc_hash()
+            if self._db_conn:
+                self._db_conn.store_function(self.to_dict(), self.metadata.name,
+                                             self.metadata.project, hashkey)
+            furi = '{}:{}'.format(self.metadata.name, hashkey)
+            if self.metadata.project and self.metadata.project != 'default':
+                furi = '{}/{}'.format(self.metadata.project, furi)
+            runspec.spec.function = furi
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           self._db_conn,
@@ -276,9 +278,7 @@ class BaseRuntime(ModelObj):
             project = task.metadata.project
             uid = task.metadata.uid
             iter = task.metadata.iteration
-            if iter:
-                uid = '{}-{}'.format(uid, iter)
-            return self._db_conn.read_run(uid, project)
+            return self._db_conn.read_run(uid, project, iter=iter)
         if task:
             return task.to_dict()
 
@@ -326,9 +326,14 @@ class BaseRuntime(ModelObj):
             project = runobj.metadata.project
             uid = runobj.metadata.uid
             iter = runobj.metadata.iteration
-            if iter:
-                uid = '{}-{}'.format(uid, iter)
-            self._db_conn.store_run(runobj.to_dict(), uid, project)
+            self._db_conn.store_run(runobj.to_dict(), uid, project, iter=iter)
+
+    def _store_run_dict(self, rundict: dict):
+        if self._db_conn and rundict:
+            project = get_in(rundict, 'metadata.project', '')
+            uid = get_in(rundict, 'metadata.uid')
+            iter = get_in(rundict, 'metadata.iteration', 0)
+            self._db_conn.store_run(rundict, uid, project, iter=iter)
 
     def _post_run(self, resp: dict = None, task: RunObject = None, err=None):
         """update the task state in the DB"""
@@ -363,9 +368,7 @@ class BaseRuntime(ModelObj):
             project = get_in(resp, 'metadata.project')
             uid = get_in(resp, 'metadata.uid')
             iter = get_in(resp, 'metadata.iteration', 0)
-            if iter:
-                uid = '{}-{}'.format(uid, iter)
-            self._db_conn.update_run(updates, uid, project)
+            self._db_conn.update_run(updates, uid, project, iter=iter)
 
         return resp
 
@@ -376,6 +379,7 @@ class BaseRuntime(ModelObj):
 
         iter = []
         failed = 0
+        running = 0
         for task in results:
             state = get_in(task, ['status', 'state'])
             id = get_in(task, ['metadata', 'iteration'])
@@ -389,8 +393,10 @@ class BaseRuntime(ModelObj):
                 err = get_in(task, ['status', 'error'], '')
                 logger.error('error in task  {}:{} - {}'.format(
                     runspec.metadata.uid, id, err))
+            elif state != 'completed':
+                running += 1
 
-            self._post_run(task)
+            #self._post_run(task)
             iter.append(struct)
 
         df = pd.io.json.json_normalize(iter).sort_values('iter')
@@ -411,9 +417,9 @@ class BaseRuntime(ModelObj):
                           viewer='table'))
         if failed:
             execution.set_state(
-                error='{} tasks failed, check logs for db for details'.format(
+                error='{} tasks failed, check logs in db for details'.format(
                     failed), commit=False)
-        else:
+        elif running == 0:
             execution.set_state('completed', commit=False)
         execution.commit()
 

@@ -110,7 +110,8 @@ class SparkRuntime(KubejobRuntime):
     plural = 'sparkapplications'
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
-        self.store_run(runobj)
+        if runobj.metadata.iteration:
+            self.store_run(runobj)
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runobj, True)
         pod_labels = deepcopy(meta.labels)

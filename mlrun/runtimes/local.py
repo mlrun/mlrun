@@ -22,9 +22,10 @@ from tempfile import mktemp
 from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
-from .base import BaseRuntime, RunError
+from .base import BaseRuntime
+from .utils import log_std
 from .container import ContainerRuntime
-from sys import executable, stderr
+from sys import executable
 from subprocess import run, PIPE
 
 import importlib.util as imputil
@@ -49,7 +50,6 @@ class HandlerRuntime(BaseRuntime):
                                         host=socket.gethostname())
         sys.modules[__name__].mlrun_context = context
         sout, serr = exec_from_params(handler, runobj, context)
-        context.commit()
         log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
 
@@ -74,13 +74,12 @@ class LocalRuntime(ContainerRuntime):
                                             host=socket.gethostname())
             mod.mlrun_context = context
             sout, serr = exec_from_params(fn, runobj, context)
-            context.commit()
-            log_std(self._db_conn, runobj, sout, serr)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
             return context.to_dict()
 
         else:
             sout, serr = run_exec(self.spec.command, self.spec.args)
-            log_std(self._db_conn, runobj, sout, serr)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
 
             try:
                 with open(tmp) as fp:
@@ -158,10 +157,11 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
             context.set_state('completed', commit=False)
         except Exception as e:
             err = str(e)
-            context.set_state(error=err)
+            context.set_state(error=err, commit=False)
 
     if val:
         context.log_result('return', val)
+    context.commit()
     return stdout.getvalue(), err
 
 
@@ -201,16 +201,3 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
             args_list.append(None)
 
     return args_list
-
-
-def log_std(db, runobj, out, err=''):
-    if out:
-        print(out)
-    if db:
-        uid = runobj.metadata.uid
-        project = runobj.metadata.project or ''
-        db.store_log(uid, project, out)
-    if err:
-        logger.error('exec error - {}'.format(err))
-        print(err, file=stderr)
-        raise RunError(err)

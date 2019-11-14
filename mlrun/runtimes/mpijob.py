@@ -14,6 +14,7 @@
 import time
 from copy import deepcopy
 
+from .utils import AsyncLogWriter
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import update_in, logger, get_in
@@ -62,7 +63,8 @@ class MpiRuntime(KubejobRuntime):
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
 
-        self.store_run(runobj)
+        if runobj.metadata.iteration:
+            self.store_run(runobj)
         job = deepcopy(_mpijob_template)
         meta = self._get_meta(runobj, True)
 
@@ -105,11 +107,14 @@ class MpiRuntime(KubejobRuntime):
             logger.info('MpiJob {} state={}'.format(
                 meta.name, state or 'unknown'))
             if state:
-                launcher, status = self._get_launcher(meta.name, meta.namespace)
+                launcher, status = self._get_launcher(meta.name,
+                                                      meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state(state.lower())
                 if self.interactive or self.kfp:
-                    status = self._get_k8s().watch(launcher, meta.namespace)
+                    writer = AsyncLogWriter(self._db_conn, runobj)
+                    status = self._get_k8s().watch(
+                        launcher, meta.namespace, writer=writer)
                     logger.info(
                         'MpiJob {} finished with state {}'.format(
                             meta.name, status))

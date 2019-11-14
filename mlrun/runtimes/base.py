@@ -219,11 +219,11 @@ class BaseRuntime(ModelObj):
         if self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
-        meta.labels['kind'] = self.kind
-        meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
         add_code_metadata(meta.labels)
 
         if not self.is_child:
+            meta.labels['kind'] = self.kind
+            meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
             hashkey = self.calc_hash()
             if self._db_conn:
                 self._db_conn.store_function(self.to_dict(), self.metadata.name,

@@ -152,6 +152,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
     err = ''
     val = None
     with redirect_stdout(stdout):
+        context.set_logger_stream(stdout)
         try:
             val = handler(*args_list)
             context.set_state('completed', commit=False)
@@ -159,6 +160,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
             err = str(e)
             context.set_state(error=err, commit=False)
 
+    context.set_logger_stream(sys.stdout)
     if val:
         context.log_result('return', val)
     context.commit()

@@ -43,7 +43,7 @@ class MLClientCtx(object):
     see doc for the individual params and methods
     """
 
-    def __init__(self, autocommit=False, tmp=''):
+    def __init__(self, autocommit=False, tmp='', log_stream=None):
         self._uid = ''
         self.name = ''
         self._iteration = 0
@@ -54,7 +54,7 @@ class MLClientCtx(object):
         # runtime db service interfaces
         self._rundb = None
         self._tmpfile = tmp
-        self._logger = logger
+        self._logger = log_stream or logger
         self._log_level = 'info'
         self._matrics_db = None
         self._autocommit = autocommit
@@ -77,6 +77,12 @@ class MLClientCtx(object):
         self._start_time = datetime.now()
         self._last_update = datetime.now()
         self._iteration_results = None
+
+    def set_logger_stream(self, stream):
+        handlers = self._logger.handlers
+        if len(handlers)>0:
+            handlers[0].stream = stream
+
 
     def _init_dbs(self, rundb):
         if rundb:
@@ -104,9 +110,9 @@ class MLClientCtx(object):
 
     @classmethod
     def from_dict(cls, attrs: dict, rundb='', autocommit=False, tmp='',
-                  host=None):
+                  host=None, log_stream=None):
 
-        self = cls(autocommit=autocommit, tmp=tmp)
+        self = cls(autocommit=autocommit, tmp=tmp, log_stream=log_stream)
 
         meta = attrs.get('metadata')
         if meta:

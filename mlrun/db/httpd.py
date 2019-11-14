@@ -226,7 +226,12 @@ def store_log(project, uid):
 def get_log(project, uid):
     data = _file_db.get_log(uid, project)
     if data is None:
-        return json_error(HTTPStatus.NOT_FOUND, project=project, uid=uid)
+        data = _file_db.read_run(uid, project)
+        if not data:
+            return json_error(HTTPStatus.NOT_FOUND,
+                              project=project, uid=uid)
+        msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
+        return msg.encode()
 
     return data
 
@@ -239,6 +244,7 @@ def store_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     iter = int(request.args.get('iter', '0'))
     _file_db.store_run(data, uid, project, iter=iter)
     app.logger.info('store run: {}'.format(data))

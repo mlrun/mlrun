@@ -44,3 +44,7 @@ class AsyncLogWriter:
     def write(self, data):
         if self.db:
             self.db.store_log(self.uid, self.project, data, append=True)
+
+    def flush(self):
+        # todo: verify writes are large enough, if not cache and use flush
+        pass

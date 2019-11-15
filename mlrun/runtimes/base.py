@@ -179,7 +179,7 @@ class BaseRuntime(ModelObj):
             return resp
 
         if not handler:
-            handler_str = ''
+            handler_str = runspec.spec.handler_name
         elif inspect.isfunction(handler):
             handler_str = handler.__name__
         else:

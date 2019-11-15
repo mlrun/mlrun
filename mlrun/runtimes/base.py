@@ -178,6 +178,13 @@ class BaseRuntime(ModelObj):
             print('!mlrun get run --uid {} {}'.format(uid, project))
             return resp
 
+        if not handler:
+            handler_str = ''
+        elif inspect.isfunction(handler):
+            handler_str = handler.__name__
+        else:
+            handler_str = str(handler)
+
         if runspec:
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
@@ -188,17 +195,14 @@ class BaseRuntime(ModelObj):
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
         runspec.metadata.name = name or runspec.metadata.name or \
-            self.metadata.name
+            handler_str or self.metadata.name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or runspec.spec.output_path
 
         if handler and self.kind not in ['handler', 'dask']:
-            if inspect.isfunction(handler):
-                handler = handler.__name__
-            else:
-                handler = str(handler)
+            handler = handler_str
         runspec.spec.handler = handler or runspec.spec.handler
 
         spec = runspec.spec

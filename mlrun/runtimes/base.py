@@ -87,7 +87,7 @@ class BaseRuntime(ModelObj):
     _is_nested = False
     _dict_fields = ['kind', 'metadata', 'spec']
 
-    def __init__(self, metadata=None, spec=None, build=None):
+    def __init__(self, metadata=None, spec=None):
         self._metadata = None
         self.metadata = metadata
         self.kfp = None
@@ -97,7 +97,8 @@ class BaseRuntime(ModelObj):
         self._secrets = None
         self._k8s = None
         self._is_built = False
-        self.interactive = False
+        self.interactive = True
+        self.is_child = False
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -177,6 +178,13 @@ class BaseRuntime(ModelObj):
             print('!mlrun get run --uid {} {}'.format(uid, project))
             return resp
 
+        if not handler:
+            handler_str = runspec.spec.handler_name
+        elif inspect.isfunction(handler):
+            handler_str = handler.__name__
+        else:
+            handler_str = str(handler)
+
         if runspec:
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
@@ -187,17 +195,14 @@ class BaseRuntime(ModelObj):
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
         runspec.metadata.name = name or runspec.metadata.name or \
-            self.metadata.name
+            handler_str or self.metadata.name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or runspec.spec.output_path
 
         if handler and self.kind not in ['handler', 'dask']:
-            if inspect.isfunction(handler):
-                handler = handler.__name__
-            else:
-                handler = str(handler)
+            handler = handler_str
         runspec.spec.handler = handler or runspec.spec.handler
 
         spec = runspec.spec
@@ -218,24 +223,23 @@ class BaseRuntime(ModelObj):
         if self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
-        if 'V3IO_USERNAME' in environ:
-            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
-        meta.labels['kind'] = self.kind
-        meta.labels['owner'] = meta.labels.get('owner', getpass.getuser())
         add_code_metadata(meta.labels)
 
-        hashkey = self.calc_hash()
-        if self._db_conn:
-            self._db_conn.store_function(self.to_dict(), self.metadata.name,
-                                         self.metadata.project, hashkey)
-        furi = '{}:{}'.format(self.metadata.name, hashkey)
-        if self.metadata.project and self.metadata.project != 'default':
-            furi = '{}/{}'.format(self.metadata.project, furi)
-        runspec.spec.function = furi
+        if not self.is_child:
+            meta.labels['kind'] = self.kind
+            meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
+            hashkey = self.calc_hash()
+            if self._db_conn:
+                self._db_conn.store_function(self.to_dict(), self.metadata.name,
+                                             self.metadata.project, hashkey)
+            furi = '{}:{}'.format(self.metadata.name, hashkey)
+            if self.metadata.project and self.metadata.project != 'default':
+                furi = '{}/{}'.format(self.metadata.project, furi)
+            runspec.spec.function = furi
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           self._db_conn,
-                                          autocommit=True)
+                                          autocommit=False)
 
         # form child run task generator from spec
         task_generator = None
@@ -250,11 +254,12 @@ class BaseRuntime(ModelObj):
             resp = execution.to_dict()
             if resp and self.kfp:
                 write_kfpmeta(resp)
+
             result = show(resp)
         else:
             # single run
             try:
-                self.store_run(runspec)
+                #self.store_run(runspec)
                 resp = self._run(runspec, execution)
                 result = show(self._post_run(resp, task=runspec))
                 if result and self.kfp:
@@ -277,9 +282,7 @@ class BaseRuntime(ModelObj):
             project = task.metadata.project
             uid = task.metadata.uid
             iter = task.metadata.iteration
-            if iter:
-                uid = '{}-{}'.format(uid, iter)
-            return self._db_conn.read_run(uid, project)
+            return self._db_conn.read_run(uid, project, iter=iter)
         if task:
             return task.to_dict()
 
@@ -312,7 +315,7 @@ class BaseRuntime(ModelObj):
         results = RunList()
         for task in tasks:
             try:
-                self.store_run(task)
+                #self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
             except RunError as err:
@@ -322,14 +325,19 @@ class BaseRuntime(ModelObj):
             results.append(resp)
         return results
 
-    def store_run(self, runobj: RunObject, commit=True):
+    def store_run(self, runobj: RunObject):
         if self._db_conn and runobj:
             project = runobj.metadata.project
             uid = runobj.metadata.uid
             iter = runobj.metadata.iteration
-            if iter:
-                uid = '{}-{}'.format(uid, iter)
-            self._db_conn.store_run(runobj.to_dict(), uid, project, commit)
+            self._db_conn.store_run(runobj.to_dict(), uid, project, iter=iter)
+
+    def _store_run_dict(self, rundict: dict):
+        if self._db_conn and rundict:
+            project = get_in(rundict, 'metadata.project', '')
+            uid = get_in(rundict, 'metadata.uid')
+            iter = get_in(rundict, 'metadata.iteration', 0)
+            self._db_conn.store_run(rundict, uid, project, iter=iter)
 
     def _post_run(self, resp: dict = None, task: RunObject = None, err=None):
         """update the task state in the DB"""
@@ -345,7 +353,8 @@ class BaseRuntime(ModelObj):
             raise ValueError('post_run called with type {}'.format(type(resp)))
 
         updates = None
-        if get_in(resp, 'status.state', '') == 'error' or err:
+        last_state = get_in(resp, 'status.state', '')
+        if last_state == 'error' or err:
             updates = {'status.last_update': str(datetime.now())}
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
@@ -354,7 +363,7 @@ class BaseRuntime(ModelObj):
             err = get_in(resp, 'status.error')
             if err:
                 updates['status.error'] = err
-        elif not was_none:
+        elif not was_none and last_state != 'completed':
             updates = {'status.last_update': str(datetime.now())}
             updates['status.state'] = 'completed'
             update_in(resp, 'status.state', 'completed')
@@ -363,9 +372,7 @@ class BaseRuntime(ModelObj):
             project = get_in(resp, 'metadata.project')
             uid = get_in(resp, 'metadata.uid')
             iter = get_in(resp, 'metadata.iteration', 0)
-            if iter:
-                uid = '{}-{}'.format(uid, iter)
-            self._db_conn.update_run(updates, uid, project)
+            self._db_conn.update_run(updates, uid, project, iter=iter)
 
         return resp
 
@@ -376,6 +383,7 @@ class BaseRuntime(ModelObj):
 
         iter = []
         failed = 0
+        running = 0
         for task in results:
             state = get_in(task, ['status', 'state'])
             id = get_in(task, ['metadata', 'iteration'])
@@ -389,8 +397,10 @@ class BaseRuntime(ModelObj):
                 err = get_in(task, ['status', 'error'], '')
                 logger.error('error in task  {}:{} - {}'.format(
                     runspec.metadata.uid, id, err))
+            elif state != 'completed':
+                running += 1
 
-            self._post_run(task)
+            #self._post_run(task)
             iter.append(struct)
 
         df = pd.io.json.json_normalize(iter).sort_values('iter')
@@ -411,10 +421,11 @@ class BaseRuntime(ModelObj):
                           viewer='table'))
         if failed:
             execution.set_state(
-                error='{} tasks failed, check logs for db for details'.format(
-                    failed))
-        else:
-            execution.set_state('completed')
+                error='{} tasks failed, check logs in db for details'.format(
+                    failed), commit=False)
+        elif running == 0:
+            execution.set_state('completed', commit=False)
+        execution.commit()
 
     def _force_handler(self, handler):
         if not handler:

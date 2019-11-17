@@ -36,25 +36,25 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_run(self, struct, uid, project='', commit=False):
+    def store_run(self, struct, uid, project='', iter=0):
         pass
 
     @abstractmethod
-    def update_run(self, updates: dict, uid, project=''):
+    def update_run(self, updates: dict, uid, project='', iter=0):
         pass
 
     @abstractmethod
-    def read_run(self, uid, project=''):
+    def read_run(self, uid, project='', iter=0):
         pass
 
     @abstractmethod
     def list_runs(
             self, name='', uid=None, project='', labels=None,
-            state='', sort=True, last=0):
+            state='', sort=True, last=0, iter=False):
         pass
 
     @abstractmethod
-    def del_run(self, uid, project=''):
+    def del_run(self, uid, project='', iter=0):
         pass
 
     @abstractmethod

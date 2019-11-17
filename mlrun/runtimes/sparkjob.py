@@ -59,8 +59,8 @@ _sparkjob_template = {
      'deps': {},
      'volumes': [],
      'driver': {
-         'cores': 0.1,
-         'coreLimit': '200m',
+         'cores': 1,
+         'coreLimit': '1200m',
          'memory': '512m',
          'labels': {},
          'serviceAccount': 'spark-operator-spark',
@@ -110,6 +110,8 @@ class SparkRuntime(KubejobRuntime):
     plural = 'sparkapplications'
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        if runobj.metadata.iteration:
+            self.store_run(runobj)
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runobj, True)
         pod_labels = deepcopy(meta.labels)

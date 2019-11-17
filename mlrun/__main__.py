@@ -126,7 +126,9 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
-        resp = new_function(runtime=runtime, kfp=kfp, mode=mode).run(runobj)
+        fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
+        fn.is_child = from_env and not kfp
+        resp = fn.run(runobj)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:

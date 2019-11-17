@@ -43,7 +43,7 @@ class MLClientCtx(object):
     see doc for the individual params and methods
     """
 
-    def __init__(self, autocommit=False, tmp=''):
+    def __init__(self, autocommit=False, tmp='', log_stream=None):
         self._uid = ''
         self.name = ''
         self._iteration = 0
@@ -54,7 +54,7 @@ class MLClientCtx(object):
         # runtime db service interfaces
         self._rundb = None
         self._tmpfile = tmp
-        self._logger = logger
+        self._logger = log_stream or logger
         self._log_level = 'info'
         self._matrics_db = None
         self._autocommit = autocommit
@@ -77,6 +77,12 @@ class MLClientCtx(object):
         self._start_time = datetime.now()
         self._last_update = datetime.now()
         self._iteration_results = None
+
+    def set_logger_stream(self, stream):
+        handlers = self._logger.handlers
+        if len(handlers)>0:
+            handlers[0].stream = stream
+
 
     def _init_dbs(self, rundb):
         if rundb:
@@ -104,9 +110,9 @@ class MLClientCtx(object):
 
     @classmethod
     def from_dict(cls, attrs: dict, rundb='', autocommit=False, tmp='',
-                  host=None):
+                  host=None, log_stream=None):
 
-        self = cls(autocommit=autocommit, tmp=tmp)
+        self = cls(autocommit=autocommit, tmp=tmp, log_stream=log_stream)
 
         meta = attrs.get('metadata')
         if meta:
@@ -137,10 +143,9 @@ class MLClientCtx(object):
                     self._set_input(k, v)
 
         if host:
-            self._host = host
-            self._state = 'running'
             self.set_label('host', host)
 
+        self._state = 'running'
         self._update_db(commit=True)
         return self
 
@@ -221,7 +226,8 @@ class MLClientCtx(object):
         """get a run parameter, or use the provided default if not set"""
         if key not in self._parameters:
             self._parameters[key] = default
-            self._update_db()
+            if default:
+                self._update_db()
             return default
         return self._parameters[key]
 
@@ -250,12 +256,12 @@ class MLClientCtx(object):
         else:
             return self._inputs[key]
 
-    def log_result(self, key: str, value):
+    def log_result(self, key: str, value, commit=False):
         """log a scalar result value"""
         self._results[str(key)] = value
-        self._update_db()
+        self._update_db(commit=commit)
 
-    def log_results(self, results: dict):
+    def log_results(self, results: dict, commit=False):
         """log a set of scalar result values"""
         if not isinstance(results, dict):
             raise MLCtxValueError(
@@ -263,7 +269,7 @@ class MLClientCtx(object):
 
         for p in results.keys():
             self._results[str(p)] = results[p]
-        self._update_db()
+        self._update_db(commit=commit)
 
     def log_iteration_results(
       self, best, summary: list, task: dict, commit=False):
@@ -310,10 +316,11 @@ class MLClientCtx(object):
 
     def commit(self, message: str = ''):
         """save run state and add a commit message"""
-        self._annotations['message'] = message
+        if message:
+            self._annotations['message'] = message
         self._update_db(commit=True, message=message)
 
-    def set_state(self, state: str = None, error: str = None):
+    def set_state(self, state: str = None, error: str = None, commit=True):
         """modify and store the run state or mark an error"""
         updates = {'status.last_update': str(datetime.now())}
 
@@ -324,17 +331,19 @@ class MLClientCtx(object):
             updates['status.error'] = error
         elif state and state != self._state and self._state != 'error':
             self._state = state
-            updates['status.state'] = 'completed'
+            updates['status.state'] = state
 
-        if self._rundb:
-            self._rundb.update_run(updates, self.uid, self.project)
+        if self._rundb and commit:
+            self._rundb.update_run(updates, self._uid,
+                                   self.project, iter=self._iteration)
 
     def set_hostname(self, host: str):
         """update the hostname"""
         self._host = host
         if self._rundb:
             updates = {'status.host': host}
-            self._rundb.update_run(updates, self.uid, self.project)
+            self._rundb.update_run(updates, self._uid,
+                                   self.project, iter=self._iteration)
 
     def to_dict(self):
         """convert the run context to a dictionary"""
@@ -368,7 +377,6 @@ class MLClientCtx(object):
 
         set_if_valid(struct['status'], 'error', self._error)
         set_if_valid(struct['status'], 'commit', self._commit)
-        set_if_valid(struct['status'], 'host', self._host)
 
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
@@ -384,9 +392,8 @@ class MLClientCtx(object):
         """convert the run context to a json buffer"""
         return dict_to_json(self.to_dict())
 
-    def _update_db(self, state='', commit=False, message=''):
+    def _update_db(self, commit=False, message=''):
         self.last_update = datetime.now()
-        self._state = state or 'running'
         if self._tmpfile:
             data = self.to_json()
             with open(self._tmpfile, 'w') as fp:
@@ -397,4 +404,4 @@ class MLClientCtx(object):
             self._commit = message
             if self._rundb:
                 self._rundb.store_run(
-                    self.to_dict(), self.uid, self.project, commit)
+                    self.to_dict(), self._uid, self.project, iter=self._iteration)

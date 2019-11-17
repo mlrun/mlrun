@@ -26,7 +26,8 @@ from nuclio.deploy import deploy_config
 from ..kfpops import deploy_op
 from ..platforms.iguazio import v3io_to_vol
 from .base import BaseRuntime, RunError, FunctionSpec
-from ..utils import logger, update_in
+from .utils import log_std
+from ..utils import logger, update_in, get_in
 from ..lists import RunList
 from ..model import RunObject
 
@@ -219,10 +220,11 @@ class RemoteRuntime(BaseRuntime):
     def _raise_mlrun(self):
         if self.spec.function_kind != 'mlrun':
             raise RunError('.run() can only be execute on "mlrun" kind'
-                           ', set function spec.function_kind to "mlrun"')
+                           ', recreate with function kind "mlrun"')
 
     def _run(self, runobj: RunObject, execution):
         self._raise_mlrun()
+        self.store_run(runobj)
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
         log_level = execution.log_level
@@ -244,9 +246,9 @@ class RemoteRuntime(BaseRuntime):
 
         logs = resp.headers.get('X-Nuclio-Logs')
         if logs:
-            print(parse_logs(logs))
+            log_std(self._db_conn, runobj, parse_logs(logs))
 
-        return resp.json()
+        return self._update_state(resp.json())
 
     def _run_many(self, tasks, execution, runobj: RunObject):
         self._raise_mlrun()
@@ -264,6 +266,13 @@ class RemoteRuntime(BaseRuntime):
         loop.run_until_complete(future)
         return future.result()
 
+    def _update_state(self, rundict: dict):
+        last_state = get_in(rundict, 'status.state', '')
+        if last_state != 'error':
+            update_in(rundict, 'status.state', 'completed')
+        self._store_run_dict(rundict)
+        return rundict
+
     async def invoke_async(self, runs, url, headers, secrets):
         results = RunList()
         tasks = []
@@ -273,20 +282,18 @@ class RemoteRuntime(BaseRuntime):
                 self.store_run(run)
                 run.spec.secret_sources = secrets or []
                 tasks.append(asyncio.ensure_future(
-                    submit(session, url, run.to_dict(), headers),
+                    submit(session, url, run, headers),
                 ))
 
-            for status, resp, logs in await asyncio.gather(*tasks):
+            for status, resp, logs, run in await asyncio.gather(*tasks):
 
                 if status != 200:
                     logger.error("failed to access {} - {}".format(url, resp))
                 else:
-                    results.append(json.loads(resp))
+                    results.append(self._update_state(json.loads(resp)))
 
                 if logs:
-                    parsed = parse_logs(logs)
-                    if parsed:
-                        print(parsed, '----------')
+                    log_std(self._db_conn, run, parse_logs(logs))
 
         return results
 
@@ -307,11 +314,11 @@ def parse_logs(logs):
     return lines
 
 
-async def submit(session, url, body, headers=None):
-    async with session.put(url, json=body, headers=headers) as response:
+async def submit(session, url, run, headers=None):
+    async with session.put(url, json=run.to_dict(), headers=headers) as response:
         text = await response.text()
         logs = response.headers.get('X-Nuclio-Logs', None)
-        return response.status, text, logs
+        return response.status, text, logs, run
 
 
 def fake_nuclio_context(body, headers=None):

@@ -35,7 +35,7 @@ igz_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
             'files': ['/igz/java/libs/v3io-py-{0}.zip']}
 
 _sparkjob_template = {
- 'apiVersion': 'sparkoperator.k8s.io/v1beta1',
+ 'apiVersion': 'sparkoperator.k8s.io/v1beta2',
  'kind': 'SparkApplication',
  'metadata': {
      'name': '',
@@ -104,7 +104,7 @@ class SparkJobSpec(KubejobSpec):
 
 class SparkRuntime(KubejobRuntime):
     group = 'sparkoperator.k8s.io'
-    version = 'v1beta1'
+    version = 'v1beta2'
     apiVersion = group + '/' + version
     kind = 'SparkApplication'
     plural = 'sparkapplications'

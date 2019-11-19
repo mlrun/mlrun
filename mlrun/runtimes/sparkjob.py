@@ -214,7 +214,7 @@ class SparkRuntime(KubejobRuntime):
         self._update_igz_jars(igz_version=igz_version)
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
         self.apply(mount_v3iod())
-        self.apply(mount_spark_conf())
+#        self.apply(mount_spark_conf())
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

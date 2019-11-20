@@ -58,12 +58,12 @@ _sparkjob_template = {
      },
      'deps': {},
      'volumes': [],
+     'serviceAccount': 'spark-operator-spark',
      'driver': {
          'cores': 1,
          'coreLimit': '1200m',
          'memory': '512m',
          'labels': {},
-         'serviceAccount': 'spark-operator-spark',
          'volumeMounts': [],
          'env': [],
      },

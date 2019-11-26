@@ -15,11 +15,11 @@
 import pickle
 from datetime import datetime, timedelta
 
-from sqlalchemy import BLOB, Column, Integer, String, create_engine
+from sqlalchemy import BLOB, TIMESTAMP, Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from ..lists import RunList, ArtifactList, FunctionList
+from ..lists import ArtifactList, FunctionList, RunList
 from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
 
@@ -45,6 +45,7 @@ class Artifact(Base, HasStruct):
     project = Column(String)
     tag = Column(String)
     uid = Column(String)
+    updated = Column(TIMESTAMP)
     body = Column(BLOB)
 
 
@@ -141,7 +142,7 @@ class SQLDB(RunDBInterface):
             runs.sort(key=_run_start, reverse=True)
         if last:
             runs = runs[:last]
-        return run
+        return runs
 
     def del_run(self, uid, project='', iter=0):
         self._delete(Run, uid=uid, project=project)
@@ -165,12 +166,14 @@ class SQLDB(RunDBInterface):
         for run in query:
             if not self._match_run(run, labels, state):
                 continue
-            if not start_ok(run.struct):
+            if days_ago and not start_ok(run.struct):
                 continue
             self.session.delete(run)
         self.session.commit()
 
     def store_artifact(self, key, artifact, uid, tag='', project=''):
+        artifact = artifact.copy()
+        artifact['updated'] = datetime.now()
         art = Artifact(
             key=key,
             uid=uid,
@@ -188,10 +191,10 @@ class SQLDB(RunDBInterface):
 
     def list_artifacts(self, name='', project='', tag='', labels=None):
         arts = ArtifactList()
-
-        for obj in self._iter_artifcats(name, project, tag, labels):
-            arts.append(obj.struct)
-
+        arts.extend(
+            obj.struct
+            for obj in self._iter_artifcats(name, project, tag, labels)
+        )
         return arts
 
     def del_artifact(self, key, tag='', project=''):
@@ -219,10 +222,12 @@ class SQLDB(RunDBInterface):
             return obj.struct
 
     def list_functions(self, name, project='', tag='', labels=None):
-        return FunctionList(
+        funcs = FunctionList()
+        funcs.extend(
             obj.struct
             for obj in self._iter_functions(name, project, tag, labels)
         )
+        return funcs
 
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v}
@@ -243,20 +248,20 @@ class SQLDB(RunDBInterface):
         return True
 
     def _iter_runs(self, name, uid, project, labels, state):
+        query = self._query(Run, name=name, uid=uid, project=project)
         labels = _label_set(labels)
-        query = self._uid_prj_query(Run, uid, project)
         for run in query:
             if self._match_run(run, labels, state):
                 yield run
 
     def _iter_artifcats(self, name, project, tag, labels):
-        tag = tag or 'latest'
+        # FIXME
+        # tag = tag or 'latest'
         query = self._query(Artifact, name=name, project=project, tag=tag)
         labels = _label_set(labels)
-
         for obj in query:
             art = obj.struct
-            if not (labels & set(art.get('labels', []))):
+            if labels and not (labels & set(art.get('labels', []))):
                 continue
             yield obj
 
@@ -266,8 +271,9 @@ class SQLDB(RunDBInterface):
 
         for obj in query:
             func = obj.struct
-            if not (labels & set(get_in(func, 'metadata.labels', []))):
-                continue
+            if labels:
+                if not (labels & set(get_in(func, 'metadata.labels', []))):
+                    continue
             yield obj
 
     def _delete(self, cls, **kw):

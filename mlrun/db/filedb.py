@@ -14,7 +14,7 @@
 
 import json
 import time
-from os import path, remove
+from os import path, remove, makedirs
 import yaml
 import pathlib
 from datetime import datetime, timedelta
@@ -48,8 +48,11 @@ class FileRunDB(RunDBInterface):
 
     def store_log(self, uid, project='', body=None, append=True):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
-        # TODO: handle append
-        self._datastore.put(filepath, body)
+        makedirs(path.join(self.dirpath, run_logs, project), exist_ok=True)
+        mode = 'ab' if append else 'wb'
+        with open(filepath, mode) as fp:
+            fp.write(body)
+            fp.close()
 
     def get_log(self, uid, project='', offset=0, size=0):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
@@ -62,25 +65,32 @@ class FileRunDB(RunDBInterface):
                 return fp.read(size)
         return None
 
-    def store_run(self, struct, uid, project='', commit=False):
+    def _run_path(self, uid, iter):
+        if iter:
+            return '{}-{}'.format(uid, iter)
+        return uid
+
+    def store_run(self, struct, uid, project='', iter=0):
         data = self._dumps(struct)
-        filepath = self._filepath(run_logs, project, uid, '') + self.format
+        filepath = self._filepath(
+            run_logs, project, self._run_path(uid, iter), '') + self.format
         self._datastore.put(filepath, data)
 
-    def update_run(self, updates: dict, uid, project=''):
-        run = self.read_run(uid, project)
+    def update_run(self, updates: dict, uid, project='', iter=0):
+        run = self.read_run(uid, project, iter=iter)
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
-        self.store_run(run, uid, project, True)
+        self.store_run(run, uid, project, iter=iter)
 
-    def read_run(self, uid, project=''):
-        filepath = self._filepath(run_logs, project, uid, '') + self.format
+    def read_run(self, uid, project='', iter=0):
+        filepath = self._filepath(
+            run_logs, project, self._run_path(uid, iter), '') + self.format
         data = self._datastore.get(filepath)
         return self._loads(data)
 
     def list_runs(self, name='', uid=None, project='', labels=None,
-                  state='', sort=True, last=30):
+                  state='', sort=True, last=1000, iter=False):
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()
@@ -100,8 +110,9 @@ class FileRunDB(RunDBInterface):
             return RunList(results[:last])
         return results
 
-    def del_run(self, uid, project=''):
-        filepath = self._filepath(run_logs, project, uid, '') + self.format
+    def del_run(self, uid, project='', iter=0):
+        filepath = self._filepath(
+            run_logs, project, self._run_path(uid, iter), '') + self.format
         self._safe_del(filepath)
 
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):

@@ -19,8 +19,8 @@ spec:
         image: quay.io/iguazio/mlrun-frontend
         imagePullPolicy: Always
         env:
-        - name: MLRUN_API_BASE_URL
-          value: http://<mlrun-api-external-ip>:30080/api
+        - name: MLRUN_API_PROXY_URL
+          value: http://mlrun-db:8080
         ports:
         - containerPort: 80
 ---

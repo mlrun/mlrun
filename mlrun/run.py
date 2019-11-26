@@ -35,7 +35,6 @@ from .utils import get_in, logger, update_in
 
 
 def get_or_create_ctx(name: str,
-                      uid: str = '',
                       event=None,
                       spec=None,
                       with_env: bool = True,
@@ -50,7 +49,6 @@ def get_or_create_ctx(name: str,
     the path to the rundb can be specified in the call or obtained from env.
 
     :param name:     run name (will be overridden by context)
-    :param uid:      run unique id (will be overridden by context)
     :param event:    function (nuclio Event object)
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
@@ -93,7 +91,6 @@ def get_or_create_ctx(name: str,
     config = environ.get('MLRUN_EXEC_CONFIG')
     if event:
         newspec = event.body
-        uid = uid or event.id
 
     elif spec:
         newspec = deepcopy(spec)

@@ -60,8 +60,10 @@ def test_log(db: sqldb.SQLDB):
 def new_run(state, labels, **kw):
     obj = {
         'metadata': {
-            'state': state,
             'labels': labels,
+        },
+        'status': {
+            'state': state,
         },
     }
     obj.update(kw)

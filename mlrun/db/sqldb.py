@@ -87,7 +87,6 @@ class SQLDB(RunDBInterface):
         cls = sessionmaker(bind=engine)
         # TODO: One session per call?
         self.session = cls()
-        return self
 
     def store_log(self, uid, project='', body=None, append=True):
         log = self._query(Log, uid=uid, project=project).one_or_none()
@@ -148,13 +147,6 @@ class SQLDB(RunDBInterface):
         self._delete(Run, uid=uid, project=project)
 
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
-        labels = _label_set(labels)
-        query = self.session.query(Run)
-        if name:
-            query = query.filter(Run.name == name)
-        if project:
-            query = query.filter(Run.project == project)
-
         if days_ago:
             since = datetime.now() - timedelta(days=days_ago)
 
@@ -163,9 +155,7 @@ class SQLDB(RunDBInterface):
             time = datetime.strptime('%Y-%m-%d %H:%M:%S.%f', ts)
             return time >= since
 
-        for run in query:
-            if not self._match_run(run, labels, state):
-                continue
+        for run in self._iter_runs(name, '', project, labels, state):
             if days_ago and not start_ok(run.struct):
                 continue
             self.session.delete(run)
@@ -207,6 +197,7 @@ class SQLDB(RunDBInterface):
         self.session.commit()
 
     def store_function(self, func, name, project='', tag=''):
+        update_in(func, 'metadata.updated', datetime.now())
         fn = Function(
             name=name,
             project=project,
@@ -238,13 +229,17 @@ class SQLDB(RunDBInterface):
         self.session.commit()
 
     def _match_run(self, run, labels, state):
-        meta = run.struct.get('metadata', {})
-        if state and meta.get('state') != state:
+        struct = run.struct
+
+        if state and get_in(struct, 'status.state') != state:
             return False
+
         if labels:
+            meta = struct.get('metadata', {})
             run_labels = set(meta.get('labels', []))
             if not labels & run_labels:
                 return False
+
         return True
 
     def _iter_runs(self, name, uid, project, labels, state):

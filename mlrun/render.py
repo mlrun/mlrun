@@ -17,6 +17,7 @@ from os import path, environ
 import pathlib
 from .utils import is_ipython, get_in, dict_to_list
 from .datastore import uri_to_ipython
+from .config import config
 
 JUPYTER_SERVER_ROOT = environ.get('JUPYTER_SERVER_ROOT', '/User')
 supported_viewers = ['.htm', '.html', '.json', '.yaml', '.txt', '.log', '.jpg', '.png', '.csv', '.py']
@@ -299,16 +300,23 @@ def runs_to_html(df, display=True, classes=None):
             return ''
 
     df['inputs'] = df['inputs'].apply(inputs_html)
-    df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(x, 'target_path'))
+    df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(
+        x, 'target_path'))
     df['labels'] = df['labels'].apply(dict_html)
     df['parameters'] = df['parameters'].apply(dict_html)
     df['results'] = df['results'].apply(dict_html)
     df['start'] = df['start'].apply(time_str)
-    df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+
+    if config.ui_external_url:
+        uid_template = '<div title="{}"><a href="{}/jobs/{}/info" target="_blank" >...{}</a></div>'
+        df['uid'] = df['uid'].apply(lambda x: uid_template.format(x, config.ui_external_url, x, x[-6:]))
+    else:
+        df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 
     def expand_error(x):
         if x['state'] == 'error':
-            x['state'] = '<div style="color: red;" title="{}">{}</div>'.format((str(x['error'])).replace('"', "'"), x['state'])
+            x['state'] = '<div style="color: red;" title="{}">{}</div>'.format(
+                (str(x['error'])).replace('"', "'"), x['state'])
         return x
 
     df = df.apply(expand_error, axis=1)

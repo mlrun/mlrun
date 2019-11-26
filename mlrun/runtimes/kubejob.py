@@ -15,8 +15,9 @@ import json
 import uuid
 from kubernetes import client
 
+from .utils import AsyncLogWriter
 from ..model import RunObject
-from ..utils import normalize_name, update_in
+from ..utils import normalize_name, update_in, logger
 from .base import RunError, FunctionSpec
 from .container import ContainerRuntime
 
@@ -123,10 +124,11 @@ class KubejobRuntime(ContainerRuntime):
         if not self._is_built:
             ready = self._build_image(True, with_mlrun, execution)
             if not ready:
-                raise RunError("can't run task, image is not built/ready")
+                raise RunError("can't run task, image is not yet built/ready")
 
+        if runobj.metadata.iteration:
+            self.store_run(runobj)
         k8s = self._get_k8s()
-        execution.set_state('submit')
         new_meta = self._get_meta(runobj)
 
         pod_spec = func_to_pod(self._image_path(), self, extra_env, command, args)
@@ -136,16 +138,14 @@ class KubejobRuntime(ContainerRuntime):
         except client.rest.ApiException as e:
             raise RunError(str(e))
 
-        status = 'unknown'
-        if pod_name:
-            status = k8s.watch(pod_name, namespace)
+        if pod_name and (self.interactive or self.kfp):
+            writer = AsyncLogWriter(self._db_conn, runobj)
+            status = k8s.watch(pod_name, namespace, writer=writer)
 
-        if self._db_conn and pod_name:
-            project = runobj.metadata.project or ''
-            self._db_conn.store_log(new_meta.uid, project,
-                                   k8s.logs(pod_name, namespace))
-        if status in ['failed', 'error']:
-            raise RunError(f'pod exited with {status}, check logs')
+            if status in ['failed', 'error']:
+                raise RunError(f'pod exited with {status}, check logs')
+        else:
+            logger.info('Job is running in the background, pod: {}'.format(pod_name))
 
         return None
 

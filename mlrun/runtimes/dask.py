@@ -57,7 +57,7 @@ class DaskCluster(KubejobRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', DaskSpec)
 
-    def to_pod(self):
+    def _to_pod(self):
         image = self._image_path() or 'daskdev/dask:latest'
         env = self.spec.env
         namespace = self.metadata.namespace or config.namespace
@@ -96,7 +96,7 @@ class DaskCluster(KubejobRuntime):
             except ImportError as e:
                 print('missing dask_kubernetes, please run "pip install dask_kubernetes"')
                 raise e
-            self._cluster = KubeCluster(self.to_pod())
+            self._cluster = KubeCluster(self._to_pod())
             if not scale:
                 self._cluster.adapt()
             else:
@@ -127,11 +127,13 @@ class DaskCluster(KubejobRuntime):
     def _run(self, runobj: RunObject, execution):
         handler = runobj.spec.handler
         self._force_handler(handler)
+        self.store_run(runobj)
         from dask import delayed
         if self.spec.rundb:
             # todo: remote dask via k8s spec env
             environ['MLRUN_DBPATH'] = self.spec.rundb
 
+        # todo: handle inputs (download at the remote end wo cluster fs)
         arg_list = get_func_arg(handler, runobj, execution)
         try:
             task = delayed(handler)(*arg_list)
@@ -154,7 +156,7 @@ class DaskCluster(KubejobRuntime):
         for task in tasks:
             ctx = MLClientCtx.from_dict(task.to_dict(),
                                         self.spec.rundb,
-                                        autocommit=True)
+                                        autocommit=False)
             args = get_func_arg(handler, task, ctx)
             resp = self.client.submit(handler, *args)
             futures.append(resp)
@@ -166,8 +168,8 @@ class DaskCluster(KubejobRuntime):
             if r:
                 c.log_result('return', r)
             # todo: handle task errors
-            resp = self._post_run(task=t)
+            c.commit()
+            resp = self._post_run(c.to_dict())
             results.append(resp)
 
-        print(resps)
         return results

@@ -21,13 +21,13 @@ from os import environ, path
 
 from flask import Flask, jsonify, request, Response
 
-from mlrun import get_object
+from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger
+from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
 from mlrun.runtimes import RunError
-from mlrun.run import new_function
+from mlrun.run import new_function, import_function
 
 _file_db: FileRunDB = None
 app = Flask(__name__)
@@ -116,9 +116,11 @@ def submit_job(func=''):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     logger.info('submit_job: func %s', func)
-    url = data.get('functionUrl')
-    function = data.get('function')
     task = data.get('task')
+    function = data.get('function')
+    url = data.get('functionUrl')
+    if not url and task:
+        url = get_in(task, 'spec.function')
     if not (function or url) or not task:
         return json_error(
             HTTPStatus.BAD_REQUEST,
@@ -129,10 +131,16 @@ def submit_job(func=''):
     # remote/container runtime)
 
     try:
-        if url:
-            resp = new_function(command=url).run(task)
-        else:
+        if function:
             resp = new_function(runtime=function).run(task)
+        else:
+            if '://' in url:
+                resp = import_function(url=url).run(task)
+            else:
+                project, name, tag = parse_function_uri(url)
+                resp = import_function(
+                    project=project, name=name, tag=tag).run(task)
+
         logger.info('resp: %s', resp.to_yaml())
     except RunError as err:
         return json_error(
@@ -149,7 +157,8 @@ def submit_job(func=''):
 def get_files():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
-    # size = int(request.args.get('size', '16')) * 1024
+    size = int(request.args.get('size', '0'))
+    offset = int(request.args.get('offset', '0'))
 
     _, filename = path.split(path)
 
@@ -160,7 +169,7 @@ def get_files():
         path = 'v3io:///users/' + user + path[5:]
 
     try:
-        body = get_object(path)
+        body = get_object(path, size, offset)
     except FileNotFoundError as e:
         return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
     if body is None:
@@ -170,8 +179,36 @@ def get_files():
     if not ctype:
         ctype = 'application/octet-stream'
 
-    print(body)
     return Response(body, mimetype=ctype, headers={"x-suggested-filename": filename})
+
+
+# curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
+@app.route('/api/filestat', methods=['GET'])
+@catch_err
+def get_filestat():
+    schema = request.args.get('schema', '')
+    path = request.args.get('path', '')
+
+    _, filename = path.split(path)
+
+    if schema:
+        path = schema + '://' + path
+    elif path.startswith('/User/'):
+        user = environ.get('V3IO_USERNAME', 'admin')
+        path = 'v3io:///users/' + user + path[5:]
+
+    try:
+        stat = get_object_stat(path)
+    except FileNotFoundError as e:
+        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+
+    ctype, _ = mimetypes.guess_type(path)
+    if not ctype:
+        ctype = 'application/octet-stream'
+
+    return jsonify(ok=True, size=stat.size,
+                   modified=stat.modified,
+                   mimetype=ctype)
 
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
@@ -189,7 +226,12 @@ def store_log(project, uid):
 def get_log(project, uid):
     data = _file_db.get_log(uid, project)
     if data is None:
-        return json_error(HTTPStatus.NOT_FOUND, project=project, uid=uid)
+        data = _file_db.read_run(uid, project)
+        if not data:
+            return json_error(HTTPStatus.NOT_FOUND,
+                              project=project, uid=uid)
+        msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
+        return msg.encode()
 
     return data
 
@@ -197,13 +239,14 @@ def get_log(project, uid):
 @app.route('/api/run/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_run(project, uid):
-    commit = strtobool(request.args.get('commit', 'no'))
     try:
         data = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    _file_db.store_run(data, uid, project, commit)
+    logger.debug(data)
+    iter = int(request.args.get('iter', '0'))
+    _file_db.store_run(data, uid, project, iter=iter)
     app.logger.info('store run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -217,7 +260,8 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    _file_db.update_run(data, uid, project)
+    iter = int(request.args.get('iter', '0'))
+    _file_db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -226,7 +270,8 @@ def update_run(project, uid):
 @app.route('/api/run/<project>/<uid>', methods=['GET'])
 @catch_err
 def read_run(project, uid):
-    data = _file_db.read_run(uid, project)
+    iter = int(request.args.get('iter', '0'))
+    data = _file_db.read_run(uid, project, iter=iter)
     return jsonify(ok=True, data=data)
 
 
@@ -234,7 +279,8 @@ def read_run(project, uid):
 @app.route('/api/run/<project>/<uid>', methods=['DELETE'])
 @catch_err
 def del_run(project, uid):
-    _file_db.del_run(uid, project)
+    iter = int(request.args.get('iter', '0'))
+    _file_db.del_run(uid, project, iter=iter)
     return jsonify(ok=True)
 
 
@@ -248,7 +294,8 @@ def list_runs():
     labels = request.args.getlist('label')
     state = request.args.get('state', '')
     sort = strtobool(request.args.get('sort', 'on'))
-    last = int(request.args.get('last', '30'))
+    iter = strtobool(request.args.get('iter', 'on'))
+    last = int(request.args.get('last', '0'))
 
     runs = _file_db.list_runs(
         name=name,
@@ -258,6 +305,7 @@ def list_runs():
         state=state,
         sort=sort,
         last=last,
+        iter=iter,
     )
     return jsonify(ok=True, runs=runs)
 

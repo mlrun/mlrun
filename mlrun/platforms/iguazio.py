@@ -83,9 +83,14 @@ def mount_v3iod(namespace='default-tenant', v3io_config_configmap='spark-operato
         vol = k8s_client.V1Volume(name='v3io-auth', secret=k8s_client.V1SecretVolumeSource(secret_name= v3io_auth_secret, default_mode= 420))
         task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path='/igz/.igz', name='v3io-auth'))
 
+        task.add_env_variable(k8s_client.V1EnvVar(name='CURRENT_NODE_IP', value_from=k8s_client.V1EnvVarSource(
+        field_ref=k8s_client.V1ObjectFieldSelector(api_version='v1', field_path='status.hostIP'))))
+        task.add_env_variable(k8s_client.V1EnvVar(name='IGZ_DATA_CONFIG_FILE', value='/igz/java/conf/v3io.conf'))
+
         return (task)
 
     return _mount_v3iod
+
 
 def v3io_cred(api='', user='', access_key=''):
     """
@@ -107,9 +112,6 @@ def v3io_cred(api='', user='', access_key=''):
                 .add_env_variable(k8s_client.V1EnvVar(name='V3IO_API', value=web_api))
                 .add_env_variable(k8s_client.V1EnvVar(name='V3IO_USERNAME', value=_user))
                 .add_env_variable(k8s_client.V1EnvVar(name='V3IO_ACCESS_KEY', value=_access_key))
-                .add_env_variable(k8s_client.V1EnvVar(name='CURRENT_NODE_IP', value_from=k8s_client.V1EnvVarSource(
-                field_ref=k8s_client.V1ObjectFieldSelector(api_version='v1', field_path='status.hostIP'))))
-                .add_env_variable(k8s_client.V1EnvVar(name='IGZ_DATA_CONFIG_FILE', value='/igz/java/conf/v3io.conf'))
         )
 
     return _use_v3io_cred

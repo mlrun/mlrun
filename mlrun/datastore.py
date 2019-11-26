@@ -11,22 +11,38 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import mimetypes
 from base64 import b64encode
-from os import path, environ, makedirs, listdir
+from copy import deepcopy
+from os import path, environ, makedirs, listdir, stat
 from shutil import copyfile
 from urllib.parse import urlparse
 from .utils import run_keys
+from datetime import datetime
+import time
 import boto3
 import requests
 
 V3IO_LOCAL_ROOT = 'v3io'
 
 
-def get_object(url, secrets=None):
+class FileStats:
+    def __init__(self, size, modified, content_type=None):
+        self.size = size
+        self.modified = modified
+        self.content_type = content_type
+
+
+def get_object(url, secrets=None, size=None, offset=0):
     stores = StoreManager(secrets)
     datastore, subpath = stores.get_or_create_store(url)
-    return datastore.get(subpath)
+    return datastore.get(subpath, size, offset)
+
+
+def get_object_stat(url, secrets=None):
+    stores = StoreManager(secrets)
+    datastore, subpath = stores.get_or_create_store(url)
+    return datastore.stat(subpath)
 
 
 def parseurl(url):
@@ -143,13 +159,16 @@ class DataStore:
     def url(self):
         return '{}://{}'.format(self.kind, self.endpoint)
 
-    def get(self, key):
+    def get(self, key, size=None, offset=0):
         pass
 
     def query(self, key, query='', **kwargs):
         raise ValueError('data store doesnt support structured queries')
 
     def put(self, key, data, append=False):
+        pass
+
+    def stat(self, key):
         pass
 
     def download(self, key, target_path):
@@ -188,17 +207,20 @@ class DataItem:
     def url(self):
         return self._url
 
-    def get(self):
-        return self._store.get(self._path)
+    def get(self, size=None, offset=0):
+        return self._store.get(self._path, size=size, offset=offset)
 
     def download(self, target_path):
         self._store.download(self._path, target_path)
 
-    def put(self, data):
-        self._store.put(self._path, data)
+    def put(self, data, append=False):
+        self._store.put(self._path, data, append=append)
 
     def upload(self, src_path):
         self._store.upload(self._path, src_path)
+
+    def stat(self):
+        return self._store.stat(self._path)
 
     def __str__(self):
         return self.url
@@ -218,9 +240,13 @@ class FileStore(DataStore):
     def _join(self, key):
         return path.join(self.subpath, key)
 
-    def get(self, key):
+    def get(self, key, size=None, offset=0):
         with open(self._join(key), 'rb') as fp:
-            return fp.read()
+            if offset:
+                fp.seek(offset)
+            if not size:
+                size = -1
+            return fp.read(size)
 
     def put(self, key, data, append=False):
         dir = path.dirname(self._join(key))
@@ -248,6 +274,10 @@ class FileStore(DataStore):
             makedirs(dir, exist_ok=True)
         copyfile(src_path, fullpath)
 
+    def stat(self, key):
+        s = stat(self._join(key))
+        return FileStats(size=s.st_size, modified=s.st_mtime)
+
 
 class S3Store(DataStore):
     def __init__(self, parent: StoreManager, schema, name, endpoint=''):
@@ -268,12 +298,20 @@ class S3Store(DataStore):
     def upload(self, key, src_path):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(Body=open(src_path, 'rb'))
 
-    def get(self, key):
+    def get(self, key, size=None, offset=0):
         obj = self.s3.Object(self.endpoint, self._join(key)[1:])
+        if size or offset:
+            return obj.get(Range=get_range(size, offset))['Body'].read()
         return obj.get()['Body'].read()
 
     def put(self, key, data, append=False):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(Body=data)
+
+    def stat(self, key):
+        obj = self.s3.Object(self.endpoint, self._join(key)[1:])
+        size = obj.content_length
+        modified = obj.last_modified
+        return FileStats(size, time.mktime(modified.timetuple()))
 
 
 def basic_auth_header(user, password):
@@ -293,6 +331,16 @@ def http_get(url, headers=None, auth=None):
     if not resp.ok:
         raise OSError('failed to read file in {}'.format(url))
     return resp.content
+
+
+def http_head(url, headers=None, auth=None):
+    try:
+        resp = requests.head(url, headers=headers, auth=auth, verify=False)
+    except OSError:
+        raise OSError('error: cannot connect to {}'.format(url))
+    if not resp.ok:
+        raise OSError('failed to read file head in {}'.format(url))
+    return resp.headers
 
 
 def http_put(url, data, headers=None, auth=None):
@@ -321,8 +369,13 @@ class HttpStore(DataStore):
     def put(self, key, data, append=False):
         raise ValueError('unimplemented')
 
-    def get(self, key):
-        return http_get(self.url + self._join(key), None, self.auth)
+    def get(self, key, size=None, offset=0):
+        data = http_get(self.url + self._join(key), None, self.auth)
+        if offset:
+            data = data[offset:]
+        if size:
+            data = data[:size]
+        return data
 
 
 class V3ioStore(DataStore):
@@ -353,8 +406,28 @@ class V3ioStore(DataStore):
     def upload(self, key, src_path):
         http_upload(self.url + self._join(key), src_path, self.headers, None)
 
-    def get(self, key):
-        return http_get(self.url + self._join(key), self.headers, None)
+    def get(self, key, size=None, offset=0):
+        headers = self.headers
+        if size or offset:
+            headers = deepcopy(headers)
+            headers['Range'] = get_range(size, offset)
+        return http_get(self.url + self._join(key), headers)
 
     def put(self, key, data, append=False):
         http_put(self.url + self._join(key), data, self.headers, None)
+
+    def stat(self, key):
+        head = http_head(self.url + self._join(key), self.headers)
+        size = int(head.get('Content-Length', '0'))
+        datestr = head.get('Last-Modified', '0')
+        modified = time.mktime(datetime.strptime(
+            datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple())
+        return FileStats(size, modified)
+
+
+
+def get_range(size, offset):
+    range = 'bytes={}-'.format(offset)
+    if size:
+        range = range + '{}'.format(offset + size)
+    return range

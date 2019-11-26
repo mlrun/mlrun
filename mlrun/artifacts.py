@@ -103,12 +103,14 @@ class ArtifactManager:
             if body:
                 if self.calc_hash:
                     item.hash = blob_hash(body)
+                item.size = len(body)
                 store.put(ipath, body)
             else:
                 src_path = src_path or key
                 if src_path and os.path.isfile(src_path):
                     if self.calc_hash:
                         item.hash = file_hash(src_path)
+                    item.size = os.stat(src_path).st_size
                     store.upload(ipath, src_path)
 
         if self.artifact_db:
@@ -129,12 +131,13 @@ class Artifact(ModelObj):
 
     _dict_fields = [
         'key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
-        'description', 'viewer', 'inline', 'format']
+        'description', 'viewer', 'inline', 'format', 'size']
     kind = ''
 
     def __init__(self, key, body=None, src_path=None, target_path='',
-                 viewer=None, inline=False, format=None):
+                 viewer=None, inline=False, format=None, size=None):
         self.key = key
+        self.size = size
         self.iter = None
         self.tree = None
         self.updated = None

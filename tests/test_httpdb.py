@@ -101,7 +101,7 @@ def test_run(create_server):
         'algorithm': 'svm',
         'C': 3,
     })
-    db.store_run(run, uid, prj, commit=True)
+    db.store_run(run, uid, prj)
 
     data = db.read_run(uid, prj)
     assert data == run, 'read_run'
@@ -127,7 +127,7 @@ def test_runs(create_server):
     for i in range(count):
         uid = f'uid_{i}'
         run = RunObject().to_dict()
-        db.store_run(run, uid, prj, commit=True)
+        db.store_run(run, uid, prj)
 
     runs = db.list_runs(project=prj)
     assert len(runs) == count, 'bad number of runs'
@@ -203,6 +203,7 @@ def test_set_get_function(create_server):
     func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
     db.store_function(func, name, proj)
     db_func = db.get_function(name, proj)
+    del db_func['metadata']
     assert db_func == func, 'wrong func'
 
 

@@ -159,7 +159,7 @@ class k8s_helper:
         for out in outputs:
             print(out.decode('utf-8'), end='')
             if writer:
-                writer.write(out.decode('utf-8'))
+                writer.write(out)
 
         pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
         if pod_state == 'failed':

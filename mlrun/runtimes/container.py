@@ -77,3 +77,4 @@ class ContainerRuntime(BaseRuntime):
             execution.set_state('build')
         ready = build_runtime(self, with_mlrun, watch)
         self._is_built = ready
+        return ready

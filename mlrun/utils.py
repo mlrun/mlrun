@@ -20,19 +20,23 @@ from sys import stdout
 import yaml
 import json
 import numpy as np
-
+from .config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 
 
-def create_logger():
-    handler = logging.StreamHandler(stdout)
+def create_logger(stream=None):
+    level = logging.INFO
+    if config.log_level == 'debug':
+        level = logging.DEBUG
+    handler = logging.StreamHandler(stream or stdout)
     handler.setFormatter(
         logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
+    handler.setLevel(level)
     logger = logging.getLogger('mlrun')
     if not len(logger.handlers):
         logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
     logger.propagate = False
     return logger
 
@@ -224,6 +228,19 @@ def uxjoin(base, path, iter=None):
             path = path[1:]
         return '{}{}'.format(base, path)
     return path
+
+
+def parse_function_uri(uri):
+    project = tag = ''
+    if '/' in uri:
+        loc = uri.find('/')
+        project = uri[:loc]
+        uri = uri[loc+1:]
+    if ':' in uri:
+        loc = uri.find(':')
+        tag = uri[loc+1:]
+        uri = uri[:loc]
+    return project, uri, tag
 
 
 def gen_md_table(header, rows=None):

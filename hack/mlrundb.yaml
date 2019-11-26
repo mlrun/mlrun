@@ -22,10 +22,26 @@ spec:
         env:
         - name: MLRUN_HTTPDB__DIRPATH
           value: "/mlrun/db"
+        - name: V3IO_ACCESS_KEY
+          value: <access-key>
+        - name: V3IO_USERNAME
+          value: admin
         ports:
         - containerPort: 8080
         command: ["python", "-m", "mlrun", "db"]
         args: []
+# UNCOMMENT TO ADD V3IO VOLUME + SET ACCESS KEY
+#        - mountPath: /mlrun/db
+#          name: fs
+#      volumes:
+#      - flexVolume:
+#          driver: v3io/fuse
+#          options:
+#            accessKey: <access-key>
+#            container: users
+#            subPath: /admin
+#        name: fs
+
 ---
 kind: Service
 apiVersion: v1

@@ -27,10 +27,10 @@ from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
 from .utils import update_in, get_in, logger
 from .datastore import get_object
+from .db import get_run_db, default_dbpath
 
 
 def get_or_create_ctx(name: str,
-                      uid: str = '',
                       event=None,
                       spec=None,
                       with_env: bool = True,
@@ -45,7 +45,6 @@ def get_or_create_ctx(name: str,
     the path to the rundb can be specified in the call or obtained from env.
 
     :param name:     run name (will be overridden by context)
-    :param uid:      run unique id (will be overridden by context)
     :param event:    function (nuclio Event object)
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
@@ -88,7 +87,6 @@ def get_or_create_ctx(name: str,
     config = environ.get('MLRUN_EXEC_CONFIG')
     if event:
         newspec = event.body
-        uid = uid or event.id
 
     elif spec:
         newspec = deepcopy(spec)
@@ -126,9 +124,14 @@ runtime_dict = {'remote': RemoteRuntime,
                 'spark': SparkRuntime}
 
 
-def import_function(url, name='', project: str = '', tag: str = '',
-                    secrets=None):
-    """create function object from local/remote YAML file"""
+def import_function(url='', name='', project: str = '', tag: str = '',
+                    secrets=None, rundb=''):
+    """create function object from DB or local/remote YAML file"""
+    if not url:
+        db = get_run_db(rundb or default_dbpath()).connect(secrets)
+        runtime = db.get_function(name, project, tag)
+        return new_function(runtime=runtime)
+
     runtime = import_function_to_dict(url, secrets)
     return new_function(name, project=project, tag=tag, runtime=runtime)
 
@@ -298,30 +301,29 @@ def code_to_function(name='', filename='', handler='', runtime='',
     """
     filebase, _ = path.splitext(path.basename(filename))
 
-    def tag_name(labels, nbname):
+    def tag_name(labels):
         if filename:
             labels['filename'] = filename
-        elif nbname:
-            labels['filename'] = '{}.ipynb'.format(nbname)
 
-    nbname = ''
     if runtime.startswith('nuclio'):
         r = RemoteRuntime()
         kind = runtime[runtime.rfind(':')+1:] if ':' in runtime else None
+        r.spec.function_kind = kind
         if embed_code:
-            nbname, spec, code = build_file(filename, handler=handler or 'handler', kind=kind)
-            name = name or nbname
+            name, spec, code = build_file(filename, name=name,
+                                          handler=handler or 'handler',
+                                          kind=kind)
             r.spec.base_spec = spec
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
-        r.metadata.name = name or filebase
+        r.metadata.name = name
         if not r.metadata.name:
             raise ValueError('name must be specified')
-        tag_name(r.metadata.labels, nbname)
+        tag_name(r.metadata.labels)
         return r
 
-    nbname, spec, code = build_file(filename, handler=handler)
+    name, spec, code = build_file(filename, name=name, handler=handler)
 
     if runtime is None or runtime in ['', 'local']:
         r = LocalRuntime()
@@ -333,11 +335,11 @@ def code_to_function(name='', filename='', handler='', runtime='',
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
-    r.metadata.name = name or nbname or filebase
+    r.metadata.name = name
     if not r.metadata.name:
         raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
-    tag_name(r.metadata.labels, nbname)
+    tag_name(r.metadata.labels)
     build = r.spec.build
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')

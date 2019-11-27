@@ -14,28 +14,38 @@
 
 # This is ran by CI system. Use standard library functions only
 
+import traceback
+from os import environ
 from pathlib import Path
 from shutil import get_terminal_size
 from subprocess import run
-import traceback
-
 
 here = Path(__file__).absolute().parent
 notebooks_dir = here / 'notebooks'
-tmp_dockerfile = Path('./Dockerfile.mlrul-test-nb')
+tmp_dockerfile = Path('./Dockerfile.mlrun-test-nb')
+
+
+def args_from_env():
+    args, cmd = [], []
+    for name in environ:
+        if not name.startswith('MLRUN_'):
+            continue
+        value = environ[name]
+        args.append(f'ARG {name}')
+        cmd.extend(['--build-arg', f'{name}={value}'])
+
+    args = '\n'.join(args)
+    return args, cmd
 
 
 # Must not start with "test_", otherwise pytset will catch it
 def check_notebook(notebook, template):
-    code = template.format(notebook=notebook)
+    args, args_cmd = args_from_env()
+    code = template.format(notebook=notebook, args=args)
     with tmp_dockerfile.open('w') as out:
         out.write(code)
 
-    cmd = [
-        'docker', 'build',
-        '--file', tmp_dockerfile,
-        '.',
-    ]
+    cmd = ['docker', 'build', '--file', str(tmp_dockerfile)] + args_cmd + ['.']
     out = run(cmd)
     assert out.returncode == 0, 'cannot build'
 

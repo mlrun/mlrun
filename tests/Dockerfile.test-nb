@@ -22,4 +22,5 @@ RUN pipenv sync --dev
 COPY . .
 ENV PYTHONPATH=/mlrun
 WORKDIR tests/notebooks
+{args}
 RUN pipenv run jupyter nbconvert --execute {notebook}

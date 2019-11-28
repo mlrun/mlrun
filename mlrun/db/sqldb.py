@@ -15,15 +15,18 @@
 import pickle
 from datetime import datetime, timedelta
 
-from sqlalchemy import BLOB, TIMESTAMP, Column, Integer, String, create_engine
+from sqlalchemy import (
+    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, create_engine
+)
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker
 
 from ..lists import ArtifactList, FunctionList, RunList
 from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
+NULL = None  # avoid flake8 issuing warnings when comparing in filter
 
 
 class HasStruct:
@@ -36,9 +39,20 @@ class HasStruct:
         self.body = pickle.dumps(value)
 
 
-# TODO: Store labels in db (one to many)
+def make_label(table):
+    class Label(Base):
+        __tablename__ = f'{table}_labels'
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        parent = Column(Integer, ForeignKey(f'{table}.id'))
+
+    return Label
+
+
 class Artifact(Base, HasStruct):
     __tablename__ = 'artifacts'
+    Label = make_label(__tablename__)
 
     id = Column(Integer, primary_key=True)
     key = Column(String)
@@ -47,16 +61,19 @@ class Artifact(Base, HasStruct):
     uid = Column(String)
     updated = Column(TIMESTAMP)
     body = Column(BLOB)
+    labels = relationship(Label)
 
 
 class Function(Base, HasStruct):
     __tablename__ = 'functions'
+    Label = make_label(__tablename__)
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
     project = Column(String)
     tag = Column(String)
     body = Column(BLOB)
+    labels = relationship(Label)
 
 
 class Log(Base):
@@ -70,10 +87,15 @@ class Log(Base):
 
 class Run(Base, HasStruct):
     __tablename__ = 'runs'
+    Label = make_label(__tablename__)
+
     id = Column(Integer, primary_key=True)
     uid = Column(String)
     project = Column(String)
+    state = Column(String)
     body = Column(BLOB)
+    start_time = Column(TIMESTAMP)
+    labels = relationship(Label)
 
 
 class SQLDB(RunDBInterface):
@@ -88,7 +110,7 @@ class SQLDB(RunDBInterface):
         # TODO: One session per call?
         self.session = cls()
 
-    def store_log(self, uid, project='', body=None, append=True):
+    def store_log(self, uid, project='', body=b'', append=True):
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -110,7 +132,11 @@ class SQLDB(RunDBInterface):
         run = Run(
             uid=uid,
             project=project,
+            state=get_in(struct, 'status.state'),
+            start_time=run_start(struct),
         )
+        for label in run_labels(struct):
+            run.labels.append(Run.Label(name=label, parent=run))
         run.struct = struct
         self._upsert(run)
 
@@ -122,7 +148,13 @@ class SQLDB(RunDBInterface):
         for key, val in updates.items():
             update_in(struct, key, val)
         run.struct = struct
+        run.state = get_in(struct, 'status.state'),
+        run.start_time = run_start(struct),
+        run.labels.clear()
+        for label in run_labels(struct):
+            run.labels.append(Run.Label(label=label, run=run))
         self._upsert(run)
+        self._delete_empty_labels(Run)
 
     def read_run(self, uid, project='', iter=0):
         run = self._query(Run, uid=uid, project=project).one_or_none()
@@ -133,31 +165,28 @@ class SQLDB(RunDBInterface):
     def list_runs(
             self, name='', uid=None, project='', labels=None,
             state='', sort=True, last=0, iter=False):
+
+        query = self._find_runs(name, uid, project, labels, state)
+        if sort:
+            query = query.order_by(Run.start_time.desc())
+        if last:
+            query = query.limit(last)
+
         runs = RunList()
-        for run in self._iter_runs(name, uid, project, labels, state):
+        for run in query:
             runs.append(run.struct)
 
-        if sort or last:
-            runs.sort(key=_run_start, reverse=True)
-        if last:
-            runs = runs[:last]
         return runs
 
     def del_run(self, uid, project='', iter=0):
         self._delete(Run, uid=uid, project=project)
 
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+        query = self._find_runs(name, '', project, labels, state)
         if days_ago:
             since = datetime.now() - timedelta(days=days_ago)
-
-        def start_ok(struct):
-            ts = get_in(struct, 'status.start_time')
-            time = datetime.strptime('%Y-%m-%d %H:%M:%S.%f', ts)
-            return time >= since
-
-        for run in self._iter_runs(name, '', project, labels, state):
-            if days_ago and not start_ok(run.struct):
-                continue
+            query = query.filter(Run.start_time >= since)
+        for run in query:  # Can't use query.delete with join
             self.session.delete(run)
         self.session.commit()
 
@@ -169,6 +198,8 @@ class SQLDB(RunDBInterface):
             uid=uid,
             tag=tag,
             project=project)
+        for label in label_set(artifact.get('labels', [])):
+            art.labels.append(Artifact.Label(name=label, parent=art))
         art.struct = artifact
         self._upsert(art)
 
@@ -183,7 +214,7 @@ class SQLDB(RunDBInterface):
         arts = ArtifactList()
         arts.extend(
             obj.struct
-            for obj in self._iter_artifcats(name, project, tag, labels)
+            for obj in self._find_artifacts(name, project, tag, labels)
         )
         return arts
 
@@ -192,7 +223,7 @@ class SQLDB(RunDBInterface):
             Artifact, key=key, tag=tag, project=project)
 
     def del_artifacts(self, name='', project='', tag='', labels=None):
-        for obj in self._iter_artifcats(name, project, tag, labels):
+        for obj in self._find_artifacts(name, project, tag, labels):
             self.session.delete(obj)
         self.session.commit()
 
@@ -203,6 +234,8 @@ class SQLDB(RunDBInterface):
             project=project,
             tag=tag,
         )
+        for label in label_set(get_in(func, 'metadata.labels', [])):
+            fn.labels.append(Function.Label(name=label, parent=fn))
         fn.struct = func
         self._upsert(fn)
 
@@ -216,7 +249,7 @@ class SQLDB(RunDBInterface):
         funcs = FunctionList()
         funcs.extend(
             obj.struct
-            for obj in self._iter_functions(name, project, tag, labels)
+            for obj in self._find_functions(name, project, tag, labels)
         )
         return funcs
 
@@ -224,45 +257,33 @@ class SQLDB(RunDBInterface):
         kw = {k: v for k, v in kw.items() if v}
         return self.session.query(cls).filter_by(**kw)
 
+    def _delete_empty_labels(self, cls):
+        self.session.query(cls).filter(cls.parent == NULL).delete()
+        self.session.commit()
+
     def _upsert(self, obj):
         self.session.add(obj)
         self.session.commit()
 
-    def _match_run(self, run, labels, state):
-        struct = run.struct
-
-        if state and get_in(struct, 'status.state') != state:
-            return False
-
+    def _find_runs(self, name, uid, project, labels, state):
+        labels = label_set(labels)
+        query = self._query(
+            Run, name=name, uid=uid, project=project, state=state)
         if labels:
-            meta = struct.get('metadata', {})
-            run_labels = set(meta.get('labels', []))
-            if not labels & run_labels:
-                return False
+            query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
+        return query
 
-        return True
-
-    def _iter_runs(self, name, uid, project, labels, state):
-        query = self._query(Run, name=name, uid=uid, project=project)
-        labels = _label_set(labels)
-        for run in query:
-            if self._match_run(run, labels, state):
-                yield run
-
-    def _iter_artifcats(self, name, project, tag, labels):
-        # FIXME
-        # tag = tag or 'latest'
+    def _find_artifacts(self, name, project, tag, labels):
+        # FIXME tag = tag or 'latest'
+        labels = label_set(labels)
         query = self._query(Artifact, name=name, project=project, tag=tag)
-        labels = _label_set(labels)
-        for obj in query:
-            art = obj.struct
-            if labels and not (labels & set(art.get('labels', []))):
-                continue
-            yield obj
+        if labels:
+            query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
+        return query
 
-    def _iter_functions(self, name, project, tag, labels):
+    def _find_functions(self, name, project, tag, labels):
         query = self._query(Function, name=name, project=project, tag=tag)
-        labels = _label_set(labels)
+        labels = label_set(labels)
 
         for obj in query:
             func = obj.struct
@@ -277,13 +298,25 @@ class SQLDB(RunDBInterface):
             self.session.delete(obj)
         self.session.commit()
 
+    def _find_lables(self, cls, label_cls, labels):
+        return self.session.query(cls).join(label_cls).filter(
+                label_cls.name.in_(labels))
 
-def _label_set(labels):
+
+def label_set(labels):
     if isinstance(labels, str):
         labels = labels.split(',')
 
     return set(labels or [])
 
 
-def _run_start(run):
-    return get_in(run, ['status', 'start_time'], '')
+def run_start(run):
+    ts = get_in(run, ['status', 'start_time'], '')
+    if not ts:
+        return datetime.now()  # TODO: Is this the right default
+    return datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
+
+
+def run_labels(run):
+    labels = get_in(run, 'metadata.labels', [])
+    return label_set(labels)

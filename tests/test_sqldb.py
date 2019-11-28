@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from mlrun.db import sqldb
@@ -57,6 +59,10 @@ def test_log(db: sqldb.SQLDB):
     assert data1 == log, 'get log append=False'
 
 
+def run_now():
+    return datetime.now().strftime(sqldb.run_time_fmt)
+
+
 def new_run(state, labels, **kw):
     obj = {
         'metadata': {
@@ -64,6 +70,7 @@ def new_run(state, labels, **kw):
         },
         'status': {
             'state': state,
+            'start_time': run_now(),
         },
     }
     obj.update(kw)
@@ -79,12 +86,20 @@ def test_runs(db: sqldb.SQLDB):
     uid3 = 'uid3'
     db.store_run(run3, uid3)
 
+    updates = {
+        'status': {
+            'start_time': run_now(),
+        },
+    }
+    db.update_run(updates, uid3)
+
     runs = db.list_runs(labels=['l2'])
     assert 2 == len(runs), 'labels length'
     assert {1, 2} == {r['x'] for r in runs}, 'xs labels'
 
     runs = db.list_runs(state='s2')
     assert 1 == len(runs), 'state length'
+    run3['status'] = updates['status']
     assert run3 == runs[0], 'state run'
 
     db.del_run(uid3)

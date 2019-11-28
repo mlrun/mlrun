@@ -27,6 +27,7 @@ from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
 NULL = None  # avoid flake8 issuing warnings when comparing in filter
+run_time_fmt = '%Y-%m-%d %H:%M:%S.%f'
 
 
 class HasStruct:
@@ -132,8 +133,8 @@ class SQLDB(RunDBInterface):
         run = Run(
             uid=uid,
             project=project,
-            state=get_in(struct, 'status.state'),
-            start_time=run_start(struct),
+            state=run_state(struct),
+            start_time=run_start_time(struct) or datetime.now(),
         )
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
@@ -148,13 +149,17 @@ class SQLDB(RunDBInterface):
         for key, val in updates.items():
             update_in(struct, key, val)
         run.struct = struct
-        run.state = get_in(struct, 'status.state'),
-        run.start_time = run_start(struct),
+        new_state = run_state(struct)
+        if new_state:
+            run.state = new_state
+        start_time = run_start_time(struct)
+        if start_time:
+            run.start_time = start_time
         run.labels.clear()
         for label in run_labels(struct):
-            run.labels.append(Run.Label(label=label, run=run))
+            run.labels.append(Run.Label(name=label, parent=run))
         self._upsert(run)
-        self._delete_empty_labels(Run)
+        self._delete_empty_labels(Run.Label)
 
     def read_run(self, uid, project='', iter=0):
         run = self._query(Run, uid=uid, project=project).one_or_none()
@@ -310,13 +315,28 @@ def label_set(labels):
     return set(labels or [])
 
 
-def run_start(run):
-    ts = get_in(run, ['status', 'start_time'], '')
+class RunWrapper:
+    def __init__(self, run):
+        self.run = run
+
+    def __getattr__(self, attr):
+        try:
+            return self.run[attr]
+        except KeyError:
+            raise AttributeError(attr)
+
+
+def run_start_time(run):
+    ts = get_in(run, 'status.start_time', '')
     if not ts:
-        return datetime.now()  # TODO: Is this the right default
-    return datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
+        return None
+    return datetime.strptime(ts, run_time_fmt)
 
 
 def run_labels(run):
     labels = get_in(run, 'metadata.labels', [])
     return label_set(labels)
+
+
+def run_state(run):
+    return get_in(run, 'status.state', '')

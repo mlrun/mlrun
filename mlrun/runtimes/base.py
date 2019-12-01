@@ -380,10 +380,10 @@ class BaseRuntime(ModelObj):
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
             if err:
-                update_in(resp, 'status.error', err)
+                update_in(resp, 'status.error', str(err))
             err = get_in(resp, 'status.error')
             if err:
-                updates['status.error'] = err
+                updates['status.error'] = str(err)
         elif not was_none and last_state != 'completed':
             updates = {'status.last_update': str(datetime.now())}
             updates['status.state'] = 'completed'

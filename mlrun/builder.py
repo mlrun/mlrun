@@ -191,7 +191,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if build.functionSourceCode:
         inline = b64decode(build.functionSourceCode).decode('utf-8')
     if not build.image:
-        raise ValueError('build spec must have a taget image, set build.image = <target image>')
+        raise ValueError('build spec must have a target image, set build.image = <target image>')
     logger.info(f'building image ({build.image})')
     status = build_image(build.image,
                          base_image=build.base_image or 'python:3.6-jessie',

@@ -138,11 +138,11 @@ def submit_job(func=''):
                 resp = import_function(url=url).run(task)
             else:
                 project, name, tag = parse_function_uri(url)
-                resp = import_function(
-                    project=project, name=name, tag=tag).run(task)
+                runtime = _file_db.get_function(name, project, tag)
+                resp = new_function(runtime=runtime).run(task)
 
         logger.info('resp: %s', resp.to_yaml())
-    except RunError as err:
+    except Exception as err:
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),

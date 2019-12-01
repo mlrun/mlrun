@@ -106,7 +106,7 @@ class SparkRuntime(KubejobRuntime):
     group = 'sparkoperator.k8s.io'
     version = 'v1beta1'
     apiVersion = group + '/' + version
-    kind = 'SparkApplication'
+    kind = 'spark'
     plural = 'sparkapplications'
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
@@ -219,7 +219,7 @@ class SparkRuntime(KubejobRuntime):
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
-        selector = 'mlrun/class=SparkApplication'
+        selector = 'mlrun/class=spark'
         if name:
             selector += ',sparkoperator.k8s.io/app-name={}'.format(name)
         if driver:

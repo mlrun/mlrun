@@ -9,7 +9,6 @@ twine = "*"
 sklearn = "*"
 xgboost = "*"
 distributed = ">=2.3.0"
-kfp = ">=0.1.29"
 
 [packages]
 Flask = ">=1.1.1"
@@ -26,6 +25,7 @@ pandas = ">=0.23.0"
 pyyaml = ">=5.1.0"
 requests = ">=2.20.1"
 tabulate = ">=0.8.0"
+kfp = ">=0.1.29"
 
 [requires]
 python_version = "3.6"

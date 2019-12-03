@@ -37,7 +37,8 @@ _load_lock = Lock()
 default_config = {
     'namespace': 'default-tenant',
     'dbpath': '',
-    'ui_external_url': '',
+    'ui_url': '',
+    'api_service': '',
     'kfp_image': 'mlrun/mlrun:latest',
     'kaniko_version': 'v0.13.0',
     'package_path': 'mlrun',
@@ -46,7 +47,7 @@ default_config = {
     'httpdb': {
         'port': 8080,
         # 'dirpath': path.expanduser('~/.mlrun/db'),
-        'dsn': 'sqlite:///:memory:',
+        'dsn': 'sqlite:///:memory:?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',

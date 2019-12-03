@@ -217,6 +217,24 @@ class k8s_helper:
             items.append(i)
         return items
 
+    def get_logger_pods(self, uid, namespace=''):
+        namespace = self.ns(namespace)
+        selector = 'mlrun/class,mlrun/uid={}'.format(uid)
+        pods = self.list_pods(selector=selector, namespace=namespace)
+        if not pods:
+            logger.error('no pod matches that uid')
+            return
+
+        kind = pods[0].metadata.labels.get('mlrun/class')
+        results = {}
+        for p in pods:
+            if (kind not in ['spark', 'mpijob']) or \
+                  (p.metadata.labels.get('spark-role', '') == 'driver') or \
+                  (p.metadata.labels.get('mpi_role_type', '') == 'launcher'):
+                results[p.metadata.name] = p.status.phase
+
+        return results
+
 
 class BasePod:
 

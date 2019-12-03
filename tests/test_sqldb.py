@@ -7,7 +7,7 @@ from mlrun.db import sqldb
 
 @pytest.fixture
 def db():
-    db = sqldb.SQLDB('sqlite:///:memory:')
+    db = sqldb.SQLDB('sqlite:///:memory:?check_same_thread=false')
     db.connect()
     return db
 

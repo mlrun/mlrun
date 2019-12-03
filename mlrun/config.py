@@ -38,6 +38,7 @@ _load_lock = Lock()
 default_config = {
     'namespace': 'default-tenant',
     'dbpath': '',
+    'ui_external_url': '',
     'kfp_image': 'mlrun/mlrun:latest',
     'kaniko_version': 'v0.13.0',
     'package_path': 'mlrun',

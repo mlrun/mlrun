@@ -5,3 +5,6 @@ jobs:
     steps:
       - checkout
       - run: docker build -f Dockerfile.test .
+      - run: pyenv install miniconda3-4.3.11
+      - run: pyenv local miniconda3-4.3.11
+      - run: python tests/run_notebook_tests.py

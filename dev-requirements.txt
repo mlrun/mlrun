@@ -1,7 +1,6 @@
 distributed>=2.3.0
 kfp>=0.1.29
-pytest
-sklearn
-sklearn
-twine
-xgboost
+pytest==5.3.1
+scikit-learn==0.21.3
+twine==3.1.1
+xgboost==0.90

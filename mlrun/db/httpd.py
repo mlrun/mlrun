@@ -28,8 +28,10 @@ from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
 from mlrun.runtimes import RunError
 from mlrun.run import new_function, import_function
+from mlrun.k8s_utils import k8s_helper
 
 _db: RunDBInterface
+_k8s: k8s_helper = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
@@ -138,7 +140,7 @@ def submit_job(func=''):
                 resp = import_function(url=url).run(task)
             else:
                 project, name, tag = parse_function_uri(url)
-                runtime = _file_db.get_function(name, project, tag)
+                runtime = _db.get_function(name, project, tag)
                 resp = new_function(runtime=runtime).run(task)
 
         logger.info('resp: %s', resp.to_yaml())
@@ -231,6 +233,13 @@ def get_log(project, uid):
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
                               project=project, uid=uid)
+        pods = _k8s.get_logger_pods(uid)
+        if pods:
+            pod, status = list(pods.items())[0]
+            out = _k8s.logs(pod)
+            if out:
+                print(type(out))
+                return out.encode()
         msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
         return msg.encode()
 
@@ -261,6 +270,7 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    print('YYYYYYY:', request.args)
     iter = int(request.args.get('iter', '0'))
     _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
@@ -429,10 +439,12 @@ def health():
 @app.before_first_request
 def init_app():
     global _db
+    global _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     _db = SQLDB(config.httpdb.dsn)
     _db.connect()
+    _k8s = k8s_helper()
 
 
 # Don't remove this function, it's an entry point in setup.py

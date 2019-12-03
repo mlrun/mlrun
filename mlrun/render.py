@@ -307,9 +307,9 @@ def runs_to_html(df, display=True, classes=None):
     df['results'] = df['results'].apply(dict_html)
     df['start'] = df['start'].apply(time_str)
 
-    if config.ui_external_url:
+    if config.ui_url:
         uid_template = '<div title="{}"><a href="{}/jobs/{}/info" target="_blank" >...{}</a></div>'
-        df['uid'] = df['uid'].apply(lambda x: uid_template.format(x, config.ui_external_url, x, x[-6:]))
+        df['uid'] = df['uid'].apply(lambda x: uid_template.format(x, config.ui_url, x, x[-6:]))
     else:
         df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 

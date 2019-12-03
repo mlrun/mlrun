@@ -131,3 +131,20 @@ def test_artifacts(db: sqldb.SQLDB):
     db.del_artifact(key=k1)
     with pytest.raises(sqldb.RunDBError):
         db.read_artifact(k1)
+
+
+def test_list_artifact_tags(db: sqldb.SQLDB):
+    db.store_artifact('k1', {}, '1', 't1', 'p1')
+    db.store_artifact('k1', {}, '2', 't2', 'p1')
+    db.store_artifact('k1', {}, '2', 't2', 'p2')
+
+    tags = db.list_artifact_tags('p1')
+    assert {'t1', 't2'} == set(tags), 'bad tags'
+
+
+def test_list_projects(db: sqldb.SQLDB):
+    for i in range(10):
+        run = new_run('s1', ['l1', 'l2'], x=1)
+        db.store_run(run, 'u7', project=f'prj{i%3}')
+
+    assert {'prj0', 'prj1', 'prj2'} == set(db.list_projects())

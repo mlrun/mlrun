@@ -35,7 +35,7 @@ igz_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
             'files': ['/igz/java/libs/v3io-py-{0}.zip']}
 
 _sparkjob_template = {
- 'apiVersion': 'sparkoperator.k8s.io/v1beta1',
+ 'apiVersion': 'sparkoperator.k8s.io/v1beta2',
  'kind': 'SparkApplication',
  'metadata': {
      'name': '',
@@ -58,12 +58,12 @@ _sparkjob_template = {
      },
      'deps': {},
      'volumes': [],
+     'serviceAccount': 'spark-operator-spark',
      'driver': {
          'cores': 1,
          'coreLimit': '1200m',
          'memory': '512m',
          'labels': {},
-         'serviceAccount': 'spark-operator-spark',
          'volumeMounts': [],
          'env': [],
      },
@@ -104,7 +104,7 @@ class SparkJobSpec(KubejobSpec):
 
 class SparkRuntime(KubejobRuntime):
     group = 'sparkoperator.k8s.io'
-    version = 'v1beta1'
+    version = 'v1beta2'
     apiVersion = group + '/' + version
     kind = 'SparkApplication'
     plural = 'sparkapplications'
@@ -214,7 +214,7 @@ class SparkRuntime(KubejobRuntime):
         self._update_igz_jars(igz_version=igz_version)
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
         self.apply(mount_v3iod())
-        self.apply(mount_spark_conf())
+#        self.apply(mount_spark_conf())
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

@@ -13,23 +13,24 @@
 # limitations under the License.
 
 import json
-import time
-from os import path, remove, makedirs
-import yaml
 import pathlib
 from datetime import datetime, timedelta
+from os import makedirs, path, remove
 
-from ..utils import get_in, match_labels, dict_to_yaml, update_in, dict_to_json
+import yaml
+
 from ..datastore import StoreManager
+from ..lists import ArtifactList, RunList
+from ..utils import (
+    dict_to_json, dict_to_yaml, get_in, logger, match_labels, match_value,
+    update_in
+)
 from .base import RunDBError, RunDBInterface
-from ..lists import RunList, ArtifactList, FunctionList
-from ..utils import logger
 
 run_logs = 'runs'
 artifacts_dir = 'artifacts'
 functions_dir = 'functions'
 default_project = 'default'
-_missing = object()
 
 
 class FileRunDB(RunDBInterface):
@@ -78,6 +79,7 @@ class FileRunDB(RunDBInterface):
 
     def update_run(self, updates: dict, uid, project='', iter=0):
         run = self.read_run(uid, project, iter=iter)
+        # TODO: Should we raise if run not found?
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
@@ -234,7 +236,7 @@ class FileRunDB(RunDBInterface):
         if name:
             filepath = '{}{}/'.format(filepath, name)
             mask = '*'
-        for func, p in self._load_list(filepath, mask):
+        for func, _ in self._load_list(filepath, mask):
             if match_labels(get_in(func, 'metadata.labels', {}), labels):
                 results.append(func)
 
@@ -285,9 +287,3 @@ class FileRunDB(RunDBInterface):
             remove(filepath)
         else:
             raise RunDBError(f'run file is not found or valid ({filepath})')
-
-
-def match_value(value, obj, key):
-    if not value:
-        return True
-    return get_in(obj, key, _missing) == value

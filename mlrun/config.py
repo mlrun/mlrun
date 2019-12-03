@@ -22,7 +22,6 @@ mapped to config.httpdb.port. Values should be in JSON format.
 """
 
 import os
-from os import path
 from collections.abc import Mapping
 from threading import Lock
 import json
@@ -47,7 +46,8 @@ default_config = {
     'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,
-        'dirpath': path.expanduser('~/.mlrun/db'),
+        # 'dirpath': path.expanduser('~/.mlrun/db'),
+        'dsn': 'sqlite:///:memory:',
         'debug': False,
         'user': '',
         'password': '',

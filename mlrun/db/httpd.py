@@ -22,7 +22,7 @@ from os import environ
 from flask import Flask, jsonify, request, Response
 
 from mlrun.datastore import get_object, get_object_stat
-from mlrun.db import RunDBError, RunDBInterface
+from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.sqldb import SQLDB
 from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
@@ -433,6 +433,10 @@ def init_app():
     logger.info('configuration dump\n%s', config.dump_yaml())
     _db = SQLDB(config.httpdb.dsn)
     _db.connect()
+
+    # @yaronha - Initialize here
+    task = periodic.Task()
+    periodic.schedule(task, 60)
 
 
 # Don't remove this function, it's an entry point in setup.py

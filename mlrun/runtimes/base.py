@@ -104,6 +104,10 @@ class BaseRuntime(ModelObj):
         self.interactive = True
         self.is_child = False
 
+    def set_db_connection(self, conn):
+        if not self._db_conn:
+            self._db_conn = conn
+
     @property
     def metadata(self) -> BaseMetadata:
         return self._metadata
@@ -224,7 +228,7 @@ class BaseRuntime(ModelObj):
         logger.info('starting run {} uid={}  -> {}'.format(
             meta.name, meta.uid, self.spec.rundb))
 
-        if self.spec.rundb:
+        if not self._db_conn and self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
         add_code_metadata(meta.labels)

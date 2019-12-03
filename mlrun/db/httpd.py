@@ -26,7 +26,6 @@ from mlrun.db import RunDBError, RunDBInterface
 from mlrun.db.sqldb import SQLDB
 from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
-from mlrun.runtimes import RunError
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import k8s_helper
 
@@ -134,14 +133,17 @@ def submit_job(func=''):
 
     try:
         if function:
-            resp = new_function(runtime=function).run(task)
+            fn = new_function(runtime=function)
         else:
             if '://' in url:
-                resp = import_function(url=url).run(task)
+                fn = import_function(url=url)
             else:
                 project, name, tag = parse_function_uri(url)
                 runtime = _db.get_function(name, project, tag)
-                resp = new_function(runtime=runtime).run(task)
+                fn = new_function(runtime=runtime)
+
+        fn.set_db_connection(_db)
+        resp = fn.run(task)
 
         logger.info('resp: %s', resp.to_yaml())
     except Exception as err:

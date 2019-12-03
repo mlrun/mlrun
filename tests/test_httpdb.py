@@ -37,11 +37,11 @@ def free_port():
         return sock.getsockname()[1]
 
 
-def start_server(dirpath, log_file, env_config):
+def start_server(db_path, log_file, env_config):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['MLRUN_httpdb__dirpath'] = dirpath
+    env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}'
     env.update(env_config or {})
 
     cmd = [
@@ -67,9 +67,9 @@ def create_server():
         nonlocal proc, log_fp
         root = mkdtemp(prefix='mlrun-test')
         print(f'root={root!r}')
-        dirpath = f'{root}/db'
+        db_path = f'{root}/mlrun.sqlite3'
         log_fp = open(f'{root}/httpd.log', 'w+')
-        proc, url, log_file = start_server(dirpath, log_fp, env)
+        proc, url, log_file = start_server(db_path, log_fp, env)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(proc, url, log_file, conn)

@@ -233,13 +233,14 @@ def get_log(project, uid):
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
                               project=project, uid=uid)
-        pods = _k8s.get_logger_pods(uid)
-        if pods:
-            pod, status = list(pods.items())[0]
-            out = _k8s.logs(pod)
-            if out:
-                print(type(out))
-                return out.encode()
+        if _k8s:
+            pods = _k8s.get_logger_pods(uid)
+            if pods:
+                pod, status = list(pods.items())[0]
+                out = _k8s.logs(pod)
+                if out:
+                    print(type(out))
+                    return out.encode()
         msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
         return msg.encode()
 
@@ -270,7 +271,6 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    print('YYYYYYY:', request.args)
     iter = int(request.args.get('iter', '0'))
     _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
@@ -444,7 +444,10 @@ def init_app():
     logger.info('configuration dump\n%s', config.dump_yaml())
     _db = SQLDB(config.httpdb.dsn)
     _db.connect()
-    _k8s = k8s_helper()
+    try:
+        _k8s = k8s_helper()
+    except Exception:
+        pass
 
 
 # Don't remove this function, it's an entry point in setup.py

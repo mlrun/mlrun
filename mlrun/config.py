@@ -47,7 +47,7 @@ default_config = {
     'httpdb': {
         'port': 8080,
         # 'dirpath': path.expanduser('~/.mlrun/db'),
-        'dsn': 'sqlite:///:memory:',
+        'dsn': 'sqlite:///:memory:?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',

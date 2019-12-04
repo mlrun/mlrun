@@ -26,6 +26,7 @@ from sqlalchemy.orm import relationship, sessionmaker
 from ..lists import ArtifactList, FunctionList, RunList
 from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
+from .filedb import default_project
 
 Base = declarative_base()
 NULL = None  # avoid flake8 issuing warnings when comparing in filter
@@ -55,6 +56,10 @@ def make_label(table):
 
 class Artifact(Base, HasStruct):
     __tablename__ = 'artifacts'
+    __table_args__ = (
+        UniqueConstraint('uid', 'project', 'key', name='_artifacts_uc'),
+    )
+
     Label = make_label(__tablename__)
 
     id = Column(Integer, primary_key=True)
@@ -118,7 +123,7 @@ class SQLDB(RunDBInterface):
         # TODO: One session per call?
         self.session = cls()
 
-    def store_log(self, uid, project='', body=b'', append=True):
+    def store_log(self, uid, project=default_project, body=b'', append=True):
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -129,14 +134,14 @@ class SQLDB(RunDBInterface):
                 log.body = body
         self._upsert(log)
 
-    def get_log(self, uid, project='', offset=0, size=0):
+    def get_log(self, uid, project=default_project, offset=0, size=0):
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
             return None
         end = None if size == 0 else offset + size
         return log.body[offset:end]
 
-    def store_run(self, struct, uid, project='', iter=0):
+    def store_run(self, struct, uid, project=default_project, iter=0):
         run = Run(
             uid=uid,
             project=project,
@@ -153,7 +158,7 @@ class SQLDB(RunDBInterface):
             self.session.rollback()
             raise RunDBError(f'duplicate run - {err}')
 
-    def update_run(self, updates: dict, uid, project='', iter=0):
+    def update_run(self, updates: dict, uid, project=default_project, iter=0):
         run = self._get_run(uid, project, iter)
         if not run:
             raise RunDBError(f'run {uid}:{project} not found')
@@ -173,16 +178,15 @@ class SQLDB(RunDBInterface):
         self._upsert(run)
         self._delete_empty_labels(Run.Label)
 
-    def read_run(self, uid, project='', iter=0):
+    def read_run(self, uid, project=default_project, iter=0):
         run = self._get_run(uid, project, iter)
         if not run:
             raise RunDBError(f'Run {uid}:{project} not found')
         return run.struct
 
     def list_runs(
-            self, name='', uid=None, project='', labels=None,
+            self, name='', uid=None, project=default_project, labels=None,
             state='', sort=True, last=0, iter=False):
-
         query = self._find_runs(name, uid, project, labels, state)
         if sort:
             query = query.order_by(Run.start_time.desc())
@@ -195,10 +199,12 @@ class SQLDB(RunDBInterface):
 
         return runs
 
-    def del_run(self, uid, project='', iter=0):
+    def del_run(self, uid, project=default_project, iter=0):
         self._delete(Run, uid=uid, project=project, iteration=iter)
 
-    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+    def del_runs(
+        self, name='', project=default_project, labels=None,
+            state='', days_ago=0):
         query = self._find_runs(name, '', project, labels, state)
         if days_ago:
             since = datetime.now() - timedelta(days=days_ago)
@@ -207,7 +213,8 @@ class SQLDB(RunDBInterface):
             self.session.delete(run)
         self.session.commit()
 
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
+    def store_artifact(
+            self, key, artifact, uid, tag='', project=default_project):
         artifact = artifact.copy()
         artifact['updated'] = datetime.now()
         art = Artifact(
@@ -220,14 +227,15 @@ class SQLDB(RunDBInterface):
         art.struct = artifact
         self._upsert(art)
 
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', project=default_project):
         art = self._query(
             Artifact, key=key, tag=tag, project=project).one_or_none()
         if not art:
             raise RunDBError(f'Artifact {key}:{tag}:{project} not found')
         return art.struct
 
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(
+            self, name='', project=default_project, tag='', labels=None):
         arts = ArtifactList()
         arts.extend(
             obj.struct
@@ -235,16 +243,17 @@ class SQLDB(RunDBInterface):
         )
         return arts
 
-    def del_artifact(self, key, tag='', project=''):
+    def del_artifact(self, key, tag='', project=default_project):
         self._delete(
             Artifact, key=key, tag=tag, project=project)
 
-    def del_artifacts(self, name='', project='', tag='', labels=None):
+    def del_artifacts(
+            self, name='', project=default_project, tag='', labels=None):
         for obj in self._find_artifacts(name, project, tag, labels):
             self.session.delete(obj)
         self.session.commit()
 
-    def store_function(self, func, name, project='', tag=''):
+    def store_function(self, func, name, project=default_project, tag=''):
         update_in(func, 'metadata.updated', datetime.now())
         fn = Function(
             name=name,
@@ -256,13 +265,14 @@ class SQLDB(RunDBInterface):
         fn.struct = func
         self._upsert(fn)
 
-    def get_function(self, name, project='', tag=''):
+    def get_function(self, name, project=default_project, tag=''):
         query = self._query(Function, name=name, project=project, tag=tag)
         obj = query.one_or_none()
         if obj:
             return obj.struct
 
-    def list_functions(self, name, project='', tag='', labels=None):
+    def list_functions(
+            self, name, project=default_project, tag='', labels=None):
         funcs = FunctionList()
         funcs.extend(
             obj.struct

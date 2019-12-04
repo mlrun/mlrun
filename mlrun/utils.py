@@ -25,6 +25,7 @@ import yaml
 from .config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
+_missing = object()
 
 
 def create_logger(stream=None):
@@ -162,6 +163,12 @@ def match_labels(labels, conditions):
         else:
             match = match and (labels.get(condition.strip(), '') != '')
     return match
+
+
+def match_value(value, obj, key):
+    if not value:
+        return True
+    return get_in(obj, key, _missing) == value
 
 
 def flatten(df, col, prefix=''):

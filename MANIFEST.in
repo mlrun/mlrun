@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.6-slim
-RUN apt-get update && apt-get install -y gcc
-RUN pip install --upgrade --no-cache pip
-WORKDIR /mlrun
-COPY requirements.txt ./
-RUN pip install -r requirements.txt
-COPY . .
-ENV MLRUN_httpdb__dirpath=/mlrun/db
-VOLUME /mlrun/db
-# TODO: gunicorn/uwsgi? (underlying filedb & concurrency issues)
-CMD ["python", "-m", "mlrun", "db"]
+include Dockerfile*
+include Makefile
+include README.md
+recursive-include examples *
+recursive-include hack *
+recursive-include mlrun/db/sql *.sql
+recursive-include tests *
+
+recursive-exclude tests/test_results *
+recursive-exclude examples/.ipynb_checkpoints *

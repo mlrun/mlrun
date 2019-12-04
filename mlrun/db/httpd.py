@@ -17,19 +17,20 @@ from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
-from os import environ, path
+from os import environ
 
 from flask import Flask, jsonify, request, Response
 
 from mlrun.datastore import get_object, get_object_stat
-from mlrun.db import RunDBError
-from mlrun.db.filedb import FileRunDB
+from mlrun.db import RunDBError, RunDBInterface
+from mlrun.db.sqldb import SQLDB
 from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
-from mlrun.runtimes import RunError
 from mlrun.run import new_function, import_function
+from mlrun.k8s_utils import k8s_helper
 
-_file_db: FileRunDB = None
+_db: RunDBInterface
+_k8s: k8s_helper = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
@@ -132,17 +133,20 @@ def submit_job(func=''):
 
     try:
         if function:
-            resp = new_function(runtime=function).run(task)
+            fn = new_function(runtime=function)
         else:
             if '://' in url:
-                resp = import_function(url=url).run(task)
+                fn = import_function(url=url)
             else:
                 project, name, tag = parse_function_uri(url)
-                resp = import_function(
-                    project=project, name=name, tag=tag).run(task)
+                runtime = _db.get_function(name, project, tag)
+                fn = new_function(runtime=runtime)
+
+        fn.set_db_connection(_db)
+        resp = fn.run(task)
 
         logger.info('resp: %s', resp.to_yaml())
-    except RunError as err:
+    except Exception as err:
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
@@ -179,7 +183,8 @@ def get_files():
     if not ctype:
         ctype = 'application/octet-stream'
 
-    return Response(body, mimetype=ctype, headers={"x-suggested-filename": filename})
+    return Response(
+        body, mimetype=ctype, headers={"x-suggested-filename": filename})
 
 
 # curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
@@ -217,19 +222,27 @@ def get_filestat():
 def store_log(project, uid):
     append = strtobool(request.args.get('append', 'no'))
     body = request.get_data()  # TODO: Check size
-    _file_db.store_log(uid, project, body, append)
+    _db.store_log(uid, project, body, append)
     return jsonify(ok=True)
 
 
 # curl http://localhost:8080/log/prj/7
 @app.route('/api/log/<project>/<uid>', methods=['GET'])
 def get_log(project, uid):
-    data = _file_db.get_log(uid, project)
+    data = _db.get_log(uid, project)
     if data is None:
-        data = _file_db.read_run(uid, project)
+        data = _db.read_run(uid, project)
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
                               project=project, uid=uid)
+        if _k8s:
+            pods = _k8s.get_logger_pods(uid)
+            if pods:
+                pod, status = list(pods.items())[0]
+                out = _k8s.logs(pod)
+                if out:
+                    print(type(out))
+                    return out.encode()
         msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
         return msg.encode()
 
@@ -246,7 +259,7 @@ def store_run(project, uid):
 
     logger.debug(data)
     iter = int(request.args.get('iter', '0'))
-    _file_db.store_run(data, uid, project, iter=iter)
+    _db.store_run(data, uid, project, iter=iter)
     app.logger.info('store run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -261,7 +274,7 @@ def update_run(project, uid):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     iter = int(request.args.get('iter', '0'))
-    _file_db.update_run(data, uid, project, iter=iter)
+    _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -271,7 +284,7 @@ def update_run(project, uid):
 @catch_err
 def read_run(project, uid):
     iter = int(request.args.get('iter', '0'))
-    data = _file_db.read_run(uid, project, iter=iter)
+    data = _db.read_run(uid, project, iter=iter)
     return jsonify(ok=True, data=data)
 
 
@@ -280,7 +293,7 @@ def read_run(project, uid):
 @catch_err
 def del_run(project, uid):
     iter = int(request.args.get('iter', '0'))
-    _file_db.del_run(uid, project, iter=iter)
+    _db.del_run(uid, project, iter=iter)
     return jsonify(ok=True)
 
 
@@ -297,7 +310,7 @@ def list_runs():
     iter = strtobool(request.args.get('iter', 'on'))
     last = int(request.args.get('last', '0'))
 
-    runs = _file_db.list_runs(
+    runs = _db.list_runs(
         name=name,
         uid=uid,
         project=project,
@@ -319,7 +332,7 @@ def del_runs():
     state = request.args.get('state', '')
     days_ago = int(request.args.get('days_ago', '0'))
 
-    _file_db.del_runs(name, project, labels, state, days_ago)
+    _db.del_runs(name, project, labels, state, days_ago)
     return jsonify(ok=True)
 
 
@@ -333,7 +346,7 @@ def store_artifact(project, uid, key):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     tag = request.args.get('tag', '')
-    _file_db.store_artifact(key, data, uid, tag, project)
+    _db.store_artifact(key, data, uid, tag, project)
     return jsonify(ok=True)
 
 
@@ -341,7 +354,7 @@ def store_artifact(project, uid, key):
 @app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
 def read_artifact(project, tag, key):
-    data = _file_db.read_artifact(key, tag, project)
+    data = _db.read_artifact(key, tag, project)
     return data
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
@@ -353,7 +366,7 @@ def del_artifact(project, uid):
         return json_error(HTTPStatus.BAD_REQUEST, reason='missing data')
 
     tag = request.args.get('tag', '')
-    _file_db.del_artifact(key, tag, project)
+    _db.del_artifact(key, tag, project)
     return jsonify(ok=True)
 
 # curl http://localhost:8080/artifacts?project=p1?label=l1
@@ -365,7 +378,7 @@ def list_artifacts():
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 
-    artifacts = _file_db.list_artifacts(name, project, tag, labels)
+    artifacts = _db.list_artifacts(name, project, tag, labels)
     return jsonify(ok=True, artifacts=artifacts)
 
 # curl -X DELETE http://localhost:8080/artifacts?project=p1?label=l1
@@ -377,7 +390,7 @@ def del_artifacts():
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 
-    _file_db.del_artifacts(name, project, tag, labels)
+    _db.del_artifacts(name, project, tag, labels)
     return jsonify(ok=True)
 
 # curl -d@/path/to/func.json http://localhost:8080/func/prj/7?tag=0.3.2
@@ -391,7 +404,7 @@ def store_function(project, name):
 
     tag = request.args.get('tag', '')
 
-    _file_db.store_function(data, name, project, tag)
+    _db.store_function(data, name, project, tag)
     return jsonify(ok=True)
 
 
@@ -400,7 +413,7 @@ def store_function(project, name):
 @catch_err
 def get_function(project, name):
     tag = request.args.get('tag', '')
-    func = _file_db.get_function(name, project, tag)
+    func = _db.get_function(name, project, tag)
     return jsonify(ok=True, func=func)
 
 
@@ -413,7 +426,7 @@ def list_functions():
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 
-    out = _file_db.list_functions(name, project, tag, labels)
+    out = _db.list_functions(name, project, tag, labels)
     return jsonify(
         ok=True,
         funcs=list(out),
@@ -427,13 +440,16 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _file_db
-
-    from mlrun.config import config
+    global _db
+    global _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
-    _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
-    _file_db.connect()
+    _db = SQLDB(config.httpdb.dsn)
+    _db.connect()
+    try:
+        _k8s = k8s_helper()
+    except Exception:
+        pass
 
 
 # Don't remove this function, it's an entry point in setup.py

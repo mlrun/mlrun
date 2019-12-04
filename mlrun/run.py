@@ -288,7 +288,7 @@ def parse_command(runtime, url):
 
 
 def code_to_function(name='', filename='', handler='', runtime='',
-                     image=None, embed_code = True):
+                     image=None, embed_code=True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
@@ -360,5 +360,4 @@ def code_to_function(name='', filename='', handler='', runtime='',
 
     handlers = find_handlers(code)
     r.spec.entry_points = {h[name]: h for h in handlers}
-
     return r

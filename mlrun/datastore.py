@@ -325,8 +325,8 @@ def basic_auth_header(user, password):
 def http_get(url, headers=None, auth=None):
     try:
         resp = requests.get(url, headers=headers, auth=auth, verify=False)
-    except OSError:
-        raise OSError('error: cannot connect to {}'.format(url))
+    except OSError as e:
+        raise OSError('error: cannot connect to {}: {}'.format(url, e))
 
     if not resp.ok:
         raise OSError('failed to read file in {}'.format(url))
@@ -336,8 +336,8 @@ def http_get(url, headers=None, auth=None):
 def http_head(url, headers=None, auth=None):
     try:
         resp = requests.head(url, headers=headers, auth=auth, verify=False)
-    except OSError:
-        raise OSError('error: cannot connect to {}'.format(url))
+    except OSError as e:
+        raise OSError('error: cannot connect to {}: {}'.format(url, e))
     if not resp.ok:
         raise OSError('failed to read file head in {}'.format(url))
     return resp.headers
@@ -346,8 +346,8 @@ def http_head(url, headers=None, auth=None):
 def http_put(url, data, headers=None, auth=None):
     try:
         resp = requests.put(url, data=data, headers=headers, auth=auth, verify=False)
-    except OSError:
-        raise OSError('error: cannot connect to {}'.format(url))
+    except OSError as e:
+        raise OSError('error: cannot connect to {}: {}'.format(url, e))
     if not resp.ok:
         raise OSError(
             'failed to upload to {} {}'.format(url, resp.status_code))

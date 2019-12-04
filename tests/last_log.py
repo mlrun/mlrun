@@ -27,3 +27,4 @@ if __name__ == '__main__':
     log_file = test_dir / 'httpd.log'
     with log_file.open() as fp:
         print(fp.read())
+    print(f'\n\n{test_dir}')

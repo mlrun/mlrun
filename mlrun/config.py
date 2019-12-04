@@ -22,7 +22,6 @@ mapped to config.httpdb.port. Values should be in JSON format.
 """
 
 import os
-from os import path
 from collections.abc import Mapping
 from threading import Lock
 import json
@@ -38,14 +37,18 @@ _load_lock = Lock()
 default_config = {
     'namespace': 'default-tenant',
     'dbpath': '',
+    'ui_url': '',
+    'api_service': '',
     'kfp_image': 'mlrun/mlrun:latest',
     'kaniko_version': 'v0.13.0',
     'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
+    'default_project': 'default',
     'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,
-        'dirpath': path.expanduser('~/.mlrun/db'),
+        # 'dirpath': path.expanduser('~/.mlrun/db'),
+        'dsn': 'sqlite:///:memory:?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',

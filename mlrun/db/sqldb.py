@@ -16,11 +16,14 @@ import pickle
 from datetime import datetime, timedelta
 
 from sqlalchemy import (
-    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, create_engine
+    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
+    create_engine, func
 )
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
+from ..config import config
 from ..lists import ArtifactList, FunctionList, RunList
 from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
@@ -53,6 +56,10 @@ def make_label(table):
 
 class Artifact(Base, HasStruct):
     __tablename__ = 'artifacts'
+    __table_args__ = (
+        UniqueConstraint('uid', 'project', 'key', name='_artifacts_uc'),
+    )
+
     Label = make_label(__tablename__)
 
     id = Column(Integer, primary_key=True)
@@ -88,11 +95,16 @@ class Log(Base):
 
 class Run(Base, HasStruct):
     __tablename__ = 'runs'
+    __table_args__ = (
+        UniqueConstraint('uid', 'project', 'iteration', name='_runs_uc'),
+    )
+
     Label = make_label(__tablename__)
 
     id = Column(Integer, primary_key=True)
     uid = Column(String)
     project = Column(String)
+    iteration = Column(Integer)
     state = Column(String)
     body = Column(BLOB)
     start_time = Column(TIMESTAMP)
@@ -112,6 +124,7 @@ class SQLDB(RunDBInterface):
         self.session = cls()
 
     def store_log(self, uid, project='', body=b'', append=True):
+        project = project or config.default_project
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -123,6 +136,7 @@ class SQLDB(RunDBInterface):
         self._upsert(log)
 
     def get_log(self, uid, project='', offset=0, size=0):
+        project = project or config.default_project
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
             return None
@@ -130,19 +144,26 @@ class SQLDB(RunDBInterface):
         return log.body[offset:end]
 
     def store_run(self, struct, uid, project='', iter=0):
+        project = project or config.default_project
         run = Run(
             uid=uid,
             project=project,
+            iteration=iter,
             state=run_state(struct),
             start_time=run_start_time(struct) or datetime.now(),
         )
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
         run.struct = struct
-        self._upsert(run)
+        try:
+            self._upsert(run)
+        except SQLAlchemyError as err:
+            self.session.rollback()
+            raise RunDBError(f'duplicate run - {err}')
 
     def update_run(self, updates: dict, uid, project='', iter=0):
-        run = self._query(Run, uid=uid, project=project).one_or_none()
+        project = project or config.default_project
+        run = self._get_run(uid, project, iter)
         if not run:
             raise RunDBError(f'run {uid}:{project} not found')
         struct = run.struct
@@ -162,7 +183,8 @@ class SQLDB(RunDBInterface):
         self._delete_empty_labels(Run.Label)
 
     def read_run(self, uid, project='', iter=0):
-        run = self._query(Run, uid=uid, project=project).one_or_none()
+        project = project or config.default_project
+        run = self._get_run(uid, project, iter)
         if not run:
             raise RunDBError(f'Run {uid}:{project} not found')
         return run.struct
@@ -170,7 +192,7 @@ class SQLDB(RunDBInterface):
     def list_runs(
             self, name='', uid=None, project='', labels=None,
             state='', sort=True, last=0, iter=False):
-
+        project = project or config.default_project
         query = self._find_runs(name, uid, project, labels, state)
         if sort:
             query = query.order_by(Run.start_time.desc())
@@ -184,9 +206,14 @@ class SQLDB(RunDBInterface):
         return runs
 
     def del_run(self, uid, project='', iter=0):
+        project = project or config.default_project
+        # We currently delete *all* iterations
         self._delete(Run, uid=uid, project=project)
 
-    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+    def del_runs(
+        self, name='', project='', labels=None,
+            state='', days_ago=0):
+        project = project or config.default_project
         query = self._find_runs(name, '', project, labels, state)
         if days_ago:
             since = datetime.now() - timedelta(days=days_ago)
@@ -195,13 +222,16 @@ class SQLDB(RunDBInterface):
             self.session.delete(run)
         self.session.commit()
 
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
+    def store_artifact(
+            self, key, artifact, uid, tag='', project=''):
+        project = project or config.default_project
         artifact = artifact.copy()
-        artifact['updated'] = datetime.now()
+        updated = artifact['updated'] = datetime.now()
         art = Artifact(
             key=key,
             uid=uid,
             tag=tag,
+            updated=updated,
             project=project)
         for label in label_set(artifact.get('labels', [])):
             art.labels.append(Artifact.Label(name=label, parent=art))
@@ -209,13 +239,27 @@ class SQLDB(RunDBInterface):
         self._upsert(art)
 
     def read_artifact(self, key, tag='', project=''):
-        art = self._query(
-            Artifact, key=key, tag=tag, project=project).one_or_none()
+        project = project or config.default_project
+        query = self._query(
+            Artifact, key=key, project=project)
+
+        if tag:
+            query = query.filter(Artifact.uid == tag)
+        else:
+            # Select by last updated
+            max_updated = self.session.query(
+                func.max(Artifact.updated)).filter(
+                    Artifact.project == project, Artifact.key == key)
+            query = query.filter(Artifact.updated.in_(max_updated))
+
+        art = query.one_or_none()
         if not art:
             raise RunDBError(f'Artifact {key}:{tag}:{project} not found')
         return art.struct
 
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(
+            self, name='', project='', tag='', labels=None):
+        project = project or config.default_project
         arts = ArtifactList()
         arts.extend(
             obj.struct
@@ -224,15 +268,19 @@ class SQLDB(RunDBInterface):
         return arts
 
     def del_artifact(self, key, tag='', project=''):
+        project = project or config.default_project
         self._delete(
             Artifact, key=key, tag=tag, project=project)
 
-    def del_artifacts(self, name='', project='', tag='', labels=None):
+    def del_artifacts(
+            self, name='', project='', tag='', labels=None):
+        project = project or config.default_project
         for obj in self._find_artifacts(name, project, tag, labels):
             self.session.delete(obj)
         self.session.commit()
 
     def store_function(self, func, name, project='', tag=''):
+        project = project or config.default_project
         update_in(func, 'metadata.updated', datetime.now())
         fn = Function(
             name=name,
@@ -245,12 +293,15 @@ class SQLDB(RunDBInterface):
         self._upsert(fn)
 
     def get_function(self, name, project='', tag=''):
+        project = project or config.default_project
         query = self._query(Function, name=name, project=project, tag=tag)
         obj = query.one_or_none()
         if obj:
             return obj.struct
 
-    def list_functions(self, name, project='', tag='', labels=None):
+    def list_functions(
+            self, name, project='', tag='', labels=None):
+        project = project or config.default_project
         funcs = FunctionList()
         funcs.extend(
             obj.struct
@@ -269,6 +320,10 @@ class SQLDB(RunDBInterface):
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v}
         return self.session.query(cls).filter_by(**kw)
+
+    def _get_run(self, uid, project, iteration):
+        return self._query(
+            Run, uid=uid, project=project, iteration=iteration).one_or_none()
 
     def _delete_empty_labels(self, cls):
         self.session.query(cls).filter(cls.parent == NULL).delete()

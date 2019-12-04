@@ -26,10 +26,11 @@ from mlrun.db import RunDBError, RunDBInterface
 from mlrun.db.sqldb import SQLDB
 from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
-from mlrun.runtimes import RunError
 from mlrun.run import new_function, import_function
+from mlrun.k8s_utils import k8s_helper
 
 _db: RunDBInterface
+_k8s: k8s_helper = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
@@ -132,17 +133,20 @@ def submit_job(func=''):
 
     try:
         if function:
-            resp = new_function(runtime=function).run(task)
+            fn = new_function(runtime=function)
         else:
             if '://' in url:
-                resp = import_function(url=url).run(task)
+                fn = import_function(url=url)
             else:
                 project, name, tag = parse_function_uri(url)
-                resp = import_function(
-                    project=project, name=name, tag=tag).run(task)
+                runtime = _db.get_function(name, project, tag)
+                fn = new_function(runtime=runtime)
+
+        fn.set_db_connection(_db)
+        resp = fn.run(task)
 
         logger.info('resp: %s', resp.to_yaml())
-    except RunError as err:
+    except Exception as err:
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
@@ -231,6 +235,14 @@ def get_log(project, uid):
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
                               project=project, uid=uid)
+        if _k8s:
+            pods = _k8s.get_logger_pods(uid)
+            if pods:
+                pod, status = list(pods.items())[0]
+                out = _k8s.logs(pod)
+                if out:
+                    print(type(out))
+                    return out.encode()
         msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
         return msg.encode()
 
@@ -429,10 +441,15 @@ def health():
 @app.before_first_request
 def init_app():
     global _db
+    global _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     _db = SQLDB(config.httpdb.dsn)
     _db.connect()
+    try:
+        _k8s = k8s_helper()
+    except Exception:
+        pass
 
 
 # Don't remove this function, it's an entry point in setup.py

@@ -155,11 +155,7 @@ class SQLDB(RunDBInterface):
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
         run.struct = struct
-        try:
-            self._upsert(run)
-        except SQLAlchemyError as err:
-            self.session.rollback()
-            raise RunDBError(f'duplicate run - {err}')
+        self._upsert(run)
 
     def update_run(self, updates: dict, uid, project='', iter=0):
         project = project or config.default_project
@@ -179,7 +175,8 @@ class SQLDB(RunDBInterface):
         run.labels.clear()
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
-        self._upsert(run)
+        self.session.merge(run)
+        self.session.commit()
         self._delete_empty_labels(Run.Label)
 
     def read_run(self, uid, project='', iter=0):
@@ -322,8 +319,13 @@ class SQLDB(RunDBInterface):
         self.session.commit()
 
     def _upsert(self, obj):
-        self.session.add(obj)
-        self.session.commit()
+        try:
+            self.session.add(obj)
+            self.session.commit()
+        except SQLAlchemyError as err:
+            self.session.rollback()
+            cls = obj.__class__.__name__
+            raise RunDBError(f'duplicate {cls} - {err}')
 
     def _find_runs(self, name, uid, project, labels, state):
         labels = label_set(labels)

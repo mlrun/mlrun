@@ -115,6 +115,16 @@ def test_runs(db: sqldb.SQLDB):
         assert label not in run['metadata']['labels'], 'del_runs'
 
 
+def test_update_run(db: sqldb.SQLDB):
+    uid = 'uid83'
+    run = new_run('s1', ['l1', 'l2'], x=1)
+    db.store_run(run, uid)
+    val = 13
+    db.update_run({'x': val}, uid)
+    r = db.read_run(uid)
+    assert val == r['x'], 'bad update'
+
+
 def test_artifacts(db: sqldb.SQLDB):
     k1, u1, art1 = 'k1', 'u1', {'a': 1}
     db.store_artifact(k1, art1, u1)

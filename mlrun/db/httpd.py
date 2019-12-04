@@ -24,6 +24,7 @@ from flask import Flask, jsonify, request, Response
 from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError, RunDBInterface
 from mlrun.db.sqldb import SQLDB
+from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger, parse_function_uri, get_in
 from mlrun.config import config
 from mlrun.run import new_function, import_function
@@ -444,7 +445,8 @@ def init_app():
     global _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
-    _db = SQLDB(config.httpdb.dsn)
+    _db = FileRunDB(config.httpdb.dirpath, '.yaml')
+    #_db = SQLDB(config.httpdb.dsn)
     _db.connect()
     try:
         _k8s = k8s_helper()

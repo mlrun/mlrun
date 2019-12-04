@@ -24,6 +24,8 @@ from os import environ
 import pandas as pd
 from io import StringIO
 
+import requests
+
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
 from ..db import get_run_db, default_dbpath
@@ -36,6 +38,8 @@ from ..artifacts import TableArtifact
 from ..lists import RunList
 from .generators import get_generator
 from ..k8s_utils import k8s_helper
+from ..config import config
+
 
 
 class RunError(Exception):
@@ -99,6 +103,10 @@ class BaseRuntime(ModelObj):
         self._is_built = False
         self.interactive = True
         self.is_child = False
+
+    def set_db_connection(self, conn):
+        if not self._db_conn:
+            self._db_conn = conn
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -220,7 +228,7 @@ class BaseRuntime(ModelObj):
         logger.info('starting run {} uid={}  -> {}'.format(
             meta.name, meta.uid, self.spec.rundb))
 
-        if self.spec.rundb:
+        if not self._db_conn and self.spec.rundb:
             self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
 
         add_code_metadata(meta.labels)
@@ -236,6 +244,23 @@ class BaseRuntime(ModelObj):
             if self.metadata.project and self.metadata.project != 'default':
                 furi = '{}/{}'.format(self.metadata.project, furi)
             runspec.spec.function = furi
+
+        if config.api_service:
+            try:
+                url = '{}/api/submit'.format(config.api_service)
+                req = {'task': runspec.to_dict()}
+                resp = requests.post(
+                    url, json=req)
+            except OSError as err:
+                logger.error('error submitting task: {}'.format(err))
+                raise OSError(
+                    'error: cannot submit task to url {}, {}'.format(url, err))
+
+            if not resp.ok:
+                logger.error('bad resp!!\n{}'.format(resp.text))
+                raise RunError('bad function run response')
+
+            return resp.json()
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           self._db_conn,
@@ -359,10 +384,10 @@ class BaseRuntime(ModelObj):
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
             if err:
-                update_in(resp, 'status.error', err)
+                update_in(resp, 'status.error', str(err))
             err = get_in(resp, 'status.error')
             if err:
-                updates['status.error'] = err
+                updates['status.error'] = str(err)
         elif not was_none and last_state != 'completed':
             updates = {'status.last_update': str(datetime.now())}
             updates['status.state'] = 'completed'

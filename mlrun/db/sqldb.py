@@ -229,17 +229,17 @@ class SQLDB(RunDBInterface):
         self._upsert(art)
 
     def read_artifact(self, key, tag='', project=default_project):
+        query = self._query(
+            Artifact, key=key, project=project)
+
         if tag:
-            query = self._query(
-                Artifact, key=key, uid=tag, project=project)
+            query = query.filter(Artifact.uid == tag)
         else:
             # Select by last updated
             max_updated = self.session.query(
                 func.max(Artifact.updated)).filter(
                     Artifact.project == project, Artifact.key == key)
-            query = self.session.query(Artifact).filter(
-                Artifact.project == project, Artifact.key == key).filter(
-                    Artifact.updated.in_(max_updated))
+            query = query.filter(Artifact.updated.in_(max_updated))
 
         art = query.one_or_none()
         if not art:

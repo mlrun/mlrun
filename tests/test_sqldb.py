@@ -150,6 +150,6 @@ def test_list_artifact_tags(db: sqldb.SQLDB):
 def test_list_projects(db: sqldb.SQLDB):
     for i in range(10):
         run = new_run('s1', ['l1', 'l2'], x=1)
-        db.store_run(run, 'u7', project=f'prj{i%3}')
+        db.store_run(run, 'u7', project=f'prj{i%3}', iter=i)
 
     assert {'prj0', 'prj1', 'prj2'} == set(db.list_projects())

@@ -43,6 +43,7 @@ default_config = {
     'kaniko_version': 'v0.13.0',
     'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
+    'default_project': 'default',
     'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,

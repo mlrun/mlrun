@@ -16,8 +16,10 @@ import pickle
 from datetime import datetime, timedelta
 
 from sqlalchemy import (
-    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, create_engine
+    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
+    create_engine
 )
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -88,11 +90,16 @@ class Log(Base):
 
 class Run(Base, HasStruct):
     __tablename__ = 'runs'
+    __table_args__ = (
+        UniqueConstraint('uid', 'project', 'iteration', name='_runs_uc'),
+    )
+
     Label = make_label(__tablename__)
 
     id = Column(Integer, primary_key=True)
     uid = Column(String)
     project = Column(String)
+    iteration = Column(Integer)
     state = Column(String)
     body = Column(BLOB)
     start_time = Column(TIMESTAMP)
@@ -133,16 +140,21 @@ class SQLDB(RunDBInterface):
         run = Run(
             uid=uid,
             project=project,
+            iteration=iter,
             state=run_state(struct),
             start_time=run_start_time(struct) or datetime.now(),
         )
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
         run.struct = struct
-        self._upsert(run)
+        try:
+            self._upsert(run)
+        except SQLAlchemyError as err:
+            self.session.rollback()
+            raise RunDBError(f'duplicate run - {err}')
 
     def update_run(self, updates: dict, uid, project='', iter=0):
-        run = self._query(Run, uid=uid, project=project).one_or_none()
+        run = self._get_run(uid, project, iter)
         if not run:
             raise RunDBError(f'run {uid}:{project} not found')
         struct = run.struct
@@ -162,7 +174,7 @@ class SQLDB(RunDBInterface):
         self._delete_empty_labels(Run.Label)
 
     def read_run(self, uid, project='', iter=0):
-        run = self._query(Run, uid=uid, project=project).one_or_none()
+        run = self._get_run(uid, project, iter)
         if not run:
             raise RunDBError(f'Run {uid}:{project} not found')
         return run.struct
@@ -184,7 +196,7 @@ class SQLDB(RunDBInterface):
         return runs
 
     def del_run(self, uid, project='', iter=0):
-        self._delete(Run, uid=uid, project=project)
+        self._delete(Run, uid=uid, project=project, iteration=iter)
 
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
         query = self._find_runs(name, '', project, labels, state)
@@ -261,6 +273,10 @@ class SQLDB(RunDBInterface):
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v}
         return self.session.query(cls).filter_by(**kw)
+
+    def _get_run(self, uid, project, iteration):
+        return self._query(
+            Run, uid=uid, project=project, iteration=iteration).one_or_none()
 
     def _delete_empty_labels(self, cls):
         self.session.query(cls).filter(cls.parent == NULL).delete()

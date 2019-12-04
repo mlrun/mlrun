@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
-    create_engine
+    create_engine, func
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -216,11 +216,12 @@ class SQLDB(RunDBInterface):
     def store_artifact(
             self, key, artifact, uid, tag='', project=default_project):
         artifact = artifact.copy()
-        artifact['updated'] = datetime.now()
+        updated = artifact['updated'] = datetime.now()
         art = Artifact(
             key=key,
             uid=uid,
             tag=tag,
+            updated=updated,
             project=project)
         for label in label_set(artifact.get('labels', [])):
             art.labels.append(Artifact.Label(name=label, parent=art))
@@ -228,8 +229,19 @@ class SQLDB(RunDBInterface):
         self._upsert(art)
 
     def read_artifact(self, key, tag='', project=default_project):
-        art = self._query(
-            Artifact, key=key, tag=tag, project=project).one_or_none()
+        if tag:
+            query = self._query(
+                Artifact, key=key, uid=tag, project=project)
+        else:
+            # Select by last updated
+            max_updated = self.session.query(
+                func.max(Artifact.updated)).filter(
+                    Artifact.project == project, Artifact.key == key)
+            query = self.session.query(Artifact).filter(
+                Artifact.project == project, Artifact.key == key).filter(
+                    Artifact.updated.in_(max_updated))
+
+        art = query.one_or_none()
         if not art:
             raise RunDBError(f'Artifact {key}:{tag}:{project} not found')
         return art.struct

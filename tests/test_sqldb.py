@@ -7,7 +7,7 @@ from mlrun.db import sqldb, RunDBError
 
 @pytest.fixture
 def db():
-    db = sqldb.SQLDB('sqlite:///:memory:?check_same_thread=false')
+    db = sqldb.SQLDB('sqlite:///:memory:')
     db.connect()
     return db
 
@@ -118,8 +118,10 @@ def test_runs(db: sqldb.SQLDB):
 def test_artifacts(db: sqldb.SQLDB):
     k1, u1, art1 = 'k1', 'u1', {'a': 1}
     db.store_artifact(k1, art1, u1)
-    art = db.read_artifact(k1)
+    art = db.read_artifact(k1, u1)
     assert art1['a'] == art['a'], 'get artifact'
+    art = db.read_artifact(k1)
+    assert art1['a'] == art['a'], 'get latest artifact'
 
     prj = 'p1'
     k2, u2, art2 = 'k2', 'u2', {'a': 2}

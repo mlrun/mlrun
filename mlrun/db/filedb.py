@@ -19,6 +19,7 @@ from os import makedirs, path, remove
 
 import yaml
 
+from ..config import config
 from ..datastore import StoreManager
 from ..lists import ArtifactList, RunList
 from ..utils import (
@@ -30,7 +31,6 @@ from .base import RunDBError, RunDBInterface
 run_logs = 'runs'
 artifacts_dir = 'artifacts'
 functions_dir = 'functions'
-default_project = 'default'
 
 
 class FileRunDB(RunDBInterface):
@@ -212,13 +212,13 @@ class FileRunDB(RunDBInterface):
         update_in(func, 'metadata.updated', datetime.now())
         data = self._dumps(func)
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
-            functions_dir, project or default_project, name,
+            functions_dir, project or config.default_project, name,
             tag or 'latest')) + self.format
         self._datastore.put(filepath, data)
 
     def get_function(self, name, project='', tag=''):
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
-            functions_dir, project or default_project, name,
+            functions_dir, project or config.default_project, name,
             tag or 'latest')) + self.format
         data = self._datastore.get(filepath)
         return self._loads(data)
@@ -228,7 +228,7 @@ class FileRunDB(RunDBInterface):
         logger.info(
             f'reading functions in {project} name/mask: {name} tag: {tag} ...')
         filepath = path.join(self.dirpath, '{}/{}/'.format(
-            functions_dir, project or default_project))
+            functions_dir, project or config.default_project))
         results = []
         if isinstance(labels, str):
             labels = labels.split(',')
@@ -247,7 +247,7 @@ class FileRunDB(RunDBInterface):
             tag = ''
         if tag:
             key = '/' + key
-        project = project or default_project
+        project = project or config.default_project
         return path.join(self.dirpath, '{}/{}/{}{}'.format(
             table, project, tag, key))
 

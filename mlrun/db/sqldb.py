@@ -123,7 +123,7 @@ class SQLDB(RunDBInterface):
         # TODO: One session per call?
         self.session = cls()
 
-    def store_log(self, uid, project='', body=b'', append=True):
+    def store_log(self, uid, project='', body=b'', append=False):
         project = project or config.default_project
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:

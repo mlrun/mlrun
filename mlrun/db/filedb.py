@@ -47,7 +47,7 @@ class FileRunDB(RunDBInterface):
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
         return self
 
-    def store_log(self, uid, project='', body=None, append=True):
+    def store_log(self, uid, project='', body=None, append=False):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
         makedirs(path.join(self.dirpath, run_logs, project), exist_ok=True)
         mode = 'ab' if append else 'wb'

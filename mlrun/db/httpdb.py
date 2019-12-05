@@ -76,7 +76,7 @@ class HTTPRunDB(RunDBInterface):
         self._api_call('GET', 'healthz')
         return self
 
-    def store_log(self, uid, project='', body=None, append=True):
+    def store_log(self, uid, project='', body=None, append=False):
         if not body:
             return
 

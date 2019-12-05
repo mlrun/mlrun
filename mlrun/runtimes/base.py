@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import hashlib
+
 import inspect
 import sys
 import uuid
@@ -20,10 +20,6 @@ from datetime import datetime
 import getpass
 from copy import deepcopy
 from os import environ
-
-import pandas as pd
-from io import StringIO
-
 import requests
 
 from ..datastore import StoreManager
@@ -33,17 +29,18 @@ from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython
+from .utils import calc_hash, RunError, add_code_metadata, results_to_iter
 from ..execution import MLClientCtx
-from ..artifacts import TableArtifact
 from ..lists import RunList
 from .generators import get_generator
 from ..k8s_utils import k8s_helper
 from ..config import config
 
 
-
-class RunError(Exception):
-    pass
+class FunctionStatus(ModelObj):
+    def __init__(self, state=None, build_pod=None):
+        self.state = state
+        self.build_pod = build_pod
 
 
 class EntrypointParam(ModelObj):
@@ -89,7 +86,7 @@ class FunctionSpec(ModelObj):
 class BaseRuntime(ModelObj):
     kind = 'base'
     _is_nested = False
-    _dict_fields = ['kind', 'metadata', 'spec']
+    _dict_fields = ['kind', 'metadata', 'spec', 'status']
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -103,6 +100,8 @@ class BaseRuntime(ModelObj):
         self._is_built = False
         self.interactive = True
         self.is_child = False
+        self._status = None
+        self.status = None
 
     def set_db_connection(self, conn):
         if not self._db_conn:
@@ -124,6 +123,14 @@ class BaseRuntime(ModelObj):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', FunctionSpec)
 
+    @property
+    def status(self) -> FunctionStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(status, 'status', FunctionStatus)
+
     def _get_k8s(self):
         if not self._k8s:
             self._k8s = k8s_helper()
@@ -132,21 +139,6 @@ class BaseRuntime(ModelObj):
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
         return self
-
-    def calc_hash(self, tag=''):
-        # remove tag, hash, date from calculation
-        tag = tag or self.metadata.tag
-        self.metadata.tag = ''
-        self.metadata.hash = ''
-        self.metadata.updated = None
-
-        data = self.to_json().encode()
-        h = hashlib.sha1()
-        h.update(data)
-        hashkey = h.hexdigest()
-        self.metadata.tag = tag
-        self.metadata.hash = hashkey
-        return hashkey
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
@@ -236,7 +228,7 @@ class BaseRuntime(ModelObj):
         if not self.is_child:
             meta.labels['kind'] = self.kind
             meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
-            hashkey = self.calc_hash()
+            hashkey = calc_hash(self)
             if self._db_conn:
                 self._db_conn.store_function(self.to_dict(), self.metadata.name,
                                              self.metadata.project, hashkey)
@@ -275,7 +267,7 @@ class BaseRuntime(ModelObj):
             # multiple runs (based on hyper params or params file)
             generator = task_generator.generate(runspec)
             results = self._run_many(generator, execution, runspec)
-            self._results_to_iter(results, runspec, execution)
+            results_to_iter(results, runspec, execution)
             resp = execution.to_dict()
             if resp and self.kfp:
                 write_kfpmeta(resp)
@@ -401,57 +393,6 @@ class BaseRuntime(ModelObj):
 
         return resp
 
-    def _results_to_iter(self, results, runspec, execution):
-        if not results:
-            logger.error('got an empty results list in to_iter')
-            return
-
-        iter = []
-        failed = 0
-        running = 0
-        for task in results:
-            state = get_in(task, ['status', 'state'])
-            id = get_in(task, ['metadata', 'iteration'])
-            struct = {'param': get_in(task, ['spec', 'parameters'], {}),
-                      'output': get_in(task, ['status', 'results'], {}),
-                      'state': state,
-                      'iter': id,
-                      }
-            if state == 'error':
-                failed += 1
-                err = get_in(task, ['status', 'error'], '')
-                logger.error('error in task  {}:{} - {}'.format(
-                    runspec.metadata.uid, id, err))
-            elif state != 'completed':
-                running += 1
-
-            #self._post_run(task)
-            iter.append(struct)
-
-        df = pd.io.json.json_normalize(iter).sort_values('iter')
-        header = df.columns.values.tolist()
-        summary = [header] + df.values.tolist()
-        item, id = selector(results, runspec.spec.selector)
-        task = results[item] if id and results else None
-        execution.log_iteration_results(id, summary, task)
-
-        csv_buffer = StringIO()
-        df.to_csv(
-            csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
-        execution.log_artifact(
-            TableArtifact('iteration_results',
-                          src_path='iteration_results.csv',
-                          body=csv_buffer.getvalue(),
-                          header=header,
-                          viewer='table'))
-        if failed:
-            execution.set_state(
-                error='{} tasks failed, check logs in db for details'.format(
-                    failed), commit=False)
-        elif running == 0:
-            execution.set_state('completed', commit=False)
-        execution.commit()
-
     def _force_handler(self, handler):
         if not handler:
             raise RunError(
@@ -506,7 +447,7 @@ class BaseRuntime(ModelObj):
         if self.kind == 'handler':
             raise ValueError('cannot export local handler function, use ' +
                              'code_to_function() to serialize your function')
-        self.calc_hash()
+        calc_hash(self)
         if format == '.yaml':
             data = self.to_yaml()
         else:
@@ -523,73 +464,10 @@ class BaseRuntime(ModelObj):
             return
 
         tag = tag or 'latest'
-        hashkey = self.calc_hash()
+        hashkey = calc_hash(self)
         self.metadata.tag = tag
         obj = self.to_dict()
         self._db_conn.store_function(obj, self.metadata.name,
                                      self.metadata.project, hashkey)
         self._db_conn.store_function(obj, self.metadata.name,
                                      self.metadata.project, tag)
-
-
-def selector(results: list, criteria):
-    if not criteria:
-        return 0, 0
-
-    idx = criteria.find('.')
-    if idx < 0:
-        op = 'max'
-    else:
-        op = criteria[:idx]
-        criteria = criteria[idx + 1:]
-
-    best_id = 0
-    best_item = 0
-    if op == 'max':
-        best_val = sys.float_info.min
-    elif op == 'min':
-        best_val = sys.float_info.max
-    else:
-        logger.error('unsupported selector {}.{}'.format(op, criteria))
-        return 0, 0
-
-    i = 0
-    for task in results:
-        state = get_in(task, ['status', 'state'])
-        id = get_in(task, ['metadata', 'iteration'])
-        val = get_in(task, ['status', 'results', criteria])
-        if isinstance(val, str):
-            try:
-                val = float(val)
-            except Exception:
-                val = None
-        if state != 'error' and val is not None:
-            if (op == 'max' and val > best_val) \
-                    or (op == 'min' and val < best_val):
-                best_id, best_item, best_val = id, i, val
-        i += 1
-
-    return best_item, best_id
-
-
-def add_code_metadata(labels):
-    dirpath = './'
-    try:
-        from git import Repo
-        from git.exc import GitCommandError, InvalidGitRepositoryError
-    except ImportError:
-        return
-
-    try:
-        repo = Repo(dirpath, search_parent_directories=True)
-        remotes = [remote.url for remote in repo.remotes]
-        if len(remotes) > 0:
-            set_if_none(labels, 'repo', remotes[0])
-            set_if_none(labels, 'commit', repo.head.commit.hexsha)
-    except (GitCommandError, InvalidGitRepositoryError):
-        pass
-
-
-def set_if_none(struct, key, value):
-    if not struct.get(key):
-        struct[key] = value

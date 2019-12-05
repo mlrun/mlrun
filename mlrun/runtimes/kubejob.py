@@ -124,7 +124,7 @@ class KubejobRuntime(ContainerRuntime):
         if not self._is_built:
             ready = self._build_image(True, with_mlrun, execution)
             if not ready:
-                raise RunError("can't run task, image is not yet built/ready")
+                raise RunError("can't run task, image is not built/ready yet, try again later")
 
         if runobj.metadata.iteration:
             self.store_run(runobj)

@@ -88,6 +88,8 @@ class FileRunDB(RunDBInterface):
     def read_run(self, uid, project='', iter=0):
         filepath = self._filepath(
             run_logs, project, self._run_path(uid, iter), '') + self.format
+        if not pathlib.Path(filepath).is_file():
+            return None
         data = self._datastore.get(filepath)
         return self._loads(data)
 
@@ -155,6 +157,8 @@ class FileRunDB(RunDBInterface):
     def read_artifact(self, key, tag='', project=''):
         filepath = self._filepath(
             artifacts_dir, project, key, tag) + self.format
+        if not pathlib.Path(filepath).is_file():
+            return None
         data = self._datastore.get(filepath)
         return self._loads(data)
 
@@ -220,6 +224,8 @@ class FileRunDB(RunDBInterface):
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or config.default_project, name,
             tag or 'latest')) + self.format
+        if not pathlib.Path(filepath).is_file():
+            return None
         data = self._datastore.get(filepath)
         return self._loads(data)
 

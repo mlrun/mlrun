@@ -14,9 +14,10 @@
 
 from base64 import b64encode
 
-from ..builder import build_runtime
+from ..builder import build_runtime, remote_builder
 from ..utils import get_in, logger
 from .base import BaseRuntime, RunError
+from ..config import config
 
 
 class ContainerRuntime(BaseRuntime):
@@ -51,12 +52,12 @@ class ContainerRuntime(BaseRuntime):
 
     def _build_image(self, watch=False, with_mlrun=True, execution=None):
         build = self.spec.build
-        pod = build.build_pod
+        pod = self.status.build_pod
         if not self._is_built and pod:
             k8s = self._get_k8s()
             status = k8s.get_pod_status(pod)
             if status == 'succeeded':
-                build.build_pod = None
+                self.status.build_pod = None
                 self._is_built = True
                 logger.info('build completed successfully')
                 return True
@@ -75,6 +76,14 @@ class ContainerRuntime(BaseRuntime):
 
         if execution:
             execution.set_state('build')
-        ready = build_runtime(self, with_mlrun, watch)
+        if config.api_service:
+            data = remote_builder(self, with_mlrun)
+            self.status.state = get_in(data, 'data.status.state')
+            self.status.build_pod = get_in(data, 'data.status.build_pod')
+            self.spec.image = get_in(data, 'data.spec.image')
+            ready = data.get('ready', False)
+        else:
+            ready = build_runtime(self, with_mlrun, watch)
+
         self._is_built = ready
         return ready

@@ -33,7 +33,8 @@ from .k8s_utils import k8s_helper
 from .model import RunTemplate
 from .run import new_function, import_function_to_dict
 from .runtimes import RemoteRuntime, RunError
-from .utils import list2dict, logger, run_keys, update_in
+from .utils import (list2dict, logger, run_keys, update_in, get_in,
+                    parse_function_uri)
 
 
 @click.group()
@@ -54,7 +55,7 @@ def main():
 @click.option('--name', help='run name')
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
-@click.option('--rundb', default='', help='save run results to path or DB url')
+@click.option('--db', default='', help='save run results to path or DB url')
 @click.option('--runtime', '-r', default='', help='runtime environment e.g. local, remote, nuclio, mpi')
 @click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
 @click.option('--hyperparam', '-x', default='', multiple=True,
@@ -68,7 +69,7 @@ def main():
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
-        name, workflow, project, rundb, runtime, kfp, hyperparam, param_file,
+        name, workflow, project, db, runtime, kfp, hyperparam, param_file,
         selector, func_url, handler, mode, from_env, dump, run_args):
     """Execute a task and inject parameters."""
 
@@ -93,11 +94,18 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     if workflow:
         runobj.metadata.labels['workflow'] = workflow
 
-    if rundb:
-        mlconf.dbpath = rundb
+    if db:
+        mlconf.dbpath = db
 
     if func_url:
-        runtime = import_function_to_dict(func_url, {})
+        if func_url.startswith('db://'):
+            func_url = func_url[5:]
+            project, name, tag = parse_function_uri(func_url)
+            mldb = get_run_db(mlconf.dbpath).connect()
+            runtime = mldb.get_function(name, project, tag)
+        else:
+            runtime = import_function_to_dict(func_url, {})
+
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -259,7 +267,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                     start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     elif kind.startswith('run'):
-        mldb = get_run_db(db).connect()
+        mldb = get_run_db(db or mlconf.dbpath).connect()
         runs = mldb.list_runs(name, uid=uid, project=project)
         df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']]
         #df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
@@ -269,12 +277,23 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(tabulate(df, headers='keys'))
 
     elif kind.startswith('art'):
-        mldb = get_run_db(db).connect()
+        mldb = get_run_db(db or mlconf.dbpath).connect()
         artifacts = mldb.list_artifacts(name, project=project, tag=tag)
         df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
         df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
         df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
         print(tabulate(df, headers='keys'))
+
+    elif kind.startswith('func'):
+        mldb = get_run_db(db or mlconf.dbpath).connect()
+        functions = mldb.list_functions(name, project=project)
+        for f in functions:
+            print('{:8} {}:{} {}'.format(
+                get_in(f, 'kind', ''),
+                get_in(f, 'metadata.name', ''),
+                get_in(f, 'metadata.tag', ''),
+                get_in(f, 'metadata.hash', ''),
+            ))
 
     else:
         print('currently only get pods | runs | artifacts [name] are supported')
@@ -296,6 +315,19 @@ def db(port, dirpath):
     returncode = child.wait()
     if returncode != 0:
         raise SystemExit(returncode)
+
+
+@main.command()
+@click.argument('uid', type=str)
+@click.option('--project', '-p', help='project name')
+@click.option('--offset', type=int, default=0, help='byte offset')
+@click.option('--db', help='api and db service path/url')
+def logs(uid, project, offset, db):
+    """Run HTTP database server"""
+    mldb = get_run_db(db or mlconf.dbpath).connect()
+    text = mldb.get_log(uid, project, offset)
+    if text:
+        print(text.decode())
 
 
 @main.command(name='config')

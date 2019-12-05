@@ -86,9 +86,10 @@ class HTTPRunDB(RunDBInterface):
         self._api_call('POST', path, error, params, body)
 
     def get_log(self, uid, project='', offset=0, size=0):
+        params = {'offset': offset, 'size': size}
         path = self._path_of('log', project, uid)
         error = f'get log {project}/{uid}'
-        resp = self._api_call('GET', path, error)
+        resp = self._api_call('GET', path, error, params=params)
         return resp.content
 
     def store_run(self, struct, uid, project='', iter=0):

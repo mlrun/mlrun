@@ -21,6 +21,7 @@ from os import environ
 
 from flask import Flask, jsonify, request, Response
 
+from mlrun.builder import build_runtime
 from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.sqldb import SQLDB
@@ -156,6 +157,38 @@ def submit_job(func=''):
     return jsonify(ok=True, data=resp.to_dict())
 
 
+# curl -d@/path/to/job.json http://localhost:8080/build/function
+@app.route('/build/function', methods=['POST'])
+@app.route('/build/function/', methods=['POST'])
+@catch_err
+def build_function():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('build_function:\n', data)
+    function = data.get('function')
+    with_mlrun = data.get('with_mlrun', False)
+    ready = False
+
+    try:
+        fn = new_function(runtime=function)
+        fn.set_db_connection(_db)
+        fn.save(versioned=False)
+
+        ready = build_runtime(fn, with_mlrun)
+        fn.save(versioned=False)
+        logger.info('Fn:\n %s', fn.to_yaml())
+    except Exception as err:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=fn.to_dict(), ready=ready)
+
+
 # curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @app.route('/api/files', methods=['GET'])
 @catch_err
@@ -230,12 +263,17 @@ def store_log(project, uid):
 # curl http://localhost:8080/log/prj/7
 @app.route('/api/log/<project>/<uid>', methods=['GET'])
 def get_log(project, uid):
-    data = _db.get_log(uid, project)
+    size = int(request.args.get('size', '0'))
+    offset = int(request.args.get('offset', '0'))
+    build = strtobool(request.args.get('build', ''))
+
+    data = _db.get_log(uid, project, offset=offset, size=size)
     if data is None:
-        data = _db.read_run(uid, project)
-        if not data:
-            return json_error(HTTPStatus.NOT_FOUND,
-                              project=project, uid=uid)
+        if not build:  # todo: in build check startswith 'mlrun-build'
+            data = _db.read_run(uid, project)
+            if not data:
+                return json_error(HTTPStatus.NOT_FOUND,
+                                  project=project, uid=uid)
         if _k8s:
             pods = _k8s.get_logger_pods(uid)
             if pods:
@@ -243,7 +281,7 @@ def get_log(project, uid):
                 out = _k8s.logs(pod)
                 if out:
                     print(type(out))
-                    return out.encode()
+                    return out.encode()[offset:]
         msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
         return msg.encode()
 

@@ -18,6 +18,8 @@ from base64 import b64decode, b64encode
 from os import environ, path
 from tempfile import mktemp
 
+import requests
+
 from .datastore import StoreManager
 from .k8s_utils import BasePod, k8s_helper
 from .utils import logger
@@ -202,7 +204,8 @@ def build_runtime(runtime, with_mlrun, interactive=False):
                          secret_name=build.secret,
                          interactive=interactive,
                          with_mlrun=with_mlrun)
-    build.build_pod = None
+    runtime.status.build_pod = None
+    runtime.status.state = status
     if status == 'skipped':
         runtime.spec.image = build.base_image
         return True
@@ -218,3 +221,22 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     local = '' if build.secret else '.'
     runtime.spec.image = local + build.image
     return True
+
+
+def remote_builder(runtime, with_mlrun):
+    try:
+        url = '{}/build/function'.format(config.api_service)
+        req = {'function': runtime.to_dict(),
+               'with_mlrun': with_mlrun}
+        resp = requests.post(
+            url, json=req)
+    except OSError as err:
+        logger.error('error submitting build task: {}'.format(err))
+        raise OSError(
+            'error: cannot submit build to url {}, {}'.format(url, err))
+
+    if not resp.ok:
+        logger.error('bad resp!!\n{}'.format(resp.text))
+        raise ValueError('bad function run response')
+
+    return resp.json()

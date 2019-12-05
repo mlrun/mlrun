@@ -458,16 +458,17 @@ class BaseRuntime(ModelObj):
         datastore.put(subpath, data)
         logger.info('function spec saved to path: {}'.format(target))
 
-    def save(self, tag=''):
+    def save(self, tag='', versioned=True):
         if not self._db_conn:
             logger.error('database connection is not configured')
             return
 
-        tag = tag or 'latest'
-        hashkey = calc_hash(self)
+        tag = tag or self.metadata.tag or 'latest'
         self.metadata.tag = tag
         obj = self.to_dict()
-        self._db_conn.store_function(obj, self.metadata.name,
-                                     self.metadata.project, hashkey)
+        if versioned:
+            hashkey = calc_hash(self)
+            self._db_conn.store_function(obj, self.metadata.name,
+                                         self.metadata.project, hashkey)
         self._db_conn.store_function(obj, self.metadata.name,
                                      self.metadata.project, tag)

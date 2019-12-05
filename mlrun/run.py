@@ -179,7 +179,7 @@ def import_function_to_dict(url, secrets=None):
 
 
 def new_function(name: str = '', project: str = '', tag: str = '',
-                 command: str = '', image: str = '',
+                 command: str = '', image: str = '', kind: str = '',
                  runtime=None, args: list = None,
                  mode=None, kfp=None, interactive=False):
     """Create a new ML function from base properties
@@ -206,7 +206,7 @@ def new_function(name: str = '', project: str = '', tag: str = '',
 
     :return: function object
     """
-    kind, runtime = process_runtime(command, runtime)
+    kind, runtime = process_runtime(command, runtime, kind)
     command = get_in(runtime, 'spec.command', command)
     name = name or get_in(runtime, 'metadata.name', '')
 
@@ -243,14 +243,14 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     return runner
 
 
-def process_runtime(command, runtime):
-    kind = ''
+def process_runtime(command, runtime, kind):
     if runtime and hasattr(runtime, 'to_dict'):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
-        kind = runtime.get('kind', '')
+        kind = kind or runtime.get('kind', '')
         command = command or get_in(runtime, 'spec.command', '')
-    kind, command = get_kind(kind, command or '')
+    if '://' in command and command.startswith('http'):
+        kind = kind or 'remote'
     if not runtime:
         runtime = {}
     update_in(runtime, 'spec.command', command)
@@ -260,15 +260,6 @@ def process_runtime(command, runtime):
     else:
         update_in(runtime, 'spec.function_kind', 'mlrun')
     return kind, runtime
-
-
-def get_kind(kind, command):
-    idx = command.find('://')
-    if idx < 0:
-        return kind, command
-    if command.startswith('http'):
-        return 'remote', command
-    return command[:idx], command[idx + 3:]
 
 
 def parse_command(runtime, url):

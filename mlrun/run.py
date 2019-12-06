@@ -125,10 +125,23 @@ runtime_dict = {'remote': RemoteRuntime,
 
 
 def import_function(url='', name='', project: str = '', tag: str = '',
-                    secrets=None, rundb=''):
-    """create function object from DB or local/remote YAML file"""
+                    secrets=None, db=''):
+    """create function object from DB or local/remote YAML file
+
+    reading from a file or remote URL (http(s), s3, git, v3io, ..)
+    :param url:      path/url to function YAML file
+
+    reading from the function database
+    :param name:     function name
+    :param project:  function project (none for 'default')
+    :param tag:      function version tag (none for 'latest')
+
+    :param secrets:  optional, credentials dict for DB or URL (s3, v3io, ..)
+    
+    :return: function object
+    """
     if not url:
-        db = get_run_db(rundb or default_dbpath()).connect(secrets)
+        db = get_run_db(db or default_dbpath()).connect(secrets)
         runtime = db.get_function(name, project, tag)
         return new_function(runtime=runtime)
 
@@ -179,8 +192,8 @@ def import_function_to_dict(url, secrets=None):
 
 
 def new_function(name: str = '', project: str = '', tag: str = '',
-                 command: str = '', image: str = '', kind: str = '',
-                 runtime=None, args: list = None,
+                 kind: str = '', command: str = '', image: str = '',
+                 args: list = None, runtime=None,
                  mode=None, kfp=None, interactive=False):
     """Create a new ML function from base properties
 
@@ -194,14 +207,15 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     :param name:     function name
     :param project:  function project (none for 'default')
     :param tag:      function version tag (none for 'latest')
-    :param command:  runtime type + command/url + args (e.g.: mpijob://training.py --verbose)
-                     runtime prefixes: None, local, job, spark, dask, mpijob, nuclio
+
+    :param kind:     runtime type (local, job, nuclio, spark, mpijob, dask, ..)
+    :param command:  command/url + args (e.g.: training.py --verbose)
+    :param image:    container image (start with '.' for default registry)
     :param args:     command line arguments (override the ones in command)
-    :param image:    default container image
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
     :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
-    :param kfp:      flag indicating running within kubeflow pipeline
+    :param kfp:      reserved, flag indicating running within kubeflow pipeline
     :param interactive:   run the tasks synchronously and print the output
 
     :return: function object
@@ -274,13 +288,15 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def code_to_function(name='', filename='', handler='', runtime='',
+def code_to_function(name: str = '', project: str = '',
+                     filename: str = '', handler='', runtime='',
                      image=None, embed_code=True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
 
     :param name:       function name
+    :param project:    function project (none for 'default')
     :param filename:   blank for current notebook, or path to .py/.ipynb file
     :param handler:    name of function handler (if not main)
     :param runtime:    optional, runtime type local, job, dask, mpijob, ..
@@ -309,6 +325,7 @@ def code_to_function(name='', filename='', handler='', runtime='',
             r.spec.source = filename
             r.spec.function_handler = handler
         r.metadata.name = name
+        r.metadata.project = project
         if not r.metadata.name:
             raise ValueError('name must be specified')
         tag_name(r.metadata.labels)
@@ -326,6 +343,7 @@ def code_to_function(name='', filename='', handler='', runtime='',
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
+    r.metadata.project = project
     r.metadata.name = name
     if not r.metadata.name:
         raise ValueError('name must be specified')

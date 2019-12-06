@@ -76,7 +76,9 @@ class ContainerRuntime(BaseRuntime):
 
         if execution:
             execution.set_state('build')
+
         if config.api_service:
+            logger.info('starting build on remote cluster')
             data = remote_builder(self, with_mlrun)
             self.status.state = get_in(data, 'data.status.state')
             self.status.build_pod = get_in(data, 'data.status.build_pod')

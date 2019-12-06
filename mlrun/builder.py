@@ -205,13 +205,14 @@ def build_runtime(runtime, with_mlrun, interactive=False):
                          interactive=interactive,
                          with_mlrun=with_mlrun)
     runtime.status.build_pod = None
-    runtime.status.state = status
     if status == 'skipped':
         runtime.spec.image = build.base_image
+        runtime.status.state = 'ready'
         return True
 
     if status.startswith('build:'):
-        build.build_pod = status[6:]
+        runtime.status.state = 'build'
+        runtime.status.build_pod = status[6:]
         return False
 
     logger.info('build completed with {}'.format(status))
@@ -220,6 +221,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
 
     local = '' if build.secret else '.'
     runtime.spec.image = local + build.image
+    runtime.status.state = 'ready'
     return True
 
 

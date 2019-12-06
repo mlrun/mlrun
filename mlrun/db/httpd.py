@@ -265,7 +265,7 @@ def store_log(project, uid):
 def get_log(project, uid):
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
-    build = strtobool(request.args.get('build', ''))
+    build = strtobool(request.args.get('build', 'off'))
 
     data = _db.get_log(uid, project, offset=offset, size=size)
     if data is None:

@@ -140,6 +140,10 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
+    @property
+    def is_deployed(self):
+        return True
+
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
             out_path: str = '', visible: bool = True):
@@ -232,10 +236,10 @@ class BaseRuntime(ModelObj):
             if self._db_conn:
                 self._db_conn.store_function(self.to_dict(), self.metadata.name,
                                              self.metadata.project, hashkey)
-            furi = '{}:{}'.format(self.metadata.name, hashkey)
-            if self.metadata.project and self.metadata.project != 'default':
-                furi = '{}/{}'.format(self.metadata.project, furi)
-            runspec.spec.function = furi
+                furi = '{}:{}'.format(self.metadata.name, hashkey)
+                if self.metadata.project and self.metadata.project != 'default':
+                    furi = '{}/{}'.format(self.metadata.project, furi)
+                runspec.spec.function = furi
 
         if config.api_service:
             try:

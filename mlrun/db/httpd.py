@@ -26,7 +26,7 @@ from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.sqldb import SQLDB
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger, parse_function_uri, get_in
+from mlrun.utils import logger, parse_function_uri, get_in, update_in
 from mlrun.config import config
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import k8s_helper
@@ -158,8 +158,8 @@ def submit_job(func=''):
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function
-@app.route('/build/function', methods=['POST'])
-@app.route('/build/function/', methods=['POST'])
+@app.route('/api/build/function', methods=['POST'])
+@app.route('/api/build/function/', methods=['POST'])
 @catch_err
 def build_function():
     try:
@@ -167,7 +167,7 @@ def build_function():
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    logger.info('build_function:\n', data)
+    logger.info('build_function:\n{}'.format(data))
     function = data.get('function')
     with_mlrun = data.get('with_mlrun', False)
     ready = False
@@ -187,6 +187,51 @@ def build_function():
         )
 
     return jsonify(ok=True, data=fn.to_dict(), ready=ready)
+
+
+# curl -d@/path/to/job.json http://localhost:8080/build/status
+@app.route('/api/build/status', methods=['GET'])
+@app.route('/api/build/status/', methods=['GET'])
+@catch_err
+def build_status():
+    name = request.args.get('name', '')
+    project = request.args.get('project', '')
+    tag = request.args.get('tag', '')
+    offset = int(request.args.get('offset', '-1'))
+
+    fn = _db.get_function(name, project, tag)
+    if not fn:
+        return json_error(HTTPStatus.NOT_FOUND, name=name,
+                          project=project, tag=tag)
+
+    state = get_in(fn, 'status.state', '')
+    pod = get_in(fn, 'status.build_pod', '')
+    out = b''
+    if not pod:
+        return Response(body=out, mimetype='text/plain',
+                        headers={"function_status": state})
+
+    logger.info('get pod {} status'.format(pod))
+    state = _k8s.get_pod_status(pod)
+    logger.info('pod state={}'.format(state))
+
+    if state == 'succeeded':
+        logger.info('build completed successfully')
+        state = 'ready'
+    if state in ['failed', 'error']:
+        logger.error(' build {}, watch the build pod logs: {}'.format(state, pod))
+
+    if offset >= 0 and state != 'pending':
+        resp = _k8s.logs(pod)
+        if resp:
+            out = resp.encode()[offset:]
+
+    update_in(fn, 'status.state', state)
+    _db.store_function(fn, name, project, tag)
+
+    return Response(body=out, mimetype='text/plain',
+                    headers={"function_status": state,
+                             "builder_pod": pod})
 
 
 # curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
@@ -280,12 +325,12 @@ def get_log(project, uid):
                 pod, status = list(pods.items())[0]
                 out = _k8s.logs(pod)
                 if out:
-                    print(type(out))
                     return out.encode()[offset:]
         msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
         return msg.encode()
 
     return data
+
 
 # curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @app.route('/api/run/<project>/<uid>', methods=['POST'])

@@ -232,7 +232,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
 
 def remote_builder(runtime, with_mlrun):
     try:
-        url = '{}/build/function'.format(config.api_service)
+        url = '{}/api/build/function'.format(config.api_service)
         req = {'function': runtime.to_dict(),
                'with_mlrun': with_mlrun}
         resp = requests.post(url, json=req)
@@ -250,7 +250,7 @@ def remote_builder(runtime, with_mlrun):
 
 def get_remote_status(name, project='', tag='', offset=-1):
     try:
-        url = '{}/build/status'.format(config.api_service)
+        url = '{}/api/build/status'.format(config.api_service)
         params = {'name': name,
                   'project': project,
                   'tag': tag,

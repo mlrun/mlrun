@@ -208,7 +208,7 @@ def build_status():
     pod = get_in(fn, 'status.build_pod', '')
     out = b''
     if not pod:
-        return Response(body=out, mimetype='text/plain',
+        return Response(out, mimetype='text/plain',
                         headers={"function_status": state})
 
     logger.info('get pod {} status'.format(pod))
@@ -229,7 +229,7 @@ def build_status():
     update_in(fn, 'status.state', state)
     _db.store_function(fn, name, project, tag)
 
-    return Response(body=out, mimetype='text/plain',
+    return Response(out, mimetype='text/plain',
                     headers={"function_status": state,
                              "builder_pod": pod})
 

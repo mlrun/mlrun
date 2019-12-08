@@ -63,7 +63,7 @@ def mount_spark_conf():
     return _mount_spark
 
 
-def mount_v3iod(namespace='default-tenant', v3io_config_configmap='spark-operator-v3io-config', v3io_auth_secret='spark-operator-v3io-auth'):
+def mount_v3iod(namespace, v3io_config_configmap, v3io_auth_secret='spark-operator-v3io-auth'):
     def _mount_v3iod(task):
         from kubernetes import client as k8s_client
 
@@ -80,8 +80,8 @@ def mount_v3iod(namespace='default-tenant', v3io_config_configmap='spark-operato
         vol = k8s_client.V1Volume(name='v3io-config', config_map=k8s_client.V1ConfigMapVolumeSource(name=v3io_config_configmap, default_mode=420))
         task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path='/etc/config/v3io', name='v3io-config'))
 
-        vol = k8s_client.V1Volume(name='v3io-auth', secret=k8s_client.V1SecretVolumeSource(secret_name= v3io_auth_secret, default_mode= 420))
-        task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path='/igz/.igz', name='v3io-auth'))
+        # vol = k8s_client.V1Volume(name='v3io-auth', secret=k8s_client.V1SecretVolumeSource(secret_name= v3io_auth_secret, default_mode= 420))
+        # task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path='/igz/.igz', name='v3io-auth'))
 
         task.add_env_variable(k8s_client.V1EnvVar(name='CURRENT_NODE_IP', value_from=k8s_client.V1EnvVarSource(
         field_ref=k8s_client.V1ObjectFieldSelector(api_version='v1', field_path='status.hostIP'))))

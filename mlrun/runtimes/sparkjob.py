@@ -22,7 +22,7 @@ from ..model import ModelObj
 from ..utils import logger, get_in
 from ..model import RunObject
 from ..utils import dict_to_yaml, update_in, logger, get_in
-from ..platforms.iguazio import mount_v3io, mount_v3iod, mount_spark_conf
+from ..platforms.iguazio import mount_v3io, mount_v3iod
 from ..execution import MLClientCtx
 
 
@@ -213,8 +213,7 @@ class SparkRuntime(KubejobRuntime):
     def with_igz_spark(self, igz_version):
         self._update_igz_jars(igz_version=igz_version)
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
-        self.apply(mount_v3iod())
-#        self.apply(mount_spark_conf())
+        self.apply(mount_v3iod(namespace='default-tenant', v3io_config_configmap='spark-operator-v3io-config', v3io_auth_secret='spark-operator-v3io-auth'))
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

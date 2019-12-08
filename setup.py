@@ -26,42 +26,22 @@ def version():
                 return version.replace("'", '').strip()
 
 
-def load_deps(section):
-    """Load dependencies from Pipfile, we can't assume toml is installed"""
-    # [packages]
-    header = '[{}]'.format(section)
-    with open('Pipfile') as fp:
-        in_section = False
-        for line in fp:
-            line = line.strip()
-            if not line or line[0] == '#':
-                continue
+def is_ignored(line):
+    line = line.strip()
+    return (not line) or (line[0] == '#')
 
-            if line == header:
-                in_section = True
-                continue
 
-            if line.startswith('['):
-                in_section = False
-                continue
-
-            if in_section:
-                # ipython = ">=6.5"
-                i = line.find('=')
-                assert i != -1, 'bad dependency - {}'.format(line)
-                pkg = line[:i].strip()
-                version = line[i+1:].strip().replace('"', '')
-                if version == '*':
-                    yield pkg
-                else:
-                    yield '{}{}'.format(pkg, version.replace('"', ''))
+def load_deps(path):
+    """Load dependencies from requirements file"""
+    with open(path) as fp:
+        return [line.strip() for line in fp if not is_ignored(line)]
 
 
 with open('README.md') as fp:
     long_desc = fp.read()
 
-install_requires = list(load_deps('packages'))
-tests_require = list(load_deps('dev-packages'))
+install_requires = list(load_deps('requirements.txt'))
+tests_require = list(load_deps('dev-requirements.txt'))
 
 
 setup(

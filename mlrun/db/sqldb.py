@@ -322,7 +322,7 @@ class SQLDB(RunDBInterface):
         self.session.commit()
 
     def _upsert(self, obj):
-        self.session.add(obj)
+        self.session.merge(obj)
         self.session.commit()
 
     def _find_runs(self, name, uid, project, labels, state):

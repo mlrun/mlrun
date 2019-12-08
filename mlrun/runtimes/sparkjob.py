@@ -138,7 +138,7 @@ class SparkRuntime(KubejobRuntime):
                 update_in(job, 'spec.executor.memory', self.spec.resources['limits']['memory'])
         if self.spec.command:
             update_in(job, 'spec.mainApplicationFile', self.spec.command)
-        update_in(job, 'spec.args', self.spec.args)
+        update_in(job, 'spec.arguments', self.spec.args)
         resp = self._submit_job(job, meta.namespace)
         name = get_in(resp, 'metadata.name', 'unknown')
 

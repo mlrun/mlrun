@@ -22,6 +22,10 @@ spec:
         env:
         - name: MLRUN_HTTPDB__DIRPATH
           value: "/mlrun/db"
+        - name: DEFAULT_DOCKER_REGISTRY
+          value: "<set default registry url>"
+        - name: MLRUN_HTTPDB__DSN
+          value: sqlite:///mlrun.sqlite3?check_same_thread=false
         - name: V3IO_ACCESS_KEY
           value: <access-key>
         - name: V3IO_USERNAME

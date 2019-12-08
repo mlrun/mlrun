@@ -47,7 +47,8 @@ class HTTPRunDB(RunDBInterface):
         cls = self.__class__.__name__
         return f'{cls}({self.base_url!r})'
 
-    def _api_call(self, method, path, error=None, params=None, body=None):
+    def _api_call(self, method, path, error=None, params=None,
+                  body=None, timeout=20):
         url = f'{self.base_url}/api/{path}'
         kw = {
             key: value
@@ -61,7 +62,7 @@ class HTTPRunDB(RunDBInterface):
             kw['headers'] = {'Authorization': 'Bearer ' + self.token}
 
         try:
-            resp = requests.request(method, url, **kw)
+            resp = requests.request(method, url, timeout=timeout, **kw)
             resp.raise_for_status()
             return resp
         except requests.RequestException as err:
@@ -73,7 +74,7 @@ class HTTPRunDB(RunDBInterface):
         return f'{prefix}/{project}/{uid}'
 
     def connect(self, secrets=None):
-        self._api_call('GET', 'healthz')
+        self._api_call('GET', 'healthz', timeout=3)
         return self
 
     def store_log(self, uid, project='', body=None, append=False):

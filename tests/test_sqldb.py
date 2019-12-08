@@ -99,9 +99,7 @@ def test_runs(db: sqldb.SQLDB):
     run3 = new_run('s2', ['l3'], x=2)
     uid3 = 'uid3'
     db.store_run(run3, uid3)
-
-    with pytest.raises(RunDBError):
-        db.store_run(run3, uid3)
+    db.store_run(run3, uid3)  # should not raise
 
     updates = {
         'status': {

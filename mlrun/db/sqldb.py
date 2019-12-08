@@ -145,13 +145,15 @@ class SQLDB(RunDBInterface):
 
     def store_run(self, struct, uid, project='', iter=0):
         project = project or config.default_project
-        run = Run(
-            uid=uid,
-            project=project,
-            iteration=iter,
-            state=run_state(struct),
-            start_time=run_start_time(struct) or datetime.now(),
-        )
+        run = self._get_run(uid, project, iter)
+        if not run:
+            run = Run(
+                uid=uid,
+                project=project,
+                iteration=iter,
+                state=run_state(struct),
+                start_time=run_start_time(struct) or datetime.now(),
+            )
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
         run.struct = struct

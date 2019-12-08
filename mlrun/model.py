@@ -18,6 +18,7 @@ from os import environ
 
 from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json
+from .config import config
 
 
 class ModelObj:
@@ -90,7 +91,7 @@ class BaseMetadata(ModelObj):
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
-        self.project = project
+        self.project = project or config.default_project
         self.labels = labels or {}
         self.annotations = annotations or {}
         self.updated = updated
@@ -332,6 +333,12 @@ class RunObject(RunTemplate):
         db = get_run_db().connect()
         db.list_runs(
             uid=self.metadata.uid, project=self.metadata.project).show()
+
+    def logs(self):
+        db = get_run_db().connect()
+        text = db.get_log(self.metadata.uid, self.metadata.project)
+        if text:
+            print(text.decode())
 
 
 def NewTask(name=None, project=None, handler=None,

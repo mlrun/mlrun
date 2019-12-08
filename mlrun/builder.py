@@ -22,7 +22,7 @@ import requests
 
 from .datastore import StoreManager
 from .k8s_utils import BasePod, k8s_helper
-from .utils import logger
+from .utils import logger, normalize_name
 from .config import config
 
 k8s = None
@@ -52,6 +52,7 @@ def make_kaniko_pod(context, dest,
                     inline_path=None,
                     requirements=None,
                     secret_name=None,
+                    name='',
                     verbose=False):
 
     if not dockertext and not dockerfile:
@@ -68,7 +69,7 @@ def make_kaniko_pod(context, dest,
     if verbose:
         args += ["--verbosity", 'debug']
 
-    kpod=BasePod('mlrun-build',
+    kpod=BasePod(name or 'mlrun-build',
                  'gcr.io/kaniko-project/executor:' + config.kaniko_version,
                  args=args,
                  kind='build')
@@ -120,6 +121,7 @@ def build_image(dest,
                 with_mlrun=True,
                 registry=None,
                 interactive=True,
+                name='',
                 verbose=False):
 
     global k8s
@@ -169,7 +171,8 @@ def build_image(dest,
     kpod = make_kaniko_pod(context, dest, dockertext=dock,
                            inline_code=inline_code, inline_path=inline_path,
                            requirements=requirements_list,
-                           secret_name=secret_name, verbose=verbose)
+                           secret_name=secret_name,
+                           name=name, verbose=verbose)
 
     if to_mount:
         # todo: support different mounters
@@ -195,6 +198,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if not build.image:
         raise ValueError('build spec must have a target image, set build.image = <target image>')
     logger.info(f'building image ({build.image})')
+    name = normalize_name('mlrun-build-{}'.format(runtime.metadata.name))
     status = build_image(build.image,
                          base_image=build.base_image or 'python:3.6-jessie',
                          commands=build.commands,
@@ -203,6 +207,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
                          source=build.source,
                          secret_name=build.secret,
                          interactive=interactive,
+                         name=name,
                          with_mlrun=with_mlrun)
     runtime.status.build_pod = None
     if status == 'skipped':
@@ -230,8 +235,7 @@ def remote_builder(runtime, with_mlrun):
         url = '{}/build/function'.format(config.api_service)
         req = {'function': runtime.to_dict(),
                'with_mlrun': with_mlrun}
-        resp = requests.post(
-            url, json=req)
+        resp = requests.post(url, json=req)
     except OSError as err:
         logger.error('error submitting build task: {}'.format(err))
         raise OSError(
@@ -242,3 +246,30 @@ def remote_builder(runtime, with_mlrun):
         raise ValueError('bad function run response')
 
     return resp.json()
+
+
+def get_remote_status(name, project='', tag='', offset=-1):
+    try:
+        url = '{}/build/status'.format(config.api_service)
+        params = {'name': name,
+                  'project': project,
+                  'tag': tag,
+                  'offset': str(offset)}
+        resp = requests.get(url, params=params)
+    except OSError as err:
+        logger.error('error getting build status: {}'.format(err))
+        raise OSError(
+            'error: cannot get build status to url {}, {}'.format(url, err))
+
+    if not resp.ok:
+        logger.error('bad resp!!\n{}'.format(resp.text))
+        raise ValueError('bad function run response')
+
+    state = pod = ''
+    if resp.headers:
+        state = resp.headers.get('function_status', '')
+        pod = resp.headers.get('builder_pod', '')
+
+    logger.info('got function state={}, pod={}'.format(state, pod))
+    return state, resp.content
+

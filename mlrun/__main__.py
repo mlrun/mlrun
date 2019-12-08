@@ -34,7 +34,7 @@ from .model import RunTemplate
 from .run import new_function, import_function_to_dict
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
-                    parse_function_uri)
+                    parse_function_uri, dict_to_yaml)
 
 
 @click.group()
@@ -243,7 +243,7 @@ def watch(pod, namespace, timeout):
 @click.option('--namespace', '-n', help='kubernetes namespace')
 @click.option('--uid', help='unique ID')
 @click.option('--project', help='project name')
-@click.option('--tag', default='', help='artifact tag')
+@click.option('--tag', default='', help='artifact/function tag')
 @click.option('--db', help='db path/url')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
@@ -286,6 +286,11 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 
     elif kind.startswith('func'):
         mldb = get_run_db(db or mlconf.dbpath).connect()
+        if name:
+            f = mldb.get_function(name, project=project, tag=tag)
+            print(dict_to_yaml(f))
+            return
+
         functions = mldb.list_functions(name, project=project)
         for f in functions:
             print('{:8} {}:{} {}'.format(

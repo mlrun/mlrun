@@ -141,7 +141,7 @@ class SQLDB(RunDBInterface):
         if not log:
             return None
         end = None if size == 0 else offset + size
-        return log.body[offset:end]
+        return '', log.body[offset:end]
 
     def store_run(self, struct, uid, project='', iter=0):
         project = project or config.default_project

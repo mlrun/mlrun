@@ -310,26 +310,28 @@ def store_log(project, uid):
 def get_log(project, uid):
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
-    build = strtobool(request.args.get('build', 'off'))
 
-    data = _db.get_log(uid, project, offset=offset, size=size)
-    if data is None:
-        if not build:  # todo: in build check startswith 'mlrun-build'
-            data = _db.read_run(uid, project)
-            if not data:
-                return json_error(HTTPStatus.NOT_FOUND,
-                                  project=project, uid=uid)
+    out = b''
+    status, resp = _db.get_log(uid, project, offset=offset, size=size)
+    if resp is None:
+        data = _db.read_run(uid, project)
+        if not data:
+            return json_error(HTTPStatus.NOT_FOUND,
+                              project=project, uid=uid)
+
+        status = get_in(data, 'status.state', '')
         if _k8s:
             pods = _k8s.get_logger_pods(uid)
             if pods:
                 pod, status = list(pods.items())[0]
-                out = _k8s.logs(pod)
-                if out:
-                    return out.encode()[offset:]
-        msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
-        return msg.encode()
+                resp = _k8s.logs(pod)
+                if resp:
+                    out = resp.encode()[offset:]
+    else:
+        out = resp or out
 
-    return data
+    return Response(out, mimetype='text/plain',
+                    headers={"pod_status": status})
 
 
 # curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes

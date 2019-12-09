@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import time
 from base64 import b64encode
 
-from ..builder import build_runtime, remote_builder, get_remote_status
+from ..builder import build_runtime
 from ..utils import get_in, logger
 from .base import BaseRuntime, RunError
 from ..config import config
@@ -61,29 +61,47 @@ class ContainerRuntime(BaseRuntime):
         return False
 
     def _build_image(self, watch=False, with_mlrun=True):
-
-        if config.api_service:
+        db = self._get_db()
+        if db and db.kind == 'http':
             logger.info('starting build on remote cluster')
-            data = remote_builder(self, with_mlrun)
+            data = db.remote_builder(self, with_mlrun)
             self.status.state = get_in(data, 'data.status.state')
             self.status.build_pod = get_in(data, 'data.status.build_pod')
             self.spec.image = get_in(data, 'data.spec.image')
             ready = data.get('ready', False)
+            if watch:
+                state = self._build_watch(watch)
+                ready = state == 'ready'
+                self.status.state = state
         else:
             ready = build_runtime(self, with_mlrun, watch)
 
         self._is_built = ready
         return ready
 
+    def _build_watch(self, watch=True):
+        db = self._get_db()
+        meta = self.metadata
+        offset = 0
+        state, text = db.get_builder_status(meta.name, meta.project,
+                                            meta.tag, 0)
+        if text:
+            print(text.decode())
+        if watch:
+            while state in ['pending', 'running']:
+                offset += len(text)
+                time.sleep(2)
+                state, text = db.get_builder_status(meta.name, meta.project,
+                                                    meta.tag, offset)
+                if text:
+                    print(text.decode(), end='')
+
+        return state
+
     def builder_status(self, watch=True, logs=True):
-        if config.api_service:
-            offset = 0 if logs else -1
-            meta = self.metadata
-            state, text = get_remote_status(meta.name, meta.project, meta.tag, offset)
-            if text:
-                print('len:', len(text))
-                print(text.decode())
-            return state
+        db = self._get_db()
+        if db and db.kind == 'http':
+            return self._build_watch(watch)
 
         else:
             pod = self.status.build_pod

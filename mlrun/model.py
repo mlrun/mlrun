@@ -334,9 +334,9 @@ class RunObject(RunTemplate):
         db.list_runs(
             uid=self.metadata.uid, project=self.metadata.project).show()
 
-    def logs(self):
+    def logs(self, watch=True):
         db = get_run_db().connect()
-        text = db.get_log(self.metadata.uid, self.metadata.project)
+        state, text = db.get_log(self.metadata.uid, self.metadata.project)
         if text:
             print(text.decode())
 

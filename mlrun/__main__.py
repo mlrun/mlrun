@@ -327,12 +327,35 @@ def db(port, dirpath):
 @click.option('--project', '-p', help='project name')
 @click.option('--offset', type=int, default=0, help='byte offset')
 @click.option('--db', help='api and db service path/url')
-def logs(uid, project, offset, db):
+@click.option('--once', '-o', is_flag=True, help='read logs once (no watch)')
+def logs(uid, project, offset, db, once):
     """Run HTTP database server"""
     mldb = get_run_db(db or mlconf.dbpath).connect()
-    text = mldb.get_log(uid, project, offset)
-    if text:
-        print(text.decode())
+    state = mldb.watch_log(uid, project, watch=not once, offset=offset)
+    if state:
+        print('final state: {}'.format(state))
+
+
+@main.command()
+@click.option('--api', help='api and db service path/url')
+@click.option('--namespace', '-n', help='kubernetes namespace')
+def clean(api, namespace):
+    """Clean completed or failed pods/jobs"""
+    k8s = k8s_helper(namespace)
+    #mldb = get_run_db(db or mlconf.dbpath).connect()
+    items = k8s.list_pods(namespace)
+    print('{:10} {:16} {:8} {}'.format('state', 'started', 'type', 'name'))
+    for i in items:
+        task = i.metadata.labels.get('mlrun/class', '')
+        state = i.status.phase
+        # todo: clean mpi, spark, .. jobs (+CRDs)
+        if task and task in ['build', 'job'] and state in ['Succeeded', 'Failed']:
+            name = i.metadata.name
+            start = ''
+            if i.status.start_time:
+                start = i.status.start_time.strftime("%b %d %H:%M:%S")
+            print('{:10} {:16} {:8} {}'.format(state, start, task, name))
+            k8s.del_pod(name)
 
 
 @main.command(name='config')

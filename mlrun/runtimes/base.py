@@ -144,6 +144,11 @@ class BaseRuntime(ModelObj):
     def is_deployed(self):
         return True
 
+    def _get_db(self):
+        if not self._db_conn and self.spec.rundb:
+            self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
+        return self._db_conn
+
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
             out_path: str = '', visible: bool = True):
@@ -463,7 +468,8 @@ class BaseRuntime(ModelObj):
         logger.info('function spec saved to path: {}'.format(target))
 
     def save(self, tag='', versioned=True):
-        if not self._db_conn:
+        db = self._get_db()
+        if not db:
             logger.error('database connection is not configured')
             return
 
@@ -472,7 +478,7 @@ class BaseRuntime(ModelObj):
         obj = self.to_dict()
         if versioned:
             hashkey = calc_hash(self)
-            self._db_conn.store_function(obj, self.metadata.name,
-                                         self.metadata.project, hashkey)
-        self._db_conn.store_function(obj, self.metadata.name,
-                                     self.metadata.project, tag)
+            db.store_function(obj, self.metadata.name,
+                              self.metadata.project, hashkey)
+        db.store_function(obj, self.metadata.name,
+                          self.metadata.project, tag)

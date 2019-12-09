@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import json
+import time
 
 import requests
 
-from ..utils import dict_to_json
+from ..utils import dict_to_json, logger
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
 
@@ -94,7 +95,24 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of('log', project, uid)
         error = f'get log {project}/{uid}'
         resp = self.api_call('GET', path, error, params=params)
-        return resp.content
+        if resp.headers:
+            state = resp.headers.get('function_status', '')
+
+        return state, resp.content
+
+    def watch_log(self, uid, project='', watch=True, offset=0):
+        state, text = self.get_log(uid, project, offset=offset)
+        if text:
+            print(text.decode())
+        if watch:
+            while state in ['pending', 'running']:
+                offset += len(text)
+                time.sleep(2)
+                state, text = self.get_log(uid, project, offset=offset)
+                if text:
+                    print(text.decode(), end='')
+
+        return state
 
     def store_run(self, struct, uid, project='', iter=0):
         path = self._path_of('run', project, uid)
@@ -235,6 +253,45 @@ class HTTPRunDB(RunDBInterface):
         error = f'list functions'
         resp = self.api_call('GET', 'funcs', error, params=params)
         return resp.json()['funcs']
+
+    def remote_builder(self, runtime, with_mlrun):
+        try:
+            req = {'function': runtime.to_dict(),
+                   'with_mlrun': with_mlrun}
+            resp = self.api_call('POST', 'build/function', json=req)
+        except OSError as err:
+            logger.error('error submitting build task: {}'.format(err))
+            raise OSError(
+                'error: cannot submit build, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad function run response')
+
+        return resp.json()
+
+    def get_builder_status(self, name, project='', tag='', offset=-1):
+        try:
+            params = {'name': name,
+                      'project': project,
+                      'tag': tag,
+                      'offset': str(offset)}
+            resp = self.api_call('GET', 'build/status', params=params)
+        except OSError as err:
+            logger.error('error getting build status: {}'.format(err))
+            raise OSError(
+                'error: cannot get build status, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad function run response')
+
+        state = pod = ''
+        if resp.headers:
+            state = resp.headers.get('function_status', '')
+            pod = resp.headers.get('builder_pod', '')
+
+        return state, resp.content
 
 
 def _as_json(obj):

@@ -63,8 +63,8 @@ class FileRunDB(RunDBInterface):
                     fp.seek(offset)
                 if not size:
                     size = 2**18
-                return fp.read(size)
-        return None
+                return '', fp.read(size)
+        return '', None
 
     def _run_path(self, uid, iter):
         if iter:

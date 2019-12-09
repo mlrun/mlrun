@@ -230,46 +230,4 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     return True
 
 
-def remote_builder(runtime, with_mlrun):
-    try:
-        url = '{}/api/build/function'.format(config.api_service)
-        req = {'function': runtime.to_dict(),
-               'with_mlrun': with_mlrun}
-        resp = requests.post(url, json=req)
-    except OSError as err:
-        logger.error('error submitting build task: {}'.format(err))
-        raise OSError(
-            'error: cannot submit build to url {}, {}'.format(url, err))
-
-    if not resp.ok:
-        logger.error('bad resp!!\n{}'.format(resp.text))
-        raise ValueError('bad function run response')
-
-    return resp.json()
-
-
-def get_remote_status(name, project='', tag='', offset=-1):
-    try:
-        url = '{}/api/build/status'.format(config.api_service)
-        params = {'name': name,
-                  'project': project,
-                  'tag': tag,
-                  'offset': str(offset)}
-        resp = requests.get(url, params=params)
-    except OSError as err:
-        logger.error('error getting build status: {}'.format(err))
-        raise OSError(
-            'error: cannot get build status to url {}, {}'.format(url, err))
-
-    if not resp.ok:
-        logger.error('bad resp!!\n{}'.format(resp.text))
-        raise ValueError('bad function run response')
-
-    state = pod = ''
-    if resp.headers:
-        state = resp.headers.get('function_status', '')
-        pod = resp.headers.get('builder_pod', '')
-
-    logger.info('got function state={}, pod={}'.format(state, pod))
-    return state, resp.content
 

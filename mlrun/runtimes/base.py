@@ -219,12 +219,11 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
-        logger.info('starting run {} uid={}  -> {}'.format(
-            meta.name, meta.uid, self.spec.rundb))
-
         db = self._get_db()
 
         if not self.is_child:
+            logger.info('starting run {} uid={}  -> {}'.format(
+                meta.name, meta.uid, self.spec.rundb))
             meta.labels['kind'] = self.kind
             meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
             hashkey = calc_hash(self)

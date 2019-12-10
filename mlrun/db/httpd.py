@@ -197,7 +197,8 @@ def build_status():
     name = request.args.get('name', '')
     project = request.args.get('project', '')
     tag = request.args.get('tag', '')
-    offset = int(request.args.get('offset', '-1'))
+    offset = int(request.args.get('offset', '0'))
+    logs = strtobool(request.args.get('logs', 'on'))
 
     fn = _db.get_function(name, project, tag)
     if not fn:
@@ -206,10 +207,13 @@ def build_status():
 
     state = get_in(fn, 'status.state', '')
     pod = get_in(fn, 'status.build_pod', '')
+    image = get_in(fn, 'spec.build.image', '')
     out = b''
     if not pod:
         return Response(out, mimetype='text/plain',
-                        headers={"function_status": state})
+                        headers={"function_status": state,
+                                 "function_image": image,
+                                 "builder_pod": pod})
 
     logger.info('get pod {} status'.format(pod))
     state = _k8s.get_pod_status(pod)
@@ -221,16 +225,20 @@ def build_status():
     if state in ['failed', 'error']:
         logger.error(' build {}, watch the build pod logs: {}'.format(state, pod))
 
-    if offset >= 0 and state != 'pending':
+    if logs and state != 'pending':
         resp = _k8s.logs(pod)
         if resp:
             out = resp.encode()[offset:]
 
     update_in(fn, 'status.state', state)
+    if state == 'ready':
+        update_in(fn, 'spec.image', image)
+
     _db.store_function(fn, name, project, tag)
 
     return Response(out, mimetype='text/plain',
                     headers={"function_status": state,
+                             "function_image": image,
                              "builder_pod": pod})
 
 

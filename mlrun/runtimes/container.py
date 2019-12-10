@@ -14,6 +14,7 @@
 import time
 from base64 import b64encode
 
+from ..db import RunDBError
 from ..builder import build_runtime
 from ..utils import get_in, logger
 from .base import BaseRuntime
@@ -37,14 +38,30 @@ class ContainerRuntime(BaseRuntime):
         self.spec.build.functionSourceCode = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
-    def build(self, image='', base_image=None, commands: list = None,
-              secret=None, with_mlrun=True, watch=True):
-        self.spec.build.image = image or self.spec.build.image \
-                                or default_image_name(self)
-        self.spec.image = ''
-        self.status.state = ''
-        add_code_metadata(self.metadata.labels)
-        if commands and isinstance(commands, list):
+    @property
+    def is_deployed(self):
+        if self.spec.image:
+            return True
+
+        db = self._get_db()
+        if db and db.kind == 'http':
+            try:
+                db.get_builder_status(self, logs=False)
+            except RunDBError:
+                pass
+
+        if self.spec.image:
+            return True
+        if self.status.state and self.status.state == 'ready':
+            return True
+        return False
+
+    def build_config(self, image='', base_image=None,
+                     commands: list = None, secret=None):
+        self.spec.build.image = image or self.spec.build.image
+        if commands:
+            if not isinstance(commands, list):
+                raise ValueError('commands must be a string list')
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands
         if secret:
@@ -52,21 +69,18 @@ class ContainerRuntime(BaseRuntime):
         if base_image:
             self.spec.build.base_image = base_image
 
-        return self._build_image(watch, with_mlrun)
+    def deploy(self, with_mlrun=True, watch=True):
 
-    @property
-    def is_deployed(self):
-        if self.spec.image:
-            return True
-        if self.status.state and self.status.state == 'ready':
-            return True
-        # TODO: check in func DB if its ready
-        return False
+        self.spec.build.image = self.spec.build.image \
+                                or default_image_name(self)
+        self.spec.image = ''
+        self.status.state = ''
+        add_code_metadata(self.metadata.labels)
 
-    def _build_image(self, watch=False, with_mlrun=True):
         db = self._get_db()
         if db and db.kind == 'http':
-            logger.info('starting build on remote cluster')
+            logger.info('starting build on remote cluster, image: {}'.format(
+                self.spec.build.image))
             data = db.remote_builder(self, with_mlrun)
             self.status.state = get_in(data, 'data.status.state')
             self.status.build_pod = get_in(data, 'data.status.build_pod')
@@ -82,29 +96,30 @@ class ContainerRuntime(BaseRuntime):
         self._is_built = ready
         return ready
 
-    def _build_watch(self, watch=True):
+    def _build_watch(self, watch=True, logs=True):
         db = self._get_db()
-        meta = self.metadata
         offset = 0
-        state, text = db.get_builder_status(meta.name, meta.project,
-                                            meta.tag, 0)
+        try:
+            text = db.get_builder_status(self, 0, logs=logs)
+        except RunDBError:
+            raise ValueError('function or build process not found')
+
         if text:
             print(text.decode())
         if watch:
-            while state in ['pending', 'running']:
+            while self.status.state in ['pending', 'running']:
                 offset += len(text)
                 time.sleep(2)
-                state, text = db.get_builder_status(meta.name, meta.project,
-                                                    meta.tag, offset)
+                text = db.get_builder_status(self, offset, logs=logs)
                 if text:
                     print(text.decode(), end='')
 
-        return state
+        return self.status.state
 
     def builder_status(self, watch=True, logs=True):
         db = self._get_db()
         if db and db.kind == 'http':
-            return self._build_watch(watch)
+            return self._build_watch(watch, logs)
 
         else:
             pod = self.status.build_pod

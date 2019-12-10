@@ -254,10 +254,10 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', 'funcs', error, params=params)
         return resp.json()['funcs']
 
-    def remote_builder(self, runtime, with_mlrun):
+    def remote_builder(self, func, with_mlrun):
         try:
-            req = {'function': runtime.to_dict(),
-                   'with_mlrun': with_mlrun}
+            req = {'function': func.to_dict(),
+                   'with_mlrun': bool2str(with_mlrun)}
             resp = self.api_call('POST', 'build/function', json=req)
         except OSError as err:
             logger.error('error submitting build task: {}'.format(err))
@@ -270,11 +270,12 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def get_builder_status(self, name, project='', tag='', offset=-1):
+    def get_builder_status(self, func, offset=0, logs=True):
         try:
-            params = {'name': name,
-                      'project': project,
-                      'tag': tag,
+            params = {'name': func.metadata.name,
+                      'project': func.metadata.project,
+                      'tag': func.metadata.tag,
+                      'logs': bool2str(logs),
                       'offset': str(offset)}
             resp = self.api_call('GET', 'build/status', params=params)
         except OSError as err:
@@ -283,15 +284,15 @@ class HTTPRunDB(RunDBInterface):
                 'error: cannot get build status, {}'.format(err))
 
         if not resp.ok:
-            logger.error('bad resp!!\n{}'.format(resp.text))
-            raise ValueError('bad function run response')
+            logger.warning('failed resp, {}'.format(resp.text))
+            raise RunDBError('bad function run response')
 
-        state = pod = ''
         if resp.headers:
-            state = resp.headers.get('function_status', '')
-            pod = resp.headers.get('builder_pod', '')
+            func.status.state = resp.headers.get('function_status', '')
+            func.status.build_pod = resp.headers.get('builder_pod', '')
+            func.spec.image = resp.headers.get('function_image', '')
 
-        return state, resp.content
+        return resp.content
 
     def submit_job(self, runspec):
         try:

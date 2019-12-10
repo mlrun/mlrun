@@ -32,7 +32,7 @@ from .builder import build_image
 from .db import get_run_db
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
-from .run import new_function, import_function_to_dict
+from .run import new_function, import_function_to_dict, import_function
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
                     parse_function_uri, dict_to_yaml)
@@ -149,7 +149,6 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     try:
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         fn.is_child = from_env and not kfp
-        print('child:', fn.is_child)
         resp = fn.run(runobj, watch=watch)
         if resp and dump:
             print(resp.to_yaml())
@@ -158,44 +157,57 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("dest", type=str)
-@click.option('--command', '-c', default='', multiple=True,
-              help="build commands, e.g. '-p pip install pandas'")
+@click.argument("func_url", type=str)
+@click.option('--name', help='function name')
+@click.option('--project', help='project name')
+@click.option('--tag', default='', help='function tag')
+@click.option('--image', '-i', help='location/url of the source files dir/tar')
 @click.option('--source', '-s', help='location/url of the source files dir/tar')
 @click.option('--base-image', '-b', help='base docker image')
+@click.option('--inline', is_flag=True, help='inline code (for single file)')
+@click.option('--command', '-c', default='', multiple=True,
+              help="build commands, e.g. '-p pip install pandas'")
 @click.option('--secret-name', default='my-docker', help='container registry secret name')
-@click.option('--requirements', '-r', help='python package requirements file path')
-@click.option('--namespace', help='kubernetes namespace')
 @click.option('--silent', is_flag=True, help='do not show build logs')
-@click.option('--inline', '-i', is_flag=True, help='inline code (for single file)')
-def build(dest, command, source, base_image, secret_name,
-          requirements, namespace, silent, inline):
+@click.option('--db', default='', help='save run results to path or DB url')
+def build(func_url, name, project, tag, image, source, base_image, inline,
+          command, secret_name, silent, db):
     """Build a container image from code and requirements."""
 
-    inline_code = None
-    cmd = list(command)
+    if func_url.startswith('db://'):
+        func_url = func_url[5:]
+        project, name, tag = parse_function_uri(func_url)
+        func = import_function(name=name, project=project, tag=tag, db=db)
+    else:
+        func_url = 'function.yaml' if func_url == '.' else func_url
+        func = import_function(func_url, db=db)
+
+    func.metadata.project = project or func.metadata.project
+    func.metadata.name = name or func.metadata.name
+    func.metadata.tag = tag or func.metadata.tag
+
+    b = func.spec.build
+    if func.kind not in ['', 'local']:
+        b.base_image = base_image or b.base_image
+        b.commands = list(command) or b.commands
+        b.image = image or b.image
+        b.secret = secret_name or b.secret
+
     if inline:
-        with open(source, 'r') as fp:
-            inline_code = fp.read()
-        source = None
-        if requirements:
-            with open(requirements, 'r') as fp:
-                requirements = fp.readlines()
+        if not path.isfile(source) or not source.endswith('.py'):
+            raise ValueError('source ({}) must be an existing py file'.format(source))
+        with open(source) as fp:
+            body = fp.read()
+        based = b64encode(body.encode('utf-8')).decode('utf-8')
+        logger.info('packing code at {}'.format(source))
+        b.functionSourceCode = based
+        func.spec.command = ''
+    else:
+        b.source = source or b.source
+        # todo: upload stuff
 
-    print(dest, cmd, source, inline_code, base_image,
-          secret_name, requirements, namespace)
-
-    status = build_image(dest, command, source,
-                         inline_code=inline_code,
-                         base_image=base_image,
-                         secret_name=secret_name,
-                         requirements=requirements,
-                         namespace=namespace,
-                         interactive=not silent)
-
-    logger.info('build completed with {}'.format(status))
-    if status in ['failed', 'error']:
-        exit(1)
+    if hasattr(func, 'deploy'):
+        func.deploy(watch=not silent)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))

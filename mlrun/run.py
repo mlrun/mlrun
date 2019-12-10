@@ -289,7 +289,7 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def code_to_function(name: str = '', project: str = '',
+def code_to_function(name: str = '', project: str = '', tag: str = '',
                      filename: str = '', handler='', runtime='',
                      kind='', image=None, embed_code=True):
     """convert code or notebook to function object with embedded code
@@ -298,6 +298,7 @@ def code_to_function(name: str = '', project: str = '',
 
     :param name:       function name
     :param project:    function project (none for 'default')
+    :param tag:        function tag (none for 'latest')
     :param filename:   blank for current notebook, or path to .py/.ipynb file
     :param handler:    name of function handler (if not main)
     :param runtime:    optional, runtime type local, job, dask, mpijob, ..
@@ -329,6 +330,7 @@ def code_to_function(name: str = '', project: str = '',
             r.spec.function_handler = handler
         r.metadata.name = name
         r.metadata.project = project
+        r.metadata.tag = tag
         if not r.metadata.name:
             raise ValueError('name must be specified')
         tag_name(r.metadata.labels)
@@ -349,6 +351,7 @@ def code_to_function(name: str = '', project: str = '',
     r.metadata = get_in(spec, 'spec.metadata')
     r.metadata.project = project
     r.metadata.name = name
+    r.metadata.tag = tag
     if not r.metadata.name:
         raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)

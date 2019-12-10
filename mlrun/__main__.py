@@ -149,11 +149,11 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     try:
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         fn.is_child = from_env and not kfp
+        print('child:', fn.is_child)
         resp = fn.run(runobj, watch=watch)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
-        print('runtime error: {}'.format(err))
         exit(1)
 
 

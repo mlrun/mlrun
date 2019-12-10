@@ -288,9 +288,6 @@ class BaseRuntime(ModelObj):
         if result and self.kfp and err is None:
             write_kfpmeta(result)
 
-        if err:
-            logger.error(f'run error - {err}')
-
         # show ipython/jupyter result table widget
         results_tbl = RunList()
         if result:
@@ -314,8 +311,8 @@ class BaseRuntime(ModelObj):
             run = RunObject.from_dict(result)
             logger.info('run executed, status={}'.format(run.status.state))
             if run.status.state == 'error':
-                if self._use_remote_api():
-                    run.logs(False, self._get_db())
+                if self._is_remote and not self.is_child:
+                    print('runtime error: {}'.format(run.status.error))
                 raise RunError(run.status.error)
             return run
 

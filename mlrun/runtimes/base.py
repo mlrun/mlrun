@@ -86,6 +86,7 @@ class FunctionSpec(ModelObj):
 class BaseRuntime(ModelObj):
     kind = 'base'
     _is_nested = False
+    _is_remote = False
     _dict_fields = ['kind', 'metadata', 'spec', 'status']
 
     def __init__(self, metadata=None, spec=None):
@@ -246,22 +247,14 @@ class BaseRuntime(ModelObj):
                     furi = '{}/{}'.format(self.metadata.project, furi)
                 runspec.spec.function = furi
 
-        if config.api_service:
-            try:
-                url = '{}/api/submit'.format(config.api_service)
-                req = {'task': runspec.to_dict()}
-                resp = requests.post(
-                    url, json=req)
-            except OSError as err:
-                logger.error('error submitting task: {}'.format(err))
-                raise OSError(
-                    'error: cannot submit task to url {}, {}'.format(url, err))
-
-            if not resp.ok:
-                logger.error('bad resp!!\n{}'.format(resp.text))
-                raise RunError('bad function run response')
-
-            return resp.json()
+        # execute the job remotely (to a k8s cluster via the API service)
+        if self._is_remote and self._db_conn and self._db_conn.kind == 'http':
+            if self._secrets:
+                runspec.spec.secret_sources = self._secrets.to_serial()
+            resp = self._db_conn.submit_job(runspec)
+            return self._wrap_result(show(resp))
+        elif self._is_remote:
+            logger.warning('Api url not set, trying to exec remote runtime locally')
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           self._db_conn,
@@ -294,6 +287,9 @@ class BaseRuntime(ModelObj):
                 logger.error(f'run error - {err}')
                 result = show(self._post_run(task=runspec, err=err))
 
+        return self._wrap_result(result)
+
+    def _wrap_result(self, result):
         if result:
             run = RunObject.from_dict(result)
             logger.info('run executed, status={}'.format(run.status.state))

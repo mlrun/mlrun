@@ -19,6 +19,7 @@ import sys
 from os import environ, remove
 from tempfile import mktemp
 
+from runtimes import KubejobRuntime
 from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
@@ -56,6 +57,18 @@ class HandlerRuntime(BaseRuntime):
 
 class LocalRuntime(ContainerRuntime):
     kind = 'local'
+    _is_remote = False
+
+    def to_job(self, image='', base_image='', commands=None):
+        struct = self.to_dict()
+        obj = KubejobRuntime.from_dict(struct)
+        if image:
+            obj.spec.image = image
+        if commands:
+            obj.spec.build.commands = commands
+        if base_image:
+            obj.spec.build.base_image = base_image
+        return obj
 
     def _run(self, runobj: RunObject, execution):
         environ['MLRUN_EXEC_CONFIG'] = runobj.to_json()

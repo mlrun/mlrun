@@ -60,7 +60,9 @@ class ModelObj:
     @classmethod
     def from_dict(cls, struct=None):
         struct = {} if struct is None else struct
-        fields = list(inspect.signature(cls.__init__).parameters.keys())
+        fields = cls._dict_fields
+        if not fields:
+            fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
         if struct:
             for key, val in struct.items():
@@ -336,9 +338,17 @@ class RunObject(RunTemplate):
 
     def logs(self, watch=True):
         db = get_run_db().connect()
-        state, text = db.get_log(self.metadata.uid, self.metadata.project)
-        if text:
-            print(text.decode())
+        if db.kind == 'http':
+            state = db.watch_log(self.metadata.uid, self.metadata.project,
+                                 watch=watch)
+        else:
+            state, text = db.watch_log(self.metadata.uid,
+                                       self.metadata.project)
+            if text:
+                print(text.decode())
+
+        if state:
+            print('final state: {}'.format(state))
 
 
 def NewTask(name=None, project=None, handler=None,

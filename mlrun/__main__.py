@@ -16,7 +16,7 @@
 
 import json
 from ast import literal_eval
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
 from subprocess import Popen
@@ -104,7 +104,17 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
             mldb = get_run_db(mlconf.dbpath).connect()
             runtime = mldb.get_function(name, project, tag)
         else:
+            func_url = 'function.yaml' if func_url == '.' else func_url
             runtime = import_function_to_dict(func_url, {})
+        kind = get_in(runtime, 'kind', '')
+        if kind not in ['', 'local'] and url:
+            if path.isfile(url) and url.endswith('.py'):
+                with open(url) as fp:
+                    body = fp.read()
+                based = b64encode(body.encode('utf-8')).decode('utf-8')
+                logger.info('packing code at {}'.format(url))
+                update_in(runtime, 'spec.build.functionSourceCode', based)
+                url = ''
 
     elif runtime:
         runtime = py_eval(runtime)
@@ -308,7 +318,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @click.option('--port', '-p', help='port to listen on', type=int)
 @click.option('--dirpath', '-d', help='database directory (dirpath)')
 def db(port, dirpath):
-    """Run HTTP database server"""
+    """Run HTTP api/database server"""
     env = environ.copy()
     if port is not None:
         env['MLRUN_httpdb__port'] = str(port)
@@ -329,9 +339,15 @@ def db(port, dirpath):
 @click.option('--db', help='api and db service path/url')
 @click.option('--once', '-o', is_flag=True, help='read logs once (no watch)')
 def logs(uid, project, offset, db, once):
-    """Run HTTP database server"""
+    """Get or watch task logs"""
     mldb = get_run_db(db or mlconf.dbpath).connect()
-    state = mldb.watch_log(uid, project, watch=not once, offset=offset)
+    if mldb.kind == 'http':
+        state = mldb.watch_log(uid, project, watch=not once, offset=offset)
+    else:
+        state, text = mldb.watch_log(uid, project, offset=offset)
+        if text:
+            print(text.decode())
+
     if state:
         print('final state: {}'.format(state))
 

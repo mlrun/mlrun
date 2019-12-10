@@ -112,13 +112,13 @@ def catch_err(fn):
 @app.route('/api/submit/', methods=['POST'])
 @app.route('/api/submit/<path:func>', methods=['POST'])
 @catch_err
-def submit_job(func=''):
+def submit_job():
     try:
         data = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    logger.info('submit_job: func %s', func)
+    logger.info('submit_job: {}'.format(data))
     task = data.get('task')
     function = data.get('function')
     url = data.get('functionUrl')
@@ -324,9 +324,12 @@ def get_log(project, uid):
             pods = _k8s.get_logger_pods(uid)
             if pods:
                 pod, status = list(pods.items())[0]
-                resp = _k8s.logs(pod)
-                if resp:
-                    out = resp.encode()[offset:]
+                status = status.lower()
+                print('pod, status: {} {}'.format(pod, status))
+                if status != 'pending':
+                    resp = _k8s.logs(pod)
+                    if resp:
+                        out = resp.encode()[offset:]
     else:
         out = resp or out
 

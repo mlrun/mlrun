@@ -39,7 +39,6 @@ default_config = {
     'namespace': 'default-tenant',
     'dbpath': '',
     'ui_url': '',
-    'api_service': '',
     'kfp_image': 'mlrun/mlrun:latest',
     'kaniko_version': 'v0.13.0',
     'package_path': 'mlrun',

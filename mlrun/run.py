@@ -290,7 +290,7 @@ def parse_command(runtime, url):
 
 def code_to_function(name: str = '', project: str = '',
                      filename: str = '', handler='', runtime='',
-                     image=None, embed_code=True):
+                     kind='', image=None, embed_code=True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
@@ -300,6 +300,7 @@ def code_to_function(name: str = '', project: str = '',
     :param filename:   blank for current notebook, or path to .py/.ipynb file
     :param handler:    name of function handler (if not main)
     :param runtime:    optional, runtime type local, job, dask, mpijob, ..
+    :param kind:       optional, runtime type local, job, dask, mpijob, ..
     :param image:      optional, container image
     :param embed_code: embed the source code into the function spec
 
@@ -307,6 +308,7 @@ def code_to_function(name: str = '', project: str = '',
            function object
     """
     filebase, _ = path.splitext(path.basename(filename))
+    runtime = runtime or kind  # for backwards computability
 
     def tag_name(labels):
         if filename:

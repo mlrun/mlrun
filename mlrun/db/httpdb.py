@@ -96,19 +96,21 @@ class HTTPRunDB(RunDBInterface):
         error = f'get log {project}/{uid}'
         resp = self.api_call('GET', path, error, params=params)
         if resp.headers:
-            state = resp.headers.get('function_status', '')
+            state = resp.headers.get('pod_status', '')
 
-        return state, resp.content
+        return state.lower(), resp.content
 
     def watch_log(self, uid, project='', watch=True, offset=0):
         state, text = self.get_log(uid, project, offset=offset)
         if text:
             print(text.decode())
+        print('state:', state)
         if watch:
             while state in ['pending', 'running']:
                 offset += len(text)
                 time.sleep(2)
                 state, text = self.get_log(uid, project, offset=offset)
+                print('state2:', state)
                 if text:
                     print(text.decode(), end='')
 
@@ -292,6 +294,22 @@ class HTTPRunDB(RunDBInterface):
             pod = resp.headers.get('builder_pod', '')
 
         return state, resp.content
+
+    def submit_job(self, runspec):
+        try:
+            req = {'task': runspec.to_dict()}
+            resp = self.api_call('POST', 'submit', json=req)
+        except OSError as err:
+            logger.error('error submitting task: {}'.format(err))
+            raise OSError(
+                'error: cannot submit task, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad function run response')
+
+        resp = resp.json()
+        return resp['data']
 
 
 def _as_json(obj):

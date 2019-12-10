@@ -22,6 +22,7 @@ from ..config import config
 
 class ContainerRuntime(BaseRuntime):
     kind = 'container'
+    _is_remote = True
 
     def with_code(self, from_file='', body=None):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):

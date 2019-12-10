@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import sys
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path
@@ -67,10 +68,11 @@ def main():
 @click.option('--mode', default='', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
+@click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
-        selector, func_url, handler, mode, from_env, dump, run_args):
+        selector, func_url, handler, mode, from_env, dump, watch, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -115,6 +117,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
                 logger.info('packing code at {}'.format(url))
                 update_in(runtime, 'spec.build.functionSourceCode', based)
                 url = ''
+                update_in(runtime, 'spec.command', '')
 
     elif runtime:
         runtime = py_eval(runtime)
@@ -146,7 +149,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     try:
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj)
+        resp = fn.run(runobj, watch=watch)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -337,14 +340,14 @@ def db(port, dirpath):
 @click.option('--project', '-p', help='project name')
 @click.option('--offset', type=int, default=0, help='byte offset')
 @click.option('--db', help='api and db service path/url')
-@click.option('--once', '-o', is_flag=True, help='read logs once (no watch)')
-def logs(uid, project, offset, db, once):
+@click.option('--watch', '-w', is_flag=True, help='watch/follow log')
+def logs(uid, project, offset, db, watch):
     """Get or watch task logs"""
     mldb = get_run_db(db or mlconf.dbpath).connect()
     if mldb.kind == 'http':
-        state = mldb.watch_log(uid, project, watch=not once, offset=offset)
+        state = mldb.watch_log(uid, project, watch=watch, offset=offset)
     else:
-        state, text = mldb.watch_log(uid, project, offset=offset)
+        state, text = mldb.get_log(uid, project, offset=offset)
         if text:
             print(text.decode())
 

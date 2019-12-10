@@ -336,14 +336,20 @@ class RunObject(RunTemplate):
         db.list_runs(
             uid=self.metadata.uid, project=self.metadata.project).show()
 
-    def logs(self, watch=True):
-        db = get_run_db().connect()
+    def logs(self, watch=True, db=None):
+        if not db:
+            db = get_run_db().connect()
+        if not db:
+            print('DB is not configured, cannot show logs')
+            return
+
         if db.kind == 'http':
-            state = db.watch_log(self.metadata.uid, self.metadata.project,
+            state = db.watch_log(self.metadata.uid,
+                                 self.metadata.project,
                                  watch=watch)
         else:
-            state, text = db.watch_log(self.metadata.uid,
-                                       self.metadata.project)
+            state, text = db.get_log(self.metadata.uid,
+                                     self.metadata.project)
             if text:
                 print(text.decode())
 

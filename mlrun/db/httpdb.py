@@ -104,13 +104,11 @@ class HTTPRunDB(RunDBInterface):
         state, text = self.get_log(uid, project, offset=offset)
         if text:
             print(text.decode())
-        print('state:', state)
         if watch:
             while state in ['pending', 'running']:
                 offset += len(text)
                 time.sleep(2)
                 state, text = self.get_log(uid, project, offset=offset)
-                print('state2:', state)
                 if text:
                     print(text.decode(), end='')
 
@@ -306,7 +304,7 @@ class HTTPRunDB(RunDBInterface):
 
         if not resp.ok:
             logger.error('bad resp!!\n{}'.format(resp.text))
-            raise ValueError('bad function run response')
+            raise ValueError('bad function run response, {}'.format(resp.text))
 
         resp = resp.json()
         return resp['data']

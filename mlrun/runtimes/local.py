@@ -19,7 +19,7 @@ import sys
 from os import environ, remove
 from tempfile import mktemp
 
-from runtimes import KubejobRuntime
+from .kubejob import KubejobRuntime
 from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx

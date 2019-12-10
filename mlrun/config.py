@@ -44,6 +44,7 @@ default_config = {
     'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
     'default_project': 'default',
+    'ipython_widget': True,
     'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,

@@ -16,8 +16,8 @@ from base64 import b64encode
 
 from ..builder import build_runtime
 from ..utils import get_in, logger
-from .base import BaseRuntime, RunError
-from ..config import config
+from .base import BaseRuntime
+from .utils import add_code_metadata, default_image_name
 
 
 class ContainerRuntime(BaseRuntime):
@@ -37,11 +37,13 @@ class ContainerRuntime(BaseRuntime):
         self.spec.build.functionSourceCode = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
-    def build(self, image, base_image=None, commands: list = None,
+    def build(self, image='', base_image=None, commands: list = None,
               secret=None, with_mlrun=True, watch=True):
-        self.spec.build.image = image
+        self.spec.build.image = image or self.spec.build.image \
+                                or default_image_name(self)
         self.spec.image = ''
         self.status.state = ''
+        add_code_metadata(self.metadata.labels)
         if commands and isinstance(commands, list):
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands

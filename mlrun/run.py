@@ -21,6 +21,7 @@ from tempfile import mktemp
 import yaml
 from nuclio import build_file
 
+from .runtimes.utils import add_code_metadata
 from .execution import MLClientCtx
 from .model import RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
@@ -331,6 +332,7 @@ def code_to_function(name: str = '', project: str = '',
         if not r.metadata.name:
             raise ValueError('name must be specified')
         tag_name(r.metadata.labels)
+        add_code_metadata(r.metadata.labels)
         return r
 
     name, spec, code = build_file(filename, name=name, handler=handler)
@@ -351,6 +353,7 @@ def code_to_function(name: str = '', project: str = '',
         raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
     tag_name(r.metadata.labels)
+    add_code_metadata(r.metadata.labels)
     build = r.spec.build
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')

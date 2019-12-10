@@ -104,10 +104,12 @@ class BaseRuntime(ModelObj):
         self.is_child = False
         self._status = None
         self.status = None
+        self._is_api_server = False
 
-    def set_db_connection(self, conn):
+    def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
             self._db_conn = conn
+        self._is_api_server = is_api
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -146,12 +148,17 @@ class BaseRuntime(ModelObj):
     def is_deployed(self):
         return True
 
+    def _use_remote_api(self):
+        if self._is_remote and not self.kfp and not self._is_api_server \
+                and self._get_db() and self._get_db().kind == 'http':
+            return True
+        return False
+
     def _get_db(self):
         if not self._db_conn:
             dbpath = self.spec.rundb or default_dbpath()
             if dbpath:
                 self._db_conn = get_run_db(dbpath).connect(self._secrets)
-        print()
         return self._db_conn
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
@@ -230,13 +237,12 @@ class BaseRuntime(ModelObj):
                 runspec.spec.function = furi
 
         # execute the job remotely (to a k8s cluster via the API service)
-        if self._is_remote and not self.kfp and db and db.kind == 'http':
+        if self._use_remote_api():
             if self._secrets:
                 runspec.spec.secret_sources = self._secrets.to_serial()
             try:
                 resp = db.submit_job(runspec)
                 if watch:
-                    time.sleep(3)
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:
@@ -296,20 +302,20 @@ class BaseRuntime(ModelObj):
         if is_ipython and config.ipython_widget:
             results_tbl.show()
 
-        uid = runspec.metadata.uid
-        proj = '--project {}'.format(
-            runspec.metadata.project) if runspec.metadata.project else ''
-        print(
-            'to track results use .show() or .logs() or in CLI: \n'
-            '!mlrun get run --uid {} {} , !mlrun logs {} {}'
-            .format(uid, proj, uid, proj))
+            uid = runspec.metadata.uid
+            proj = '--project {}'.format(
+                runspec.metadata.project) if runspec.metadata.project else ''
+            print(
+                'to track results use .show() or .logs() or in CLI: \n'
+                '!mlrun get run --uid {} {} , !mlrun logs {} {}'
+                .format(uid, proj, uid, proj))
 
         if result:
             run = RunObject.from_dict(result)
             logger.info('run executed, status={}'.format(run.status.state))
-            time.sleep(3)
             if run.status.state == 'error':
-                run.logs(False, self._get_db())
+                if self._use_remote_api():
+                    run.logs(False, self._get_db())
                 raise RunError(run.status.error)
             return run
 

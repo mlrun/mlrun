@@ -144,7 +144,7 @@ def submit_job():
                 runtime = _db.get_function(name, project, tag)
                 fn = new_function(runtime=runtime)
 
-        fn.set_db_connection(_db)
+        fn.set_db_connection(_db, True)
         resp = fn.run(task)
 
         logger.info('resp: %s', resp.to_yaml())

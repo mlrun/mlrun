@@ -155,4 +155,4 @@ def results_to_iter(results, runspec, execution):
 def default_image_name(function):
     meta = function.metadata
     proj = meta.project or config.default_project
-    image = '.mlrun/func-{}-{}-{}'.format(proj, meta.name, meta.tag or 'latest')
+    return '.mlrun/func-{}-{}-{}'.format(proj, meta.name, meta.tag or 'latest')

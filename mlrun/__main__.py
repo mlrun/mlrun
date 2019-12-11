@@ -162,15 +162,15 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 @click.option('--project', help='project name')
 @click.option('--tag', default='', help='function tag')
 @click.option('--image', '-i', help='location/url of the source files dir/tar')
-@click.option('--source', '-s', help='location/url of the source files dir/tar')
+@click.option('--source', '-s', default='',
+              help='location/url of the source files dir/tar')
 @click.option('--base-image', '-b', help='base docker image')
-@click.option('--inline', is_flag=True, help='inline code (for single file)')
 @click.option('--command', '-c', default='', multiple=True,
               help="build commands, e.g. '-p pip install pandas'")
-@click.option('--secret-name', default='my-docker', help='container registry secret name')
+@click.option('--secret-name', default='', help='container registry secret name')
 @click.option('--silent', is_flag=True, help='do not show build logs')
 @click.option('--db', default='', help='save run results to path or DB url')
-def build(func_url, name, project, tag, image, source, base_image, inline,
+def build(func_url, name, project, tag, image, source, base_image,
           command, secret_name, silent, db):
     """Build a container image from code and requirements."""
 
@@ -193,9 +193,9 @@ def build(func_url, name, project, tag, image, source, base_image, inline,
         b.image = image or b.image
         b.secret = secret_name or b.secret
 
-    if inline:
-        if not path.isfile(source) or not source.endswith('.py'):
-            raise ValueError('source ({}) must be an existing py file'.format(source))
+    if source.endswith('.py'):
+        if not path.isfile(source):
+            raise ValueError('source file doesnt exist ({})'.format(source))
         with open(source) as fp:
             body = fp.read()
         based = b64encode(body.encode('utf-8')).decode('utf-8')

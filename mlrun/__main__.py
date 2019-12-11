@@ -210,11 +210,12 @@ def build(func_url, name, project, tag, image, source, base_image,
 
     archive = archive or mlconf.default_archive
     if archive:
-        logger.info('uploading data from {} to {}'.format(b.source, archive))
+        src = b.source or './'
+        logger.info('uploading data from {} to {}'.format(src, archive))
         target = archive if archive.endswith('/') else archive + '/'
         target += 'src-{}-{}-{}.tar.gz'.format(meta.project, meta.name,
                                                meta.tag or 'latest')
-        upload_tarball(b.source, target)
+        upload_tarball(src, target)
         # todo: replace function.yaml inside the tar
         b.source = target
 

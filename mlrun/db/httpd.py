@@ -18,6 +18,7 @@ from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
 from os import environ
+import traceback
 
 from flask import Flask, jsonify, request, Response
 
@@ -149,6 +150,7 @@ def submit_job():
 
         logger.info('resp: %s', resp.to_yaml())
     except Exception as err:
+        print(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
@@ -181,6 +183,7 @@ def build_function():
         fn.save(versioned=False)
         logger.info('Fn:\n %s', fn.to_yaml())
     except Exception as err:
+        print(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),

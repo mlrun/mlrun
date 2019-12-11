@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import tarfile
 from base64 import b64decode, b64encode
 from os import environ, path
 from tempfile import mktemp
-
-import requests
+from urllib.parse import urlparse
 
 from .datastore import StoreManager
 from .k8s_utils import BasePod, k8s_helper
@@ -153,11 +151,14 @@ def build_image(dest,
     context = '/context'
     to_mount = False
     src_dir = '.'
+    v3io = source.startswith('v3io://') or source.startswith('v3ios://')
     if inline_code:
         context = '/empty'
-    elif source and '://' in source:
+    elif source and '://' in source and not v3io:
         context = source
     elif source:
+        if v3io:
+            source = urlparse(source).path
         to_mount = True
         if source.endswith('.tar.gz'):
             source, src_dir = path.split(source)

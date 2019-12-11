@@ -28,7 +28,7 @@ import click
 from tabulate import tabulate
 
 from .config import config as mlconf
-from .builder import build_image
+from .builder import upload_tarball
 from .db import get_run_db
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
@@ -168,10 +168,11 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 @click.option('--command', '-c', default='', multiple=True,
               help="build commands, e.g. '-p pip install pandas'")
 @click.option('--secret-name', default='', help='container registry secret name')
+@click.option('--archive', '-a', default='', help='destination archive for code (tar)')
 @click.option('--silent', is_flag=True, help='do not show build logs')
 @click.option('--db', default='', help='save run results to path or DB url')
 def build(func_url, name, project, tag, image, source, base_image,
-          command, secret_name, silent, db):
+          command, secret_name, archive, silent, db):
     """Build a container image from code and requirements."""
 
     if func_url.startswith('db://'):
@@ -182,9 +183,10 @@ def build(func_url, name, project, tag, image, source, base_image,
         func_url = 'function.yaml' if func_url == '.' else func_url
         func = import_function(func_url, db=db)
 
-    func.metadata.project = project or func.metadata.project
-    func.metadata.name = name or func.metadata.name
-    func.metadata.tag = tag or func.metadata.tag
+    meta = func.metadata
+    meta.project = project or meta.project or mlconf.default_project
+    meta.name = name or meta.name
+    meta.tag = tag or meta.tag
 
     b = func.spec.build
     if func.kind not in ['', 'local']:
@@ -206,7 +208,18 @@ def build(func_url, name, project, tag, image, source, base_image,
         b.source = source or b.source
         # todo: upload stuff
 
+    archive = archive or mlconf.default_archive
+    if archive:
+        logger.info('uploading data from {} to {}'.format(b.source, archive))
+        target = archive if archive.endswith('/') else archive + '/'
+        target += 'src-{}-{}-{}.tar.gz'.format(meta.project, meta.name,
+                                               meta.tag or 'latest')
+        upload_tarball(b.source, target)
+        # todo: replace function.yaml inside the tar
+        b.source = target
+
     if hasattr(func, 'deploy'):
+        logger.info('remote deployment started')
         func.deploy(watch=not silent)
 
 

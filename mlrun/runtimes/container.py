@@ -43,13 +43,16 @@ class ContainerRuntime(BaseRuntime):
         if self.spec.image:
             return True
 
+        print('is deployed pre:\n', self.to_yaml())
         db = self._get_db()
         if db and db.kind == 'http':
+            print('httpdb')
             try:
                 db.get_builder_status(self, logs=False)
             except RunDBError:
                 pass
 
+        print('is deployed post:\n', self.to_yaml())
         if self.spec.image:
             return True
         if self.status.state and self.status.state == 'ready':

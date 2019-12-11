@@ -221,6 +221,9 @@ class BaseRuntime(ModelObj):
         meta.uid = meta.uid or uuid.uuid4().hex
         db = self._get_db()
 
+        if not self.is_deployed:
+            raise RunError("function image is not built/ready, use .build() method first")
+
         if not self.is_child:
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, self.spec.rundb))

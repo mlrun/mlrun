@@ -116,6 +116,7 @@ def test_local_no_context():
 
     db = get_run_db().connect()
     state, log = db.get_log(result.metadata.uid)
+    log = str(log)
     print(state)
-    print(str(log))
+    print(log)
     assert log.find(", '--xyz', '789']") != -1, 'params not detected in noctx'

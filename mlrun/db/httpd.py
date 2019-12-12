@@ -19,6 +19,7 @@ from functools import wraps
 from http import HTTPStatus
 from os import environ
 import traceback
+from datetime import datetime
 
 from flask import Flask, jsonify, request, Response
 
@@ -335,13 +336,25 @@ def get_log(project, uid):
         if _k8s:
             pods = _k8s.get_logger_pods(uid)
             if pods:
-                pod, status = list(pods.items())[0]
-                status = status.lower()
-                print('pod, status: {} {}'.format(pod, status))
-                if status != 'pending':
+                pod, new_status = list(pods.items())[0]
+                new_status = new_status.lower()
+                print('pod, status: {} {}'.format(pod, new_status))
+                # todo: handle in cron/tracking
+                if new_status != 'pending':
                     resp = _k8s.logs(pod)
                     if resp:
                         out = resp.encode()[offset:]
+                    if status == 'running':
+                        update_in(data, 'status.last_update', str(datetime.now()))
+                        if new_status == 'failed':
+                            update_in(data, 'status.state', 'error')
+                            update_in(resp, 'status.error', 'error, check logs')
+                            _db.store_run(data, uid, project)
+                        if new_status == 'succeeded':
+                            update_in(data, 'status.state', 'completed')
+                            _db.store_run(data, uid, project)
+                status = new_status
+
     else:
         out = resp or out
 

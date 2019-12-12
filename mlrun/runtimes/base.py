@@ -231,11 +231,12 @@ class BaseRuntime(ModelObj):
             meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
             hashkey = calc_hash(self)
             if db:
-                db.store_function(self.to_dict(), self.metadata.name,
-                                             self.metadata.project, hashkey)
-                furi = '{}:{}'.format(self.metadata.name, hashkey)
-                if self.metadata.project and self.metadata.project != 'default':
-                    furi = '{}/{}'.format(self.metadata.project, furi)
+                struct = self.to_dict()
+                update_in(struct, 'metadata.tag', '')
+                db.store_function(struct, self.metadata.name,
+                                  self.metadata.project, hashkey)
+                furi = '{}/{}:{}'.format(self.metadata.project,
+                                         self.metadata.name, hashkey)
                 runspec.spec.function = furi
 
         # execute the job remotely (to a k8s cluster via the API service)
@@ -338,7 +339,7 @@ class BaseRuntime(ModelObj):
         code = self.spec.build.functionSourceCode \
             if hasattr(self.spec, 'build') else None
 
-        if code:
+        if not code:
             extra_env['MLRUN_EXEC_CODE'] = code
 
         if with_mlrun:

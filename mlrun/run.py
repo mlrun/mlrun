@@ -26,7 +26,7 @@ from .execution import MLClientCtx
 from .model import RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
-from .utils import update_in, get_in, logger
+from .utils import update_in, get_in, logger, parse_function_uri
 from .datastore import get_object
 from .db import get_run_db, default_dbpath
 
@@ -125,29 +125,28 @@ runtime_dict = {'remote': RemoteRuntime,
                 'spark': SparkRuntime}
 
 
-def import_function(url='', name='', project: str = '', tag: str = '',
-                    secrets=None, db=''):
+def import_function(url='', secrets=None, db=''):
     """create function object from DB or local/remote YAML file
 
     reading from a file or remote URL (http(s), s3, git, v3io, ..)
     :param url:      path/url to function YAML file
-
-    reading from the function database
-    :param name:     function name
-    :param project:  function project (none for 'default')
-    :param tag:      function version tag (none for 'latest')
+                     or
+                     db://{project}/{name}[:tag] when reading from mlrun db
 
     :param secrets:  optional, credentials dict for DB or URL (s3, v3io, ..)
-    
+    :param db        optional, mlrun api/db path
+
     :return: function object
     """
-    if not url:
+    if url.startswith('db://'):
+        url = url[5:]
+        project, name, tag = parse_function_uri(url)
         db = get_run_db(db or default_dbpath()).connect(secrets)
         runtime = db.get_function(name, project, tag)
         return new_function(runtime=runtime)
 
     runtime = import_function_to_dict(url, secrets)
-    return new_function(name, project=project, tag=tag, runtime=runtime)
+    return new_function(runtime=runtime)
 
 
 def import_function_to_dict(url, secrets=None):

@@ -124,10 +124,9 @@ def server_fixture():
 
 
 servers = ['server']
-if not in_docker:
-    servers.append('docker')
-
-servers = ['docker']
+# if not in_docker:
+#    servers.append('docker')
+# servers = ['docker']
 
 
 @pytest.fixture(scope='module', params=servers)

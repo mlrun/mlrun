@@ -342,8 +342,8 @@ class BaseRuntime(ModelObj):
                 command = 'mlrun'
                 args = ['run', '--from-env']
         elif with_mlrun:
-            command = 'mlrun'
             args = ['run', '--from-env', command]
+            command = 'mlrun'
         if runobj.spec.handler:
             args += ['--handler', runobj.spec.handler]
         if self.spec.args:

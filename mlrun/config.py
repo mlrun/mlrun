@@ -40,7 +40,7 @@ default_config = {
     'dbpath': '',
     'ui_url': '',
     'kfp_image': 'mlrun/mlrun:latest',
-    'kaniko_version': 'v0.13.0',
+    'kaniko_version': 'v0.14.0',
     'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
     'default_project': 'default',
@@ -160,6 +160,7 @@ def read_env(env=None, prefix=env_prefix):
     # check for mlrun-db kubernetes service
     svc = env.get('MLRUN_DB_PORT')
     if svc and not config.get('dbpath'):
+        print('found mlrun api in : {}'.format(svc))
         config['dbpath'] = 'http://' + urlparse(svc).netloc
 
     return config

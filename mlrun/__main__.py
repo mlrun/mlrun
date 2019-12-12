@@ -170,9 +170,10 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 @click.option('--secret-name', default='', help='container registry secret name')
 @click.option('--archive', '-a', default='', help='destination archive for code (tar)')
 @click.option('--silent', is_flag=True, help='do not show build logs')
+@click.option('--with-mlrun', is_flag=True, help='add MLRun package')
 @click.option('--db', default='', help='save run results to path or DB url')
 def build(func_url, name, project, tag, image, source, base_image,
-          command, secret_name, archive, silent, db):
+          command, secret_name, archive, silent, with_mlrun, db):
     """Build a container image from code and requirements."""
 
     if func_url.startswith('db://'):
@@ -221,7 +222,7 @@ def build(func_url, name, project, tag, image, source, base_image,
 
     if hasattr(func, 'deploy'):
         logger.info('remote deployment started')
-        func.deploy(watch=not silent)
+        func.deploy(with_mlrun=with_mlrun, watch=not silent)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))

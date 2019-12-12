@@ -30,7 +30,7 @@ from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython
-from .utils import calc_hash, RunError, add_code_metadata, results_to_iter
+from .utils import calc_hash, RunError, results_to_iter
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
@@ -332,7 +332,7 @@ class BaseRuntime(ModelObj):
     def _get_cmd_args(self, runobj, with_mlrun):
         extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
         if self.spec.rundb:
-            extra_env['MLRUN_DBPATH'] = self.spec.rundb
+            extra_env['MLRUN_DBPATH'] = self.spec.rundb or config.dbpath
         args = []
         command = self.spec.command
         code = self.spec.build.functionSourceCode

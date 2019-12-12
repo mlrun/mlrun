@@ -156,9 +156,9 @@ class BaseRuntime(ModelObj):
 
     def _get_db(self):
         if not self._db_conn:
-            dbpath = self.spec.rundb or default_dbpath()
-            if dbpath:
-                self._db_conn = get_run_db(dbpath).connect(self._secrets)
+            self.spec.rundb = self.spec.rundb or default_dbpath()
+            if self.spec.rundb:
+                self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
         return self._db_conn
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
@@ -335,15 +335,18 @@ class BaseRuntime(ModelObj):
             extra_env['MLRUN_DBPATH'] = self.spec.rundb or config.dbpath
         args = []
         command = self.spec.command
-        code = self.spec.build.functionSourceCode
-        if hasattr(self.spec, 'build') and code:
+        code = self.spec.build.functionSourceCode \
+            if hasattr(self.spec, 'build') else None
+
+        if code:
             extra_env['MLRUN_EXEC_CODE'] = code
-            if with_mlrun:
-                command = 'mlrun'
-                args = ['run', '--from-env']
-        elif with_mlrun:
-            args = ['run', '--from-env', command]
+
+        if with_mlrun:
+            args = ['run', '-n', self.metadata.name, '--from-env']
+            if code:
+                args += [command]
             command = 'mlrun'
+
         if runobj.spec.handler:
             args += ['--handler', runobj.spec.handler]
         if self.spec.args:

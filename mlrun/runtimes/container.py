@@ -79,7 +79,7 @@ class ContainerRuntime(BaseRuntime):
 
         db = self._get_db()
         if db and db.kind == 'http':
-            logger.info('starting build on remote cluster, image: {}'.format(
+            logger.info('starting remote build, image: {}'.format(
                 self.spec.build.image))
             data = db.remote_builder(self, with_mlrun)
             self.status.state = get_in(data, 'data.status.state')

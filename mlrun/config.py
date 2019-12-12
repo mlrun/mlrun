@@ -160,7 +160,6 @@ def read_env(env=None, prefix=env_prefix):
     # check for mlrun-db kubernetes service
     svc = env.get('MLRUN_DB_PORT')
     if svc and not config.get('dbpath'):
-        print('found mlrun api in : {}'.format(svc))
         config['dbpath'] = 'http://' + urlparse(svc).netloc
 
     return config

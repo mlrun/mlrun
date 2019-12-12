@@ -106,7 +106,6 @@ class ArtifactManager:
                 item.size = len(body)
                 store.put(ipath, body)
             else:
-                src_path = src_path or key
                 if src_path and os.path.isfile(src_path):
                     if self.calc_hash:
                         item.hash = file_hash(src_path)

@@ -154,8 +154,16 @@ class SQLDB(RunDBInterface):
                 state=run_state(struct),
                 start_time=run_start_time(struct) or datetime.now(),
             )
-        for label in run_labels(struct):
-            run.labels.append(Run.Label(name=label, parent=run))
+            for label in run_labels(struct):
+                run.labels.append(Run.Label(name=label, parent=run))
+        else:
+            old = {label.name: label for label in run.labels}
+            run.labels.clear()
+            for name in run_labels(struct):
+                if name in old:
+                    run.labels.append(old[name])
+                else:
+                    run.labels.append(Run.Label(name=name, parent=run))
         run.struct = struct
         self._upsert(run)
 

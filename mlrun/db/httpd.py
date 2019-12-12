@@ -31,6 +31,7 @@ from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import k8s_helper
 
 _db: RunDBInterface
+_logs_db: RunDBInterface
 _k8s: k8s_helper = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
@@ -223,31 +224,32 @@ def get_filestat():
 def store_log(project, uid):
     append = strtobool(request.args.get('append', 'no'))
     body = request.get_data()  # TODO: Check size
-    _db.store_log(uid, project, body, append)
+    _logs_db.store_log(uid, project, body, append)
     return jsonify(ok=True)
 
 
 # curl http://localhost:8080/log/prj/7
 @app.route('/api/log/<project>/<uid>', methods=['GET'])
 def get_log(project, uid):
-    data = _db.get_log(uid, project)
-    if data is None:
-        data = _db.read_run(uid, project)
-        if not data:
-            return json_error(HTTPStatus.NOT_FOUND,
-                              project=project, uid=uid)
-        if _k8s:
-            pods = _k8s.get_logger_pods(uid)
-            if pods:
-                pod, status = list(pods.items())[0]
-                out = _k8s.logs(pod)
-                if out:
-                    print(type(out))
-                    return out.encode()
-        msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
-        return msg.encode()
+    data = _logs_db.get_log(uid, project)
+    if data:
+        return data
 
-    return data
+    data = _db.read_run(uid, project)
+    if not data:
+        return json_error(HTTPStatus.NOT_FOUND,
+                          project=project, uid=uid)
+    if _k8s:
+        pods = _k8s.get_logger_pods(uid)
+        if pods:
+            pod, status = list(pods.items())[0]
+            out = _k8s.logs(pod)
+            if out:
+                print(type(out))
+                return out.encode()
+    msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
+    return msg.encode()
+
 
 # curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @app.route('/api/run/<project>/<uid>', methods=['POST'])
@@ -441,12 +443,14 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _db
-    global _k8s
+    global _db, _logs_db, _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
-    _db = FileRunDB(config.httpdb.dirpath, '.yaml')
-    #_db = SQLDB(config.httpdb.dsn)
+    _db = SQLDB(config.httpdb.dsn)
+    if config.httpdb.fs_logs:
+        _logs_db = FileRunDB(config.httpdb.dirpath)
+    else:
+        _logs_db = _db
     _db.connect()
     try:
         _k8s = k8s_helper()

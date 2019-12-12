@@ -54,6 +54,7 @@ default_config = {
         'user': '',
         'password': '',
         'token': '',
+        'fs_logs': False,  # Store logs on file system
     },
 }
 
@@ -134,6 +135,18 @@ def _do_populate(env=None):
     data = read_env(env)
     if data:
         config.update(data)
+
+
+def _convert_str(value, typ):
+    if typ in (str, _none_type):
+        return value
+
+    if typ is bool:
+        return strtobool(value)
+
+    # e.g. int('8080') → 8080
+    return typ(value)
+
 
 
 def read_env(env=None, prefix=env_prefix):

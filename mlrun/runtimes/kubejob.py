@@ -121,8 +121,6 @@ class KubejobRuntime(ContainerRuntime):
         command, args, extra_env = self._get_cmd_args(runobj, with_mlrun)
         extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
 
-        print(self.to_yaml())
-        print('cmd:', command, args, with_mlrun)
         if runobj.metadata.iteration:
             self.store_run(runobj)
         k8s = self._get_k8s()

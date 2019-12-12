@@ -252,7 +252,7 @@ class BaseRuntime(ModelObj):
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)
 
-        elif self._is_remote:
+        elif self._is_remote and not self._is_api_server:
             logger.warning('warning!, Api url not set, trying to exec remote runtime locally')
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
@@ -335,13 +335,12 @@ class BaseRuntime(ModelObj):
             extra_env['MLRUN_DBPATH'] = self.spec.rundb
         args = []
         command = self.spec.command
-        if hasattr(self.spec, 'build'):
-            code = self.spec.build.functionSourceCode
-            if code:
-                extra_env['MLRUN_EXEC_CODE'] = code
-                if with_mlrun:
-                    command = 'mlrun'
-                    args = ['run', '--from-env']
+        code = self.spec.build.functionSourceCode
+        if hasattr(self.spec, 'build') and code:
+            extra_env['MLRUN_EXEC_CODE'] = code
+            if with_mlrun:
+                command = 'mlrun'
+                args = ['run', '--from-env']
         elif with_mlrun:
             command = 'mlrun'
             args = ['run', '--from-env', command]

@@ -16,6 +16,7 @@ import json
 import inspect
 import socket
 import sys
+import traceback
 from os import environ, remove
 from tempfile import mktemp
 
@@ -153,6 +154,7 @@ def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
         try:
             val = fn(*args, **kw)
         except Exception as e:
+            logger.error(traceback.format_exc())
             err = str(e)
 
     return val, stdout.getvalue(), err
@@ -171,6 +173,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
             context.set_state('completed', commit=False)
         except Exception as e:
             err = str(e)
+            logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
 
     context.set_logger_stream(sys.stdout)

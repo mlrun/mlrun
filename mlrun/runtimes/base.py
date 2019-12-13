@@ -65,7 +65,7 @@ class FunctionSpec(ModelObj):
 
         self.command = command or ''
         self.image = image or ''
-        self.mode = mode or ''
+        self.mode = mode
         self.args = args or []
         self.rundb = None
         self.description = description or ''
@@ -208,7 +208,7 @@ class BaseRuntime(ModelObj):
         runspec.spec.handler = handler or runspec.spec.handler
 
         spec = runspec.spec
-        if self.spec.mode == 'noctx':
+        if self.spec.mode and self.spec.mode == 'noctx':
             params = spec.parameters or {}
             for k, v in params.items():
                 self.spec.args += ['--{}'.format(k), str(v)]
@@ -496,8 +496,8 @@ class BaseRuntime(ModelObj):
         tag = tag or self.metadata.tag or 'latest'
         self.metadata.tag = tag
         obj = self.to_dict()
+        hashkey = calc_hash(self)
         if versioned:
-            hashkey = calc_hash(self)
             db.store_function(obj, self.metadata.name,
                               self.metadata.project, hashkey)
         db.store_function(obj, self.metadata.name,

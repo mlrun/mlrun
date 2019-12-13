@@ -333,16 +333,19 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             return
 
         functions = mldb.list_functions(name, project=project)
+        lines = []
+        headers = ['kind', 'state', 'name:tag', 'hash']
         for f in functions:
-            print('{:8} {}:{} {}'.format(
+            line = [
                 get_in(f, 'kind', ''),
-                get_in(f, 'metadata.name', ''),
-                get_in(f, 'metadata.tag', ''),
+                get_in(f, 'status.state', ''),
+                '{}:{}'.format(get_in(f, 'metadata.name'), get_in(f, 'metadata.tag', '')),
                 get_in(f, 'metadata.hash', ''),
-            ))
-
+            ]
+            lines.append(line)
+        print(tabulate(lines, headers=headers))
     else:
-        print('currently only get pods | runs | artifacts [name] are supported')
+        print('currently only get pods | runs | artifacts | func [name] are supported')
 
 
 @main.command()

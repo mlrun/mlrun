@@ -69,7 +69,11 @@ class ContainerRuntime(BaseRuntime):
         if base_image:
             self.spec.build.base_image = base_image
 
-    def deploy(self, with_mlrun=True, watch=True):
+    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False):
+        """deploy function, build container with dependencies"""
+
+        if skip_deployed and self.is_deployed:
+            return 'ready'
 
         self.spec.build.image = self.spec.build.image \
                                 or default_image_name(self)
@@ -93,7 +97,6 @@ class ContainerRuntime(BaseRuntime):
         else:
             ready = build_runtime(self, with_mlrun, watch)
 
-        self._is_built = ready
         return ready
 
     def _build_watch(self, watch=True, logs=True):

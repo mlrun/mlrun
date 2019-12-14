@@ -245,6 +245,10 @@ class BaseRuntime(ModelObj):
                 runspec.spec.secret_sources = self._secrets.to_serial()
             try:
                 resp = db.submit_job(runspec)
+                if resp:
+                    txt = get_in(resp, 'status.status_text')
+                    if txt:
+                        logger.info(txt)
                 if watch:
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
@@ -286,7 +290,7 @@ class BaseRuntime(ModelObj):
 
         return self._wrap_result(result, runspec, err=last_err)
 
-    def _wrap_result(self, result, runspec, err=None):
+    def _wrap_result(self, result: dict, runspec: RunObject, err=None):
 
         if result and self.kfp and err is None:
             write_kfpmeta(result)
@@ -385,12 +389,14 @@ class BaseRuntime(ModelObj):
             iter = get_in(rundict, 'metadata.iteration', 0)
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
-    def _post_run(self, resp: dict = None, task: RunObject = None, err=None):
+    def _post_run(self, resp: dict = None, task: RunObject = None, err=None) -> dict:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
             was_none = True
             resp = self._get_db_run(task)
+            if task.status.status_text:
+                update_in(resp, 'status.status_text', task.status.status_text)
 
         if resp is None:
             return None

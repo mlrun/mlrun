@@ -140,7 +140,9 @@ class KubejobRuntime(ContainerRuntime):
             if status in ['failed', 'error']:
                 raise RunError(f'pod exited with {status}, check logs')
         else:
-            logger.info('Job is running in the background, pod: {}'.format(pod_name))
+            txt = 'Job is running in the background, pod: {}'.format(pod_name)
+            logger.info(txt)
+            runobj.status.status_text = txt
 
         return None
 

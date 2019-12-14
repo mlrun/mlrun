@@ -248,6 +248,9 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     if tag:
         runner.metadata.tag = tag
     if image:
+        if kind in ['', 'handler', 'local']:
+            raise ValueError('image should only be set with containerized '
+                             'runtimes (job, mpijob, spark, ..), set kind=..')
         runner.spec.image = image
     if args:
         runner.spec.args = args

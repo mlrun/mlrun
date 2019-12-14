@@ -69,6 +69,9 @@ class ContainerRuntime(BaseRuntime):
         if base_image:
             self.spec.build.base_image = base_image
 
+    def build(self, **kw):
+        raise ValueError('.build() is deprecated, use .deploy() instead')
+
     def deploy(self, watch=True, with_mlrun=True, skip_deployed=False):
         """deploy function, build container with dependencies"""
 

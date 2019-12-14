@@ -224,7 +224,7 @@ class BaseRuntime(ModelObj):
         if not self.is_deployed:
             raise RunError("function image is not built/ready, use .build() method first")
 
-        if not self.is_child:
+        if not self.is_child and self.kind != 'handler':
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, self.spec.rundb))
             meta.labels['kind'] = self.kind

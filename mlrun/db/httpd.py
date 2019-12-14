@@ -338,7 +338,7 @@ def get_log(project, uid):
             if pods:
                 pod, new_status = list(pods.items())[0]
                 new_status = new_status.lower()
-                print('pod, status: {} {}'.format(pod, new_status))
+
                 # todo: handle in cron/tracking
                 if new_status != 'pending':
                     resp = _k8s.logs(pod)

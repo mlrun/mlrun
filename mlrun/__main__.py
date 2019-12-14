@@ -65,7 +65,7 @@ def main():
 @click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
 @click.option('--func-url', '-f', default='', help='path/url of function yaml')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
-@click.option('--mode', default='', help='run mode e.g. noctx')
+@click.option('--mode', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
@@ -336,6 +336,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         lines = []
         headers = ['kind', 'state', 'name:tag', 'hash']
         for f in functions:
+            print(f)
             line = [
                 get_in(f, 'kind', ''),
                 get_in(f, 'status.state', ''),

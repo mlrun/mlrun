@@ -117,14 +117,9 @@ class KubejobRuntime(ContainerRuntime):
 
     def _run(self, runobj: RunObject, execution):
 
-        with_mlrun = self.spec.mode != 'pass'
+        with_mlrun = (not self.spec.mode) or (self.spec.mode != 'pass')
         command, args, extra_env = self._get_cmd_args(runobj, with_mlrun)
         extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
-
-        if not self._is_built:
-            ready = self._build_image(True, with_mlrun, execution)
-            if not ready:
-                raise RunError("can't run task, image is not yet built/ready")
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
@@ -145,7 +140,9 @@ class KubejobRuntime(ContainerRuntime):
             if status in ['failed', 'error']:
                 raise RunError(f'pod exited with {status}, check logs')
         else:
-            logger.info('Job is running in the background, pod: {}'.format(pod_name))
+            txt = 'Job is running in the background, pod: {}'.format(pod_name)
+            logger.info(txt)
+            runobj.status.status_text = txt
 
         return None
 

@@ -28,7 +28,7 @@ class RunDBInterface(ABC):
         return self
 
     @abstractmethod
-    def store_log(self, uid, project='', body=None, append=True):
+    def store_log(self, uid, project='', body=None, append=False):
         pass
 
     @abstractmethod

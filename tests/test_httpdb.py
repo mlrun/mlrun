@@ -88,7 +88,7 @@ def test_log(create_server):
     prj, uid, body = 'p19', '3920', b'log data'
     db.store_log(uid, prj, body)
 
-    data = db.get_log(uid, prj)
+    state, data = db.get_log(uid, prj)
     assert data == body, 'bad log data'
 
 

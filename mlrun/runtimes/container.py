@@ -11,16 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import time
 from base64 import b64encode
 
+from ..db import RunDBError
 from ..builder import build_runtime
 from ..utils import get_in, logger
-from .base import BaseRuntime, RunError
+from .base import BaseRuntime
+from .utils import add_code_metadata, default_image_name
 
 
 class ContainerRuntime(BaseRuntime):
     kind = 'container'
+    _is_remote = True
 
     def with_code(self, from_file='', body=None):
         if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
@@ -35,46 +38,117 @@ class ContainerRuntime(BaseRuntime):
         self.spec.build.functionSourceCode = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
-    def build(self, image, base_image=None, commands: list = None,
-              secret=None, with_mlrun=True, watch=True):
-        self.spec.build.image = image
-        self.spec.image = ''
-        if commands and isinstance(commands, list):
+    @property
+    def is_deployed(self):
+        if self.spec.image:
+            return True
+
+        db = self._get_db()
+        if db and db.kind == 'http':
+            try:
+                db.get_builder_status(self, logs=False)
+            except RunDBError:
+                pass
+
+        if self.spec.image:
+            return True
+        if self.status.state and self.status.state == 'ready':
+            return True
+        return False
+
+    def build_config(self, image='', base_image=None,
+                     commands: list = None, secret=None):
+        self.spec.build.image = image or self.spec.build.image
+        if commands:
+            if not isinstance(commands, list):
+                raise ValueError('commands must be a string list')
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands
         if secret:
             self.spec.build.secret = secret
         if base_image:
             self.spec.build.base_image = base_image
-        ready = self._build_image(watch, with_mlrun)
-        return self
 
-    def _build_image(self, watch=False, with_mlrun=True, execution=None):
-        build = self.spec.build
-        pod = build.build_pod
-        if not self._is_built and pod:
-            k8s = self._get_k8s()
-            status = k8s.get_pod_status(pod)
-            if status == 'succeeded':
-                build.build_pod = None
-                self._is_built = True
-                logger.info('build completed successfully')
-                return True
-            if status in ['failed', 'error']:
-                raise RunError(' build {}, watch the build pod logs: {}'.format(status, pod))
-            logger.info('builder status is: {}, wait for it to complete'.format(status))
-            return False
+    def build(self, **kw):
+        raise ValueError('.build() is deprecated, use .deploy() instead')
 
-        if not build.commands and self.spec.mode == 'pass' and not build.source:
-            if not self.spec.image and not build.base_image:
-                raise RunError('image or base_image must be specified')
-            self.spec.image = self.spec.image or build.base_image
-        if self.spec.image:
-            self._is_built = True
-            return True
+    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False):
+        """deploy function, build container with dependencies"""
 
-        if execution:
-            execution.set_state('build')
-        ready = build_runtime(self, with_mlrun, watch)
-        self._is_built = ready
+        if skip_deployed and self.is_deployed:
+            return 'ready'
+
+        self.spec.build.image = self.spec.build.image \
+                                or default_image_name(self)
+        self.spec.image = ''
+        self.status.state = ''
+        add_code_metadata(self.metadata.labels)
+
+        db = self._get_db()
+        if db and db.kind == 'http':
+            logger.info('starting remote build, image: {}'.format(
+                self.spec.build.image))
+            data = db.remote_builder(self, with_mlrun)
+            self.status.state = get_in(data, 'data.status.state')
+            self.status.build_pod = get_in(data, 'data.status.build_pod')
+            self.spec.image = get_in(data, 'data.spec.image')
+            ready = data.get('ready', False)
+            if watch:
+                state = self._build_watch(watch)
+                ready = state == 'ready'
+                self.status.state = state
+        else:
+            ready = build_runtime(self, with_mlrun, watch)
+
         return ready
+
+    def _build_watch(self, watch=True, logs=True):
+        db = self._get_db()
+        offset = 0
+        try:
+            text = db.get_builder_status(self, 0, logs=logs)
+        except RunDBError:
+            raise ValueError('function or build process not found')
+
+        if text:
+            print(text.decode())
+        if watch:
+            while self.status.state in ['pending', 'running']:
+                offset += len(text)
+                time.sleep(2)
+                text = db.get_builder_status(self, offset, logs=logs)
+                if text:
+                    print(text.decode(), end='')
+
+        return self.status.state
+
+    def builder_status(self, watch=True, logs=True):
+        db = self._get_db()
+        if db and db.kind == 'http':
+            return self._build_watch(watch, logs)
+
+        else:
+            pod = self.status.build_pod
+            if not self.status.state == 'ready' and pod:
+                k8s = self._get_k8s()
+                status = k8s.get_pod_status(pod)
+                if logs:
+                    if watch:
+                        status = k8s.watch(pod)
+                    else:
+                        resp = k8s.logs(pod)
+                        if resp:
+                            print(resp.encode())
+
+                if status == 'succeeded':
+                    self.status.build_pod = None
+                    self.status.state = 'ready'
+                    logger.info('build completed successfully')
+                    return 'ready'
+                if status in ['failed', 'error']:
+                    self.status.state = status
+                    logger.error(' build {}, watch the build pod logs: {}'.format(status, pod))
+                    return status
+
+                logger.info('builder status is: {}, wait for it to complete'.format(status))
+            return None

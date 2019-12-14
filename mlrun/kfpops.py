@@ -308,7 +308,7 @@ def deploy_op(name, function, source='', dashboard='',
     models = {} if models is None else models
     runtime = '{}'.format(function.to_dict())
     cmd = ['python', '-m', 'mlrun', 'deploy', runtime]
-    if project:
+    if source:
         cmd += ['-s', source]
     if dashboard:
         cmd += ['-d', dashboard]

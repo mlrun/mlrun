@@ -20,7 +20,7 @@ spec:
         imagePullPolicy: Always
         env:
         - name: MLRUN_API_PROXY_URL
-          value: http://mlrun-db:8080
+          value: http://mlrun-api:8080
         ports:
         - containerPort: 80
 ---

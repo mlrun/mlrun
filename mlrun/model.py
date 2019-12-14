@@ -206,9 +206,10 @@ class RunSpec(ModelObj):
 
 class RunStatus(ModelObj):
     def __init__(self, state=None, error=None, host=None, commit=None,
-                 results=None, artifacts=None,
+                 status_text=None, results=None, artifacts=None,
                  start_time=None, last_update=None, iterations=None):
         self.state = state or 'created'
+        self.status_text = status_text
         self.error = error
         self.host = host
         self.commit = commit

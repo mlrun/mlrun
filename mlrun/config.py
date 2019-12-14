@@ -157,8 +157,8 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
-    # check for mlrun-db kubernetes service
-    svc = env.get('MLRUN_DB_PORT')
+    # check for mlrun-api or db kubernetes service
+    svc = env.get('MLRUN_API_PORT', env.get('MLRUN_DB_PORT'))
     if svc and not config.get('dbpath'):
         config['dbpath'] = 'http://' + urlparse(svc).netloc
 

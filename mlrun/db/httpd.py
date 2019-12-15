@@ -247,6 +247,18 @@ def build_status():
                              "builder_pod": pod})
 
 
+def get_obj_path(schema, path):
+    if schema:
+        return schema + '://' + path
+    elif path.startswith('/User/'):
+        user = environ.get('V3IO_USERNAME', 'admin')
+        return 'v3io:///users/' + user + path[5:]
+    elif config.httpdb.files_path and \
+        path.startswith(config.httpdb.files_path):
+        return path
+    return None
+
+
 # curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @app.route('/api/files', methods=['GET'])
 @catch_err
@@ -258,11 +270,10 @@ def get_files():
 
     _, filename = path.split(path)
 
-    if schema:
-        path = schema + '://' + path
-    elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', 'admin')
-        path = 'v3io:///users/' + user + path[5:]
+    path = get_obj_path(schema, path)
+    if not path:
+        return json_error(HTTPStatus.NOT_FOUND, path=path,
+                          err='illegal path prefix or schema')
 
     try:
         body = get_object(path, size, offset)
@@ -288,11 +299,10 @@ def get_filestat():
 
     _, filename = path.split(path)
 
-    if schema:
-        path = schema + '://' + path
-    elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', 'admin')
-        path = 'v3io:///users/' + user + path[5:]
+    path = get_obj_path(schema, path)
+    if not path:
+        return json_error(HTTPStatus.NOT_FOUND, path=path,
+                          err='illegal path prefix or schema')
 
     try:
         stat = get_object_stat(path)

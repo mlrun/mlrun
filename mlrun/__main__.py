@@ -24,11 +24,13 @@ from subprocess import Popen
 from sys import executable
 
 import click
+import yaml
 
 from tabulate import tabulate
 
 from .config import config as mlconf
 from .builder import upload_tarball
+from .datastore import get_object
 from .db import get_run_db
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
@@ -64,6 +66,7 @@ def main():
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
 @click.option('--func-url', '-f', default='', help='path/url of function yaml')
+@click.option('--task', default='', help='path/url to task yaml')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
 @click.option('--mode', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
@@ -72,13 +75,17 @@ def main():
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
-        selector, func_url, handler, mode, from_env, dump, watch, run_args):
+        selector, func_url, task, handler, mode, from_env, dump, watch, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
     if from_env and config:
         config = json.loads(config)
         runobj = RunTemplate.from_dict(config)
+    elif task:
+        obj = get_object(task)
+        task = yaml.load(obj, Loader=yaml.FullLoader)
+        runobj = RunTemplate.from_dict(task)
     else:
         runobj = RunTemplate()
 
@@ -154,6 +161,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
+        print('runtime error: {}'.format(err))
         exit(1)
 
 

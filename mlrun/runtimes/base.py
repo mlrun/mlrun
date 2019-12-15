@@ -295,6 +295,8 @@ class BaseRuntime(ModelObj):
         if result and self.kfp and err is None:
             write_kfpmeta(result)
 
+        print('wrap_results:', result)
+
         # show ipython/jupyter result table widget
         results_tbl = RunList()
         if result:
@@ -395,6 +397,9 @@ class BaseRuntime(ModelObj):
         if resp is None and task:
             was_none = True
             resp = self._get_db_run(task)
+
+            print('pos_run_db:', resp)
+
             if task.status.status_text:
                 update_in(resp, 'status.status_text', task.status.status_text)
 

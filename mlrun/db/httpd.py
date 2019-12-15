@@ -358,7 +358,7 @@ def get_log(project, uid):
                         update_in(data, 'status.last_update', str(datetime.now()))
                         if new_status == 'failed':
                             update_in(data, 'status.state', 'error')
-                            update_in(resp, 'status.error', 'error, check logs')
+                            update_in(data, 'status.error', 'error, check logs')
                             _db.store_run(data, uid, project)
                         if new_status == 'succeeded':
                             update_in(data, 'status.state', 'completed')

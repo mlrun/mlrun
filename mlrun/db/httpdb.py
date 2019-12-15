@@ -105,12 +105,19 @@ class HTTPRunDB(RunDBInterface):
         if text:
             print(text.decode())
         if watch:
+            nil_resp = 0
             while state in ['pending', 'running']:
                 offset += len(text)
-                time.sleep(2)
+                if nil_resp < 3:
+                    time.sleep(3)
+                else:
+                    time.sleep(10)
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
+                    nil_resp = 0
                     print(text.decode(), end='')
+                else:
+                    nil_resp += 1
 
         return state
 

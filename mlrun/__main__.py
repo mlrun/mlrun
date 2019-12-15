@@ -292,7 +292,7 @@ def watch(pod, namespace, timeout):
 @click.option('--namespace', '-n', help='kubernetes namespace')
 @click.option('--uid', help='unique ID')
 @click.option('--project', help='project name')
-@click.option('--tag', default='', help='artifact/function tag')
+@click.option('--tag', '-t', default='', help='artifact/function tag')
 @click.option('--db', help='db path/url')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
@@ -317,7 +317,12 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     elif kind.startswith('run'):
         mldb = get_run_db(db or mlconf.dbpath).connect()
-        runs = mldb.list_runs(name, uid=uid, project=project)
+        if name:
+            run = mldb.read_run(name, project=project)
+            print(dict_to_yaml(run))
+            return
+
+        runs = mldb.list_runs(uid=uid, project=project)
         df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']]
         #df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
         df['start'] = df['start'].apply(time_str)

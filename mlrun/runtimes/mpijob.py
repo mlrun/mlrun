@@ -107,10 +107,11 @@ class MpiRuntime(KubejobRuntime):
             logger.info('MpiJob {} state={}'.format(
                 meta.name, state or 'unknown'))
             if state:
+                state = state.lower()
                 launcher, status = self._get_launcher(meta.name,
                                                       meta.namespace)
                 execution.set_hostname(launcher)
-                execution.set_state(state.lower())
+                execution.set_state('running' if state == 'active' else state)
                 if self.interactive or self.kfp:
                     writer = AsyncLogWriter(self._db_conn, runobj)
                     status = self._get_k8s().watch(
@@ -124,7 +125,7 @@ class MpiRuntime(KubejobRuntime):
                         execution.set_state('error', 'MpiJob {} finished with state {}'.format(meta.name, status))
                 else:
                     txt = 'MpiJob {} launcher pod {} state {}'.format(
-                        meta.name, launcher, status)
+                        meta.name, launcher, state)
                     logger.info(txt)
                     runobj.status.status_text = txt
             else:

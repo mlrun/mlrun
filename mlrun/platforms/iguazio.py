@@ -35,7 +35,8 @@ def xcp_op(src, dst, f='', recursive=False, mtime='', log_level='info', minsize=
     )
 
 
-def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key='', user=''):
+def mount_v3io(name='v3io', remote='~/', mount_path='/User',
+               access_key='', user='', secret=None):
     """
         Modifier function to apply to a Container Op to volume mount a v3io path
         Usage:
@@ -45,10 +46,11 @@ def mount_v3io(name='v3io', remote='~/', mount_path='/User', access_key='', user
 
     def _mount_v3io(task):
         from kubernetes import client as k8s_client
-        vol = v3io_to_vol(name, remote, access_key, user)
+        vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
         task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path=mount_path, name=name))
 
-        task = v3io_cred(access_key=access_key)(task)
+        if not secret:
+            task = v3io_cred(access_key=access_key)(task)
         return (task)
 
     return _mount_v3io
@@ -128,7 +130,7 @@ def split_path(mntpath=''):
     return container, subpath
 
 
-def v3io_to_vol(name, remote='~/', access_key='', user=''):
+def v3io_to_vol(name, remote='~/', access_key='', user='', secret=None):
     from os import environ
     from kubernetes import client
     access_key = access_key or environ.get('V3IO_ACCESS_KEY')
@@ -146,5 +148,6 @@ def v3io_to_vol(name, remote='~/', access_key='', user=''):
 
     opts = {'accessKey': access_key, 'container': container, 'subPath': subpath}
     # vol = client.V1Volume(name=name, flex_volume=client.V1FlexVolumeSource('v3io/fuse', options=opts))
-    vol = {'flexVolume': client.V1FlexVolumeSource('v3io/fuse', options=opts), 'name': name}
+    vol = {'flexVolume': client.V1FlexVolumeSource(
+        'v3io/fuse', options=opts, secret_ref=secret), 'name': name}
     return vol

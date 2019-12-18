@@ -145,6 +145,8 @@ def v3io_to_vol(name, remote='~/', access_key='', user='', secret=None):
         else:
             remote = 'users/' + user + remote[1:]
     container, subpath = split_path(remote)
+    if secret:
+        secret = {'name': secret}
 
     opts = {'accessKey': access_key, 'container': container, 'subPath': subpath}
     # vol = client.V1Volume(name=name, flex_volume=client.V1FlexVolumeSource('v3io/fuse', options=opts))

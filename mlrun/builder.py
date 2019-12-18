@@ -151,7 +151,9 @@ def build_image(dest,
     context = '/context'
     to_mount = False
     src_dir = '.'
-    v3io = source.startswith('v3io://') or source.startswith('v3ios://')
+    v3io = source.startswith('v3io://') or \
+           source.startswith('v3ios://') if source else None
+
     if inline_code:
         context = '/empty'
     elif source and '://' in source and not v3io:

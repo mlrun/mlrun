@@ -255,7 +255,8 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     if args:
         runner.spec.args = args
     runner.kfp = kfp
-    runner.spec.mode = mode
+    if mode:
+        runner.spec.mode = mode
     runner.interactive = interactive
     return runner
 

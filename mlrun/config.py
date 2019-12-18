@@ -55,6 +55,7 @@ default_config = {
         'user': '',
         'password': '',
         'token': '',
+        'files_path': '',
     },
 }
 

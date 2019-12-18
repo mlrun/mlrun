@@ -163,7 +163,7 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', watch: bool = False):
+            out_path: str = '', watch: bool = True):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -189,23 +189,16 @@ class BaseRuntime(ModelObj):
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
 
-        if not handler:
-            handler_str = runspec.spec.handler_name
-        elif inspect.isfunction(handler):
-            handler_str = handler.__name__
-        else:
-            handler_str = str(handler)
+        runspec.spec.handler = handler or runspec.spec.handler or ''
+        if runspec.spec.handler and self.kind not in ['handler', 'dask']:
+            runspec.spec.handler = runspec.spec.handler_name
 
         runspec.metadata.name = name or runspec.metadata.name or \
-            handler_str or self.metadata.name
+            runspec.spec.handler_name or self.metadata.name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or runspec.spec.output_path
-
-        if handler and self.kind not in ['handler', 'dask']:
-            handler = handler_str
-        runspec.spec.handler = handler or runspec.spec.handler
 
         spec = runspec.spec
         if self.spec.mode and self.spec.mode == 'noctx':
@@ -311,7 +304,7 @@ class BaseRuntime(ModelObj):
                 runspec.metadata.project) if runspec.metadata.project else ''
             print(
                 'to track results use .show() or .logs() or in CLI: \n'
-                '!mlrun get run --uid {} {} , !mlrun logs {} {}'
+                '!mlrun get run {} {} , !mlrun logs {} {}'
                 .format(uid, proj, uid, proj))
 
         if result:
@@ -395,6 +388,7 @@ class BaseRuntime(ModelObj):
         if resp is None and task:
             was_none = True
             resp = self._get_db_run(task)
+
             if task.status.status_text:
                 update_in(resp, 'status.status_text', task.status.status_text)
 

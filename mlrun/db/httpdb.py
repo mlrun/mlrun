@@ -105,12 +105,19 @@ class HTTPRunDB(RunDBInterface):
         if text:
             print(text.decode())
         if watch:
+            nil_resp = 0
             while state in ['pending', 'running']:
                 offset += len(text)
-                time.sleep(2)
+                if nil_resp < 3:
+                    time.sleep(3)
+                else:
+                    time.sleep(10)
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
+                    nil_resp = 0
                     print(text.decode(), end='')
+                else:
+                    nil_resp += 1
 
         return state
 
@@ -297,7 +304,7 @@ class HTTPRunDB(RunDBInterface):
     def submit_job(self, runspec):
         try:
             req = {'task': runspec.to_dict()}
-            resp = self.api_call('POST', 'submit', json=req)
+            resp = self.api_call('POST', 'submit', json=req, timeout=90)
         except OSError as err:
             logger.error('error submitting task: {}'.format(err))
             raise OSError(

@@ -380,7 +380,3 @@ def NewTask(name=None, project=None, handler=None,
     run.spec.output_path = out_path or run.spec.output_path
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run
-
-
-# for backwards compatibility
-NewRun = NewTask

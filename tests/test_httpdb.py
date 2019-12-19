@@ -16,7 +16,7 @@ from collections import namedtuple
 from os import environ
 from pathlib import Path
 from socket import socket
-from subprocess import Popen
+from subprocess import Popen, run
 from sys import executable
 from tempfile import mkdtemp
 
@@ -25,10 +25,12 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server
+from conftest import wait_for_server  # , in_docker
 
 root = Path(__file__).absolute().parent.parent
-Server = namedtuple('Server', 'process url log_file conn')
+Server = namedtuple('Server', 'url conn')
+
+docker_tag = 'mlrun/test-db-gunicorn'
 
 
 def free_port():
@@ -37,7 +39,14 @@ def free_port():
         return sock.getsockname()[1]
 
 
-def start_server(db_path, log_file, env_config):
+def check_server_up(url):
+    health_url = f'{url}/api/healthz'
+    timeout = 30
+    if not wait_for_server(health_url, timeout):
+        raise RuntimeError('server did not start after {timeout}sec')
+
+
+def start_server(db_path, log_file, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
@@ -50,36 +59,92 @@ def start_server(db_path, log_file, env_config):
     ]
     proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
     url = f'http://localhost:{port}'
+    check_server_up(url)
 
-    health_url = f'{url}/api/healthz'
-    timeout = 30
-    if not wait_for_server(health_url, timeout):
-        raise RuntimeError('server did not start after {timeout}sec')
-
-    return proc, url, log_file
+    return proc, url
 
 
-@pytest.fixture
-def create_server():
+def docker_fixture():
+    cid = None
+
+    def create(env_config=None):
+        nonlocal cid
+
+        env_config = {} if env_config is None else env_config
+        cmd = [
+            'docker', 'build',
+            # '-f', 'Dockerfile.db-gunicorn',
+            '-f', 'Dockerfile.db',
+            '--tag', docker_tag,
+            '.',
+        ]
+        out = run(cmd)
+        assert out.returncode == 0, 'cannot build docker'
+
+        port = free_port()
+        cmd = [
+            'docker', 'run',
+            '--detach',
+            '--publish', f'{port}:8080',
+            # '--volume', '/tmp:/tmp',  # For debugging
+            ]
+        for key, value in env_config.items():
+            cmd.append('--env', f'{key}={value}')
+        cmd.append(docker_tag)
+        out = run(cmd, capture_output=True)
+        assert out.returncode == 0, 'cannot run docker'
+        cid = out.stdout.decode('utf-8').strip()
+        url = f'http://localhost:{port}'
+        check_server_up(url)
+        conn = HTTPRunDB(url)
+        conn.connect()
+        return Server(url, conn)
+
+    def cleanup():
+        run(['docker', 'rm', '--force', cid])
+
+    return create, cleanup
+
+
+def server_fixture():
     proc, log_fp = None, None
 
     def create(env=None):
         nonlocal proc, log_fp
         root = mkdtemp(prefix='mlrun-test')
         print(f'root={root!r}')
-        db_path = f'{root}/mlrun.sqlite3'
+        db_path = f'{root}/mlrun.sqlite3?check_same_thread=false'
         log_fp = open(f'{root}/httpd.log', 'w+')
-        proc, url, log_file = start_server(db_path, log_fp, env)
+        proc, url = start_server(db_path, log_fp, env)
         conn = HTTPRunDB(url)
         conn.connect()
-        return Server(proc, url, log_file, conn)
+        return Server(url, conn)
+
+    def cleanup():
+        if proc:
+            proc.kill()
+        if log_fp:
+            log_fp.close()
+
+    return create, cleanup
+
+
+servers = ['server']
+# FIXME:
+# if not in_docker:
+#    servers.append('docker')
+# servers = ['docker']
+
+
+@pytest.fixture(scope='module', params=servers)
+def create_server(request):
+    if request.param == 'server':
+        create, cleanup = server_fixture()
+    else:
+        create, cleanup = docker_fixture()
 
     yield create
-
-    if proc:
-        proc.kill()
-    if log_fp:
-        log_fp.close()
+    cleanup()
 
 
 def test_log(create_server):

@@ -198,13 +198,17 @@ class ASTVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def find_handlers(code: str):
+def find_handlers(code: str, handlers=None):
+    handlers = set() if handlers is None else set(handlers)
     mod = ast.parse(code)
     visitor = ASTVisitor()
     visitor.visit(mod)
     funcs = [ast_func_info(fn) for fn in visitor.funcs]
-    markers = find_handler_markers(code)
-    return filter_funcs(funcs, markers)
+    if handlers:
+        return [f for f in funcs if f['name'] in handlers]
+    else:
+        markers = find_handler_markers(code)
+        return filter_funcs(funcs, markers)
 
 
 def filter_funcs(funcs, markers):

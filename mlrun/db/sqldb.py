@@ -74,6 +74,10 @@ class Artifact(Base, HasStruct):
 
 class Function(Base, HasStruct):
     __tablename__ = 'functions'
+    __table_args__ = (
+        UniqueConstraint('name', 'project', 'tag', name='_functions_uc'),
+    )
+
     Label = make_label(__tablename__)
 
     id = Column(Integer, primary_key=True)
@@ -154,16 +158,8 @@ class SQLDB(RunDBInterface):
                 state=run_state(struct),
                 start_time=run_start_time(struct) or datetime.now(),
             )
-            for label in run_labels(struct):
-                run.labels.append(Run.Label(name=label, parent=run))
-        else:
-            old = {label.name: label for label in run.labels}
-            run.labels.clear()
-            for name in run_labels(struct):
-                if name in old:
-                    run.labels.append(old[name])
-                else:
-                    run.labels.append(Run.Label(name=name, parent=run))
+        labels = run_labels(struct)
+        update_labels(run, labels)
         run.struct = struct
         self._upsert(run)
 
@@ -234,14 +230,16 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         artifact = artifact.copy()
         updated = artifact['updated'] = datetime.now()
-        art = Artifact(
-            key=key,
-            uid=uid,
-            tag=tag,
-            updated=updated,
-            project=project)
-        for label in label_set(artifact.get('labels', [])):
-            art.labels.append(Artifact.Label(name=label, parent=art))
+        art = self._get_artifact(uid, project, key)
+        labels = label_set(artifact.get('labels', []))
+        if not art:
+            art = Artifact(
+                key=key,
+                uid=uid,
+                tag=tag,
+                updated=updated,
+                project=project)
+        update_labels(art, labels)
         art.struct = artifact
         self._upsert(art)
 
@@ -289,13 +287,15 @@ class SQLDB(RunDBInterface):
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
         update_in(func, 'metadata.updated', datetime.now())
-        fn = Function(
-            name=name,
-            project=project,
-            tag=tag,
-        )
-        for label in label_set(get_in(func, 'metadata.labels', [])):
-            fn.labels.append(Function.Label(name=label, parent=fn))
+        fn = self._get_function(name, project, tag)
+        if not fn:
+            fn = Function(
+                name=name,
+                project=project,
+                tag=tag,
+            )
+        labels = label_set(get_in(func, 'metadata.labels', []))
+        update_labels(fn, labels)
         fn.struct = func
         self._upsert(fn)
 
@@ -319,6 +319,14 @@ class SQLDB(RunDBInterface):
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v}
         return self.session.query(cls).filter_by(**kw)
+
+    def _get_function(self, name, project, tag):
+        query = self._query(Function, name=name, project=project, tag=tag)
+        return query.one_or_none()
+
+    def _get_artifact(self, uid, project, key):
+        query = self._query(Artifact, uid=uid, project=project, key=key)
+        return query.one_or_none()
 
     def _get_run(self, uid, project, iteration):
         return self._query(
@@ -407,3 +415,13 @@ def run_labels(run):
 
 def run_state(run):
     return get_in(run, 'status.state', '')
+
+
+def update_labels(obj, labels):
+    old = {label.name: label for label in obj.labels}
+    obj.labels.clear()
+    for name in labels:
+        if name in old:
+            obj.labels.append(old[name])
+        else:
+            obj.labels.append(obj.Label(name=name, parent=obj))

@@ -48,9 +48,9 @@ def test_list_functions(db: sqldb.SQLDB):
     fn1 = new_func(['l1', 'l2'], x=1)
     db.store_function(fn1, name)
     fn2 = new_func(['l2', 'l3'], x=2)
-    db.store_function(fn2, name)
+    db.store_function(fn2, name, tag='t1')
     fn3 = new_func(['l3'], x=3)
-    db.store_function(fn3, name)
+    db.store_function(fn3, name, tag='t2')
 
     funcs = db.list_functions(name, labels=['l2'])
     assert 2 == len(funcs), 'num of funcs'

@@ -29,7 +29,7 @@ from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
-NULL = None  # avoid flake8 issuing warnings when comparing in filter
+NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = '%Y-%m-%d %H:%M:%S.%f'
 
 

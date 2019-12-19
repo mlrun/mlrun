@@ -25,7 +25,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server, in_docker
+from conftest import wait_for_server  # , in_docker
 
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
@@ -73,7 +73,8 @@ def docker_fixture():
         env_config = {} if env_config is None else env_config
         cmd = [
             'docker', 'build',
-            '-f', 'Dockerfile.db-gunicorn',
+            # '-f', 'Dockerfile.db-gunicorn',
+            '-f', 'Dockerfile.db',
             '--tag', docker_tag,
             '.',
         ]
@@ -81,7 +82,12 @@ def docker_fixture():
         assert out.returncode == 0, 'cannot build docker'
 
         port = free_port()
-        cmd = ['docker', 'run', '--detach', '--publish', f'{port}:8080']
+        cmd = [
+            'docker', 'run',
+            '--detach',
+            '--publish', f'{port}:8080',
+            # '--volume', '/tmp:/tmp',  # For debugging
+            ]
         for key, value in env_config.items():
             cmd.append('--env', f'{key}={value}')
         cmd.append(docker_tag)
@@ -124,6 +130,7 @@ def server_fixture():
 
 
 servers = ['server']
+# FIXME:
 # if not in_docker:
 #    servers.append('docker')
 # servers = ['docker']

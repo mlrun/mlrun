@@ -139,7 +139,7 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
-            return None
+            return None, None
         end = None if size == 0 else offset + size
         return '', log.body[offset:end]
 

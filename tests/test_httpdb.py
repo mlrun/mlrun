@@ -113,7 +113,7 @@ def server_fixture():
         nonlocal proc, log_fp
         root = mkdtemp(prefix='mlrun-test')
         print(f'root={root!r}')
-        db_path = f'{root}/mlrun.sqlite3'
+        db_path = f'{root}/mlrun.sqlite3?check_same_thread=false'
         log_fp = open(f'{root}/httpd.log', 'w+')
         proc, url = start_server(db_path, log_fp, env)
         conn = HTTPRunDB(url)

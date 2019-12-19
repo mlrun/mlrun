@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os import environ
 from subprocess import run
 from sys import executable
 from pathlib import Path
@@ -26,7 +27,7 @@ example_files = [
 ]
 
 db_file = Path('/tmp/mlrun-test-examples.sqlite3')
-dsn = f'sqlite:///{db_file}'
+dsn = f'sqlite:///{db_file}?check_same_thread=false'
 
 
 @pytest.fixture
@@ -38,10 +39,11 @@ def db():
 @pytest.mark.parametrize('fname', example_files)
 def test_example(db, fname):
     path = examples_path / fname
+    env = environ.copy()
+    env['MLRUN_httpdb__dsn'] = dsn
     cmd = [
         executable, '-m', 'mlrun', 'run',
-        '--rundb', dsn,
         path,
     ]
-    out = run(cmd)
+    out = run(cmd, env=env)
     assert out.returncode == 0, 'bad run'

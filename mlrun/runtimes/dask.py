@@ -57,6 +57,10 @@ class DaskCluster(KubejobRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', DaskSpec)
 
+    @property
+    def is_deployed(self):
+        return True
+
     def _to_pod(self):
         image = self._image_path() or 'daskdev/dask:latest'
         env = self.spec.env

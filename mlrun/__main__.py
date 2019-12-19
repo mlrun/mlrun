@@ -15,25 +15,29 @@
 # limitations under the License.
 
 import json
+import sys
 from ast import literal_eval
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
 
 import click
+import yaml
 
 from tabulate import tabulate
 
 from .config import config as mlconf
-from .builder import build_image
+from .builder import upload_tarball
+from .datastore import get_object
 from .db import get_run_db
 from .k8s_utils import k8s_helper
 from .model import RunTemplate
-from .run import new_function, import_function_to_dict
+from .run import new_function, import_function_to_dict, import_function
 from .runtimes import RemoteRuntime, RunError
-from .utils import list2dict, logger, run_keys, update_in
+from .utils import (list2dict, logger, run_keys, update_in, get_in,
+                    parse_function_uri, dict_to_yaml)
 
 
 @click.group()
@@ -54,7 +58,7 @@ def main():
 @click.option('--name', help='run name')
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
-@click.option('--rundb', default='', help='save run results to path or DB url')
+@click.option('--db', default='', help='save run results to path or DB url')
 @click.option('--runtime', '-r', default='', help='runtime environment e.g. local, remote, nuclio, mpi')
 @click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
 @click.option('--hyperparam', '-x', default='', multiple=True,
@@ -62,20 +66,26 @@ def main():
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
 @click.option('--func-url', '-f', default='', help='path/url of function yaml')
+@click.option('--task', default='', help='path/url to task yaml')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
-@click.option('--mode', default='', help='run mode e.g. noctx')
+@click.option('--mode', help='run mode e.g. noctx')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
+@click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
-        name, workflow, project, rundb, runtime, kfp, hyperparam, param_file,
-        selector, func_url, handler, mode, from_env, dump, run_args):
+        name, workflow, project, db, runtime, kfp, hyperparam, param_file,
+        selector, func_url, task, handler, mode, from_env, dump, watch, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
     if from_env and config:
         config = json.loads(config)
         runobj = RunTemplate.from_dict(config)
+    elif task:
+        obj = get_object(task)
+        task = yaml.load(obj, Loader=yaml.FullLoader)
+        runobj = RunTemplate.from_dict(task)
     else:
         runobj = RunTemplate()
 
@@ -93,11 +103,29 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     if workflow:
         runobj.metadata.labels['workflow'] = workflow
 
-    if rundb:
-        mlconf.dbpath = rundb
+    if db:
+        mlconf.dbpath = db
 
     if func_url:
-        runtime = import_function_to_dict(func_url, {})
+        if func_url.startswith('db://'):
+            func_url = func_url[5:]
+            project, name, tag = parse_function_uri(func_url)
+            mldb = get_run_db(mlconf.dbpath).connect()
+            runtime = mldb.get_function(name, project, tag)
+        else:
+            func_url = 'function.yaml' if func_url == '.' else func_url
+            runtime = import_function_to_dict(func_url, {})
+        kind = get_in(runtime, 'kind', '')
+        if kind not in ['', 'local'] and url:
+            if path.isfile(url) and url.endswith('.py'):
+                with open(url) as fp:
+                    body = fp.read()
+                based = b64encode(body.encode('utf-8')).decode('utf-8')
+                logger.info('packing code at {}'.format(url))
+                update_in(runtime, 'spec.build.functionSourceCode', based)
+                url = ''
+                update_in(runtime, 'spec.command', '')
+
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -126,9 +154,10 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
     try:
+        update_in(runtime, 'metadata.name', name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj)
+        resp = fn.run(runobj, watch=watch)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -137,44 +166,72 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("dest", type=str)
+@click.argument("func_url", type=str)
+@click.option('--name', help='function name')
+@click.option('--project', help='project name')
+@click.option('--tag', default='', help='function tag')
+@click.option('--image', '-i', help='location/url of the source files dir/tar')
+@click.option('--source', '-s', default='',
+              help='location/url of the source files dir/tar')
+@click.option('--base-image', '-b', help='base docker image')
 @click.option('--command', '-c', default='', multiple=True,
               help="build commands, e.g. '-p pip install pandas'")
-@click.option('--source', '-s', help='location/url of the source files dir/tar')
-@click.option('--base-image', '-b', help='base docker image')
-@click.option('--secret-name', default='my-docker', help='container registry secret name')
-@click.option('--requirements', '-r', help='python package requirements file path')
-@click.option('--namespace', help='kubernetes namespace')
+@click.option('--secret-name', default='', help='container registry secret name')
+@click.option('--archive', '-a', default='', help='destination archive for code (tar)')
 @click.option('--silent', is_flag=True, help='do not show build logs')
-@click.option('--inline', '-i', is_flag=True, help='inline code (for single file)')
-def build(dest, command, source, base_image, secret_name,
-          requirements, namespace, silent, inline):
+@click.option('--with-mlrun', is_flag=True, help='add MLRun package')
+@click.option('--db', default='', help='save run results to path or DB url')
+def build(func_url, name, project, tag, image, source, base_image,
+          command, secret_name, archive, silent, with_mlrun, db):
     """Build a container image from code and requirements."""
 
-    inline_code = None
-    cmd = list(command)
-    if inline:
-        with open(source, 'r') as fp:
-            inline_code = fp.read()
-        source = None
-        if requirements:
-            with open(requirements, 'r') as fp:
-                requirements = fp.readlines()
+    if func_url.startswith('db://'):
+        func_url = func_url[5:]
+        project, name, tag = parse_function_uri(func_url)
+        func = import_function(name=name, project=project, tag=tag, db=db)
+    else:
+        func_url = 'function.yaml' if func_url == '.' else func_url
+        func = import_function(func_url, db=db)
 
-    print(dest, cmd, source, inline_code, base_image,
-          secret_name, requirements, namespace)
+    meta = func.metadata
+    meta.project = project or meta.project or mlconf.default_project
+    meta.name = name or meta.name
+    meta.tag = tag or meta.tag
 
-    status = build_image(dest, command, source,
-                         inline_code=inline_code,
-                         base_image=base_image,
-                         secret_name=secret_name,
-                         requirements=requirements,
-                         namespace=namespace,
-                         interactive=not silent)
+    b = func.spec.build
+    if func.kind not in ['', 'local']:
+        b.base_image = base_image or b.base_image
+        b.commands = list(command) or b.commands
+        b.image = image or b.image
+        b.secret = secret_name or b.secret
 
-    logger.info('build completed with {}'.format(status))
-    if status in ['failed', 'error']:
-        exit(1)
+    if source.endswith('.py'):
+        if not path.isfile(source):
+            raise ValueError('source file doesnt exist ({})'.format(source))
+        with open(source) as fp:
+            body = fp.read()
+        based = b64encode(body.encode('utf-8')).decode('utf-8')
+        logger.info('packing code at {}'.format(source))
+        b.functionSourceCode = based
+        func.spec.command = ''
+    else:
+        b.source = source or b.source
+        # todo: upload stuff
+
+    archive = archive or mlconf.default_archive
+    if archive:
+        src = b.source or './'
+        logger.info('uploading data from {} to {}'.format(src, archive))
+        target = archive if archive.endswith('/') else archive + '/'
+        target += 'src-{}-{}-{}.tar.gz'.format(meta.project, meta.name,
+                                               meta.tag or 'latest')
+        upload_tarball(src, target)
+        # todo: replace function.yaml inside the tar
+        b.source = target
+
+    if hasattr(func, 'deploy'):
+        logger.info('remote deployment started')
+        func.deploy(with_mlrun=with_mlrun, watch=not silent)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -235,7 +292,7 @@ def watch(pod, namespace, timeout):
 @click.option('--namespace', '-n', help='kubernetes namespace')
 @click.option('--uid', help='unique ID')
 @click.option('--project', help='project name')
-@click.option('--tag', default='', help='artifact tag')
+@click.option('--tag', '-t', default='', help='artifact/function tag')
 @click.option('--db', help='db path/url')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
@@ -259,8 +316,13 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                     start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     elif kind.startswith('run'):
-        mldb = get_run_db(db).connect()
-        runs = mldb.list_runs(name, uid=uid, project=project)
+        mldb = get_run_db(db or mlconf.dbpath).connect()
+        if name:
+            run = mldb.read_run(name, project=project)
+            print(dict_to_yaml(run))
+            return
+
+        runs = mldb.list_runs(uid=uid, project=project)
         df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']]
         #df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
         df['start'] = df['start'].apply(time_str)
@@ -269,22 +331,42 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(tabulate(df, headers='keys'))
 
     elif kind.startswith('art'):
-        mldb = get_run_db(db).connect()
+        mldb = get_run_db(db or mlconf.dbpath).connect()
         artifacts = mldb.list_artifacts(name, project=project, tag=tag)
         df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
         df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
         df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
         print(tabulate(df, headers='keys'))
 
+    elif kind.startswith('func'):
+        mldb = get_run_db(db or mlconf.dbpath).connect()
+        if name:
+            f = mldb.get_function(name, project=project, tag=tag)
+            print(dict_to_yaml(f))
+            return
+
+        functions = mldb.list_functions(name, project=project)
+        lines = []
+        headers = ['kind', 'state', 'name:tag', 'hash']
+        for f in functions:
+            print(f)
+            line = [
+                get_in(f, 'kind', ''),
+                get_in(f, 'status.state', ''),
+                '{}:{}'.format(get_in(f, 'metadata.name'), get_in(f, 'metadata.tag', '')),
+                get_in(f, 'metadata.hash', ''),
+            ]
+            lines.append(line)
+        print(tabulate(lines, headers=headers))
     else:
-        print('currently only get pods | runs | artifacts [name] are supported')
+        print('currently only get pods | runs | artifacts | func [name] are supported')
 
 
 @main.command()
 @click.option('--port', '-p', help='port to listen on', type=int)
 @click.option('--dirpath', '-d', help='database directory (dirpath)')
 def db(port, dirpath):
-    """Run HTTP database server"""
+    """Run HTTP api/database server"""
     env = environ.copy()
     if port is not None:
         env['MLRUN_httpdb__port'] = str(port)
@@ -296,6 +378,48 @@ def db(port, dirpath):
     returncode = child.wait()
     if returncode != 0:
         raise SystemExit(returncode)
+
+
+@main.command()
+@click.argument('uid', type=str)
+@click.option('--project', '-p', help='project name')
+@click.option('--offset', type=int, default=0, help='byte offset')
+@click.option('--db', help='api and db service path/url')
+@click.option('--watch', '-w', is_flag=True, help='watch/follow log')
+def logs(uid, project, offset, db, watch):
+    """Get or watch task logs"""
+    mldb = get_run_db(db or mlconf.dbpath).connect()
+    if mldb.kind == 'http':
+        state = mldb.watch_log(uid, project, watch=watch, offset=offset)
+    else:
+        state, text = mldb.get_log(uid, project, offset=offset)
+        if text:
+            print(text.decode())
+
+    if state:
+        print('final state: {}'.format(state))
+
+
+@main.command()
+@click.option('--api', help='api and db service path/url')
+@click.option('--namespace', '-n', help='kubernetes namespace')
+def clean(api, namespace):
+    """Clean completed or failed pods/jobs"""
+    k8s = k8s_helper(namespace)
+    #mldb = get_run_db(db or mlconf.dbpath).connect()
+    items = k8s.list_pods(namespace)
+    print('{:10} {:16} {:8} {}'.format('state', 'started', 'type', 'name'))
+    for i in items:
+        task = i.metadata.labels.get('mlrun/class', '')
+        state = i.status.phase
+        # todo: clean mpi, spark, .. jobs (+CRDs)
+        if task and task in ['build', 'job'] and state in ['Succeeded', 'Failed']:
+            name = i.metadata.name
+            start = ''
+            if i.status.start_time:
+                start = i.status.start_time.strftime("%b %d %H:%M:%S")
+            print('{:10} {:16} {:8} {}'.format(state, start, task, name))
+            k8s.del_pod(name)
 
 
 @main.command(name='config')

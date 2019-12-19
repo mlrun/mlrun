@@ -16,9 +16,11 @@ import json
 import inspect
 import socket
 import sys
+import traceback
 from os import environ, remove
 from tempfile import mktemp
 
+from .kubejob import KubejobRuntime
 from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
@@ -56,6 +58,18 @@ class HandlerRuntime(BaseRuntime):
 
 class LocalRuntime(ContainerRuntime):
     kind = 'local'
+    _is_remote = False
+
+    def to_job(self, image=''):
+        struct = self.to_dict()
+        obj = KubejobRuntime.from_dict(struct)
+        if image:
+            obj.spec.image = image
+        return obj
+
+    @property
+    def is_deployed(self):
+        return True
 
     def _run(self, runobj: RunObject, execution):
         environ['MLRUN_EXEC_CONFIG'] = runobj.to_json()
@@ -140,6 +154,7 @@ def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
         try:
             val = fn(*args, **kw)
         except Exception as e:
+            logger.error(traceback.format_exc())
             err = str(e)
 
     return val, stdout.getvalue(), err
@@ -158,6 +173,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
             context.set_state('completed', commit=False)
         except Exception as e:
             err = str(e)
+            logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
 
     context.set_logger_stream(sys.stdout)

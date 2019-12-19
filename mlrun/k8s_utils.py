@@ -282,9 +282,9 @@ class BasePod:
     def add_annotation(self, key, value):
         self._annotations[key] = str(value)
 
-    def add_volume(self, volume: client.V1Volume, mount_path):
+    def add_volume(self, volume: client.V1Volume, mount_path, name=None):
         self._mounts.append(client.V1VolumeMount(
-            name=volume.name, mount_path=mount_path))
+            name=name or volume.name, mount_path=mount_path))
         self._volumes.append(volume)
 
     def mount_empty(self, name='empty', mount_path='/empty'):
@@ -296,7 +296,7 @@ class BasePod:
       self, name='v3io', remote='~/', mount_path='/User', access_key='',
       user=''):
         self.add_volume(v3io_to_vol(name, remote, access_key, user),
-                        mount_path=mount_path)
+                        mount_path=mount_path, name=name)
 
     def mount_cfgmap(self, name, path='/config'):
         self.add_volume(client.V1Volume(

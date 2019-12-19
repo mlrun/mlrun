@@ -41,7 +41,7 @@ def start_server(db_path, log_file, env_config):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}'
+    env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}?check_same_thread=false'
     env.update(env_config or {})
 
     cmd = [

@@ -7,7 +7,7 @@ from mlrun.db import sqldb, RunDBError
 
 @pytest.fixture
 def db():
-    db = sqldb.SQLDB('sqlite:///:memory:')
+    db = sqldb.SQLDB('sqlite:///:memory:?check_same_thread=false')
     db.connect()
     return db
 
@@ -47,15 +47,15 @@ def test_log(db: sqldb.SQLDB):
     uid = 'm33'
     data1, data2 = b'ab', b'cd'
     db.store_log(uid, body=data1)
-    log = db.get_log(uid)
+    _, log = db.get_log(uid)
     assert data1 == log, 'get log 1'
 
-    db.store_log(uid, body=data2)
-    log = db.get_log(uid)
+    db.store_log(uid, body=data2, append=True)
+    _, log = db.get_log(uid)
     assert data1 + data2 == log, 'get log 2'
 
     db.store_log(uid, body=data1, append=False)
-    log = db.get_log(uid)
+    _, log = db.get_log(uid)
     assert data1 == log, 'get log append=False'
 
 

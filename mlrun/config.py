@@ -56,7 +56,7 @@ default_config = {
         'password': '',
         'token': '',
         'files_path': '',
-        'db_type': 'sqldb',
+        'db_type': 'filerundb',
     },
 }
 

@@ -176,7 +176,7 @@ class RemoteRuntime(BaseRuntime):
         self.set_config('metadata.labels.mlrun/class', self.kind)
         spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
         spec.cmd = self.spec.build_commands
-        project = project or self.metadata.project or 'mlrun'
+        project = project or self.metadata.project or 'default'
         handler = self.spec.function_handler
 
         if self.spec.base_spec:
@@ -211,10 +211,11 @@ class RemoteRuntime(BaseRuntime):
         self.spec.command = 'http://{}'.format(addr)
         return self.spec.command
 
-    def deploy_step(self, source='', dashboard='', project='', models=None):
+    def deploy_step(self, dashboard='', project='', models=None):
         models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
-        return deploy_op(name, self, source=source, dashboard=dashboard,
+        project = project or self.metadata.project
+        return deploy_op(name, self, dashboard=dashboard,
                          project=project, models=models)
 
     def _raise_mlrun(self):

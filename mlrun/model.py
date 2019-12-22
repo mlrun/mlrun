@@ -18,6 +18,7 @@ from os import environ
 
 from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json
+from .config import config
 
 
 class ModelObj:
@@ -59,7 +60,9 @@ class ModelObj:
     @classmethod
     def from_dict(cls, struct=None):
         struct = {} if struct is None else struct
-        fields = list(inspect.signature(cls.__init__).parameters.keys())
+        fields = cls._dict_fields
+        if not fields:
+            fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
         if struct:
             for key, val in struct.items():
@@ -90,7 +93,7 @@ class BaseMetadata(ModelObj):
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
-        self.project = project
+        self.project = project or config.default_project
         self.labels = labels or {}
         self.annotations = annotations or {}
         self.updated = updated
@@ -203,9 +206,10 @@ class RunSpec(ModelObj):
 
 class RunStatus(ModelObj):
     def __init__(self, state=None, error=None, host=None, commit=None,
-                 results=None, artifacts=None,
+                 status_text=None, results=None, artifacts=None,
                  start_time=None, last_update=None, iterations=None):
         self.state = state or 'created'
+        self.status_text = status_text
         self.error = error
         self.host = host
         self.commit = commit
@@ -333,6 +337,26 @@ class RunObject(RunTemplate):
         db.list_runs(
             uid=self.metadata.uid, project=self.metadata.project).show()
 
+    def logs(self, watch=True, db=None):
+        if not db:
+            db = get_run_db().connect()
+        if not db:
+            print('DB is not configured, cannot show logs')
+            return
+
+        if db.kind == 'http':
+            state = db.watch_log(self.metadata.uid,
+                                 self.metadata.project,
+                                 watch=watch)
+        else:
+            state, text = db.get_log(self.metadata.uid,
+                                     self.metadata.project)
+            if text:
+                print(text.decode())
+
+        if state:
+            print('final state: {}'.format(state))
+
 
 def NewTask(name=None, project=None, handler=None,
             params=None, hyper_params=None, param_file=None, selector=None,
@@ -356,7 +380,3 @@ def NewTask(name=None, project=None, handler=None,
     run.spec.output_path = out_path or run.spec.output_path
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run
-
-
-# for backwards compatibility
-NewRun = NewTask

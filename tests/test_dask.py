@@ -26,7 +26,7 @@ def my_func(context, p1=1, p2='a-string'):
 @pytest.mark.skipif(not has_dask, reason='missing dask')
 def test_dask_local():
     spec = tag_test(NewTask(params={'p1': 3, 'p2': 'vv'}), 'test_dask_local')
-    run = new_function(command='dask://').run(
+    run = new_function(kind='dask').run(
         spec, handler=my_func)
     verify_state(run)
 
@@ -35,7 +35,7 @@ def test_dask_local():
 def test_dask_local_hyper():
     task = NewTask().with_hyper_params({'p1': [5, 2, 3]}, 'max.accuracy')
     spec = tag_test(task, 'test_dask_local_hyper')
-    run = new_function(command='dask://').run(spec, handler=my_func)
+    run = new_function(kind='dask').run(spec, handler=my_func)
     verify_state(run)
     assert len(run.status.iterations) == 3+1, 'hyper parameters test failed'
     pprint(run.to_dict())

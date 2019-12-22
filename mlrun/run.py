@@ -31,6 +31,7 @@ from .runtimes import (
     DaskCluster, HandlerRuntime, KubejobRuntime, LocalRuntime, MpiRuntime,
     RemoteRuntime, SparkRuntime
 )
+from .runtimes.base import FunctionEntrypoint, EntrypointParam
 from .runtimes.utils import add_code_metadata
 from .utils import get_in, logger, parse_function_uri, update_in
 
@@ -333,7 +334,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                                           kind=kind)
             r.spec.base_spec = spec
             handlers = find_handlers(code)
-            r.spec.entry_points = {h[name]: h for h in handlers}
+            r.spec.entry_points = {h.name: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -381,3 +382,17 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     handlers = find_handlers(code)
     r.spec.entry_points = {h[name]: h for h in handlers}
     return r
+
+
+def as_func(handler):
+    return FunctionEntrypoint(
+        name=handler['name'],
+        doc=handler['doc'],
+        parameters=[as_entry(p) for p in handler['params']],
+        outputs=[as_entry(p) for p in handler['returns']],
+        lineno=handler['lineno'],
+    )
+
+
+def as_entry(param):
+    return EntrypointParam(**param)

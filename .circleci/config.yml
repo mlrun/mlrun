@@ -3,6 +3,7 @@ jobs:
   build:
     machine: true
     steps:
+      - setup_remote_docker
       - checkout
       - run: docker build -f Dockerfile.test .
       - run: pyenv install miniconda3-4.3.11

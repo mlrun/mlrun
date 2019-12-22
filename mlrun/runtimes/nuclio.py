@@ -54,7 +54,10 @@ def nuclio_jobs_handler(context, event):
     if out:
         context.logger.info('logging run results to: {}'.format(out))
 
-    newspec = json.loads(event.body)
+    newspec = event.body
+    if newspec and not isinstance(newspec, dict):
+        newspec = json.loads(newspec)
+
     ctx = MLClientCtx.from_dict(newspec, rundb=out,
                                 autocommit=False,
                                 log_stream=context.logger,

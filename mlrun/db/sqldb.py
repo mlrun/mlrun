@@ -29,7 +29,7 @@ from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
-NULL = None  # avoid flake8 issuing warnings when comparing in filter
+NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = '%Y-%m-%d %H:%M:%S.%f'
 
 
@@ -145,21 +145,27 @@ class SQLDB(RunDBInterface):
 
     def store_run(self, struct, uid, project='', iter=0):
         project = project or config.default_project
-        run = Run(
-            uid=uid,
-            project=project,
-            iteration=iter,
-            state=run_state(struct),
-            start_time=run_start_time(struct) or datetime.now(),
-        )
-        for label in run_labels(struct):
-            run.labels.append(Run.Label(name=label, parent=run))
+        run = self._get_run(uid, project, iter)
+        if not run:
+            run = Run(
+                uid=uid,
+                project=project,
+                iteration=iter,
+                state=run_state(struct),
+                start_time=run_start_time(struct) or datetime.now(),
+            )
+            for label in run_labels(struct):
+                run.labels.append(Run.Label(name=label, parent=run))
+        else:
+            old = {label.name: label for label in run.labels}
+            run.labels.clear()
+            for name in run_labels(struct):
+                if name in old:
+                    run.labels.append(old[name])
+                else:
+                    run.labels.append(Run.Label(name=name, parent=run))
         run.struct = struct
-        try:
-            self._upsert(run)
-        except SQLAlchemyError as err:
-            self.session.rollback()
-            raise RunDBError(f'duplicate run - {err}')
+        self._upsert(run)
 
     def update_run(self, updates: dict, uid, project='', iter=0):
         project = project or config.default_project
@@ -179,7 +185,8 @@ class SQLDB(RunDBInterface):
         run.labels.clear()
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
-        self._upsert(run)
+        self.session.merge(run)
+        self.session.commit()
         self._delete_empty_labels(Run.Label)
 
     def read_run(self, uid, project='', iter=0):
@@ -322,8 +329,13 @@ class SQLDB(RunDBInterface):
         self.session.commit()
 
     def _upsert(self, obj):
-        self.session.merge(obj)
-        self.session.commit()
+        try:
+            self.session.add(obj)
+            self.session.commit()
+        except SQLAlchemyError as err:
+            self.session.rollback()
+            cls = obj.__class__.__name__
+            raise RunDBError(f'duplicate {cls} - {err}')
 
     def _find_runs(self, name, uid, project, labels, state):
         labels = label_set(labels)

@@ -147,7 +147,7 @@ def submit_job():
                 fn = new_function(runtime=runtime)
 
         fn.set_db_connection(_db, True)
-        #fn.spec.rundb = 'http://mlrun-api:8080'
+        # fn.spec.rundb = 'http://mlrun-api:8080'
         resp = fn.run(task)
 
         logger.info('resp: %s', resp.to_yaml())
@@ -228,7 +228,8 @@ def build_status():
         logger.info('build completed successfully')
         state = 'ready'
     if state in ['failed', 'error']:
-        logger.error(' build {}, watch the build pod logs: {}'.format(state, pod))
+        logger.error('build {}, watch the build pod logs: {}'.format(
+            state, pod))
 
     if logs and state != 'pending':
         resp = _k8s.logs(pod)
@@ -254,7 +255,7 @@ def get_obj_path(schema, path):
         user = environ.get('V3IO_USERNAME', 'admin')
         return 'v3io:///users/' + user + path[5:]
     elif config.httpdb.files_path and \
-        path.startswith(config.httpdb.files_path):
+            path.startswith(config.httpdb.files_path):
         return path
     return None
 
@@ -349,16 +350,18 @@ def get_log(project, uid):
                 pod, new_status = list(pods.items())[0]
                 new_status = new_status.lower()
 
-                # todo: handle in cron/tracking
+                # TODO: handle in cron/tracking
                 if new_status != 'pending':
                     resp = _k8s.logs(pod)
                     if resp:
                         out = resp.encode()[offset:]
                     if status == 'running':
-                        update_in(data, 'status.last_update', str(datetime.now()))
+                        now = str(datetime.now())
+                        update_in(data, 'status.last_update', now)
                         if new_status == 'failed':
                             update_in(data, 'status.state', 'error')
-                            update_in(data, 'status.error', 'error, check logs')
+                            update_in(
+                                data, 'status.error', 'error, check logs')
                             _db.store_run(data, uid, project)
                         if new_status == 'succeeded':
                             update_in(data, 'status.state', 'completed')
@@ -568,8 +571,12 @@ def init_app():
     global _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
-    _db = FileRunDB(config.httpdb.dirpath, '.yaml')
-    #_db = SQLDB(config.httpdb.dsn)
+    if config.httpdb.db_type == 'sqldb':
+        logger.info('using SQLDB')
+        _db = SQLDB(config.httpdb.dsn)
+    else:
+        logger.info('using FileRunDB')
+        _db = FileRunDB(config.httpdb.dirpath)
     _db.connect()
     try:
         _k8s = k8s_helper()

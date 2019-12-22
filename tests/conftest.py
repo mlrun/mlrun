@@ -18,6 +18,7 @@ from os import environ
 from pathlib import Path
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
+from sys import platform
 
 
 here = Path(__file__).absolute().parent
@@ -35,6 +36,20 @@ environ['MLRUN_DBPATH'] = rundb_path
 
 Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
 environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
+
+
+def check_docker():
+    if not platform.startswith('linux'):
+        return False
+
+    with open('/proc/1/cgroup') as fp:
+        for line in fp:
+            if '/docker/' in line:
+                return True
+    return False
+
+
+in_docker = check_docker()
 
 # This must be *after* environment changes above
 from mlrun import RunObject, RunTemplate  # noqa

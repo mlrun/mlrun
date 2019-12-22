@@ -12,29 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os import environ
 from subprocess import PIPE, run
 from uuid import uuid4
-from sys import platform
 
 import pytest
 
-from conftest import here, wait_for_server, is_ci
+from conftest import here, in_docker, wait_for_server
 
 prj_dir = here.parent
+is_ci = 'CI' in environ
 
 
-def check_docker():
-    if not platform.startswith('linux'):
-        return False
-
-    with open('/proc/1/cgroup') as fp:
-        for line in fp:
-            if '/docker/' in line:
-                return True
-    return False
-
-
-in_docker = check_docker()
 should_run = (not in_docker) and is_ci
 
 

@@ -166,6 +166,13 @@ def set_named_item(obj, item):
         obj[item.name] = item
 
 
+def get_item_name(item, attr='name'):
+    if isinstance(item, dict):
+        return item[attr]
+    else:
+        return getattr(item, attr, None)
+
+
 def apply_kfp(modify, cop, runtime):
     modify(cop)
     api = client.ApiClient()

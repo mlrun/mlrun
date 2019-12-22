@@ -26,7 +26,7 @@ from nuclio.deploy import deploy_config
 from ..kfpops import deploy_op
 from ..platforms.iguazio import v3io_to_vol
 from .base import BaseRuntime, RunError, FunctionSpec
-from .utils import log_std, set_named_item, apply_kfp
+from .utils import log_std, set_named_item, apply_kfp, get_item_name
 from ..utils import logger, update_in, get_in
 from ..lists import RunList
 from ..model import RunObject
@@ -77,7 +77,7 @@ class NuclioSpec(FunctionSpec):
         self.function_handler = ''
 
         self.resources = resources or {}
-        self.env = env or {}
+        self.env = env or []
         self._volumes = {}
         self._volume_mounts = {}
         self.volumes = volumes or []
@@ -149,7 +149,14 @@ class RemoteRuntime(BaseRuntime):
         self._spec = self._verify_dict(spec, 'spec', NuclioSpec)
 
     def set_env(self, name, value):
-        self.spec.env[name] = value
+        i = 0
+        new_var = client.V1EnvVar(name=name, value=value)
+        for v in self.spec.env:
+            if get_item_name(v) == name:
+                self.spec.env[i] = new_var
+                return self
+            i += 1
+        self.spec.env.append(new_var)
         return self
 
     def set_config(self, key, value):
@@ -178,7 +185,7 @@ class RemoteRuntime(BaseRuntime):
         for key in ['V3IO_FRAMESD', 'V3IO_USERNAME',
                     'V3IO_ACCESS_KEY', 'V3IO_API']:
             if key in environ:
-                self.spec.env[key] = environ[key]
+                self.set_env(key, environ[key])
         if local and remote:
             self.add_volume(local, remote)
         return self
@@ -227,7 +234,9 @@ class RemoteRuntime(BaseRuntime):
     def deploy(self, dashboard='', project='', tag='', kind=None):
 
         self.set_config('metadata.labels.mlrun/class', self.kind)
-        spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
+        env_dict = {get_item_name(v): get_item_name(v, 'value')
+                    for v in self.spec.env}
+        spec = nuclio.ConfigSpec(env=env_dict, config=self.spec.config)
         spec.cmd = self.spec.build_commands
         project = project or self.metadata.project or 'default'
         handler = self.spec.function_handler

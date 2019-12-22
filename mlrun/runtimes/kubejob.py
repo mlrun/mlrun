@@ -15,7 +15,7 @@ import json
 import uuid
 from kubernetes import client
 
-from .utils import AsyncLogWriter
+from .utils import AsyncLogWriter, apply_kfp, set_named_item
 from ..model import RunObject
 from ..utils import normalize_name, update_in, logger
 from .base import RunError, FunctionSpec
@@ -30,6 +30,8 @@ class KubejobSpec(FunctionSpec):
         super().__init__(command=command, args=args, image=image,
                          mode=mode, build=build,
                          entry_points=entry_points, description=description)
+        self._volumes = {}
+        self._volume_mounts = {}
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
@@ -37,6 +39,37 @@ class KubejobSpec(FunctionSpec):
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
+
+    @property
+    def volumes(self) -> list:
+        return list(self._volumes.values())
+
+    @volumes.setter
+    def volumes(self, volumes):
+        self._volumes = {}
+        if volumes:
+            for vol in volumes:
+                set_named_item(self._volumes, vol)
+
+    @property
+    def volume_mounts(self) -> list:
+        return list(self._volume_mounts.values())
+
+    @volume_mounts.setter
+    def volume_mounts(self, volume_mounts):
+        self._volume_mounts = {}
+        if volume_mounts:
+            for vol in volume_mounts:
+                set_named_item(self._volume_mounts, vol)
+
+    def update_vols_and_mounts(self, volumes, volume_mounts):
+        if volumes:
+            for vol in volumes:
+                set_named_item(self._volumes, vol)
+
+        if volume_mounts:
+            for vol in volume_mounts:
+                set_named_item(self._volume_mounts, vol)
 
 
 class KubejobRuntime(ContainerRuntime):
@@ -61,33 +94,13 @@ class KubejobRuntime(ContainerRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', KubejobSpec)
 
-    def apply(self, modify):
-        modify(self._cop)
-        self._merge()
-        return self
-
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude)
         api = client.ApiClient()
         return api.sanitize_for_serialization(struct)
 
-    def _merge(self):
-        api = client.ApiClient()
-        for k, v in self._cop.pod_labels.items():
-            self.metadata.labels[k] = v
-        for k, v in self._cop.pod_annotations.items():
-            self.metadata.annotations[k] = v
-        if self._cop.container.env:
-            [self.spec.env.append(e) for e in self._cop.container.env]
-            self._cop.container.env.clear()
-        if self._cop.volumes:
-            [self.spec.volumes.append(v) for v in
-             api.sanitize_for_serialization(self._cop.volumes)]
-            self._cop.volumes.clear()
-        if self._cop.container.volume_mounts:
-            [self.spec.volume_mounts.append(v) for v in
-             api.sanitize_for_serialization(self._cop.container.volume_mounts)]
-            self._cop.container.volume_mounts.clear()
+    def apply(self, modify):
+        return apply_kfp(modify, self._cop, self)
 
     def set_env(self, name, value):
         self.spec.env.append(client.V1EnvVar(name=name, value=value))

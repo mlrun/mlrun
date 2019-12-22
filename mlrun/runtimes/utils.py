@@ -20,6 +20,7 @@ from ..config import config
 from .generators import selector
 from ..utils import get_in
 from ..artifacts import TableArtifact
+from kubernetes import client
 
 
 class RunError(Exception):
@@ -156,3 +157,33 @@ def default_image_name(function):
     meta = function.metadata
     proj = meta.project or config.default_project
     return '.mlrun/func-{}-{}-{}'.format(proj, meta.name, meta.tag or 'latest')
+
+
+def set_named_item(obj, item):
+    if isinstance(item, dict):
+        obj[item['name']] = item
+    else:
+        obj[item.name] = item
+
+
+def apply_kfp(modify, cop, runtime):
+    modify(cop)
+    api = client.ApiClient()
+    for k, v in cop.pod_labels.items():
+        runtime.metadata.labels[k] = v
+    for k, v in cop.pod_annotations.items():
+        runtime.metadata.annotations[k] = v
+    if cop.container.env:
+        [runtime.spec.env.append(e) for e in cop.container.env]
+        cop.container.env.clear()
+
+    if cop.volumes and cop.container.volume_mounts:
+        vols = api.sanitize_for_serialization(
+            cop.volumes)
+        mounts = api.sanitize_for_serialization(
+            cop.container.volume_mounts)
+        runtime.spec.update_vols_and_mounts(vols, mounts)
+        cop.volumes.clear()
+        cop.container.volume_mounts.clear()
+
+    return runtime

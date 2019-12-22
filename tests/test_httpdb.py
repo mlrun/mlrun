@@ -25,7 +25,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server  # , in_docker
+from conftest import wait_for_server
 
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
@@ -129,11 +129,10 @@ def server_fixture():
     return create, cleanup
 
 
-servers = ['server']
-# FIXME:
-# if not in_docker:
-#    servers.append('docker')
-# servers = ['docker']
+servers = [
+    'server',
+    # 'docker',
+]
 
 
 @pytest.fixture(scope='module', params=servers)

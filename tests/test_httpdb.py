@@ -168,7 +168,7 @@ def test_log_fs(create_server):
     prj, uid, body = 'p19', '3920', b'log data'
     db.store_log(uid, prj, body)
 
-    data = db.get_log(uid, prj)
+    _, data = db.get_log(uid, prj)
     assert data == body, 'bad log data'
 
     log_file = f'{dirpath}/runs/{prj}/{uid}.log'

@@ -181,7 +181,8 @@ def apply_kfp(modify, cop, runtime):
     for k, v in cop.pod_annotations.items():
         runtime.metadata.annotations[k] = v
     if cop.container.env:
-        [runtime.spec.env.append(e) for e in cop.container.env]
+        [runtime.spec.env.append(e)
+         for e in api.sanitize_for_serialization(cop.container.env)]
         cop.container.env.clear()
 
     if cop.volumes and cop.container.volume_mounts:

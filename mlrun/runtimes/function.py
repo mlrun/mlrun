@@ -26,7 +26,7 @@ from nuclio.deploy import deploy_config
 from ..kfpops import deploy_op
 from ..platforms.iguazio import v3io_to_vol
 from .base import BaseRuntime, RunError, FunctionSpec
-from .utils import log_std
+from .utils import log_std, set_named_item, apply_kfp, get_item_name
 from ..utils import logger, update_in, get_in
 from ..lists import RunList
 from ..model import RunObject
@@ -59,7 +59,7 @@ def new_model_server(name, model_class: str, models: dict = None, filename='',
 class NuclioSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  entry_points=None, description=None,
-                 volumes=None, env=None, resources=None,
+                 volumes=None, volume_mounts=None, env=None, resources=None,
                  config=None, build_commands=None, base_spec=None,
                  source=None, image_pull_policy=None, function_kind=None,
                  service_account=None):
@@ -70,22 +70,75 @@ class NuclioSpec(FunctionSpec):
         self.base_spec = base_spec or ''
         self.function_kind = function_kind
         self.source = source or ''
-        self.volumes = volumes or []
         self.build_commands = build_commands or []
-        self.env = env or {}
         self.config = config or {}
-        self.resources = resources or {}
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self.function_handler = ''
+
+        self.resources = resources or {}
+        self.env = env or []
+        self._volumes = {}
+        self._volume_mounts = {}
+        self.volumes = volumes or []
+        self.volume_mounts = volume_mounts or []
+
+    @property
+    def volumes(self) -> list:
+        return list(self._volumes.values())
+
+    @volumes.setter
+    def volumes(self, volumes):
+        self._volumes = {}
+        if volumes:
+            for vol in volumes:
+                set_named_item(self._volumes, vol)
+
+    @property
+    def volume_mounts(self) -> list:
+        return list(self._volume_mounts.values())
+
+    @volume_mounts.setter
+    def volume_mounts(self, volume_mounts):
+        self._volume_mounts = {}
+        if volume_mounts:
+            for vol in volume_mounts:
+                set_named_item(self._volume_mounts, vol)
+
+    def update_vols_and_mounts(self, volumes, volume_mounts):
+        if volumes:
+            for vol in volumes:
+                set_named_item(self._volumes, vol)
+
+        if volume_mounts:
+            for vol in volume_mounts:
+                set_named_item(self._volume_mounts, vol)
+
+    def to_nuclio_vol(self):
+        vols = []
+        for name, vol in self._volumes.items():
+            if name not in self._volume_mounts:
+                raise ValueError('found volume without a volume mount ({})'.format(name))
+            vols.append({
+                'volume': vol,
+                'volumeMount': self._volume_mounts[name],
+            })
+        return vols
 
 
 class RemoteRuntime(BaseRuntime):
     kind = 'remote'
 
     def __init__(self, metadata=None, spec=None):
+        try:
+            from kfp.dsl import ContainerOp
+        except (ImportError, ModuleNotFoundError) as e:
+            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
+            raise e
+
         super().__init__(metadata, spec)
         self.verbose = False
+        self._cop = ContainerOp('name', 'image')
 
     @property
     def spec(self) -> NuclioSpec:
@@ -96,7 +149,14 @@ class RemoteRuntime(BaseRuntime):
         self._spec = self._verify_dict(spec, 'spec', NuclioSpec)
 
     def set_env(self, name, value):
-        self.spec.env[name] = value
+        i = 0
+        new_var = client.V1EnvVar(name=name, value=value)
+        for v in self.spec.env:
+            if get_item_name(v) == name:
+                self.spec.env[i] = new_var
+                return self
+            i += 1
+        self.spec.env.append(new_var)
         return self
 
     def set_config(self, key, value):
@@ -109,11 +169,11 @@ class RemoteRuntime(BaseRuntime):
             name, remote=remote, access_key=access_key, user=user)
         api = client.ApiClient()
         vol = api.sanitize_for_serialization(vol)
-        self.spec.volumes.append({
-            'volume': vol,
-            'volumeMount': {'name': name, 'mountPath': local},
-        })
+        self.spec.update_vols_and_mounts([vol], [{'name': name, 'mountPath': local}])
         return self
+
+    def apply(self, modify):
+        return apply_kfp(modify, self._cop, self)
 
     def add_trigger(self, name, spec):
         if hasattr(spec, 'to_dict'):
@@ -125,7 +185,7 @@ class RemoteRuntime(BaseRuntime):
         for key in ['V3IO_FRAMESD', 'V3IO_USERNAME',
                     'V3IO_ACCESS_KEY', 'V3IO_API']:
             if key in environ:
-                self.spec.env[key] = environ[key]
+                self.set_env(key, environ[key])
         if local and remote:
             self.add_volume(local, remote)
         return self
@@ -174,7 +234,9 @@ class RemoteRuntime(BaseRuntime):
     def deploy(self, dashboard='', project='', tag='', kind=None):
 
         self.set_config('metadata.labels.mlrun/class', self.kind)
-        spec = nuclio.ConfigSpec(env=self.spec.env, config=self.spec.config)
+        env_dict = {get_item_name(v): get_item_name(v, 'value')
+                    for v in self.spec.env}
+        spec = nuclio.ConfigSpec(env=env_dict, config=self.spec.config)
         spec.cmd = self.spec.build_commands
         project = project or self.metadata.project or 'default'
         handler = self.spec.function_handler
@@ -185,7 +247,7 @@ class RemoteRuntime(BaseRuntime):
             config = nuclio.config.extend_config(
                 self.spec.base_spec, spec, tag, self.spec.source)
             update_in(config, 'metadata.name', self.metadata.name)
-            update_in(config, 'spec.volumes', self.spec.volumes)
+            update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
 
             logger.info('deploy started')
             addr = nuclio.deploy.deploy_config(
@@ -203,7 +265,7 @@ class RemoteRuntime(BaseRuntime):
                                                    kind=kind,
                                                    verbose=self.verbose)
 
-            update_in(config, 'spec.volumes', self.spec.volumes)
+            update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
             addr = deploy_config(
                 config, dashboard_url=dashboard, name=name, project=project,
                 tag=tag, verbose=self.verbose, create_new=True)

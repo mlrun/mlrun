@@ -19,3 +19,4 @@ from .mpijob import MpiRuntime  # noqa
 from .dask import DaskCluster  # noqa
 from .kubejob import KubejobRuntime  # noqa
 from .sparkjob import SparkRuntime  # noqa
+from .nuclio import nuclio_init_hook

@@ -40,7 +40,14 @@ The code is in early development stages and provided as a reference, we would li
 and the idea is to make all the resources pluggable, this way developers code to one API and can use various open source projects or commercial products.     
 
 ## Content
+#### Installation
 
+run `pip install mlrun` to get the library and CLI
+
+For Kubernetes cluster installation, you need to install the API service and UI, 
+both YAMLs can be found in `./hack`, edit according to the comments and 
+apply to your cluster using `kubectl apply -f <yaml-file>`
+ 
 #### Architecture and tutorial
 
 * [Managed and portable execution a.k.a Serverless](#managed-and-portable-execution)
@@ -55,8 +62,8 @@ and the idea is to make all the resources pluggable, this way developers code to
 * [Learn MLRun basics](examples/mlrun_basics.ipynb)
 * [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun_jobs.ipynb)
 * Examples for MLRun with scale-out runtimes
-  * [Horovod (TensorFlow) and MpiJob](examples/mlrun_mpijob_classify.ipynb)
-  * [Nuclio](examples/train_xgboost_serverless.ipynb)
+  * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
+  * [Nuclio (Real-time Serverless)](examples/train_xgboost_serverless.ipynb)
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
@@ -106,6 +113,15 @@ minimal coding effort.
 
 moving from run on a local notebook, to running in a container job, a scaled-out framework
 or an automated workflow engine like KubeFlow is seamless, just swap the runtime/function or wire functions in a graph. [see this tutorial for details]()
+
+Functions can be created using one of three methods:
+* `new_function()` - create a function object from scratch or another function
+* `code_to_function()` - functions are created from source code, source URL or notebook
+* `import_function()` - functions are imported from a local/remote YAML file or from the function DB (prefix: `db://<project>/<name>[:tag]`)
+
+`function.save(tag="")` (store in db) and `function.export(target-path)` (store yaml) can be used to save functions
+
+See each function doc/help and examples for details
 
 ### Automated parametrization, artifact tracking and logging 
 
@@ -304,6 +320,23 @@ functions can be built from source code, function specs, notebooks, GIT repos, o
 build can also be done using the CLI, you need to provide the function `YAML` file 
 (can be generated using `function.to_yaml()` or `function.export()`)   
 
+Example `function.yaml`:
+
+```yaml
+kind: job
+metadata:
+  name: remote-git-test
+  project: default
+  tag: latest
+spec:
+  command: 'myfunc.py'
+  args: []
+  image_pull_policy: Always
+  build:
+    commands: ['pip install pandas']
+    base_image: mlrun/mlrun:dev
+    source: git://github.com/mlrun/ci-demo.git
+```
 use:
 
     mlrun build function.yaml   

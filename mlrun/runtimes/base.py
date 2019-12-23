@@ -218,8 +218,9 @@ class BaseRuntime(ModelObj):
             raise RunError("function image is not built/ready, use .build() method first")
 
         if not self.is_child and self.kind != 'handler':
+            dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
-                meta.name, meta.uid, self.spec.rundb))
+                meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
             meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
             hashkey = calc_hash(self)

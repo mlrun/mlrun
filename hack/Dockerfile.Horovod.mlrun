@@ -77,7 +77,7 @@ RUN cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_confi
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
     mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
 
-RUN pip install git+https://github.com/mlrun/mlrun.git@v40-fixes2
+RUN pip install mlrun
 RUN useradd -ms /bin/bash horovod
 #RUN chown -R horovod:horovod /examples
 USER horovod

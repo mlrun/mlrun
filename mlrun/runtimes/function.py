@@ -23,9 +23,10 @@ from sys import stdout
 from kubernetes import client
 from nuclio.deploy import deploy_config
 
+from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
 from ..platforms.iguazio import v3io_to_vol
-from .base import BaseRuntime, RunError, FunctionSpec
+from .base import BaseRuntime, RunError
 from .utils import log_std, set_named_item, apply_kfp, get_item_name
 from ..utils import logger, update_in, get_in
 from ..lists import RunList
@@ -56,13 +57,26 @@ def new_model_server(name, model_class: str, models: dict = None, filename='',
     return f
 
 
-class NuclioSpec(FunctionSpec):
+class NuclioSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 entry_points=None, description=None,
+                 entry_points=None, description=None, replicas=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
                  config=None, build_commands=None, base_spec=None,
                  source=None, image_pull_policy=None, function_kind=None,
                  service_account=None):
+
+        super().__init__(command=command,
+                         args=args,
+                         image=image,
+                         mode=mode,
+                         volumes=volumes,
+                         volume_mounts=volume_mounts,
+                         env=env,
+                         resources=resources,
+                         replicas=replicas,
+                         image_pull_policy=image_pull_policy,
+                         service_account=service_account)
+
         super().__init__(command=command, args=args, image=image,
                          mode=mode, build=None,
                          entry_points=entry_points, description=description)
@@ -72,16 +86,8 @@ class NuclioSpec(FunctionSpec):
         self.source = source or ''
         self.build_commands = build_commands or []
         self.config = config or {}
-        self.image_pull_policy = image_pull_policy
-        self.service_account = service_account
         self.function_handler = ''
 
-        self.resources = resources or {}
-        self.env = env or []
-        self._volumes = {}
-        self._volume_mounts = {}
-        self.volumes = volumes or []
-        self.volume_mounts = volume_mounts or []
 
     @property
     def volumes(self) -> list:
@@ -126,19 +132,8 @@ class NuclioSpec(FunctionSpec):
         return vols
 
 
-class RemoteRuntime(BaseRuntime):
+class RemoteRuntime(KubeResource):
     kind = 'remote'
-
-    def __init__(self, metadata=None, spec=None):
-        try:
-            from kfp.dsl import ContainerOp
-        except (ImportError, ModuleNotFoundError) as e:
-            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
-            raise e
-
-        super().__init__(metadata, spec)
-        self.verbose = False
-        self._cop = ContainerOp('name', 'image')
 
     @property
     def spec(self) -> NuclioSpec:
@@ -148,32 +143,13 @@ class RemoteRuntime(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', NuclioSpec)
 
-    def set_env(self, name, value):
-        i = 0
-        new_var = client.V1EnvVar(name=name, value=value)
-        for v in self.spec.env:
-            if get_item_name(v) == name:
-                self.spec.env[i] = new_var
-                return self
-            i += 1
-        self.spec.env.append(new_var)
-        return self
-
     def set_config(self, key, value):
         self.spec.config[key] = value
         return self
 
     def add_volume(self, local, remote, name='fs',
                    access_key='', user=''):
-        vol = v3io_to_vol(
-            name, remote=remote, access_key=access_key, user=user)
-        api = client.ApiClient()
-        vol = api.sanitize_for_serialization(vol)
-        self.spec.update_vols_and_mounts([vol], [{'name': name, 'mountPath': local}])
-        return self
-
-    def apply(self, modify):
-        return apply_kfp(modify, self._cop, self)
+        raise Exception('deprecated, use .apply(mount_v3io())')
 
     def add_trigger(self, name, spec):
         if hasattr(spec, 'to_dict'):
@@ -190,10 +166,11 @@ class RemoteRuntime(BaseRuntime):
             self.add_volume(local, remote)
         return self
 
-    def with_http(self, workers=8, port=0,
-                  host=None, paths=None, canary=None):
+    def with_http(self, workers=8, port=0, host=None,
+                  paths=None, canary=None, secret=None):
         self.add_trigger('http', nuclio.HttpTrigger(
-            workers, port=port, host=host, paths=paths, canary=canary))
+            workers, port=port, host=host, paths=paths,
+            canary=canary, secret=secret))
         return self
 
     def add_model(self, key, model):

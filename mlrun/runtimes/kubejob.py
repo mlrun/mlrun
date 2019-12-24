@@ -11,122 +11,153 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-import uuid
+
 from kubernetes import client
-
-from .utils import AsyncLogWriter, apply_kfp, set_named_item
+from .pod import KubeResource
+from .utils import AsyncLogWriter, add_code_metadata, default_image_name
 from ..model import RunObject
-from ..utils import normalize_name, update_in, logger
-from .base import RunError, FunctionSpec
-from .container import ContainerRuntime
+from .base import RunError
+from ..db import RunDBError
+from ..builder import build_runtime
+from ..utils import get_in, logger
+
+import time
+from base64 import b64encode
 
 
-class KubejobSpec(FunctionSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None,
-                 volumes=None, volume_mounts=None, env=None, resources=None,
-                 entry_points=None, description=None, replicas=None,
-                 image_pull_policy=None, service_account=None, build=None):
-        super().__init__(command=command, args=args, image=image,
-                         mode=mode, build=build,
-                         entry_points=entry_points, description=description)
-        self._volumes = {}
-        self._volume_mounts = {}
-        self.volumes = volumes or []
-        self.volume_mounts = volume_mounts or []
-        self.env = env or []
-        self.resources = resources or {}
-        self.replicas = replicas
-        self.image_pull_policy = image_pull_policy
-        self.service_account = service_account
-
-    @property
-    def volumes(self) -> list:
-        return list(self._volumes.values())
-
-    @volumes.setter
-    def volumes(self, volumes):
-        self._volumes = {}
-        if volumes:
-            for vol in volumes:
-                set_named_item(self._volumes, vol)
-
-    @property
-    def volume_mounts(self) -> list:
-        return list(self._volume_mounts.values())
-
-    @volume_mounts.setter
-    def volume_mounts(self, volume_mounts):
-        self._volume_mounts = {}
-        if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
-
-    def update_vols_and_mounts(self, volumes, volume_mounts):
-        if volumes:
-            for vol in volumes:
-                set_named_item(self._volumes, vol)
-
-        if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
-
-
-class KubejobRuntime(ContainerRuntime):
+class KubejobRuntime(KubeResource):
     kind = 'job'
     _is_nested = True
 
-    def __init__(self, spec=None, metadata=None):
-        try:
-            from kfp.dsl import ContainerOp
-        except (ImportError, ModuleNotFoundError) as e:
-            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
-            raise e
+    _is_remote = True
 
-        super().__init__(metadata, spec)
-        self._cop = ContainerOp('name', 'image')
+    def with_code(self, from_file='', body=None):
+        if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
+            from nuclio import build_file
+            name, spec, code = build_file(from_file)
+            self.spec.build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+            return self
 
-    @property
-    def spec(self) -> KubejobSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', KubejobSpec)
-
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude)
-        api = client.ApiClient()
-        return api.sanitize_for_serialization(struct)
-
-    def apply(self, modify):
-        return apply_kfp(modify, self._cop, self)
-
-    def set_env(self, name, value):
-        self.spec.env.append(client.V1EnvVar(name=name, value=value))
+        if from_file:
+            with open(from_file) as fp:
+                body = fp.read()
+        self.spec.build.functionSourceCode = b64encode(body.encode('utf-8')).decode('utf-8')
         return self
 
-    def gpus(self, gpus, gpu_type='nvidia.com/gpu'):
-        update_in(self.spec.resources, ['limits', gpu_type], gpus)
+    @property
+    def is_deployed(self):
+        if self.spec.image:
+            return True
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
-        limits = {}
-        if gpus:
-            limits[gpu_type] = gpus
-        if mem:
-            limits['memory'] = mem
-        if cpu:
-            limits['cpu'] = cpu
-        update_in(self.spec.resources, 'limits', limits)
+        db = self._get_db()
+        if db and db.kind == 'http':
+            try:
+                db.get_builder_status(self, logs=False)
+            except RunDBError:
+                pass
 
-    # TODO: Verify if gpus are needed here too
-    def with_requests(self, mem=None, cpu=None):
-        requests = {}
-        if mem:
-            requests['memory'] = mem
-        if cpu:
-            requests['cpu'] = cpu
-        update_in(self.spec.resources, 'requests', requests)
+        if self.spec.image:
+            return True
+        if self.status.state and self.status.state == 'ready':
+            return True
+        return False
+
+    def build_config(self, image='', base_image=None,
+                     commands: list = None, secret=None):
+        self.spec.build.image = image or self.spec.build.image
+        if commands:
+            if not isinstance(commands, list):
+                raise ValueError('commands must be a string list')
+            self.spec.build.commands = self.spec.build.commands or []
+            self.spec.build.commands += commands
+        if secret:
+            self.spec.build.secret = secret
+        if base_image:
+            self.spec.build.base_image = base_image
+
+    def build(self, **kw):
+        raise ValueError('.build() is deprecated, use .deploy() instead')
+
+    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False):
+        """deploy function, build container with dependencies"""
+
+        if skip_deployed and self.is_deployed:
+            return 'ready'
+
+        self.spec.build.image = self.spec.build.image \
+                                or default_image_name(self)
+        self.spec.image = ''
+        self.status.state = ''
+        add_code_metadata(self.metadata.labels)
+
+        db = self._get_db()
+        if db and db.kind == 'http':
+            logger.info('starting remote build, image: {}'.format(
+                self.spec.build.image))
+            data = db.remote_builder(self, with_mlrun)
+            self.status.state = get_in(data, 'data.status.state')
+            self.status.build_pod = get_in(data, 'data.status.build_pod')
+            self.spec.image = get_in(data, 'data.spec.image')
+            ready = data.get('ready', False)
+            if watch:
+                state = self._build_watch(watch)
+                ready = state == 'ready'
+                self.status.state = state
+        else:
+            ready = build_runtime(self, with_mlrun, watch)
+
+        return ready
+
+    def _build_watch(self, watch=True, logs=True):
+        db = self._get_db()
+        offset = 0
+        try:
+            text = db.get_builder_status(self, 0, logs=logs)
+        except RunDBError:
+            raise ValueError('function or build process not found')
+
+        if text:
+            print(text.decode())
+        if watch:
+            while self.status.state in ['pending', 'running']:
+                offset += len(text)
+                time.sleep(2)
+                text = db.get_builder_status(self, offset, logs=logs)
+                if text:
+                    print(text.decode(), end='')
+
+        return self.status.state
+
+    def builder_status(self, watch=True, logs=True):
+        db = self._get_db()
+        if db and db.kind == 'http':
+            return self._build_watch(watch, logs)
+
+        else:
+            pod = self.status.build_pod
+            if not self.status.state == 'ready' and pod:
+                k8s = self._get_k8s()
+                status = k8s.get_pod_status(pod)
+                if logs:
+                    if watch:
+                        status = k8s.watch(pod)
+                    else:
+                        resp = k8s.logs(pod)
+                        if resp:
+                            print(resp.encode())
+
+                if status == 'succeeded':
+                    self.status.build_pod = None
+                    self.status.state = 'ready'
+                    logger.info('build completed successfully')
+                    return 'ready'
+                if status in ['failed', 'error']:
+                    self.status.state = status
+                    logger.error(' build {}, watch the build pod logs: {}'.format(status, pod))
+                    return status
+
+                logger.info('builder status is: {}, wait for it to complete'.format(status))
+            return None
 
     def _run(self, runobj: RunObject, execution):
 
@@ -158,23 +189,6 @@ class KubejobRuntime(ContainerRuntime):
             runobj.status.status_text = txt
 
         return None
-
-    def _get_meta(self, runobj, unique=False):
-        namespace = self._get_k8s().ns()
-        uid = runobj.metadata.uid
-        labels = {'mlrun/class': self.kind, 'mlrun/uid': uid}
-        new_meta = client.V1ObjectMeta(namespace=namespace,
-                                       labels=labels)
-
-        name = runobj.metadata.name or 'mlrun'
-        norm_name = '{}-'.format(normalize_name(name))
-        if unique:
-            norm_name += uuid.uuid4().hex[:8]
-            new_meta.name = norm_name
-            runobj.set_label('mlrun/job', norm_name)
-        else:
-            new_meta.generate_name = norm_name
-        return new_meta
 
 
 def func_to_pod(image, runtime, extra_env, command, args):

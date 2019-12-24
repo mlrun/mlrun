@@ -14,7 +14,9 @@ import json
 # limitations under the License.
 
 import os
+from io import BytesIO
 from typing import Dict
+from urllib.request import urlopen
 
 
 def nuclio_serving_init(context, data):
@@ -87,6 +89,29 @@ class HTTPHandler:
             model.load()
         return model
 
+    def parse_event(self, event):
+        body = {"instances": []}
+        try:
+            body = json.loads(event.body)
+            if 'data_url' in body:
+                # Get data from URL
+                url = body['data_url']
+                self.context.logger.debug_with('downloading data', url=url)
+                data = urlopen(url).read()
+                sample = BytesIO(data)
+                body['instances'].append(sample)
+
+        except json.decoder.JSONDecodeError as e:
+            if event.content_type.startswith('image/'):
+                sample = BytesIO(event.body)
+                body['instances'].append(sample)
+            else:
+                return self.context.Response(
+                    body="Unrecognized request format: %s" % e,
+                    content_type='text/plain',
+                    status_code=400)
+        return body
+
     def validate(self, request):
         if "instances" not in request:
             return self.context.Response(
@@ -106,13 +131,8 @@ class HTTPHandler:
 class PredictHandler(HTTPHandler):
     def post(self, context, name: str, event):
         model = self.get_model(name)
-        try:
-            body = json.loads(event.body)
-        except json.decoder.JSONDecodeError as e:
-            return context.Response(body="Unrecognized request format: %s" % e,
-                                    content_type='text/plain',
-                                    status_code=400)
-
+        context.logger.info('event type: {}'.format(type(event.body)))
+        body = self.parse_event(event)
         request = model.preprocess(body)
         request = self.validate(request)
         response = model.predict(request)

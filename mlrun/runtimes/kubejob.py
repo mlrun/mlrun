@@ -177,7 +177,7 @@ class KubejobRuntime(KubeResource):
         except client.rest.ApiException as e:
             raise RunError(str(e))
 
-        if pod_name and (self.interactive or self.kfp):
+        if pod_name and self.kfp:
             writer = AsyncLogWriter(self._db_conn, runobj)
             status = k8s.watch(pod_name, namespace, writer=writer)
 

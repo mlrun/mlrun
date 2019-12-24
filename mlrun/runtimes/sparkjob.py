@@ -170,7 +170,7 @@ class SparkRuntime(KubejobRuntime):
                 driver, status = self._get_driver(meta.name, meta.namespace)
                 execution.set_hostname(driver)
                 execution.set_state(state.lower())
-                if self.interactive or self.kfp:
+                if self.kfp:
                     status = self._get_k8s().watch(driver, meta.namespace)
                     logger.info('SparkJob {} finished with state {}'.format(meta.name, status))
                     if status == 'succeeded':

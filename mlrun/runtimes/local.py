@@ -26,7 +26,6 @@ from ..utils import logger
 from ..execution import MLClientCtx
 from .base import BaseRuntime
 from .utils import log_std
-from .container import ContainerRuntime
 from sys import executable
 from subprocess import run, PIPE
 
@@ -56,7 +55,7 @@ class HandlerRuntime(BaseRuntime):
         return context.to_dict()
 
 
-class LocalRuntime(ContainerRuntime):
+class LocalRuntime(BaseRuntime):
     kind = 'local'
     _is_remote = False
 

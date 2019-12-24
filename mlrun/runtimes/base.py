@@ -100,7 +100,6 @@ class BaseRuntime(ModelObj):
         self._secrets = None
         self._k8s = None
         self._is_built = False
-        self.interactive = True
         self.is_child = False
         self._status = None
         self.status = None

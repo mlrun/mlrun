@@ -19,11 +19,12 @@ from kubernetes import client
 from ..execution import MLClientCtx
 from .local import get_func_arg
 from ..model import RunObject
-from .kubejob import KubejobRuntime, KubejobSpec
+from .kubejob import KubejobRuntime
+from .pod import KubeResourceSpec
 from ..lists import RunList
 from ..config import config
 
-class DaskSpec(KubejobSpec):
+class DaskSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, build=None,
                  entry_points=None, description=None, replicas=None,

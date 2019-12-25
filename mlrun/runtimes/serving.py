@@ -50,14 +50,13 @@ def nuclio_serving_init(context, data):
     setattr(context, 'router', router)
 
 
-err_string = 'Got path: {} \n Path must be <version>/<host>/<model-name>/<action> \nactions: {} \nmodels: {}'
+err_string = 'Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}'
 
 
 def nuclio_serving_handler(context, event):
     # check if valid route & model
     try:
-        api_ver, section, model_name, route = event.path.strip('/').split('/')
-
+        model_name, route = event.path.strip('/').split('/')
         route = context.router[route]
     except:
         return context.Response(
@@ -87,6 +86,7 @@ class HTTPHandler:
         model = self.models[name]
         if not model.ready:
             model.load()
+        setattr(model, 'context', self.context)
         return model
 
     def parse_event(self, event):

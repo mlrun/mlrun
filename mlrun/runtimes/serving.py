@@ -105,6 +105,7 @@ class HTTPHandler:
             if event.content_type.startswith('image/'):
                 sample = BytesIO(event.body)
                 body['instances'].append(sample)
+                body['content_type'] = event.content_type
             else:
                 return self.context.Response(
                     body="Unrecognized request format: %s" % e,

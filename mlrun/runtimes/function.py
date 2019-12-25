@@ -60,7 +60,7 @@ class NuclioSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  entry_points=None, description=None, replicas=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 config=None, build_commands=None, base_spec=None,
+                 config=None, base_spec=None, no_cache=None,
                  source=None, image_pull_policy=None, function_kind=None,
                  service_account=None):
 
@@ -83,9 +83,9 @@ class NuclioSpec(KubeResourceSpec):
         self.base_spec = base_spec or ''
         self.function_kind = function_kind
         self.source = source or ''
-        self.build_commands = build_commands or []
         self.config = config or {}
         self.function_handler = ''
+        self.no_cache = no_cache
 
 
     @property
@@ -213,9 +213,11 @@ class RemoteRuntime(KubeResource):
         env_dict = {get_item_name(v): get_item_name(v, 'value')
                     for v in self.spec.env}
         spec = nuclio.ConfigSpec(env=env_dict, config=self.spec.config)
-        spec.cmd = self.spec.build_commands
+        spec.cmd = self.spec.build.commands or []
         project = project or self.metadata.project or 'default'
         handler = self.spec.function_handler
+        if self.spec.no_cache:
+            spec.set_config('spec.build.noCache', True)
 
         if self.spec.base_spec:
             if kind:

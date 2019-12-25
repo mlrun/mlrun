@@ -61,9 +61,10 @@ apply to your cluster using `kubectl apply -f <yaml-file>`
 #### Examples & Notebooks
 * [Learn MLRun basics](examples/mlrun_basics.ipynb)
 * [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun_jobs.ipynb)
+* [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train_xgboost_serverless.ipynb)
 * Examples for MLRun with scale-out runtimes
   * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
-  * [Nuclio (Real-time Serverless)](examples/train_xgboost_serverless.ipynb)
+  * [Nuclio-serving (Serverless model serving)](examples/nuclio_serving.ipynb)
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)

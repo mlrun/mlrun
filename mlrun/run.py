@@ -143,6 +143,10 @@ def import_function(url='', secrets=None, db=''):
         project, name, tag = parse_function_uri(url)
         db = get_run_db(db or default_dbpath()).connect(secrets)
         runtime = db.get_function(name, project, tag)
+        if not runtime:
+            raise KeyError('function {}:{} not found in the DB'.format(
+                name, tag
+            ))
         return new_function(runtime=runtime)
 
     runtime = import_function_to_dict(url, secrets)

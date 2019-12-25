@@ -250,7 +250,7 @@ class BaseRuntime(ModelObj):
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)
 
-        elif self._is_remote and not self._is_api_server:
+        elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning('warning!, Api url not set, trying to exec remote runtime locally')
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
@@ -497,6 +497,9 @@ class BaseRuntime(ModelObj):
         self.metadata.tag = tag
         obj = self.to_dict()
         hashkey = calc_hash(self)
+        logger.info('saving function: {}, tag: {}'.format(
+            self.metadata.name,self.metadata.name, tag
+        ))
         if versioned:
             db.store_function(obj, self.metadata.name,
                               self.metadata.project, hashkey)

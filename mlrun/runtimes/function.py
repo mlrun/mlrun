@@ -20,14 +20,13 @@ import asyncio
 from aiohttp.client import ClientSession
 import logging
 from sys import stdout
-from kubernetes import client
 from nuclio.deploy import deploy_config
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import v3io_to_vol
-from .base import BaseRuntime, RunError
-from .utils import log_std, set_named_item, apply_kfp, get_item_name
+from ..platforms.iguazio import mount_v3io
+from .base import RunError
+from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in
 from ..lists import RunList
 from ..model import RunObject
@@ -163,7 +162,7 @@ class RemoteRuntime(KubeResource):
             if key in environ:
                 self.set_env(key, environ[key])
         if local and remote:
-            self.add_volume(local, remote)
+            self.apply(mount_v3io(remote=remote, mount_path=local))
         return self
 
     def with_http(self, workers=8, port=0, host=None,

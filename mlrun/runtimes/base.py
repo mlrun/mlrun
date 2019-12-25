@@ -273,7 +273,7 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(runspec, execution)
-                if watch:
+                if watch and self.kind not in ['', 'handler', 'local']:
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
                 result = self._post_run(resp, task=runspec)

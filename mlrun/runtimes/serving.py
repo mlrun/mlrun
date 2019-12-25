@@ -37,8 +37,8 @@ def nuclio_serving_init(context, data):
     context.logger.info(f'Loaded {list(models.keys())}')
 
     # Initialize route handlers
-    predictor = PredictHandler(models)
-    explainer = ExplainHandler(models)
+    predictor = PredictHandler(models).with_context(context)
+    explainer = ExplainHandler(models).with_context(context)
     router = {
         'predict': predictor.post,
         'explain': explainer.post

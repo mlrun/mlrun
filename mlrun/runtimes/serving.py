@@ -37,8 +37,8 @@ def nuclio_serving_init(context, data):
     context.logger.info(f'Loaded {list(models.keys())}')
 
     # Initialize route handlers
-    predictor = PredictHandler(models)
-    explainer = ExplainHandler(models)
+    predictor = PredictHandler(models).with_context(context)
+    explainer = ExplainHandler(models).with_context(context)
     router = {
         'predict': predictor.post,
         'explain': explainer.post
@@ -50,14 +50,13 @@ def nuclio_serving_init(context, data):
     setattr(context, 'router', router)
 
 
-err_string = 'Got path: {} \n Path must be <version>/<host>/<model-name>/<action> \nactions: {} \nmodels: {}'
+err_string = 'Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}'
 
 
 def nuclio_serving_handler(context, event):
     # check if valid route & model
     try:
-        api_ver, section, model_name, route = event.path.strip('/').split('/')
-
+        model_name, route = event.path.strip('/').split('/')
         route = context.router[route]
     except:
         return context.Response(
@@ -87,6 +86,7 @@ class HTTPHandler:
         model = self.models[name]
         if not model.ready:
             model.load()
+        setattr(model, 'context', self.context)
         return model
 
     def parse_event(self, event):
@@ -105,6 +105,7 @@ class HTTPHandler:
             if event.content_type.startswith('image/'):
                 sample = BytesIO(event.body)
                 body['instances'].append(sample)
+                body['content_type'] = event.content_type
             else:
                 return self.context.Response(
                     body="Unrecognized request format: %s" % e,

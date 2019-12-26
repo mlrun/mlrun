@@ -47,6 +47,15 @@ run `pip install mlrun` to get the library and CLI
 For Kubernetes cluster installation, you need to install the API service and UI, 
 both YAMLs can be found in `./hack`, edit according to the comments and 
 apply to your cluster using `kubectl apply -f <yaml-file>`
+
+```
+curl https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunapi.yaml
+# as a minimum replace the <set default registry url> and <access-key> with real values
+# in iguazio cloud the default registry url is: docker-registry.default-tenant.<cluster-dns>:80
+
+kubectl apply -f <updated-yaml-file> 
+kubectl apply -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunui.yaml
+```
  
 #### Architecture and tutorial
 
@@ -61,9 +70,10 @@ apply to your cluster using `kubectl apply -f <yaml-file>`
 #### Examples & Notebooks
 * [Learn MLRun basics](examples/mlrun_basics.ipynb)
 * [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun_jobs.ipynb)
+* [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train_xgboost_serverless.ipynb)
 * Examples for MLRun with scale-out runtimes
   * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
-  * [Nuclio (Real-time Serverless)](examples/train_xgboost_serverless.ipynb)
+  * [Nuclio-serving (Serverless model serving)](examples/nuclio_serving.ipynb)
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)

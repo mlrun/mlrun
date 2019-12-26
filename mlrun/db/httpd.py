@@ -341,7 +341,7 @@ def store_log(project, uid):
 # curl http://localhost:8080/log/prj/7
 @app.route('/api/log/<project>/<uid>', methods=['GET'])
 def get_log(project, uid):
-    size = int(request.args.get('size', '0'))
+    size = int(request.args.get('size', '-1'))
     offset = int(request.args.get('offset', '0'))
 
     log_file = log_path(project, uid)

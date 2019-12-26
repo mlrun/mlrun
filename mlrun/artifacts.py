@@ -67,7 +67,7 @@ class ArtifactManager:
 
     def log_artifact(
         self, execution, item, body=None, target_path='', src_path='', tag='',
-            viewer='', upload=True, labels=None):
+            viewer='', local_path='', upload=True, labels=None):
         if isinstance(item, str):
             key = item
             item = Artifact(key, body)
@@ -75,6 +75,7 @@ class ArtifactManager:
             key = item.key
             target_path = target_path or item.target_path
 
+        src_path = src_path or local_path # TODO: remove src_path
         # find the target path from defaults and config
         item.viewer = viewer or item.viewer
         item.src_path = src_path or item.src_path

@@ -17,7 +17,9 @@ import yaml
 import time
 from copy import deepcopy
 from .base import RunError
-from .kubejob import KubejobRuntime, KubejobSpec
+from .kubejob import KubejobRuntime
+from .pod import KubeResourceSpec
+
 from ..model import ModelObj
 from ..utils import logger, get_in
 from ..model import RunObject
@@ -78,11 +80,13 @@ _sparkjob_template = {
  },
 }
 
-class SparkJobSpec(KubejobSpec):
+
+class SparkJobSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, replicas=None,
                  image_pull_policy=None, service_account=None, driver_resources=None,
                  type=None, python_version=None, spark_version=None, restart_policy=None, deps=None):
+
         super().__init__(command=command,
                          args=args,
                          image=image,
@@ -94,6 +98,7 @@ class SparkJobSpec(KubejobSpec):
                          replicas=replicas,
                          image_pull_policy=image_pull_policy,
                          service_account=service_account)
+
         self.driver_resources = driver_resources
         self.type = type
         self.python_version = python_version
@@ -165,7 +170,7 @@ class SparkRuntime(KubejobRuntime):
                 driver, status = self._get_driver(meta.name, meta.namespace)
                 execution.set_hostname(driver)
                 execution.set_state(state.lower())
-                if self.interactive or self.kfp:
+                if self.kfp:
                     status = self._get_k8s().watch(driver, meta.namespace)
                     logger.info('SparkJob {} finished with state {}'.format(meta.name, status))
                     if status == 'succeeded':

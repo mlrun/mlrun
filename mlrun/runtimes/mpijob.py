@@ -112,7 +112,7 @@ class MpiRuntime(KubejobRuntime):
                                                       meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state('running' if state == 'active' else state)
-                if self.interactive or self.kfp:
+                if self.kfp:
                     writer = AsyncLogWriter(self._db_conn, runobj)
                     status = self._get_k8s().watch(
                         launcher, meta.namespace, writer=writer)

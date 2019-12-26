@@ -100,7 +100,6 @@ class BaseRuntime(ModelObj):
         self._secrets = None
         self._k8s = None
         self._is_built = False
-        self.interactive = True
         self.is_child = False
         self._status = None
         self.status = None
@@ -218,8 +217,9 @@ class BaseRuntime(ModelObj):
             raise RunError("function image is not built/ready, use .build() method first")
 
         if not self.is_child and self.kind != 'handler':
+            dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
-                meta.name, meta.uid, self.spec.rundb))
+                meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
             meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
             hashkey = calc_hash(self)
@@ -250,7 +250,7 @@ class BaseRuntime(ModelObj):
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)
 
-        elif self._is_remote and not self._is_api_server:
+        elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning('warning!, Api url not set, trying to exec remote runtime locally')
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
@@ -273,7 +273,7 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(runspec, execution)
-                if watch:
+                if watch and self.kind not in ['', 'handler', 'local']:
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
                 result = self._post_run(resp, task=runspec)
@@ -497,6 +497,9 @@ class BaseRuntime(ModelObj):
         self.metadata.tag = tag
         obj = self.to_dict()
         hashkey = calc_hash(self)
+        logger.info('saving function: {}, tag: {}'.format(
+            self.metadata.name,self.metadata.name, tag
+        ))
         if versioned:
             db.store_function(obj, self.metadata.name,
                               self.metadata.project, hashkey)

@@ -16,7 +16,7 @@ def my_job():
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
     print('file\n{}\n'.format(context.get_input('infile.txt', 'infile.txt').get()))
     
-    # RUN some useful code e.g. ML training, data prep, etc.
+    # Run some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)
     context.log_result('accuracy', p1 * 2)

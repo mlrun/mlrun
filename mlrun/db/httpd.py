@@ -173,7 +173,7 @@ def build_function():
 
     logger.info('build_function:\n{}'.format(data))
     function = data.get('function')
-    with_mlrun = data.get('with_mlrun', False)
+    with_mlrun = strtobool(data.get('with_mlrun', 'on'))
     ready = False
 
     try:

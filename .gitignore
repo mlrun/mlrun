@@ -1,3 +1,4 @@
+.aws-secrets
 Dockerfile.mlrun-test-nb
 build
 chart
@@ -10,3 +11,4 @@ mlrun.egg-info/
 model.txt
 results.html
 tests/test_results/
+.ipynb_checkpoints

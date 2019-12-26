@@ -1,13 +1,27 @@
+# Copyright 2019 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from datetime import datetime
 
 import pytest
 
-from mlrun.db import sqldb, RunDBError
+from mlrun.db import sqldb
 
 
 @pytest.fixture
 def db():
-    db = sqldb.SQLDB('sqlite:///:memory:')
+    db = sqldb.SQLDB('sqlite:///:memory:?check_same_thread=false')
     db.connect()
     return db
 
@@ -34,9 +48,9 @@ def test_list_functions(db: sqldb.SQLDB):
     fn1 = new_func(['l1', 'l2'], x=1)
     db.store_function(fn1, name)
     fn2 = new_func(['l2', 'l3'], x=2)
-    db.store_function(fn2, name)
+    db.store_function(fn2, name, tag='t1')
     fn3 = new_func(['l3'], x=3)
-    db.store_function(fn3, name)
+    db.store_function(fn3, name, tag='t2')
 
     funcs = db.list_functions(name, labels=['l2'])
     assert 2 == len(funcs), 'num of funcs'
@@ -47,15 +61,15 @@ def test_log(db: sqldb.SQLDB):
     uid = 'm33'
     data1, data2 = b'ab', b'cd'
     db.store_log(uid, body=data1)
-    log = db.get_log(uid)
+    _, log = db.get_log(uid)
     assert data1 == log, 'get log 1'
 
-    db.store_log(uid, body=data2)
-    log = db.get_log(uid)
+    db.store_log(uid, body=data2, append=True)
+    _, log = db.get_log(uid)
     assert data1 + data2 == log, 'get log 2'
 
     db.store_log(uid, body=data1, append=False)
-    log = db.get_log(uid)
+    _, log = db.get_log(uid)
     assert data1 == log, 'get log append=False'
 
 
@@ -85,9 +99,7 @@ def test_runs(db: sqldb.SQLDB):
     run3 = new_run('s2', ['l3'], x=2)
     uid3 = 'uid3'
     db.store_run(run3, uid3)
-
-    with pytest.raises(RunDBError):
-        db.store_run(run3, uid3)
+    db.store_run(run3, uid3)  # should not raise
 
     updates = {
         'status': {
@@ -113,6 +125,16 @@ def test_runs(db: sqldb.SQLDB):
     db.del_runs(labels=[label])
     for run in db.list_runs():
         assert label not in run['metadata']['labels'], 'del_runs'
+
+
+def test_update_run(db: sqldb.SQLDB):
+    uid = 'uid83'
+    run = new_run('s1', ['l1', 'l2'], x=1)
+    db.store_run(run, uid)
+    val = 13
+    db.update_run({'x': val}, uid)
+    r = db.read_run(uid)
+    assert val == r['x'], 'bad update'
 
 
 def test_artifacts(db: sqldb.SQLDB):

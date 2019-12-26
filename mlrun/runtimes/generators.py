@@ -14,8 +14,10 @@
 
 from io import BytesIO
 import pandas as pd
+import sys
 from copy import deepcopy
 from ..model import RunObject
+from ..utils import get_in, logger
 
 
 def get_generator(spec, execution):
@@ -83,3 +85,43 @@ class ListGenerator(TaskGenerator):
             newrun.metadata.iteration = i + 1
             i += 1
             yield newrun
+
+
+def selector(results: list, criteria):
+    if not criteria:
+        return 0, 0
+
+    idx = criteria.find('.')
+    if idx < 0:
+        op = 'max'
+    else:
+        op = criteria[:idx]
+        criteria = criteria[idx + 1:]
+
+    best_id = 0
+    best_item = 0
+    if op == 'max':
+        best_val = sys.float_info.min
+    elif op == 'min':
+        best_val = sys.float_info.max
+    else:
+        logger.error('unsupported selector {}.{}'.format(op, criteria))
+        return 0, 0
+
+    i = 0
+    for task in results:
+        state = get_in(task, ['status', 'state'])
+        id = get_in(task, ['metadata', 'iteration'])
+        val = get_in(task, ['status', 'results', criteria])
+        if isinstance(val, str):
+            try:
+                val = float(val)
+            except Exception:
+                val = None
+        if state != 'error' and val is not None:
+            if (op == 'max' and val > best_val) \
+                    or (op == 'min' and val < best_val):
+                best_id, best_item, best_val = id, i, val
+        i += 1
+
+    return best_item, best_id

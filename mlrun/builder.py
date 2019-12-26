@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import tarfile
 from base64 import b64decode, b64encode
 from os import environ, path
 from tempfile import mktemp
+from urllib.parse import urlparse
 
 from .datastore import StoreManager
 from .k8s_utils import BasePod, k8s_helper
-from .utils import logger
+from .utils import logger, normalize_name
 from .config import config
 
 k8s = None
@@ -50,6 +50,7 @@ def make_kaniko_pod(context, dest,
                     inline_path=None,
                     requirements=None,
                     secret_name=None,
+                    name='',
                     verbose=False):
 
     if not dockertext and not dockerfile:
@@ -66,7 +67,7 @@ def make_kaniko_pod(context, dest,
     if verbose:
         args += ["--verbosity", 'debug']
 
-    kpod=BasePod('mlrun-build',
+    kpod=BasePod(name or 'mlrun-build',
                  'gcr.io/kaniko-project/executor:' + config.kaniko_version,
                  args=args,
                  kind='build')
@@ -118,6 +119,7 @@ def build_image(dest,
                 with_mlrun=True,
                 registry=None,
                 interactive=True,
+                name='',
                 verbose=False):
 
     global k8s
@@ -149,11 +151,16 @@ def build_image(dest,
     context = '/context'
     to_mount = False
     src_dir = '.'
+    v3io = source.startswith('v3io://') or \
+           source.startswith('v3ios://') if source else None
+
     if inline_code:
         context = '/empty'
-    elif source and '://' in source:
+    elif source and '://' in source and not v3io:
         context = source
     elif source:
+        if v3io:
+            source = urlparse(source).path
         to_mount = True
         if source.endswith('.tar.gz'):
             source, src_dir = path.split(source)
@@ -167,7 +174,8 @@ def build_image(dest,
     kpod = make_kaniko_pod(context, dest, dockertext=dock,
                            inline_code=inline_code, inline_path=inline_path,
                            requirements=requirements_list,
-                           secret_name=secret_name, verbose=verbose)
+                           secret_name=secret_name,
+                           name=name, verbose=verbose)
 
     if to_mount:
         # todo: support different mounters
@@ -193,6 +201,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if not build.image:
         raise ValueError('build spec must have a target image, set build.image = <target image>')
     logger.info(f'building image ({build.image})')
+    name = normalize_name('mlrun-build-{}'.format(runtime.metadata.name))
     status = build_image(build.image,
                          base_image=build.base_image or 'python:3.6-jessie',
                          commands=build.commands,
@@ -201,14 +210,17 @@ def build_runtime(runtime, with_mlrun, interactive=False):
                          source=build.source,
                          secret_name=build.secret,
                          interactive=interactive,
+                         name=name,
                          with_mlrun=with_mlrun)
-    build.build_pod = None
+    runtime.status.build_pod = None
     if status == 'skipped':
         runtime.spec.image = build.base_image
+        runtime.status.state = 'ready'
         return True
 
     if status.startswith('build:'):
-        build.build_pod = status[6:]
+        runtime.status.state = 'build'
+        runtime.status.build_pod = status[6:]
         return False
 
     logger.info('build completed with {}'.format(status))
@@ -217,4 +229,8 @@ def build_runtime(runtime, with_mlrun, interactive=False):
 
     local = '' if build.secret else '.'
     runtime.spec.image = local + build.image
+    runtime.status.state = 'ready'
     return True
+
+
+

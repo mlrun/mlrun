@@ -303,11 +303,12 @@ class MLClientCtx(object):
             self._rundb.store_metric(keyvals, timestamp, labels)
 
     def log_artifact(self, item, body=None, target_path='', src_path=None,
-                     tag='', viewer=None, upload=True, labels=None):
+                     tag='', viewer=None, local_path=None, upload=True, labels=None, **kwargs):
         """log an output artifact and optionally upload it"""
         self._artifacts_manager.log_artifact(self, item, body=body,
                                              target_path=target_path,
                                              src_path=src_path,
+                                             local_path=local_path,
                                              tag=tag,
                                              viewer=viewer,
                                              upload=upload,

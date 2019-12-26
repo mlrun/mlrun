@@ -14,6 +14,7 @@
 
 import pickle
 from datetime import datetime, timedelta
+import warnings
 
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
@@ -29,7 +30,7 @@ from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
-NULL = None  # avoid flake8 issuing warnings when comparing in filter
+NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = '%Y-%m-%d %H:%M:%S.%f'
 
 
@@ -54,61 +55,66 @@ def make_label(table):
     return Label
 
 
-class Artifact(Base, HasStruct):
-    __tablename__ = 'artifacts'
-    __table_args__ = (
-        UniqueConstraint('uid', 'project', 'key', name='_artifacts_uc'),
-    )
+# quell SQLAlchemy warnings on duplicate class name (Label)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
 
-    Label = make_label(__tablename__)
+    class Artifact(Base, HasStruct):
+        __tablename__ = 'artifacts'
+        __table_args__ = (
+            UniqueConstraint('uid', 'project', 'key', name='_artifacts_uc'),
+        )
 
-    id = Column(Integer, primary_key=True)
-    key = Column(String)
-    project = Column(String)
-    tag = Column(String)
-    uid = Column(String)
-    updated = Column(TIMESTAMP)
-    body = Column(BLOB)
-    labels = relationship(Label)
+        Label = make_label(__tablename__)
 
+        id = Column(Integer, primary_key=True)
+        key = Column(String)
+        project = Column(String)
+        tag = Column(String)
+        uid = Column(String)
+        updated = Column(TIMESTAMP)
+        body = Column(BLOB)
+        labels = relationship(Label)
 
-class Function(Base, HasStruct):
-    __tablename__ = 'functions'
-    Label = make_label(__tablename__)
+    class Function(Base, HasStruct):
+        __tablename__ = 'functions'
+        __table_args__ = (
+            UniqueConstraint('name', 'project', 'tag', name='_functions_uc'),
+        )
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    project = Column(String)
-    tag = Column(String)
-    body = Column(BLOB)
-    labels = relationship(Label)
+        Label = make_label(__tablename__)
 
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        tag = Column(String)
+        body = Column(BLOB)
+        labels = relationship(Label)
 
-class Log(Base):
-    __tablename__ = 'logs'
+    class Log(Base):
+        __tablename__ = 'logs'
 
-    id = Column(Integer, primary_key=True)
-    uid = Column(String)
-    project = Column(String)
-    body = Column(BLOB)
+        id = Column(Integer, primary_key=True)
+        uid = Column(String)
+        project = Column(String)
+        body = Column(BLOB)
 
+    class Run(Base, HasStruct):
+        __tablename__ = 'runs'
+        __table_args__ = (
+            UniqueConstraint('uid', 'project', 'iteration', name='_runs_uc'),
+        )
 
-class Run(Base, HasStruct):
-    __tablename__ = 'runs'
-    __table_args__ = (
-        UniqueConstraint('uid', 'project', 'iteration', name='_runs_uc'),
-    )
+        Label = make_label(__tablename__)
 
-    Label = make_label(__tablename__)
-
-    id = Column(Integer, primary_key=True)
-    uid = Column(String)
-    project = Column(String)
-    iteration = Column(Integer)
-    state = Column(String)
-    body = Column(BLOB)
-    start_time = Column(TIMESTAMP)
-    labels = relationship(Label)
+        id = Column(Integer, primary_key=True)
+        uid = Column(String)
+        project = Column(String)
+        iteration = Column(Integer)
+        state = Column(String)
+        body = Column(BLOB)
+        start_time = Column(TIMESTAMP)
+        labels = relationship(Label)
 
 
 class SQLDB(RunDBInterface):
@@ -123,7 +129,7 @@ class SQLDB(RunDBInterface):
         # TODO: One session per call?
         self.session = cls()
 
-    def store_log(self, uid, project='', body=b'', append=True):
+    def store_log(self, uid, project='', body=b'', append=False):
         project = project or config.default_project
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
@@ -139,27 +145,25 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
-            return None
+            return None, None
         end = None if size == 0 else offset + size
-        return log.body[offset:end]
+        return '', log.body[offset:end]
 
     def store_run(self, struct, uid, project='', iter=0):
         project = project or config.default_project
-        run = Run(
-            uid=uid,
-            project=project,
-            iteration=iter,
-            state=run_state(struct),
-            start_time=run_start_time(struct) or datetime.now(),
-        )
-        for label in run_labels(struct):
-            run.labels.append(Run.Label(name=label, parent=run))
+        run = self._get_run(uid, project, iter)
+        if not run:
+            run = Run(
+                uid=uid,
+                project=project,
+                iteration=iter,
+                state=run_state(struct),
+                start_time=run_start_time(struct) or datetime.now(),
+            )
+        labels = run_labels(struct)
+        update_labels(run, labels)
         run.struct = struct
-        try:
-            self._upsert(run)
-        except SQLAlchemyError as err:
-            self.session.rollback()
-            raise RunDBError(f'duplicate run - {err}')
+        self._upsert(run)
 
     def update_run(self, updates: dict, uid, project='', iter=0):
         project = project or config.default_project
@@ -179,7 +183,8 @@ class SQLDB(RunDBInterface):
         run.labels.clear()
         for label in run_labels(struct):
             run.labels.append(Run.Label(name=label, parent=run))
-        self._upsert(run)
+        self.session.merge(run)
+        self.session.commit()
         self._delete_empty_labels(Run.Label)
 
     def read_run(self, uid, project='', iter=0):
@@ -229,14 +234,16 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         artifact = artifact.copy()
         updated = artifact['updated'] = datetime.now()
-        art = Artifact(
-            key=key,
-            uid=uid,
-            tag=tag,
-            updated=updated,
-            project=project)
-        for label in label_set(artifact.get('labels', [])):
-            art.labels.append(Artifact.Label(name=label, parent=art))
+        art = self._get_artifact(uid, project, key)
+        labels = label_set(artifact.get('labels', []))
+        if not art:
+            art = Artifact(
+                key=key,
+                uid=uid,
+                tag=tag,
+                updated=updated,
+                project=project)
+        update_labels(art, labels)
         art.struct = artifact
         self._upsert(art)
 
@@ -284,13 +291,15 @@ class SQLDB(RunDBInterface):
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
         update_in(func, 'metadata.updated', datetime.now())
-        fn = Function(
-            name=name,
-            project=project,
-            tag=tag,
-        )
-        for label in label_set(get_in(func, 'metadata.labels', [])):
-            fn.labels.append(Function.Label(name=label, parent=fn))
+        fn = self._get_function(name, project, tag)
+        if not fn:
+            fn = Function(
+                name=name,
+                project=project,
+                tag=tag,
+            )
+        labels = label_set(get_in(func, 'metadata.labels', []))
+        update_labels(fn, labels)
         fn.struct = func
         self._upsert(fn)
 
@@ -315,6 +324,14 @@ class SQLDB(RunDBInterface):
         kw = {k: v for k, v in kw.items() if v}
         return self.session.query(cls).filter_by(**kw)
 
+    def _get_function(self, name, project, tag):
+        query = self._query(Function, name=name, project=project, tag=tag)
+        return query.one_or_none()
+
+    def _get_artifact(self, uid, project, key):
+        query = self._query(Artifact, uid=uid, project=project, key=key)
+        return query.one_or_none()
+
     def _get_run(self, uid, project, iteration):
         return self._query(
             Run, uid=uid, project=project, iteration=iteration).one_or_none()
@@ -324,8 +341,13 @@ class SQLDB(RunDBInterface):
         self.session.commit()
 
     def _upsert(self, obj):
-        self.session.merge(obj)
-        self.session.commit()
+        try:
+            self.session.add(obj)
+            self.session.commit()
+        except SQLAlchemyError as err:
+            self.session.rollback()
+            cls = obj.__class__.__name__
+            raise RunDBError(f'duplicate {cls} - {err}')
 
     def _find_runs(self, name, uid, project, labels, state):
         labels = label_set(labels)
@@ -397,3 +419,13 @@ def run_labels(run):
 
 def run_state(run):
     return get_in(run, 'status.state', '')
+
+
+def update_labels(obj, labels):
+    old = {label.name: label for label in obj.labels}
+    obj.labels.clear()
+    for name in labels:
+        if name in old:
+            obj.labels.append(old[name])
+        else:
+            obj.labels.append(obj.Label(name=name, parent=obj))

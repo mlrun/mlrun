@@ -17,12 +17,14 @@ import yaml
 import time
 from copy import deepcopy
 from .base import RunError
-from .kubejob import KubejobRuntime, KubejobSpec
+from .kubejob import KubejobRuntime
+from .pod import KubeResourceSpec
+
 from ..model import ModelObj
 from ..utils import logger, get_in
 from ..model import RunObject
 from ..utils import dict_to_yaml, update_in, logger, get_in
-from ..platforms.iguazio import mount_v3io, mount_v3iod, mount_spark_conf
+from ..platforms.iguazio import mount_v3io, mount_v3iod
 from ..execution import MLClientCtx
 
 
@@ -78,11 +80,13 @@ _sparkjob_template = {
  },
 }
 
-class SparkJobSpec(KubejobSpec):
+
+class SparkJobSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None, replicas=None,
                  image_pull_policy=None, service_account=None, driver_resources=None,
                  type=None, python_version=None, spark_version=None, restart_policy=None, deps=None):
+
         super().__init__(command=command,
                          args=args,
                          image=image,
@@ -94,6 +98,7 @@ class SparkJobSpec(KubejobSpec):
                          replicas=replicas,
                          image_pull_policy=image_pull_policy,
                          service_account=service_account)
+
         self.driver_resources = driver_resources
         self.type = type
         self.python_version = python_version
@@ -123,8 +128,14 @@ class SparkRuntime(KubejobRuntime):
         if self.spec.image:
             update_in(job, 'spec.image', self.spec.image)
         update_in(job, 'spec.volumes', self.spec.volumes)
-        update_in(job, 'spec.driver.env', self.spec.env)
-        update_in(job, 'spec.executor.env', self.spec.env)
+
+        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
+        if self.spec.rundb:
+            extra_env['MLRUN_DBPATH'] = self.spec.rundb
+        extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
+
+        update_in(job, 'spec.driver.env', extra_env + self.spec.env)
+        update_in(job, 'spec.executor.env', extra_env + self.spec.env)
         update_in(job, 'spec.driver.volumeMounts', self.spec.volume_mounts)
         update_in(job, 'spec.executor.volumeMounts', self.spec.volume_mounts)
         update_in(job, 'spec.deps', self.spec.deps)
@@ -159,7 +170,7 @@ class SparkRuntime(KubejobRuntime):
                 driver, status = self._get_driver(meta.name, meta.namespace)
                 execution.set_hostname(driver)
                 execution.set_state(state.lower())
-                if self.interactive or self.kfp:
+                if self.kfp:
                     status = self._get_k8s().watch(driver, meta.namespace)
                     logger.info('SparkJob {} finished with state {}'.format(meta.name, status))
                     if status == 'succeeded':
@@ -213,8 +224,7 @@ class SparkRuntime(KubejobRuntime):
     def with_igz_spark(self, igz_version):
         self._update_igz_jars(igz_version=igz_version)
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
-        self.apply(mount_v3iod())
-#        self.apply(mount_spark_conf())
+        self.apply(mount_v3iod(namespace='default-tenant', v3io_config_configmap='spark-operator-v3io-config', v3io_auth_secret='spark-operator-v3io-auth'))
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

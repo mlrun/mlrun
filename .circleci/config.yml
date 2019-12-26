@@ -4,7 +4,5 @@ jobs:
     machine: true
     steps:
       - checkout
-      - run: docker build -f Dockerfile.test .
-      - run: pyenv install miniconda3-4.3.11
-      - run: pyenv local miniconda3-4.3.11
-      - run: python tests/run_notebook_tests.py
+      - run: docker build -f Dockerfile.test -t mlrun/test .
+      - run: docker run -v /var/run/docker.sock:/var/run/docker.sock mlrun/test make test 

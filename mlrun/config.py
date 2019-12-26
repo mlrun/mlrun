@@ -25,7 +25,7 @@ import json
 import os
 from collections.abc import Mapping
 from distutils.util import strtobool
-from os import path
+from os.path import expanduser
 from threading import Lock
 from urllib.parse import urlparse
 
@@ -51,13 +51,13 @@ default_config = {
     'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,
-        'dirpath': path.expanduser('~/.mlrun/db'),
+        'dirpath': expanduser('~/.mlrun/db'),
         'dsn': 'sqlite:///:memory:?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',
         'token': '',
-        'fs_logs': False,  # Store logs on file system
+        'logs_path': expanduser('~/.mlrun/logs'),
         'files_path': '',
         'db_type': 'filerundb',
     },

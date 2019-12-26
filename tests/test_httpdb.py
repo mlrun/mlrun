@@ -156,27 +156,6 @@ def test_log(create_server):
     assert data == body, 'bad log data'
 
 
-def test_log_fs(create_server):
-    dirpath = mkdtemp(prefix='mlrun-test-log-fs-')
-    env = {
-        'MLRUN_httpdb__fs_logs': 'true',
-        'MLRUN_httpdb__dirpath': dirpath,
-    }
-    server: Server = create_server(env)
-    db = server.conn
-    prj, uid, body = 'p19', '3920', b'log data'
-    db.store_log(uid, prj, body)
-
-    _, data = db.get_log(uid, prj)
-    assert data == body, 'bad log data'
-
-    log_file = f'{dirpath}/runs/{prj}/{uid}.log'
-    with open(log_file, 'rb') as fp:
-        data = fp.read()
-
-    assert body == data, 'bad log'
-
-
 def test_run(create_server):
     server: Server = create_server()
     db = server.conn

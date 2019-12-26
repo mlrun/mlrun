@@ -20,6 +20,7 @@ from http import HTTPStatus
 from os import environ
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 from flask import Flask, jsonify, request, Response
 
@@ -34,8 +35,8 @@ from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import k8s_helper
 
 _db: RunDBInterface
-_logs_db: RunDBInterface
 _k8s: k8s_helper = None
+_logs_dir = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
@@ -320,13 +321,20 @@ def get_filestat():
                    mimetype=ctype)
 
 
+def log_path(project, uid) -> Path:
+    return _logs_dir / project / uid
+
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @app.route('/api/log/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_log(project, uid):
     append = strtobool(request.args.get('append', 'no'))
+    log_file = log_path(project, uid)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     body = request.get_data()  # TODO: Check size
-    _logs_db.store_log(uid, project, body, append)
+    mode = 'ab' if append else 'wb'
+    with log_file.open(mode) as fp:
+        fp.write(body)
     return jsonify(ok=True)
 
 
@@ -336,9 +344,13 @@ def get_log(project, uid):
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
 
-    out = b''
-    status, resp = _logs_db.get_log(uid, project, offset=offset, size=size)
-    if resp is None:
+    log_file = log_path(project, uid)
+    if log_file.exists():
+        with log_file.open('rb') as fp:
+            fp.seek(offset)
+            out = fp.read(size)
+        status = ''
+    else:
         data = _db.read_run(uid, project)
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
@@ -368,9 +380,6 @@ def get_log(project, uid):
                             update_in(data, 'status.state', 'completed')
                             _db.store_run(data, uid, project)
                 status = new_status
-
-    else:
-        out = resp or out
 
     return Response(out, mimetype='text/plain',
                     headers={"pod_status": status})
@@ -568,7 +577,7 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _db, _logs_db, _k8s
+    global _db, _logs_dir, _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     if config.httpdb.db_type == 'sqldb':
@@ -577,14 +586,9 @@ def init_app():
     else:
         logger.info('using FileRunDB')
         _db = FileRunDB(config.httpdb.dirpath)
-
-    if config.httpdb.fs_logs:
-        _logs_db = FileRunDB(config.httpdb.dirpath)
-        _logs_db.connect()
-    else:
-        _logs_db = _db
-
     _db.connect()
+    _logs_dir = Path(config.httpdb.logs_path)
+
     try:
         _k8s = k8s_helper()
     except Exception:

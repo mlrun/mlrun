@@ -14,6 +14,7 @@
 
 import pickle
 from datetime import datetime, timedelta
+import warnings
 
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
@@ -54,65 +55,66 @@ def make_label(table):
     return Label
 
 
-class Artifact(Base, HasStruct):
-    __tablename__ = 'artifacts'
-    __table_args__ = (
-        UniqueConstraint('uid', 'project', 'key', name='_artifacts_uc'),
-    )
+# quell SQLAlchemy warnings on duplicate class name (Label)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
 
-    Label = make_label(__tablename__)
+    class Artifact(Base, HasStruct):
+        __tablename__ = 'artifacts'
+        __table_args__ = (
+            UniqueConstraint('uid', 'project', 'key', name='_artifacts_uc'),
+        )
 
-    id = Column(Integer, primary_key=True)
-    key = Column(String)
-    project = Column(String)
-    tag = Column(String)
-    uid = Column(String)
-    updated = Column(TIMESTAMP)
-    body = Column(BLOB)
-    labels = relationship(Label)
+        Label = make_label(__tablename__)
 
+        id = Column(Integer, primary_key=True)
+        key = Column(String)
+        project = Column(String)
+        tag = Column(String)
+        uid = Column(String)
+        updated = Column(TIMESTAMP)
+        body = Column(BLOB)
+        labels = relationship(Label)
 
-class Function(Base, HasStruct):
-    __tablename__ = 'functions'
-    __table_args__ = (
-        UniqueConstraint('name', 'project', 'tag', name='_functions_uc'),
-    )
+    class Function(Base, HasStruct):
+        __tablename__ = 'functions'
+        __table_args__ = (
+            UniqueConstraint('name', 'project', 'tag', name='_functions_uc'),
+        )
 
-    Label = make_label(__tablename__)
+        Label = make_label(__tablename__)
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    project = Column(String)
-    tag = Column(String)
-    body = Column(BLOB)
-    labels = relationship(Label)
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        tag = Column(String)
+        body = Column(BLOB)
+        labels = relationship(Label)
 
+    class Log(Base):
+        __tablename__ = 'logs'
 
-class Log(Base):
-    __tablename__ = 'logs'
+        id = Column(Integer, primary_key=True)
+        uid = Column(String)
+        project = Column(String)
+        body = Column(BLOB)
 
-    id = Column(Integer, primary_key=True)
-    uid = Column(String)
-    project = Column(String)
-    body = Column(BLOB)
+    class Run(Base, HasStruct):
+        __tablename__ = 'runs'
+        __table_args__ = (
+            UniqueConstraint('uid', 'project', 'iteration', name='_runs_uc'),
+        )
 
+        Label = make_label(__tablename__)
 
-class Run(Base, HasStruct):
-    __tablename__ = 'runs'
-    __table_args__ = (
-        UniqueConstraint('uid', 'project', 'iteration', name='_runs_uc'),
-    )
-
-    Label = make_label(__tablename__)
-
-    id = Column(Integer, primary_key=True)
-    uid = Column(String)
-    project = Column(String)
-    iteration = Column(Integer)
-    state = Column(String)
-    body = Column(BLOB)
-    start_time = Column(TIMESTAMP)
-    labels = relationship(Label)
+        id = Column(Integer, primary_key=True)
+        uid = Column(String)
+        project = Column(String)
+        iteration = Column(Integer)
+        state = Column(String)
+        body = Column(BLOB)
+        start_time = Column(TIMESTAMP)
+        labels = relationship(Label)
 
 
 class SQLDB(RunDBInterface):

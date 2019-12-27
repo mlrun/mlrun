@@ -158,3 +158,17 @@ def test_artifacts(db: sqldb.SQLDB):
     db.del_artifact(key=k1)
     with pytest.raises(sqldb.RunDBError):
         db.read_artifact(k1)
+
+
+def test_list_runs(db: sqldb.SQLDB):
+    uid = 'u183'
+    run = new_run('s1', ['l1', 'l2'], x=1)
+    count = 5
+    for iter in range(count):
+        db.store_run(run, uid, iter=iter)
+
+    runs = list(db.list_runs(uid=uid))
+    assert 1 == len(runs), 'iter=False'
+
+    runs = list(db.list_runs(uid=uid, iter=True))
+    assert 5 == len(runs), 'iter=True'

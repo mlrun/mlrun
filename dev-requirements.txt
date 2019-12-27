@@ -1,6 +1,8 @@
 distributed>=2.3.0
 kfp>=0.1.29
+numpydoc==0.9.1
 pytest==5.3.1
 scikit-learn==0.21.3
+sphinx==2.2.2
 twine==3.1.1
 xgboost==0.90

@@ -21,11 +21,12 @@ Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
+import json
 import os
 from collections.abc import Mapping
-from os import path
+from distutils.util import strtobool
+from os.path import expanduser
 from threading import Lock
-import json
 from urllib.parse import urlparse
 
 import yaml
@@ -33,6 +34,7 @@ import yaml
 env_prefix = 'MLRUN_'
 env_file_key = f'{env_prefix}CONIFG_FILE'
 _load_lock = Lock()
+_none_type = type(None)
 
 
 default_config = {
@@ -49,12 +51,13 @@ default_config = {
     'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,
-        'dirpath': path.expanduser('~/.mlrun/db'),
+        'dirpath': expanduser('~/.mlrun/db'),
         'dsn': 'sqlite:///:memory:?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',
         'token': '',
+        'logs_path': expanduser('~/.mlrun/logs'),
         'files_path': '',
         'db_type': 'filerundb',
     },
@@ -137,6 +140,17 @@ def _do_populate(env=None):
     data = read_env(env)
     if data:
         config.update(data)
+
+
+def _convert_str(value, typ):
+    if typ in (str, _none_type):
+        return value
+
+    if typ is bool:
+        return strtobool(value)
+
+    # e.g. int('8080') → 8080
+    return typ(value)
 
 
 def read_env(env=None, prefix=env_prefix):

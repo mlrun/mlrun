@@ -1,4 +1,3 @@
-import json
 # Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,7 @@ import json
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from io import BytesIO
 from typing import Dict
@@ -90,41 +90,34 @@ class HTTPHandler:
         return model
 
     def parse_event(self, event):
-        body = {"instances": []}
+        parsed_event = {'instances': []}
         try:
             body = json.loads(event.body)
+            self.context.logger.info(f'event.body: {event.body}')
             if 'data_url' in body:
                 # Get data from URL
                 url = body['data_url']
                 self.context.logger.debug_with('downloading data', url=url)
                 data = urlopen(url).read()
                 sample = BytesIO(data)
-                body['instances'].append(sample)
+                parsed_event['instances'].append(sample)
 
-        except json.decoder.JSONDecodeError as e:
+        except Exception as e:
             if event.content_type.startswith('image/'):
                 sample = BytesIO(event.body)
-                body['instances'].append(sample)
-                body['content_type'] = event.content_type
+                parsed_event['instances'].append(sample)
+                parsed_event['content_type'] = event.content_type
             else:
-                return self.context.Response(
-                    body="Unrecognized request format: %s" % e,
-                    content_type='text/plain',
-                    status_code=400)
-        return body
+                raise Exception("Unrecognized request format: %s" % e)
+                
+        return parsed_event
 
     def validate(self, request):
         if "instances" not in request:
-            return self.context.Response(
-                body="Expected key \"instances\" in request body",
-                content_type='text/plain',
-                status_code=400)
+            raise Exception("Expected key \"instances\" in request body")
 
         if not isinstance(request["instances"], list):
-            return self.context.Response(
-                body="Expected \"instances\" to be a list",
-                content_type='text/plain',
-                status_code=400)
+            raise Exception("Expected \"instances\" to be a list")
 
         return request
 

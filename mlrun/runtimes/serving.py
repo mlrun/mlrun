@@ -92,7 +92,10 @@ class HTTPHandler:
     def parse_event(self, event):
         parsed_event = {'instances': []}
         try:
-            body = json.loads(event.body)
+            if event.content_type.endswith('json'):
+                body = event.body
+            else:
+                body = json.loads(event.body)
             self.context.logger.info(f'event.body: {event.body}')
             if 'data_url' in body:
                 # Get data from URL

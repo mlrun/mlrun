@@ -14,8 +14,12 @@
 
 import json
 from os import environ
+
+import math
 from kubernetes import client
 
+from ..utils import update_in, logger
+from .base import FunctionStatus
 from ..execution import MLClientCtx
 from .local import get_func_arg
 from ..model import RunObject
@@ -26,17 +30,41 @@ from ..config import config
 
 class DaskSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 volumes=None, volume_mounts=None, env=None, resources=None, build=None,
-                 entry_points=None, description=None, replicas=None,
-                 image_pull_policy=None, service_account=None, extra_pip=None):
+                 volumes=None, volume_mounts=None, env=None, resources=None,
+                 build=None, entry_points=None, description=None,
+                 replicas=None, image_pull_policy=None, service_account=None,
+                 extra_pip=None, remote=None, service_type=None,
+                 node_port=None, min_replicas=None, max_replicas=None):
 
         super().__init__(command=command, args=args, image=image,
                          mode=mode, volumes=volumes, volume_mounts=volume_mounts,
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
                          service_account=service_account, build=build,
                          entry_points=entry_points, description=description)
+        self.args = ['dask-worker']
+        if args:
+            self.args += args
+
         self.extra_pip = extra_pip
-        self.args = args or ['dask-worker']
+        self.remote = remote
+        if replicas or min_replicas or max_replicas:
+            self.remote = True
+            
+        self.service_type = service_type
+        self.node_port = node_port
+        self.min_replicas = min_replicas or 0
+        self.max_replicas = max_replicas or math.inf
+        self.scheduler_timeout = '1440 minutes'
+
+
+class DaskStatus(FunctionStatus):
+    def __init__(self, state=None, build_pod=None,
+                 scheduler_address=None, cluster_name=None, dashboard_port=None):
+        super().__init__(state, build_pod)
+
+        self.scheduler_address = scheduler_address
+        self.cluster_name = cluster_name
+        self.dashboard_port = dashboard_port
 
 
 class DaskCluster(KubejobRuntime):
@@ -59,8 +87,18 @@ class DaskCluster(KubejobRuntime):
         self._spec = self._verify_dict(spec, 'spec', DaskSpec)
 
     @property
+    def status(self) -> DaskStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(status, 'status', DaskStatus)
+
+    @property
     def is_deployed(self):
-        return True
+        if not self.spec.remote and not self.spec.replicas:
+            return True
+        return super().is_deployed
 
     def _to_pod(self):
         image = self._image_path() or 'daskdev/dask:latest'
@@ -93,6 +131,47 @@ class DaskCluster(KubejobRuntime):
     def initialized(self):
         return True if self._cluster else False
 
+    def start(self, scale=0):
+        try:
+            from dask_kubernetes import KubeCluster
+            from dask.distributed import Client, default_client
+            import dask
+        except ImportError as e:
+            print('missing dask or dask_kubernetes, please run '
+                  '"pip install dask distributed dask_kubernetes", %s', e)
+            raise e
+
+        self.spec.remote = True
+        svc_temp = dask.config.get("kubernetes.scheduler-service-template")
+        if self.spec.service_type:
+            update_in(svc_temp, 'spec.type', self.spec.service_type)
+            if self.spec.service_type == 'NodePort' and self.spec.node_port:
+                svc_temp['spec']['ports'][1]['nodePort'] = self.spec.node_port
+
+        dask.config.set({"kubernetes.scheduler-service-template": svc_temp,
+                         'kubernetes.name': 'mlrun-dask-{uuid}'})
+
+        namespace = self.metadata.namespace or config.namespace
+        self._cluster = KubeCluster(
+            self._to_pod(), deploy_mode='remote',
+            namespace=namespace,
+            scheduler_timeout=self.spec.scheduler_timeout)
+
+        logger.info('cluster {} started at {}'.format(
+            self._cluster.name, self._cluster.scheduler_address
+        ))
+        self.status.scheduler_address = self._cluster.scheduler_address
+        self.status.cluster_name = self._cluster.name
+
+        scale = scale or self.spec.replicas
+        if not scale:
+            self._cluster.adapt(minimum=self.spec.min_replicas,
+                                maximum=self.spec.max_replicas)
+        else:
+            self._cluster.scale(scale)
+
+        self.save(versioned=False)
+
     def cluster(self, scale=0):
         if not self._cluster:
             try:
@@ -112,11 +191,11 @@ class DaskCluster(KubejobRuntime):
     @property
     def client(self):
         from dask.distributed import Client, default_client
+        if self._cluster:
+            return Client(self._cluster)
         try:
             return default_client()
         except ValueError:
-            if self._cluster:
-                return Client(self._cluster)
             return Client()
 
     def close(self):

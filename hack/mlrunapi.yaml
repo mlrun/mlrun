@@ -89,6 +89,18 @@ rules:
   - patch
   - delete
 - apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+- apiGroups:
   - kubeflow.org
   resources:
   - mpijobs

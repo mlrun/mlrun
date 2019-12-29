@@ -92,7 +92,7 @@ class HTTPHandler:
     def parse_event(self, event):
         parsed_event = {'instances': []}
         try:
-            if not isinstance(event.body, dict)::
+            if not isinstance(event.body, dict):
                 body = json.loads(event.body)
             else:
                 body = event.body

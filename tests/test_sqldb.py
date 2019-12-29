@@ -175,3 +175,17 @@ def test_list_projects(db: sqldb.SQLDB):
         db.store_run(run, 'u7', project=f'prj{i%3}', iter=i)
 
     assert {'prj0', 'prj1', 'prj2'} == set(db.list_projects())
+
+
+def test_list_runs(db: sqldb.SQLDB):
+    uid = 'u183'
+    run = new_run('s1', ['l1', 'l2'], x=1)
+    count = 5
+    for iter in range(count):
+        db.store_run(run, uid, iter=iter)
+
+    runs = list(db.list_runs(uid=uid))
+    assert 1 == len(runs), 'iter=False'
+
+    runs = list(db.list_runs(uid=uid, iter=True))
+    assert 5 == len(runs), 'iter=True'

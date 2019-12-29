@@ -203,6 +203,8 @@ class SQLDB(RunDBInterface):
             query = query.order_by(Run.start_time.desc())
         if last:
             query = query.limit(last)
+        if not iter:
+            query = query.filter(Run.iteration == 0)
 
         runs = RunList()
         for run in query:

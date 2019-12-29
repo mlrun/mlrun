@@ -39,7 +39,7 @@ def bool2str(val):
 
 class HTTPRunDB(RunDBInterface):
     kind = 'http'
-    
+
     def __init__(self, base_url, user='', password='', token=''):
         self.base_url = base_url
         self.user = user
@@ -55,7 +55,7 @@ class HTTPRunDB(RunDBInterface):
         url = f'{self.base_url}/api/{path}'
         kw = {
             key: value
-            for key, value in (('params', params), ('data', body), 
+            for key, value in (('params', params), ('data', body),
                                ('json', json))
             if value is not None
         }
@@ -90,7 +90,7 @@ class HTTPRunDB(RunDBInterface):
         error = f'store log {project}/{uid}'
         self.api_call('POST', path, error, params, body)
 
-    def get_log(self, uid, project='', offset=0, size=0):
+    def get_log(self, uid, project='', offset=0, size=-1):
         params = {'offset': offset, 'size': size}
         path = self._path_of('log', project, uid)
         error = f'get log {project}/{uid}'

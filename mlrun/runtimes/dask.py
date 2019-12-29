@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from copy import deepcopy
 from os import environ
 
 import math
@@ -41,15 +42,13 @@ class DaskSpec(KubeResourceSpec):
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
                          service_account=service_account, build=build,
                          entry_points=entry_points, description=description)
-        self.args = ['dask-worker']
-        if args:
-            self.args += args
+        self.args = args
 
         self.extra_pip = extra_pip
         self.remote = remote
         if replicas or min_replicas or max_replicas:
             self.remote = True
-            
+
         self.service_type = service_type
         self.node_port = node_port
         self.min_replicas = min_replicas or 0
@@ -106,11 +105,16 @@ class DaskCluster(KubejobRuntime):
         namespace = self.metadata.namespace or config.namespace
         if self.spec.extra_pip:
             env.append(self.spec.extra_pip)
+
+        pod_labels = deepcopy(self.metadata.labels)
+        pod_labels['mlrun/class'] = self.kind
+        pod_labels['mlrun/function'] = self._function_uri()
+
         container = client.V1Container(name='base',
                                        image=image,
                                        env=env,
                                        command=None,
-                                       args=self.spec.args,
+                                       args=['dask-worker'] + self.spec.args,
                                        image_pull_policy=self.spec.image_pull_policy,
                                        volume_mounts=self.spec.volume_mounts,
                                        resources=self.spec.resources)
@@ -121,7 +125,7 @@ class DaskCluster(KubejobRuntime):
                                     service_account=self.spec.service_account)
 
         meta = client.V1ObjectMeta(namespace=namespace,
-                                   labels=self.metadata.labels,
+                                   labels=pod_labels,
                                    annotations=self.metadata.annotations)
 
         pod = client.V1Pod(metadata=meta, spec=pod_spec)
@@ -143,10 +147,11 @@ class DaskCluster(KubejobRuntime):
 
         self.spec.remote = True
         svc_temp = dask.config.get("kubernetes.scheduler-service-template")
-        if self.spec.service_type:
-            update_in(svc_temp, 'spec.type', self.spec.service_type)
-            if self.spec.service_type == 'NodePort' and self.spec.node_port:
+        if self.spec.service_type or self.spec.node_port:
+            if self.spec.node_port:
+                self.spec.service_type = 'NodePort'
                 svc_temp['spec']['ports'][1]['nodePort'] = self.spec.node_port
+            update_in(svc_temp, 'spec.type', self.spec.service_type)
 
         dask.config.set({"kubernetes.scheduler-service-template": svc_temp,
                          'kubernetes.name': 'mlrun-dask-{uuid}'})

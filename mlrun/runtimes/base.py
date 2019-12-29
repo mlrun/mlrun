@@ -153,6 +153,10 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
+    def _function_uri(self, tag=None):
+        return '{}/{}:{}'.format(self.metadata.project, self.metadata.name,
+                                 tag or self.metadata.tag or 'latest')
+
     def _get_db(self):
         if not self._db_conn:
             self.spec.rundb = self.spec.rundb or default_dbpath()
@@ -228,9 +232,7 @@ class BaseRuntime(ModelObj):
                 update_in(struct, 'metadata.tag', '')
                 db.store_function(struct, self.metadata.name,
                                   self.metadata.project, hashkey)
-                furi = '{}/{}:{}'.format(self.metadata.project,
-                                         self.metadata.name, hashkey)
-                runspec.spec.function = furi
+                runspec.spec.function = self._function_uri(hashkey)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():

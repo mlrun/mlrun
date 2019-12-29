@@ -64,6 +64,20 @@ def start_server(db_path, log_file, env_config: dict):
     return proc, url
 
 
+# Use this when running container in the background
+def _docker_fixture():
+    def create(env=None):
+        url = 'http://localhost:8080'
+        conn = HTTPRunDB(url)
+        conn.connect()
+        return Server(url, conn)
+
+    def cleanup():
+        pass
+
+    return create, cleanup
+
+
 def docker_fixture():
     cid = None
 
@@ -73,8 +87,7 @@ def docker_fixture():
         env_config = {} if env_config is None else env_config
         cmd = [
             'docker', 'build',
-            # '-f', 'Dockerfile.db-gunicorn',
-            '-f', 'Dockerfile.db',
+            '-f', 'Dockerfile.db-gunicorn',
             '--tag', docker_tag,
             '.',
         ]
@@ -86,10 +99,10 @@ def docker_fixture():
             'docker', 'run',
             '--detach',
             '--publish', f'{port}:8080',
-            # '--volume', '/tmp:/tmp',  # For debugging
-            ]
+            '--volume', '/tmp:/tmp',  # For debugging
+        ]
         for key, value in env_config.items():
-            cmd.append('--env', f'{key}={value}')
+            cmd.extend(['--env', f'{key}={value}'])
         cmd.append(docker_tag)
         out = run(cmd, capture_output=True)
         assert out.returncode == 0, 'cannot run docker'
@@ -131,7 +144,7 @@ def server_fixture():
 
 servers = [
     'server',
-    # 'docker',
+    'docker',
 ]
 
 

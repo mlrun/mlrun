@@ -16,7 +16,7 @@ from collections import namedtuple
 from os import environ
 from pathlib import Path
 from socket import socket
-from subprocess import Popen, run
+from subprocess import Popen, run, PIPE
 from sys import executable
 from tempfile import mkdtemp
 
@@ -104,7 +104,7 @@ def docker_fixture():
         for key, value in env_config.items():
             cmd.extend(['--env', f'{key}={value}'])
         cmd.append(docker_tag)
-        out = run(cmd, capture_output=True)
+        out = run(cmd, stdout=PIPE)
         assert out.returncode == 0, 'cannot run docker'
         cid = out.stdout.decode('utf-8').strip()
         url = f'http://localhost:{port}'

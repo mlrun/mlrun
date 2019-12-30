@@ -149,6 +149,7 @@ def submit_job():
                 fn = new_function(runtime=runtime)
 
         fn.set_db_connection(_db, True)
+        print('func:\n{}'.format(fn.to_yaml()))
         # fn.spec.rundb = 'http://mlrun-api:8080'
         resp = fn.run(task)
 

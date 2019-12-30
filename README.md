@@ -78,7 +78,6 @@ kubectl apply -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrun
   * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
-* [Automating container build](examples/build.py)
 
 #### Additional Examples
 
@@ -206,7 +205,7 @@ will be logged automatically into a database with a single command.
     train_run = new_function().run(handler=xgb_train).with_params(eta=0.3)    
 
 we can swap the `function` with a serverless runtime and the same will run on a cluster.<br>
-this can result in 10x performance boost, see [this notebook](examples/train_xgboost_serverless.ipynb) for details.
+this can result in 10x performance boost.
 more examples can be found in [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, `Spark`, or `mpijob` runtimes.
  
 if we run our code from `main` we can get the runtime context by calling the `get_or_create_ctx`
@@ -367,7 +366,7 @@ fn.build(image='mlrun/nuctest:latest')
 Running in a pipeline would be similar to running using the command line
 mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
 
-see a [full pipelines notebook example](https://github.com/mlrun/demos/blob/master/xgboost/train_xgboost_serverless.ipynb)
+see a [full pipelines notebook example](examples/train_xgboost_serverless.ipynb)
 ```python
 @dsl.pipeline(
     name='My XGBoost training pipeline',

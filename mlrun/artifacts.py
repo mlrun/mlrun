@@ -67,7 +67,8 @@ class ArtifactManager:
 
     def log_artifact(
         self, execution, item, body=None, target_path='', src_path='', tag='',
-            viewer='', local_path='', upload=True, labels=None):
+            viewer='', local_path='', artifact_path=None,
+            upload=True, labels=None):
         if isinstance(item, str):
             key = item
             item = Artifact(key, body)
@@ -76,6 +77,11 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         src_path = src_path or local_path # TODO: remove src_path
+        if artifact_path:
+            target_path = uxjoin(
+                artifact_path, local_path, execution.iteration)
+
+
         # find the target path from defaults and config
         item.viewer = viewer or item.viewer
         item.src_path = src_path or item.src_path

@@ -345,6 +345,7 @@ def get_log(project, uid):
     size = int(request.args.get('size', '-1'))
     offset = int(request.args.get('offset', '0'))
 
+    out = b''
     log_file = log_path(project, uid)
     if log_file.exists():
         with log_file.open('rb') as fp:

@@ -1,6 +1,9 @@
+.aws-secrets
+Dockerfile.mlrun-test-nb
 build
 chart
 chart.html
+dask-worker-space/
 dataset.csv
 dist
 iteration_results.csv
@@ -8,3 +11,4 @@ mlrun.egg-info/
 model.txt
 results.html
 tests/test_results/
+.ipynb_checkpoints

@@ -13,23 +13,24 @@
 # limitations under the License.
 
 import json
-import time
-from os import path, remove, makedirs
-import yaml
 import pathlib
 from datetime import datetime, timedelta
+from os import makedirs, path, remove
 
-from ..utils import get_in, match_labels, dict_to_yaml, update_in, dict_to_json
+import yaml
+
+from ..config import config
 from ..datastore import StoreManager
+from ..lists import ArtifactList, RunList
+from ..utils import (
+    dict_to_json, dict_to_yaml, get_in, logger, match_labels, match_value,
+    update_in
+)
 from .base import RunDBError, RunDBInterface
-from ..lists import RunList, ArtifactList, FunctionList
-from ..utils import logger
 
 run_logs = 'runs'
 artifacts_dir = 'artifacts'
 functions_dir = 'functions'
-default_project = 'default'
-_missing = object()
 
 
 class FileRunDB(RunDBInterface):
@@ -46,7 +47,7 @@ class FileRunDB(RunDBInterface):
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
         return self
 
-    def store_log(self, uid, project='', body=None, append=True):
+    def store_log(self, uid, project='', body=None, append=False):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
         makedirs(path.join(self.dirpath, run_logs, project), exist_ok=True)
         mode = 'ab' if append else 'wb'
@@ -62,8 +63,8 @@ class FileRunDB(RunDBInterface):
                     fp.seek(offset)
                 if not size:
                     size = 2**18
-                return fp.read(size)
-        return None
+                return '', fp.read(size)
+        return '', None
 
     def _run_path(self, uid, iter):
         if iter:
@@ -78,6 +79,7 @@ class FileRunDB(RunDBInterface):
 
     def update_run(self, updates: dict, uid, project='', iter=0):
         run = self.read_run(uid, project, iter=iter)
+        # TODO: Should we raise if run not found?
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
@@ -86,6 +88,8 @@ class FileRunDB(RunDBInterface):
     def read_run(self, uid, project='', iter=0):
         filepath = self._filepath(
             run_logs, project, self._run_path(uid, iter), '') + self.format
+        if not pathlib.Path(filepath).is_file():
+            return None
         data = self._datastore.get(filepath)
         return self._loads(data)
 
@@ -153,6 +157,8 @@ class FileRunDB(RunDBInterface):
     def read_artifact(self, key, tag='', project=''):
         filepath = self._filepath(
             artifacts_dir, project, key, tag) + self.format
+        if not pathlib.Path(filepath).is_file():
+            return None
         data = self._datastore.get(filepath)
         return self._loads(data)
 
@@ -210,14 +216,16 @@ class FileRunDB(RunDBInterface):
         update_in(func, 'metadata.updated', datetime.now())
         data = self._dumps(func)
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
-            functions_dir, project or default_project, name,
+            functions_dir, project or config.default_project, name,
             tag or 'latest')) + self.format
         self._datastore.put(filepath, data)
 
     def get_function(self, name, project='', tag=''):
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
-            functions_dir, project or default_project, name,
+            functions_dir, project or config.default_project, name,
             tag or 'latest')) + self.format
+        if not pathlib.Path(filepath).is_file():
+            return None
         data = self._datastore.get(filepath)
         return self._loads(data)
 
@@ -226,7 +234,7 @@ class FileRunDB(RunDBInterface):
         logger.info(
             f'reading functions in {project} name/mask: {name} tag: {tag} ...')
         filepath = path.join(self.dirpath, '{}/{}/'.format(
-            functions_dir, project or default_project))
+            functions_dir, project or config.default_project))
         results = []
         if isinstance(labels, str):
             labels = labels.split(',')
@@ -234,7 +242,7 @@ class FileRunDB(RunDBInterface):
         if name:
             filepath = '{}{}/'.format(filepath, name)
             mask = '*'
-        for func, p in self._load_list(filepath, mask):
+        for func, _ in self._load_list(filepath, mask):
             if match_labels(get_in(func, 'metadata.labels', {}), labels):
                 results.append(func)
 
@@ -245,7 +253,7 @@ class FileRunDB(RunDBInterface):
             tag = ''
         if tag:
             key = '/' + key
-        project = project or default_project
+        project = project or config.default_project
         return path.join(self.dirpath, '{}/{}/{}{}'.format(
             table, project, tag, key))
 
@@ -285,9 +293,3 @@ class FileRunDB(RunDBInterface):
             remove(filepath)
         else:
             raise RunDBError(f'run file is not found or valid ({filepath})')
-
-
-def match_value(value, obj, key):
-    if not value:
-        return True
-    return get_in(obj, key, _missing) == value

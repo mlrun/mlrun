@@ -14,7 +14,7 @@
 import time
 from copy import deepcopy
 
-from .utils import AsyncLogWriter
+from .utils import AsyncLogWriter, RunError
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import update_in, logger, get_in
@@ -107,11 +107,12 @@ class MpiRuntime(KubejobRuntime):
             logger.info('MpiJob {} state={}'.format(
                 meta.name, state or 'unknown'))
             if state:
+                state = state.lower()
                 launcher, status = self._get_launcher(meta.name,
                                                       meta.namespace)
                 execution.set_hostname(launcher)
-                execution.set_state(state.lower())
-                if self.interactive or self.kfp:
+                execution.set_state('running' if state == 'active' else state)
+                if self.kfp:
                     writer = AsyncLogWriter(self._db_conn, runobj)
                     status = self._get_k8s().watch(
                         launcher, meta.namespace, writer=writer)
@@ -123,13 +124,15 @@ class MpiRuntime(KubejobRuntime):
                     else:
                         execution.set_state('error', 'MpiJob {} finished with state {}'.format(meta.name, status))
                 else:
-                    logger.info('MpiJob {} launcher pod {} state {}'.format(
-                        meta.name, launcher, status))
-                    logger.info('use .watch({}) to see logs'.format(meta.name))
+                    txt = 'MpiJob {} launcher pod {} state {}'.format(
+                        meta.name, launcher, state)
+                    logger.info(txt)
+                    runobj.status.status_text = txt
             else:
-                logger.warning(
-                    'MpiJob status unknown or failed, check pods: {}'.format(
-                        self.get_pods(meta.name, meta.namespace)))
+                txt = 'MpiJob status unknown or failed, check pods: {}'.format(
+                    self.get_pods(meta.name, meta.namespace))
+                logger.warning(txt)
+                runobj.status.status_text = txt
 
         return None
 
@@ -145,6 +148,7 @@ class MpiRuntime(KubejobRuntime):
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating MPIJob: %s" % e)
+            raise RunError("Exception when creating MPIJob: %s" % e)
 
     def delete_job(self, name, namespace=None):
         k8s = self._get_k8s()

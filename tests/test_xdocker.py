@@ -14,27 +14,12 @@
 
 from subprocess import PIPE, run
 from uuid import uuid4
-from sys import platform
 
 import pytest
 
-from conftest import here, wait_for_server
+from conftest import here, wait_for_server, in_docker
 
 prj_dir = here.parent
-
-
-def check_docker():
-    if not platform.startswith('linux'):
-        return False
-
-    with open('/proc/1/cgroup') as fp:
-        for line in fp:
-            if '/docker/' in line:
-                return True
-    return False
-
-
-in_docker = check_docker()
 
 
 @pytest.fixture

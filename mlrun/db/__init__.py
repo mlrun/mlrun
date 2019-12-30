@@ -11,13 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from os import environ
 from urllib.parse import urlparse
 
 from ..config import config
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
 from .httpdb import HTTPRunDB
+from .sqldb import SQLDB
 
 
 def default_dbpath():
@@ -31,9 +31,10 @@ def get_run_db(url=''):
     p = urlparse(url)
     scheme = p.scheme.lower()
     if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
-        db = FileRunDB(url)
+        cls = FileRunDB
     elif scheme in ('http', 'https'):
-        db = HTTPRunDB(url)
+        cls = HTTPRunDB
     else:
-        raise ValueError('unsupported run DB scheme ({})'.format(scheme))
-    return db
+        cls = SQLDB
+
+    return cls(url)

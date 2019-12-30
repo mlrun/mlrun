@@ -21,11 +21,12 @@ Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
-import os
-from os import path
-from collections.abc import Mapping
-from threading import Lock
 import json
+import os
+from collections.abc import Mapping
+from distutils.util import strtobool
+from os.path import expanduser
+from threading import Lock
 from urllib.parse import urlparse
 
 import yaml
@@ -33,23 +34,32 @@ import yaml
 env_prefix = 'MLRUN_'
 env_file_key = f'{env_prefix}CONIFG_FILE'
 _load_lock = Lock()
+_none_type = type(None)
 
 
 default_config = {
     'namespace': 'default-tenant',
     'dbpath': '',
+    'ui_url': '',
     'kfp_image': 'mlrun/mlrun:latest',
-    'kaniko_version': 'v0.13.0',
+    'kaniko_version': 'v0.14.0',
     'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
+    'default_project': 'default',
+    'default_archive': '',
+    'ipython_widget': True,
     'log_level': 'ERROR',
     'httpdb': {
         'port': 8080,
-        'dirpath': path.expanduser('~/.mlrun/db'),
+        'dirpath': expanduser('~/.mlrun/db'),
+        'dsn': 'sqlite:///:memory:?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',
         'token': '',
+        'logs_path': expanduser('~/.mlrun/logs'),
+        'files_path': '',
+        'db_type': 'filerundb',
     },
 }
 
@@ -132,6 +142,17 @@ def _do_populate(env=None):
         config.update(data)
 
 
+def _convert_str(value, typ):
+    if typ in (str, _none_type):
+        return value
+
+    if typ is bool:
+        return strtobool(value)
+
+    # e.g. int('8080') → 8080
+    return typ(value)
+
+
 def read_env(env=None, prefix=env_prefix):
     """Read configuration from environment"""
     env = os.environ if env is None else env
@@ -152,8 +173,8 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
-    # check for mlrun-db kubernetes service
-    svc = env.get('MLRUN_DB_PORT')
+    # check for mlrun-api or db kubernetes service
+    svc = env.get('MLRUN_API_PORT', env.get('MLRUN_DB_PORT'))
     if svc and not config.get('dbpath'):
         config['dbpath'] = 'http://' + urlparse(svc).netloc
 

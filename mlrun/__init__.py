@@ -12,13 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.3.3'
+__version__ = '0.4.1'
 
 from .run import get_or_create_ctx, new_function, code_to_function, import_function
 from .db import get_run_db
-from .model import RunTemplate, NewRun, NewTask, RunObject
+from .model import RunTemplate, NewTask, RunObject
 from .kfpops import mlrun_op
 from .config import config as mlconf
 from .runtimes import new_model_server
 from .platforms import mount_v3io, v3io_cred
 from .datastore import get_object
+
+
+from os import environ
+
+if 'IGZ_NAMESPACE_DOMAIN' in environ:
+    kfp_ep = 'https://dashboard.{}/pipelines/'.format(environ['IGZ_NAMESPACE_DOMAIN'])
+    environ['KF_PIPELINES_UI_ENDPOINT'] = kfp_ep

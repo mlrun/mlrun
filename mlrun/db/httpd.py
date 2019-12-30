@@ -17,19 +17,26 @@ from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
-from os import environ, path
+from os import environ
+import traceback
+from datetime import datetime
+from pathlib import Path
 
 from flask import Flask, jsonify, request, Response
 
+from mlrun.builder import build_runtime
 from mlrun.datastore import get_object, get_object_stat
-from mlrun.db import RunDBError
+from mlrun.db import RunDBError, RunDBInterface, periodic
+from mlrun.db.sqldb import SQLDB
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger, parse_function_uri, get_in
+from mlrun.utils import logger, parse_function_uri, get_in, update_in
 from mlrun.config import config
-from mlrun.runtimes import RunError
 from mlrun.run import new_function, import_function
+from mlrun.k8s_utils import k8s_helper
 
-_file_db: FileRunDB = None
+_db: RunDBInterface
+_k8s: k8s_helper = None
+_logs_dir = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
@@ -109,13 +116,13 @@ def catch_err(fn):
 @app.route('/api/submit/', methods=['POST'])
 @app.route('/api/submit/<path:func>', methods=['POST'])
 @catch_err
-def submit_job(func=''):
+def submit_job():
     try:
         data = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    logger.info('submit_job: func %s', func)
+    logger.info('submit_job: {}'.format(data))
     task = data.get('task')
     function = data.get('function')
     url = data.get('functionUrl')
@@ -132,23 +139,128 @@ def submit_job(func=''):
 
     try:
         if function:
-            resp = new_function(runtime=function).run(task)
+            fn = new_function(runtime=function)
         else:
             if '://' in url:
-                resp = import_function(url=url).run(task)
+                fn = import_function(url=url)
             else:
                 project, name, tag = parse_function_uri(url)
-                resp = import_function(
-                    project=project, name=name, tag=tag).run(task)
+                runtime = _db.get_function(name, project, tag)
+                fn = new_function(runtime=runtime)
+
+        fn.set_db_connection(_db, True)
+        print('func:\n{}'.format(fn.to_yaml()))
+        # fn.spec.rundb = 'http://mlrun-api:8080'
+        resp = fn.run(task)
 
         logger.info('resp: %s', resp.to_yaml())
-    except RunError as err:
+    except Exception as err:
+        print(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
         )
 
     return jsonify(ok=True, data=resp.to_dict())
+
+
+# curl -d@/path/to/job.json http://localhost:8080/build/function
+@app.route('/api/build/function', methods=['POST'])
+@app.route('/api/build/function/', methods=['POST'])
+@catch_err
+def build_function():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('build_function:\n{}'.format(data))
+    function = data.get('function')
+    with_mlrun = strtobool(data.get('with_mlrun', 'on'))
+    ready = False
+
+    try:
+        fn = new_function(runtime=function)
+        fn.set_db_connection(_db)
+        fn.save(versioned=False)
+
+        ready = build_runtime(fn, with_mlrun)
+        fn.save(versioned=False)
+        logger.info('Fn:\n %s', fn.to_yaml())
+    except Exception as err:
+        print(traceback.format_exc())
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=fn.to_dict(), ready=ready)
+
+
+# curl -d@/path/to/job.json http://localhost:8080/build/status
+@app.route('/api/build/status', methods=['GET'])
+@app.route('/api/build/status/', methods=['GET'])
+@catch_err
+def build_status():
+    name = request.args.get('name', '')
+    project = request.args.get('project', '')
+    tag = request.args.get('tag', '')
+    offset = int(request.args.get('offset', '0'))
+    logs = strtobool(request.args.get('logs', 'on'))
+
+    fn = _db.get_function(name, project, tag)
+    if not fn:
+        return json_error(HTTPStatus.NOT_FOUND, name=name,
+                          project=project, tag=tag)
+
+    state = get_in(fn, 'status.state', '')
+    pod = get_in(fn, 'status.build_pod', '')
+    image = get_in(fn, 'spec.build.image', '')
+    out = b''
+    if not pod:
+        return Response(out, mimetype='text/plain',
+                        headers={"function_status": state,
+                                 "function_image": image,
+                                 "builder_pod": pod})
+
+    logger.info('get pod {} status'.format(pod))
+    state = _k8s.get_pod_status(pod)
+    logger.info('pod state={}'.format(state))
+
+    if state == 'succeeded':
+        logger.info('build completed successfully')
+        state = 'ready'
+    if state in ['failed', 'error']:
+        logger.error('build {}, watch the build pod logs: {}'.format(
+            state, pod))
+
+    if logs and state != 'pending':
+        resp = _k8s.logs(pod)
+        if resp:
+            out = resp.encode()[offset:]
+
+    update_in(fn, 'status.state', state)
+    if state == 'ready':
+        update_in(fn, 'spec.image', image)
+
+    _db.store_function(fn, name, project, tag)
+
+    return Response(out, mimetype='text/plain',
+                    headers={"function_status": state,
+                             "function_image": image,
+                             "builder_pod": pod})
+
+
+def get_obj_path(schema, path):
+    if schema:
+        return schema + '://' + path
+    elif path.startswith('/User/'):
+        user = environ.get('V3IO_USERNAME', 'admin')
+        return 'v3io:///users/' + user + path[5:]
+    elif config.httpdb.files_path and \
+            path.startswith(config.httpdb.files_path):
+        return path
+    return None
 
 
 # curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
@@ -162,11 +274,10 @@ def get_files():
 
     _, filename = path.split(path)
 
-    if schema:
-        path = schema + '://' + path
-    elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', 'admin')
-        path = 'v3io:///users/' + user + path[5:]
+    path = get_obj_path(schema, path)
+    if not path:
+        return json_error(HTTPStatus.NOT_FOUND, path=path,
+                          err='illegal path prefix or schema')
 
     try:
         body = get_object(path, size, offset)
@@ -179,7 +290,8 @@ def get_files():
     if not ctype:
         ctype = 'application/octet-stream'
 
-    return Response(body, mimetype=ctype, headers={"x-suggested-filename": filename})
+    return Response(
+        body, mimetype=ctype, headers={"x-suggested-filename": filename})
 
 
 # curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
@@ -191,11 +303,10 @@ def get_filestat():
 
     _, filename = path.split(path)
 
-    if schema:
-        path = schema + '://' + path
-    elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', 'admin')
-        path = 'v3io:///users/' + user + path[5:]
+    path = get_obj_path(schema, path)
+    if not path:
+        return json_error(HTTPStatus.NOT_FOUND, path=path,
+                          err='illegal path prefix or schema')
 
     try:
         stat = get_object_stat(path)
@@ -211,29 +322,70 @@ def get_filestat():
                    mimetype=ctype)
 
 
+def log_path(project, uid) -> Path:
+    return _logs_dir / project / uid
+
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @app.route('/api/log/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_log(project, uid):
     append = strtobool(request.args.get('append', 'no'))
+    log_file = log_path(project, uid)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     body = request.get_data()  # TODO: Check size
-    _file_db.store_log(uid, project, body, append)
+    mode = 'ab' if append else 'wb'
+    with log_file.open(mode) as fp:
+        fp.write(body)
     return jsonify(ok=True)
 
 
 # curl http://localhost:8080/log/prj/7
 @app.route('/api/log/<project>/<uid>', methods=['GET'])
 def get_log(project, uid):
-    data = _file_db.get_log(uid, project)
-    if data is None:
-        data = _file_db.read_run(uid, project)
+    size = int(request.args.get('size', '-1'))
+    offset = int(request.args.get('offset', '0'))
+
+    out = b''
+    log_file = log_path(project, uid)
+    if log_file.exists():
+        with log_file.open('rb') as fp:
+            fp.seek(offset)
+            out = fp.read(size)
+        status = ''
+    else:
+        data = _db.read_run(uid, project)
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
                               project=project, uid=uid)
-        msg = 'No logs, {}'.format(get_in(data, 'status.error', 'no error'))
-        return msg.encode()
 
-    return data
+        status = get_in(data, 'status.state', '')
+        if _k8s:
+            pods = _k8s.get_logger_pods(uid)
+            if pods:
+                pod, new_status = list(pods.items())[0]
+                new_status = new_status.lower()
+
+                # TODO: handle in cron/tracking
+                if new_status != 'pending':
+                    resp = _k8s.logs(pod)
+                    if resp:
+                        out = resp.encode()[offset:]
+                    if status == 'running':
+                        now = str(datetime.now())
+                        update_in(data, 'status.last_update', now)
+                        if new_status == 'failed':
+                            update_in(data, 'status.state', 'error')
+                            update_in(
+                                data, 'status.error', 'error, check logs')
+                            _db.store_run(data, uid, project)
+                        if new_status == 'succeeded':
+                            update_in(data, 'status.state', 'completed')
+                            _db.store_run(data, uid, project)
+                status = new_status
+
+    return Response(out, mimetype='text/plain',
+                    headers={"pod_status": status})
+
 
 # curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @app.route('/api/run/<project>/<uid>', methods=['POST'])
@@ -246,7 +398,7 @@ def store_run(project, uid):
 
     logger.debug(data)
     iter = int(request.args.get('iter', '0'))
-    _file_db.store_run(data, uid, project, iter=iter)
+    _db.store_run(data, uid, project, iter=iter)
     app.logger.info('store run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -261,7 +413,7 @@ def update_run(project, uid):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     iter = int(request.args.get('iter', '0'))
-    _file_db.update_run(data, uid, project, iter=iter)
+    _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
     return jsonify(ok=True)
 
@@ -271,7 +423,7 @@ def update_run(project, uid):
 @catch_err
 def read_run(project, uid):
     iter = int(request.args.get('iter', '0'))
-    data = _file_db.read_run(uid, project, iter=iter)
+    data = _db.read_run(uid, project, iter=iter)
     return jsonify(ok=True, data=data)
 
 
@@ -280,7 +432,7 @@ def read_run(project, uid):
 @catch_err
 def del_run(project, uid):
     iter = int(request.args.get('iter', '0'))
-    _file_db.del_run(uid, project, iter=iter)
+    _db.del_run(uid, project, iter=iter)
     return jsonify(ok=True)
 
 
@@ -297,7 +449,7 @@ def list_runs():
     iter = strtobool(request.args.get('iter', 'on'))
     last = int(request.args.get('last', '0'))
 
-    runs = _file_db.list_runs(
+    runs = _db.list_runs(
         name=name,
         uid=uid,
         project=project,
@@ -319,7 +471,7 @@ def del_runs():
     state = request.args.get('state', '')
     days_ago = int(request.args.get('days_ago', '0'))
 
-    _file_db.del_runs(name, project, labels, state, days_ago)
+    _db.del_runs(name, project, labels, state, days_ago)
     return jsonify(ok=True)
 
 
@@ -333,7 +485,7 @@ def store_artifact(project, uid, key):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     tag = request.args.get('tag', '')
-    _file_db.store_artifact(key, data, uid, tag, project)
+    _db.store_artifact(key, data, uid, tag, project)
     return jsonify(ok=True)
 
 
@@ -341,7 +493,7 @@ def store_artifact(project, uid, key):
 @app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
 def read_artifact(project, tag, key):
-    data = _file_db.read_artifact(key, tag, project)
+    data = _db.read_artifact(key, tag, project)
     return data
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
@@ -353,7 +505,7 @@ def del_artifact(project, uid):
         return json_error(HTTPStatus.BAD_REQUEST, reason='missing data')
 
     tag = request.args.get('tag', '')
-    _file_db.del_artifact(key, tag, project)
+    _db.del_artifact(key, tag, project)
     return jsonify(ok=True)
 
 # curl http://localhost:8080/artifacts?project=p1?label=l1
@@ -365,7 +517,7 @@ def list_artifacts():
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 
-    artifacts = _file_db.list_artifacts(name, project, tag, labels)
+    artifacts = _db.list_artifacts(name, project, tag, labels)
     return jsonify(ok=True, artifacts=artifacts)
 
 # curl -X DELETE http://localhost:8080/artifacts?project=p1?label=l1
@@ -377,7 +529,7 @@ def del_artifacts():
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 
-    _file_db.del_artifacts(name, project, tag, labels)
+    _db.del_artifacts(name, project, tag, labels)
     return jsonify(ok=True)
 
 # curl -d@/path/to/func.json http://localhost:8080/func/prj/7?tag=0.3.2
@@ -391,7 +543,7 @@ def store_function(project, name):
 
     tag = request.args.get('tag', '')
 
-    _file_db.store_function(data, name, project, tag)
+    _db.store_function(data, name, project, tag)
     return jsonify(ok=True)
 
 
@@ -400,7 +552,7 @@ def store_function(project, name):
 @catch_err
 def get_function(project, name):
     tag = request.args.get('tag', '')
-    func = _file_db.get_function(name, project, tag)
+    func = _db.get_function(name, project, tag)
     return jsonify(ok=True, func=func)
 
 
@@ -413,7 +565,7 @@ def list_functions():
     tag = request.args.get('tag', '')
     labels = request.args.getlist('label')
 
-    out = _file_db.list_functions(name, project, tag, labels)
+    out = _db.list_functions(name, project, tag, labels)
     return jsonify(
         ok=True,
         funcs=list(out),
@@ -427,13 +579,26 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _file_db
-
-    from mlrun.config import config
+    global _db, _logs_dir, _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
-    _file_db = FileRunDB(config.httpdb.dirpath, '.yaml')
-    _file_db.connect()
+    if config.httpdb.db_type == 'sqldb':
+        logger.info('using SQLDB')
+        _db = SQLDB(config.httpdb.dsn)
+    else:
+        logger.info('using FileRunDB')
+        _db = FileRunDB(config.httpdb.dirpath)
+    _db.connect()
+    _logs_dir = Path(config.httpdb.logs_path)
+
+    try:
+        _k8s = k8s_helper()
+    except Exception:
+        pass
+
+    # @yaronha - Initialize here
+    task = periodic.Task()
+    periodic.schedule(task, 60)
 
 
 # Don't remove this function, it's an entry point in setup.py

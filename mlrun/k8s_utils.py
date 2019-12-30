@@ -217,6 +217,24 @@ class k8s_helper:
             items.append(i)
         return items
 
+    def get_logger_pods(self, uid, namespace=''):
+        namespace = self.ns(namespace)
+        selector = 'mlrun/class,mlrun/uid={}'.format(uid)
+        pods = self.list_pods(selector=selector, namespace=namespace)
+        if not pods:
+            logger.error('no pod matches that uid')
+            return
+
+        kind = pods[0].metadata.labels.get('mlrun/class')
+        results = {}
+        for p in pods:
+            if (kind not in ['spark', 'mpijob']) or \
+                  (p.metadata.labels.get('spark-role', '') == 'driver') or \
+                  (p.metadata.labels.get('mpi_role_type', '') == 'launcher'):
+                results[p.metadata.name] = p.status.phase
+
+        return results
+
 
 class BasePod:
 
@@ -264,9 +282,9 @@ class BasePod:
     def add_annotation(self, key, value):
         self._annotations[key] = str(value)
 
-    def add_volume(self, volume: client.V1Volume, mount_path):
+    def add_volume(self, volume: client.V1Volume, mount_path, name=None):
         self._mounts.append(client.V1VolumeMount(
-            name=volume.name, mount_path=mount_path))
+            name=name or volume.name, mount_path=mount_path))
         self._volumes.append(volume)
 
     def mount_empty(self, name='empty', mount_path='/empty'):
@@ -278,7 +296,7 @@ class BasePod:
       self, name='v3io', remote='~/', mount_path='/User', access_key='',
       user=''):
         self.add_volume(v3io_to_vol(name, remote, access_key, user),
-                        mount_path=mount_path)
+                        mount_path=mount_path, name=name)
 
     def mount_cfgmap(self, name, path='/config'):
         self.add_volume(client.V1Volume(

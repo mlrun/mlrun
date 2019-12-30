@@ -21,11 +21,12 @@ from tempfile import mktemp
 import yaml
 from nuclio import build_file
 
+from .runtimes.utils import add_code_metadata
 from .execution import MLClientCtx
 from .model import RunObject
 from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
                        DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
-from .utils import update_in, get_in, logger
+from .utils import update_in, get_in, logger, parse_function_uri
 from .datastore import get_object
 from .db import get_run_db, default_dbpath
 
@@ -124,16 +125,32 @@ runtime_dict = {'remote': RemoteRuntime,
                 'spark': SparkRuntime}
 
 
-def import_function(url='', name='', project: str = '', tag: str = '',
-                    secrets=None, rundb=''):
-    """create function object from DB or local/remote YAML file"""
-    if not url:
-        db = get_run_db(rundb or default_dbpath()).connect(secrets)
+def import_function(url='', secrets=None, db=''):
+    """create function object from DB or local/remote YAML file
+
+    reading from a file or remote URL (http(s), s3, git, v3io, ..)
+    :param url:      path/url to function YAML file
+                     or
+                     db://{project}/{name}[:tag] when reading from mlrun db
+
+    :param secrets:  optional, credentials dict for DB or URL (s3, v3io, ..)
+    :param db        optional, mlrun api/db path
+
+    :return: function object
+    """
+    if url.startswith('db://'):
+        url = url[5:]
+        project, name, tag = parse_function_uri(url)
+        db = get_run_db(db or default_dbpath()).connect(secrets)
         runtime = db.get_function(name, project, tag)
+        if not runtime:
+            raise KeyError('function {}:{} not found in the DB'.format(
+                name, tag
+            ))
         return new_function(runtime=runtime)
 
     runtime = import_function_to_dict(url, secrets)
-    return new_function(name, project=project, tag=tag, runtime=runtime)
+    return new_function(runtime=runtime)
 
 
 def import_function_to_dict(url, secrets=None):
@@ -179,9 +196,9 @@ def import_function_to_dict(url, secrets=None):
 
 
 def new_function(name: str = '', project: str = '', tag: str = '',
-                 command: str = '', image: str = '',
-                 runtime=None, args: list = None,
-                 mode=None, kfp=None, interactive=False):
+                 kind: str = '', command: str = '', image: str = '',
+                 args: list = None, runtime=None,
+                 mode=None, kfp=None):
     """Create a new ML function from base properties
 
     e.g.:
@@ -194,19 +211,19 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     :param name:     function name
     :param project:  function project (none for 'default')
     :param tag:      function version tag (none for 'latest')
-    :param command:  runtime type + command/url + args (e.g.: mpijob://training.py --verbose)
-                     runtime prefixes: None, local, job, spark, dask, mpijob, nuclio
+
+    :param kind:     runtime type (local, job, nuclio, spark, mpijob, dask, ..)
+    :param command:  command/url + args (e.g.: training.py --verbose)
+    :param image:    container image (start with '.' for default registry)
     :param args:     command line arguments (override the ones in command)
-    :param image:    default container image
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
     :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
-    :param kfp:      flag indicating running within kubeflow pipeline
-    :param interactive:   run the tasks synchronously and print the output
+    :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
     """
-    kind, runtime = process_runtime(command, runtime)
+    kind, runtime = process_runtime(command, runtime, kind)
     command = get_in(runtime, 'spec.command', command)
     name = name or get_in(runtime, 'metadata.name', '')
 
@@ -234,23 +251,26 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     if tag:
         runner.metadata.tag = tag
     if image:
+        if kind in ['', 'handler', 'local']:
+            raise ValueError('image should only be set with containerized '
+                             'runtimes (job, mpijob, spark, ..), set kind=..')
         runner.spec.image = image
     if args:
         runner.spec.args = args
     runner.kfp = kfp
-    runner.spec.mode = mode
-    runner.interactive = interactive
+    if mode:
+        runner.spec.mode = mode
     return runner
 
 
-def process_runtime(command, runtime):
-    kind = ''
+def process_runtime(command, runtime, kind):
     if runtime and hasattr(runtime, 'to_dict'):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
-        kind = runtime.get('kind', '')
+        kind = kind or runtime.get('kind', '')
         command = command or get_in(runtime, 'spec.command', '')
-    kind, command = get_kind(kind, command or '')
+    if '://' in command and command.startswith('http'):
+        kind = kind or 'remote'
     if not runtime:
         runtime = {}
     update_in(runtime, 'spec.command', command)
@@ -260,15 +280,6 @@ def process_runtime(command, runtime):
     else:
         update_in(runtime, 'spec.function_kind', 'mlrun')
     return kind, runtime
-
-
-def get_kind(kind, command):
-    idx = command.find('://')
-    if idx < 0:
-        return kind, command
-    if command.startswith('http'):
-        return 'remote', command
-    return command[:idx], command[idx + 3:]
 
 
 def parse_command(runtime, url):
@@ -283,16 +294,20 @@ def parse_command(runtime, url):
         update_in(runtime, 'spec.args', arg_list[1:])
 
 
-def code_to_function(name='', filename='', handler='', runtime='',
-                     image=None, embed_code = True):
+def code_to_function(name: str = '', project: str = '', tag: str = '',
+                     filename: str = '', handler='', runtime='',
+                     kind='', image=None, embed_code=True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
 
     :param name:       function name
+    :param project:    function project (none for 'default')
+    :param tag:        function tag (none for 'latest')
     :param filename:   blank for current notebook, or path to .py/.ipynb file
     :param handler:    name of function handler (if not main)
     :param runtime:    optional, runtime type local, job, dask, mpijob, ..
+    :param kind:       optional, runtime type local, job, dask, mpijob, ..
     :param image:      optional, container image
     :param embed_code: embed the source code into the function spec
 
@@ -300,6 +315,7 @@ def code_to_function(name='', filename='', handler='', runtime='',
            function object
     """
     filebase, _ = path.splitext(path.basename(filename))
+    runtime = runtime or kind  # for backwards computability
 
     def tag_name(labels):
         if filename:
@@ -318,9 +334,12 @@ def code_to_function(name='', filename='', handler='', runtime='',
             r.spec.source = filename
             r.spec.function_handler = handler
         r.metadata.name = name
+        r.metadata.project = project
+        r.metadata.tag = tag
         if not r.metadata.name:
             raise ValueError('name must be specified')
         tag_name(r.metadata.labels)
+        add_code_metadata(r.metadata.labels)
         return r
 
     name, spec, code = build_file(filename, name=name, handler=handler)
@@ -335,11 +354,14 @@ def code_to_function(name='', filename='', handler='', runtime='',
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
+    r.metadata.project = project
     r.metadata.name = name
+    r.metadata.tag = tag
     if not r.metadata.name:
         raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
     tag_name(r.metadata.labels)
+    add_code_metadata(r.metadata.labels)
     build = r.spec.build
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')
@@ -352,5 +374,3 @@ def code_to_function(name='', filename='', handler='', runtime='',
             r.spec.volumes.append(vol.get('volume'))
             r.spec.volume_mounts.append(vol.get('volumeMount'))
     return r
-
-

@@ -16,7 +16,7 @@ def my_job():
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
     print('file\n{}\n'.format(context.get_input('infile.txt', 'infile.txt').get()))
     
-    # RUN some useful code e.g. ML training, data prep, etc.
+    # Run some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)
     context.log_result('accuracy', p1 * 2)
@@ -24,10 +24,10 @@ def my_job():
     context.set_label('framework', 'sklearn')
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-    context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
-    context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
-    context.log_artifact(TableArtifact('dataset.csv', '1,2,3\n4,5,6\n',
-                                        viewer='table', header=['A', 'B', 'C']))
+    context.log_artifact('model', body=b'abc is 123', target_path='model.txt', labels={'framework': 'xgboost'})
+    context.log_artifact('html_result', body=b'<b> Some HTML <b>', target_path='result.html', viewer='web-app')
+    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n',
+                                        viewer='table', header=['A', 'B', 'C']), target_path='dataset.csv')
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart.html')

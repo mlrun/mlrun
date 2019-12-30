@@ -14,8 +14,10 @@
 
 FROM python:3.6
 WORKDIR /mlrun
+
+COPY requirements.txt ./
+RUN python -m pip install -r requirements.txt
+
 COPY . .
-RUN python setup.py install &&\
-    pip install kfp &&\
-    pip install kubernetes==10.0.0
+RUN python setup.py install
 

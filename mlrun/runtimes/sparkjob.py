@@ -197,7 +197,9 @@ class SparkRuntime(KubejobRuntime):
             logger.info('SparkJob {} created'.format(name))
             return resp
         except client.rest.ApiException as e:
-            logger.error("Exception when creating SparkJob: %s" % e)
+            crd = '{}/{}/{}'.format(SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural)
+            logger.error("Exception when creating SparkJob ({}): {}".format(crd, e))
+            raise RunError("Exception when creating SparkJob: %s" % e)
 
     def get_job(self, name, namespace=None):
         k8s = self._get_k8s()

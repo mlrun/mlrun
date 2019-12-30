@@ -393,12 +393,8 @@ def xgb_pipeline(
                          inputs={'iterations': train.outputs['iteration_results']},
                          outputs=['iris_dataset'], out_path=artifacts_path).apply(mount_v3io())
 
-
-    # define a nuclio-serving functions, generated from a notebook file
-    srvfn = new_model_server('iris-serving', model_class='XGBoostModel', filename='nuclio_serving.ipynb')
-    
     # deploy the model serving function with inputs from the training stage
-    deploy = srvfn.with_v3io('User','~/').deploy_step(project = 'iris', models={'iris_v1': train.outputs['model']})  
+    deploy = srvfn.deploy_step(project = 'iris', models={'iris_v1': train.outputs['model']})
 ```
 
 ## MLRun User Interface
@@ -457,7 +453,7 @@ to deploy the function into a cluster you can run the following commands
 ```python
 # create the function from the notebook code + annotations, add volumes and parallel HTTP trigger
 fn = code_to_function('xgb_train', runtime='nuclio:mlrun')
-fn.add_volume('User','~/').with_http(workers=32)
+fn.apply(mount_v3io()).with_http(workers=32)
 
 run = fn.run(task, handler='xgb_train')
 ```

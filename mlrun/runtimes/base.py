@@ -429,7 +429,7 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 'handler must be provided for {} runtime'.format(self.kind))
 
-    def _image_path(self):
+    def full_image_path(self):
         image = self.spec.image
         if not image.startswith('.'):
             return image
@@ -464,7 +464,7 @@ class BaseRuntime(ModelObj):
         """
 
         # expand local registry path, TODO: copy self to avoid modify the fn?
-        self.spec.image = self._image_path()
+        self.spec.image = self.full_image_path()
 
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,

@@ -344,3 +344,11 @@ class BasePod:
                                          annotations=self._annotations),
             spec=pod_spec)
         return pod
+
+
+def format_labels(labels):
+    """ Convert a dictionary of labels into a comma separated string """
+    if labels:
+        return ",".join(["{}={}".format(k, v) for k, v in labels.items()])
+    else:
+        return ""

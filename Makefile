@@ -73,6 +73,9 @@ docs:
 	sed -i 's#/mlrun/#/#' docs/conf.py
 	# Add api to docs
 	sed -i s'/   mlrun/   api\n   mlrun/' docs/index.rst
+	# Special requirements file
+	cp requirements.txt docs
+	echo numpydoc >> docs/requirements.txt
 
 .PHONY: html-docs
 html-docs:

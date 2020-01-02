@@ -73,4 +73,7 @@ docs:
 	sed -i 's#/mlrun/#/#' docs/conf.py
 	# Add api to docs
 	sed -i s'/   mlrun/   api\n   mlrun/' docs/index.rst
+
+.PHONY: html-docs
+html-docs:
 	cd docs && make html

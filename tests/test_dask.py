@@ -2,13 +2,29 @@ from pprint import pprint
 
 import pytest
 
-from conftest import rundb_path, tag_test, verify_state
+from conftest import tag_test, verify_state
 from mlrun import NewTask, new_function
+from tempfile import mkdtemp
+
+log_config = '''
+logging:
+  distributed: error
+  distributed.client: error
+  bokeh: error
+  tornado: error
+'''
 
 has_dask = False
 try:
     import dask  # noqa
     has_dask = True
+    tmp_dir = mkdtemp(prefix='mlrun-dask-config')
+    with open(f'{tmp_dir}/logging.yml', 'w') as out:
+        out.write(log_config)
+    dask.config.paths.append(tmp_dir)
+    dask.config.refresh()
+
+
 except ImportError:
     pass
 

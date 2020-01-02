@@ -70,7 +70,7 @@ docs:
 	    --private \
 	    mlrun
 	# Fix sys.path in conf.py
-	sed -i 's#/mlrun/#/#' docs/conf.py
+	sed -i "s#'.*/mlrun')#'..')#" docs/conf.py
 	# Add api to docs
 	sed -i s'/   mlrun/   api\n   mlrun/' docs/index.rst
 	# Special requirements file

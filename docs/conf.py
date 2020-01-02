@@ -11,7 +11,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import sys
-sys.path.insert(0, '../mlrun')
+sys.path.insert(0, '..')
 
 
 # -- Project information -----------------------------------------------------

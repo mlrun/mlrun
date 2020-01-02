@@ -56,3 +56,13 @@ docker-db-gunicorn:
 	    -f Dockerfile.db-gunicorn \
 	    --tag mlrun/mlrun-db-gunicorn \
 	    .
+
+
+.PHONY: circleci
+circleci:
+	docker build -f Dockerfile.test -t mlrun/test .
+	-docker network create mlrun
+	docker run \
+	    -v /var/run/docker.sock:/var/run/docker.sock \
+	    --network mlrun \
+	    mlrun/test make test 

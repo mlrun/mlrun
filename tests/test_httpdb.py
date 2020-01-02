@@ -25,7 +25,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server
+from conftest import wait_for_server, in_docker
 
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
@@ -64,8 +64,8 @@ def start_server(db_path, log_file, env_config: dict):
     return proc, url
 
 
-# Use this when running container in the background
-def _docker_fixture():
+# Used when running container in the background, see below
+def noo_docker_fixture():
     def create(env=None):
         url = 'http://localhost:8080'
         conn = HTTPRunDB(url)
@@ -94,11 +94,13 @@ def docker_fixture():
         out = run(cmd)
         assert out.returncode == 0, 'cannot build docker'
 
+        run(['docker', 'network', 'create', 'mlrun'])
         port = free_port()
         cmd = [
             'docker', 'run',
             '--detach',
             '--publish', f'{port}:8080',
+            '--network', 'mlrun',
             '--volume', '/tmp:/tmp',  # For debugging
         ]
         for key, value in env_config.items():
@@ -107,16 +109,26 @@ def docker_fixture():
         out = run(cmd, stdout=PIPE)
         assert out.returncode == 0, 'cannot run docker'
         cid = out.stdout.decode('utf-8').strip()
-        url = f'http://localhost:{port}'
+        if in_docker:
+            host = cid[:12]
+            url = f'http://{host}:8080'
+        else:
+            url = f'http://localhost:{port}'
+        print(f'httpd url: {url}')
         check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(url, conn)
 
     def cleanup():
+        return
         run(['docker', 'rm', '--force', cid])
 
     return create, cleanup
+
+
+if 'HTTPD_DOCKER_RUN' in environ:
+    docker_fixture = noop_docker_fixture  # noqa
 
 
 def server_fixture():

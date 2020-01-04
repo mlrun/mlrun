@@ -19,7 +19,7 @@ from os import environ
 
 import math
 from kubernetes.client.rest import ApiException
-from ..k8s_utils import k8s_helper
+from ..k8s_utils import get_k8s_helper
 from ..utils import update_in, logger
 from .base import FunctionStatus
 from ..execution import MLClientCtx
@@ -35,19 +35,11 @@ from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std
 def get_dask_resource():
     return {
         'scope': 'function',
-        'get_object': None
-
+        'start': deploy_function,
+        'list': list_objects,
+        'status': get_obj_status,
+        'clean': clean_objects,
     }
-
-
-_k8s = None
-
-
-def _get_k8s():
-    global _k8s
-    if not _k8s:
-        _k8s = k8s_helper()
-    return _k8s
 
 
 class DaskSpec(KubeResourceSpec):
@@ -80,12 +72,12 @@ class DaskSpec(KubeResourceSpec):
 
 class DaskStatus(FunctionStatus):
     def __init__(self, state=None, build_pod=None,
-                 scheduler_address=None, cluster_name=None, dashboard_port=None):
+                 scheduler_address=None, cluster_name=None, node_ports=None):
         super().__init__(state, build_pod)
 
         self.scheduler_address = scheduler_address
         self.cluster_name = cluster_name
-        self.dashboard_port = dashboard_port
+        self.node_ports = node_ports
 
 
 class DaskCluster(KubejobRuntime):
@@ -125,12 +117,10 @@ class DaskCluster(KubejobRuntime):
         return True if self._cluster else False
 
     def start(self):
-        self.spec.remote = True
-
         self._cluster = deploy_function(self)
         self.save(versioned=False)
 
-    def close(self):
+    def close(self, running=True):
         from dask.distributed import default_client
         try:
             client = default_client()
@@ -139,12 +129,12 @@ class DaskCluster(KubejobRuntime):
             pass
         meta = self.metadata
         s = get_func_selector(meta.project, meta.name, meta.tag)
-        stop_function(s)
+        clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata
         s = get_func_selector(meta.project, meta.name, meta.tag)
-        status = get_function_status(s, self)
+        status = get_obj_status(s, self)
         print(status)
         return status
 
@@ -237,6 +227,8 @@ def deploy_function(function: DaskCluster):
 
     spec = function.spec
     meta = function.metadata
+    spec.remote = True
+
     image = function.full_image_path() or 'daskdev/dask:latest'
     env = spec.env
     namespace = meta.namespace or config.namespace
@@ -287,6 +279,10 @@ def deploy_function(function: DaskCluster):
 
     function.status.scheduler_address = cluster.scheduler_address
     function.status.cluster_name = cluster.name
+    if spec.service_type == 'NodePort':
+        ports = cluster.scheduler.service.spec.ports
+        function.status.node_ports = {'scheduler': ports[0].node_port,
+                                      'dashboard': ports[1].node_port}
 
     if spec.replicas:
         cluster.scale(spec.replicas)
@@ -297,36 +293,43 @@ def deploy_function(function: DaskCluster):
     return cluster
 
 
-def stop_function(selector=[], namespace=None):
-    k8s = _get_k8s()
+def clean_objects(selector=[], running=False, namespace=None):
+    k8s = get_k8s_helper()
     namespace = namespace or config.namespace
 
     selector = ','.join(['{}class=dask'.format(mlrun_key)] + selector)
     pods = k8s.v1api.list_namespaced_pod(namespace, label_selector=selector)
+    services = []
     for pod in pods.items:
-        try:
-            k8s.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-            logger.info("Deleted pod: %s", pod.metadata.name)
-        except ApiException as e:
-            # ignore error if pod is already removed
-            if e.status != 404:
-                raise
+        status = pod.status.phase.lower()
+        if running or status != 'running':
+            comp = pod.metadata.labels.get('dask.org/component')
+            if comp == 'scheduler':
+                services.append(pod.metadata.labels.get('dask.org/cluster-name'))
+            try:
+                k8s.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
+                logger.info("Deleted pod: %s", pod.metadata.name)
+            except ApiException as e:
+                # ignore error if pod is already removed
+                if e.status != 404:
+                    raise
 
     services = k8s.v1api.list_namespaced_service(
         namespace, label_selector=selector
     )
     for service in services.items:
         try:
-            k8s.v1api.delete_namespaced_service(service.metadata.name, namespace)
-            logger.info("Deleted service: %s", service.metadata.name)
+            if running or service.metadata.name in services:
+                k8s.v1api.delete_namespaced_service(service.metadata.name, namespace)
+                logger.info("Deleted service: %s", service.metadata.name)
         except ApiException as e:
             # ignore error if service is already removed
             if e.status != 404:
                 raise
 
 
-def get_function_status(selector=[], function=None, namespace=None):
-    k8s = _get_k8s()
+def get_obj_status(selector=[], namespace=None):
+    k8s = get_k8s_helper()
     namespace = namespace or config.namespace
     selector = ','.join(['dask.org/component=scheduler'.format(mlrun_key)] + selector)
     pods = k8s.list_pods(namespace, selector=selector)
@@ -335,41 +338,32 @@ def get_function_status(selector=[], function=None, namespace=None):
         print(pod)
         status = pod.status.phase.lower()
         if status == 'running':
-            if function:
-                cluster = pod.metadata.labels.get('dask.org/cluster-name')
-                function.status.scheduler_address = '{}.{}:8786'.format(cluster, namespace)
-                function.status.cluster_name = cluster
+            cluster = pod.metadata.labels.get('dask.org/cluster-name')
+            logger.info('found running dask function {}, cluster={}'.format(pod.metadata.name, cluster))
             return status
         logger.info('found dask function {} in not ready state ({})'.format(pod.metadata.name, status))
     return status
 
 
-def get_object(name, namespace=None):
-    return None
+def list_objects(selector=[], namespace=None):
+    k8s = get_k8s_helper()
+    namespace = namespace or config.namespace
+    selector = ','.join(['dask.org/component=scheduler'.format(mlrun_key)] + selector)
+    pods = k8s.list_pods(namespace, selector=selector)
+    objects = []
+    for pod in pods:
+        status = pod.status.phase.lower()
+        objects.append([pod.metadata.name, status, pod.metadata.labels])
+
+    return 'pod', objects
 
 
-def get_job_status(name, namespace=None):
-    return None
-
-
-def del_object(name, namespace=None):
-    pass
-
-
-def list_objects(namespace=None, selector=[], states=None):
-    return []
-
-
-def get_pods(name, namespace=None, master=False):
-    return {}
-
-
-def clean_objects(namespace=None, selector=[], states=None):
-    if not selector and not states:
-        raise ValueError(
-            'labels selector or states list must be specified')
-    items = list_objects(namespace, selector, states)
-    for item in items:
-        del_object(item.metadata.name, item.metadata.namespace)
+# def clean_objects(namespace=None, selector=[], states=None):
+#     if not selector and not states:
+#         raise ValueError(
+#             'labels selector or states list must be specified')
+#     items = list_objects(namespace, selector, states)
+#     for item in items:
+#         del_object(item.metadata.name, item.metadata.namespace)
 
 

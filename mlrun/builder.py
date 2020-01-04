@@ -19,11 +19,9 @@ from tempfile import mktemp
 from urllib.parse import urlparse
 
 from .datastore import StoreManager
-from .k8s_utils import BasePod, k8s_helper
+from .k8s_utils import BasePod, get_k8s_helper
 from .utils import logger, normalize_name
 from .config import config
-
-k8s = None
 
 
 def make_dockerfile(base_image,
@@ -122,7 +120,6 @@ def build_image(dest,
                 name='',
                 verbose=False):
 
-    global k8s
     if registry:
         dest = '{}/{}'.format(registry, dest)
     elif not secret_name and 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
@@ -181,8 +178,8 @@ def build_image(dest,
         # todo: support different mounters
         kpod.mount_v3io(remote=source, mount_path='/context')
 
-    if not k8s:
-        k8s = k8s_helper(namespace)
+    k8s = get_k8s_helper()
+    kpod.namespace = k8s.ns(namespace)
 
     if interactive:
         return k8s.run_job(kpod)

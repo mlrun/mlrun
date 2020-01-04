@@ -32,7 +32,7 @@ from .config import config as mlconf
 from .builder import upload_tarball
 from .datastore import get_object
 from .db import get_run_db
-from .k8s_utils import k8s_helper
+from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .run import new_function, import_function_to_dict, import_function
 from .runtimes import RemoteRuntime, RunError
@@ -280,7 +280,7 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
               help='timeout in seconds')
 def watch(pod, namespace, timeout):
     """Read current or previous task (pod) logs."""
-    k8s = k8s_helper(namespace)
+    k8s = K8sHelper(namespace)
     status = k8s.watch(pod, namespace, timeout)
     print('Pod {} last status is: {}'.format(pod, status))
 
@@ -298,7 +298,7 @@ def watch(pod, namespace, timeout):
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     """List/get one or more object per kind/class."""
     if kind.startswith('po'):
-        k8s = k8s_helper(namespace)
+        k8s = K8sHelper(namespace)
         if name:
             resp = k8s.get_pod(name, namespace)
             print(resp)
@@ -405,7 +405,7 @@ def logs(uid, project, offset, db, watch):
 @click.option('--namespace', '-n', help='kubernetes namespace')
 def clean(api, namespace):
     """Clean completed or failed pods/jobs"""
-    k8s = k8s_helper(namespace)
+    k8s = K8sHelper(namespace)
     #mldb = get_run_db(db or mlconf.dbpath).connect()
     items = k8s.list_pods(namespace)
     print('{:10} {:16} {:8} {}'.format('state', 'started', 'type', 'name'))

@@ -22,7 +22,7 @@ from .sparkjob import SparkRuntime  # noqa
 from .nuclio import nuclio_init_hook
 
 
-k8s_resources_map = {
+runtime_resources_map = {
     'dask': get_dask_resource()
 }
 

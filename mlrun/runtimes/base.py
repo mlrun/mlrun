@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
-import sys
-import time
 import uuid
 from ast import literal_eval
 from datetime import datetime
 import getpass
 from copy import deepcopy
 from os import environ
-import requests
 
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
@@ -34,7 +30,7 @@ from .utils import calc_hash, RunError, results_to_iter
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
-from ..k8s_utils import k8s_helper
+from ..k8s_utils import get_k8s_helper
 from ..config import config
 
 
@@ -135,9 +131,7 @@ class BaseRuntime(ModelObj):
         self._status = self._verify_dict(status, 'status', FunctionStatus)
 
     def _get_k8s(self):
-        if not self._k8s:
-            self._k8s = k8s_helper()
-        return self._k8s
+        return get_k8s_helper()
 
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
@@ -258,7 +252,7 @@ class BaseRuntime(ModelObj):
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           db, autocommit=False)
 
-        # form child run task generator from spec
+        # create task generator (for child runs) from spec
         task_generator = None
         if not self._is_nested:
             task_generator = get_generator(spec, execution)

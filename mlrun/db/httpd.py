@@ -32,10 +32,11 @@ from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger, parse_function_uri, get_in, update_in
 from mlrun.config import config
 from mlrun.run import new_function, import_function
-from mlrun.k8s_utils import k8s_helper
+from mlrun.k8s_utils import K8sHelper
+from runtimes import runtime_resources_map
 
 _db: RunDBInterface
-_k8s: k8s_helper = None
+_k8s: K8sHelper = None
 _logs_dir = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
@@ -146,6 +147,11 @@ def submit_job():
             else:
                 project, name, tag = parse_function_uri(url)
                 runtime = _db.get_function(name, project, tag)
+                if not runtime:
+                    return json_error(
+                        HTTPStatus.BAD_REQUEST,
+                        reason='runtime error: function {} not found'.format(url),
+                    )
                 fn = new_function(runtime=runtime)
 
         fn.set_db_connection(_db, True)
@@ -195,6 +201,55 @@ def build_function():
         )
 
     return jsonify(ok=True, data=fn.to_dict(), ready=ready)
+
+
+# curl -d@/path/to/job.json http://localhost:8080/start/function
+@app.route('/api/start/function', methods=['POST'])
+@app.route('/api/start/function/', methods=['POST'])
+@catch_err
+def start_function():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('start_function:\n{}'.format(data))
+    url = data.get('functionUrl')
+    if not url:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: functionUrl not specified',
+        )
+
+    project, name, tag = parse_function_uri(url)
+    runtime = _db.get_function(name, project, tag)
+    if not runtime:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: function {} not found'.format(url),
+        )
+
+    fn = new_function(runtime=runtime)
+    resource = runtime_resources_map.get(fn.kind)
+    if 'start' not in resource:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: "start" not supported by this runtime',
+        )
+
+    try:
+        fn.set_db_connection(_db)
+        resp = resource['start'](fn)
+        fn.save(versioned=False)
+        logger.info('Fn:\n %s', fn.to_yaml())
+    except Exception as err:
+        print(traceback.format_exc())
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=fn.to_dict())
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/status
@@ -592,7 +647,7 @@ def init_app():
     _logs_dir = Path(config.httpdb.logs_path)
 
     try:
-        _k8s = k8s_helper()
+        _k8s = K8sHelper()
     except Exception:
         pass
 

@@ -95,8 +95,7 @@ class KubejobRuntime(KubeResource):
             logger.info('starting remote build, image: {}'.format(
                 self.spec.build.image))
             data = db.remote_builder(self, with_mlrun)
-            self.status.state = get_in(data, 'data.status.state')
-            self.status.build_pod = get_in(data, 'data.status.build_pod')
+            self.status = data['data'].get('status', None)
             self.spec.image = get_in(data, 'data.spec.image')
             ready = data.get('ready', False)
             if watch:

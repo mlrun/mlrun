@@ -33,7 +33,7 @@ from mlrun.utils import logger, parse_function_uri, get_in, update_in
 from mlrun.config import config
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import K8sHelper
-from runtimes import runtime_resources_map
+from mlrun.runtimes import runtime_resources_map
 
 _db: RunDBInterface
 _k8s: K8sHelper = None

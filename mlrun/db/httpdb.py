@@ -314,7 +314,7 @@ class HTTPRunDB(RunDBInterface):
             logger.error('bad resp!!\n{}'.format(resp.text))
             raise ValueError('bad function start response')
 
-        return resp.json()
+        return resp.json()['data']
 
     def submit_job(self, runspec):
         try:

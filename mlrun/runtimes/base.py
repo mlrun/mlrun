@@ -494,7 +494,7 @@ class BaseRuntime(ModelObj):
         obj = self.to_dict()
         hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
-            self.metadata.name,self.metadata.name, tag
+            self.metadata.name, tag
         ))
         if versioned:
             db.store_function(obj, self.metadata.name,

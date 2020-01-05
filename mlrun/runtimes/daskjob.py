@@ -29,7 +29,7 @@ from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from ..lists import RunList
 from ..config import config
-from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std
+from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
 
 
 def get_dask_resource():
@@ -83,6 +83,7 @@ class DaskStatus(FunctionStatus):
 class DaskCluster(KubejobRuntime):
     kind = 'dask'
     _is_nested = False
+    _is_remote = False
 
     def __init__(self, spec=None,
                  metadata=None):
@@ -108,7 +109,7 @@ class DaskCluster(KubejobRuntime):
 
     @property
     def is_deployed(self):
-        if not self.spec.remote and not self.spec.replicas:
+        if not self.spec.remote:
             return True
         return super().is_deployed
 
@@ -116,7 +117,35 @@ class DaskCluster(KubejobRuntime):
     def initialized(self):
         return True if self._cluster else False
 
-    def start(self):
+    def _load_db_status(self):
+        db = self._get_db()
+        meta = self.metadata
+        if db and db.kind == 'http':
+            db_func = None
+            try:
+                db_func = db.get_function(meta.name, meta.project, meta.tag)
+            except Exception:
+                pass
+
+            if db_func and 'status' in db_func:
+                self.status = db_func['status']
+                return 'scheduler_address' in db_func['status']
+
+        return False
+
+    def _start(self):
+        db = self._get_db()
+        if db and db.kind == 'http':
+            if not self.is_deployed:
+                raise RunError("function image is not built/ready, use .build()" 
+                               " method first, or set base dask image (daskdev/dask:latest)")
+
+            self.save(versioned=False)
+            resp = db.remote_start(self._function_uri())
+            if resp and 'status' in resp:
+                self.status = resp['status']
+            return
+
         self._cluster = deploy_function(self)
         self.save(versioned=False)
 
@@ -134,7 +163,7 @@ class DaskCluster(KubejobRuntime):
     def get_status(self):
         meta = self.metadata
         s = get_func_selector(meta.project, meta.name, meta.tag)
-        status = get_obj_status(s, self)
+        status = get_obj_status(s)
         print(status)
         return status
 
@@ -146,22 +175,30 @@ class DaskCluster(KubejobRuntime):
         from dask.distributed import Client, default_client
 
         if self.spec.remote and not self.status.scheduler_address:
-            self.start()
+            if not self._load_db_status():
+                self._start()
 
         if self.status.scheduler_address:
             try:
-                return Client(self.status.scheduler_address)
+                client = Client(self.status.scheduler_address)
             except OSError as e:
-                print('Error:', e)
+                logger.warning('remote scheduler at {} not ready, will try to restart ()'.format(
+                    self.status.scheduler_address, e
+                ))
                 status = self.get_status()
                 if status != 'running':
-                    self.start()
-                return Client(self.status.scheduler_address)
+                    self._start()
+                client = Client(self.status.scheduler_address)
+            logger.info('using remote dask scheduler at: {}'.format(
+                self.status.scheduler_address))
+            if self.status.node_ports:
+                logger.info('remote dashboard (node) port: {}'.format(
+                    self.status.node_ports.get('dashboard')))
+
+            return client
         try:
             return default_client()
         except ValueError:
-            if self.spec.remote:
-                raise ValueError('remote dask scheduler is not started, use .start()')
             return Client()
 
     def _run(self, runobj: RunObject, execution):
@@ -299,13 +336,13 @@ def clean_objects(selector=[], running=False, namespace=None):
 
     selector = ','.join(['{}class=dask'.format(mlrun_key)] + selector)
     pods = k8s.v1api.list_namespaced_pod(namespace, label_selector=selector)
-    services = []
+    service_names = []
     for pod in pods.items:
         status = pod.status.phase.lower()
         if running or status != 'running':
             comp = pod.metadata.labels.get('dask.org/component')
             if comp == 'scheduler':
-                services.append(pod.metadata.labels.get('dask.org/cluster-name'))
+                service_names.append(pod.metadata.labels.get('dask.org/cluster-name'))
             try:
                 k8s.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
                 logger.info("Deleted pod: %s", pod.metadata.name)
@@ -319,7 +356,7 @@ def clean_objects(selector=[], running=False, namespace=None):
     )
     for service in services.items:
         try:
-            if running or service.metadata.name in services:
+            if running or service.metadata.name in service_names:
                 k8s.v1api.delete_namespaced_service(service.metadata.name, namespace)
                 logger.info("Deleted service: %s", service.metadata.name)
         except ApiException as e:
@@ -335,8 +372,8 @@ def get_obj_status(selector=[], namespace=None):
     pods = k8s.list_pods(namespace, selector=selector)
     status = ''
     for pod in pods:
-        print(pod)
         status = pod.status.phase.lower()
+        print(pod)
         if status == 'running':
             cluster = pod.metadata.labels.get('dask.org/cluster-name')
             logger.info('found running dask function {}, cluster={}'.format(pod.metadata.name, cluster))

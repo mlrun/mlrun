@@ -50,13 +50,14 @@ def calc_hash(func, tag=''):
     return hashkey
 
 
-def log_std(db, runobj, out, err='', skip=False):
+def log_std(db, runobj, out, err='', skip=False, show=True):
     line = '> ' + '-' * 15 + ' Iteration: ({}) ' + '-' * 15 + '\n'
     if out:
         iter = runobj.metadata.iteration
         if iter:
             out = line.format(iter) + out
-        print(out)
+        if show:
+            print(out)
         if db and not skip:
             uid = runobj.metadata.uid
             project = runobj.metadata.project or ''

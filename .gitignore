@@ -5,6 +5,7 @@ chart
 chart.html
 dask-worker-space/
 dataset.csv
+docs/_build
 dist
 iteration_results.csv
 mlrun.egg-info/

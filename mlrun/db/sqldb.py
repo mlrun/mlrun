@@ -320,6 +320,14 @@ class SQLDB(RunDBInterface):
         )
         return funcs
 
+    def list_projects(self):
+        return [row[0] for row in self.session.query(Run.project).distinct()]
+
+    def list_artifact_tags(self, project):
+        query = self.session.query(Artifact.tag).filter(
+            Artifact.project == project).distinct()
+        return [row[0] for row in query]
+
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v}
         return self.session.query(cls).filter_by(**kw)

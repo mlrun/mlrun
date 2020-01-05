@@ -3,6 +3,7 @@
 [![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
+[![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
 
 A generic an easy to use mechanism for data scientists and developers/engineers 
 to describe and run machine learning related tasks in various scalable runtime environments and ML pipelines
@@ -78,7 +79,6 @@ kubectl apply -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrun
   * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
-* [Automating container build](examples/build.py)
 
 #### Additional Examples
 
@@ -206,7 +206,7 @@ will be logged automatically into a database with a single command.
     train_run = new_function().run(handler=xgb_train).with_params(eta=0.3)    
 
 we can swap the `function` with a serverless runtime and the same will run on a cluster.<br>
-this can result in 10x performance boost, see [this notebook](examples/train_xgboost_serverless.ipynb) for details.
+this can result in 10x performance boost.
 more examples can be found in [`\examples`](examples) directory, with `kubernetes job`, `nuclio`, `dask`, `Spark`, or `mpijob` runtimes.
  
 if we run our code from `main` we can get the runtime context by calling the `get_or_create_ctx`
@@ -367,7 +367,7 @@ fn.build(image='mlrun/nuctest:latest')
 Running in a pipeline would be similar to running using the command line
 mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
 
-see a [full pipelines notebook example](https://github.com/mlrun/demos/blob/master/xgboost/train_xgboost_serverless.ipynb)
+see a [full pipelines notebook example](examples/train_xgboost_serverless.ipynb)
 ```python
 @dsl.pipeline(
     name='My XGBoost training pipeline',
@@ -393,12 +393,8 @@ def xgb_pipeline(
                          inputs={'iterations': train.outputs['iteration_results']},
                          outputs=['iris_dataset'], out_path=artifacts_path).apply(mount_v3io())
 
-
-    # define a nuclio-serving functions, generated from a notebook file
-    srvfn = new_model_server('iris-serving', model_class='XGBoostModel', filename='nuclio_serving.ipynb')
-    
     # deploy the model serving function with inputs from the training stage
-    deploy = srvfn.with_v3io('User','~/').deploy_step(project = 'iris', models={'iris_v1': train.outputs['model']})  
+    deploy = srvfn.deploy_step(project = 'iris', models={'iris_v1': train.outputs['model']})
 ```
 
 ## MLRun User Interface
@@ -457,7 +453,7 @@ to deploy the function into a cluster you can run the following commands
 ```python
 # create the function from the notebook code + annotations, add volumes and parallel HTTP trigger
 fn = code_to_function('xgb_train', runtime='nuclio:mlrun')
-fn.add_volume('User','~/').with_http(workers=32)
+fn.apply(mount_v3io()).with_http(workers=32)
 
 run = fn.run(task, handler='xgb_train')
 ```

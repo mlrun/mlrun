@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
-import sys
-import time
 import uuid
 from ast import literal_eval
 from datetime import datetime
 import getpass
 from copy import deepcopy
 from os import environ
-import requests
 
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
@@ -34,7 +30,7 @@ from .utils import calc_hash, RunError, results_to_iter
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
-from ..k8s_utils import k8s_helper
+from ..k8s_utils import get_k8s_helper
 from ..config import config
 
 
@@ -135,9 +131,7 @@ class BaseRuntime(ModelObj):
         self._status = self._verify_dict(status, 'status', FunctionStatus)
 
     def _get_k8s(self):
-        if not self._k8s:
-            self._k8s = k8s_helper()
-        return self._k8s
+        return get_k8s_helper()
 
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
@@ -152,6 +146,10 @@ class BaseRuntime(ModelObj):
                 and self._get_db() and self._get_db().kind == 'http':
             return True
         return False
+
+    def _function_uri(self, tag=None):
+        return '{}/{}:{}'.format(self.metadata.project, self.metadata.name,
+                                 tag or self.metadata.tag or 'latest')
 
     def _get_db(self):
         if not self._db_conn:
@@ -228,9 +226,7 @@ class BaseRuntime(ModelObj):
                 update_in(struct, 'metadata.tag', '')
                 db.store_function(struct, self.metadata.name,
                                   self.metadata.project, hashkey)
-                furi = '{}/{}:{}'.format(self.metadata.project,
-                                         self.metadata.name, hashkey)
-                runspec.spec.function = furi
+                runspec.spec.function = self._function_uri(hashkey)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
@@ -256,7 +252,7 @@ class BaseRuntime(ModelObj):
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           db, autocommit=False)
 
-        # form child run task generator from spec
+        # create task generator (for child runs) from spec
         task_generator = None
         if not self._is_nested:
             task_generator = get_generator(spec, execution)
@@ -427,7 +423,7 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 'handler must be provided for {} runtime'.format(self.kind))
 
-    def _image_path(self):
+    def full_image_path(self):
         image = self.spec.image
         if not image.startswith('.'):
             return image
@@ -462,7 +458,7 @@ class BaseRuntime(ModelObj):
         """
 
         # expand local registry path, TODO: copy self to avoid modify the fn?
-        self.spec.image = self._image_path()
+        self.spec.image = self.full_image_path()
 
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,
@@ -498,7 +494,7 @@ class BaseRuntime(ModelObj):
         obj = self.to_dict()
         hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
-            self.metadata.name,self.metadata.name, tag
+            self.metadata.name, tag
         ))
         if versioned:
             db.store_function(obj, self.metadata.name,

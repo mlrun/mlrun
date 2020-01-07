@@ -292,7 +292,7 @@ class HTTPRunDB(RunDBInterface):
 
         if not resp.ok:
             logger.warning('failed resp, {}'.format(resp.text))
-            raise RunDBError('bad function run response')
+            raise RunDBError('bad function build response')
 
         if resp.headers:
             func.status.state = resp.headers.get('function_status', '')
@@ -300,6 +300,21 @@ class HTTPRunDB(RunDBInterface):
             func.spec.image = resp.headers.get('function_image', '')
 
         return resp.content
+
+    def remote_start(self, func_url):
+        try:
+            req = {'functionUrl': func_url}
+            resp = self.api_call('POST', 'start/function', json=req)
+        except OSError as err:
+            logger.error('error starting function: {}'.format(err))
+            raise OSError(
+                'error: cannot start function, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad function start response')
+
+        return resp.json()['data']
 
     def submit_job(self, runspec):
         try:

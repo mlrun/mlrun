@@ -3,6 +3,7 @@
 [![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
+[![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
 
 A generic an easy to use mechanism for data scientists and developers/engineers 
 to describe and run machine learning related tasks in various scalable runtime environments and ML pipelines
@@ -49,12 +50,12 @@ both YAMLs can be found in `./hack`, edit according to the comments and
 apply to your cluster using `kubectl apply -f <yaml-file>`
 
 ```
-curl https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunapi.yaml
+curl -O https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunapi.yaml
 # as a minimum replace the <set default registry url> and <access-key> with real values
 # in iguazio cloud the default registry url is: docker-registry.default-tenant.<cluster-dns>:80
 
-kubectl apply -f <updated-yaml-file> 
-kubectl apply -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunui.yaml
+kubectl apply -n <namespace> -f <updated-yaml-file> 
+kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunui.yaml
 ```
  
 #### Architecture and tutorial

@@ -56,3 +56,27 @@ docker-db-gunicorn:
 	    -f Dockerfile.db-gunicorn \
 	    --tag mlrun/mlrun-db-gunicorn \
 	    .
+
+.PHONY: docs
+docs:
+	sphinx-apidoc \
+	    --append-syspath \
+	    --doc-author Iguazio \
+	    --doc-version $(shell python setup.py --version) \
+	    --extensions numpydoc \
+	    --force \
+	    --full \
+	    --output docs \
+	    --private \
+	    mlrun
+	# Fix sys.path in conf.py
+	sed -i "s#'.*/mlrun')#'..')#" docs/conf.py
+	# Add api to docs
+	sed -i s'/   mlrun/   api\n   mlrun/' docs/index.rst
+	# Special requirements file
+	cp requirements.txt docs
+	echo numpydoc >> docs/requirements.txt
+
+.PHONY: html-docs
+html-docs:
+	cd docs && make html

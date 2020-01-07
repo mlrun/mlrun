@@ -1,25 +1,17 @@
+.. mlrun documentation master file, created by
+   sphinx-quickstart on Thu Jan  2 15:59:37 2020.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
 Welcome to mlrun's documentation!
 =================================
 
-A generic an easy to use mechanism for data scientists and developers/engineers
-to describe and run machine learning related tasks in various scalable runtime
-environments while automatically tracking code, metadata, inputs, and outputs
-of executions.
-
-MLRun is integrated with `Nuclio serverless project`_
-
-Read more details in `this doc link`_
-
-.. _`Nuclio serverless project`: https://github.com/nuclio/nuclio
-.. _`this doc link`: https://docs.google.com/document/d/1JRoWx4X7ld3fzQtdTGVIbcZx-5HzlYmkFiQz6ei8izE/edit?usp=sharing
-
-.. automodule:: mlrun
-   :members:
-   :undoc-members:
-
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Contents:
+
+   api
+   mlrun
 
 
 Indices and tables

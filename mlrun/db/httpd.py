@@ -252,6 +252,45 @@ def start_function():
     return jsonify(ok=True, data=fn.to_dict())
 
 
+# curl -d@/path/to/job.json http://localhost:8080/status/function
+@app.route('/api/status/function', methods=['POST'])
+@app.route('/api/status/function/', methods=['POST'])
+@catch_err
+def function_status():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('function_status:\n{}'.format(data))
+    selector = data.get('selector')
+    kind = data.get('kind')
+    if not selector or not kind:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: selector or runtime kind not specified',
+        )
+
+    resource = runtime_resources_map.get(kind)
+    if 'status' not in resource:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: "status" not supported by this runtime',
+        )
+
+    try:
+        resp = resource['status'](selector)
+        logger.info('status: %s', resp)
+    except Exception as err:
+        print(traceback.format_exc())
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=resp)
+
+
 # curl -d@/path/to/job.json http://localhost:8080/build/status
 @app.route('/api/build/status', methods=['GET'])
 @app.route('/api/build/status/', methods=['GET'])

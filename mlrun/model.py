@@ -342,7 +342,7 @@ class RunObject(RunTemplate):
             db = get_run_db().connect()
         if not db:
             print('DB is not configured, cannot show logs')
-            return
+            return None
 
         if db.kind == 'http':
             state = db.watch_log(self.metadata.uid,
@@ -356,6 +356,7 @@ class RunObject(RunTemplate):
 
         if state:
             print('final state: {}'.format(state))
+        return state
 
 
 def NewTask(name=None, project=None, handler=None,

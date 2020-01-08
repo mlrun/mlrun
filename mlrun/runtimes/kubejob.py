@@ -49,8 +49,8 @@ class KubejobRuntime(KubeResource):
         if self.spec.image:
             return True
 
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
+            db = self._get_db()
             try:
                 db.get_builder_status(self, logs=False)
             except RunDBError:
@@ -90,8 +90,8 @@ class KubejobRuntime(KubeResource):
         self.status.state = ''
         add_code_metadata(self.metadata.labels)
 
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
+            db = self._get_db()
             logger.info('starting remote build, image: {}'.format(
                 self.spec.build.image))
             data = db.remote_builder(self, with_mlrun)
@@ -128,8 +128,7 @@ class KubejobRuntime(KubeResource):
         return self.status.state
 
     def builder_status(self, watch=True, logs=True):
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
             return self._build_watch(watch, logs)
 
         else:

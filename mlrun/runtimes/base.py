@@ -141,6 +141,12 @@ class BaseRuntime(ModelObj):
     def is_deployed(self):
         return True
 
+    def _is_remote_api(self):
+        db = self._get_db()
+        if db and db.kind == 'http':
+            return True
+        return False
+
     def _use_remote_api(self):
         if self._is_remote and not self.kfp and not self._is_api_server \
                 and self._get_db() and self._get_db().kind == 'http':
@@ -270,8 +276,9 @@ class BaseRuntime(ModelObj):
             try:
                 resp = self._run(runspec, execution)
                 if watch and self.kind not in ['', 'handler', 'local']:
-                    runspec.logs(True, self._get_db())
-                    resp = self._get_db_run(runspec)
+                    state = runspec.logs(True, self._get_db())
+                    if state != 'succeeded':
+                        logger.warning('run ended with state {}'.format(state))
                 result = self._post_run(resp, task=runspec)
             except RunError as err:
                 last_err = err

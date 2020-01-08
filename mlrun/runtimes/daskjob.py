@@ -20,7 +20,7 @@ from os import environ
 import math
 from kubernetes.client.rest import ApiException
 from ..k8s_utils import get_k8s_helper
-from ..utils import update_in, logger
+from ..utils import update_in, logger, normalize_name
 from .base import FunctionStatus
 from ..execution import MLClientCtx
 from .local import get_func_arg, load_module, exec_from_params
@@ -118,9 +118,9 @@ class DaskCluster(KubejobRuntime):
         return True if self._cluster else False
 
     def _load_db_status(self):
-        db = self._get_db()
         meta = self.metadata
-        if db and db.kind == 'http':
+        if self._is_remote_api():
+            db = self._get_db()
             db_func = None
             try:
                 db_func = db.get_function(meta.name, meta.project, meta.tag)
@@ -134,8 +134,8 @@ class DaskCluster(KubejobRuntime):
         return False
 
     def _start(self):
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
+            db = self._get_db()
             if not self.is_deployed:
                 raise RunError("function image is not built/ready, use .build()" 
                                " method first, or set base dask image (daskdev/dask:latest)")
@@ -163,12 +163,27 @@ class DaskCluster(KubejobRuntime):
     def get_status(self):
         meta = self.metadata
         s = get_func_selector(meta.project, meta.name, meta.tag)
+        if self._is_remote_api():
+            db = self._get_db()
+            return db.remote_status(self.kind, s)
+
         status = get_obj_status(s)
         print(status)
         return status
 
     def cluster(self):
         return self._cluster
+
+    def _remote_addresses(self):
+        if config.remote_host:
+            if self.spec.service_type != 'NodePort':
+                raise ValueError('remote host require NodePort')
+            addr = '{}:{}'.format(config.remote_host,
+                                  self.status.node_ports.get('scheduler'))
+            dash = '{}:{}'.format(config.remote_host,
+                                  self.status.node_ports.get('dashboard'))
+            return addr, dash
+        return self.status.scheduler_address, ''
 
     @property
     def client(self):
@@ -179,21 +194,27 @@ class DaskCluster(KubejobRuntime):
                 self._start()
 
         if self.status.scheduler_address:
+            addr, dash = self._remote_addresses()
             try:
-                client = Client(self.status.scheduler_address)
+                client = Client(addr)
             except OSError as e:
                 logger.warning('remote scheduler at {} not ready, will try to restart ()'.format(
-                    self.status.scheduler_address, e
+                    addr, e
                 ))
+
+                if self._is_remote_api():
+                    raise Exception('no access to Kubernetes API')
+
                 status = self.get_status()
                 if status != 'running':
                     self._start()
-                client = Client(self.status.scheduler_address)
+                addr = self.status.scheduler_address
+                client = Client(addr)
             logger.info('using remote dask scheduler at: {}'.format(
-                self.status.scheduler_address))
-            if self.status.node_ports:
+                addr))
+            if dash:
                 logger.info('remote dashboard (node) port: {}'.format(
-                    self.status.node_ports.get('dashboard')))
+                    dash))
 
             return client
         try:
@@ -211,6 +232,9 @@ class DaskCluster(KubejobRuntime):
             environ['MLRUN_DBPATH'] = self.spec.rundb
 
         if not inspect.isfunction(handler):
+            if not self.spec.command:
+                raise ValueError('specified handler (string) without command '
+                                 '(py file path), specify command or use handler pointer')
             mod, handler = load_module(self.spec.command, handler)
         context = MLClientCtx.from_dict(runobj.to_dict(),
                                         rundb=self.spec.rundb,
@@ -219,36 +243,9 @@ class DaskCluster(KubejobRuntime):
         client = self.client
         setattr(context, 'dask_client', client)
         sout, serr = exec_from_params(handler, runobj, context)
-        log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
+        log_std(self._db_conn, runobj, sout, serr,
+                skip=self.is_child, show=False)
         return context.to_dict()
-
-
-    def _run_many(self, tasks, execution, runobj: RunObject):
-        handler = runobj.spec.handler
-        self._force_handler(handler)
-        futures = []
-        contexts = []
-        tasks = list(tasks)
-        for task in tasks:
-            ctx = MLClientCtx.from_dict(task.to_dict(),
-                                        self.spec.rundb,
-                                        autocommit=False)
-            args = get_func_arg(handler, task, ctx)
-            resp = self.client.submit(handler, *args)
-            futures.append(resp)
-            contexts.append(ctx)
-
-        resps = self.client.gather(futures)
-        results = RunList()
-        for r, c, t in zip(resps, contexts, tasks):
-            if r:
-                c.log_result('return', r)
-            # todo: handle task errors
-            c.commit()
-            resp = self._post_run(c.to_dict())
-            results.append(resp)
-
-        return results
 
 
 def deploy_function(function: DaskCluster):
@@ -302,8 +299,9 @@ def deploy_function(function: DaskCluster):
             svc_temp['spec']['ports'][1]['nodePort'] = spec.node_port
         update_in(svc_temp, 'spec.type', spec.service_type)
 
+    norm_name = normalize_name(meta.name)
     dask.config.set({"kubernetes.scheduler-service-template": svc_temp,
-                     'kubernetes.name': 'mlrun-dask-{uuid}'})
+                     'kubernetes.name': 'mlrun-' + norm_name + '-{uuid}'})
 
     cluster = KubeCluster(
         pod, deploy_mode='remote',
@@ -378,7 +376,7 @@ def get_obj_status(selector=[], namespace=None):
             cluster = pod.metadata.labels.get('dask.org/cluster-name')
             logger.info('found running dask function {}, cluster={}'.format(pod.metadata.name, cluster))
             return status
-        logger.info('found dask function {} in not ready state ({})'.format(pod.metadata.name, status))
+        logger.info('found dask function {} in non ready state ({})'.format(pod.metadata.name, status))
     return status
 
 

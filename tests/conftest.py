@@ -23,6 +23,7 @@ from sys import platform
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
+is_ci = 'CI' in environ
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
 

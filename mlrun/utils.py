@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import re
 from datetime import datetime
 from os import path
 from sys import stdout
-import yaml
-import json
+
 import numpy as np
+import yaml
+
 from .config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True

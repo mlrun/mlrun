@@ -104,6 +104,8 @@ class HTTPHandler:
                 data = urlopen(url).read()
                 sample = BytesIO(data)
                 parsed_event['instances'].append(sample)
+            else:
+                parsed_event = body
 
         except Exception as e:
             if event.content_type.startswith('image/'):

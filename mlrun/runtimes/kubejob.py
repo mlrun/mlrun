@@ -95,8 +95,7 @@ class KubejobRuntime(KubeResource):
             logger.info('starting remote build, image: {}'.format(
                 self.spec.build.image))
             data = db.remote_builder(self, with_mlrun)
-            self.status.state = get_in(data, 'data.status.state')
-            self.status.build_pod = get_in(data, 'data.status.build_pod')
+            self.status = data['data'].get('status', None)
             self.spec.image = get_in(data, 'data.spec.image')
             ready = data.get('ready', False)
             if watch:
@@ -170,7 +169,7 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        pod_spec = func_to_pod(self._image_path(), self, extra_env, command, args)
+        pod_spec = func_to_pod(self.full_image_path(), self, extra_env, command, args)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace =  k8s.create_pod(pod)

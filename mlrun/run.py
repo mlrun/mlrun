@@ -24,8 +24,7 @@ from nuclio import build_file
 from .runtimes.utils import add_code_metadata
 from .execution import MLClientCtx
 from .model import RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
+from .runtimes import runtime_dict, HandlerRuntime, LocalRuntime, RemoteRuntime
 from .utils import update_in, get_in, logger, parse_function_uri
 from .datastore import get_object
 from .db import get_run_db, default_dbpath
@@ -115,14 +114,6 @@ def get_or_create_ctx(name: str,
     ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit,
                                 tmp=tmp, host=socket.gethostname())
     return ctx
-
-
-runtime_dict = {'remote': RemoteRuntime,
-                'nuclio': RemoteRuntime,
-                'dask': DaskCluster,
-                'job': KubejobRuntime,
-                'mpijob': MpiRuntime,
-                'spark': SparkRuntime}
 
 
 def import_function(url='', secrets=None, db=''):

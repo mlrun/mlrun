@@ -22,8 +22,17 @@ from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 from .config import config as mlconfig
 
+_k8s = None
 
-class k8s_helper:
+
+def get_k8s_helper(namespace=None):
+    global _k8s
+    if not _k8s:
+        _k8s = K8sHelper(namespace)
+    return _k8s
+
+
+class K8sHelper:
     def __init__(self, namespace=None, config_file=None):
         self.namespace = namespace or mlconfig.namespace
         self._init_k8s_config(config_file)
@@ -344,3 +353,11 @@ class BasePod:
                                          annotations=self._annotations),
             spec=pod_spec)
         return pod
+
+
+def format_labels(labels):
+    """ Convert a dictionary of labels into a comma separated string """
+    if labels:
+        return ",".join(["{}={}".format(k, v) for k, v in labels.items()])
+    else:
+        return ""

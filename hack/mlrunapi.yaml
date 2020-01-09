@@ -80,14 +80,9 @@ rules:
   - pods
   - pods/exec
   - pods/log
+  - services
   verbs:
-  - create
-  - get
-  - list
-  - watch
-  - update
-  - patch
-  - delete
+  - '*'
 - apiGroups:
   - kubeflow.org
   resources:

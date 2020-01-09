@@ -156,9 +156,10 @@ class DaskCluster(KubejobRuntime):
             client.close()
         except ValueError:
             pass
-        meta = self.metadata
-        s = get_func_selector(meta.project, meta.name, meta.tag)
-        clean_objects(s, running)
+
+        # meta = self.metadata
+        # s = get_func_selector(meta.project, meta.name, meta.tag)
+        # clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata
@@ -221,6 +222,10 @@ class DaskCluster(KubejobRuntime):
             return default_client()
         except ValueError:
             return Client()
+
+    def deploy(self, watch=True, with_mlrun=False, skip_deployed=False):
+        """deploy function, build container with dependencies"""
+        return super().deploy(watch, with_mlrun, skip_deployed)
 
     def _run(self, runobj: RunObject, execution):
 

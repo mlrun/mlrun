@@ -403,17 +403,26 @@ def logs(uid, project, offset, db, watch):
 @main.command()
 @click.option('--api', help='api and db service path/url')
 @click.option('--namespace', '-n', help='kubernetes namespace')
-def clean(api, namespace):
+@click.option('--pending', '-p', is_flag=True,
+              help='clean pending pods as well')
+@click.option('--running', '-r', is_flag=True,
+              help='clean running pods as well')
+def clean(api, namespace, pending, running):
     """Clean completed or failed pods/jobs"""
     k8s = K8sHelper(namespace)
     #mldb = get_run_db(db or mlconf.dbpath).connect()
     items = k8s.list_pods(namespace)
+    states = ['Succeeded', 'Failed']
+    if pending:
+        states.append('Pending')
+    if running:
+        states.append('Running')
     print('{:10} {:16} {:8} {}'.format('state', 'started', 'type', 'name'))
     for i in items:
         task = i.metadata.labels.get('mlrun/class', '')
         state = i.status.phase
         # todo: clean mpi, spark, .. jobs (+CRDs)
-        if task and task in ['build', 'job'] and state in ['Succeeded', 'Failed']:
+        if task and task in ['build', 'job', 'dask'] and state in states:
             name = i.metadata.name
             start = ''
             if i.status.start_time:

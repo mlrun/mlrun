@@ -35,6 +35,7 @@ spec:
         command: ["python", "-m", "mlrun", "db"]
         args: []
 # UNCOMMENT TO ADD V3IO VOLUME + SET ACCESS KEY
+#        volumeMounts:
 #        - mountPath: /mlrun/db
 #          name: fs
 #      volumes:
@@ -79,14 +80,9 @@ rules:
   - pods
   - pods/exec
   - pods/log
+  - services
   verbs:
-  - create
-  - get
-  - list
-  - watch
-  - update
-  - patch
-  - delete
+  - '*'
 - apiGroups:
   - kubeflow.org
   resources:

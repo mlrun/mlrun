@@ -48,9 +48,9 @@ def test_list_functions(db: sqldb.SQLDB):
     fn1 = new_func(['l1', 'l2'], x=1)
     db.store_function(fn1, name)
     fn2 = new_func(['l2', 'l3'], x=2)
-    db.store_function(fn2, name)
+    db.store_function(fn2, name, tag='t1')
     fn3 = new_func(['l3'], x=3)
-    db.store_function(fn3, name)
+    db.store_function(fn3, name, tag='t2')
 
     funcs = db.list_functions(name, labels=['l2'])
     assert 2 == len(funcs), 'num of funcs'
@@ -158,3 +158,34 @@ def test_artifacts(db: sqldb.SQLDB):
     db.del_artifact(key=k1)
     with pytest.raises(sqldb.RunDBError):
         db.read_artifact(k1)
+
+
+def test_list_artifact_tags(db: sqldb.SQLDB):
+    db.store_artifact('k1', {}, '1', 't1', 'p1')
+    db.store_artifact('k1', {}, '2', 't2', 'p1')
+    db.store_artifact('k1', {}, '2', 't2', 'p2')
+
+    tags = db.list_artifact_tags('p1')
+    assert {'t1', 't2'} == set(tags), 'bad tags'
+
+
+def test_list_projects(db: sqldb.SQLDB):
+    for i in range(10):
+        run = new_run('s1', ['l1', 'l2'], x=1)
+        db.store_run(run, 'u7', project=f'prj{i%3}', iter=i)
+
+    assert {'prj0', 'prj1', 'prj2'} == set(db.list_projects())
+
+
+def test_list_runs(db: sqldb.SQLDB):
+    uid = 'u183'
+    run = new_run('s1', ['l1', 'l2'], x=1)
+    count = 5
+    for iter in range(count):
+        db.store_run(run, uid, iter=iter)
+
+    runs = list(db.list_runs(uid=uid))
+    assert 1 == len(runs), 'iter=False'
+
+    runs = list(db.list_runs(uid=uid, iter=True))
+    assert 5 == len(runs), 'iter=True'

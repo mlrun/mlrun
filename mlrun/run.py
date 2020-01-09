@@ -29,9 +29,9 @@ from .funcdoc import find_handlers
 from .model import RunObject
 from .runtimes import (
     DaskCluster, HandlerRuntime, KubejobRuntime, LocalRuntime, MpiRuntime,
-    RemoteRuntime, SparkRuntime
+    RemoteRuntime, SparkRuntime, runtime_dict
 )
-from .runtimes.base import FunctionEntrypoint, EntrypointParam
+from .runtimes.base import EntrypointParam, FunctionEntrypoint
 from .runtimes.utils import add_code_metadata
 from .utils import get_in, logger, parse_function_uri, update_in
 
@@ -122,14 +122,6 @@ def get_or_create_ctx(name: str,
     return ctx
 
 
-runtime_dict = {'remote': RemoteRuntime,
-                'nuclio': RemoteRuntime,
-                'dask': DaskCluster,
-                'job': KubejobRuntime,
-                'mpijob': MpiRuntime,
-                'spark': SparkRuntime}
-
-
 def import_function(url='', secrets=None, db=''):
     """create function object from DB or local/remote YAML file
 
@@ -148,6 +140,10 @@ def import_function(url='', secrets=None, db=''):
         project, name, tag = parse_function_uri(url)
         db = get_run_db(db or default_dbpath()).connect(secrets)
         runtime = db.get_function(name, project, tag)
+        if not runtime:
+            raise KeyError('function {}:{} not found in the DB'.format(
+                name, tag
+            ))
         return new_function(runtime=runtime)
 
     runtime = import_function_to_dict(url, secrets)
@@ -199,7 +195,7 @@ def import_function_to_dict(url, secrets=None):
 def new_function(name: str = '', project: str = '', tag: str = '',
                  kind: str = '', command: str = '', image: str = '',
                  args: list = None, runtime=None,
-                 mode=None, kfp=None, interactive=False):
+                 mode=None, kfp=None):
     """Create a new ML function from base properties
 
     e.g.:
@@ -221,7 +217,6 @@ def new_function(name: str = '', project: str = '', tag: str = '',
                      store runtime specific details and preferences
     :param mode:     runtime mode, e.g. noctx, pass to bypass mlrun
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
-    :param interactive:   run the tasks synchronously and print the output
 
     :return: function object
     """
@@ -262,7 +257,6 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     runner.kfp = kfp
     if mode:
         runner.spec.mode = mode
-    runner.interactive = interactive
     return runner
 
 

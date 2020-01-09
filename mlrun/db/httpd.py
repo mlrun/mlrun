@@ -20,6 +20,7 @@ from http import HTTPStatus
 from os import environ
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 from flask import Flask, jsonify, request, Response
 
@@ -31,10 +32,12 @@ from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger, parse_function_uri, get_in, update_in
 from mlrun.config import config
 from mlrun.run import new_function, import_function
-from mlrun.k8s_utils import k8s_helper
+from mlrun.k8s_utils import K8sHelper
+from mlrun.runtimes import runtime_resources_map
 
 _db: RunDBInterface
-_k8s: k8s_helper = None
+_k8s: K8sHelper = None
+_logs_dir = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
@@ -144,9 +147,15 @@ def submit_job():
             else:
                 project, name, tag = parse_function_uri(url)
                 runtime = _db.get_function(name, project, tag)
+                if not runtime:
+                    return json_error(
+                        HTTPStatus.BAD_REQUEST,
+                        reason='runtime error: function {} not found'.format(url),
+                    )
                 fn = new_function(runtime=runtime)
 
         fn.set_db_connection(_db, True)
+        print('func:\n{}'.format(fn.to_yaml()))
         # fn.spec.rundb = 'http://mlrun-api:8080'
         resp = fn.run(task)
 
@@ -173,7 +182,7 @@ def build_function():
 
     logger.info('build_function:\n{}'.format(data))
     function = data.get('function')
-    with_mlrun = data.get('with_mlrun', False)
+    with_mlrun = strtobool(data.get('with_mlrun', 'on'))
     ready = False
 
     try:
@@ -192,6 +201,55 @@ def build_function():
         )
 
     return jsonify(ok=True, data=fn.to_dict(), ready=ready)
+
+
+# curl -d@/path/to/job.json http://localhost:8080/start/function
+@app.route('/api/start/function', methods=['POST'])
+@app.route('/api/start/function/', methods=['POST'])
+@catch_err
+def start_function():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('start_function:\n{}'.format(data))
+    url = data.get('functionUrl')
+    if not url:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: functionUrl not specified',
+        )
+
+    project, name, tag = parse_function_uri(url)
+    runtime = _db.get_function(name, project, tag)
+    if not runtime:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: function {} not found'.format(url),
+        )
+
+    fn = new_function(runtime=runtime)
+    resource = runtime_resources_map.get(fn.kind)
+    if 'start' not in resource:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: "start" not supported by this runtime',
+        )
+
+    try:
+        fn.set_db_connection(_db)
+        resp = resource['start'](fn)
+        fn.save(versioned=False)
+        logger.info('Fn:\n %s', fn.to_yaml())
+    except Exception as err:
+        print(traceback.format_exc())
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=fn.to_dict())
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/status
@@ -319,25 +377,37 @@ def get_filestat():
                    mimetype=ctype)
 
 
+def log_path(project, uid) -> Path:
+    return _logs_dir / project / uid
+
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @app.route('/api/log/<project>/<uid>', methods=['POST'])
 @catch_err
 def store_log(project, uid):
     append = strtobool(request.args.get('append', 'no'))
+    log_file = log_path(project, uid)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     body = request.get_data()  # TODO: Check size
-    _db.store_log(uid, project, body, append)
+    mode = 'ab' if append else 'wb'
+    with log_file.open(mode) as fp:
+        fp.write(body)
     return jsonify(ok=True)
 
 
 # curl http://localhost:8080/log/prj/7
 @app.route('/api/log/<project>/<uid>', methods=['GET'])
 def get_log(project, uid):
-    size = int(request.args.get('size', '0'))
+    size = int(request.args.get('size', '-1'))
     offset = int(request.args.get('offset', '0'))
 
     out = b''
-    status, resp = _db.get_log(uid, project, offset=offset, size=size)
-    if resp is None:
+    log_file = log_path(project, uid)
+    if log_file.exists():
+        with log_file.open('rb') as fp:
+            fp.seek(offset)
+            out = fp.read(size)
+        status = ''
+    else:
         data = _db.read_run(uid, project)
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
@@ -367,9 +437,6 @@ def get_log(project, uid):
                             update_in(data, 'status.state', 'completed')
                             _db.store_run(data, uid, project)
                 status = new_status
-
-    else:
-        out = resp or out
 
     return Response(out, mimetype='text/plain',
                     headers={"pod_status": status})
@@ -567,8 +634,7 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _db
-    global _k8s
+    global _db, _logs_dir, _k8s
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     if config.httpdb.db_type == 'sqldb':
@@ -578,8 +644,10 @@ def init_app():
         logger.info('using FileRunDB')
         _db = FileRunDB(config.httpdb.dirpath)
     _db.connect()
+    _logs_dir = Path(config.httpdb.logs_path)
+
     try:
-        _k8s = k8s_helper()
+        _k8s = K8sHelper()
     except Exception:
         pass
 

@@ -25,7 +25,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server  # , in_docker
+from conftest import wait_for_server
 
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
@@ -111,7 +111,7 @@ def server_fixture():
 
     def create(env=None):
         nonlocal proc, log_fp
-        root = mkdtemp(prefix='mlrun-test')
+        root = mkdtemp(prefix='mlrun-test-')
         print(f'root={root!r}')
         db_path = f'{root}/mlrun.sqlite3?check_same_thread=false'
         log_fp = open(f'{root}/httpd.log', 'w+')
@@ -129,11 +129,10 @@ def server_fixture():
     return create, cleanup
 
 
-servers = ['server']
-# FIXME:
-# if not in_docker:
-#    servers.append('docker')
-# servers = ['docker']
+servers = [
+    'server',
+    # 'docker',
+]
 
 
 @pytest.fixture(scope='module', params=servers)
@@ -148,7 +147,11 @@ def create_server(request):
 
 
 def test_log(create_server):
-    server: Server = create_server()
+    logs_path = mkdtemp()
+    env = {
+        'MLRUN_httpdb__logs_path': logs_path,
+    }
+    server: Server = create_server(env)
     db = server.conn
     prj, uid, body = 'p19', '3920', b'log data'
     db.store_log(uid, prj, body)

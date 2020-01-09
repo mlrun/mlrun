@@ -42,6 +42,8 @@ class Job:
 
 
 class Scheduler(list):
+    sleep_time_sec = 60  # a minute
+
     def __init__(self):
         self.lock = Lock()
         self.pool = ThreadPoolExecutor()
@@ -54,6 +56,7 @@ class Scheduler(list):
         job = Job(schedule, runtime, args, kw)
         with self.lock:
             self.append(job)
+        return id(job)
 
     def start(self):
         Thread(self._loop, daemon=True).start()
@@ -67,4 +70,4 @@ class Scheduler(list):
                         logger.info('scheduling job')
                         self.pool.submit(job.runtime.run, *job.args, **job.kw)
                         self.job.advance()
-            sleep(60)
+            sleep(self.sleep_time_sec)

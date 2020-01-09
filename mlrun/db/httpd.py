@@ -34,7 +34,9 @@ from mlrun.config import config
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import K8sHelper
 from mlrun.runtimes import runtime_resources_map
+from mlrun.scheduler import Scheduler
 
+_scheduler: Scheduler = None
 _db: RunDBInterface
 _k8s: K8sHelper = None
 _logs_dir = None
@@ -110,6 +112,24 @@ def catch_err(fn):
                 HTTPStatus.INTERNAL_SERVER_ERROR, ok=False, reason=str(err))
 
     return wrapper
+
+# curl -d@/path/to/job.json http://localhost:8080/schedule
+@app.route('/api/schedule', methods=['POST'])
+@app.route('/api/schedule/', methods=['POST'])
+@catch_err
+def submit_schedule():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('schedule: {}'.format(data))
+    schedule = data['schedule']
+    runtime = new_function(**data['runtime'])
+    args = data.get('args', [])
+    kw = data.get('kw', {})
+    job_id = _scheduler.add(schedule, runtime, args, kw)
+    return jsonify(ok=True, id=job_id)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/submit
@@ -634,7 +654,7 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _db, _logs_dir, _k8s
+    global _db, _logs_dir, _k8s, _scheduler
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     if config.httpdb.db_type == 'sqldb':
@@ -654,6 +674,8 @@ def init_app():
     # @yaronha - Initialize here
     task = periodic.Task()
     periodic.schedule(task, 60)
+
+    _scheduler = Scheduler()
 
 
 # Don't remove this function, it's an entry point in setup.py

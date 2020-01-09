@@ -102,10 +102,12 @@ class BaseMetadata(ModelObj):
 class ImageBuilder(ModelObj):
     def __init__(
         self, functionSourceCode=None, source=None, image=None,
-            base_image=None, commands=None, secret=None, registry=None):
+            base_image=None, commands=None, secret=None,
+            code_origin=None, registry=None):
         self.functionSourceCode = functionSourceCode
         self.codeEntryType = ''
         self.source = source
+        self.code_origin = code_origin
         self.image = image
         self.base_image = base_image
         self.commands = commands or []

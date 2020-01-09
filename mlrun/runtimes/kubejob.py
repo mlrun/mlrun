@@ -88,7 +88,9 @@ class KubejobRuntime(KubeResource):
                                 or default_image_name(self)
         self.spec.image = ''
         self.status.state = ''
-        add_code_metadata(self.metadata.labels)
+        code_origin = add_code_metadata()
+        self.spec.build.code_origin = self.spec.build.code_origin \
+                                      or code_origin
 
         if self._is_remote_api():
             db = self._get_db()

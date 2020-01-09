@@ -151,7 +151,7 @@ def import_function_to_dict(url, secrets=None):
     remote = '://' in url
 
     code = get_in(runtime, 'spec.build.functionSourceCode')
-    update_in(runtime, 'metadata.labels.source', url)
+    update_in(runtime, 'metadata.build.code_origin', url)
     cmd = code_file = get_in(runtime, 'spec.command', '')
     if ' ' in cmd:
         code_file = cmd[:cmd.find(' ')]
@@ -330,7 +330,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         if not r.metadata.name:
             raise ValueError('name must be specified')
         tag_name(r.metadata.labels)
-        add_code_metadata(r.metadata.labels)
+
+        #r.spec.build.code_origin = add_code_metadata()
         return r
 
     name, spec, code = build_file(filename, name=name, handler=handler)
@@ -352,8 +353,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
     tag_name(r.metadata.labels)
-    add_code_metadata(r.metadata.labels)
     build = r.spec.build
+    build.code_origin = add_code_metadata()
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')
     build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')

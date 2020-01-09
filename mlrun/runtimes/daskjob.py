@@ -303,6 +303,7 @@ def deploy_function(function: DaskCluster):
     dask.config.set({"kubernetes.scheduler-service-template": svc_temp,
                      'kubernetes.name': 'mlrun-' + norm_name + '-{uuid}'})
 
+    print(pod)
     cluster = KubeCluster(
         pod, deploy_mode='remote',
         namespace=namespace,

@@ -16,18 +16,24 @@ import socket
 import uuid
 from base64 import b64decode
 from copy import deepcopy
-from os import environ, path, makedirs
+from os import environ, makedirs, path
 from tempfile import mktemp
+
 import yaml
 from nuclio import build_file
 
-from .runtimes.utils import add_code_metadata
-from .execution import MLClientCtx
-from .model import RunObject
-from .runtimes import runtime_dict, HandlerRuntime, LocalRuntime, RemoteRuntime
-from .utils import update_in, get_in, logger, parse_function_uri
 from .datastore import get_object
-from .db import get_run_db, default_dbpath
+from .db import default_dbpath, get_run_db
+from .execution import MLClientCtx
+from .funcdoc import find_handlers
+from .model import RunObject
+from .runtimes import (
+    DaskCluster, HandlerRuntime, KubejobRuntime, LocalRuntime, MpiRuntime,
+    RemoteRuntime, SparkRuntime, runtime_dict
+)
+from .runtimes.base import EntrypointParam, FunctionEntrypoint
+from .runtimes.utils import add_code_metadata
+from .utils import get_in, logger, parse_function_uri, update_in
 
 
 def get_or_create_ctx(name: str,
@@ -323,6 +329,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                                           handler=handler or 'handler',
                                           kind=kind)
             r.spec.base_spec = spec
+            handlers = find_handlers(code)
+            r.spec.entry_points = {h.name: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -342,7 +350,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     elif runtime in runtime_dict:
         r = runtime_dict[runtime]()
     else:
-        raise Exception('unsupported runtime ({})'.format(runtime))
+        raise ValueError('unsupported runtime ({})'.format(runtime))
 
     if not name:
         raise ValueError('name must be specified')
@@ -365,4 +373,21 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         for vol in get_in(spec, 'spec.volumes', []):
             r.spec.volumes.append(vol.get('volume'))
             r.spec.volume_mounts.append(vol.get('volumeMount'))
+
+    handlers = find_handlers(code)
+    r.spec.entry_points = {h[name]: h for h in handlers}
     return r
+
+
+def as_func(handler):
+    return FunctionEntrypoint(
+        name=handler['name'],
+        doc=handler['doc'],
+        parameters=[as_entry(p) for p in handler['params']],
+        outputs=[as_entry(p) for p in handler['returns']],
+        lineno=handler['lineno'],
+    )
+
+
+def as_entry(param):
+    return EntrypointParam(**param)

@@ -41,18 +41,21 @@ class FunctionStatus(ModelObj):
 
 
 class EntrypointParam(ModelObj):
-    def __init__(self, type=None, default=None, help=None):
+    def __init__(self, name='', type=None, default=None, doc=''):
+        self.name = name
         self.type = type
         self.default = default
-        self.help = help
+        self.doc = doc
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, doc=None, parameters=None, outputs=None):
+    def __init__(
+            self, name='', doc='', parameters=None, outputs=None, lineno=-1):
+        self.name = name
         self.doc = doc
-        # TODO: type verification, EntrypointParam dict
-        self.parameters = parameters or {}
-        self.outputs = outputs or {}
+        self.parameters = [] if parameters is None else parameters
+        self.outputs = [] if outputs is None else outputs
+        self.lineno = lineno
 
 
 class FunctionSpec(ModelObj):
@@ -161,7 +164,8 @@ class BaseRuntime(ModelObj):
         if not self._db_conn:
             self.spec.rundb = self.spec.rundb or default_dbpath()
             if self.spec.rundb:
-                self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
+                self._db_conn = get_run_db(self.spec.rundb).connect(
+                        self._secrets)
         return self._db_conn
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
@@ -218,14 +222,16 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
 
         if not self.is_deployed:
-            raise RunError("function image is not built/ready, use .build() method first")
+            raise RunError(
+                "function image is not built/ready, use .build() method first")
 
         if not self.is_child and self.kind != 'handler':
             dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
-            meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
+            meta.labels['owner'] = environ.get(
+                    'V3IO_USERNAME', getpass.getuser())
             hashkey = calc_hash(self)
             if db:
                 struct = self.to_dict()
@@ -253,7 +259,9 @@ class BaseRuntime(ModelObj):
             return self._wrap_result(resp, runspec)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
-            logger.warning('warning!, Api url not set, trying to exec remote runtime locally')
+            logger.warning(
+                'warning!, Api url not set, '
+                'trying to exec remote runtime locally')
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           db, autocommit=False)
@@ -361,7 +369,7 @@ class BaseRuntime(ModelObj):
         results = RunList()
         for task in tasks:
             try:
-                #self.store_run(task)
+                # self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
             except RunError as err:
@@ -385,7 +393,8 @@ class BaseRuntime(ModelObj):
             iter = get_in(rundict, 'metadata.iteration', 0)
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
-    def _post_run(self, resp: dict = None, task: RunObject = None, err=None) -> dict:
+    def _post_run(
+            self, resp: dict = None, task: RunObject = None, err=None) -> dict:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:

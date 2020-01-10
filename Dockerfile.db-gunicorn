@@ -22,8 +22,7 @@ COPY . .
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
 VOLUME /mlrun/db
-# TODO: gunicorn/uwsgi? (underlying filedb & concurrency issues)
 CMD gunicorn \
-    --workers=8 \
     --bind=0.0.0.0:$MLRUN_httpdb__port \
+    --worker-class gevent \
     mlrun.db.httpd:app

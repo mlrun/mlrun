@@ -349,7 +349,6 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         lines = []
         headers = ['kind', 'state', 'name:tag', 'hash']
         for f in functions:
-            print(f)
             line = [
                 get_in(f, 'kind', ''),
                 get_in(f, 'status.state', ''),

@@ -316,6 +316,21 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
+    def remote_status(self, kind, selector):
+        try:
+            req = {'kind': kind, 'selector': selector}
+            resp = self.api_call('POST', 'status/function', json=req)
+        except OSError as err:
+            logger.error('error starting function: {}'.format(err))
+            raise OSError(
+                'error: cannot start function, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad function status response')
+
+        return resp.json()['data']
+
     def submit_job(self, runspec):
         try:
             req = {'task': runspec.to_dict()}

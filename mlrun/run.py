@@ -293,7 +293,7 @@ def parse_command(runtime, url):
 
 def code_to_function(name: str = '', project: str = '', tag: str = '',
                      filename: str = '', handler='', runtime='',
-                     kind='', image=None, embed_code=True):
+                     kind='', image=None, embed_code=True, with_doc=False):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
@@ -329,8 +329,9 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                                           handler=handler or 'handler',
                                           kind=kind)
             r.spec.base_spec = spec
-            handlers = find_handlers(code)
-            r.spec.entry_points = {h.name: as_func(h) for h in handlers}
+            if with_doc:
+                handlers = find_handlers(code)
+                r.spec.entry_points = {h.name: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -374,8 +375,9 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             r.spec.volumes.append(vol.get('volume'))
             r.spec.volume_mounts.append(vol.get('volumeMount'))
 
-    handlers = find_handlers(code)
-    r.spec.entry_points = {h[name]: h for h in handlers}
+    if with_doc:
+        handlers = find_handlers(code)
+        r.spec.entry_points = {h[name]: h for h in handlers}
     return r
 
 

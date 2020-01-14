@@ -84,22 +84,22 @@ class AsyncLogWriter:
         pass
 
 
-def add_code_metadata(labels):
+def add_code_metadata():
     dirpath = './'
     try:
         from git import Repo
         from git.exc import GitCommandError, InvalidGitRepositoryError
     except ImportError:
-        return
+        return None
 
     try:
         repo = Repo(dirpath, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
-            set_if_none(labels, 'repo', remotes[0])
-            set_if_none(labels, 'commit', repo.head.commit.hexsha)
+            return '{}#{}'.format(remotes[0], repo.head.commit.hexsha)
     except (GitCommandError, InvalidGitRepositoryError):
         pass
+    return None
 
 
 def set_if_none(struct, key, value):

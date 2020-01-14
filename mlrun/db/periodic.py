@@ -31,11 +31,14 @@ class Task:
 def _schedule(task: Task, delay_seconds):
     while True:
         start = monotonic()
-        logger.info('running periodic task')
         try:
-            task.run()
-        except Exception as err:
-            logger.exception('task error - %s', err)
+            logger.info('running periodic task')
+            try:
+                task.run()
+            except Exception as err:
+                logger.exception('task error - %s', err)
+        except Exception:
+            pass
 
         duration = monotonic() - start
         sleep_time = max(delay_seconds - duration, 0)

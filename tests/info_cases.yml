@@ -1,0 +1,84 @@
+- code: |
+    def inc(n: int) -> int:
+        """increment n"""
+        return n + 1
+  expected:
+      name: inc
+      doc: increment n
+      return:
+        name: ""
+        type: int
+        doc: ""
+        default: ""
+      params:
+        - name: n
+          type: int
+          doc: ""
+          default: ""
+      lineno: 1
+  id: inc_ann
+- code: |
+    def inc(n):
+        return n + 1
+  expected:
+      name: inc
+      doc: ""
+      return:
+        name: ""
+        type: ""
+        doc: ""
+        default: ""
+      params:
+        - name: n
+          type: ""
+          doc: ""
+          default: ""
+      lineno: 1
+  id: inc_no_ann
+- code: |
+    def inc(n: int) -> int:
+        """increment n
+
+        :param n: number to increment
+        :returns: a number
+        :rtype: int
+        """
+        return n + 1
+  expected:
+      name: inc
+      doc: increment n
+      return:
+        name: ""
+        type: int
+        doc: a number
+        default: ""
+      params:
+        - name: n
+          type: int
+          doc: number to increment
+          default: ""
+      lineno: 1
+  id: inc_ann_doc
+- code: |
+    def inc(n: int, delta: int = 1) -> int:
+        """increment n"""
+        return n + delta
+  expected:
+      name: inc
+      doc: increment n
+      return:
+        name: ""
+        type: int
+        doc: ""
+        default: ""
+      params:
+        - name: n
+          type: int
+          doc: ""
+          default: ""
+        - name: delta
+          type: int
+          doc: ""
+          default: "1"
+      lineno: 1
+  id: inc_ann_default

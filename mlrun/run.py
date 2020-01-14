@@ -16,18 +16,24 @@ import socket
 import uuid
 from base64 import b64decode
 from copy import deepcopy
-from os import environ, path, makedirs
+from os import environ, makedirs, path
 from tempfile import mktemp
+
 import yaml
 from nuclio import build_file
 
-from .runtimes.utils import add_code_metadata
-from .execution import MLClientCtx
-from .model import RunObject
-from .runtimes import runtime_dict, HandlerRuntime, LocalRuntime, RemoteRuntime
-from .utils import update_in, get_in, logger, parse_function_uri
 from .datastore import get_object
-from .db import get_run_db, default_dbpath
+from .db import default_dbpath, get_run_db
+from .execution import MLClientCtx
+from .funcdoc import find_handlers
+from .model import RunObject
+from .runtimes import (
+    DaskCluster, HandlerRuntime, KubejobRuntime, LocalRuntime, MpiRuntime,
+    RemoteRuntime, SparkRuntime, runtime_dict
+)
+from .runtimes.base import EntrypointParam, FunctionEntrypoint
+from .runtimes.utils import add_code_metadata
+from .utils import get_in, logger, parse_function_uri, update_in
 
 
 def get_or_create_ctx(name: str,
@@ -151,7 +157,7 @@ def import_function_to_dict(url, secrets=None):
     remote = '://' in url
 
     code = get_in(runtime, 'spec.build.functionSourceCode')
-    update_in(runtime, 'metadata.labels.source', url)
+    update_in(runtime, 'metadata.build.code_origin', url)
     cmd = code_file = get_in(runtime, 'spec.command', '')
     if ' ' in cmd:
         code_file = cmd[:cmd.find(' ')]
@@ -287,7 +293,7 @@ def parse_command(runtime, url):
 
 def code_to_function(name: str = '', project: str = '', tag: str = '',
                      filename: str = '', handler='', runtime='',
-                     kind='', image=None, embed_code=True):
+                     kind='', image=None, embed_code=True, with_doc=False):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
@@ -308,9 +314,11 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     filebase, _ = path.splitext(path.basename(filename))
     runtime = runtime or kind  # for backwards computability
 
-    def tag_name(labels):
-        if filename:
-            labels['filename'] = filename
+    def add_name(origin, name=''):
+        name = filename or (name + '.ipynb')
+        if not origin:
+            return name
+        return '{}:{}'.format(origin, name)
 
     if runtime.startswith('nuclio'):
         r = RemoteRuntime()
@@ -321,16 +329,19 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                                           handler=handler or 'handler',
                                           kind=kind)
             r.spec.base_spec = spec
+            if with_doc:
+                handlers = find_handlers(code)
+                r.spec.entry_points = {h.name: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
+
+        if not name:
+            raise ValueError('name must be specified')
         r.metadata.name = name
         r.metadata.project = project
         r.metadata.tag = tag
-        if not r.metadata.name:
-            raise ValueError('name must be specified')
-        tag_name(r.metadata.labels)
-        add_code_metadata(r.metadata.labels)
+        r.spec.build.code_origin = add_name(add_code_metadata(), name)
         return r
 
     name, spec, code = build_file(filename, name=name, handler=handler)
@@ -340,20 +351,19 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     elif runtime in runtime_dict:
         r = runtime_dict[runtime]()
     else:
-        raise Exception('unsupported runtime ({})'.format(runtime))
+        raise ValueError('unsupported runtime ({})'.format(runtime))
 
+    if not name:
+        raise ValueError('name must be specified')
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
     r.metadata.project = project
     r.metadata.name = name
     r.metadata.tag = tag
-    if not r.metadata.name:
-        raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
-    tag_name(r.metadata.labels)
-    add_code_metadata(r.metadata.labels)
     build = r.spec.build
+    build.code_origin = add_name(add_code_metadata(), name)
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')
     build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
@@ -364,4 +374,22 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         for vol in get_in(spec, 'spec.volumes', []):
             r.spec.volumes.append(vol.get('volume'))
             r.spec.volume_mounts.append(vol.get('volumeMount'))
+
+    if with_doc:
+        handlers = find_handlers(code)
+        r.spec.entry_points = {h[name]: h for h in handlers}
     return r
+
+
+def as_func(handler):
+    return FunctionEntrypoint(
+        name=handler['name'],
+        doc=handler['doc'],
+        parameters=[as_entry(p) for p in handler['params']],
+        outputs=[as_entry(p) for p in handler['returns']],
+        lineno=handler['lineno'],
+    )
+
+
+def as_entry(param):
+    return EntrypointParam(**param)

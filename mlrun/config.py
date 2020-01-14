@@ -50,6 +50,7 @@ default_config = {
     'default_archive': '',
     'ipython_widget': True,
     'log_level': 'ERROR',
+    'k8s_submit_timeout': '120',
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),

@@ -33,7 +33,7 @@ def make_dockerfile(base_image,
     if src_dir:
         dock += 'WORKDIR {}\n'.format(workdir)
         dock += 'ADD {} {}\n'.format(src_dir, workdir)
-        dock += 'ENV PYTHONPATH {}'.format(workdir)
+        dock += 'ENV PYTHONPATH {}\n'.format(workdir)
     if requirements:
         dock += 'RUN pip install -r {}\n'.format(requirements)
     if commands:

@@ -346,7 +346,7 @@ class BaseRuntime(ModelObj):
         command = self.spec.command
         code = self.spec.build.functionSourceCode \
             if hasattr(self.spec, 'build') else None
-        
+
         if (code or runobj.spec.handler) and self.spec.mode == 'pass':
             raise ValueError('cannot use "pass" mode with code or handler')
 

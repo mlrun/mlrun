@@ -65,7 +65,8 @@ def main():
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
-@click.option('--func-url', '-f', default='', help='path/url of function yaml')
+@click.option('--func-url', '-f', default='', help='path/url of function yaml or function '
+                                                   'yaml or db://<project>/<name>[:tag]')
 @click.option('--task', default='', help='path/url to task yaml')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
 @click.option('--mode', help='run mode e.g. noctx')
@@ -175,7 +176,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
               help='location/url of the source files dir/tar')
 @click.option('--base-image', '-b', help='base docker image')
 @click.option('--command', '-c', default='', multiple=True,
-              help="build commands, e.g. '-p pip install pandas'")
+              help="build commands, e.g. '-c pip install pandas'")
 @click.option('--secret-name', default='', help='container registry secret name')
 @click.option('--archive', '-a', default='', help='destination archive for code (tar)')
 @click.option('--silent', is_flag=True, help='do not show build logs')
@@ -188,7 +189,7 @@ def build(func_url, name, project, tag, image, source, base_image,
     if func_url.startswith('db://'):
         func_url = func_url[5:]
         project, name, tag = parse_function_uri(func_url)
-        func = import_function(name=name, project=project, tag=tag, db=db)
+        func = import_function(func_url, db=db)
     else:
         func_url = 'function.yaml' if func_url == '.' else func_url
         func = import_function(func_url, db=db)

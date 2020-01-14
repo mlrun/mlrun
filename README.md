@@ -64,6 +64,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 * [Automated parametrization, artifact tracking and logging](#automated-parametrization-artifact-tracking-and-logging)
 * [Using hyper parameters for job scaling](#using-hyper-parameters-for-job-scaling)
 * [Automated code deployment and containerization](#automated-code-deployment-and-containerization)
+* [Build and run function from a remote IDE using the CLI](examples/remote.md)
 * [Running with KubeFlow ML Pipeline](#running-with-kubeflow-ml-pipeline)
 * [MLRun UI - WIP](#mlrun-user-interface)
 * [Run and Artifact Database](#run-and-artifact-database)

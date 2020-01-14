@@ -47,27 +47,28 @@ class Scheduler(list):
     def __init__(self):
         self.lock = Lock()
         self.pool = ThreadPoolExecutor()
+        Thread(target=self._loop, daemon=True).start()
 
-    def add(self, schedule: str, runtime: BaseRuntime, args, kw):
+    def add(self, schedule: str, runtime: BaseRuntime, args=None, kw=None):
         """Add a job to run according to schedule.
 
         args & kw are passed to runtime.run
         """
+        args = () if args is None else args
+        kw = {} if kw is None else kw
         job = Job(schedule, runtime, args, kw)
         with self.lock:
             self.append(job)
         return id(job)
 
-    def start(self):
-        Thread(self._loop, daemon=True).start()
-
     def _loop(self):
         while True:
             now = datetime.now()
+            logger.info('scheduler loop at %s', now)
             with self.lock:
                 for job in self:
                     if job.next <= now:
                         logger.info('scheduling job')
                         self.pool.submit(job.runtime.run, *job.args, **job.kw)
-                        self.job.advance()
+                        job.advance()
             sleep(self.sleep_time_sec)

@@ -45,3 +45,14 @@ def test_list_fuctions(db: FileRunDB):
 
     out = db.list_functions('', proj)
     assert len(out) == count, 'bad list'
+
+
+def test_schedules(db: FileRunDB):
+    count = 7
+    for i in range(count):
+        data = {'i': i}
+        db.store_schedule(data)
+
+    scheds = list(db.list_schedules())
+    assert count == len(scheds), 'wrong number of schedules'
+    assert set(range(count)) == set(s['i'] for s in scheds), 'bad scheds'

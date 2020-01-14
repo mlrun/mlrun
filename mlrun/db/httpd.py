@@ -125,6 +125,10 @@ def submit_job():
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     logger.info('submit_job: {}'.format(data))
+    _submit(data)
+
+
+def _submit(data):
     task = data.get('task')
     function = data.get('function')
     url = data.get('functionUrl')
@@ -162,6 +166,7 @@ def submit_job():
         if schedule:
             args = (task, )
             job_id = _scheduler.add(schedule, fn, args)
+            _db.save_schedule(data)
             resp = {'schedule': schedule, 'id': job_id}
         else:
             resp = fn.run(task)
@@ -704,6 +709,11 @@ def init_app():
     periodic.schedule(task, 60)
 
     _scheduler = Scheduler()
+    for data in _db.list_schedules():
+        if 'schedule' not in data:
+            logger.warning('bad scheduler data - %s', data)
+            continue
+        _submit(data)
 
 
 # Don't remove this function, it's an entry point in setup.py

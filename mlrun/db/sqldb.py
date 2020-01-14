@@ -116,6 +116,12 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
 
+    class Schedule(Base, HasStruct):
+        __tablename__ = 'schedules'
+
+        id = Column(Integer, primary_key=True)
+        body = Column(BLOB)
+
 
 class SQLDB(RunDBInterface):
     def __init__(self, dsn):
@@ -327,6 +333,14 @@ class SQLDB(RunDBInterface):
         query = self.session.query(Artifact.tag).filter(
             Artifact.project == project).distinct()
         return [row[0] for row in query]
+
+    def store_schedule(self, data):
+        sched = Schedule()
+        sched.struct = data
+        self._upsert(sched)
+
+    def list_schedules(self):
+        return [s.struct for s in self.session.query(Schedule)]
 
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v}

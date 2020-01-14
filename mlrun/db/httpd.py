@@ -34,7 +34,9 @@ from mlrun.config import config
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import K8sHelper
 from mlrun.runtimes import runtime_resources_map
+from mlrun.scheduler import Scheduler
 
+_scheduler: Scheduler = None
 _db: RunDBInterface
 _k8s: K8sHelper = None
 _logs_dir = None
@@ -111,7 +113,6 @@ def catch_err(fn):
 
     return wrapper
 
-
 # curl -d@/path/to/job.json http://localhost:8080/submit
 @app.route('/api/submit', methods=['POST'])
 @app.route('/api/submit/', methods=['POST'])
@@ -119,7 +120,7 @@ def catch_err(fn):
 @catch_err
 def submit_job():
     try:
-        data = request.get_json(force=True)
+        data: dict = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
@@ -155,19 +156,27 @@ def submit_job():
                 fn = new_function(runtime=runtime)
 
         fn.set_db_connection(_db, True)
-        print('func:\n{}'.format(fn.to_yaml()))
+        logger.info('func:\n{}'.format(fn.to_yaml()))
         # fn.spec.rundb = 'http://mlrun-api:8080'
-        resp = fn.run(task)
+        schedule = data.get('schedule')
+        if schedule:
+            args = (task, )
+            job_id = _scheduler.add(schedule, fn, args)
+            resp = {'schedule': schedule, 'id': job_id}
+        else:
+            resp = fn.run(task)
 
         logger.info('resp: %s', resp.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
         )
 
-    return jsonify(ok=True, data=resp.to_dict())
+    if not isinstance(resp, dict):
+        resp = resp.to_dict()
+    return jsonify(ok=True, data=resp)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function
@@ -194,7 +203,7 @@ def build_function():
         fn.save(versioned=False)
         logger.info('Fn:\n %s', fn.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
@@ -243,7 +252,7 @@ def start_function():
         fn.save(versioned=False)
         logger.info('Fn:\n %s', fn.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
@@ -282,7 +291,7 @@ def function_status():
         resp = resource['status'](selector)
         logger.info('status: %s', resp)
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
@@ -673,7 +682,7 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _db, _logs_dir, _k8s
+    global _db, _logs_dir, _k8s, _scheduler
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     if config.httpdb.db_type == 'sqldb':
@@ -693,6 +702,8 @@ def init_app():
     # @yaronha - Initialize here
     task = periodic.Task()
     periodic.schedule(task, 60)
+
+    _scheduler = Scheduler()
 
 
 # Don't remove this function, it's an entry point in setup.py

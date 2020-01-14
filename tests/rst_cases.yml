@@ -78,3 +78,47 @@
         type: BufferedFileStorage
         default: ""
     lineno: -1
+- name: space in colon
+  text: |
+    Open a file
+
+    :param path : The path of the file to wrap
+  expected:
+    doc: Open a file
+    params:
+      - name: path
+        doc: The path of the file to wrap
+        type: ""
+        default: ""
+    ret:
+        name: ""
+        doc: ""
+        type: ""
+        default: ""
+    lineno: -1
+- name: Data in middle
+  text: |
+    Open a file
+
+    :param path : The path of the file to wrap
+
+    Then we can optionally
+
+    :param mode : File mode
+  expected:
+    doc: Open a file
+    params:
+      - name: path
+        doc: The path of the file to wrap
+        type: ""
+        default: ""
+      - name: mode
+        doc: File mode
+        type: ""
+        default: ""
+    ret:
+        name: ""
+        doc: ""
+        type: ""
+        default: ""
+    lineno: -1

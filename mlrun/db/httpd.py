@@ -164,7 +164,7 @@ def submit_job():
             job_id = _scheduler.add(schedule, fn, args)
             resp = {'schedule': schedule, 'id': job_id}
         else:
-            resp = fn.run(task)
+            resp = fn.run(task, watch=False)
 
         logger.info('resp: %s', resp.to_yaml())
     except Exception as err:

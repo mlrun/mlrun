@@ -107,14 +107,16 @@ def rst_read_doc(lines):
 
 
 def rst_read_section(lines, i):
-    # Skip empty lines
-    while not lines[i].strip() and i < len(lines):
-        i += 1
-
-    # :param path: The path of the file to wrap
-    match = re.match(r':(\w+)(\s+\w+)?:', lines[i])
-    if not match:
-        raise ValueError(f'{i}: bad line - {lines[i]!r}')
+    # Skip empty lines/other lines
+    for i, line in enumerate(lines[i:], i):
+        if not line.strip():
+            continue
+        # :param path: The path of the file to wrap
+        match = re.match(r':\s*(\w+)(\s+\w+)?\s*:', lines[i])
+        if match:
+            break
+    else:
+        return None
 
     tag = match.group(1)
     value = match.group(2).strip() if match.group(2) else ''
@@ -134,7 +136,10 @@ def parse_rst(docstring: str):
     ret = param_dict()
 
     while i != -1:
-        tag, value, text, i = rst_read_section(lines, i)
+        out = rst_read_section(lines, i)
+        if not out:
+            break
+        tag, value, text, i = out
         if tag == 'param':
             params[value] = param_dict(name=value, doc=text)
             names.append(value)

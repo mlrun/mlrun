@@ -254,6 +254,7 @@ class BaseRuntime(ModelObj):
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:
+                logger.error('got remote run err, {}'.format(err))
                 result = self._post_run(task=runspec, err=err)
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)

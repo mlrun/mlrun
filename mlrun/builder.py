@@ -27,10 +27,11 @@ from .config import config
 def make_dockerfile(base_image,
                     commands=None, src_dir=None,
                     requirements=None,
-                    workdir='/run',
+                    workdir='/mlrun',
                     extra=''):
     dock = 'FROM {}\n'.format(base_image)
     if src_dir:
+        dock += 'RUN mkdir -p {}\n'.format(workdir)
         dock += 'WORKDIR {}\n'.format(workdir)
         dock += 'ADD {} {}\n'.format(src_dir, workdir)
         dock += 'ENV PYTHONPATH {}\n'.format(workdir)

@@ -28,6 +28,7 @@ import yaml
 
 from tabulate import tabulate
 
+from . import get_version
 from .config import config as mlconf
 from .builder import upload_tarball
 from .datastore import get_object
@@ -378,6 +379,12 @@ def db(port, dirpath):
     returncode = child.wait()
     if returncode != 0:
         raise SystemExit(returncode)
+
+
+@main.command()
+def version():
+    """get mlrun version"""
+    print('MLRun version: {}'.format(get_version()))
 
 
 @main.command()

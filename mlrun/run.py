@@ -112,7 +112,7 @@ def get_or_create_ctx(name: str,
     update_in(newspec, 'metadata.name', name, replace=False)
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
-    out = environ.get('MLRUN_DBPATH', rundb)
+    out = rundb or config.dbpath or environ.get('MLRUN_DBPATH')
     if out:
         autocommit = True
         logger.info('logging run results to: {}'.format(out))

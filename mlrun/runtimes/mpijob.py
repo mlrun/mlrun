@@ -96,7 +96,7 @@ class MpiRuntime(KubejobRuntime):
 
         resp = self._submit_mpijob(job, meta.namespace)
         state = None
-        for _ in range(60):
+        for _ in range(120):
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.launcherStatus')
             if resp and state:

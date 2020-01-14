@@ -161,8 +161,8 @@ def submit_job():
         schedule = data.get('schedule')
         if schedule:
             args = (task, )
-            _scheduler.add(schedule, fn, args)
-            resp = {'schedule': schedule}
+            job_id = _scheduler.add(schedule, fn, args)
+            resp = {'schedule': schedule, 'id': job_id}
         else:
             resp = fn.run(task)
 

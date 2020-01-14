@@ -332,9 +332,11 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
-    def submit_job(self, runspec):
+    def submit_job(self, runspec, schedule=None):
         try:
             req = {'task': runspec.to_dict()}
+            if schedule:
+                req['schedule'] = schedule
             timeout = (int(config.k8s_submit_timeout) or 120) + 20
             resp = self.api_call('POST', 'submit', json=req, timeout=timeout)
         except OSError as err:

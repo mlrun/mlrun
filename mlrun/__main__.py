@@ -70,14 +70,16 @@ def main():
                                                    'yaml or db://<project>/<name>[:tag]')
 @click.option('--task', default='', help='path/url to task yaml')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
-@click.option('--mode', help='run mode e.g. noctx')
+@click.option('--mode', help='special run mode noctx | pass')
+@click.option('--schedule', help='cron schedule')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
-        selector, func_url, task, handler, mode, from_env, dump, watch, run_args):
+        selector, func_url, task, handler, mode, schedule, from_env, dump,
+        watch, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -159,7 +161,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         update_in(runtime, 'metadata.name', name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj, watch=watch)
+        resp = fn.run(runobj, watch=watch, schedule=schedule)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:

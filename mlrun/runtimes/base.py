@@ -170,7 +170,7 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', watch: bool = True):
+            out_path: str = '', watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -181,6 +181,7 @@ class BaseRuntime(ModelObj):
         :param inputs:     input objects (dict of key: path)
         :param out_path:   default artifact output path
         :param watch:      watch/follow run log
+        :param schedule:   cron string for scheduled jobs
 
         :return: run context object (dict) with run metadata, results and
             status
@@ -245,7 +246,11 @@ class BaseRuntime(ModelObj):
             if self._secrets:
                 runspec.spec.secret_sources = self._secrets.to_serial()
             try:
-                resp = db.submit_job(runspec)
+                resp = db.submit_job(runspec, schedule=schedule)
+                if schedule:
+                    logger.info('task scheduled, {}'.format(resp))
+                    return
+
                 if resp:
                     txt = get_in(resp, 'status.status_text')
                     if txt:

@@ -128,7 +128,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                     the container should host all requiered packages + code
                     for the run, alternatively user can mount packages/code via
                     shared file volumes like v3io (see example below)
-    :param runtime: optional, runtime specification
+    :param function: optional, function specification
     :param command: exec command (or URL for functions)
     :param secrets: extra secrets specs, will be injected into the runtime
                     e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
@@ -345,35 +345,38 @@ def add_env(env=None):
     return _add_env
 
 
-def build_op(image, context_path, secret_name='docker-secret'):
-    """use kaniko to build Docker image."""
+def build_op(name, function=None, func_url=None, image=None, base_image=None, commands: list = None,
+             secret_name='', with_mlrun=True):
+    """build Docker image."""
 
-    from kubernetes import client as k8s_client
     from kfp import dsl
 
-    cops = dsl.ContainerOp(
-        name='kaniko',
-        image='gcr.io/kaniko-project/executor:latest',
-        arguments=["--dockerfile", "/context/Dockerfile",
-                   "--context", "/context",
-                   "--destination", image],
-    )
+    cmd = ['python', '-m', 'mlrun', 'build', '--kfp']
+    if function:
+        if not hasattr(function, 'to_dict'):
+            raise ValueError('function must specify a function runtime object')
+        cmd += ['-r', '{}'.format(function.to_dict())]
+    elif not func_url:
+        raise ValueError('function object or func_url must be specified')
 
-    cops.add_volume(
-        k8s_client.V1Volume(
-            name='registry-creds',
-            secret=k8s_client.V1SecretVolumeSource(
-                secret_name=secret_name,
-                items=[{
-                    'key': '.dockerconfigjson',
-                    'path': '.docker/config.json',
-                }],
-            )
-        ))
-    cops.container.add_volume_mount(
-        k8s_client.V1VolumeMount(
-            name='registry-creds',
-            mount_path='/root/',
-        )
+    commands = commands or []
+    if image:
+        cmd += ['-i', image]
+    if base_image:
+        cmd += ['-b', base_image]
+    if secret_name:
+        cmd += ['--secret-name', secret_name]
+    if with_mlrun:
+        cmd += ['--with_mlrun']
+    for c in commands:
+        cmd += ['-c', c]
+    if func_url and not function:
+        cmd += [func_url]
+
+    cop = dsl.ContainerOp(
+        name=name,
+        image=config.kfp_image,
+        command=cmd,
+        file_outputs={'state': '/tmp/state', 'image': '/tmp/image'},
     )
-    return cops
+    return cop

@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from kubernetes import client
+
+from ..kfpops import build_op
 from .pod import KubeResource
 from .utils import AsyncLogWriter, add_code_metadata, default_image_name
 from ..model import RunObject
@@ -78,7 +80,8 @@ class KubejobRuntime(KubeResource):
     def build(self, **kw):
         raise ValueError('.build() is deprecated, use .deploy() instead')
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False):
+    def deploy(self, watch=True, with_mlrun=True,
+               skip_deployed=False, is_kfp=False):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
@@ -92,7 +95,7 @@ class KubejobRuntime(KubeResource):
         self.spec.build.code_origin = self.spec.build.code_origin \
                                       or code_origin
 
-        if self._is_remote_api():
+        if self._is_remote_api() and not is_kfp:
             db = self._get_db()
             logger.info('starting remote build, image: {}'.format(
                 self.spec.build.image))
@@ -105,7 +108,11 @@ class KubejobRuntime(KubeResource):
                 ready = state == 'ready'
                 self.status.state = state
         else:
-            ready = build_runtime(self, with_mlrun, watch)
+            logger.info('starting build, image: {}'.format(
+                self.spec.build.image))
+            self.save(versioned=False)
+            ready = build_runtime(self, with_mlrun, watch or is_kfp)
+            self.save(versioned=False)
 
         return ready
 
@@ -158,6 +165,14 @@ class KubejobRuntime(KubeResource):
 
                 logger.info('builder status is: {}, wait for it to complete'.format(status))
             return None
+
+    def deploy_step(self, image=None, base_image=None, commands: list = None,
+                    secret_name='', with_mlrun=True):
+
+        name = 'deploy_{}'.format(self.metadata.name or 'function')
+        return build_op(name, self, image=image, base_image=base_image,
+                        commands=commands, secret_name=secret_name,
+                        with_mlrun=with_mlrun)
 
     def _run(self, runobj: RunObject, execution):
 

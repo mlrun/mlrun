@@ -484,14 +484,12 @@ class BaseRuntime(ModelObj):
         """
 
         if self.spec.image and not image:
-            image = self.spec.image
-        elif image and not isinstance(image, str):
-            image = default_image_name(self)
+            image = self.full_image_path()
 
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
-                        inputs=inputs, outputs=outputs, image=image,
+                        inputs=inputs, outputs=outputs, job_image=image,
                         out_path=out_path, in_path=in_path)
 
     def export(self, target='', format='.yaml', secrets=None):

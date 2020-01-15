@@ -74,12 +74,13 @@ def main():
 @click.option('--schedule', help='cron schedule')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
+@click.option('--image', default='', help='container image')
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
         selector, func_url, task, handler, mode, schedule, from_env, dump,
-        watch, run_args):
+        image, watch, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -146,6 +147,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         update_in(runtime, 'spec.command', url)
     if run_args:
         update_in(runtime, 'spec.args', list(run_args))
+    set_item(runobj.spec, image, 'image')
     set_item(runobj.spec, handler, 'handler')
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
@@ -257,7 +259,7 @@ def build(func_url, name, project, tag, image, source, base_image, command,
             with open('/tmp/state', 'w') as fp:
                 fp.write(state)
             with open('/tmp/image', 'w') as fp:
-                fp.write(image)
+                fp.write(func.full_image_path(image))
     else:
         print('function does not have a deploy() method')
         exit(1)

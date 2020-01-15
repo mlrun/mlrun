@@ -244,7 +244,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if status in ['failed', 'error']:
         raise ValueError(' build {}!'.format(status))
 
-    local = '' if build.secret else '.'
+    local = '' if build.secret or build.image.startswith('.') else '.'
     runtime.spec.image = local + build.image
     runtime.status.state = 'ready'
     return True

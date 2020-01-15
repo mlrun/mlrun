@@ -112,7 +112,7 @@ def get_kfp_outputs(artifacts, labels):
 
 def mlrun_op(name: str = '', project: str = '', function=None,
              image: str = '', runobj=None, command: str = '',
-             secrets: list = None, params: dict = None,
+             secrets: list = None, params: dict = None, job_image=None,
              hyperparams: dict = None, param_file: str = '',
              selector: str = '', inputs: dict = None, outputs: list = None,
              in_path: str = '', out_path: str = '', rundb: str = '',
@@ -273,12 +273,14 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['--param-file', param_file]
     if selector:
         cmd += ['--selector', selector]
+    if job_image:
+        cmd += ['--image', job_image]
     if mode:
         cmd += ['--mode', mode]
     if more_args:
         cmd += more_args
 
-    if isinstance(image, str) and image.startswith('.'):
+    if image and image.startswith('.'):
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
             image = '{}/{}'.format(
                 environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
@@ -356,6 +358,8 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
     """build Docker image."""
 
     from kfp import dsl
+    from os import environ
+    from kubernetes import client as k8s_client
 
     cmd = ['python', '-m', 'mlrun', 'build', '--kfp']
     if function:
@@ -385,4 +389,12 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
         command=cmd,
         file_outputs={'state': '/tmp/state', 'image': '/tmp/image'},
     )
+
+    if 'DEFAULT_DOCKER_REGISTRY' in environ:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='DEFAULT_DOCKER_REGISTRY', value=environ.get('DEFAULT_DOCKER_REGISTRY')))
+    if 'IGZ_NAMESPACE_DOMAIN' in environ:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='IGZ_NAMESPACE_DOMAIN', value=environ.get('IGZ_NAMESPACE_DOMAIN')))
+
     return cop

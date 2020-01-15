@@ -228,7 +228,8 @@ def build(func_url, name, project, tag, image, source, base_image, command,
 
     if source.endswith('.py'):
         if not path.isfile(source):
-            raise ValueError('source file doesnt exist ({})'.format(source))
+            print('source file doesnt exist ({})'.format(source))
+            exit(1)
         with open(source) as fp:
             body = fp.read()
         based = b64encode(body.encode('utf-8')).decode('utf-8')
@@ -252,7 +253,12 @@ def build(func_url, name, project, tag, image, source, base_image, command,
 
     if hasattr(func, 'deploy'):
         logger.info('remote deployment started')
-        func.deploy(with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp)
+        try:
+            func.deploy(with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp)
+        except Exception as err:
+            print('deploy error, {}'.format(err))
+            exit(1)
+
         if kfp:
             state = func.status.state
             image = func.spec.image

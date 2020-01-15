@@ -147,7 +147,8 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         update_in(runtime, 'spec.command', url)
     if run_args:
         update_in(runtime, 'spec.args', list(run_args))
-    set_item(runobj.spec, image, 'image')
+    if image:
+        update_in(runtime, 'spec.image', image)
     set_item(runobj.spec, handler, 'handler')
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))

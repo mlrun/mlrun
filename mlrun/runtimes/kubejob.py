@@ -108,8 +108,6 @@ class KubejobRuntime(KubeResource):
                 ready = state == 'ready'
                 self.status.state = state
         else:
-            logger.info('starting build, image: {}'.format(
-                self.spec.build.image))
             self.save(versioned=False)
             ready = build_runtime(self, with_mlrun, watch or is_kfp)
             self.save(versioned=False)
@@ -188,7 +186,7 @@ class KubejobRuntime(KubeResource):
         pod_spec = func_to_pod(self.full_image_path(), self, extra_env, command, args)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
-            pod_name, namespace =  k8s.create_pod(pod)
+            pod_name, namespace = k8s.create_pod(pod)
         except client.rest.ApiException as e:
             raise RunError(str(e))
 

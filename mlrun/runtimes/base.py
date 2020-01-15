@@ -466,7 +466,7 @@ class BaseRuntime(ModelObj):
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = ''):
+                in_path: str = '', out_path: str = '', image: str = ''):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -478,17 +478,18 @@ class BaseRuntime(ModelObj):
         :param selector:   selection criteria for hyper params
         :param inputs:     input objects (dict of key: path)
         :param outputs:    list of outputs which can pass in the workflow
+        :param image:      container image to use
 
         :return: KubeFlow containerOp
         """
 
-        # expand local registry path, TODO: copy self to avoid modify the fn?
-        self.spec.image = self.full_image_path()
+        if self.spec.image and not image:
+            image = self.full_image_path()
 
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
-                        inputs=inputs, outputs=outputs,
+                        inputs=inputs, outputs=outputs, image=image,
                         out_path=out_path, in_path=in_path)
 
     def export(self, target='', format='.yaml', secrets=None):

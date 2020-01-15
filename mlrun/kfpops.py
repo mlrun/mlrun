@@ -215,7 +215,6 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             code_env = '{}'.format(function.spec.build.functionSourceCode)
         else:
             runtime = '{}'.format(function.to_dict())
-        name = name or function.metadata.name
 
     image = image or config.kfp_image
 
@@ -231,6 +230,13 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         out_path = out_path or runobj.spec.output_path
         secrets = secrets or runobj.spec.secret_sources
         project = project or runobj.metadata.project
+
+    if not name:
+        if not function:
+            raise ValueError('name or function object must be specified')
+        name = function.metadata.name
+        if handler:
+            name += '-' + handler
 
     if hyperparams or param_file:
         outputs.append('iteration_results')

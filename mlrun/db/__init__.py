@@ -21,7 +21,9 @@ from .sqldb import SQLDB
 
 
 def default_dbpath(default=''):
-    return config.dbpath or default
+    if not config.dbpath and default:
+        config.dbpath = default
+    return config.dbpath
 
 
 def get_run_db(url=''):

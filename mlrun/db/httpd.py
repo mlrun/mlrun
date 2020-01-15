@@ -125,7 +125,7 @@ def submit_job():
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     logger.info('submit_job: {}'.format(data))
-    _submit(data)
+    return _submit(data)
 
 
 def _submit(data):

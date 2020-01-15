@@ -20,8 +20,8 @@ from .httpdb import HTTPRunDB
 from .sqldb import SQLDB
 
 
-def default_dbpath():
-    return config.dbpath
+def default_dbpath(default=''):
+    return config.dbpath or default
 
 
 def get_run_db(url=''):

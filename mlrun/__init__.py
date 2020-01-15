@@ -26,6 +26,11 @@ from .datastore import get_object
 
 from os import environ
 
+
+def get_version():
+    return __version__
+
+
 if 'IGZ_NAMESPACE_DOMAIN' in environ:
     kfp_ep = 'https://dashboard.{}/pipelines/'.format(environ['IGZ_NAMESPACE_DOMAIN'])
     environ['KF_PIPELINES_UI_ENDPOINT'] = kfp_ep

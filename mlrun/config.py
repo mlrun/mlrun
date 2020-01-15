@@ -28,11 +28,12 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 from urllib.parse import urlparse
+from . import __version__
 
 import yaml
 
 env_prefix = 'MLRUN_'
-env_file_key = f'{env_prefix}CONIFG_FILE'
+env_file_key = '{}CONIFG_FILE'.format(env_prefix)
 _load_lock = Lock()
 _none_type = type(None)
 
@@ -42,7 +43,7 @@ default_config = {
     'dbpath': '',
     'ui_url': '',
     'remote_host': '',
-    'kfp_image': 'mlrun/mlrun:latest',
+    'kfp_image': '',
     'kaniko_version': 'v0.14.0',
     'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
@@ -50,6 +51,7 @@ default_config = {
     'default_archive': '',
     'ipython_widget': True,
     'log_level': 'ERROR',
+    'k8s_submit_timeout': '120',
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
@@ -178,6 +180,9 @@ def read_env(env=None, prefix=env_prefix):
     svc = env.get('MLRUN_API_PORT', env.get('MLRUN_DB_PORT'))
     if svc and not config.get('dbpath'):
         config['dbpath'] = 'http://' + urlparse(svc).netloc
+    if not config.get('kfp_image'):
+        tag = __version__ or 'latest'
+        config['kfp_image'] = 'mlrun/mlrun:{}'.format(tag)
 
     return config
 

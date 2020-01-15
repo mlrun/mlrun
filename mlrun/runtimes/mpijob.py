@@ -15,6 +15,7 @@ import time
 from copy import deepcopy
 
 from .utils import AsyncLogWriter, RunError
+from ..config import config
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import update_in, logger, get_in
@@ -96,7 +97,8 @@ class MpiRuntime(KubejobRuntime):
 
         resp = self._submit_mpijob(job, meta.namespace)
         state = None
-        for _ in range(60):
+        timeout = int(config.k8s_submit_timeout) or 120
+        for _ in range(timeout):
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.launcherStatus')
             if resp and state:

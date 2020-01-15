@@ -20,6 +20,7 @@ import requests
 from ..utils import dict_to_json, logger
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
+from ..config import config
 
 default_project = 'default'  # TODO: Name?
 
@@ -331,10 +332,13 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
-    def submit_job(self, runspec):
+    def submit_job(self, runspec, schedule=None):
         try:
             req = {'task': runspec.to_dict()}
-            resp = self.api_call('POST', 'submit', json=req, timeout=90)
+            if schedule:
+                req['schedule'] = schedule
+            timeout = (int(config.k8s_submit_timeout) or 120) + 20
+            resp = self.api_call('POST', 'submit', json=req, timeout=timeout)
         except OSError as err:
             logger.error('error submitting task: {}'.format(err))
             raise OSError(

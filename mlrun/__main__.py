@@ -28,6 +28,7 @@ import yaml
 
 from tabulate import tabulate
 
+from . import get_version
 from .config import config as mlconf
 from .builder import upload_tarball
 from .datastore import get_object
@@ -59,23 +60,27 @@ def main():
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
 @click.option('--db', default='', help='save run results to path or DB url')
-@click.option('--runtime', '-r', default='', help='runtime environment e.g. local, remote, nuclio, mpi')
-@click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines')
+@click.option('--runtime', '-r', default='', help='function spec dict, for pipeline usage')
+@click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines, do not use')
 @click.option('--hyperparam', '-x', default='', multiple=True,
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
-@click.option('--func-url', '-f', default='', help='path/url of function yaml')
+@click.option('--func-url', '-f', default='', help='path/url of function yaml or function '
+                                                   'yaml or db://<project>/<name>[:tag]')
 @click.option('--task', default='', help='path/url to task yaml')
 @click.option('--handler', default='', help='invoke function handler inside the code file')
-@click.option('--mode', help='run mode e.g. noctx')
+@click.option('--mode', help='special run mode noctx | pass')
+@click.option('--schedule', help='cron schedule')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
+@click.option('--image', default='', help='container image')
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
-        selector, func_url, task, handler, mode, from_env, dump, watch, run_args):
+        selector, func_url, task, handler, mode, schedule, from_env, dump,
+        image, watch, run_args):
     """Execute a task and inject parameters."""
 
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -142,6 +147,8 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         update_in(runtime, 'spec.command', url)
     if run_args:
         update_in(runtime, 'spec.args', list(run_args))
+    if image:
+        update_in(runtime, 'spec.image', image)
     set_item(runobj.spec, handler, 'handler')
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
@@ -157,7 +164,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         update_in(runtime, 'metadata.name', name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj, watch=watch)
+        resp = fn.run(runobj, watch=watch, schedule=schedule)
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -166,32 +173,46 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("func_url", type=str)
+@click.argument("func_url", type=str, required=False)
 @click.option('--name', help='function name')
 @click.option('--project', help='project name')
 @click.option('--tag', default='', help='function tag')
-@click.option('--image', '-i', help='location/url of the source files dir/tar')
+@click.option('--image', '-i', help='target image path')
 @click.option('--source', '-s', default='',
               help='location/url of the source files dir/tar')
 @click.option('--base-image', '-b', help='base docker image')
 @click.option('--command', '-c', default='', multiple=True,
-              help="build commands, e.g. '-p pip install pandas'")
+              help="build commands, e.g. '-c pip install pandas'")
 @click.option('--secret-name', default='', help='container registry secret name')
 @click.option('--archive', '-a', default='', help='destination archive for code (tar)')
 @click.option('--silent', is_flag=True, help='do not show build logs')
 @click.option('--with-mlrun', is_flag=True, help='add MLRun package')
 @click.option('--db', default='', help='save run results to path or DB url')
-def build(func_url, name, project, tag, image, source, base_image,
-          command, secret_name, archive, silent, with_mlrun, db):
+@click.option('--runtime', '-r', default='', help='function spec dict, for pipeline usage')
+@click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines, do not use')
+def build(func_url, name, project, tag, image, source, base_image, command,
+          secret_name, archive, silent, with_mlrun, db, runtime, kfp):
     """Build a container image from code and requirements."""
 
-    if func_url.startswith('db://'):
+    if runtime:
+        runtime = py_eval(runtime)
+        if not isinstance(runtime, dict):
+            print('runtime parameter must be a dict, not {}'.format(type(runtime)))
+            exit(1)
+        if kfp:
+            print('Runtime:')
+            pprint(runtime)
+        func = new_function(runtime=runtime)
+    elif func_url.startswith('db://'):
         func_url = func_url[5:]
         project, name, tag = parse_function_uri(func_url)
-        func = import_function(name=name, project=project, tag=tag, db=db)
-    else:
+        func = import_function(func_url, db=db)
+    elif func_url:
         func_url = 'function.yaml' if func_url == '.' else func_url
         func = import_function(func_url, db=db)
+    else:
+        print('please specify the function path or url')
+        exit(1)
 
     meta = func.metadata
     meta.project = project or meta.project or mlconf.default_project
@@ -231,7 +252,18 @@ def build(func_url, name, project, tag, image, source, base_image,
 
     if hasattr(func, 'deploy'):
         logger.info('remote deployment started')
-        func.deploy(with_mlrun=with_mlrun, watch=not silent)
+        func.deploy(with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp)
+        if kfp:
+            state = func.status.state
+            image = func.spec.image
+            print('function built, state={} image={}'.format(state, image))
+            with open('/tmp/state', 'w') as fp:
+                fp.write(state)
+            with open('/tmp/image', 'w') as fp:
+                fp.write(func.full_image_path(image))
+    else:
+        print('function does not have a deploy() method')
+        exit(1)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -267,7 +299,12 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
         for k, v in models.items():
             f.add_model(k, v)
 
-    addr = f.deploy(dashboard=dashboard, project=project, tag=tag, kind=kind)
+    try:
+        addr = f.deploy(dashboard=dashboard, project=project, tag=tag, kind=kind)
+    except Exception as err:
+        print('deploy error: {}'.format(err))
+        exit(1)
+
     print('function deployed, address={}'.format(addr))
     with open('/tmp/output', 'w') as fp:
         fp.write(addr)
@@ -377,6 +414,12 @@ def db(port, dirpath):
     returncode = child.wait()
     if returncode != 0:
         raise SystemExit(returncode)
+
+
+@main.command()
+def version():
+    """get mlrun version"""
+    print('MLRun version: {}'.format(get_version()))
 
 
 @main.command()

@@ -169,7 +169,7 @@ def _submit(data):
             _db.save_schedule(data)
             resp = {'schedule': schedule, 'id': job_id}
         else:
-            resp = fn.run(task)
+            resp = fn.run(task, watch=False)
 
         logger.info('resp: %s', resp.to_yaml())
     except Exception as err:
@@ -490,6 +490,12 @@ def get_log(project, uid):
                             update_in(data, 'status.state', 'completed')
                             _db.store_run(data, uid, project)
                 status = new_status
+            elif status == 'running':
+                update_in(data, 'status.state', 'error')
+                update_in(
+                    data, 'status.error', 'pod not found, maybe terminated')
+                _db.store_run(data, uid, project)
+                status = 'failed'
 
     return Response(out, mimetype='text/plain',
                     headers={"pod_status": status})

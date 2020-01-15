@@ -26,7 +26,7 @@ from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython
-from .utils import calc_hash, RunError, results_to_iter
+from .utils import calc_hash, RunError, results_to_iter, default_image_name
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
@@ -170,7 +170,7 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', watch: bool = True):
+            out_path: str = '', watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -181,6 +181,7 @@ class BaseRuntime(ModelObj):
         :param inputs:     input objects (dict of key: path)
         :param out_path:   default artifact output path
         :param watch:      watch/follow run log
+        :param schedule:   cron string for scheduled jobs
 
         :return: run context object (dict) with run metadata, results and
             status
@@ -245,7 +246,11 @@ class BaseRuntime(ModelObj):
             if self._secrets:
                 runspec.spec.secret_sources = self._secrets.to_serial()
             try:
-                resp = db.submit_job(runspec)
+                resp = db.submit_job(runspec, schedule=schedule)
+                if schedule:
+                    logger.info('task scheduled, {}'.format(resp))
+                    return
+
                 if resp:
                     txt = get_in(resp, 'status.status_text')
                     if txt:
@@ -254,6 +259,7 @@ class BaseRuntime(ModelObj):
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:
+                logger.error('got remote run err, {}'.format(err))
                 result = self._post_run(task=runspec, err=err)
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)
@@ -347,6 +353,9 @@ class BaseRuntime(ModelObj):
         code = self.spec.build.functionSourceCode \
             if hasattr(self.spec, 'build') else None
 
+        if (code or runobj.spec.handler) and self.spec.mode == 'pass':
+            raise ValueError('cannot use "pass" mode with code or handler')
+
         if code:
             extra_env['MLRUN_EXEC_CODE'] = code
 
@@ -439,8 +448,8 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 'handler must be provided for {} runtime'.format(self.kind))
 
-    def full_image_path(self):
-        image = self.spec.image
+    def full_image_path(self, image=None):
+        image = image or self.spec.image
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
@@ -457,7 +466,7 @@ class BaseRuntime(ModelObj):
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = ''):
+                in_path: str = '', out_path: str = '', image: str = ''):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -469,17 +478,18 @@ class BaseRuntime(ModelObj):
         :param selector:   selection criteria for hyper params
         :param inputs:     input objects (dict of key: path)
         :param outputs:    list of outputs which can pass in the workflow
+        :param image:      container image to use
 
         :return: KubeFlow containerOp
         """
 
-        # expand local registry path, TODO: copy self to avoid modify the fn?
-        self.spec.image = self.full_image_path()
+        if self.spec.image and not image:
+            image = self.full_image_path()
 
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
-                        inputs=inputs, outputs=outputs,
+                        inputs=inputs, outputs=outputs, job_image=image,
                         out_path=out_path, in_path=in_path)
 
     def export(self, target='', format='.yaml', secrets=None):

@@ -27,13 +27,14 @@ from .config import config
 def make_dockerfile(base_image,
                     commands=None, src_dir=None,
                     requirements=None,
-                    workdir='/run',
+                    workdir='/mlrun',
                     extra=''):
     dock = 'FROM {}\n'.format(base_image)
     if src_dir:
+        dock += 'RUN mkdir -p {}\n'.format(workdir)
         dock += 'WORKDIR {}\n'.format(workdir)
         dock += 'ADD {} {}\n'.format(src_dir, workdir)
-        dock += 'ENV PYTHONPATH {}'.format(workdir)
+        dock += 'ENV PYTHONPATH {}\n'.format(workdir)
     if requirements:
         dock += 'RUN pip install -r {}\n'.format(requirements)
     if commands:
@@ -243,7 +244,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if status in ['failed', 'error']:
         raise ValueError(' build {}!'.format(status))
 
-    local = '' if build.secret else '.'
+    local = '' if build.secret or build.image.startswith('.') else '.'
     runtime.spec.image = local + build.image
     runtime.status.state = 'ready'
     return True

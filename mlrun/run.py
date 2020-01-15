@@ -28,13 +28,12 @@ from .execution import MLClientCtx
 from .funcdoc import find_handlers
 from .model import RunObject
 from .runtimes import (
-    DaskCluster, HandlerRuntime, KubejobRuntime, LocalRuntime, MpiRuntime,
-    RemoteRuntime, SparkRuntime, runtime_dict
+    HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
 )
 from .runtimes.base import EntrypointParam, FunctionEntrypoint
 from .runtimes.utils import add_code_metadata
 from .utils import get_in, logger, parse_function_uri, update_in
-
+from .config import config as mlconf
 
 def get_or_create_ctx(name: str,
                       event=None,
@@ -112,7 +111,7 @@ def get_or_create_ctx(name: str,
     update_in(newspec, 'metadata.name', name, replace=False)
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
-    out = environ.get('MLRUN_DBPATH', rundb)
+    out = rundb or mlconf.dbpath or environ.get('MLRUN_DBPATH')
     if out:
         autocommit = True
         logger.info('logging run results to: {}'.format(out))

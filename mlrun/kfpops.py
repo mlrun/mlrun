@@ -278,7 +278,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     if more_args:
         cmd += more_args
 
-    if image.startswith('.'):
+    if isinstance(image, str) and image.startswith('.'):
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
             image = '{}/{}'.format(
                 environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])

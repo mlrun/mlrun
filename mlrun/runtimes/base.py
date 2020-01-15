@@ -26,7 +26,7 @@ from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython
-from .utils import calc_hash, RunError, results_to_iter
+from .utils import calc_hash, RunError, results_to_iter, default_image_name
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
@@ -448,8 +448,8 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 'handler must be provided for {} runtime'.format(self.kind))
 
-    def full_image_path(self):
-        image = self.spec.image
+    def full_image_path(self, image=None):
+        image = image or self.spec.image
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
@@ -484,7 +484,9 @@ class BaseRuntime(ModelObj):
         """
 
         if self.spec.image and not image:
-            image = self.full_image_path()
+            image = self.spec.image
+        elif image and not isinstance(image, str):
+            image = default_image_name(self)
 
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,

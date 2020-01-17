@@ -190,9 +190,11 @@ class RemoteRuntime(KubeResource):
             for k, v in models.items():
                 self.set_env('SERVING_MODEL_{}'.format(k), v)
 
-        self.set_env('TRANSPORT_PROTOCOL', protocol or 'seldon')
+        if protocol:
+            self.set_env('TRANSPORT_PROTOCOL', protocol)
+        if model_class:
+            self.set_env('MODEL_CLASS', model_class)
         self.set_env('ENABLE_EXPLAINER', str(explainer))
-        self.set_env('MODEL_CLASS', model_class)
         self.with_http(workers, host=endpoint, canary=canary)
         self.spec.function_kind = 'serving'
 
@@ -223,7 +225,7 @@ class RemoteRuntime(KubeResource):
             if kind:
                 raise ValueError('kind cannot be specified on built functions')
             config = nuclio.config.extend_config(
-                self.spec.base_spec, spec, tag, self.spec.source)
+                self.spec.base_spec, spec, tag, self.spec.build.code_origin)
             update_in(config, 'metadata.name', self.metadata.name)
             update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
 

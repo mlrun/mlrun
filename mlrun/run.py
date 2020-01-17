@@ -374,7 +374,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         raise ValueError('please specify the function kind')
     elif kind in ['local']:
         if not code_output and embed_code:
-            raise ValueError('code_output or filename path should be'
+            raise ValueError('code_output path or embed_code=False should be'
                              ' specified for local runtime')
         r = LocalRuntime()
     elif kind in runtime_dict:

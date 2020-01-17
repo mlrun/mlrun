@@ -58,7 +58,7 @@ def test_local_file_noembed():
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
     assert fn.spec.command == name, 'filename not set in command'
 
-    fn.run(workdir='../examples')
+    fn.run(workdir=examples_path)
 
 
 def test_job_file_codeout():

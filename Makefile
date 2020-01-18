@@ -64,7 +64,7 @@ circleci:
 	docker run \
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    --network mlrun \
-	    mlrun/test make test 
+	    mlrun/test make test
 
 .PHONY: docs
 docs:

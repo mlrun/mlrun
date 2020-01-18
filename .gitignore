@@ -7,7 +7,6 @@ chart.html
 dask-worker-space
 dask-worker-space/
 dataset.csv
-docs/_build
 dist
 docs/_build
 iteration_results.csv

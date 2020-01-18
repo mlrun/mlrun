@@ -33,7 +33,13 @@ def test_nuclio_nb():
                           models={'iris_v1': 'xyz'},
                           model_class='XGBoostModel')
     assert fn.kind == 'remote', 'kind not set, test failed'
-    assert fn.spec.build.functionSourceCode, 'code not embedded'
+    assert fn.spec.base_spec, 'base_spec not found'
+
+
+def test_nuclio_nb_serving():
+    fn = code_to_function(filename='https://raw.githubusercontent.com/mlrun/functions/master/serving/xgboost/xgb_serving.ipynb')
+    assert fn.kind == 'remote', 'kind not set, test failed'
+    assert fn.spec.function_kind == 'serving', 'code not embedded'
 
 
 def test_job_file():

@@ -24,7 +24,7 @@ def test_job_nb():
     fn = code_to_function(filename='{}/mlrun_jobs.ipynb'.format(
         examples_path), kind='job')
     assert fn.kind == 'job', 'kind not set, test failed'
-    assert fn.spec.build.functionSourceCode is None, 'code not embedded'
+    assert fn.spec.build.functionSourceCode, 'code not embedded'
 
 
 def test_nuclio_nb():
@@ -32,7 +32,7 @@ def test_nuclio_nb():
                           filename='{}/nuclio_serving.ipynb'.format(examples_path),
                           models={'iris_v1': 'xyz'},
                           model_class='XGBoostModel')
-    assert fn.kind == 'nuclio', 'kind not set, test failed'
+    assert fn.kind == 'remote', 'kind not set, test failed'
     assert fn.spec.build.functionSourceCode, 'code not embedded'
 
 
@@ -58,7 +58,7 @@ def test_local_file_noembed():
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
     assert fn.spec.command == name, 'filename not set in command'
 
-    fn.run(workdir=examples_path)
+    fn.run(workdir=str(examples_path))
 
 
 def test_job_file_codeout():

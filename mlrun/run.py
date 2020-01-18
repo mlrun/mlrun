@@ -291,8 +291,9 @@ def parse_command(runtime, url):
 
 
 def code_to_function(name: str = '', project: str = '', tag: str = '',
-                     filename: str = '', handler='', runtime='',
-                     kind='', image=None, embed_code=True, with_doc=False):
+                     filename: str = '', handler='', runtime='', kind='',
+                     image=None, code_output='', embed_code=True,
+                     with_doc=False):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
@@ -305,13 +306,14 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     :param runtime:    optional, runtime type local, job, dask, mpijob, ..
     :param kind:       optional, runtime type local, job, dask, mpijob, ..
     :param image:      optional, container image
+    :param code_output: save the generated code (from notebook) in that path
     :param embed_code: embed the source code into the function spec
 
     :return:
            function object
     """
     filebase, _ = path.splitext(path.basename(filename))
-    runtime = runtime or kind  # for backwards computability
+    kind = runtime or kind  # for backwards computability
 
     def add_name(origin, name=''):
         name = filename or (name + '.ipynb')
@@ -319,14 +321,39 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             return name
         return '{}:{}'.format(origin, name)
 
-    if runtime.startswith('nuclio'):
-        r = RemoteRuntime()
-        kind = runtime[runtime.rfind(':')+1:] if ':' in runtime else None
-        r.spec.function_kind = kind
-        if embed_code:
+    if not embed_code and (not filename or filename.endswith('.ipynb')):
+        raise ValueError('a valid code file must be specified '
+                         'when not using the embed_code option')
+
+    subkind = kind[kind.find(':') + 1:] if kind.startswith('nuclio:') else None
+    code_origin = add_name(add_code_metadata(), name)
+
+    name, spec, code = build_file(filename, name=name,
+                                  handler=handler or 'handler',
+                                  kind=subkind)
+    spec_kind = get_in(spec, 'kind', '')
+    if spec_kind not in ['', 'Function']:
+        kind = spec_kind.lower()
+
+        # if its a nuclio subkind, redo nb parsing
+        if kind.startswith('nuclio:'):
+            subkind = kind[kind.find(':') + 1:]
             name, spec, code = build_file(filename, name=name,
                                           handler=handler or 'handler',
-                                          kind=kind)
+                                          kind=subkind)
+
+    if code_output:
+        if filename == '' or filename.endswith('.ipynb'):
+            with open(code_output, 'w') as fp:
+                fp.write(code)
+        else:
+            raise ValueError('code_output option is only used with notebooks')
+
+    if kind.startswith('nuclio'):
+        r = RemoteRuntime()
+        r.spec.function_kind = subkind
+        if embed_code:
+            update_in(spec, 'kind', 'Function')
             r.spec.base_spec = spec
             if with_doc:
                 handlers = find_handlers(code)
@@ -340,17 +367,22 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         r.metadata.name = name
         r.metadata.project = project
         r.metadata.tag = tag
-        r.spec.build.code_origin = add_name(add_code_metadata(), name)
+        r.spec.build.code_origin = code_origin
         return r
 
-    name, spec, code = build_file(filename, name=name, handler=handler)
-
-    if runtime is None or runtime in ['', 'local']:
+    if kind is None or kind in ['', 'Function']:
+        raise ValueError('please specify the function kind')
+    elif kind in ['local']:
+        if not code_output and embed_code:
+            raise ValueError('code_output path or embed_code=False should be'
+                             ' specified for local runtime')
         r = LocalRuntime()
-    elif runtime in runtime_dict:
-        r = runtime_dict[runtime]()
+    elif kind in runtime_dict:
+        r = runtime_dict[kind]()
     else:
-        raise ValueError('unsupported runtime ({})'.format(runtime))
+        raise ValueError('unsupported runtime ({})'.format(kind))
+
+    name, spec, code = build_file(filename, name=name)
 
     if not name:
         raise ValueError('name must be specified')
@@ -362,10 +394,16 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     r.metadata.tag = tag
     r.spec.image = get_in(spec, 'spec.image', image)
     build = r.spec.build
-    build.code_origin = add_name(add_code_metadata(), name)
+    build.code_origin = code_origin
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')
-    build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+    if code_output:
+        r.spec.command = code_output
+    elif not embed_code:
+        r.spec.command = filename
+    else:
+        build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+
     build.image = get_in(spec, 'spec.build.image')
     build.secret = get_in(spec, 'spec.build.secret')
     if r.kind != 'local':

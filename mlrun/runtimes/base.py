@@ -170,7 +170,8 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', watch: bool = True, schedule: str = ''):
+            out_path: str = '', workdir: str = '',
+            watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -180,6 +181,7 @@ class BaseRuntime(ModelObj):
         :param params:     input parameters (dict)
         :param inputs:     input objects (dict of key: path)
         :param out_path:   default artifact output path
+        :param workdir:    default input artifacts path
         :param watch:      watch/follow run log
         :param schedule:   cron string for scheduled jobs
 
@@ -207,6 +209,7 @@ class BaseRuntime(ModelObj):
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or runspec.spec.output_path
+        runspec.spec.input_path = workdir or runspec.spec.input_path
 
         spec = runspec.spec
         if self.spec.mode and self.spec.mode == 'noctx':

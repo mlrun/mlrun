@@ -102,10 +102,12 @@ class BaseMetadata(ModelObj):
 class ImageBuilder(ModelObj):
     def __init__(
         self, functionSourceCode=None, source=None, image=None,
-            base_image=None, commands=None, secret=None, registry=None):
+            base_image=None, commands=None, secret=None,
+            code_origin=None, registry=None):
         self.functionSourceCode = functionSourceCode
         self.codeEntryType = ''
         self.source = source
+        self.code_origin = code_origin
         self.image = image
         self.base_image = base_image
         self.commands = commands or []
@@ -342,7 +344,7 @@ class RunObject(RunTemplate):
             db = get_run_db().connect()
         if not db:
             print('DB is not configured, cannot show logs')
-            return
+            return None
 
         if db.kind == 'http':
             state = db.watch_log(self.metadata.uid,
@@ -356,6 +358,7 @@ class RunObject(RunTemplate):
 
         if state:
             print('final state: {}'.format(state))
+        return state
 
 
 def NewTask(name=None, project=None, handler=None,

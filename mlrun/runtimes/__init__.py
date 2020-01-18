@@ -16,7 +16,20 @@ from .base import RunError, BaseRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .function import RemoteRuntime, new_model_server  # noqa
 from .mpijob import MpiRuntime  # noqa
-from .dask import DaskCluster  # noqa
+from .daskjob import DaskCluster, get_dask_resource  # noqa
 from .kubejob import KubejobRuntime  # noqa
 from .sparkjob import SparkRuntime  # noqa
 from .nuclio import nuclio_init_hook
+
+
+runtime_resources_map = {
+    'dask': get_dask_resource()
+}
+
+
+runtime_dict = {'remote': RemoteRuntime,
+                'nuclio': RemoteRuntime,
+                'dask': DaskCluster,
+                'job': KubejobRuntime,
+                'mpijob': MpiRuntime,
+                'spark': SparkRuntime}

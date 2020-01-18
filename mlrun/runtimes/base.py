@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
-import sys
-import time
 import uuid
 from ast import literal_eval
 from datetime import datetime
 import getpass
 from copy import deepcopy
 from os import environ
-import requests
 
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
@@ -30,11 +26,11 @@ from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython
-from .utils import calc_hash, RunError, results_to_iter
+from .utils import calc_hash, RunError, results_to_iter, default_image_name
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
-from ..k8s_utils import k8s_helper
+from ..k8s_utils import get_k8s_helper
 from ..config import config
 
 
@@ -45,18 +41,21 @@ class FunctionStatus(ModelObj):
 
 
 class EntrypointParam(ModelObj):
-    def __init__(self, type=None, default=None, help=None):
+    def __init__(self, name='', type=None, default=None, doc=''):
+        self.name = name
         self.type = type
         self.default = default
-        self.help = help
+        self.doc = doc
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, doc=None, parameters=None, outputs=None):
+    def __init__(
+            self, name='', doc='', parameters=None, outputs=None, lineno=-1):
+        self.name = name
         self.doc = doc
-        # TODO: type verification, EntrypointParam dict
-        self.parameters = parameters or {}
-        self.outputs = outputs or {}
+        self.parameters = [] if parameters is None else parameters
+        self.outputs = [] if outputs is None else outputs
+        self.lineno = lineno
 
 
 class FunctionSpec(ModelObj):
@@ -135,9 +134,7 @@ class BaseRuntime(ModelObj):
         self._status = self._verify_dict(status, 'status', FunctionStatus)
 
     def _get_k8s(self):
-        if not self._k8s:
-            self._k8s = k8s_helper()
-        return self._k8s
+        return get_k8s_helper()
 
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
@@ -147,22 +144,34 @@ class BaseRuntime(ModelObj):
     def is_deployed(self):
         return True
 
+    def _is_remote_api(self):
+        db = self._get_db()
+        if db and db.kind == 'http':
+            return True
+        return False
+
     def _use_remote_api(self):
         if self._is_remote and not self.kfp and not self._is_api_server \
                 and self._get_db() and self._get_db().kind == 'http':
             return True
         return False
 
+    def _function_uri(self, tag=None):
+        return '{}/{}:{}'.format(self.metadata.project, self.metadata.name,
+                                 tag or self.metadata.tag or 'latest')
+
     def _get_db(self):
         if not self._db_conn:
             self.spec.rundb = self.spec.rundb or default_dbpath()
             if self.spec.rundb:
-                self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
+                self._db_conn = get_run_db(self.spec.rundb).connect(
+                        self._secrets)
         return self._db_conn
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', watch: bool = True):
+            out_path: str = '', workdir: str = '',
+            watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -172,7 +181,9 @@ class BaseRuntime(ModelObj):
         :param params:     input parameters (dict)
         :param inputs:     input objects (dict of key: path)
         :param out_path:   default artifact output path
+        :param workdir:    default input artifacts path
         :param watch:      watch/follow run log
+        :param schedule:   cron string for scheduled jobs
 
         :return: run context object (dict) with run metadata, results and
             status
@@ -198,6 +209,7 @@ class BaseRuntime(ModelObj):
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or runspec.spec.output_path
+        runspec.spec.input_path = workdir or runspec.spec.input_path
 
         spec = runspec.spec
         if self.spec.mode and self.spec.mode == 'noctx':
@@ -214,30 +226,34 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
 
         if not self.is_deployed:
-            raise RunError("function image is not built/ready, use .build() method first")
+            raise RunError(
+                "function image is not built/ready, use .build() method first")
 
         if not self.is_child and self.kind != 'handler':
             dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
-            meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
+            meta.labels['owner'] = environ.get(
+                    'V3IO_USERNAME', getpass.getuser())
             hashkey = calc_hash(self)
             if db:
                 struct = self.to_dict()
                 update_in(struct, 'metadata.tag', '')
                 db.store_function(struct, self.metadata.name,
                                   self.metadata.project, hashkey)
-                furi = '{}/{}:{}'.format(self.metadata.project,
-                                         self.metadata.name, hashkey)
-                runspec.spec.function = furi
+                runspec.spec.function = self._function_uri(hashkey)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
             if self._secrets:
                 runspec.spec.secret_sources = self._secrets.to_serial()
             try:
-                resp = db.submit_job(runspec)
+                resp = db.submit_job(runspec, schedule=schedule)
+                if schedule:
+                    logger.info('task scheduled, {}'.format(resp))
+                    return
+
                 if resp:
                     txt = get_in(resp, 'status.status_text')
                     if txt:
@@ -246,17 +262,20 @@ class BaseRuntime(ModelObj):
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:
+                logger.error('got remote run err, {}'.format(err))
                 result = self._post_run(task=runspec, err=err)
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
-            logger.warning('warning!, Api url not set, trying to exec remote runtime locally')
+            logger.warning(
+                'warning!, Api url not set, '
+                'trying to exec remote runtime locally')
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           db, autocommit=False)
 
-        # form child run task generator from spec
+        # create task generator (for child runs) from spec
         task_generator = None
         if not self._is_nested:
             task_generator = get_generator(spec, execution)
@@ -274,8 +293,9 @@ class BaseRuntime(ModelObj):
             try:
                 resp = self._run(runspec, execution)
                 if watch and self.kind not in ['', 'handler', 'local']:
-                    runspec.logs(True, self._get_db())
-                    resp = self._get_db_run(runspec)
+                    state = runspec.logs(True, self._get_db())
+                    if state != 'succeeded':
+                        logger.warning('run ended with state {}'.format(state))
                 result = self._post_run(resp, task=runspec)
             except RunError as err:
                 last_err = err
@@ -336,6 +356,9 @@ class BaseRuntime(ModelObj):
         code = self.spec.build.functionSourceCode \
             if hasattr(self.spec, 'build') else None
 
+        if (code or runobj.spec.handler) and self.spec.mode == 'pass':
+            raise ValueError('cannot use "pass" mode with code or handler')
+
         if code:
             extra_env['MLRUN_EXEC_CODE'] = code
 
@@ -358,7 +381,7 @@ class BaseRuntime(ModelObj):
         results = RunList()
         for task in tasks:
             try:
-                #self.store_run(task)
+                # self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
             except RunError as err:
@@ -382,7 +405,8 @@ class BaseRuntime(ModelObj):
             iter = get_in(rundict, 'metadata.iteration', 0)
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
-    def _post_run(self, resp: dict = None, task: RunObject = None, err=None) -> dict:
+    def _post_run(
+            self, resp: dict = None, task: RunObject = None, err=None) -> dict:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
@@ -427,8 +451,8 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 'handler must be provided for {} runtime'.format(self.kind))
 
-    def _image_path(self):
-        image = self.spec.image
+    def full_image_path(self, image=None):
+        image = image or self.spec.image
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
@@ -445,7 +469,7 @@ class BaseRuntime(ModelObj):
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = ''):
+                in_path: str = '', out_path: str = '', image: str = ''):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -457,17 +481,18 @@ class BaseRuntime(ModelObj):
         :param selector:   selection criteria for hyper params
         :param inputs:     input objects (dict of key: path)
         :param outputs:    list of outputs which can pass in the workflow
+        :param image:      container image to use
 
         :return: KubeFlow containerOp
         """
 
-        # expand local registry path, TODO: copy self to avoid modify the fn?
-        self.spec.image = self._image_path()
+        if self.spec.image and not image:
+            image = self.full_image_path()
 
         return mlrun_op(name, project, self,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
-                        inputs=inputs, outputs=outputs,
+                        inputs=inputs, outputs=outputs, job_image=image,
                         out_path=out_path, in_path=in_path)
 
     def export(self, target='', format='.yaml', secrets=None):
@@ -498,7 +523,7 @@ class BaseRuntime(ModelObj):
         obj = self.to_dict()
         hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
-            self.metadata.name,self.metadata.name, tag
+            self.metadata.name, tag
         ))
         if versioned:
             db.store_function(obj, self.metadata.name,

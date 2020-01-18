@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import hashlib
+from copy import deepcopy
 from sys import stderr
 import pandas as pd
 from io import StringIO
@@ -25,6 +26,9 @@ from kubernetes import client
 
 class RunError(Exception):
     pass
+
+
+mlrun_key = 'mlrun/'
 
 
 def calc_hash(func, tag=''):
@@ -46,13 +50,14 @@ def calc_hash(func, tag=''):
     return hashkey
 
 
-def log_std(db, runobj, out, err='', skip=False):
+def log_std(db, runobj, out, err='', skip=False, show=True):
     line = '> ' + '-' * 15 + ' Iteration: ({}) ' + '-' * 15 + '\n'
     if out:
         iter = runobj.metadata.iteration
         if iter:
             out = line.format(iter) + out
-        print(out)
+        if show:
+            print(out)
         if db and not skip:
             uid = runobj.metadata.uid
             project = runobj.metadata.project or ''
@@ -79,22 +84,22 @@ class AsyncLogWriter:
         pass
 
 
-def add_code_metadata(labels):
+def add_code_metadata():
     dirpath = './'
     try:
         from git import Repo
         from git.exc import GitCommandError, InvalidGitRepositoryError
     except ImportError:
-        return
+        return None
 
     try:
         repo = Repo(dirpath, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
-            set_if_none(labels, 'repo', remotes[0])
-            set_if_none(labels, 'commit', repo.head.commit.hexsha)
+            return '{}#{}'.format(remotes[0], repo.head.commit.hexsha)
     except (GitCommandError, InvalidGitRepositoryError):
         pass
+    return None
 
 
 def set_if_none(struct, key, value):
@@ -195,3 +200,65 @@ def apply_kfp(modify, cop, runtime):
         cop.container.volume_mounts.clear()
 
     return runtime
+
+
+def get_resource_labels(function, uid=None):
+    meta = function.metadata
+    labels = deepcopy(meta.labels)
+    labels[mlrun_key + 'class'] = function.kind
+    labels[mlrun_key + 'project'] = meta.project
+    labels[mlrun_key + 'function'] = '{}'.format(meta.name)
+    labels[mlrun_key + 'tag'] = '{}'.format(meta.tag or 'latest')
+
+    if uid:
+        labels[mlrun_key + 'uid'] = uid
+
+    return labels
+
+
+def get_func_selector(project, name=None, tag=None):
+    s = ['{}project={}'.format(mlrun_key, project)]
+    if name:
+        s.append('{}function={}'.format(mlrun_key, name))
+        s.append('{}tag={}'.format(mlrun_key, tag or 'latest'))
+    return s
+
+
+class k8s_resource:
+    kind = ''
+    per_run = False
+    per_function = False
+    k8client = None
+
+    def deploy_function(self, function):
+        pass
+
+    def release_function(self, function):
+        pass
+
+    def submit_run(self, function, runobj):
+        pass
+
+    def get_object(self, name, namespace=None):
+        return None
+
+    def get_status(self, name, namespace=None):
+        return None
+
+    def del_object(self, name, namespace=None):
+        pass
+
+    def list_objects(self, namespace=None, selector=[], states=None):
+        return []
+
+    def get_pods(self, name, namespace=None, master=False):
+        return {}
+
+    def clean_objects(self, namespace=None, selector=[], states=None):
+        if not selector and not states:
+            raise ValueError(
+                'labels selector or states list must be specified')
+        items = self.list_objects(namespace, selector, states)
+        for item in items:
+            self.del_object(item.metadata.name, item.metadata.namespace)
+

@@ -4,5 +4,4 @@ jobs:
     machine: true
     steps:
       - checkout
-      - run: docker build -f Dockerfile.test -t mlrun/test .
-      - run: docker run -v /var/run/docker.sock:/var/run/docker.sock mlrun/test make test 
+      - run: make circleci

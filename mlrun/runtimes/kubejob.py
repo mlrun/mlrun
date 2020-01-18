@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from kubernetes import client
+
+from ..kfpops import build_op
 from .pod import KubeResource
 from .utils import AsyncLogWriter, add_code_metadata, default_image_name
 from ..model import RunObject
@@ -49,8 +51,8 @@ class KubejobRuntime(KubeResource):
         if self.spec.image:
             return True
 
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
+            db = self._get_db()
             try:
                 db.get_builder_status(self, logs=False)
             except RunDBError:
@@ -78,7 +80,8 @@ class KubejobRuntime(KubeResource):
     def build(self, **kw):
         raise ValueError('.build() is deprecated, use .deploy() instead')
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False):
+    def deploy(self, watch=True, with_mlrun=True,
+               skip_deployed=False, is_kfp=False):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
@@ -88,15 +91,16 @@ class KubejobRuntime(KubeResource):
                                 or default_image_name(self)
         self.spec.image = ''
         self.status.state = ''
-        add_code_metadata(self.metadata.labels)
+        code_origin = add_code_metadata()
+        self.spec.build.code_origin = self.spec.build.code_origin \
+                                      or code_origin
 
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api() and not is_kfp:
+            db = self._get_db()
             logger.info('starting remote build, image: {}'.format(
                 self.spec.build.image))
             data = db.remote_builder(self, with_mlrun)
-            self.status.state = get_in(data, 'data.status.state')
-            self.status.build_pod = get_in(data, 'data.status.build_pod')
+            self.status = data['data'].get('status', None)
             self.spec.image = get_in(data, 'data.spec.image')
             ready = data.get('ready', False)
             if watch:
@@ -104,7 +108,9 @@ class KubejobRuntime(KubeResource):
                 ready = state == 'ready'
                 self.status.state = state
         else:
-            ready = build_runtime(self, with_mlrun, watch)
+            self.save(versioned=False)
+            ready = build_runtime(self, with_mlrun, watch or is_kfp)
+            self.save(versioned=False)
 
         return ready
 
@@ -129,8 +135,7 @@ class KubejobRuntime(KubeResource):
         return self.status.state
 
     def builder_status(self, watch=True, logs=True):
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
             return self._build_watch(watch, logs)
 
         else:
@@ -159,6 +164,14 @@ class KubejobRuntime(KubeResource):
                 logger.info('builder status is: {}, wait for it to complete'.format(status))
             return None
 
+    def deploy_step(self, image=None, base_image=None, commands: list = None,
+                    secret_name='', with_mlrun=True):
+
+        name = 'deploy_{}'.format(self.metadata.name or 'function')
+        return build_op(name, self, image=image, base_image=base_image,
+                        commands=commands, secret_name=secret_name,
+                        with_mlrun=with_mlrun)
+
     def _run(self, runobj: RunObject, execution):
 
         with_mlrun = (not self.spec.mode) or (self.spec.mode != 'pass')
@@ -170,10 +183,10 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        pod_spec = func_to_pod(self._image_path(), self, extra_env, command, args)
+        pod_spec = func_to_pod(self.full_image_path(), self, extra_env, command, args)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
-            pod_name, namespace =  k8s.create_pod(pod)
+            pod_name, namespace = k8s.create_pod(pod)
         except client.rest.ApiException as e:
             raise RunError(str(e))
 

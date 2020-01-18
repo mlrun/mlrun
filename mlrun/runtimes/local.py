@@ -91,7 +91,11 @@ class LocalRuntime(BaseRuntime):
             return context.to_dict()
 
         else:
-            sout, serr = run_exec(self.spec.command, self.spec.args)
+            if self.spec.mode == 'pass':
+                cmd = [self.spec.command]
+            else:
+                cmd = [executable, self.spec.command]
+            sout, serr = run_exec(cmd, self.spec.args)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
 
             try:
@@ -121,8 +125,7 @@ def load_module(file_name, handler):
     return mod, fn
 
 
-def run_exec(command, args, env=None):
-    cmd = [executable, command]
+def run_exec(cmd, args, env=None):
     if args:
         cmd += args
     out = run(cmd, stdout=PIPE, stderr=PIPE, env=env)

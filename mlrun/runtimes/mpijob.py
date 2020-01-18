@@ -15,6 +15,7 @@ import time
 from copy import deepcopy
 
 from .utils import AsyncLogWriter, RunError
+from ..config import config
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import update_in, logger, get_in
@@ -74,7 +75,7 @@ class MpiRuntime(KubejobRuntime):
         update_in(job, 'spec.template.metadata.labels', pod_labels)
         update_in(job, 'spec.replicas', self.spec.replicas or 1)
         if self.spec.image:
-            _update_container(job, 'image', self._image_path())
+            _update_container(job, 'image', self.full_image_path())
         update_in(job, 'spec.template.spec.volumes', self.spec.volumes)
         _update_container(job, 'volumeMounts', self.spec.volume_mounts)
 
@@ -96,7 +97,8 @@ class MpiRuntime(KubejobRuntime):
 
         resp = self._submit_mpijob(job, meta.namespace)
         state = None
-        for _ in range(60):
+        timeout = int(config.k8s_submit_timeout) or 120
+        for _ in range(timeout):
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.launcherStatus')
             if resp and state:
@@ -209,16 +211,6 @@ class MpiRuntime(KubejobRuntime):
         pods = k8s.list_pods(selector=selector, namespace=namespace)
         if pods:
             return {p.metadata.name: p.status.phase for p in pods}
-
-    def watch(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, launcher=True)
-        if not pods:
-            logger.error('no pod matches that job name')
-            return
-        k8s = self._get_k8s()
-        pod, status = self._get_launcher(name, namespace)
-        logger.info('watching pod {}, status = {}'.format(pod, status))
-        k8s.watch(pod, namespace)
 
     def _get_launcher(self, name, namespace=None):
         pods = self.get_pods(name, namespace, launcher=True)

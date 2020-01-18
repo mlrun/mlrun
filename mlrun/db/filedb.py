@@ -15,7 +15,7 @@
 import json
 import pathlib
 from datetime import datetime, timedelta
-from os import makedirs, path, remove
+from os import makedirs, path, remove, scandir
 
 import yaml
 
@@ -31,6 +31,7 @@ from .base import RunDBError, RunDBInterface
 run_logs = 'runs'
 artifacts_dir = 'artifacts'
 functions_dir = 'functions'
+schedules_dir = 'schedules'
 
 
 class FileRunDB(RunDBInterface):
@@ -41,6 +42,7 @@ class FileRunDB(RunDBInterface):
         self.dirpath = dirpath
         self._datastore = None
         self._subpath = None
+        makedirs(self.schedules_dir, exist_ok=True)
 
     def connect(self, secrets=None):
         sm = StoreManager(secrets)
@@ -256,6 +258,25 @@ class FileRunDB(RunDBInterface):
         project = project or config.default_project
         return path.join(self.dirpath, '{}/{}/{}{}'.format(
             table, project, tag, key))
+
+    @property
+    def schedules_dir(self):
+        return path.join(self.dirpath, schedules_dir)
+
+    def store_schedule(self, data):
+        sched_id = 1 + sum(1 for _ in scandir(self.schedules_dir))
+        fname = path.join(
+            self.schedules_dir,
+            '{}{}'.format(sched_id, self.format),
+        )
+        with open(fname, 'w') as out:
+            out.write(self._dumps(data))
+
+    def list_schedules(self):
+        pattern = '*{}'.format(self.format)
+        for p in pathlib.Path(self.schedules_dir).glob(pattern):
+            with p.open() as fp:
+                yield self._loads(fp.read())
 
     _encodings = {
         '.yaml': ('to_yaml', dict_to_yaml),

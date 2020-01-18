@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.4.1'
+__version__ = '0.4.3'
 
 from .run import get_or_create_ctx, new_function, code_to_function, import_function
 from .db import get_run_db
@@ -25,6 +25,11 @@ from .datastore import get_object
 
 
 from os import environ
+
+
+def get_version():
+    return __version__
+
 
 if 'IGZ_NAMESPACE_DOMAIN' in environ:
     kfp_ep = 'https://dashboard.{}/pipelines/'.format(environ['IGZ_NAMESPACE_DOMAIN'])

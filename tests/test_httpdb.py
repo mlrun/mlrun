@@ -16,7 +16,7 @@ from collections import namedtuple
 from os import environ
 from pathlib import Path
 from socket import socket
-from subprocess import Popen, run
+from subprocess import Popen, run, PIPE
 from sys import executable
 from tempfile import mkdtemp
 
@@ -25,7 +25,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server
+from conftest import wait_for_server, in_docker
 
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
@@ -50,7 +50,7 @@ def start_server(db_path, log_file, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}'
+    env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}?check_same_thread=false'
     env.update(env_config or {})
 
     cmd = [
@@ -64,6 +64,20 @@ def start_server(db_path, log_file, env_config: dict):
     return proc, url
 
 
+# Used when running container in the background, see below
+def noo_docker_fixture():
+    def create(env=None):
+        url = 'http://localhost:8080'
+        conn = HTTPRunDB(url)
+        conn.connect()
+        return Server(url, conn)
+
+    def cleanup():
+        pass
+
+    return create, cleanup
+
+
 def docker_fixture():
     cid = None
 
@@ -73,37 +87,48 @@ def docker_fixture():
         env_config = {} if env_config is None else env_config
         cmd = [
             'docker', 'build',
-            # '-f', 'Dockerfile.db-gunicorn',
-            '-f', 'Dockerfile.db',
+            '-f', 'Dockerfile.db-gunicorn',
             '--tag', docker_tag,
             '.',
         ]
         out = run(cmd)
         assert out.returncode == 0, 'cannot build docker'
 
+        run(['docker', 'network', 'create', 'mlrun'])
         port = free_port()
         cmd = [
             'docker', 'run',
             '--detach',
             '--publish', f'{port}:8080',
-            # '--volume', '/tmp:/tmp',  # For debugging
-            ]
+            '--network', 'mlrun',
+            '--volume', '/tmp:/tmp',  # For debugging
+        ]
         for key, value in env_config.items():
-            cmd.append('--env', f'{key}={value}')
+            cmd.extend(['--env', f'{key}={value}'])
         cmd.append(docker_tag)
-        out = run(cmd, capture_output=True)
+        out = run(cmd, stdout=PIPE)
         assert out.returncode == 0, 'cannot run docker'
         cid = out.stdout.decode('utf-8').strip()
-        url = f'http://localhost:{port}'
+        if in_docker:
+            host = cid[:12]
+            url = f'http://{host}:8080'
+        else:
+            url = f'http://localhost:{port}'
+        print(f'httpd url: {url}')
         check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(url, conn)
 
     def cleanup():
+        return
         run(['docker', 'rm', '--force', cid])
 
     return create, cleanup
+
+
+if 'HTTPD_DOCKER_RUN' in environ:
+    docker_fixture = noop_docker_fixture  # noqa
 
 
 def server_fixture():
@@ -131,7 +156,7 @@ def server_fixture():
 
 servers = [
     'server',
-    # 'docker',
+    'docker',
 ]
 
 

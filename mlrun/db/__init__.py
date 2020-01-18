@@ -20,7 +20,9 @@ from .httpdb import HTTPRunDB
 from .sqldb import SQLDB
 
 
-def default_dbpath():
+def default_dbpath(default=''):
+    if not config.dbpath and default:
+        config.dbpath = default
     return config.dbpath
 
 

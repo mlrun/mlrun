@@ -32,10 +32,13 @@ from mlrun.db.filedb import FileRunDB
 from mlrun.utils import logger, parse_function_uri, get_in, update_in
 from mlrun.config import config
 from mlrun.run import new_function, import_function
-from mlrun.k8s_utils import k8s_helper
+from mlrun.k8s_utils import K8sHelper
+from mlrun.runtimes import runtime_resources_map
+from mlrun.scheduler import Scheduler
 
+_scheduler: Scheduler = None
 _db: RunDBInterface
-_k8s: k8s_helper = None
+_k8s: K8sHelper = None
 _logs_dir = None
 app = Flask(__name__)
 basic_prefix = 'Basic '
@@ -110,7 +113,6 @@ def catch_err(fn):
 
     return wrapper
 
-
 # curl -d@/path/to/job.json http://localhost:8080/submit
 @app.route('/api/submit', methods=['POST'])
 @app.route('/api/submit/', methods=['POST'])
@@ -118,11 +120,15 @@ def catch_err(fn):
 @catch_err
 def submit_job():
     try:
-        data = request.get_json(force=True)
+        data: dict = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     logger.info('submit_job: {}'.format(data))
+    return _submit(data)
+
+
+def _submit(data):
     task = data.get('task')
     function = data.get('function')
     url = data.get('functionUrl')
@@ -146,22 +152,36 @@ def submit_job():
             else:
                 project, name, tag = parse_function_uri(url)
                 runtime = _db.get_function(name, project, tag)
+                if not runtime:
+                    return json_error(
+                        HTTPStatus.BAD_REQUEST,
+                        reason='runtime error: function {} not found'.format(url),
+                    )
                 fn = new_function(runtime=runtime)
 
         fn.set_db_connection(_db, True)
-        print('func:\n{}'.format(fn.to_yaml()))
+        logger.info('func:\n{}'.format(fn.to_yaml()))
         # fn.spec.rundb = 'http://mlrun-api:8080'
-        resp = fn.run(task)
+        schedule = data.get('schedule')
+        if schedule:
+            args = (task, )
+            job_id = _scheduler.add(schedule, fn, args)
+            _db.save_schedule(data)
+            resp = {'schedule': schedule, 'id': job_id}
+        else:
+            resp = fn.run(task, watch=False)
 
         logger.info('resp: %s', resp.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
         )
 
-    return jsonify(ok=True, data=resp.to_dict())
+    if not isinstance(resp, dict):
+        resp = resp.to_dict()
+    return jsonify(ok=True, data=resp)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function
@@ -188,13 +208,101 @@ def build_function():
         fn.save(versioned=False)
         logger.info('Fn:\n %s', fn.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
         )
 
     return jsonify(ok=True, data=fn.to_dict(), ready=ready)
+
+
+# curl -d@/path/to/job.json http://localhost:8080/start/function
+@app.route('/api/start/function', methods=['POST'])
+@app.route('/api/start/function/', methods=['POST'])
+@catch_err
+def start_function():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('start_function:\n{}'.format(data))
+    url = data.get('functionUrl')
+    if not url:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: functionUrl not specified',
+        )
+
+    project, name, tag = parse_function_uri(url)
+    runtime = _db.get_function(name, project, tag)
+    if not runtime:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: function {} not found'.format(url),
+        )
+
+    fn = new_function(runtime=runtime)
+    resource = runtime_resources_map.get(fn.kind)
+    if 'start' not in resource:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: "start" not supported by this runtime',
+        )
+
+    try:
+        fn.set_db_connection(_db)
+        resp = resource['start'](fn)
+        fn.save(versioned=False)
+        logger.info('Fn:\n %s', fn.to_yaml())
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=fn.to_dict())
+
+
+# curl -d@/path/to/job.json http://localhost:8080/status/function
+@app.route('/api/status/function', methods=['POST'])
+@app.route('/api/status/function/', methods=['POST'])
+@catch_err
+def function_status():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('function_status:\n{}'.format(data))
+    selector = data.get('selector')
+    kind = data.get('kind')
+    if not selector or not kind:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: selector or runtime kind not specified',
+        )
+
+    resource = runtime_resources_map.get(kind)
+    if 'status' not in resource:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: "status" not supported by this runtime',
+        )
+
+    try:
+        resp = resource['status'](selector)
+        logger.info('status: %s', resp)
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=resp)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/status
@@ -382,6 +490,12 @@ def get_log(project, uid):
                             update_in(data, 'status.state', 'completed')
                             _db.store_run(data, uid, project)
                 status = new_status
+            elif status == 'running':
+                update_in(data, 'status.state', 'error')
+                update_in(
+                    data, 'status.error', 'pod not found, maybe terminated')
+                _db.store_run(data, uid, project)
+                status = 'failed'
 
     return Response(out, mimetype='text/plain',
                     headers={"pod_status": status})
@@ -579,7 +693,7 @@ def health():
 
 @app.before_first_request
 def init_app():
-    global _db, _logs_dir, _k8s
+    global _db, _logs_dir, _k8s, _scheduler
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     if config.httpdb.db_type == 'sqldb':
@@ -592,13 +706,20 @@ def init_app():
     _logs_dir = Path(config.httpdb.logs_path)
 
     try:
-        _k8s = k8s_helper()
+        _k8s = K8sHelper()
     except Exception:
         pass
 
     # @yaronha - Initialize here
     task = periodic.Task()
     periodic.schedule(task, 60)
+
+    _scheduler = Scheduler()
+    for data in _db.list_schedules():
+        if 'schedule' not in data:
+            logger.warning('bad scheduler data - %s', data)
+            continue
+        _submit(data)
 
 
 # Don't remove this function, it's an entry point in setup.py

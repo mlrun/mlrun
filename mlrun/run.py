@@ -16,20 +16,24 @@ import socket
 import uuid
 from base64 import b64decode
 from copy import deepcopy
-from os import environ, path, makedirs
+from os import environ, makedirs, path
 from tempfile import mktemp
+
 import yaml
 from nuclio import build_file
 
-from .runtimes.utils import add_code_metadata
-from .execution import MLClientCtx
-from .model import RunObject
-from .runtimes import (HandlerRuntime, LocalRuntime, RemoteRuntime,
-                       DaskCluster, MpiRuntime, KubejobRuntime, SparkRuntime)
-from .utils import update_in, get_in, logger, parse_function_uri
 from .datastore import get_object
-from .db import get_run_db, default_dbpath
-
+from .db import default_dbpath, get_run_db
+from .execution import MLClientCtx
+from .funcdoc import find_handlers
+from .model import RunObject
+from .runtimes import (
+    HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
+)
+from .runtimes.base import EntrypointParam, FunctionEntrypoint
+from .runtimes.utils import add_code_metadata
+from .utils import get_in, logger, parse_function_uri, update_in
+from .config import config as mlconf
 
 def get_or_create_ctx(name: str,
                       event=None,
@@ -107,7 +111,7 @@ def get_or_create_ctx(name: str,
     update_in(newspec, 'metadata.name', name, replace=False)
     autocommit = False
     tmp = environ.get('MLRUN_META_TMPFILE')
-    out = environ.get('MLRUN_DBPATH', rundb)
+    out = rundb or mlconf.dbpath or environ.get('MLRUN_DBPATH')
     if out:
         autocommit = True
         logger.info('logging run results to: {}'.format(out))
@@ -115,14 +119,6 @@ def get_or_create_ctx(name: str,
     ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit,
                                 tmp=tmp, host=socket.gethostname())
     return ctx
-
-
-runtime_dict = {'remote': RemoteRuntime,
-                'nuclio': RemoteRuntime,
-                'dask': DaskCluster,
-                'job': KubejobRuntime,
-                'mpijob': MpiRuntime,
-                'spark': SparkRuntime}
 
 
 def import_function(url='', secrets=None, db=''):
@@ -160,7 +156,7 @@ def import_function_to_dict(url, secrets=None):
     remote = '://' in url
 
     code = get_in(runtime, 'spec.build.functionSourceCode')
-    update_in(runtime, 'metadata.labels.source', url)
+    update_in(runtime, 'metadata.build.code_origin', url)
     cmd = code_file = get_in(runtime, 'spec.command', '')
     if ' ' in cmd:
         code_file = cmd[:cmd.find(' ')]
@@ -295,8 +291,9 @@ def parse_command(runtime, url):
 
 
 def code_to_function(name: str = '', project: str = '', tag: str = '',
-                     filename: str = '', handler='', runtime='',
-                     kind='', image=None, embed_code=True):
+                     filename: str = '', handler='', runtime='', kind='',
+                     image=None, code_output='', embed_code=True,
+                     with_doc=False):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
@@ -309,63 +306,104 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     :param runtime:    optional, runtime type local, job, dask, mpijob, ..
     :param kind:       optional, runtime type local, job, dask, mpijob, ..
     :param image:      optional, container image
+    :param code_output: save the generated code (from notebook) in that path
     :param embed_code: embed the source code into the function spec
 
     :return:
            function object
     """
     filebase, _ = path.splitext(path.basename(filename))
-    runtime = runtime or kind  # for backwards computability
+    kind = runtime or kind  # for backwards computability
 
-    def tag_name(labels):
-        if filename:
-            labels['filename'] = filename
+    def add_name(origin, name=''):
+        name = filename or (name + '.ipynb')
+        if not origin:
+            return name
+        return '{}:{}'.format(origin, name)
 
-    if runtime.startswith('nuclio'):
-        r = RemoteRuntime()
-        kind = runtime[runtime.rfind(':')+1:] if ':' in runtime else None
-        r.spec.function_kind = kind
-        if embed_code:
+    if not embed_code and (not filename or filename.endswith('.ipynb')):
+        raise ValueError('a valid code file must be specified '
+                         'when not using the embed_code option')
+
+    subkind = kind[kind.find(':') + 1:] if kind.startswith('nuclio:') else None
+    code_origin = add_name(add_code_metadata(), name)
+
+    name, spec, code = build_file(filename, name=name,
+                                  handler=handler or 'handler',
+                                  kind=subkind)
+    spec_kind = get_in(spec, 'kind', '')
+    if spec_kind not in ['', 'Function']:
+        kind = spec_kind.lower()
+
+        # if its a nuclio subkind, redo nb parsing
+        if kind.startswith('nuclio:'):
+            subkind = kind[kind.find(':') + 1:]
             name, spec, code = build_file(filename, name=name,
                                           handler=handler or 'handler',
-                                          kind=kind)
+                                          kind=subkind)
+
+    if code_output:
+        if filename == '' or filename.endswith('.ipynb'):
+            with open(code_output, 'w') as fp:
+                fp.write(code)
+        else:
+            raise ValueError('code_output option is only used with notebooks')
+
+    if kind.startswith('nuclio'):
+        r = RemoteRuntime()
+        r.spec.function_kind = subkind
+        if embed_code:
+            update_in(spec, 'kind', 'Function')
             r.spec.base_spec = spec
+            if with_doc:
+                handlers = find_handlers(code)
+                r.spec.entry_points = {h.name: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
+
+        if not name:
+            raise ValueError('name must be specified')
         r.metadata.name = name
         r.metadata.project = project
         r.metadata.tag = tag
-        if not r.metadata.name:
-            raise ValueError('name must be specified')
-        tag_name(r.metadata.labels)
-        add_code_metadata(r.metadata.labels)
+        r.spec.build.code_origin = code_origin
         return r
 
-    name, spec, code = build_file(filename, name=name, handler=handler)
-
-    if runtime is None or runtime in ['', 'local']:
+    if kind is None or kind in ['', 'Function']:
+        raise ValueError('please specify the function kind')
+    elif kind in ['local']:
+        if not code_output and embed_code:
+            raise ValueError('code_output path or embed_code=False should be'
+                             ' specified for local runtime')
         r = LocalRuntime()
-    elif runtime in runtime_dict:
-        r = runtime_dict[runtime]()
+    elif kind in runtime_dict:
+        r = runtime_dict[kind]()
     else:
-        raise Exception('unsupported runtime ({})'.format(runtime))
+        raise ValueError('unsupported runtime ({})'.format(kind))
 
+    name, spec, code = build_file(filename, name=name)
+
+    if not name:
+        raise ValueError('name must be specified')
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
     r.metadata.project = project
     r.metadata.name = name
     r.metadata.tag = tag
-    if not r.metadata.name:
-        raise ValueError('name must be specified')
     r.spec.image = get_in(spec, 'spec.image', image)
-    tag_name(r.metadata.labels)
-    add_code_metadata(r.metadata.labels)
     build = r.spec.build
+    build.code_origin = code_origin
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')
-    build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+    if code_output:
+        r.spec.command = code_output
+    elif not embed_code:
+        r.spec.command = filename
+    else:
+        build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+
     build.image = get_in(spec, 'spec.build.image')
     build.secret = get_in(spec, 'spec.build.secret')
     if r.kind != 'local':
@@ -373,4 +411,22 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         for vol in get_in(spec, 'spec.volumes', []):
             r.spec.volumes.append(vol.get('volume'))
             r.spec.volume_mounts.append(vol.get('volumeMount'))
+
+    if with_doc:
+        handlers = find_handlers(code)
+        r.spec.entry_points = {h[name]: h for h in handlers}
     return r
+
+
+def as_func(handler):
+    return FunctionEntrypoint(
+        name=handler['name'],
+        doc=handler['doc'],
+        parameters=[as_entry(p) for p in handler['params']],
+        outputs=[as_entry(p) for p in handler['returns']],
+        lineno=handler['lineno'],
+    )
+
+
+def as_entry(param):
+    return EntrypointParam(**param)

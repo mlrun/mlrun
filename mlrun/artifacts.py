@@ -20,7 +20,7 @@ import pathlib
 
 from .datastore import StoreManager
 from .db import RunDBInterface
-from .utils import uxjoin, run_keys, dict_to_json
+from .utils import uxjoin, run_keys, dict_to_json, logger
 from .model import ModelObj
 
 
@@ -128,6 +128,11 @@ class ArtifactManager:
                 item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
                                             tag, execution.project)
+
+        size = str(item.size) or '?'
+        logger.info('log artifact {} at {}, size: {}, db: {}'.format(
+            key, target_path, size, 'Y' if self.artifact_db else 'N'
+        ))
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)

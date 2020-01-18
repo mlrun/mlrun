@@ -112,7 +112,7 @@ def get_kfp_outputs(artifacts, labels):
 
 def mlrun_op(name: str = '', project: str = '', function=None,
              image: str = '', runobj=None, command: str = '',
-             secrets: list = None, params: dict = None,
+             secrets: list = None, params: dict = None, job_image=None,
              hyperparams: dict = None, param_file: str = '',
              selector: str = '', inputs: dict = None, outputs: list = None,
              in_path: str = '', out_path: str = '', rundb: str = '',
@@ -128,7 +128,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                     the container should host all requiered packages + code
                     for the run, alternatively user can mount packages/code via
                     shared file volumes like v3io (see example below)
-    :param runtime: optional, runtime specification
+    :param function: optional, function specification
     :param command: exec command (or URL for functions)
     :param secrets: extra secrets specs, will be injected into the runtime
                     e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
@@ -215,7 +215,6 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             code_env = '{}'.format(function.spec.build.functionSourceCode)
         else:
             runtime = '{}'.format(function.to_dict())
-        name = name or function.metadata.name
 
     image = image or config.kfp_image
 
@@ -231,6 +230,13 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         out_path = out_path or runobj.spec.output_path
         secrets = secrets or runobj.spec.secret_sources
         project = project or runobj.metadata.project
+
+    if not name:
+        if not function:
+            raise ValueError('name or function object must be specified')
+        name = function.metadata.name
+        if handler:
+            name += '-' + handler
 
     if hyperparams or param_file:
         outputs.append('iteration_results')
@@ -267,12 +273,14 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['--param-file', param_file]
     if selector:
         cmd += ['--selector', selector]
+    if job_image:
+        cmd += ['--image', job_image]
     if mode:
         cmd += ['--mode', mode]
     if more_args:
         cmd += more_args
 
-    if image.startswith('.'):
+    if image and image.startswith('.'):
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
             image = '{}/{}'.format(
                 environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
@@ -345,35 +353,48 @@ def add_env(env=None):
     return _add_env
 
 
-def build_op(image, context_path, secret_name='docker-secret'):
-    """use kaniko to build Docker image."""
+def build_op(name, function=None, func_url=None, image=None, base_image=None, commands: list = None,
+             secret_name='', with_mlrun=True):
+    """build Docker image."""
 
-    from kubernetes import client as k8s_client
     from kfp import dsl
+    from os import environ
+    from kubernetes import client as k8s_client
 
-    cops = dsl.ContainerOp(
-        name='kaniko',
-        image='gcr.io/kaniko-project/executor:latest',
-        arguments=["--dockerfile", "/context/Dockerfile",
-                   "--context", "/context",
-                   "--destination", image],
+    cmd = ['python', '-m', 'mlrun', 'build', '--kfp']
+    if function:
+        if not hasattr(function, 'to_dict'):
+            raise ValueError('function must specify a function runtime object')
+        cmd += ['-r', '{}'.format(function.to_dict())]
+    elif not func_url:
+        raise ValueError('function object or func_url must be specified')
+
+    commands = commands or []
+    if image:
+        cmd += ['-i', image]
+    if base_image:
+        cmd += ['-b', base_image]
+    if secret_name:
+        cmd += ['--secret-name', secret_name]
+    if with_mlrun:
+        cmd += ['--with_mlrun']
+    for c in commands:
+        cmd += ['-c', c]
+    if func_url and not function:
+        cmd += [func_url]
+
+    cop = dsl.ContainerOp(
+        name=name,
+        image=config.kfp_image,
+        command=cmd,
+        file_outputs={'state': '/tmp/state', 'image': '/tmp/image'},
     )
 
-    cops.add_volume(
-        k8s_client.V1Volume(
-            name='registry-creds',
-            secret=k8s_client.V1SecretVolumeSource(
-                secret_name=secret_name,
-                items=[{
-                    'key': '.dockerconfigjson',
-                    'path': '.docker/config.json',
-                }],
-            )
-        ))
-    cops.container.add_volume_mount(
-        k8s_client.V1VolumeMount(
-            name='registry-creds',
-            mount_path='/root/',
-        )
-    )
-    return cops
+    if 'DEFAULT_DOCKER_REGISTRY' in environ:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='DEFAULT_DOCKER_REGISTRY', value=environ.get('DEFAULT_DOCKER_REGISTRY')))
+    if 'IGZ_NAMESPACE_DOMAIN' in environ:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='IGZ_NAMESPACE_DOMAIN', value=environ.get('IGZ_NAMESPACE_DOMAIN')))
+
+    return cop

@@ -3,6 +3,8 @@ GitPython>=2.1.0
 aiohttp>=3.5.0
 boto3>=1.9
 click>=7.0
+croniter==0.3.31
+gevent==1.4.0
 gunicorn==19.9.0
 kfp>=0.1.29
 nest-asyncio>=1.0.0

@@ -64,6 +64,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 * [Automated parametrization, artifact tracking and logging](#automated-parametrization-artifact-tracking-and-logging)
 * [Using hyper parameters for job scaling](#using-hyper-parameters-for-job-scaling)
 * [Automated code deployment and containerization](#automated-code-deployment-and-containerization)
+* [Build and run function from a remote IDE using the CLI](examples/remote.md)
 * [Running with KubeFlow ML Pipeline](#running-with-kubeflow-ml-pipeline)
 * [MLRun UI - WIP](#mlrun-user-interface)
 * [Run and Artifact Database](#run-and-artifact-database)
@@ -117,12 +118,14 @@ in this example the task defines our run spec (parameters, inputs, secrets, ..) 
 we run this task on a `job` function, and print out the result 
 output (in this case the `model` artifact) or watch the progress of that run. [see docs and example notebook](examples/mlrun_basics.ipynb).
 
-we can run the same `task` on different functions, enabling code portability and re-use, 
+we can run the same `task` on different functions, enabling code portability, re-use, and AutoML, 
 or we can use the same `function` to run different tasks or parameter combinations with 
 minimal coding effort.
 
 moving from run on a local notebook, to running in a container job, a scaled-out framework
-or an automated workflow engine like KubeFlow is seamless, just swap the runtime/function or wire functions in a graph. [see this tutorial for details]()
+or an automated workflow engine like KubeFlow is seamless, just swap the runtime/function or wire functions in a graph,
+[see this tutorial for details](), CI/CD steps (build, deploy) can also be specified as part of the workflow 
+(using `.deploy_step()` function methods).
 
 Functions can be created using one of three methods:
 * `new_function()` - create a function object from scratch or another function
@@ -319,11 +322,11 @@ have multiple workers process them simultaneously instead of one at a time.
 
 ### Automated code deployment and containerization 
 
-Mlrun adopts some of `nuclio` serverless technologies for automatically packaging code and building containers,
+Mlrun adopts `nuclio` serverless technologies for automatically packaging code and building containers,
 this way we can specify code with some package requirements and let the system build and deploy our software.
 
 Building and deploying a function is as easy as typing `function.deploy(..)`, this will initiate a build/deployment job,
-deployment jobs can be incorporated in pipelines just like regular jobs, enabeling full automation and CI/CD.
+deployment jobs can be incorporated in pipelines just like regular jobs (using the `.deploy_step()` method, enabeling full automation and CI/CD.
 
 functions can be built from source code, function specs, notebooks, GIT repos, or tar archives.
 
@@ -350,6 +353,9 @@ spec:
 use:
 
     mlrun build function.yaml   
+
+
+See [more examples](examples/remote.md) for building and running fuctions from remote using the CLI.
 
 
 we can convert our notebook into a containerized job, see [detailed example](examples/mlrun_jobs.ipynb):
@@ -475,20 +481,10 @@ You can pass `MLRUN_httpdb__port` environment variable to change port.
 
 #### Command Line
 
+    mlrun db [options]
+    
 ```
-$ mlrun db --help
-Usage: mlrun [OPTIONS] COMMAND [ARGS]...
-
 Options:
-  --help  Show this message and exit.
-
-Commands:
-  build   Build a container image from code and requirements.
-  clean   Clean completed or failed pods/jobs
-  config  Show configuration & exit
-  db      Run HTTP api/database server
-  deploy  Deploy model or function
-  get     List/get one or more object per kind/class.
-  logs    Get or watch task logs
-  run     Execute a task and inject parameters.
+  -p, --port INTEGER  port to listen on
+  -d, --dirpath TEXT  database directory (dirpath)
 ```

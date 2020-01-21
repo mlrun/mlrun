@@ -16,14 +16,14 @@ from urllib.parse import urlparse
 from kfp import dsl, Client
 
 
-def load_project(context, url=None, name=None, secrets=None):
+def load_project(context, url=None, name=None, secrets=None, clone=True):
 
     secrets = secrets or {}
-    source = workdir = None
+    source = workdir = branch = repo = None
     if url and url.startswith('git://'):
-        source, workdir = clone_git(url, context, secrets)
+        source, workdir, branch, repo = clone_git(url, context, secrets, clone)
     elif url and url.endswith('.tar.gz'):
-        source, workdir = clone_tgz(url, context, secrets)
+        source, workdir = clone_tgz(url, context, secrets, clone)
 
     fpath = path.join(context, 'project.yaml')
     if path.isfile(fpath):
@@ -38,14 +38,15 @@ def load_project(context, url=None, name=None, secrets=None):
     elif path.isfile(path.join(context, 'function.yaml')):
         func = import_function(path.join(context, 'function.yaml'))
         project = MlrunProject(name=func.metadata.project,
-                               context=context,
                                functions=[{'url': 'function.yaml'}],
                                workflows={})
-
     else:
         raise ValueError('project or function YAML not found in path')
 
+    project.repo = repo
+    project.branch = branch
     project.context = context
+    project.origin_url = url
     project.name = name or project.name
     project.load_functions()
     return project
@@ -54,34 +55,63 @@ def load_project(context, url=None, name=None, secrets=None):
 class MlrunProject(ModelObj):
     kind = 'project'
 
-    def __init__(self, name=None, source=None, context=None,
+    def __init__(self, name=None, source=None,
                  functions=None, workflows=None, tag=None):
 
-        self._function_objects = {}
         self._initialized = False
         self.name = name
         self.tag = tag
+        self.origin_url = ''
         self.source = source
-        self.context = context
+        self.context = None
+        self.branch = None
+        self.repo = None
         self.workflows = workflows or {}
         self.source = None
         self.config = {}
         self._secrets = {}
         self.params = {}
 
+        self._function_objects = {}
+        self._function_names = []
         self._functions = None
         self.functions = functions or []
 
     @property
-    def functions(self):
+    def functions(self) -> list:
         return self._functions
 
     @functions.setter
     def functions(self, funcs):
+        if not isinstance(funcs, list):
+            raise ValueError('functions must be a list')
         self._functions = funcs
+        if self._initialized:
+            self.load_functions()
+
+    def func(self, key):
+        return self._function_objects[key]
+
+    def pull(self):
+        url = self.origin_url
+        if url and url.startswith('git://'):
+            if not self.repo:
+                raise ValueError('repo was not initialized, use load_project()')
+            self.repo.git.pull()
+        elif url and url.endswith('.tar.gz'):
+            if not self.context:
+                raise ValueError('target dit (context) is not set')
+            clone_tgz(url, self.context, self._secrets, False)
 
     def load_functions(self):
-        self._function_objects = init_functions(self)
+        funcs = {}
+        names = []
+        for f in self.functions:
+            name, func = init_function(f, self)
+            funcs[name] = func
+            names.append(name)
+
+        self._function_objects, self._function_names = funcs, names
         self._initialized = True
 
     def with_secrets(self, secrets):
@@ -114,50 +144,46 @@ class MlrunProject(ModelObj):
             shutil.rmtree(self.context)
 
 
-def init_functions(project):
-    funcs = {}
-    func_defs = project.functions
-    for f in func_defs:
-        name = f.get('name', '')
-        url = f.get('url', '')
-        kind = f.get('kind', '')
-        image = f.get('image', None)
+def init_function(f, project):
+    name = f.get('name', '')
+    url = f.get('url', '')
+    kind = f.get('kind', '')
+    image = f.get('image', None)
 
-        in_context = False
-        if not url and 'spec' not in f:
-            raise ValueError('function missing a url or a spec')
+    in_context = False
+    if not url and 'spec' not in f:
+        raise ValueError('function missing a url or a spec')
 
-        if url and '://' not in url:
-            if project.context and not url.startswith('/'):
-                url = path.join(project.context, url)
-                in_context = True
-            if not path.isfile(url):
-                raise Exception('{} not found'.format(url))
+    if url and '://' not in url:
+        if project.context and not url.startswith('/'):
+            url = path.join(project.context, url)
+            in_context = True
+        if not path.isfile(url):
+            raise Exception('{} not found'.format(url))
 
-        if 'spec' in f:
-            func = new_function(runtime=f['spec'])
-        elif url.endswith('.yaml') or url.startswith('db://'):
-            func = import_function(url)
-        elif url.endswith('.ipynb'):
-            func = code_to_function(filename=url, image=image, kind=kind)
-        elif url.endswith('.py'):
-            if not image:
-                raise ValueError('image must be provided with py code files')
-            func = code_to_function(filename=url, image=image, kind=kind or 'job')
+    if 'spec' in f:
+        func = new_function(runtime=f['spec'])
+    elif url.endswith('.yaml') or url.startswith('db://'):
+        func = import_function(url)
+    elif url.endswith('.ipynb'):
+        func = code_to_function(filename=url, image=image, kind=kind)
+    elif url.endswith('.py'):
+        if not image:
+            raise ValueError('image must be provided with py code files')
+        func = code_to_function(filename=url, image=image, kind=kind or 'job')
 
-        else:
-            raise ValueError('unsupported function url {} or no spec'.format(url))
+    else:
+        raise ValueError('unsupported function url {} or no spec'.format(url))
 
-        name = name or func.metadata.name
-        if project.source and in_context:
-            func.spec.build.source = project.source
-        if project.name:
-            func.metadata.project = project.name
-        if project.tag:
-            func.metadata.tag = project.tag
-        funcs[name] = func
+    name = name or func.metadata.name
+    if project.source and in_context:
+        func.spec.build.source = project.source
+    if project.name:
+        func.metadata.project = project.name
+    if project.tag:
+        func.metadata.tag = project.tag
 
-    return funcs
+    return name, func
 
 
 def run_pipeline(name, pipeline, functions, params=None, secrets=None,
@@ -201,9 +227,14 @@ def github_webhook(request):
     return {'msg': 'pushed'}
 
 
-def clone_git(url, context, config={}):
+def clone_git(url, context, config, clone=True):
     urlobj = urlparse(url)
     scheme = urlobj.scheme.lower()
+    if not context:
+        raise ValueError('please specify a target (context) directory for clone')
+
+    if clone and path.exists(context) and path.isdir(context):
+        shutil.rmtree(context)
 
     host = urlobj.hostname or 'github.com'
     if urlobj.port:
@@ -227,11 +258,16 @@ def clone_git(url, context, config={}):
         if len(parts) > 1:
             workdir = parts[1]
 
-    Repo.clone_from(clone_path, context, single_branch=True, b=branch)
-    return url, workdir
+    repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
+    return url, workdir, branch, repo
 
 
-def clone_tgz(url, context, config={}):
+def clone_tgz(url, context, config, clone=True):
+    if not context:
+        raise ValueError('please specify a target (context) directory for clone')
+
+    if path.exists(context) and path.isdir(context):
+        shutil.rmtree(context)
     stores = StoreManager(config.get('secrets', None))
     datastore, subpath = stores.get_or_create_store(url)
     tmp = mktemp()

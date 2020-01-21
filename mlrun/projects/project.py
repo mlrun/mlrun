@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from kfp import dsl, Client
 
 
-def load_project(context, url=None, secrets=None):
+def load_project(context, url=None, name=None, secrets=None):
 
     secrets = secrets or {}
     source = workdir = None
@@ -30,6 +30,8 @@ def load_project(context, url=None, secrets=None):
         with open(fpath) as fp:
             data = fp.read()
             struct = yaml.load(data, Loader=yaml.FullLoader)
+            struct['context'] = context
+            struct['name'] = name or struct.get('name', '')
             project = MlrunProject.from_dict(struct)
             project.source = source
 
@@ -44,6 +46,8 @@ def load_project(context, url=None, secrets=None):
         raise ValueError('project or function YAML not found in path')
 
     project.context = context
+    project.name = name or project.name
+    project.load_functions()
     return project
 
 
@@ -51,10 +55,12 @@ class MlrunProject(ModelObj):
     kind = 'project'
 
     def __init__(self, name=None, source=None, context=None,
-                 functions=None, workflows=None):
+                 functions=None, workflows=None, tag=None):
 
         self._function_objects = {}
+        self._initialized = False
         self.name = name
+        self.tag = tag
         self.source = source
         self.context = context
         self.workflows = workflows or {}
@@ -73,10 +79,10 @@ class MlrunProject(ModelObj):
     @functions.setter
     def functions(self, funcs):
         self._functions = funcs
-        self._init_funcs()
 
-    def _init_funcs(self):
+    def load_functions(self):
         self._function_objects = init_functions(self)
+        self._initialized = True
 
     def with_secrets(self, secrets):
         self._secrets = secrets
@@ -126,7 +132,7 @@ def init_functions(project):
                 url = path.join(project.context, url)
                 in_context = True
             if not path.isfile(url):
-                raise Exception('function.yaml not found')
+                raise Exception('{} not found'.format(url))
 
         if 'spec' in f:
             func = new_function(runtime=f['spec'])
@@ -145,6 +151,10 @@ def init_functions(project):
         name = name or func.metadata.name
         if project.source and in_context:
             func.spec.build.source = project.source
+        if project.name:
+            func.metadata.project = project.name
+        if project.tag:
+            func.metadata.tag = project.tag
         funcs[name] = func
 
     return funcs

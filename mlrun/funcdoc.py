@@ -159,7 +159,7 @@ def parse_rst(docstring: str):
 
 def ast_func_info(func: ast.FunctionDef):
     doc = ast.get_docstring(func) or ''
-    rtype = func.returns.id if func.returns else ''
+    rtype = getattr(func.returns, 'id', '')
     params = [ast_param_dict(p) for p in func.args.args]
     defaults = func.args.defaults
     if defaults:

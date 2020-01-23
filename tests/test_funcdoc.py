@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import ast
+from textwrap import dedent
 
 import pytest
 import yaml
+
 from conftest import here
 from mlrun import funcdoc
 
@@ -132,3 +134,12 @@ def test_ast_code(expr):
     node = ast.parse(expr).body[0].value
     code = funcdoc.ast_code(node)
     assert expr == code
+
+
+def test_ast_none():
+    code = '''
+    def fn() -> None:
+        pass
+    '''
+    fn = ast.parse(dedent(code)).body[0]
+    funcdoc.ast_func_info(fn)

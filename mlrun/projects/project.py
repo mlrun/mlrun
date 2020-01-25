@@ -15,6 +15,17 @@ import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import dsl, Client
 
+from ..utils import update_in
+from ..runtimes.utils import add_code_metadata
+
+
+def new_project(name, context=None, functions=None, workflows=None):
+    project = MlrunProject(name=name,
+                           functions=functions,
+                           workflows=workflows,
+                           context=context)
+    return project
+
 
 def load_project(context, url=None, name=None, secrets=None, clone=True):
 
@@ -38,7 +49,8 @@ def load_project(context, url=None, name=None, secrets=None, clone=True):
     elif path.isfile(path.join(context, 'function.yaml')):
         func = import_function(path.join(context, 'function.yaml'))
         project = MlrunProject(name=func.metadata.project,
-                               functions=[{'url': 'function.yaml'}],
+                               functions=[{'url': 'function.yaml',
+                                           'name': func.metadata.name}],
                                workflows={})
     else:
         raise ValueError('project or function YAML not found in path')
@@ -48,7 +60,6 @@ def load_project(context, url=None, name=None, secrets=None, clone=True):
     project.context = context
     project.origin_url = url
     project.name = name or project.name
-    project.load_functions()
     return project
 
 
@@ -73,23 +84,69 @@ class MlrunProject(ModelObj):
         self.params = {}
 
         self._function_objects = {}
-        self._function_names = []
-        self._functions = None
+        self._function_defs = {}
         self.functions = functions or []
 
     @property
     def functions(self) -> list:
-        return self._functions
+        funcs = []
+        for name, f in self._function_defs.items():
+            if hasattr(f, 'to_dict'):
+                spec = f.to_dict()
+                if f.spec.build.source == self.source:
+                    update_in(spec, 'spec.build.source', './')
+                # TODO: clean/change elements before persisting e.g. source
+                funcs.append({'name': name,
+                              'spec': spec})
+            else:
+                funcs.append(f)
+        return funcs
 
     @functions.setter
     def functions(self, funcs):
         if not isinstance(funcs, list):
             raise ValueError('functions must be a list')
-        self._functions = funcs
-        if self._initialized:
-            self.load_functions()
 
-    def func(self, key):
+        func_defs = {}
+        for f in funcs:
+            if not isinstance(f, dict) or not hasattr(f, 'to_dict'):
+                raise ValueError('functions must be an objects or dict')
+            if isinstance(f, dict):
+                name = f.get('name', '')
+                if not name:
+                    raise ValueError('function name must be specified in dict')
+            elif hasattr(f, 'to_dict'):
+                name = f.metadata.name
+            else:
+                raise ValueError('functions must be an objects or dict')
+
+            func_defs[name] = f
+
+        self._function_defs = func_defs
+
+    def set_function(self, func, name='', kind='', image=None):
+        if isinstance(func, str):
+            if not name:
+                raise ValueError('function name must be specified')
+            fdict = {'url': func, 'name': name, 'kind': kind, 'image': image}
+            func = {k: v for k, v in fdict.items() if v}
+            name, f = init_function_from_dict(func, self)
+        elif hasattr(func, 'to_dict'):
+            name, f = init_function_from_obj(func, self, name=name)
+            if not name:
+                raise ValueError('function name must be specified')
+        else:
+            raise ValueError('func must be a function url or object')
+
+        self._function_defs[name] = func
+        self._function_objects[name] = f
+        return self
+
+    def func(self, key, sync=False):
+        if key not in self._function_defs:
+            raise KeyError('function {} not found'.format(key))
+        if sync or not self._initialized or key not in self._function_objects:
+            self.sync_functions()
         return self._function_objects[key]
 
     def pull(self):
@@ -103,23 +160,35 @@ class MlrunProject(ModelObj):
                 raise ValueError('target dit (context) is not set')
             clone_tgz(url, self.context, self._secrets, False)
 
-    def load_functions(self):
+    def sync_functions(self, always=True):
+        if self._initialized and not always:
+            return
+
         funcs = {}
         names = []
-        for f in self.functions:
-            name, func = init_function(f, self)
+        origin = add_code_metadata(self.context)
+        for name, f in self._function_defs.items():
+            if hasattr(f, 'to_dict'):
+                name, func = init_function_from_obj(f, self)
+            else:
+                if not isinstance(f, dict):
+                    raise ValueError('function must be an object or dict')
+                name, func = init_function_from_dict(f, self)
+            func.spec.build.code_origin = origin
             funcs[name] = func
             names.append(name)
 
-        self._function_objects, self._function_names = funcs, names
+        self._function_objects = funcs
         self._initialized = True
 
     def with_secrets(self, secrets):
         self._secrets = secrets
         return self
 
-    def run(self, name=None, workflow_path=None,
-            arguments=None, artifacts_path=None, namespace=None):
+    def run(self, name=None, workflow_path=None, arguments=None,
+            artifacts_path=None, namespace=None, sync=False):
+
+        self.sync_functions(sync)
         if not self._function_objects:
             raise ValueError('no functions in the project')
 
@@ -144,7 +213,7 @@ class MlrunProject(ModelObj):
             shutil.rmtree(self.context)
 
 
-def init_function(f, project):
+def init_function_from_dict(f, project):
     name = f.get('name', '')
     url = f.get('url', '')
     kind = f.get('kind', '')
@@ -171,19 +240,22 @@ def init_function(f, project):
         if not image:
             raise ValueError('image must be provided with py code files')
         func = code_to_function(filename=url, image=image, kind=kind or 'job')
-
     else:
         raise ValueError('unsupported function url {} or no spec'.format(url))
 
-    name = name or func.metadata.name
-    if project.source and in_context:
+    return init_function_from_obj(func, project, name, in_context)
+
+
+def init_function_from_obj(func, project, name=None, in_context=True):
+    if project.source and in_context and \
+            func.spec.build.source in ['.', './']:
         func.spec.build.source = project.source
     if project.name:
         func.metadata.project = project.name
     if project.tag:
         func.metadata.tag = project.tag
 
-    return name, func
+    return name or func.metadata.name, func
 
 
 def run_pipeline(name, pipeline, functions, params=None, secrets=None,

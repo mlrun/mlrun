@@ -326,7 +326,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                          'when not using the embed_code option')
 
     subkind = kind[kind.find(':') + 1:] if kind.startswith('nuclio:') else None
-    code_origin = add_name(add_code_metadata(), name)
+    code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(filename, name=name,
                                   handler=handler or 'handler',

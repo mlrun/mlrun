@@ -60,7 +60,8 @@ class FunctionEntrypoint(ModelObj):
 
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 build=None, entry_points=None, description=None):
+                 build=None, entry_points=None, description=None,
+                 default_handler=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -71,6 +72,7 @@ class FunctionSpec(ModelObj):
 
         self._build = None
         self.build = build
+        self.default_handler = default_handler
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
 
@@ -199,7 +201,8 @@ class BaseRuntime(ModelObj):
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
 
-        runspec.spec.handler = handler or runspec.spec.handler or ''
+        runspec.spec.handler = handler or runspec.spec.handler or \
+                               self.spec.default_handler or ''
         if runspec.spec.handler and self.kind not in ['handler', 'dask']:
             runspec.spec.handler = runspec.spec.handler_name
 

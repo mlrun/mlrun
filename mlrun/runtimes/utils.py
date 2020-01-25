@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import hashlib
+import os
 from copy import deepcopy
 from sys import stderr
 import pandas as pd
@@ -84,20 +85,27 @@ class AsyncLogWriter:
         pass
 
 
-def add_code_metadata():
-    dirpath = './'
+def add_code_metadata(path=''):
+    if path:
+        if '://' in path:
+            return None
+        if os.path.isfile(path):
+            path = os.path.dirname(path)
+    path = path or './'
+
     try:
-        from git import Repo
-        from git.exc import GitCommandError, InvalidGitRepositoryError
+        from git import (Repo, InvalidGitRepositoryError, GitCommandNotFound,
+                         NoSuchPathError)
     except ImportError:
         return None
 
     try:
-        repo = Repo(dirpath, search_parent_directories=True)
+        repo = Repo(path, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
             return '{}#{}'.format(remotes[0], repo.head.commit.hexsha)
-    except (GitCommandError, InvalidGitRepositoryError):
+    except (GitCommandNotFound, InvalidGitRepositoryError,
+            NoSuchPathError, ValueError):
         pass
     return None
 

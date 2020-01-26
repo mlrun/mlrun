@@ -27,7 +27,8 @@ def new_project(name, context=None, functions=None, workflows=None):
     return project
 
 
-def load_project(context, url=None, name=None, secrets=None, clone=True):
+def load_project(context, url=None, name=None, secrets=None,
+                 mount_url=None, clone=True):
 
     secrets = secrets or {}
     source = workdir = branch = repo = None
@@ -54,7 +55,7 @@ def load_project(context, url=None, name=None, secrets=None, clone=True):
     else:
         raise ValueError('project or function YAML not found in path')
 
-    project.source = source
+    project.source = mount_url or source
     project.repo = repo
     project.branch = branch
     project.context = context
@@ -66,7 +67,7 @@ def load_project(context, url=None, name=None, secrets=None, clone=True):
 class MlrunProject(ModelObj):
     kind = 'project'
 
-    def __init__(self, name=None, source=None,
+    def __init__(self, name=None, source=None, params=None,
                  functions=None, workflows=None, tag=None):
 
         self._initialized = False
@@ -78,10 +79,8 @@ class MlrunProject(ModelObj):
         self.branch = None
         self.repo = None
         self.workflows = workflows or {}
-        self.source = None
-        self.config = {}
         self._secrets = {}
-        self.params = {}
+        self.params = params or {}
 
         self._function_objects = {}
         self._function_defs = {}
@@ -109,7 +108,7 @@ class MlrunProject(ModelObj):
 
         func_defs = {}
         for f in funcs:
-            if not isinstance(f, dict) or not hasattr(f, 'to_dict'):
+            if not isinstance(f, dict) and not hasattr(f, 'to_dict'):
                 raise ValueError('functions must be an objects or dict')
             if isinstance(f, dict):
                 name = f.get('name', '')
@@ -299,7 +298,7 @@ def github_webhook(request):
     return {'msg': 'pushed'}
 
 
-def clone_git(url, context, config, clone=True):
+def clone_git(url, context, secrets, clone=True):
     urlobj = urlparse(url)
     scheme = urlobj.scheme.lower()
     if not context:
@@ -312,7 +311,7 @@ def clone_git(url, context, config, clone=True):
     if urlobj.port:
         host += ':{}'.format(urlobj.port)
 
-    token = urlobj.username or config.get('git_token')
+    token = urlobj.username or secrets.get('git_token')
     if token:
         clone_path = 'https://{}:x-oauth-basic@{}{}'.format(token, host, urlobj.path)
     else:
@@ -334,13 +333,13 @@ def clone_git(url, context, config, clone=True):
     return url, workdir, branch, repo
 
 
-def clone_tgz(url, context, config, clone=True):
+def clone_tgz(url, context, secrets, clone=True):
     if not context:
         raise ValueError('please specify a target (context) directory for clone')
 
     if path.exists(context) and path.isdir(context):
         shutil.rmtree(context)
-    stores = StoreManager(config.get('secrets', None))
+    stores = StoreManager(secrets)
     datastore, subpath = stores.get_or_create_store(url)
     tmp = mktemp()
     datastore.download(subpath, tmp)

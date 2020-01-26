@@ -44,7 +44,6 @@ def load_project(context, url=None, name=None, secrets=None, clone=True):
             struct['context'] = context
             struct['name'] = name or struct.get('name', '')
             project = MlrunProject.from_dict(struct)
-            project.source = source
 
     elif path.isfile(path.join(context, 'function.yaml')):
         func = import_function(path.join(context, 'function.yaml'))
@@ -55,6 +54,7 @@ def load_project(context, url=None, name=None, secrets=None, clone=True):
     else:
         raise ValueError('project or function YAML not found in path')
 
+    project.source = source
     project.repo = repo
     project.branch = branch
     project.context = context

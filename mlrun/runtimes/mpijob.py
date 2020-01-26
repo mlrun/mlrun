@@ -37,7 +37,7 @@ _mpijob_template = {
          'metadata': {},
          'spec': {
              'containers': [{
-                 'image': 'zilbermanor/horovod_cpu:0.2',
+                 'image': 'mlrun/mpijob',
                  'name': 'base',
                  'command': [],
                  'env': [],
@@ -89,6 +89,10 @@ class MpiRuntime(KubejobRuntime):
                 job, 'imagePullPolicy', self.spec.image_pull_policy)
         if self.spec.resources:
             _update_container(job, 'resources', self.spec.resources)
+
+        if self.spec.image_pull_secret:
+            update_in(job, 'spec.template.spec.imagePullSecrets',
+                      [{'name': self.spec.image_pull_secret}])
 
         if self.spec.command:
             _update_container(

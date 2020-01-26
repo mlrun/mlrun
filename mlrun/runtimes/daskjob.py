@@ -47,14 +47,16 @@ class DaskSpec(KubeResourceSpec):
                  volumes=None, volume_mounts=None, env=None, resources=None,
                  build=None, entry_points=None, description=None,
                  replicas=None, image_pull_policy=None, service_account=None,
-                 extra_pip=None, remote=None, service_type=None, nthreads=None,
+                 image_pull_secret=None, extra_pip=None, remote=None,
+                 service_type=None, nthreads=None,
                  node_port=None, min_replicas=None, max_replicas=None):
 
         super().__init__(command=command, args=args, image=image,
                          mode=mode, volumes=volumes, volume_mounts=volume_mounts,
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
                          service_account=service_account, build=build,
-                         entry_points=entry_points, description=description)
+                         entry_points=entry_points, description=description,
+                         image_pull_secret=image_pull_secret)
         self.args = args
 
         self.extra_pip = extra_pip
@@ -291,6 +293,9 @@ def deploy_function(function: DaskCluster):
                                 restart_policy='Never',
                                 volumes=spec.volumes,
                                 service_account=spec.service_account)
+    if spec.image_pull_secret:
+        pod_spec.image_pull_secrets = [
+            client.V1LocalObjectReference(name=spec.image_pull_secret)]
 
     pod = client.V1Pod(metadata=client.V1ObjectMeta(namespace=namespace,
                                                     labels=pod_labels),

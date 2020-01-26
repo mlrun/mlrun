@@ -5,15 +5,13 @@ import tarfile
 from tempfile import mktemp
 
 import yaml
-from git import Repo
-import json
-from os import path, environ, remove
+from os import path, remove
 
 from mlrun.datastore import StoreManager
 from mlrun import import_function, code_to_function, new_function
 import importlib.util as imputil
 from urllib.parse import urlparse
-from kfp import dsl, Client
+from kfp import Client
 
 from ..utils import update_in
 from ..runtimes.utils import add_code_metadata
@@ -299,6 +297,12 @@ def github_webhook(request):
 
 
 def clone_git(url, context, secrets, clone=True):
+    try:
+        from git import Repo
+    except ImportError as e:
+        print('Failed to import git, pip install git')
+        raise e
+
     urlobj = urlparse(url)
     scheme = urlobj.scheme.lower()
     if not context:

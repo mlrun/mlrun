@@ -76,7 +76,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 * Examples for MLRun with scale-out runtimes
   * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
   * [Nuclio-serving (Serverless model serving)](examples/nuclio-serving.ipynb)
-  * [Dask](examples/mlrun_dask.ipynb)
+  * [Dask](examples/mlrun-dask.ipynb)
   * [Spark](examples/mlrun-sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 * [Query MLRUN DB](examples/mlrun-db.ipynb)

@@ -216,7 +216,7 @@ if we run our code from `main` we can get the runtime context by calling the `ge
 method. 
 
 The example below shows us how we can use the `context` object provide us various ways to
-read and write metadata, secrets, inputs, or outputs. see the [horovod-training.py](examples/horovod-training.py) 
+read and write metadata, secrets, inputs, or outputs. see the [horovod_training.py](examples/horovod_training.py) 
 example for more details.
 
 <b>Example, obtaining and using the context</b>

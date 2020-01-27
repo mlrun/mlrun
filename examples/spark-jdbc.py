@@ -1,4 +1,4 @@
-# Pyspark example called by mlrun_sparkk8s.ipynb
+# PySpark example called by mlrun-sparkk8s.ipynb
 import os
 # Iguazio env
 V3IO_USER = os.getenv('V3IO_USERNAME')
@@ -14,7 +14,7 @@ spark = SparkSession.builder.    appName("Spark JDBC to Databases - ipynb").getO
 
 
 
-#Loading data from a JDBC source
+# Loading data from a JDBC source
 dfMySQL = spark.read     .format("jdbc")     .option("url", "jdbc:mysql://mysql-rfam-public.ebi.ac.uk:4497/Rfam")     .option("dbtable", "Rfam.family")     .option("user", "rfamro")     .option("password", "")     .option("driver", "com.mysql.jdbc.Driver")     .load()
 
 

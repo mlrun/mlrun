@@ -21,7 +21,7 @@ from conftest import (
 from mlrun import code_to_function, new_model_server
 
 def test_job_nb():
-    fn = code_to_function(filename='{}/mlrun_jobs.ipynb'.format(
+    fn = code_to_function(filename='{}/mlrun-jobs.ipynb'.format(
         examples_path), kind='job')
     assert fn.kind == 'job', 'kind not set, test failed'
     assert fn.spec.build.functionSourceCode, 'code not embedded'
@@ -68,7 +68,7 @@ def test_local_file_noembed():
 
 
 def test_job_file_codeout():
-    name = '{}/mlrun_jobs.ipynb'.format(examples_path)
+    name = '{}/mlrun-jobs.ipynb'.format(examples_path)
     out = '{}/ctf_tst.py'.format(results)
     fn = code_to_function(filename=name, kind='job', code_output=out)
     assert fn.kind == 'job', 'kind not set, test failed'
@@ -78,7 +78,7 @@ def test_job_file_codeout():
 
 
 def test_local_file_codeout():
-    name = '{}/mlrun_jobs.ipynb'.format(examples_path)
+    name = '{}/mlrun-jobs.ipynb'.format(examples_path)
     out = '{}/ctf_tst.py'.format(results)
     fn = code_to_function(filename=name, kind='local', code_output=out)
     assert fn.kind == 'local', 'kind not set, test failed'

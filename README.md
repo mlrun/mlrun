@@ -71,7 +71,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 
 #### Examples & Notebooks
 * [Learn MLRun basics](examples/mlrun-basics.ipynb)
-* [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun_jobs.ipynb)
+* [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun-jobs.ipynb)
 * [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train-xgboost-serverless.ipynb)
 * Examples for MLRun with scale-out runtimes
   * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
@@ -358,7 +358,7 @@ use:
 See [more examples](examples/remote.md) for building and running fuctions from remote using the CLI.
 
 
-we can convert our notebook into a containerized job, see [detailed example](examples/mlrun_jobs.ipynb):
+we can convert our notebook into a containerized job, see [detailed example](examples/mlrun-jobs.ipynb):
 
 ```python
 # create an ML function from the notebook, attache it to iguazio data fabric (v3io)

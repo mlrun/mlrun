@@ -75,7 +75,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 * [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train-xgboost-serverless.ipynb)
 * Examples for MLRun with scale-out runtimes
   * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
-  * [Nuclio-serving (Serverless model serving)](examples/nuclio_serving.ipynb)
+  * [Nuclio-serving (Serverless model serving)](examples/nuclio-serving.ipynb)
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun_sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)

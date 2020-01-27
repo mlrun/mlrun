@@ -29,7 +29,7 @@ def test_job_nb():
 
 def test_nuclio_nb():
     fn = new_model_server('iris-srv',
-                          filename='{}/nuclio_serving.ipynb'.format(examples_path),
+                          filename='{}/nuclio-serving.ipynb'.format(examples_path),
                           models={'iris_v1': 'xyz'},
                           model_class='XGBoostModel')
     assert fn.kind == 'remote', 'kind not set, test failed'

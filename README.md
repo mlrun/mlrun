@@ -78,7 +78,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
   * [Nuclio-serving (Serverless model serving)](examples/nuclio-serving.ipynb)
   * [Dask](examples/mlrun-dask.ipynb)
   * [Spark](examples/mlrun-sparkk8s.ipynb)
-* [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
+* [Importing and exporting functions using files or git](examples/mlrun-export-import.ipynb)
 * [Query MLRUN DB](examples/mlrun-db.ipynb)
 
 #### Additional Examples

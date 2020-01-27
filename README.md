@@ -70,7 +70,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 * [Run and Artifact Database](#run-and-artifact-database)
 
 #### Examples & Notebooks
-* [Learn MLRun basics](examples/mlrun_basics.ipynb)
+* [Learn MLRun basics](examples/mlrun-basics.ipynb)
 * [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun_jobs.ipynb)
 * [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train-xgboost-serverless.ipynb)
 * Examples for MLRun with scale-out runtimes
@@ -116,7 +116,7 @@ example:
 
 in this example the task defines our run spec (parameters, inputs, secrets, ..) .
 we run this task on a `job` function, and print out the result 
-output (in this case the `model` artifact) or watch the progress of that run. [see docs and example notebook](examples/mlrun_basics.ipynb).
+output (in this case the `model` artifact) or watch the progress of that run. [see docs and example notebook](examples/mlrun-basics.ipynb).
 
 we can run the same `task` on different functions, enabling code portability, re-use, and AutoML, 
 or we can use the same `function` to run different tasks or parameter combinations with 

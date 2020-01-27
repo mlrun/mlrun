@@ -72,7 +72,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 #### Examples & Notebooks
 * [Learn MLRun basics](examples/mlrun_basics.ipynb)
 * [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun_jobs.ipynb)
-* [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train_xgboost_serverless.ipynb)
+* [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train-xgboost-serverless.ipynb)
 * Examples for MLRun with scale-out runtimes
   * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
   * [Nuclio-serving (Serverless model serving)](examples/nuclio_serving.ipynb)
@@ -373,7 +373,7 @@ fn.build(image='mlrun/nuctest:latest')
 Running in a pipeline would be similar to running using the command line
 mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
 
-see a [full pipelines notebook example](examples/train_xgboost_serverless.ipynb)
+see a [full pipelines notebook example](examples/train-xgboost-serverless.ipynb)
 ```python
 @dsl.pipeline(
     name='My XGBoost training pipeline',

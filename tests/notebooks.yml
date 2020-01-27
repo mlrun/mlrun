@@ -1,4 +1,4 @@
-- nb: mlrun_db.ipynb
+- nb: mlrun-db.ipynb
 - nb: mlrun-basics.ipynb
   env:
       MLRUN_DBPATH: /tmp/mlrun-db

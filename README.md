@@ -79,7 +79,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun-sparkk8s.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
-* [Query MLRUN DB](examples/mlrun_db.ipynb)
+* [Query MLRUN DB](examples/mlrun-db.ipynb)
 
 #### Additional Examples
 
@@ -413,7 +413,7 @@ The UI require running the DB/API server, see k8s YAML files under [/hack](./hac
 
 if you have specified a `rundb` the results and artifacts from each run are recorded 
 
-you can use various `db` methods, see the [example notebook](examples/mlrun_db.ipynb)
+you can use various `db` methods, see the [example notebook](examples/mlrun-db.ipynb)
 
 ```python
 from mlrun import get_run_db

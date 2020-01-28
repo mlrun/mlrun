@@ -83,8 +83,8 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 
 #### Additional Examples
 
-* Complete demos can be found in [mlrun/demos repo](https://github.com/mlrun/demos)
-  * [Deep learning pipeline](https://github.com/mlrun/demos/blob/master/image_classification/README.md) (data collection, labeling, training, serving + automated workflow)
+* Complete demos can be found in the [mlrun/demos repo](https://github.com/mlrun/demos)
+  * [Deep learning pipeline](https://github.com/mlrun/demos/blob/master/image-classification/README.md) (data collection, labeling, training, serving + automated workflow)
 * MLRun Functions Library (work in progress) is in [mlrun/functions repo](https://github.com/mlrun/functions)
 
 ## Architecture

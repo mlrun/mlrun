@@ -62,7 +62,7 @@ default_config = {
         'token': '',
         'logs_path': expanduser('~/.mlrun/logs'),
         'files_path': '',
-        'db_type': 'filerundb',
+        'db_type': 'sqldb',
     },
 }
 

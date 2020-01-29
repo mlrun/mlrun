@@ -68,11 +68,29 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             resp = requests.request(method, url, timeout=timeout, **kw)
-            resp.raise_for_status()
-            return resp
         except requests.RequestException as err:
             error = error or '{} {}, error: {}'.format(method, url, err)
             raise RunDBError(error) from err
+
+        if not resp.ok:
+            if resp.content:
+                try:
+                    data = resp.json()
+                    reason = data.get('reason', '')
+                except Exception:
+                    reason = ''
+            if reason:
+                error = error or '{} {}, error: {}'.format(method, url, reason)
+                raise RunDBError(error)
+
+            try:
+                resp.raise_for_status()
+            except requests.RequestException as err:
+                error = error or '{} {}, error: {}'.format(method, url, err)
+                raise RunDBError(error) from err
+
+        return resp
+
 
     def _path_of(self, prefix, project, uid):
         project = project or default_project

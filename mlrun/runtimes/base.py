@@ -60,7 +60,8 @@ class FunctionEntrypoint(ModelObj):
 
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 build=None, entry_points=None, description=None):
+                 build=None, entry_points=None, description=None,
+                 pythonpath=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -68,6 +69,7 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
+        self.pythonpath = pythonpath
 
         self._build = None
         self.build = build

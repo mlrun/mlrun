@@ -128,7 +128,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                     the container should host all requiered packages + code
                     for the run, alternatively user can mount packages/code via
                     shared file volumes like v3io (see example below)
-    :param function: optional, function specification
+    :param function: optional, function specification or url
     :param command: exec command (or URL for functions)
     :param secrets: extra secrets specs, will be injected into the runtime
                     e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
@@ -138,6 +138,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                         executed for every parameter combination (GridSearch)
     :param param_file:  a csv file with parameter combinations, first row hold
                         the parameter names, following rows hold param values
+    :param selector  selection criteria for hyperparams e.g. "max.accuracy"
     :param inputs:   dictionary of input objects + optional paths (if path is
                      omitted the path will be the in_path/key.
     :param outputs:  dictionary of input objects + optional paths (if path is
@@ -146,6 +147,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'noctx' for pushing params as args
+    :param handler   code entry-point/hanfler name
+    :param job_image name of the image user for the job
 
     :return: KFP step operation
 
@@ -203,18 +206,24 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
     runtime = None
     code_env = None
+    func_url = function_name = ''
     if function:
-        if not hasattr(function, 'to_dict'):
-            raise ValueError('function must specify a function runtime object')
-        if function.kind in ['', 'local']:
-            image = image or function.spec.image
-            cmd = cmd or function.spec.command
-            more_args = more_args or function.spec.args
-            mode = mode or function.spec.mode
-            rundb = rundb or function.spec.rundb
-            code_env = '{}'.format(function.spec.build.functionSourceCode)
+        if isinstance(function, str):
+            func_url = function
+
+        elif hasattr(function, 'to_dict'):
+            if function.kind in ['', 'local']:
+                image = image or function.spec.image
+                cmd = cmd or function.spec.command
+                more_args = more_args or function.spec.args
+                mode = mode or function.spec.mode
+                rundb = rundb or function.spec.rundb
+                code_env = '{}'.format(function.spec.build.functionSourceCode)
+            else:
+                runtime = '{}'.format(function.to_dict())
+            function_name = function.metadata.name
         else:
-            runtime = '{}'.format(function.to_dict())
+            raise ValueError('function must specify a function runtime object')
 
     image = image or config.kfp_image
 
@@ -232,9 +241,9 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         project = project or runobj.metadata.project
 
     if not name:
-        if not function:
+        if not function_name:
             raise ValueError('name or function object must be specified')
-        name = function.metadata.name
+        name = function_name
         if handler:
             name += '-' + handler
 
@@ -248,6 +257,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
     if name:
         cmd += ['--name', name]
+    if func_url:
+        cmd += ['-f', func_url]
     for s in secrets:
         cmd += ['-s', '{}'.format(s)]
     for p, val in params.items():

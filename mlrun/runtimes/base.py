@@ -472,7 +472,7 @@ class BaseRuntime(ModelObj):
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = '', image: str = ''):
+                in_path: str = '', out_path: str = '', image: str = '', use_db=False):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -492,7 +492,13 @@ class BaseRuntime(ModelObj):
         if self.spec.image and not image:
             image = self.full_image_path()
 
-        return mlrun_op(name, project, self,
+        if use_db:
+            self.save(versioned=False)
+            func = 'db://' + self._function_uri()
+        else:
+            func = self
+
+        return mlrun_op(name, project, func,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,

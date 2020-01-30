@@ -8,10 +8,11 @@ import yaml
 from os import path, remove
 
 from mlrun.datastore import StoreManager
+from mlrun.config import config
 from mlrun import import_function, code_to_function, new_function
 import importlib.util as imputil
 from urllib.parse import urlparse
-from kfp import Client
+from kfp import Client, compiler
 
 from ..utils import update_in
 from ..runtimes.utils import add_code_metadata
@@ -205,6 +206,17 @@ class MlrunProject(ModelObj):
                            artifacts_path=artifacts_path, namespace=namespace)
         return run
 
+    def save_workflow(self, name, target, artifacts_path=None):
+        if not name or name not in self.workflows:
+            raise ValueError('workflow {} not found'.format(name))
+
+        wfpath = self.workflows.get(name)
+        pipeline = create_pipeline(wfpath, self._function_objects,
+                                   self.params, secrets=self._secrets,
+                                   artifacts_path=artifacts_path)
+
+        compiler.Compiler().compile(pipeline, target)
+
     def clear_context(self):
         if self.context and path.exists(self.context) and path.isdir(self.context):
             shutil.rmtree(self.context)
@@ -255,8 +267,8 @@ def init_function_from_obj(func, project, name=None, in_context=True):
     return name or func.metadata.name, func
 
 
-def run_pipeline(name, pipeline, functions, params=None, secrets=None,
-                 arguments=None, artifacts_path=None, namespace=None):
+def create_pipeline(pipeline, functions, params=None, secrets=None,
+                    artifacts_path=None):
 
     spec = imputil.spec_from_file_location('workflow', pipeline)
     if spec is None:
@@ -274,8 +286,14 @@ def run_pipeline(name, pipeline, functions, params=None, secrets=None,
         raise ValueError('pipeline function (kfpipeline) not found')
 
     kfpipeline = getattr(mod, 'kfpipeline')
-    client = Client(namespace=namespace or 'default-tenant')
+    return kfpipeline
 
+
+def run_pipeline(name, pipeline, functions, params=None, secrets=None,
+                 arguments=None, artifacts_path=None, namespace=None):
+    kfpipeline = create_pipeline(pipeline, functions, params, secrets,
+                                 artifacts_path)
+    client = Client(namespace=namespace or config.namespace)
     run_result = client.create_run_from_pipeline_func(
         kfpipeline, arguments, experiment_name=name)
 

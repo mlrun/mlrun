@@ -33,5 +33,5 @@ def get_version():
 
 
 if 'IGZ_NAMESPACE_DOMAIN' in environ:
-    kfp_ep = 'https://dashboard.{}/pipelines/'.format(environ['IGZ_NAMESPACE_DOMAIN'])
+    kfp_ep = 'https://dashboard.{}/pipelines'.format(environ['IGZ_NAMESPACE_DOMAIN'])
     environ['KF_PIPELINES_UI_ENDPOINT'] = kfp_ep

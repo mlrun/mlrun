@@ -55,14 +55,14 @@ default_config = {
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
-        'dsn': 'sqlite:///:memory:?check_same_thread=false',
+        'dsn': 'sqlite:////tmp/mlrun.db?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',
         'token': '',
         'logs_path': expanduser('~/.mlrun/logs'),
         'files_path': '',
-        'db_type': 'filerundb',
+        'db_type': 'sqldb',
     },
 }
 

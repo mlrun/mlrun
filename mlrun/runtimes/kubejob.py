@@ -206,7 +206,6 @@ class KubejobRuntime(KubeResource):
 
 
 def func_to_pod(image, runtime, extra_env, command, args):
-
     container = client.V1Container(name='base',
                                    image=image,
                                    env=extra_env + runtime.spec.env,
@@ -220,5 +219,9 @@ def func_to_pod(image, runtime, extra_env, command, args):
                                 restart_policy='Never',
                                 volumes=runtime.spec.volumes,
                                 service_account=runtime.spec.service_account)
+
+    if runtime.spec.image_pull_secret:
+        pod_spec.image_pull_secrets = [
+            client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)]
 
     return pod_spec

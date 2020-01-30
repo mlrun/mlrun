@@ -14,6 +14,7 @@
 
 import json
 import inspect
+import os
 import socket
 import sys
 import traceback
@@ -44,6 +45,9 @@ class HandlerRuntime(BaseRuntime):
         self._force_handler(handler)
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
+        if self.spec.pythonpath:
+            set_paths(self.spec.pythonpath)
+
         context = MLClientCtx.from_dict(runobj.to_dict(),
                                         rundb=self.spec.rundb,
                                         autocommit=False,
@@ -79,6 +83,9 @@ class LocalRuntime(BaseRuntime):
 
         handler = runobj.spec.handler
         if handler:
+            if self.spec.pythonpath:
+                set_paths(self.spec.pythonpath)
+
             mod, fn = load_module(self.spec.command, handler)
             context = MLClientCtx.from_dict(runobj.to_dict(),
                                             rundb=self.spec.rundb,
@@ -95,7 +102,15 @@ class LocalRuntime(BaseRuntime):
                 cmd = [self.spec.command]
             else:
                 cmd = [executable, self.spec.command]
-            sout, serr = run_exec(cmd, self.spec.args)
+
+            env = None
+            if self.spec.pythonpath:
+                pypath = self.spec.pythonpath
+                if 'PYTHONPATH' in environ:
+                    pypath = '{}:{}'.format(environ['PYTHONPATH'], pypath)
+                env = {'PYTHONPATH': pypath}
+
+            sout, serr = run_exec(cmd, self.spec.args, env=env)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
 
             try:
@@ -108,6 +123,16 @@ class LocalRuntime(BaseRuntime):
             except FileNotFoundError:
                 logger.info('no context file found')
             return runobj.to_dict()
+
+
+def set_paths(pythonpath=''):
+    paths = pythonpath.split(':')
+    if not paths:
+        return
+    for p in paths:
+        abspath = os.path.abspath(p)
+        if abspath not in sys.path:
+            sys.path.append(abspath)
 
 
 def load_module(file_name, handler):

@@ -83,9 +83,11 @@ _sparkjob_template = {
 
 class SparkJobSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 volumes=None, volume_mounts=None, env=None, resources=None, replicas=None,
-                 image_pull_policy=None, service_account=None, driver_resources=None,
-                 type=None, python_version=None, spark_version=None, restart_policy=None, deps=None):
+                 volumes=None, volume_mounts=None, env=None, resources=None,
+                 replicas=None, image_pull_policy=None, service_account=None,
+                 image_pull_secret=None, driver_resources=None, type=None,
+                 python_version=None, spark_version=None, restart_policy=None,
+                 deps=None):
 
         super().__init__(command=command,
                          args=args,
@@ -97,7 +99,8 @@ class SparkJobSpec(KubeResourceSpec):
                          resources=resources,
                          replicas=replicas,
                          image_pull_policy=image_pull_policy,
-                         service_account=service_account)
+                         service_account=service_account,
+                         image_pull_secret=image_pull_secret)
 
         self.driver_resources = driver_resources
         self.type = type

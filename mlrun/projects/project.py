@@ -113,11 +113,8 @@ class MlrunProject(ModelObj):
                 name = f.get('name', '')
                 if not name:
                     raise ValueError('function name must be specified in dict')
-            elif hasattr(f, 'to_dict'):
-                name = f.metadata.name
             else:
-                raise ValueError('functions must be an objects or dict')
-
+                name = f.metadata.name
             func_defs[name] = f
 
         self._function_defs = func_defs
@@ -256,9 +253,10 @@ def init_function_from_dict(f, project):
 
 
 def init_function_from_obj(func, project, name=None, in_context=True):
+    build = func.spec.build
     if project.source and in_context and \
-            func.spec.build.source in ['.', './']:
-        func.spec.build.source = project.source
+            (not build.source or build.source in ['.', './']):
+        build.source = project.source
     if project.name:
         func.metadata.project = project.name
     if project.tag:

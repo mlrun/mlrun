@@ -408,4 +408,10 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='IGZ_NAMESPACE_DOMAIN', value=environ.get('IGZ_NAMESPACE_DOMAIN')))
 
+    is_v3io = function.spec.build.source and \
+              function.spec.build.source.startswith('v3io')
+    if 'V3IO_ACCESS_KEY' in environ and is_v3io:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='V3IO_ACCESS_KEY', value=environ.get('V3IO_ACCESS_KEY')))
+
     return cop

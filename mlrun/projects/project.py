@@ -30,12 +30,35 @@ def load_project(context, url=None, name=None, secrets=None,
                  mount_url=None, clone=True):
 
     secrets = secrets or {}
-    source = workdir = branch = repo = None
+    source = workdir = repo = None
+    if not url:
+        if not path.isdir(context):
+            raise ValueError('context {} is not an existing dir path'.format(
+                context))
+        try:
+            from git import Repo
+            repo = Repo(context)
+            source = repo.remote().urls
+            source.replace('https://', 'git://')
+            source = '{}#refs/heads/{}'.format(source, repo.active_branch.name)
+        except Exception:
+            pass
+
     if url and url.startswith('git://'):
-        source, workdir, branch, repo = clone_git(url, context, secrets, clone)
+        source, workdir, repo = clone_git(url, context, secrets, clone)
     elif url and url.endswith('.tar.gz'):
         source, workdir = clone_tgz(url, context, secrets, clone)
 
+    project = _load_project_dir(context, name)
+    project.source = mount_url or source
+    project.repo = repo
+    if repo:
+        project.branch = repo.active_branch.name
+    project.origin_url = url
+    return project
+
+
+def _load_project_dir(context, name=''):
     fpath = path.join(context, 'project.yaml')
     if path.isfile(fpath):
         with open(fpath) as fp:
@@ -54,11 +77,7 @@ def load_project(context, url=None, name=None, secrets=None,
     else:
         raise ValueError('project or function YAML not found in path')
 
-    project.source = mount_url or source
-    project.repo = repo
-    project.branch = branch
     project.context = context
-    project.origin_url = url
     project.name = name or project.name
     return project
 
@@ -66,14 +85,15 @@ def load_project(context, url=None, name=None, secrets=None,
 class MlrunProject(ModelObj):
     kind = 'project'
 
-    def __init__(self, name=None, source=None, params=None,
-                 functions=None, workflows=None, tag=None):
+    def __init__(self, name=None, description=None, params=None,
+                 functions=None, workflows=None):
 
         self._initialized = False
         self.name = name
-        self.tag = tag
+        self.description = description
+        self.tag = ''
         self.origin_url = ''
-        self.source = source
+        self.source = ''
         self.context = None
         self.branch = None
         self.repo = None
@@ -119,6 +139,16 @@ class MlrunProject(ModelObj):
 
         self._function_defs = func_defs
 
+    def reload(self, sync=False):
+        project = _load_project_dir(self.context, self.name)
+        project.source = self.source
+        project.repo = self.repo
+        project.branch = self.branch
+        project.origin_url = self.origin_url
+        if sync:
+            project.sync_functions()
+        return project
+
     def set_function(self, func, name='', kind='', image=None):
         if isinstance(func, str):
             if not name:
@@ -155,14 +185,35 @@ class MlrunProject(ModelObj):
                 raise ValueError('target dit (context) is not set')
             clone_tgz(url, self.context, self._secrets, False)
 
-    def sync_functions(self, always=True):
+    def push(self, message=None, branch=None, update=True):
+        repo = self.repo
+        if not repo:
+            raise ValueError('git repo is not set/defined')
+        self.save()
+        if update:
+            repo.git.add(update=True)
+        if repo.is_dirty():
+            if not message:
+                raise ValueError('please specify the commit message')
+            repo.git.commit(m=message)
+
+        branch = branch or repo.active_branch.name
+        if not branch:
+            raise ValueError('please specify the remote branch')
+        repo.git.push('origin', branch)
+
+    def sync_functions(self, names: list = None, always=True):
         if self._initialized and not always:
             return
 
         funcs = {}
-        names = []
+        if not names:
+            names = self._function_defs.keys()
         origin = add_code_metadata(self.context)
-        for name, f in self._function_defs.items():
+        for name, f in names:
+            f = self._function_defs.get(name)
+            if not f:
+                raise ValueError('function named {} not found'.format(name))
             if hasattr(f, 'to_dict'):
                 name, func = init_function_from_obj(f, self)
             else:
@@ -171,7 +222,6 @@ class MlrunProject(ModelObj):
                 name, func = init_function_from_dict(f, self)
             func.spec.build.code_origin = origin
             funcs[name] = func
-            names.append(name)
 
         self._function_objects = funcs
         self._initialized = True
@@ -183,7 +233,7 @@ class MlrunProject(ModelObj):
     def run(self, name=None, workflow_path=None, arguments=None,
             artifacts_path=None, namespace=None, sync=False):
 
-        self.sync_functions(sync)
+        self.sync_functions(always=sync)
         if not self._function_objects:
             raise ValueError('no functions in the project')
 
@@ -217,6 +267,11 @@ class MlrunProject(ModelObj):
     def clear_context(self):
         if self.context and path.exists(self.context) and path.isdir(self.context):
             shutil.rmtree(self.context)
+
+    def save(self, filepath=None):
+        filepath = filepath or path.join(self.context, 'project.yaml')
+        with open(filepath, 'w') as fp:
+            fp.write(self.to_yaml())
 
 
 def init_function_from_dict(f, project):
@@ -331,9 +386,13 @@ def clone_git(url, context, secrets, clone=True):
     if urlobj.port:
         host += ':{}'.format(urlobj.port)
 
-    token = urlobj.username or secrets.get('git_token')
+    token = urlobj.username or secrets.get('git_token') \
+            or secrets.get('git_user')
+    password = urlobj.password or secrets.get('git_password') \
+               or 'x-oauth-basic'
     if token:
-        clone_path = 'https://{}:x-oauth-basic@{}{}'.format(token, host, urlobj.path)
+        clone_path = 'https://{}:{}@{}{}'.format(
+            token, password, host, urlobj.path)
     else:
         clone_path = 'https://{}{}'.format(host, urlobj.path)
 
@@ -350,7 +409,7 @@ def clone_git(url, context, secrets, clone=True):
             workdir = parts[1]
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
-    return url, workdir, branch, repo
+    return url, workdir, repo
 
 
 def clone_tgz(url, context, secrets, clone=True):

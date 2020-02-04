@@ -18,16 +18,22 @@ from ..utils import update_in
 from ..runtimes.utils import add_code_metadata
 
 
-def new_project(name, context=None, functions=None, workflows=None):
+def new_project(name, context=None, functions=None, workflows=None, init_git=False):
     project = MlrunProject(name=name,
                            functions=functions,
                            workflows=workflows,
                            context=context)
+
+    if init_git:
+        from git import Repo
+        repo = Repo.init(context)
+        project.repo = repo
+
     return project
 
 
 def load_project(context, url=None, name=None, secrets=None,
-                 mount_url=None, clone=True):
+                 mount_url=None, clone=True, init_git=False):
 
     secrets = secrets or {}
     source = workdir = repo = None
@@ -38,9 +44,7 @@ def load_project(context, url=None, name=None, secrets=None,
         try:
             from git import Repo
             repo = Repo(context)
-            source = repo.remote().urls
-            source.replace('https://', 'git://')
-            source = '{}#refs/heads/{}'.format(source, repo.active_branch.name)
+            source, _ = _get_repo_url(repo)
         except Exception:
             pass
 
@@ -312,6 +316,9 @@ def init_function_from_obj(func, project, name=None, in_context=True):
     if project.source and in_context and \
             (not build.source or build.source in ['.', './']):
         build.source = project.source
+        if project.repo:
+            hexsha = project.repo.head.commit.hexsha
+        build.code_origin = '{}#{}'.format('', hexsha)
     if project.name:
         func.metadata.project = project.name
     if project.tag:
@@ -400,16 +407,18 @@ def clone_git(url, context, secrets, clone=True):
     branch = None
     if urlobj.fragment:
         parts = urlobj.fragment.split(':')
-        branch = parts[0]
-        if branch.startswith('refs/'):
+        refs = parts[0]
+        if refs.startswith('refs/'):
             branch = branch[branch.rfind('/')+1:]
         else:
-            url = 'git://{}{}#refs/heads/{}'.format(host, urlobj.path, branch)
+            refs = 'refs/heads/{}'.format(refs)
+        url = 'git://{}{}#{}'.format(host, urlobj.path, refs)
         if len(parts) > 1:
             workdir = parts[1]
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
-    return url, workdir, repo
+    source, _ = _get_repo_url(repo)
+    return source, workdir, repo
 
 
 def clone_tgz(url, context, secrets, clone=True):
@@ -428,6 +437,22 @@ def clone_tgz(url, context, secrets, clone=True):
     remove(tmp)
 
     return url, ''
+
+
+def _get_repo_url(repo, tag=''):
+    url = ''
+    remotes = [remote.url for remote in repo.remotes]
+    if not remotes:
+        return '', ''
+
+    url = remotes[0]
+    url.replace('https://', 'git://')
+    if tag:
+        url = '{}#refs/tags/{}'.format(url, tag)
+    else:
+        url = '{}#refs/heads/{}'.format(url, repo.active_branch.name)
+
+    return url, repo.head.commit.hexsha
 
 
 

@@ -456,7 +456,7 @@ class BaseRuntime(ModelObj):
                 'handler must be provided for {} runtime'.format(self.kind))
 
     def full_image_path(self, image=None):
-        image = image or self.spec.image
+        image = image or self.spec.image or ''
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:

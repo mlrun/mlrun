@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import pickle
-from datetime import datetime, timedelta
 import warnings
+from datetime import datetime, timedelta
 
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
@@ -343,7 +343,8 @@ class SQLDB(RunDBInterface):
         return [s.struct for s in self.session.query(Schedule)]
 
     def _query(self, cls, **kw):
-        kw = {k: v for k, v in kw.items() if v}
+        ccols = constraint_cols(cls)
+        kw = {k: v for k, v in kw.items() if v or k in ccols}
         return self.session.query(cls).filter_by(**kw)
 
     def _get_function(self, name, project, tag):
@@ -407,6 +408,14 @@ class SQLDB(RunDBInterface):
     def _find_lables(self, cls, label_cls, labels):
         return self.session.query(cls).join(label_cls).filter(
                 label_cls.name.in_(labels))
+
+
+def constraint_cols(cls: Base) -> set:
+    for arg in cls.__table_args__:
+        if not isinstance(arg, UniqueConstraint):
+            continue
+        return {col.name for col in arg.columns}
+    return set()
 
 
 def label_set(labels):

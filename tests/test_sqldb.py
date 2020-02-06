@@ -200,3 +200,11 @@ def test_schedules(db: sqldb.SQLDB):
     scheds = list(db.list_schedules())
     assert count == len(scheds), 'wrong number of schedules'
     assert set(range(count)) == set(s['i'] for s in scheds), 'bad scheds'
+
+
+def test_run_iter0(db: sqldb.SQLDB):
+    uid, prj = 'uid39', 'lemon'
+    run = new_run('s1', ['l1', 'l2'], x=1)
+    for i in range(7):
+        db.store_run(run, uid, prj, i)
+    db._get_run(uid, prj, 0)  # See issue 140

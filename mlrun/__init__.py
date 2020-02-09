@@ -14,7 +14,8 @@
 
 __version__ = '0.4.4'
 
-from .run import get_or_create_ctx, new_function, code_to_function, import_function
+from .run import (get_or_create_ctx, new_function, code_to_function,
+                  import_function, run_pipeline)
 from .db import get_run_db
 from .model import RunTemplate, NewTask, RunObject
 from .kfpops import mlrun_op

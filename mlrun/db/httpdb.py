@@ -370,8 +370,8 @@ class HTTPRunDB(RunDBInterface):
         resp = resp.json()
         return resp['data']
 
-    def submit_pipeline(self, pipe_file, namespace=None, experiment=None,
-                        run=None, arguments=None):
+    def submit_pipeline(self, pipe_file, arguments=None, experiment=None,
+                        run=None, namespace=None):
 
         if pipe_file.endswith('.yaml'):
             headers = {"content-type": "application/yaml"}

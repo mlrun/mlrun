@@ -193,7 +193,7 @@ class SQLDB(RunDBInterface):
         self.session.commit()
         self._delete_empty_labels(Run.Label)
 
-    def read_run(self, uid, project='', iter=0):
+    def read_run(self, uid, project=None, iter=None):
         project = project or config.default_project
         run = self._get_run(uid, project, iter)
         if not run:
@@ -201,10 +201,11 @@ class SQLDB(RunDBInterface):
         return run.struct
 
     def list_runs(
-            self, name='', uid=None, project='', labels=None,
-            state='', sort=True, last=0, iter=False):
+            self, name=None, uid=None, project=None, labels=None,
+            state=None, sort=True, last=0, iter=None):
+        # FIXME: Run has no "name"
         project = project or config.default_project
-        query = self._find_runs(name, uid, project, labels, state)
+        query = self._find_runs(uid, project, labels, state)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
@@ -218,16 +219,17 @@ class SQLDB(RunDBInterface):
 
         return runs
 
-    def del_run(self, uid, project='', iter=0):
+    def del_run(self, uid, project=None, iter=None):
         project = project or config.default_project
         # We currently delete *all* iterations
         self._delete(Run, uid=uid, project=project)
 
     def del_runs(
-        self, name='', project='', labels=None,
-            state='', days_ago=0):
+        self, name=None, project=None, labels=None,
+            state=None, days_ago=0):
+        # FIXME: Run has no `name`
         project = project or config.default_project
-        query = self._find_runs(name, '', project, labels, state)
+        query = self._find_runs(None, project, labels, state)
         if days_ago:
             since = datetime.now() - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
@@ -273,7 +275,7 @@ class SQLDB(RunDBInterface):
         return art.struct
 
     def list_artifacts(
-            self, name='', project='', tag='', labels=None):
+            self, name=None, project=None, tag=None, labels=None):
         project = project or config.default_project
         arts = ArtifactList()
         arts.extend(
@@ -317,7 +319,7 @@ class SQLDB(RunDBInterface):
             return obj.struct
 
     def list_functions(
-            self, name, project='', tag='', labels=None):
+            self, name, project=None, tag=None, labels=None):
         project = project or config.default_project
         funcs = FunctionList()
         funcs.extend(
@@ -343,8 +345,7 @@ class SQLDB(RunDBInterface):
         return [s.struct for s in self.session.query(Schedule)]
 
     def _query(self, cls, **kw):
-        ccols = constraint_cols(cls)
-        kw = {k: v for k, v in kw.items() if v or k in ccols}
+        kw = {k: v for k, v in kw.items() if v is not None}
         return self.session.query(cls).filter_by(**kw)
 
     def _get_function(self, name, project, tag):
@@ -372,10 +373,9 @@ class SQLDB(RunDBInterface):
             cls = obj.__class__.__name__
             raise RunDBError(f'duplicate {cls} - {err}')
 
-    def _find_runs(self, name, uid, project, labels, state):
+    def _find_runs(self, uid, project, labels, state):
         labels = label_set(labels)
-        query = self._query(
-            Run, name=name, uid=uid, project=project, state=state)
+        query = self._query(Run, uid=uid, project=project, state=state)
         if labels:
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query
@@ -408,14 +408,6 @@ class SQLDB(RunDBInterface):
     def _find_lables(self, cls, label_cls, labels):
         return self.session.query(cls).join(label_cls).filter(
                 label_cls.name.in_(labels))
-
-
-def constraint_cols(cls: Base) -> set:
-    for arg in cls.__table_args__:
-        if not isinstance(arg, UniqueConstraint):
-            continue
-        return {col.name for col in arg.columns}
-    return set()
 
 
 def label_set(labels):

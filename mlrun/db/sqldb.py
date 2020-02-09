@@ -274,13 +274,12 @@ class SQLDB(RunDBInterface):
             raise RunDBError(f'Artifact {key}:{tag}:{project} not found')
         return art.struct
 
-    def list_artifacts(
-            self, name=None, project=None, tag=None, labels=None):
+    def list_artifacts(self, name=None, project=None, tag=None, labels=None):
         project = project or config.default_project
         arts = ArtifactList()
         arts.extend(
             obj.struct
-            for obj in self._find_artifacts(name, project, tag, labels)
+            for obj in self._find_artifacts(project, tag, labels)
         )
         return arts
 
@@ -292,7 +291,7 @@ class SQLDB(RunDBInterface):
     def del_artifacts(
             self, name='', project='', tag='', labels=None):
         project = project or config.default_project
-        for obj in self._find_artifacts(name, project, tag, labels):
+        for obj in self._find_artifacts(project, tag, labels):
             self.session.delete(obj)
         self.session.commit()
 
@@ -380,10 +379,10 @@ class SQLDB(RunDBInterface):
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query
 
-    def _find_artifacts(self, name, project, tag, labels):
+    def _find_artifacts(self, project, tag, labels):
         # FIXME tag = tag or 'latest'
         labels = label_set(labels)
-        query = self._query(Artifact, name=name, project=project, tag=tag)
+        query = self._query(Artifact, project=project, tag=tag)
         if labels:
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query

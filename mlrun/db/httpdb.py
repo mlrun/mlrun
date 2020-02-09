@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import json
+import tempfile
 import time
-from os import path
+from os import path, remove
 
+import kfp
 import requests
 
 from ..utils import dict_to_json, logger
@@ -370,8 +372,14 @@ class HTTPRunDB(RunDBInterface):
         resp = resp.json()
         return resp['data']
 
-    def submit_pipeline(self, pipe_file, arguments=None, experiment=None,
+    def submit_pipeline(self, pipeline, arguments=None, experiment=None,
                         run=None, namespace=None):
+
+        if isinstance(pipeline, str):
+            pipe_file = pipeline
+        else:
+            pipe_file = tempfile.mktemp(suffix='.yaml')
+            kfp.compiler.Compiler().compile(pipeline, pipe_file)
 
         if pipe_file.endswith('.yaml'):
             headers = {"content-type": "application/yaml"}
@@ -388,6 +396,8 @@ class HTTPRunDB(RunDBInterface):
             raise OSError('file {} doesnt exist'.format(pipe_file))
         with open(pipe_file, 'rb') as fp:
             data = fp.read()
+        if not isinstance(pipeline, str):
+            remove(pipe_file)
 
         try:
             params = {'namespace': namespace,

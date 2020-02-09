@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """mlrun database HTTP server"""
+from argparse import ArgumentParser
 import mimetypes
 from base64 import b64decode
 from distutils.util import strtobool
@@ -554,21 +555,21 @@ def del_run(project, uid):
 @app.route('/api/runs', methods=['GET'])
 @catch_err
 def list_runs():
-    name = request.args.get('name', '')
-    uid = request.args.get('uid', '')
-    project = request.args.get('project', 'default')
+    name = request.args.get('name')
+    uid = request.args.get('uid')
+    project = request.args.get('project')
     labels = request.args.getlist('label')
-    state = request.args.get('state', '')
+    state = request.args.get('state')
     sort = strtobool(request.args.get('sort', 'on'))
     iter = strtobool(request.args.get('iter', 'on'))
     last = int(request.args.get('last', '0'))
 
     runs = _db.list_runs(
-        name=name,
-        uid=uid,
-        project=project,
+        name=name or None,
+        uid=uid or None,
+        project=project or None,
         labels=labels,
-        state=state,
+        state=state or None,
         sort=sort,
         last=last,
         iter=iter,
@@ -626,9 +627,9 @@ def del_artifact(project, uid):
 @app.route('/api/artifacts', methods=['GET'])
 @catch_err
 def list_artifacts():
-    name = request.args.get('name', '')
-    project = request.args.get('project', 'default')
-    tag = request.args.get('tag', '')
+    name = request.args.get('name') or None
+    project = request.args.get('project', config.default_project)
+    tag = request.args.get('tag') or None
     labels = request.args.getlist('label')
 
     artifacts = _db.list_artifacts(name, project, tag, labels)
@@ -674,9 +675,9 @@ def get_function(project, name):
 @app.route('/api/funcs', methods=['GET'])
 @catch_err
 def list_functions():
-    name = request.args.get('name', '')
-    project = request.args.get('project', 'default')
-    tag = request.args.get('tag', '')
+    name = request.args.get('name') or None
+    project = request.args.get('project', config.default_project)
+    tag = request.args.get('tag') or None
     labels = request.args.getlist('label')
 
     out = _db.list_functions(name, project, tag, labels)
@@ -724,6 +725,8 @@ def init_app():
 
 # Don't remove this function, it's an entry point in setup.py
 def main():
+    parser = ArgumentParser(description=__doc__)
+    parser.parse_args()
     app.run(
         host='0.0.0.0',
         port=config.httpdb.port,

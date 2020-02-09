@@ -14,6 +14,7 @@
 
 import json
 import time
+from os import path
 
 import requests
 
@@ -52,12 +53,12 @@ class HTTPRunDB(RunDBInterface):
         return f'{cls}({self.base_url!r})'
 
     def api_call(self, method, path, error=None, params=None,
-                 body=None, json=None, timeout=20):
+                 body=None, json=None, headers=None, timeout=20):
         url = f'{self.base_url}/api/{path}'
         kw = {
             key: value
             for key, value in (('params', params), ('data', body),
-                               ('json', json))
+                               ('json', json), ('headers', headers))
             if value is not None
         }
 
@@ -356,7 +357,7 @@ class HTTPRunDB(RunDBInterface):
             if schedule:
                 req['schedule'] = schedule
             timeout = (int(config.k8s_submit_timeout) or 120) + 20
-            resp = self.api_call('POST', 'submit', json=req, timeout=timeout)
+            resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)
         except OSError as err:
             logger.error('error submitting task: {}'.format(err))
             raise OSError(
@@ -368,6 +369,44 @@ class HTTPRunDB(RunDBInterface):
 
         resp = resp.json()
         return resp['data']
+
+    def submit_pipeline(self, pipe_file, namespace=None, experiment=None,
+                        run=None, arguments=None):
+
+        if pipe_file.endswith('.yaml'):
+            headers = {"content-type": "application/yaml"}
+        elif pipe_file.endswith('.zip'):
+            headers = {"content-type": "application/zip"}
+        else:
+            raise ValueError('pipeline file must be .yaml or .zip')
+        if arguments:
+            if not isinstance(arguments, dict):
+                raise ValueError('arguments must be dict type')
+            headers['pipeline-arguments'] = str(arguments)
+
+        if not path.isfile(pipe_file):
+            raise OSError('file {} doesnt exist'.format(pipe_file))
+        with open(pipe_file, 'rb') as fp:
+            data = fp.read()
+
+        try:
+            params = {'namespace': namespace,
+                      'experiment': experiment,
+                      'run': run}
+            resp = self.api_call('POST', 'submit_pipeline', params=params,
+                                 timeout=20, body=data, headers=headers)
+        except OSError as err:
+            logger.error('error cannot submit pipeline: {}'.format(err))
+            raise OSError(
+                'error: cannot cannot submit pipeline, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad submit pipeline response, {}'.format(resp.text))
+
+        resp = resp.json()
+        logger.info('submitted pipeline {} id={id}'.format(resp['name'], resp['id']))
+        return resp['id']
 
 
 def _as_json(obj):

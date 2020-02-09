@@ -1,15 +1,16 @@
 import shutil
 
-from mlrun.model import ModelObj
+from ..model import ModelObj
 import tarfile
 from tempfile import mktemp
+from git import Repo
 
 import yaml
 from os import path, remove
 
-from mlrun.datastore import StoreManager
-from mlrun.config import config
-from mlrun import import_function, code_to_function, new_function
+from ..datastore import StoreManager
+from ..config import config
+from ..run import import_function, code_to_function, new_function
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import Client, compiler
@@ -25,7 +26,6 @@ def new_project(name, context=None, functions=None, workflows=None, init_git=Fal
                            context=context)
 
     if init_git:
-        from git import Repo
         repo = Repo.init(context)
         project.repo = repo
 
@@ -42,7 +42,6 @@ def load_project(context, url=None, name=None, secrets=None,
             raise ValueError('context {} is not an existing dir path'.format(
                 context))
         try:
-            from git import Repo
             repo = Repo(context)
             source, _ = _get_repo_url(repo)
         except Exception:
@@ -90,7 +89,7 @@ class MlrunProject(ModelObj):
     kind = 'project'
 
     def __init__(self, name=None, description=None, params=None,
-                 functions=None, workflows=None):
+                 functions=None, workflows=None, conda=None):
 
         self._initialized = False
         self.name = name
@@ -104,6 +103,7 @@ class MlrunProject(ModelObj):
         self.workflows = workflows or {}
         self._secrets = {}
         self.params = params or {}
+        self.conda = conda or {}
 
         self._function_objects = {}
         self._function_defs = {}
@@ -241,12 +241,10 @@ class MlrunProject(ModelObj):
         if not self._function_objects:
             raise ValueError('no functions in the project')
 
-        if not self.workflows and not workflow_path:
-            raise ValueError('no workflows specified')
+        if not name and not workflow_path:
+            raise ValueError('workflow name or path not specified')
         if not workflow_path:
-            if not name:
-                name = list(self.workflows)[0]
-            elif name not in self.workflows:
+            if name not in self.workflows:
                 raise ValueError('workflow {} not found'.format(name))
             workflow_path = self.workflows.get(name)
 
@@ -375,12 +373,6 @@ def github_webhook(request):
 
 
 def clone_git(url, context, secrets, clone=True):
-    try:
-        from git import Repo
-    except ImportError as e:
-        print('Failed to import git, pip install git')
-        raise e
-
     urlobj = urlparse(url)
     scheme = urlobj.scheme.lower()
     if not context:

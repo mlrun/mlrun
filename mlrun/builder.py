@@ -14,7 +14,7 @@
 
 import tarfile
 from base64 import b64decode, b64encode
-from os import environ, path
+from os import environ, path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
@@ -106,6 +106,7 @@ def upload_tarball(source_dir, target, secrets=None):
     stores = StoreManager(secrets)
     datastore, subpath = stores.get_or_create_store(target)
     datastore.upload(subpath, tmpfile)
+    remove(tmpfile)
 
 
 def build_image(dest,

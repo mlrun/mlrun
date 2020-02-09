@@ -604,6 +604,17 @@ def store_artifact(project, uid, key):
     return jsonify(ok=True)
 
 
+# curl http://localhost:8080/artifact/p1/tags
+@app.route('/api/artifact/<project>/tags', methods=['GET'])
+@catch_err
+def list_artifact_tags(project):
+    return jsonify(
+        ok=True,
+        project=project,
+        tags=_db.list_artifact_tags(project),
+    )
+
+
 # curl http://localhost:8080/artifact/p1/tag/key
 @app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
@@ -684,6 +695,26 @@ def list_functions():
     return jsonify(
         ok=True,
         funcs=list(out),
+    )
+
+
+# curl http://localhost:8080/projects
+@app.route('/api/projects', methods=['GET'])
+@catch_err
+def list_projects():
+    return jsonify(
+        ok=True,
+        project=_db.list_projects()
+    )
+
+
+# curl http://localhost:8080/schedules
+@app.route('/api/schedules', methods=['GET'])
+@catch_err
+def list_schedules():
+    return jsonify(
+        ok=True,
+        schedules=_db.list_schedules()
     )
 
 

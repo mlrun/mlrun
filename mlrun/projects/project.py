@@ -24,8 +24,8 @@ def new_project(name, context=None, functions=None, workflows=None,
     """Create a new MLRun project"""
     project = MlrunProject(name=name,
                            functions=functions,
-                           workflows=workflows,
-                           context=context)
+                           workflows=workflows)
+    project.context = context
 
     if init_git:
         repo = Repo.init(context)
@@ -39,12 +39,12 @@ def load_project(context, url=None, name=None, secrets=None,
     """Load an MLRun project from git or tar or dir"""
 
     secrets = secrets or {}
-    source = repo = None
+    repo = None
     if url:
         if url.startswith('git://'):
-            source, repo = clone_git(url, context, secrets, clone)
+            url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith('.tar.gz'):
-            source = clone_tgz(url, context, secrets, clone)
+            clone_tgz(url, context, secrets, clone)
         else:
             raise ValueError('unsupported code archive {}'.format(url))
 
@@ -54,13 +54,13 @@ def load_project(context, url=None, name=None, secrets=None,
                 context))
         try:
             repo = Repo(context)
-            source, _ = _get_repo_url(repo)
+            url = _get_repo_url(repo)
         except Exception:
             if init_git:
                 repo = Repo.init(context)
 
     project = _load_project_dir(context, name, subpath)
-    project.source = mount_url or source
+    project.source = mount_url or url
     project.repo = repo
     if repo:
         project.branch = repo.active_branch.name
@@ -326,8 +326,12 @@ def init_function_from_obj(func, project, name=None, in_context=True):
             (not build.source or build.source in ['.', './']):
         build.source = project.source
         if project.repo:
-            hexsha = project.repo.head.commit.hexsha
-        build.code_origin = '{}#{}'.format('', hexsha)
+            origin = project.origin_url
+            try:
+                origin += '#' + project.repo.head.commit.hexsha
+            except Exception:
+                pass
+            build.code_origin = origin
     if project.name:
         func.metadata.project = project.name
     if project.tag:
@@ -420,12 +424,10 @@ def clone_git(url, context, secrets, clone=True):
         if refs.startswith('refs/'):
             branch = branch[branch.rfind('/')+1:]
         else:
-            refs = 'refs/heads/{}'.format(refs)
-        url = 'git://{}{}#{}'.format(host, urlobj.path, refs)
+            url = url.replace('#' + refs, '#refs/heads/{}'.format(refs))
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
-    source, _ = _get_repo_url(repo)
-    return source, repo
+    return url, repo
 
 
 def clone_tgz(url, context, secrets, clone=True):
@@ -443,10 +445,8 @@ def clone_tgz(url, context, secrets, clone=True):
     tf.close()
     remove(tmp)
 
-    return url
 
-
-def _get_repo_url(repo, tag=''):
+def _get_repo_url(repo):
     url = ''
     remotes = [remote.url for remote in repo.remotes]
     if not remotes:
@@ -454,12 +454,12 @@ def _get_repo_url(repo, tag=''):
 
     url = remotes[0]
     url.replace('https://', 'git://')
-    if tag:
-        url = '{}#refs/tags/{}'.format(url, tag)
-    else:
+    try:
         url = '{}#refs/heads/{}'.format(url, repo.active_branch.name)
+    except Exception:
+        pass
 
-    return url, repo.head.commit.hexsha
+    return url
 
 
 

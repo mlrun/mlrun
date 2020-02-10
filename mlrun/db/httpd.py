@@ -767,7 +767,7 @@ def list_projects():
 def list_schedules():
     return jsonify(
         ok=True,
-        schedules=_db.list_schedules()
+        schedules=list(_db.list_schedules())
     )
 
 

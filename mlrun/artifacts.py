@@ -134,6 +134,18 @@ class ArtifactManager:
             key, target_path, size, 'Y' if self.artifact_db else 'N'
         ))
 
+    def link_artifact(self, execution, key, artifact_path='',
+                      best_iteration=0, tag=''):
+        if self.artifact_db:
+            item = LinkArtifact(key, artifact_path,
+                                best_iteration=best_iteration)
+            item.tree = execution.tag
+            if execution.iteration:
+                key = '{}-{}'.format(execution.iteration, key)
+                item.iter = execution.iteration
+            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
+                                            tag, execution.project)
+
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
 
@@ -187,6 +199,16 @@ class Artifact(ModelObj):
         return super().to_dict(
             self._dict_fields + [
                 'updated', 'labels', 'annotations', 'producer', 'sources'])
+
+
+class LinkArtifact(Artifact):
+    _dict_fields = Artifact._dict_fields + ['best_iteration']
+    kind = 'link'
+
+    def __init__(self, key, target_path='', best_iteration=None):
+
+        super().__init__(key, target_path=target_path)
+        self.best_iteration = best_iteration
 
 
 class ModelArtifact(Artifact):

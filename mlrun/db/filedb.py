@@ -261,6 +261,8 @@ class FileRunDB(RunDBInterface):
 
     def list_projects(self):
         run_dir = path.join(self.dirpath, run_logs)
+        if not path.isdir(run_dir):
+            return []
         return [d for d in listdir(run_dir)
                 if path.isdir(path.join(run_dir, d))]
 

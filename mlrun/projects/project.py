@@ -10,7 +10,7 @@ from os import path, remove
 
 from ..datastore import StoreManager
 from ..config import config
-from ..run import import_function, code_to_function, new_function
+from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import Client, compiler
@@ -19,7 +19,9 @@ from ..utils import update_in
 from ..runtimes.utils import add_code_metadata
 
 
-def new_project(name, context=None, functions=None, workflows=None, init_git=False):
+def new_project(name, context=None, functions=None, workflows=None,
+                init_git=False):
+    """Create a new MLRun project"""
     project = MlrunProject(name=name,
                            functions=functions,
                            workflows=workflows,
@@ -33,11 +35,20 @@ def new_project(name, context=None, functions=None, workflows=None, init_git=Fal
 
 
 def load_project(context, url=None, name=None, secrets=None,
-                 mount_url=None, clone=True, init_git=False):
+                 mount_url=None, init_git=False, subpath='', clone=True):
+    """Load an MLRun project from git or tar or dir"""
 
     secrets = secrets or {}
-    source = workdir = repo = None
-    if not url:
+    source = repo = None
+    if url:
+        if url.startswith('git://'):
+            source, repo = clone_git(url, context, secrets, clone)
+        elif url.endswith('.tar.gz'):
+            source = clone_tgz(url, context, secrets, clone)
+        else:
+            raise ValueError('unsupported code archive {}'.format(url))
+
+    else:
         if not path.isdir(context):
             raise ValueError('context {} is not an existing dir path'.format(
                 context))
@@ -45,14 +56,10 @@ def load_project(context, url=None, name=None, secrets=None,
             repo = Repo(context)
             source, _ = _get_repo_url(repo)
         except Exception:
-            pass
+            if init_git:
+                repo = Repo.init(context)
 
-    if url and url.startswith('git://'):
-        source, workdir, repo = clone_git(url, context, secrets, clone)
-    elif url and url.endswith('.tar.gz'):
-        source, workdir = clone_tgz(url, context, secrets, clone)
-
-    project = _load_project_dir(context, name)
+    project = _load_project_dir(context, name, subpath)
     project.source = mount_url or source
     project.repo = repo
     if repo:
@@ -61,8 +68,8 @@ def load_project(context, url=None, name=None, secrets=None,
     return project
 
 
-def _load_project_dir(context, name=''):
-    fpath = path.join(context, 'project.yaml')
+def _load_project_dir(context, name='', subpath=''):
+    fpath = path.join(context, subpath, 'project.yaml')
     if path.isfile(fpath):
         with open(fpath) as fp:
             data = fp.read()
@@ -71,8 +78,8 @@ def _load_project_dir(context, name=''):
             struct['name'] = name or struct.get('name', '')
             project = MlrunProject.from_dict(struct)
 
-    elif path.isfile(path.join(context, 'function.yaml')):
-        func = import_function(path.join(context, 'function.yaml'))
+    elif path.isfile(path.join(context, subpath, 'function.yaml')):
+        func = import_function(path.join(context, subpath, 'function.yaml'))
         project = MlrunProject(name=func.metadata.project,
                                functions=[{'url': 'function.yaml',
                                            'name': func.metadata.name}],
@@ -82,6 +89,7 @@ def _load_project_dir(context, name=''):
 
     project.context = context
     project.name = name or project.name
+    project.subpath = subpath
     return project
 
 
@@ -98,12 +106,14 @@ class MlrunProject(ModelObj):
         self.origin_url = ''
         self.source = ''
         self.context = None
+        self.subpath = ''
         self.branch = None
         self.repo = None
         self.workflows = workflows or {}
         self._secrets = {}
         self.params = params or {}
         self.conda = conda or {}
+        self.remote = False
 
         self._function_objects = {}
         self._function_defs = {}
@@ -144,7 +154,7 @@ class MlrunProject(ModelObj):
         self._function_defs = func_defs
 
     def reload(self, sync=False):
-        project = _load_project_dir(self.context, self.name)
+        project = _load_project_dir(self.context, self.name, self.subpath)
         project.source = self.source
         project.repo = self.repo
         project.branch = self.branch
@@ -189,7 +199,7 @@ class MlrunProject(ModelObj):
                 raise ValueError('target dit (context) is not set')
             clone_tgz(url, self.context, self._secrets, False)
 
-    def push(self, message=None, branch=None, update=True):
+    def push(self, branch, message=None, update=True, remote=None):
         repo = self.repo
         if not repo:
             raise ValueError('git repo is not set/defined')
@@ -201,10 +211,9 @@ class MlrunProject(ModelObj):
                 raise ValueError('please specify the commit message')
             repo.git.commit(m=message)
 
-        branch = branch or repo.active_branch.name
         if not branch:
             raise ValueError('please specify the remote branch')
-        repo.git.push('origin', branch)
+        repo.git.push(remote or 'origin', branch)
 
     def sync_functions(self, names: list = None, always=True):
         if self._initialized and not always:
@@ -250,9 +259,10 @@ class MlrunProject(ModelObj):
 
         name = '{}-{}'.format(self.name, name) if name else self.name
         wfpath = path.join(self.context, workflow_path)
-        run = run_pipeline(name, wfpath, self._function_objects, self.params,
-                           secrets=self._secrets, arguments=arguments,
-                           artifacts_path=artifacts_path, namespace=namespace)
+        run = _run_pipeline(name, wfpath, self._function_objects, self.params,
+                            secrets=self._secrets, arguments=arguments,
+                            artifacts_path=artifacts_path, namespace=namespace,
+                            remote=self.remote)
         return run
 
     def save_workflow(self, name, target, artifacts_path=None):
@@ -271,7 +281,8 @@ class MlrunProject(ModelObj):
             shutil.rmtree(self.context)
 
     def save(self, filepath=None):
-        filepath = filepath or path.join(self.context, 'project.yaml')
+        filepath = filepath or path.join(self.context, self.subpath,
+                                         'project.yaml')
         with open(filepath, 'w') as fp:
             fp.write(self.to_yaml())
 
@@ -347,15 +358,23 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
     return kfpipeline
 
 
-def run_pipeline(name, pipeline, functions, params=None, secrets=None,
-                 arguments=None, artifacts_path=None, namespace=None):
+def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
+                  arguments=None, artifacts_path=None, namespace=None,
+                  remote=False):
     kfpipeline = create_pipeline(pipeline, functions, params, secrets,
                                  artifacts_path)
-    client = Client(namespace=namespace or config.namespace)
-    run_result = client.create_run_from_pipeline_func(
-        kfpipeline, arguments, experiment_name=name)
 
-    return run_result
+    namespace = namespace or config.namespace
+    if remote:
+        id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
+                          namespace=namespace)
+    else:
+        client = Client(namespace=namespace or config.namespace)
+        run_result = client.create_run_from_pipeline_func(
+            kfpipeline, arguments, experiment_name=name)
+        id = run_result.run_id
+
+    return id
 
 
 def github_webhook(request):
@@ -395,22 +414,18 @@ def clone_git(url, context, secrets, clone=True):
     else:
         clone_path = 'https://{}{}'.format(host, urlobj.path)
 
-    workdir = None
     branch = None
     if urlobj.fragment:
-        parts = urlobj.fragment.split(':')
-        refs = parts[0]
+        refs = urlobj.fragment
         if refs.startswith('refs/'):
             branch = branch[branch.rfind('/')+1:]
         else:
             refs = 'refs/heads/{}'.format(refs)
         url = 'git://{}{}#{}'.format(host, urlobj.path, refs)
-        if len(parts) > 1:
-            workdir = parts[1]
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
     source, _ = _get_repo_url(repo)
-    return source, workdir, repo
+    return source, repo
 
 
 def clone_tgz(url, context, secrets, clone=True):
@@ -428,7 +443,7 @@ def clone_tgz(url, context, secrets, clone=True):
     tf.close()
     remove(tmp)
 
-    return url, ''
+    return url
 
 
 def _get_repo_url(repo, tag=''):

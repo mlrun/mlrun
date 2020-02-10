@@ -79,7 +79,7 @@ class ArtifactList(list):
     def to_df(self, flat=False):
         rows = self.to_rows()
         df = pd.DataFrame(rows[1:], columns=rows[0])
-        df['updated'] = pd.to_datetime(df['updated'], unit='s')
+        df['updated'] = pd.to_datetime(df['updated'])
 
         if flat:
             df = flatten(df, 'producer', 'prod_')

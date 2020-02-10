@@ -757,7 +757,7 @@ def list_functions():
 def list_projects():
     return jsonify(
         ok=True,
-        project=_db.list_projects()
+        projects=_db.list_projects()
     )
 
 

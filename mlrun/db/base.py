@@ -101,3 +101,11 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_functions(self, name, project='', tag='', labels=None):
         pass
+
+    @abstractmethod
+    def list_projects(self):
+        return []
+
+    @abstractmethod
+    def list_artifact_tags(self, project):
+        return []

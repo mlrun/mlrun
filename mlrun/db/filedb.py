@@ -15,7 +15,7 @@
 import json
 import pathlib
 from datetime import datetime, timedelta
-from os import makedirs, path, remove, scandir
+from os import makedirs, path, remove, scandir, listdir
 
 import yaml
 
@@ -258,6 +258,12 @@ class FileRunDB(RunDBInterface):
         project = project or config.default_project
         return path.join(self.dirpath, '{}/{}/{}{}'.format(
             table, project, tag, key))
+
+    def list_projects(self):
+        run_dir = path.join(self.dirpath, run_logs)
+        return [d for d in listdir(run_dir)
+                if path.isdir(path.join(run_dir, d))]
+
 
     @property
     def schedules_dir(self):

@@ -167,6 +167,7 @@ class FileRunDB(RunDBInterface):
     def list_artifacts(self, name='', project='', tag='', labels=None):
         labels = [] if labels is None else labels
         tag = tag or 'latest'
+        name = name or ''
         logger.info(
             f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
         filepath = self._filepath(artifacts_dir, project, tag=tag)

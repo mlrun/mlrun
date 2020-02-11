@@ -369,7 +369,7 @@ class BaseRuntime(ModelObj):
             extra_env['MLRUN_EXEC_CODE'] = code
 
         if with_mlrun:
-            args = ['run', '--name', self.metadata.name, '--from-env']
+            args = ['run', '--name', runobj.metadata.name, '--from-env']
             if not code:
                 args += [command]
             command = 'mlrun'

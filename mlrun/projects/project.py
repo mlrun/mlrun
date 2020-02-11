@@ -223,7 +223,7 @@ class MlrunProject(ModelObj):
         if not names:
             names = self._function_defs.keys()
         origin = add_code_metadata(self.context)
-        for name, f in names:
+        for name in names:
             f = self._function_defs.get(name)
             if not f:
                 raise ValueError('function named {} not found'.format(name))

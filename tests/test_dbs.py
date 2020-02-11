@@ -23,6 +23,7 @@ from mlrun.db.base import RunDBInterface
 dbs = [
     'sql',
     'file',
+    # TODO: 'httpdb',
 ]
 
 

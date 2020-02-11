@@ -276,7 +276,7 @@ class MLClientCtx(object):
         """Reserved for internal use"""
 
         if best:
-            self._results['best_iteration'] = best
+            self._results['link_iteration'] = best
             for k, v in get_in(task, ['status', 'results'], {}).items():
                 self._results[k] = v
             for a in get_in(task, ['status', run_keys.artifacts], []):

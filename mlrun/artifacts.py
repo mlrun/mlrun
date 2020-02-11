@@ -133,11 +133,13 @@ class ArtifactManager:
             key, target_path, size, 'Y' if self.artifact_db else 'N'
         ))
 
-    def link_artifact(self, execution, key, artifact_path='',
-                      best_iteration=0, tag=''):
+    def link_artifact(self, execution, key, artifact_path='', tag='',
+                      link_iteration=0, link_key=None, link_tree=None):
         if self.artifact_db:
             item = LinkArtifact(key, artifact_path,
-                                best_iteration=best_iteration)
+                                link_iteration=link_iteration,
+                                link_key=link_key,
+                                link_tree=link_tree)
             item.tree = execution.tag
             item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
@@ -200,13 +202,16 @@ class Artifact(ModelObj):
 
 
 class LinkArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['best_iteration']
+    _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
     kind = 'link'
 
-    def __init__(self, key, target_path='', best_iteration=None):
+    def __init__(self, key, target_path='', link_iteration=None,
+                 link_key=None, link_tree=None):
 
         super().__init__(key, target_path=target_path)
-        self.best_iteration = best_iteration
+        self.link_iteration = link_iteration
+        self.link_key = link_key
+        self.link_tree = link_tree
 
 
 class ModelArtifact(Artifact):

@@ -241,7 +241,7 @@ class SQLDB(RunDBInterface):
             self, key, artifact, uid, iter=None, tag='', project=''):
         project = project or config.default_project
         artifact = artifact.copy()
-        updated = artifact['updated'] = datetime.now(timezone.utc).isoformat()
+        updated = artifact['updated'] = datetime.now(timezone.utc)
         if iter:
             key = '{}-{}'.format(iter, key)
         art = self._get_artifact(uid, project, key)

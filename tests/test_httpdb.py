@@ -252,7 +252,7 @@ def test_artifacts(create_server):
     artifacts = db.list_artifacts(project=prj)
     assert len(artifacts) == 1, 'bad number of artifacs'
 
-    db.del_artifacts(project=prj)
+    db.del_artifacts(project=prj, tag='*')
     artifacts = db.list_artifacts(project=prj)
     assert len(artifacts) == 0, 'bad number of artifacs after del'
 

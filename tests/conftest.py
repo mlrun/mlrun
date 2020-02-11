@@ -13,13 +13,17 @@
 # limitations under the License.
 
 import shutil
+from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
+from sys import platform
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
-from sys import platform
 
+# This must be *after* environment changes above
+from mlrun import RunObject, RunTemplate  # noqa
+from mlrun.db import sqldb
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
@@ -51,9 +55,6 @@ def check_docker():
 
 in_docker = check_docker()
 
-# This must be *after* environment changes above
-from mlrun import RunObject, RunTemplate  # noqa
-
 
 def tag_test(spec: RunTemplate, name) -> RunTemplate:
     spec = spec.copy()
@@ -83,3 +84,23 @@ def wait_for_server(url, timeout_sec):
             pass
         sleep(0.1)
     return False
+
+
+def run_now():
+    return datetime.now().strftime(sqldb.run_time_fmt)
+
+
+def new_run(state, labels, uid=None, **kw):
+    obj = {
+        'metadata': {
+            'labels': labels,
+        },
+        'status': {
+            'state': state,
+            'start_time': run_now(),
+        },
+    }
+    if uid:
+        obj['metadata']['uid'] = uid
+    obj.update(kw)
+    return obj

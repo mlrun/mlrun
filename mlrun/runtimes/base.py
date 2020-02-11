@@ -207,8 +207,10 @@ class BaseRuntime(ModelObj):
         if runspec.spec.handler and self.kind not in ['handler', 'dask']:
             runspec.spec.handler = runspec.spec.handler_name
 
-        runspec.metadata.name = name or runspec.metadata.name or \
-            runspec.spec.handler_name or self.metadata.name
+        def_name = self.metadata.name
+        if runspec.spec.handler_name:
+            def_name += '-' + runspec.spec.handler_name
+        runspec.metadata.name = name or runspec.metadata.name or def_name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs

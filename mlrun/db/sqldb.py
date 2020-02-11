@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
-    create_engine, func
+    create_engine, func, or_
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -259,9 +259,8 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         query = self._query(
             Artifact, key=key, project=project)
-
         if tag:
-            query = query.filter(Artifact.uid == tag)
+            query = query.filter(Artifact.tag == tag)
         else:
             # Select by last updated
             max_updated = self.session.query(
@@ -285,8 +284,14 @@ class SQLDB(RunDBInterface):
 
     def del_artifact(self, key, tag='', project=''):
         project = project or config.default_project
-        self._delete(
-            Artifact, key=key, tag=tag, project=project)
+        kw = {
+            'key': key,
+            'project': project,
+        }
+        if tag:
+            kw['tag'] = tag
+
+        self._delete(Artifact, **kw)
 
     def del_artifacts(
             self, name='', project='', tag='', labels=None):
@@ -382,7 +387,11 @@ class SQLDB(RunDBInterface):
     def _find_artifacts(self, project, tag, labels):
         # FIXME tag = tag or 'latest'
         labels = label_set(labels)
-        query = self._query(Artifact, project=project, tag=tag)
+        query = self._query(Artifact, project=project)
+        if tag != '*':
+            tag = tag or 'latest'
+            query = query.filter(or_(Artifact.tag == tag, Artifact.uid == tag))
+
         if labels:
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query

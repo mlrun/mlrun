@@ -653,7 +653,8 @@ def store_artifact(project, uid, key):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     tag = request.args.get('tag', '')
-    _db.store_artifact(key, data, uid, tag, project)
+    iter = int(request.args.get('iter', '0'))
+    _db.store_artifact(key, data, uid, iter=iter, tag=tag, project=project)
     return jsonify(ok=True)
 
 
@@ -672,7 +673,8 @@ def list_artifact_tags(project):
 @app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
 def read_artifact(project, tag, key):
-    data = _db.read_artifact(key, tag, project)
+    iter = int(request.args.get('iter', '0'))
+    data = _db.read_artifact(key, tag=tag, iter=iter, project=project)
     return data
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t

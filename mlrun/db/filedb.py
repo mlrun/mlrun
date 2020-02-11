@@ -146,9 +146,11 @@ class FileRunDB(RunDBInterface):
                (not days_ago or date_before(run)):
                 self._safe_del(p)
 
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
         artifact['updated'] = datetime.now()
         data = self._dumps(artifact)
+        if iter:
+            key = '{}-{}'.format(iter, key)
         filepath = self._filepath(
             artifacts_dir, project, key, uid) + self.format
         self._datastore.put(filepath, data)
@@ -156,7 +158,9 @@ class FileRunDB(RunDBInterface):
             artifacts_dir, project, key, tag or 'latest') + self.format
         self._datastore.put(filepath, data)
 
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', iter=None, project=''):
+        if iter:
+            key = '{}-{}'.format(iter, key)
         filepath = self._filepath(
             artifacts_dir, project, key, tag) + self.format
         if not pathlib.Path(filepath).is_file():

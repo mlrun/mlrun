@@ -238,10 +238,12 @@ class SQLDB(RunDBInterface):
         self.session.commit()
 
     def store_artifact(
-            self, key, artifact, uid, tag='', project=''):
+            self, key, artifact, uid, iter=None, tag='', project=''):
         project = project or config.default_project
         artifact = artifact.copy()
         updated = artifact['updated'] = datetime.now()
+        if iter:
+            key = '{}-{}'.format(iter, key)
         art = self._get_artifact(uid, project, key)
         labels = label_set(artifact.get('labels', []))
         if not art:
@@ -255,8 +257,10 @@ class SQLDB(RunDBInterface):
         art.struct = artifact
         self._upsert(art)
 
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or config.default_project
+        if iter:
+            key = '{}-{}'.format(iter, key)
         query = self._query(
             Artifact, key=key, project=project)
 

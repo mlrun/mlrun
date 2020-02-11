@@ -123,11 +123,10 @@ class ArtifactManager:
             if not item.sources:
                 item.sources = execution.to_dict()['spec'][run_keys.inputs]
             item.producer = execution.get_meta()
-            if execution.iteration:
-                key = '{}-{}'.format(execution.iteration, key)
-                item.iter = execution.iteration
+            item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            tag, execution.project)
+                                            iter=execution.iteration, tag=tag,
+                                            project=execution.project)
 
         size = str(item.size) or '?'
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
@@ -140,11 +139,10 @@ class ArtifactManager:
             item = LinkArtifact(key, artifact_path,
                                 best_iteration=best_iteration)
             item.tree = execution.tag
-            if execution.iteration:
-                key = '{}-{}'.format(execution.iteration, key)
-                item.iter = execution.iteration
+            item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            tag, execution.project)
+                                            iter=execution.iteration, tag=tag,
+                                            project=execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)

@@ -62,11 +62,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', iter=None, project=''):
         pass
 
     @abstractmethod

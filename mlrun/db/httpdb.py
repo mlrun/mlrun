@@ -119,8 +119,9 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', path, error, params=params)
         if resp.headers:
             state = resp.headers.get('pod_status', '')
+            return state.lower(), resp.content
 
-        return state.lower(), resp.content
+        return 'unknown', resp.content
 
     def watch_log(self, uid, project='', watch=True, offset=0):
         state, text = self.get_log(uid, project, offset=offset)
@@ -199,11 +200,13 @@ class HTTPRunDB(RunDBInterface):
         error = 'del runs'
         self.api_call('DELETE', 'runs', error, params=params)
 
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
         path = self._path_of('artifact', project, uid) + '/' + key
         params = {
             'tag': tag,
         }
+        if iter:
+            params['iter'] = str(iter)
 
         error = f'store artifact {project}/{uid}/{key}'
 
@@ -211,12 +214,13 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             'POST', path, error, params=params, body=body)
 
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or default_project
         tag = tag or 'latest'
         path = self._path_of('artifact', project, tag) + '/' + key
         error = f'read artifact {project}/{key}'
-        resp = self.api_call('GET', path, error)
+        params = {'iter': str(iter)} if iter else {}
+        resp = self.api_call('GET', path, error, params=params)
         return resp.content
 
     def del_artifact(self, key, tag='', project=''):

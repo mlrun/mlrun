@@ -255,7 +255,7 @@ class DaskCluster(KubejobRuntime):
         return context.to_dict()
 
 
-def deploy_function(function: DaskCluster):
+def deploy_function(function: DaskCluster, secrets=None):
     try:
         from dask_kubernetes import KubeCluster, make_pod_spec
         from dask.distributed import Client, default_client

@@ -61,7 +61,7 @@ class FunctionEntrypoint(ModelObj):
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  build=None, entry_points=None, description=None,
-                 pythonpath=None):
+                 default_handler=None, pythonpath=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -73,6 +73,7 @@ class FunctionSpec(ModelObj):
 
         self._build = None
         self.build = build
+        self.default_handler = default_handler
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
 
@@ -201,12 +202,15 @@ class BaseRuntime(ModelObj):
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
 
-        runspec.spec.handler = handler or runspec.spec.handler or ''
+        runspec.spec.handler = handler or runspec.spec.handler or \
+                               self.spec.default_handler or ''
         if runspec.spec.handler and self.kind not in ['handler', 'dask']:
             runspec.spec.handler = runspec.spec.handler_name
 
-        runspec.metadata.name = name or runspec.metadata.name or \
-            runspec.spec.handler_name or self.metadata.name
+        def_name = self.metadata.name
+        if runspec.spec.handler_name:
+            def_name += '-' + runspec.spec.handler_name
+        runspec.metadata.name = name or runspec.metadata.name or def_name
         runspec.metadata.project = project or runspec.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
@@ -454,7 +458,7 @@ class BaseRuntime(ModelObj):
                 'handler must be provided for {} runtime'.format(self.kind))
 
     def full_image_path(self, image=None):
-        image = image or self.spec.image
+        image = image or self.spec.image or ''
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
@@ -471,7 +475,7 @@ class BaseRuntime(ModelObj):
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = '', image: str = ''):
+                in_path: str = '', out_path: str = '', image: str = '', use_db=False):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -491,7 +495,13 @@ class BaseRuntime(ModelObj):
         if self.spec.image and not image:
             image = self.full_image_path()
 
-        return mlrun_op(name, project, self,
+        if use_db:
+            self.save(versioned=False)
+            func = 'db://' + self._function_uri()
+        else:
+            func = self
+
+        return mlrun_op(name, project, func,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,

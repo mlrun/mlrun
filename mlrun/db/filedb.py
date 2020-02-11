@@ -14,8 +14,8 @@
 
 import json
 import pathlib
-from datetime import datetime, timedelta
-from os import makedirs, path, remove, scandir
+from datetime import datetime, timedelta, timezone
+from os import makedirs, path, remove, scandir, listdir
 
 import yaml
 
@@ -146,9 +146,11 @@ class FileRunDB(RunDBInterface):
                (not days_ago or date_before(run)):
                 self._safe_del(p)
 
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
-        artifact['updated'] = datetime.now()
+    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
+        artifact['updated'] = datetime.now(timezone.utc).isoformat()
         data = self._dumps(artifact)
+        if iter:
+            key = '{}-{}'.format(iter, key)
         filepath = self._filepath(
             artifacts_dir, project, key, uid) + self.format
         self._datastore.put(filepath, data)
@@ -156,7 +158,9 @@ class FileRunDB(RunDBInterface):
             artifacts_dir, project, key, tag or 'latest') + self.format
         self._datastore.put(filepath, data)
 
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', iter=None, project=''):
+        if iter:
+            key = '{}-{}'.format(iter, key)
         filepath = self._filepath(
             artifacts_dir, project, key, tag) + self.format
         if not pathlib.Path(filepath).is_file():
@@ -167,6 +171,7 @@ class FileRunDB(RunDBInterface):
     def list_artifacts(self, name='', project='', tag='', labels=None):
         labels = [] if labels is None else labels
         tag = tag or 'latest'
+        name = name or ''
         logger.info(
             f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
         filepath = self._filepath(artifacts_dir, project, tag=tag)
@@ -258,6 +263,14 @@ class FileRunDB(RunDBInterface):
         project = project or config.default_project
         return path.join(self.dirpath, '{}/{}/{}{}'.format(
             table, project, tag, key))
+
+    def list_projects(self):
+        run_dir = path.join(self.dirpath, run_logs)
+        if not path.isdir(run_dir):
+            return []
+        return [d for d in listdir(run_dir)
+                if path.isdir(path.join(run_dir, d))]
+
 
     @property
     def schedules_dir(self):

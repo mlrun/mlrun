@@ -35,6 +35,30 @@ from .runtimes.utils import add_code_metadata
 from .utils import get_in, logger, parse_function_uri, update_in
 from .config import config as mlconf
 
+
+def run_pipeline(pipeline, arguments=None, experiment=None,
+                 run=None, namespace=None, url=None):
+    """remote KubeFlow pipeline execution
+
+    Submit a workflow task to KFP via mlrun API service
+
+    :param pipeline   KFP pipeline function or path to .yaml/.zip pipeline file
+    :param arguments  pipeline arguments
+    :param experiment experiment name
+    :param run        optional, run name
+    :param namespace  Kubernetes namespace (if not using default)
+    :param url        optional, url to mlrun API service
+
+    :return kubeflow pipeline id
+    """
+    mldb = get_run_db(url).connect()
+    if mldb.kind != 'http':
+        raise ValueError('run pipeline require access to remote api-service'
+                         ', please set the dbpath url')
+    return mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
+                                run=run, namespace=namespace)
+
+
 def get_or_create_ctx(name: str,
                       event=None,
                       spec=None,
@@ -326,7 +350,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                          'when not using the embed_code option')
 
     subkind = kind[kind.find(':') + 1:] if kind.startswith('nuclio:') else None
-    code_origin = add_name(add_code_metadata(), name)
+    code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(filename, name=name,
                                   handler=handler or 'handler',

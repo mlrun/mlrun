@@ -161,9 +161,9 @@ def test_artifacts(db: sqldb.SQLDB):
 
 
 def test_list_artifact_tags(db: sqldb.SQLDB):
-    db.store_artifact('k1', {}, '1', 't1', 'p1')
-    db.store_artifact('k1', {}, '2', 't2', 'p1')
-    db.store_artifact('k1', {}, '2', 't2', 'p2')
+    db.store_artifact('k1', {}, '1', tag='t1', project='p1')
+    db.store_artifact('k1', {}, '2', tag='t2', project='p1')
+    db.store_artifact('k1', {}, '2', tag='t2', project='p2')
 
     tags = db.list_artifact_tags('p1')
     assert {'t1', 't2'} == set(tags), 'bad tags'

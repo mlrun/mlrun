@@ -14,7 +14,7 @@
 
 import json
 import pathlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
 
 import yaml
@@ -147,7 +147,7 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
-        artifact['updated'] = datetime.now()
+        artifact['updated'] = datetime.now(timezone.utc).isoformat()
         data = self._dumps(artifact)
         if iter:
             key = '{}-{}'.format(iter, key)

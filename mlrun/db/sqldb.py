@@ -14,7 +14,7 @@
 
 import pickle
 import warnings
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
@@ -241,7 +241,7 @@ class SQLDB(RunDBInterface):
             self, key, artifact, uid, iter=None, tag='', project=''):
         project = project or config.default_project
         artifact = artifact.copy()
-        updated = artifact['updated'] = datetime.now()
+        updated = artifact['updated'] = datetime.now(timezone.utc).isoformat()
         if iter:
             key = '{}-{}'.format(iter, key)
         art = self._get_artifact(uid, project, key)

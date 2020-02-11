@@ -276,13 +276,14 @@ class MLClientCtx(object):
         """Reserved for internal use"""
 
         if best:
-            self._results['link_iteration'] = best
+            self._results['best_iteration'] = best
             for k, v in get_in(task, ['status', 'results'], {}).items():
                 self._results[k] = v
             for a in get_in(task, ['status', run_keys.artifacts], []):
                 self._artifacts_manager.artifacts[a['key']] = a
                 self._artifacts_manager.link_artifact(self, a['key'],
-                                                      a['target_path'], best)
+                                                      a['target_path'],
+                                                      link_iteration=best)
 
         self._iteration_results = summary
         if commit:

@@ -138,20 +138,20 @@ def test_update_run(db: sqldb.SQLDB):
 
 
 def test_artifacts(db: sqldb.SQLDB):
-    k1, u1, art1 = 'k1', 'u1', {'a': 1}
-    db.store_artifact(k1, art1, u1)
-    art = db.read_artifact(k1, u1)
+    k1, u1, art1, t1 = 'k1', 'u1', {'a': 1}, 'tn'
+    db.store_artifact(k1, art1, u1, t1)
+    art = db.read_artifact(k1, tag=t1)
     assert art1['a'] == art['a'], 'get artifact'
     art = db.read_artifact(k1)
     assert art1['a'] == art['a'], 'get latest artifact'
 
     prj = 'p1'
-    k2, u2, art2 = 'k2', 'u2', {'a': 2}
-    db.store_artifact(k2, art2, u2, project=prj)
+    k2, u2, art2, t2 = 'k2', 'u2', {'a': 2}, 'latest'
+    db.store_artifact(k2, art2, u2, project=prj, tag=t2)
     k3, u3, art3 = 'k3', 'u3', {'a': 3}
     db.store_artifact(k3, art3, u3, project=prj)
 
-    arts = db.list_artifacts(project=prj)
+    arts = db.list_artifacts(project=prj, tag='*')
     assert 2 == len(arts), 'list artifacts length'
     assert {2, 3} == {a['a'] for a in arts}, 'list artifact a'
 

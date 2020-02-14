@@ -139,7 +139,7 @@ def test_update_run(db: sqldb.SQLDB):
 
 def test_artifacts(db: sqldb.SQLDB):
     k1, u1, art1, t1 = 'k1', 'u1', {'a': 1}, 'tn'
-    db.store_artifact(k1, art1, u1, t1)
+    db.store_artifact(k1, art1, u1, tag=t1)
     art = db.read_artifact(k1, tag=t1)
     assert art1['a'] == art['a'], 'get artifact'
     art = db.read_artifact(k1)

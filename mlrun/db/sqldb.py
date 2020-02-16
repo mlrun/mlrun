@@ -388,12 +388,24 @@ class SQLDB(RunDBInterface):
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query
 
+    def _latest_artifact_uid(self):
+        query = (
+            self.session.query(Artifact.uid)
+            .order_by(Artifact.updated.desc())
+            .limit(1)
+        )
+        out = query.one_or_none()
+        if out:
+            return out[0]
+
     def _find_artifacts(self, project, tag, labels):
-        # FIXME tag = tag or 'latest'
         labels = label_set(labels)
         query = self._query(Artifact, project=project)
         if tag != '*':
-            tag = tag or 'latest'
+            if tag == 'latest':
+                tag = self._latest_artifact_uid()
+                if not tag:
+                    return []  # no artifacts
             query = query.filter(or_(Artifact.tag == tag, Artifact.uid == tag))
 
         if labels:

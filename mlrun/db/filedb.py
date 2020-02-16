@@ -352,7 +352,8 @@ def make_time_pred(since, until):
         val = artifact.get('updated')
         if not val:
             return True
-        t = datetime.fromisoformat(val)
+        t = datetime.strptime(val, '%Y-%m-%dT%H:%M:%S.%f').replace(
+                tzinfo=timezone.utc)
         return since <= t <= until
 
     return pred

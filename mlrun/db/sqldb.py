@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
-    create_engine, func, or_
+    create_engine, func, or_, and_
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -241,7 +241,9 @@ class SQLDB(RunDBInterface):
             self, key, artifact, uid, iter=None, tag='', project=''):
         project = project or config.default_project
         artifact = artifact.copy()
-        updated = artifact['updated'] = datetime.now(timezone.utc)
+        updated = artifact.get('updated')
+        if not updated:
+            updated = artifact['updated'] = datetime.now(timezone.utc)
         if iter:
             key = '{}-{}'.format(iter, key)
         art = self._get_artifact(uid, project, key)
@@ -277,12 +279,13 @@ class SQLDB(RunDBInterface):
             raise RunDBError(f'Artifact {key}:{tag}:{project} not found')
         return art.struct
 
-    def list_artifacts(self, name=None, project=None, tag=None, labels=None):
+    def list_artifacts(
+        self, name=None, project=None, tag=None, labels=None,
+            since=None, until=None):
         project = project or config.default_project
-        arts = ArtifactList()
-        arts.extend(
+        arts = ArtifactList(
             obj.struct
-            for obj in self._find_artifacts(project, tag, labels)
+            for obj in self._find_artifacts(project, tag, labels, since, until)
         )
         return arts
 
@@ -300,7 +303,7 @@ class SQLDB(RunDBInterface):
     def del_artifacts(
             self, name='', project='', tag='', labels=None):
         project = project or config.default_project
-        for obj in self._find_artifacts(project, tag, labels):
+        for obj in self._find_artifacts(project, tag, labels, None, None):
             self.session.delete(obj)
         self.session.commit()
 
@@ -388,7 +391,7 @@ class SQLDB(RunDBInterface):
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query
 
-    def _find_artifacts(self, project, tag, labels):
+    def _find_artifacts(self, project, tag, labels, since, until):
         # FIXME tag = tag or 'latest'
         labels = label_set(labels)
         query = self._query(Artifact, project=project)
@@ -398,6 +401,15 @@ class SQLDB(RunDBInterface):
 
         if labels:
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
+
+        if since or until:
+            since = since or datetime.min
+            until = until or datetime.max
+            query = query.filter(and_(
+                Artifact.updated >= since,
+                Artifact.updated <= until
+            ))
+
         return query
 
     def _find_functions(self, name, project, tag, labels):

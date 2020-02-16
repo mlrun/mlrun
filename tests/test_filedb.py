@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime, timedelta, timezone
 from tempfile import mkdtemp
 
 import pytest
@@ -56,3 +57,32 @@ def test_schedules(db: FileRunDB):
     scheds = list(db.list_schedules())
     assert count == len(scheds), 'wrong number of schedules'
     assert set(range(count)) == set(s['i'] for s in scheds), 'bad scheds'
+
+
+def test_list_artifact_date(db: FileRunDB):
+    print('dirpath: ', db.dirpath)
+    t1 = datetime(2020, 2, 16, tzinfo=timezone.utc)
+    t2 = t1 - timedelta(days=7)
+    t3 = t2 - timedelta(days=7)
+    prj = 'p7'
+
+    db.store_artifact('k1', {'updated': t1.isoformat()}, 'u1', project=prj)
+    db.store_artifact('k2', {'updated': t2.isoformat()}, 'u2', project=prj)
+    db.store_artifact('k3', {'updated': t3.isoformat()}, 'u3', project=prj)
+
+    # FIXME: We get double what we expect since latest is an alias
+    arts = db.list_artifacts(project=prj, since=t3, tag='*')
+    assert 6 == len(arts), 'since t3'
+
+    arts = db.list_artifacts(project=prj, since=t2, tag='*')
+    assert 4 == len(arts), 'since t2'
+
+    arts = db.list_artifacts(
+        project=prj, since=t1 + timedelta(days=1), tag='*')
+    assert not arts, 'since t1+'
+
+    arts = db.list_artifacts(project=prj, until=t2, tag='*')
+    assert 4 == len(arts), 'until t2'
+
+    arts = db.list_artifacts(project=prj, since=t2, until=t2, tag='*')
+    assert 2 == len(arts), 'since/until t2'

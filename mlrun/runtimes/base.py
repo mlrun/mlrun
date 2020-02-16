@@ -211,7 +211,8 @@ class BaseRuntime(ModelObj):
         if runspec.spec.handler_name:
             def_name += '-' + runspec.spec.handler_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
-        runspec.metadata.project = project or runspec.metadata.project
+        runspec.metadata.project = project or runspec.metadata.project \
+                                   or self.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or runspec.spec.output_path
@@ -235,15 +236,15 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 "function image is not built/ready, use .build() method first")
 
-        if not self.is_child and self.kind != 'handler':
+        if not self.is_child:
             dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
             meta.labels['owner'] = environ.get(
                     'V3IO_USERNAME', getpass.getuser())
-            hashkey = calc_hash(self)
-            if db:
+            if db and self.kind != 'handler':
+                hashkey = calc_hash(self)
                 struct = self.to_dict()
                 update_in(struct, 'metadata.tag', '')
                 db.store_function(struct, self.metadata.name,

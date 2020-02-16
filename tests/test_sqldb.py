@@ -208,3 +208,17 @@ def test_run_iter0(db: sqldb.SQLDB):
     for i in range(7):
         db.store_run(run, uid, prj, i)
     db._get_run(uid, prj, 0)  # See issue 140
+
+
+def test_artifacts_latest(db: sqldb.SQLDB):
+    k1, u1, art1 = 'k1', 'u1', {'a': 1}
+    prj = 'p38'
+    db.store_artifact(k1, art1, u1, project=prj)
+
+    arts = db.list_artifacts(project=prj, tag='latest')
+    assert art1['a'] == arts[0]['a'], 'bad artifact'
+
+    art2 = {'a': 17}
+    db.store_artifact(k1, art2, u1, project=prj)
+    arts = db.list_artifacts(project=prj, tag='latest')
+    assert art2['a'] == arts[0]['a'], 'bad artifact'

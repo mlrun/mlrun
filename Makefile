@@ -44,17 +44,10 @@ run-httpd:
 	python -m mlrun db
 
 .PHONY: docker-db
-docker-db:
+docker-httpd:
 	docker build \
-	    -f Dockerfile.db \
-	    --tag mlrun/mlrun-db \
-	    .
-
-.PHONY: docker-db-gunicorn
-docker-db-gunicorn:
-	docker build \
-	    -f Dockerfile.db-gunicorn \
-	    --tag mlrun/mlrun-db-gunicorn \
+	    -f Dockerfile.httpd \
+	    --tag mlrun/mlrun-httpd \
 	    .
 
 .PHONY: circleci

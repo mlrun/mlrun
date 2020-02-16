@@ -13,15 +13,18 @@
 # limitations under the License.
 """mlrun database HTTP server"""
 from argparse import ArgumentParser
+import ast
 import mimetypes
+import tempfile
 from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
-from os import environ
+from os import environ, remove
 import traceback
 from datetime import datetime
 from pathlib import Path
+from kfp import Client as kfclient
 
 from flask import Flask, jsonify, request, Response
 
@@ -117,7 +120,8 @@ def catch_err(fn):
 # curl -d@/path/to/job.json http://localhost:8080/submit
 @app.route('/api/submit', methods=['POST'])
 @app.route('/api/submit/', methods=['POST'])
-@app.route('/api/submit/<path:func>', methods=['POST'])
+@app.route('/api/submit_job', methods=['POST'])
+@app.route('/api/submit_job/', methods=['POST'])
 @catch_err
 def submit_job():
     try:
@@ -167,7 +171,7 @@ def _submit(data):
         if schedule:
             args = (task, )
             job_id = _scheduler.add(schedule, fn, args)
-            _db.save_schedule(data)
+            _db.store_schedule(data)
             resp = {'schedule': schedule, 'id': job_id}
         else:
             resp = fn.run(task, watch=False)
@@ -183,6 +187,55 @@ def _submit(data):
     if not isinstance(resp, dict):
         resp = resp.to_dict()
     return jsonify(ok=True, data=resp)
+
+
+# curl -d@/path/to/pipe.yaml http://localhost:8080/submit_pipeline
+@app.route('/api/submit_pipeline', methods=['POST'])
+@app.route('/api/submit_pipeline/', methods=['POST'])
+@catch_err
+def submit_pipeline():
+    namespace = request.args.get('namespace', config.namespace)
+    experiment_name = request.args.get('experiment', 'Default')
+    run_name = request.args.get('run', '')
+    run_name = run_name or experiment_name + ' ' + datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+
+    arguments = {}
+    arguments_data = request.headers.get('pipeline-arguments')
+    if arguments_data:
+        arguments = ast.literal_eval(arguments_data)
+        logger.info('pipeline arguments {}'.format(arguments_data))
+
+    ctype = request.content_type
+    if '/yaml' in ctype:
+        ctype = '.yaml'
+    elif ' /zip' in ctype:
+        ctype = '.zip'
+    else:
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='unsupported pipeline type {}'.format(ctype))
+
+    logger.info('writing file {}'.format(ctype))
+    if not request.data:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='post data is empty')
+
+    print(str(request.data))
+    pipe_tmp = tempfile.mktemp(suffix=ctype)
+    with open(pipe_tmp, 'wb') as fp:
+        fp.write(request.data)
+
+    try:
+        client = kfclient(namespace=namespace)
+        experiment = client.create_experiment(name=experiment_name)
+        run_info = client.run_pipeline(experiment.id, run_name, pipe_tmp,
+                                       params=arguments)
+    except Exception as e:
+        remove(pipe_tmp)
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='kfp err: {}'.format(e))
+
+    remove(pipe_tmp)
+    return jsonify(ok=True, id=run_info.run_id,
+                   name=run_info.run_info.name)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function
@@ -600,12 +653,13 @@ def store_artifact(project, uid, key):
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     tag = request.args.get('tag', '')
-    _db.store_artifact(key, data, uid, tag, project)
+    iter = int(request.args.get('iter', '0'))
+    _db.store_artifact(key, data, uid, iter=iter, tag=tag, project=project)
     return jsonify(ok=True)
 
 
 # curl http://localhost:8080/artifact/p1/tags
-@app.route('/api/artifact/<project>/tags', methods=['GET'])
+@app.route('/api/projects/<project>/artifact-tags', methods=['GET'])
 @catch_err
 def list_artifact_tags(project):
     return jsonify(
@@ -619,7 +673,8 @@ def list_artifact_tags(project):
 @app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
 def read_artifact(project, tag, key):
-    data = _db.read_artifact(key, tag, project)
+    iter = int(request.args.get('iter', '0'))
+    data = _db.read_artifact(key, tag=tag, iter=iter, project=project)
     return data
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
@@ -704,7 +759,7 @@ def list_functions():
 def list_projects():
     return jsonify(
         ok=True,
-        project=_db.list_projects()
+        projects=_db.list_projects()
     )
 
 
@@ -714,7 +769,7 @@ def list_projects():
 def list_schedules():
     return jsonify(
         ok=True,
-        schedules=_db.list_schedules()
+        schedules=list(_db.list_schedules())
     )
 
 

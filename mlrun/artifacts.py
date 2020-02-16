@@ -123,16 +123,28 @@ class ArtifactManager:
             if not item.sources:
                 item.sources = execution.to_dict()['spec'][run_keys.inputs]
             item.producer = execution.get_meta()
-            if execution.iteration:
-                key = '{}-{}'.format(execution.iteration, key)
-                item.iter = execution.iteration
+            item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            tag, execution.project)
+                                            iter=execution.iteration, tag=tag,
+                                            project=execution.project)
 
         size = str(item.size) or '?'
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
             key, target_path, size, 'Y' if self.artifact_db else 'N'
         ))
+
+    def link_artifact(self, execution, key, artifact_path='', tag='',
+                      link_iteration=0, link_key=None, link_tree=None):
+        if self.artifact_db:
+            item = LinkArtifact(key, artifact_path,
+                                link_iteration=link_iteration,
+                                link_key=link_key,
+                                link_tree=link_tree)
+            item.tree = execution.tag
+            item.iter = execution.iteration
+            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
+                                            iter=execution.iteration, tag=tag,
+                                            project=execution.project)
 
     def get_store(self, url):
         return self.data_stores.get_or_create_store(url)
@@ -187,6 +199,19 @@ class Artifact(ModelObj):
         return super().to_dict(
             self._dict_fields + [
                 'updated', 'labels', 'annotations', 'producer', 'sources'])
+
+
+class LinkArtifact(Artifact):
+    _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
+    kind = 'link'
+
+    def __init__(self, key, target_path='', link_iteration=None,
+                 link_key=None, link_tree=None):
+
+        super().__init__(key, target_path=target_path)
+        self.link_iteration = link_iteration
+        self.link_key = link_key
+        self.link_tree = link_tree
 
 
 class ModelArtifact(Artifact):

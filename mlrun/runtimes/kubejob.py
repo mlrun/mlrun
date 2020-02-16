@@ -16,7 +16,7 @@ from kubernetes import client
 
 from ..kfpops import build_op
 from .pod import KubeResource
-from .utils import AsyncLogWriter, add_code_metadata, default_image_name
+from .utils import AsyncLogWriter, default_image_name
 from ..model import RunObject
 from .base import RunError
 from ..db import RunDBError
@@ -65,8 +65,10 @@ class KubejobRuntime(KubeResource):
         return False
 
     def build_config(self, image='', base_image=None,
-                     commands: list = None, secret=None):
-        self.spec.build.image = image or self.spec.build.image
+                     commands: list = None, secret=None,
+                     source=None):
+        if image:
+            self.spec.build.image = image
         if commands:
             if not isinstance(commands, list):
                 raise ValueError('commands must be a string list')
@@ -76,6 +78,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.secret = secret
         if base_image:
             self.spec.build.base_image = base_image
+        if source:
+            self.spec.build.source = source
 
     def build(self, **kw):
         raise ValueError('.build() is deprecated, use .deploy() instead')
@@ -91,9 +95,6 @@ class KubejobRuntime(KubeResource):
                                 or default_image_name(self)
         self.spec.image = ''
         self.status.state = ''
-        code_origin = add_code_metadata()
-        self.spec.build.code_origin = self.spec.build.code_origin \
-                                      or code_origin
 
         if self._is_remote_api() and not is_kfp:
             db = self._get_db()

@@ -23,13 +23,13 @@ from .base import BaseRuntime, FunctionSpec
 class KubeResourceSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 entry_points=None, description=None, replicas=None,
-                 image_pull_policy=None, service_account=None, build=None,
-                 image_pull_secret=None):
-
-        super().__init__(command=command, args=args, image=image,
-                         mode=mode, build=build,
-                         entry_points=entry_points, description=description)
+                 default_handler=None, entry_points=None, description=None,
+                 replicas=None, image_pull_policy=None, service_account=None,
+                 build=None, image_pull_secret=None):
+        super().__init__(command=command, args=args, image=image, mode=mode,
+                         build=build, entry_points=entry_points,
+                         description=description,
+                         default_handler=default_handler)
         self._volumes = {}
         self._volume_mounts = {}
         self.volumes = volumes or []

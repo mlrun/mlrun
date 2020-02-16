@@ -54,7 +54,8 @@ setup(
     author_email='yaronh@iguazio.com',
     license='MIT',
     url='https://github.com/mlrun/mlrun',
-    packages=['mlrun', 'mlrun.runtimes', 'mlrun.db', 'mlrun.platforms'],
+    packages=['mlrun', 'mlrun.runtimes', 'mlrun.db',
+              'mlrun.platforms', 'mlrun.projects'],
     install_requires=install_requires,
     classifiers=[
         'Development Status :: 4 - Beta',

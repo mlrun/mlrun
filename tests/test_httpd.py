@@ -21,7 +21,7 @@ def test_list_projects(client):
 
 def test_list_artifact_tags(client):
     project = 'p11'
-    resp = client.get(f'/api/artifact/{project}/tags')
+    resp = client.get(f'/api/projects/{project}/artifact-tags')
     assert resp.status_code == HTTPStatus.OK, 'status'
     assert resp.json['ok'], 'not ok'
     assert resp.json['project'] == project, 'project'

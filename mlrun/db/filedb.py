@@ -224,7 +224,7 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_function(self, func, name, project='', tag=''):
-        update_in(func, 'metadata.updated', datetime.now())
+        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         data = self._dumps(func)
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or config.default_project, name,

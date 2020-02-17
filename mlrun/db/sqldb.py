@@ -279,6 +279,7 @@ class SQLDB(RunDBInterface):
 
     def list_artifacts(self, name=None, project=None, tag=None, labels=None):
         project = project or config.default_project
+        tag = tag or 'latest'
         arts = ArtifactList()
         arts.extend(
             obj.struct
@@ -306,7 +307,7 @@ class SQLDB(RunDBInterface):
 
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
-        update_in(func, 'metadata.updated', datetime.now())
+        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         fn = self._get_function(name, project, tag)
         if not fn:
             fn = Function(

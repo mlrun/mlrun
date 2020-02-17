@@ -22,11 +22,12 @@ from functools import wraps
 from http import HTTPStatus
 from os import environ, remove
 import traceback
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from kfp import Client as kfclient
 
 from flask import Flask, jsonify, request, Response
+from flask.json import JSONEncoder
 
 from mlrun.builder import build_runtime
 from mlrun.datastore import get_object, get_object_stat
@@ -40,11 +41,26 @@ from mlrun.k8s_utils import K8sHelper
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
 
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        try:
+            if isinstance(obj, date):
+                return obj.isoformat()
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
+
+
 _scheduler: Scheduler = None
 _db: RunDBInterface
 _k8s: K8sHelper = None
 _logs_dir = None
 app = Flask(__name__)
+app.json_encoder = CustomJSONEncoder
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
 

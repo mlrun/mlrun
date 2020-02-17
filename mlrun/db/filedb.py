@@ -16,6 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
+from dateutil import parser
 
 import yaml
 
@@ -106,7 +107,8 @@ class FileRunDB(RunDBInterface):
             if match_value(name, run, 'metadata.name') and \
                match_labels(get_in(run, 'metadata.labels', {}), labels) and \
                match_value(state, run, 'status.state') and \
-               match_value(uid, run, 'metadata.uid'):
+               match_value(uid, run, 'metadata.uid') and \
+               (iter or get_in(run, 'metadata.iteration', 0) == 0):
                 results.append(run)
 
         if sort or last:
@@ -136,8 +138,10 @@ class FileRunDB(RunDBInterface):
             days_ago = datetime.now() - timedelta(days=days_ago)
 
         def date_before(run):
-            return datetime.strptime(get_in(run, 'status.start_time', ''),
-                                     '%Y-%m-%d %H:%M:%S.%f') < days_ago
+            d = get_in(run, 'status.start_time', '')
+            if not d:
+                return False
+            return parser.parse(ts) < days_ago
 
         for run, p in self._load_list(filepath, '*'):
             if match_value(name, run, 'metadata.name') and \
@@ -220,7 +224,7 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_function(self, func, name, project='', tag=''):
-        update_in(func, 'metadata.updated', datetime.now())
+        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         data = self._dumps(func)
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or config.default_project, name,

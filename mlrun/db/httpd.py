@@ -33,7 +33,7 @@ from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.sqldb import SQLDB
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger, parse_function_uri, get_in, update_in
+from mlrun.utils import logger, parse_function_uri, get_in, update_in, now_date
 from mlrun.config import config
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import K8sHelper
@@ -533,7 +533,7 @@ def get_log(project, uid):
                     if resp:
                         out = resp.encode()[offset:]
                     if status == 'running':
-                        now = str(datetime.now())
+                        now = now_date().isoformat()
                         update_in(data, 'status.last_update', now)
                         if new_status == 'failed':
                             update_in(data, 'status.state', 'error')

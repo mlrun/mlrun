@@ -25,7 +25,7 @@ from ..db import get_run_db, default_dbpath
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
-from ..utils import get_in, update_in, logger, is_ipython
+from ..utils import get_in, update_in, logger, is_ipython, now_date
 from .utils import calc_hash, RunError, results_to_iter, default_image_name
 from ..execution import MLClientCtx
 from ..lists import RunList
@@ -432,7 +432,7 @@ class BaseRuntime(ModelObj):
         updates = None
         last_state = get_in(resp, 'status.state', '')
         if last_state == 'error' or err:
-            updates = {'status.last_update': str(datetime.now())}
+            updates = {'status.last_update': now_date().isoformat()}
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
             if err:
@@ -441,7 +441,7 @@ class BaseRuntime(ModelObj):
             if err:
                 updates['status.error'] = str(err)
         elif not was_none and last_state != 'completed':
-            updates = {'status.last_update': str(datetime.now())}
+            updates = {'status.last_update': now_date().isoformat()}
             updates['status.state'] = 'completed'
             update_in(resp, 'status.state', 'completed')
 

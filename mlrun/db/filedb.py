@@ -16,6 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
+from dateutil import parser
 
 import yaml
 
@@ -137,8 +138,10 @@ class FileRunDB(RunDBInterface):
             days_ago = datetime.now() - timedelta(days=days_ago)
 
         def date_before(run):
-            return datetime.strptime(get_in(run, 'status.start_time', ''),
-                                     '%Y-%m-%dT%H:%M:%S.%fZ') < days_ago
+            d = get_in(run, 'status.start_time', '')
+            if not d:
+                return False
+            return parser.parse(ts) < days_ago
 
         for run, p in self._load_list(filepath, '*'):
             if match_value(name, run, 'metadata.name') and \

@@ -15,7 +15,7 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
-
+from dateutil import parser
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
     create_engine, func, or_
@@ -454,10 +454,9 @@ class RunWrapper:
 
 def run_start_time(run):
     ts = get_in(run, 'status.start_time', '')
-    print(ts, run_time_fmt)
     if not ts:
         return None
-    return datetime.strptime(ts, run_time_fmt)
+    return parser.parse(ts)
 
 
 def run_labels(run):

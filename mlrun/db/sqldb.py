@@ -31,7 +31,7 @@ from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = '%Y-%m-%dT%H:%M:%S.%f'
+run_time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
 
 
 class HasStruct:
@@ -454,6 +454,7 @@ class RunWrapper:
 
 def run_start_time(run):
     ts = get_in(run, 'status.start_time', '')
+    print(ts, run_time_fmt)
     if not ts:
         return None
     return datetime.strptime(ts, run_time_fmt)

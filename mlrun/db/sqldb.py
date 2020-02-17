@@ -31,7 +31,7 @@ from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = '%Y-%m-%d %H:%M:%S.%f'
+run_time_fmt = '%Y-%m-%dT%H:%M:%S.%f'
 
 
 class HasStruct:

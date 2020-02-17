@@ -35,7 +35,7 @@ def new_project(name, context=None, functions=None, workflows=None,
 
 
 def load_project(context, url=None, name=None, secrets=None,
-                 mount_url=None, init_git=False, subpath='', clone=True):
+                 mount_url=None, init_git=False, subpath='', clone=False):
     """Load an MLRun project from git or tar or dir"""
 
     secrets = secrets or {}
@@ -44,7 +44,7 @@ def load_project(context, url=None, name=None, secrets=None,
         if url.startswith('git://'):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith('.tar.gz'):
-            clone_tgz(url, context, secrets, clone)
+            clone_tgz(url, context, secrets)
         else:
             raise ValueError('unsupported code archive {}'.format(url))
 
@@ -395,14 +395,21 @@ def github_webhook(request):
     return {'msg': 'pushed'}
 
 
-def clone_git(url, context, secrets, clone=True):
+def clone_git(url, context, secrets, clone):
     urlobj = urlparse(url)
     scheme = urlobj.scheme.lower()
     if not context:
         raise ValueError('please specify a target (context) directory for clone')
 
-    if clone and path.exists(context) and path.isdir(context):
-        shutil.rmtree(context)
+    if path.exists(context) and path.isdir(context):
+        if clone:
+            shutil.rmtree(context)
+        else:
+            try:
+                repo = Repo(context)
+                return _get_repo_url(repo), repo
+            except ValueError as e:
+                pass
 
     host = urlobj.hostname or 'github.com'
     if urlobj.port:
@@ -430,7 +437,7 @@ def clone_git(url, context, secrets, clone=True):
     return url, repo
 
 
-def clone_tgz(url, context, secrets, clone=True):
+def clone_tgz(url, context, secrets):
     if not context:
         raise ValueError('please specify a target (context) directory for clone')
 

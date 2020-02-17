@@ -67,7 +67,7 @@ class DaskSpec(KubeResourceSpec):
         self.service_type = service_type
         self.node_port = node_port
         self.min_replicas = min_replicas or 0
-        self.max_replicas = max_replicas or math.inf
+        self.max_replicas = max_replicas or 64
         self.scheduler_timeout = '60 minutes'
         self.nthreads = nthreads or 1
 

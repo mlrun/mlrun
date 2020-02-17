@@ -408,7 +408,7 @@ def clone_git(url, context, secrets, clone):
             try:
                 repo = Repo(context)
                 return _get_repo_url(repo), repo
-            except ValueError as e:
+            except Exception:
                 pass
 
     host = urlobj.hostname or 'github.com'
@@ -460,7 +460,7 @@ def _get_repo_url(repo):
         return '', ''
 
     url = remotes[0]
-    url.replace('https://', 'git://')
+    url = url.replace('https://', 'git://')
     try:
         url = '{}#refs/heads/{}'.format(url, repo.active_branch.name)
     except Exception:

@@ -15,7 +15,7 @@
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from os import path
 from sys import stdout
 
@@ -71,6 +71,14 @@ class run_keys:
     data_stores = 'data_stores'
     secrets = 'secret_sources'
 
+
+def now_date():
+    return datetime.now(timezone.utc)
+
+def to_date_str(d):
+    if d:
+        return d.isoformat()
+    return ''
 
 def normalize_name(name):
     # TODO: Must match

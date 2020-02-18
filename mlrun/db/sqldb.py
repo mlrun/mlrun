@@ -15,7 +15,7 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
-
+from dateutil import parser
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
     create_engine, func, or_
@@ -31,7 +31,7 @@ from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = '%Y-%m-%d %H:%M:%S.%f'
+run_time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
 
 
 class HasStruct:
@@ -282,6 +282,7 @@ class SQLDB(RunDBInterface):
 
     def list_artifacts(self, name=None, project=None, tag=None, labels=None):
         project = project or config.default_project
+        tag = tag or 'latest'
         arts = ArtifactList()
         arts.extend(
             obj.struct
@@ -309,7 +310,7 @@ class SQLDB(RunDBInterface):
 
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
-        update_in(func, 'metadata.updated', datetime.now())
+        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         fn = self._get_function(name, project, tag)
         if not fn:
             fn = Function(
@@ -391,12 +392,24 @@ class SQLDB(RunDBInterface):
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query
 
+    def _latest_artifact_uid(self):
+        query = (
+            self.session.query(Artifact.uid)
+            .order_by(Artifact.updated.desc())
+            .limit(1)
+        )
+        out = query.one_or_none()
+        if out:
+            return out[0]
+
     def _find_artifacts(self, project, tag, labels):
-        # FIXME tag = tag or 'latest'
         labels = label_set(labels)
         query = self._query(Artifact, project=project)
         if tag != '*':
-            tag = tag or 'latest'
+            if tag == 'latest':
+                tag = self._latest_artifact_uid()
+                if not tag:
+                    return []  # no artifacts
             query = query.filter(or_(Artifact.tag == tag, Artifact.uid == tag))
 
         if labels:
@@ -447,7 +460,7 @@ def run_start_time(run):
     ts = get_in(run, 'status.start_time', '')
     if not ts:
         return None
-    return datetime.strptime(ts, run_time_fmt)
+    return parser.parse(ts)
 
 
 def run_labels(run):

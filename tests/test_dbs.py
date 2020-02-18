@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import timezone
 from tempfile import mkdtemp
 
 import pytest
@@ -47,6 +48,9 @@ def test_save_get_function(db: RunDBInterface):
     func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
     db.store_function(func, name, proj)
     db_func = db.get_function(name, proj)
+    updated = db_func['metadata']['updated']
+    if isinstance(db, FileRunDB):
+        db_func['metadata']['updated'] = updated.replace(tzinfo=timezone.utc)
     assert func == db_func, 'wrong func'
 
 

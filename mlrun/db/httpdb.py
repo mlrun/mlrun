@@ -330,7 +330,8 @@ class HTTPRunDB(RunDBInterface):
     def remote_start(self, func_url):
         try:
             req = {'functionUrl': func_url}
-            resp = self.api_call('POST', 'start/function', json=req)
+            resp = self.api_call('POST', 'start/function', json=req,
+                                 timeout=config.submit_timeout)
         except OSError as err:
             logger.error('error starting function: {}'.format(err))
             raise OSError(
@@ -362,7 +363,7 @@ class HTTPRunDB(RunDBInterface):
             req = {'task': runspec.to_dict()}
             if schedule:
                 req['schedule'] = schedule
-            timeout = (int(config.k8s_submit_timeout) or 120) + 20
+            timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)
         except OSError as err:
             logger.error('error submitting task: {}'.format(err))

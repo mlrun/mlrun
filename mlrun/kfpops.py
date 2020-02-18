@@ -16,7 +16,7 @@ from copy import deepcopy
 from os import environ
 
 from .db import default_dbpath
-from .utils import run_keys, dict_to_yaml, logger
+from .utils import run_keys, dict_to_yaml, logger, update_in
 from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
@@ -214,13 +214,16 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         elif hasattr(function, 'to_dict'):
             if function.kind in ['', 'local']:
                 image = image or function.spec.image
-                cmd = cmd or function.spec.command
+                command = command or function.spec.command
                 more_args = more_args or function.spec.args
                 mode = mode or function.spec.mode
                 rundb = rundb or function.spec.rundb
                 code_env = '{}'.format(function.spec.build.functionSourceCode)
             else:
+                if function.kind == 'dask':
+                    image = image or function.spec.image
                 runtime = '{}'.format(function.to_dict())
+
             function_name = function.metadata.name
         else:
             raise ValueError('function must specify a function runtime object')

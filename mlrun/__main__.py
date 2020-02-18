@@ -94,13 +94,6 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     else:
         runobj = RunTemplate()
 
-    code = environ.get('MLRUN_EXEC_CODE')
-    if from_env and code:
-        code = b64decode(code).decode('utf-8')
-        with open('main.py', 'w') as fp:
-            fp.write(code)
-        url = url or 'main.py'
-
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')
     set_item(runobj.metadata, project, 'project')
@@ -121,7 +114,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
             func_url = 'function.yaml' if func_url == '.' else func_url
             runtime = import_function_to_dict(func_url, {})
         kind = get_in(runtime, 'kind', '')
-        if kind not in ['', 'local'] and url:
+        if kind not in ['', 'local', 'dask'] and url:
             if path.isfile(url) and url.endswith('.py'):
                 with open(url) as fp:
                     body = fp.read()
@@ -130,7 +123,6 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
                 update_in(runtime, 'spec.build.functionSourceCode', based)
                 url = ''
                 update_in(runtime, 'spec.command', '')
-
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -143,6 +135,16 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
             pprint(runobj.to_dict())
     else:
         runtime = {}
+
+    code = environ.get('MLRUN_EXEC_CODE')
+    if kind == 'dask':
+        code = get_in(runtime, 'spec.build.functionSourceCode', code)
+    if from_env and code:
+        code = b64decode(code).decode('utf-8')
+        with open('main.py', 'w') as fp:
+            fp.write(code)
+        url = url or 'main.py'
+
     if url:
         update_in(runtime, 'spec.command', url)
     if run_args:

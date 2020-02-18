@@ -255,10 +255,15 @@ class DaskCluster(KubejobRuntime):
                                         autocommit=False,
                                         host=socket.gethostname())
         client = self.client
+        print('got client:')
+        print(client)
         setattr(context, 'dask_client', client)
+        print('set client:')
         sout, serr = exec_from_params(handler, runobj, context)
+        print('post exec: {}\n{}'.format(sout, serr))
         log_std(self._db_conn, runobj, sout, serr,
                 skip=self.is_child, show=False)
+        print('post log')
         return context.to_dict()
 
 

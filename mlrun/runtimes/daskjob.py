@@ -247,7 +247,9 @@ class DaskCluster(KubejobRuntime):
             if not self.spec.command:
                 raise ValueError('specified handler (string) without command '
                                  '(py file path), specify command or use handler pointer')
+            print('func: {}, {}'.format(self.spec.command, handler))
             mod, handler = load_module(self.spec.command, handler)
+        print(runobj.to_yaml())
         context = MLClientCtx.from_dict(runobj.to_dict(),
                                         rundb=self.spec.rundb,
                                         autocommit=False,

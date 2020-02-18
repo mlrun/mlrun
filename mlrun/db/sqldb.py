@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from dateutil import parser
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
-    create_engine, func, or_
+    create_engine, func, or_, Table
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -121,6 +121,35 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         body = Column(BLOB)
+
+    # Define "many to many" users/projects
+    project_users = Table(
+        'project_users', Base.metadata,
+        Column('project_id', Integer, ForeignKey('projects.id')),
+        Column('user_id', Integer, ForeignKey('users.id')),
+    )
+
+    class User(Base):
+        __tablename__ = 'users'
+        __table_args__ = (
+            UniqueConstraint('name', name='_users_uc'),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+
+    class Project(Base):
+        __tablename__ = 'projects'
+        __table_args__ = (
+            UniqueConstraint('name', name='_projects_uc'),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        description = Column(String)
+        owner = Column(String)
+        source = Column(String)
+        users = relationship(User, secondary=project_users)
 
 
 class SQLDB(RunDBInterface):
@@ -352,6 +381,22 @@ class SQLDB(RunDBInterface):
 
     def list_schedules(self):
         return [s.struct for s in self.session.query(Schedule)]
+
+    def new_project(self, project):
+        name = project.get('name')
+        if not name:
+            raise ValueError('project missing name')
+
+        prj = Project(**project)
+        self._upsert(prj)
+
+    def update_project(self, project_id, project):
+        prj = Project.query().get(project_id).one_or_none()
+        if not prj:
+            raise RunDBError(f'unknown project ID - {project_id}')
+
+
+
 
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}

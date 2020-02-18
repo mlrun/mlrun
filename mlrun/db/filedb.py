@@ -17,6 +17,7 @@ import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
 
+import pandas as pd
 import yaml
 
 from ..config import config
@@ -136,8 +137,10 @@ class FileRunDB(RunDBInterface):
             days_ago = datetime.now() - timedelta(days=days_ago)
 
         def date_before(run):
-            return datetime.strptime(get_in(run, 'status.start_time', ''),
-                                     '%Y-%m-%d %H:%M:%S.%f') < days_ago
+            val = get_in(run, 'status.start_time', '')
+            if not val:
+                return True
+            return parse_time(val) < days_ago
 
         for run, p in self._load_list(filepath, '*'):
             if match_value(name, run, 'metadata.name') and \
@@ -352,8 +355,10 @@ def make_time_pred(since, until):
         val = artifact.get('updated')
         if not val:
             return True
-        t = datetime.strptime(val, '%Y-%m-%dT%H:%M:%S.%f').replace(
-                tzinfo=timezone.utc)
+        t = parse_time(val).replace(tzinfo=timezone.utc)
         return since <= t <= until
 
     return pred
+
+
+parse_time = pd.to_datetime

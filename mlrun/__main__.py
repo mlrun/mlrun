@@ -128,11 +128,6 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         if not isinstance(runtime, dict):
             print('runtime parameter must be a dict, not {}'.format(type(runtime)))
             exit(1)
-        if kfp:
-            print('Runtime:')
-            pprint(runtime)
-            print('Run:')
-            pprint(runobj.to_dict())
     else:
         runtime = {}
 
@@ -141,6 +136,8 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         code = get_in(runtime, 'spec.build.functionSourceCode', code)
     if from_env and code:
         code = b64decode(code).decode('utf-8')
+        if kfp:
+            print('code:\n{}\n'.format(code))
         with open('main.py', 'w') as fp:
             fp.write(code)
         url = url or 'main.py'
@@ -162,6 +159,13 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
+
+    if kfp:
+        print('Runtime:')
+        pprint(runtime)
+        print('Run:')
+        pprint(runobj.to_dict())
+
     try:
         update_in(runtime, 'metadata.name', name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)

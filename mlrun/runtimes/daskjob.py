@@ -147,7 +147,6 @@ class DaskCluster(KubejobRuntime):
 
             self.save(versioned=False)
             resp = db.remote_start(self._function_uri())
-            logger.info('start resp: {}'.format(resp))
             if resp and 'status' in resp:
                 self.status = resp['status']
             return

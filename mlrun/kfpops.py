@@ -221,7 +221,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                 code_env = '{}'.format(function.spec.build.functionSourceCode)
             else:
                 if function.kind == 'dask':
-                    image = image or function.spec.image
+                    image = image or function.spec.kfp_image \
+                            or function.spec.image
                 runtime = '{}'.format(function.to_dict())
 
             function_name = function.metadata.name

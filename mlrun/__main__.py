@@ -137,7 +137,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         runtime = {}
 
     code = environ.get('MLRUN_EXEC_CODE')
-    if kind == 'dask':
+    if get_in(runtime, 'kind', '') == 'dask':
         code = get_in(runtime, 'spec.build.functionSourceCode', code)
     if from_env and code:
         code = b64decode(code).decode('utf-8')

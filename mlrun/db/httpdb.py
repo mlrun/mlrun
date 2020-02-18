@@ -331,7 +331,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             req = {'functionUrl': func_url}
             resp = self.api_call('POST', 'start/function', json=req,
-                                 timeout=config.submit_timeout)
+                                 timeout=int(config.submit_timeout) or 60)
         except OSError as err:
             logger.error('error starting function: {}'.format(err))
             raise OSError(

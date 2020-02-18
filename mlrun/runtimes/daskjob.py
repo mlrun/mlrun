@@ -132,6 +132,8 @@ class DaskCluster(KubejobRuntime):
 
             if db_func and 'status' in db_func:
                 self.status = db_func['status']
+                if self.kfp:
+                    logger.info('dask status: {}'.format(db_func['status']))
                 return 'scheduler_address' in db_func['status']
 
         return False
@@ -145,6 +147,7 @@ class DaskCluster(KubejobRuntime):
 
             self.save(versioned=False)
             resp = db.remote_start(self._function_uri())
+            logger.info('start resp: {}'.format(resp))
             if resp and 'status' in resp:
                 self.status = resp['status']
             return
@@ -199,6 +202,7 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
+            logger.info('dask client at: {} dashboard: {}'.format(addr, dash))
             try:
                 client = Client(addr)
             except OSError as e:

@@ -16,8 +16,8 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
+from dateutil.parser import parse as parse_time
 
-import pandas as pd
 import yaml
 
 from ..config import config
@@ -107,7 +107,8 @@ class FileRunDB(RunDBInterface):
             if match_value(name, run, 'metadata.name') and \
                match_labels(get_in(run, 'metadata.labels', {}), labels) and \
                match_value(state, run, 'status.state') and \
-               match_value(uid, run, 'metadata.uid'):
+               match_value(uid, run, 'metadata.uid') and \
+               (iter or get_in(run, 'metadata.iteration', 0) == 0):
                 results.append(run)
 
         if sort or last:
@@ -137,10 +138,10 @@ class FileRunDB(RunDBInterface):
             days_ago = datetime.now() - timedelta(days=days_ago)
 
         def date_before(run):
-            val = get_in(run, 'status.start_time', '')
-            if not val:
-                return True
-            return parse_time(val) < days_ago
+            d = get_in(run, 'status.start_time', '')
+            if not d:
+                return False
+            return parse_time(d) < days_ago
 
         for run, p in self._load_list(filepath, '*'):
             if match_value(name, run, 'metadata.name') and \
@@ -230,7 +231,7 @@ class FileRunDB(RunDBInterface):
                 self._safe_del(p)
 
     def store_function(self, func, name, project='', tag=''):
-        update_in(func, 'metadata.updated', datetime.now())
+        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         data = self._dumps(func)
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or config.default_project, name,
@@ -359,6 +360,3 @@ def make_time_pred(since, until):
         return since <= t <= until
 
     return pred
-
-
-parse_time = pd.to_datetime

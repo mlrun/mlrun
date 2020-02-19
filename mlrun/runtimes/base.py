@@ -498,11 +498,11 @@ class BaseRuntime(ModelObj):
 
         if use_db:
             self.save(versioned=False)
-            func = 'db://' + self._function_uri()
+            url = 'db://' + self._function_uri()
         else:
-            func = self
+            url = None
 
-        return mlrun_op(name, project, func,
+        return mlrun_op(name, project, function=self, func_url=url,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,

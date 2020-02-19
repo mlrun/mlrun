@@ -140,6 +140,7 @@ with warnings.catch_warnings():
 
     class Project(Base):
         __tablename__ = 'projects'
+        # For now since we use project name a lot
         __table_args__ = (
             UniqueConstraint('name', name='_projects_uc'),
         )
@@ -166,6 +167,7 @@ class SQLDB(RunDBInterface):
 
     def store_log(self, uid, project='', body=b'', append=False):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -186,6 +188,7 @@ class SQLDB(RunDBInterface):
 
     def store_run(self, struct, uid, project='', iter=0):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         run = self._get_run(uid, project, iter)
         if not run:
             run = Run(
@@ -269,6 +272,7 @@ class SQLDB(RunDBInterface):
     def store_artifact(
             self, key, artifact, uid, iter=None, tag='', project=''):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         artifact = artifact.copy()
         updated = artifact['updated'] = datetime.now(timezone.utc)
         if iter:
@@ -336,6 +340,7 @@ class SQLDB(RunDBInterface):
 
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         fn = self._get_function(name, project, tag)
         if not fn:
@@ -366,9 +371,6 @@ class SQLDB(RunDBInterface):
         )
         return funcs
 
-    def list_projects(self):
-        return [row[0] for row in self.session.query(Run.project).distinct()]
-
     def list_artifact_tags(self, project):
         query = self.session.query(Artifact.tag).filter(
             Artifact.project == project).distinct()
@@ -382,25 +384,70 @@ class SQLDB(RunDBInterface):
     def list_schedules(self):
         return [s.struct for s in self.session.query(Schedule)]
 
-    def new_project(self, project):
+    def add_project(self, project: dict):
+        project = project.copy()
         name = project.get('name')
         if not name:
             raise ValueError('project missing name')
 
+        user_names = project.pop('users', [])
         prj = Project(**project)
+        users = self._find_or_create_users(user_names)
+        prj.users.extend(users)
+        self._upsert(prj)
+        return prj.id
+
+    def update_project(self, name, data: dict):
+        prj = self.get_project(name)
+        if not prj:
+            raise RunDBError(f'unknown project - {name}')
+
+        data = data.copy()
+        user_names = data.pop('users', [])
+        for key, value in data.items():
+            if not hasattr(prj, key):
+                raise RunDBError(f'unknown project attribute - {key}')
+            setattr(prj, key, value)
+
+        users = self._find_or_create_users(user_names)
+        prj.users.clear()
+        prj.users.extend(users)
         self._upsert(prj)
 
-    def update_project(self, project_id, project):
-        prj = Project.query().get(project_id).one_or_none()
-        if not prj:
-            raise RunDBError(f'unknown project ID - {project_id}')
+    def get_project(self, name=None, project_id=None):
+        if not (project_id or name):
+            raise ValueError('need at least one of project_id or name')
 
+        if project_id:
+            return self._query(Project).get(project_id)
 
+        return self._query(Project, name=name).one_or_none()
 
+    def list_projects(self, owner=None):
+        return self._query(Project, owner=owner)
 
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
         return self.session.query(cls).filter_by(**kw)
+
+    def _create_project_if_not_exists(self, name):
+        if not self.get_project(name):
+            self.add_project({'name': name})
+
+    def _find_or_create_users(self, user_names):
+        users = list(self._query(User).filter(User.name.in_(user_names)))
+        new = set(user_names) - {user.name for user in users}
+        if new:
+            for name in new:
+                user = User(name=name)
+                self.session.add(user)
+                users.append(user)
+            try:
+                self.session.commit()
+            except SQLAlchemyError as err:
+                self.session.rollback()
+                raise RunDBError(f'add user: {err}') from err
+        return users
 
     def _get_function(self, name, project, tag):
         query = self._query(Function, name=name, project=project, tag=tag)
@@ -425,7 +472,7 @@ class SQLDB(RunDBInterface):
         except SQLAlchemyError as err:
             self.session.rollback()
             cls = obj.__class__.__name__
-            raise RunDBError(f'duplicate {cls} - {err}')
+            raise RunDBError(f'duplicate {cls} - {err}') from err
 
     def _find_runs(self, uid, project, labels, state):
         labels = label_set(labels)

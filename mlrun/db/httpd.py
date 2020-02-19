@@ -56,7 +56,7 @@ class CustomJSONEncoder(JSONEncoder):
 
 
 _scheduler: Scheduler = None
-_db: RunDBInterface
+_db: RunDBInterface = None
 _k8s: K8sHelper = None
 _logs_dir = None
 app = Flask(__name__)
@@ -769,13 +769,58 @@ def list_functions():
     )
 
 
+# curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' \
+#   http://localhost:8080/project
+@app.route('/api/project', methods=['POST'])
+@catch_err
+def add_project():
+    data = request.get_json(force=True)
+    for attr in ('name', 'owner'):
+        if attr not in data:
+            return json_error(error=f'missing {attr!r}')
+
+    project_id = _db.add_project(data)
+    return jsonify(
+        ok=True,
+        id=project_id,
+        name=data['name'],
+    )
+
+# curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' \
+#   -X UPDATE http://localhost:8080/project
+@app.route('/api/project/<name>', methods=['POST'])
+@catch_err
+def update_project(name):
+    data = request.get_json(force=True)
+    _db.update_project(name, data)
+    return jsonify(ok=True)
+
+# curl http://localhost:8080/project/<name>
+@app.route('/api/project/<name>', methods=['GET'])
+@catch_err
+def get_project(name):
+    project = _db.get_project(name)
+    if not project:
+        return json_error(error=f'project {name!r} not found')
+
+    resp = {
+        'name': project.name,
+        'description': project.description,
+        'owner': project.owner,
+        'source': project.source,
+        'users': [u.name for u in project.users],
+    }
+
+    return jsonify(ok=True, project=resp)
+
+
 # curl http://localhost:8080/projects
 @app.route('/api/projects', methods=['GET'])
 @catch_err
 def list_projects():
     return jsonify(
         ok=True,
-        projects=_db.list_projects()
+        projects=[p.name for p in _db.list_projects()]
     )
 
 

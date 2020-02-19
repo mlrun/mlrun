@@ -174,7 +174,7 @@ def test_list_projects(db: sqldb.SQLDB):
         run = new_run('s1', ['l1', 'l2'], x=1)
         db.store_run(run, 'u7', project=f'prj{i%3}', iter=i)
 
-    assert {'prj0', 'prj1', 'prj2'} == set(db.list_projects())
+    assert {'prj0', 'prj1', 'prj2'} == {p.name for p in db.list_projects()}
 
 
 def test_list_runs(db: sqldb.SQLDB):
@@ -222,3 +222,30 @@ def test_artifacts_latest(db: sqldb.SQLDB):
     db.store_artifact(k1, art2, u1, project=prj)
     arts = db.list_artifacts(project=prj, tag='latest')
     assert art2['a'] == arts[0]['a'], 'bad artifact'
+
+
+def test_projects(db: sqldb.SQLDB):
+    prj1 = {
+        'name': 'p1',
+        'description': 'banana',
+        'users': ['u1', 'u2'],
+    }
+    pid1 = db.add_project(prj1)
+    p1 = db.get_project(project_id=pid1)
+    assert p1, f'project {pid1} not found'
+    out = {
+        'name': p1.name,
+        'description': p1.description,
+        'users': sorted(u.name for u in p1.users)
+        }
+    assert prj1 == out, 'bad project'
+
+    data = {'description': 'lemon'}
+    db.update_project(p1.name, data)
+    p1 = db.get_project(project_id=pid1)
+    assert data['description'] == p1.description, 'bad update'
+
+    prj2 = {'name': 'p2'}
+    db.add_project(prj2)
+    prjs = {p.name for p in db.list_projects()}
+    assert {prj1['name'], prj2['name']} == prjs, 'list'

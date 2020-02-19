@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -167,6 +167,33 @@ def test_list_artifact_tags(db: sqldb.SQLDB):
 
     tags = db.list_artifact_tags('p1')
     assert {'t1', 't2'} == set(tags), 'bad tags'
+
+
+def test_list_artifact_date(db: sqldb.SQLDB):
+    t1 = datetime(2020, 2, 16)
+    t2 = t1 - timedelta(days=7)
+    t3 = t2 - timedelta(days=7)
+    prj = 'p7'
+
+    db.store_artifact('k1', {'updated': t1}, 'u1', project=prj)
+    db.store_artifact('k2', {'updated': t2}, 'u2', project=prj)
+    db.store_artifact('k3', {'updated': t3}, 'u3', project=prj)
+
+    arts = db.list_artifacts(project=prj, since=t3, tag='*')
+    assert 3 == len(arts), 'since t3'
+
+    arts = db.list_artifacts(project=prj, since=t2, tag='*')
+    assert 2 == len(arts), 'since t2'
+
+    arts = db.list_artifacts(
+        project=prj, since=t1 + timedelta(days=1), tag='*')
+    assert not arts, 'since t1+'
+
+    arts = db.list_artifacts(project=prj, until=t2, tag='*')
+    assert 2 == len(arts), 'until t2'
+
+    arts = db.list_artifacts(project=prj, since=t2, until=t2, tag='*')
+    assert 1 == len(arts), 'since/until t2'
 
 
 def test_list_projects(db: sqldb.SQLDB):

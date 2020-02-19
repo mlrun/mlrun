@@ -48,7 +48,7 @@ class DaskSpec(KubeResourceSpec):
                  build=None, entry_points=None, description=None,
                  replicas=None, image_pull_policy=None, service_account=None,
                  image_pull_secret=None, extra_pip=None, remote=None,
-                 service_type=None, nthreads=None,
+                 service_type=None, nthreads=None, kfp_image=None,
                  node_port=None, min_replicas=None, max_replicas=None):
 
         super().__init__(command=command, args=args, image=image,
@@ -65,6 +65,7 @@ class DaskSpec(KubeResourceSpec):
             self.remote = True
 
         self.service_type = service_type
+        self.kfp_image = kfp_image
         self.node_port = node_port
         self.min_replicas = min_replicas or 0
         self.max_replicas = max_replicas or 64
@@ -131,6 +132,8 @@ class DaskCluster(KubejobRuntime):
 
             if db_func and 'status' in db_func:
                 self.status = db_func['status']
+                if self.kfp:
+                    logger.info('dask status: {}'.format(db_func['status']))
                 return 'scheduler_address' in db_func['status']
 
         return False
@@ -198,6 +201,7 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
+            logger.info('dask client at: {} dashboard: {}'.format(addr, dash))
             try:
                 client = Client(addr)
             except OSError as e:

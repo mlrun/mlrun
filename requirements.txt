@@ -8,8 +8,7 @@ gevent==1.4.0
 gunicorn==19.9.0
 kfp>=0.1.29
 nest-asyncio>=1.0.0
-nuclio-jupyter>=0.8.0
-nuclio-sdk>=0.0.3
+nuclio-jupyter>=0.8.2
 pandas>=0.23.0, <1.0.0
 pyyaml>=5.1.0
 requests>=2.20.1

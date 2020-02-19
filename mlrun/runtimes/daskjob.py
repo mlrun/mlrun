@@ -247,23 +247,16 @@ class DaskCluster(KubejobRuntime):
             if not self.spec.command:
                 raise ValueError('specified handler (string) without command '
                                  '(py file path), specify command or use handler pointer')
-            print('func: {}, {}'.format(self.spec.command, handler))
             mod, handler = load_module(self.spec.command, handler)
-        print(runobj.to_yaml())
         context = MLClientCtx.from_dict(runobj.to_dict(),
                                         rundb=self.spec.rundb,
                                         autocommit=False,
                                         host=socket.gethostname())
         client = self.client
-        print('got client:')
-        print(client)
         setattr(context, 'dask_client', client)
-        print('set client:')
         sout, serr = exec_from_params(handler, runobj, context)
-        print('post exec: {}\n{}'.format(sout, serr))
         log_std(self._db_conn, runobj, sout, serr,
                 skip=self.is_child, show=False)
-        print('post log')
         return context.to_dict()
 
 

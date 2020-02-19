@@ -15,6 +15,7 @@ import json
 from copy import deepcopy
 from os import environ
 
+from . import get_version
 from .db import default_dbpath
 from .utils import run_keys, dict_to_yaml, logger, update_in
 from .config import config
@@ -222,7 +223,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
             else:
                 if function.kind == 'dask':
                     image = image or function.spec.kfp_image \
-                            or function.spec.image
+                            or 'mlrun/dask:{}'.format(get_version())
                 runtime = '{}'.format(function.to_dict())
 
             function_name = function.metadata.name

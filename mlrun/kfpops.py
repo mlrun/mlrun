@@ -211,7 +211,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     function_name = ''
     if function:
 
-        if not func_url and hasattr(function, 'to_dict'):
+        if not func_url:
             if function.kind in ['', 'local']:
                 image = image or function.spec.image
                 command = command or function.spec.command
@@ -221,9 +221,6 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
                 code_env = '{}'.format(function.spec.build.functionSourceCode)
             else:
                 runtime = '{}'.format(function.to_dict())
-
-        else:
-            raise ValueError('function must specify a function runtime object')
 
         function_name = function.metadata.name
         if function.kind == 'dask':

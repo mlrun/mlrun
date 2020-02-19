@@ -497,8 +497,8 @@ class BaseRuntime(ModelObj):
             image = self.full_image_path()
 
         if use_db:
-            self.save(versioned=False)
-            url = 'db://' + self._function_uri()
+            hashkey = self.save(versioned=False)
+            url = 'db://' + self._function_uri(tag=hashkey)
         else:
             url = None
 
@@ -529,7 +529,7 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
-            return
+            return ''
 
         tag = tag or self.metadata.tag or 'latest'
         self.metadata.tag = tag
@@ -543,3 +543,4 @@ class BaseRuntime(ModelObj):
                               self.metadata.project, hashkey)
         db.store_function(obj, self.metadata.name,
                           self.metadata.project, tag)
+        return hashkey

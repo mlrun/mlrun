@@ -34,7 +34,7 @@ import importlib.util as imputil
 from io import StringIO
 from contextlib import redirect_stdout
 from pathlib import Path
-from nuclio_sdk import Event
+from nuclio import Event
 
 
 class HandlerRuntime(BaseRuntime):

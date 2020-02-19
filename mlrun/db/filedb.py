@@ -16,7 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
-from dateutil import parser
+from dateutil.parser import parse as parse_time
 
 import yaml
 
@@ -141,7 +141,7 @@ class FileRunDB(RunDBInterface):
             d = get_in(run, 'status.start_time', '')
             if not d:
                 return False
-            return parser.parse(ts) < days_ago
+            return parse_time(d) < days_ago
 
         for run, p in self._load_list(filepath, '*'):
             if match_value(name, run, 'metadata.name') and \
@@ -150,9 +150,9 @@ class FileRunDB(RunDBInterface):
                (not days_ago or date_before(run)):
                 self._safe_del(p)
 
-    def store_artifact(
-            self, key, artifact, uid, iter=None, tag='', project=''):
-        artifact['updated'] = datetime.now(timezone.utc).isoformat()
+    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
+        if 'updated' not in artifact:
+            artifact['updated'] = datetime.now(timezone.utc).isoformat()
         data = self._dumps(artifact)
         if iter:
             key = '{}-{}'.format(iter, key)
@@ -175,7 +175,9 @@ class FileRunDB(RunDBInterface):
         data = self._datastore.get(filepath)
         return self._loads(data)
 
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(
+            self, name='', project='', tag='', labels=None, since=None,
+            until=None):
         labels = [] if labels is None else labels
         tag = tag or 'latest'
         name = name or ''
@@ -192,9 +194,13 @@ class FileRunDB(RunDBInterface):
                 mask += '*'
         else:
             mask = '**/*'
+
+        time_pred = make_time_pred(since, until)
         for artifact, p in self._load_list(filepath, mask):
             if (name == '' or name in get_in(artifact, 'key', ''))\
                     and match_labels(get_in(artifact, 'labels', {}), labels):
+                if not time_pred(artifact):
+                    continue
                 if 'artifacts/latest' in p:
                     artifact['tree'] = 'latest'
                 results.append(artifact)
@@ -334,3 +340,25 @@ class FileRunDB(RunDBInterface):
             remove(filepath)
         else:
             raise RunDBError(f'run file is not found or valid ({filepath})')
+
+
+def make_time_pred(since, until):
+    if not (since or until):
+        return lambda artifact: True
+
+    since = since or datetime.min
+    until = until or datetime.max
+
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+
+    def pred(artifact):
+        val = artifact.get('updated')
+        if not val:
+            return True
+        t = parse_time(val).replace(tzinfo=timezone.utc)
+        return since <= t <= until
+
+    return pred

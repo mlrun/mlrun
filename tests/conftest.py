@@ -21,8 +21,6 @@ from sys import platform
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
-# This must be *after* environment changes above
-from mlrun import RunObject, RunTemplate  # noqa
 from mlrun.db import sqldb
 
 here = Path(__file__).absolute().parent
@@ -54,6 +52,9 @@ def check_docker():
 
 
 in_docker = check_docker()
+
+# This must be *after* environment changes above
+from mlrun import RunObject, RunTemplate  # noqa
 
 
 def tag_test(spec: RunTemplate, name) -> RunTemplate:

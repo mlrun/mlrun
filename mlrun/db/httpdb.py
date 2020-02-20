@@ -20,11 +20,10 @@ from os import path, remove
 import kfp
 import requests
 
-from ..utils import dict_to_json, logger
+from ..utils import dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
 from ..config import config
-from ..kfpops import new_pipe_meta
 
 default_project = 'default'  # TODO: Name?
 

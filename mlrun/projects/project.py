@@ -1,6 +1,5 @@
 import shutil
 
-from kfpops import new_pipe_meta
 from ..model import ModelObj
 import tarfile
 from tempfile import mktemp
@@ -16,7 +15,7 @@ import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import Client, compiler
 
-from ..utils import update_in
+from ..utils import update_in, new_pipe_meta
 from ..runtimes.utils import add_code_metadata
 
 

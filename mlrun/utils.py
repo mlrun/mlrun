@@ -298,3 +298,20 @@ def gen_html_table(header, rows=None):
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
     return style + '<table class="tg">\n' + out + '</table>\n\n'
+
+
+def new_pipe_meta(artifacts_path=None, *args):
+    from kfp.dsl import PipelineConf
+
+    def _set_artifacts_path(task):
+        from kubernetes import client as k8s_client
+        task.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_ARTIFACTS_PATH', value=artifacts_path))
+        return task
+
+    conf = PipelineConf()
+    if artifacts_path:
+        conf.add_op_transformer(_set_artifacts_path)
+    for op in args:
+        conf.add_op_transformer(op)
+    return conf

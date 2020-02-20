@@ -19,6 +19,10 @@ from ..utils import update_in
 from ..runtimes.utils import add_code_metadata
 
 
+class ProjectError(Exception):
+    pass
+
+
 def new_project(name, context=None, functions=None, workflows=None,
                 init_git=False):
     """Create a new MLRun project"""
@@ -199,11 +203,29 @@ class MlrunProject(ModelObj):
                 raise ValueError('target dit (context) is not set')
             clone_tgz(url, self.context, self._secrets, False)
 
-    def push(self, branch, message=None, update=True, remote=None):
+    def create_remote(self, url, name='origin'):
+        if not self.repo:
+            raise ValueError('git repo is not set/defined')
+        self.repo.create_remote(name, url=url)
+        url = url.replace('https://', 'git://')
+        try:
+            url = '{}#refs/heads/{}'.format(url, self.repo.active_branch.name)
+        except Exception:
+            pass
+        self.source = self.source or url
+        self.origin_url = self.origin_url or url
+
+    def push(self, branch, message=None, update=True, remote=None,
+             add: list = None):
         repo = self.repo
         if not repo:
             raise ValueError('git repo is not set/defined')
         self.save()
+
+        add = add or []
+        if '.' not in add:
+            add.append('project.yaml')
+        repo.index.add(add)
         if update:
             repo.git.add(update=True)
         if repo.is_dirty():
@@ -249,6 +271,17 @@ class MlrunProject(ModelObj):
         self.sync_functions(always=sync)
         if not self._function_objects:
             raise ValueError('no functions in the project')
+
+        if self.repo and self.repo.is_dirty():
+            raise ProjectError(
+                'you seem to have uncommitted git changes, use .push()')
+
+        if self.repo and not self.source:
+            url = _get_repo_url(self.repo)
+            if not url:
+                raise ProjectError(
+                    'remote repo is not defined, use .create_remote() + push')
+            self.source = url
 
         if not name and not workflow_path:
             raise ValueError('workflow name or path not specified')
@@ -305,15 +338,18 @@ def init_function_from_dict(f, project):
             raise Exception('{} not found'.format(url))
 
     if 'spec' in f:
-        func = new_function(runtime=f['spec'])
+        func = new_function(name, runtime=f['spec'])
     elif url.endswith('.yaml') or url.startswith('db://'):
         func = import_function(url)
     elif url.endswith('.ipynb'):
-        func = code_to_function(filename=url, image=image, kind=kind)
+        func = code_to_function(name, filename=url, image=image, kind=kind)
     elif url.endswith('.py'):
         if not image:
             raise ValueError('image must be provided with py code files')
-        func = code_to_function(filename=url, image=image, kind=kind or 'job')
+        if in_context:
+            func = new_function(name, command=url, image=image, kind=kind or 'job')
+        else:
+            func = code_to_function(name, filename=url, image=image, kind=kind or 'job')
     else:
         raise ValueError('unsupported function url {} or no spec'.format(url))
 

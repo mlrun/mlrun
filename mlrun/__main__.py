@@ -83,6 +83,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         image, watch, run_args):
     """Execute a task and inject parameters."""
 
+    out_path = out_path or environ.get('MLRUN_ARTIFACTS_PATH')
     config = environ.get('MLRUN_EXEC_CONFIG')
     if from_env and config:
         config = json.loads(config)

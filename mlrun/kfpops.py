@@ -417,3 +417,20 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
             name='V3IO_ACCESS_KEY', value=environ.get('V3IO_ACCESS_KEY')))
 
     return cop
+
+
+def new_pipe_meta(artifacts_path=None, *args):
+    from kfp.dsl import PipelineConf
+
+    def _set_artifacts_path(task):
+        from kubernetes import client as k8s_client
+        task.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_ARTIFACTS_PATH', value=artifacts_path))
+        return task
+
+    conf = PipelineConf()
+    if artifacts_path:
+        conf.add_op_transformer(_set_artifacts_path)
+    for op in args:
+        conf.add_op_transformer(op)
+    return conf

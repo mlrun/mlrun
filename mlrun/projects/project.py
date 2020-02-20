@@ -1,5 +1,6 @@
 import shutil
 
+from kfpops import new_pipe_meta
 from ..model import ModelObj
 import tarfile
 from tempfile import mktemp
@@ -192,12 +193,14 @@ class MlrunProject(ModelObj):
             self.sync_functions()
         return self._function_objects[key]
 
-    def pull(self):
+    def pull(self, branch=None, remote=None):
         url = self.origin_url
         if url and url.startswith('git://'):
             if not self.repo:
                 raise ValueError('repo was not initialized, use load_project()')
-            self.repo.git.pull()
+            branch = branch or self.repo.active_branch.name
+            remote = remote or 'origin'
+            self.repo.git.pull(remote, branch=branch)
         elif url and url.endswith('.tar.gz'):
             if not self.context:
                 raise ValueError('target dit (context) is not set')
@@ -236,7 +239,7 @@ class MlrunProject(ModelObj):
             raise ValueError('please specify the remote branch')
         repo.git.push(remote or 'origin', branch)
 
-    def sync_functions(self, names: list = None, always=True):
+    def sync_functions(self, names: list = None, always=True, save=False):
         if self._initialized and not always:
             return
 
@@ -256,6 +259,8 @@ class MlrunProject(ModelObj):
                 name, func = init_function_from_dict(f, self)
             func.spec.build.code_origin = origin
             funcs[name] = func
+            if save:
+                func.save(versioned=False)
 
         self._function_objects = funcs
         self._initialized = True
@@ -406,11 +411,12 @@ def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
     namespace = namespace or config.namespace
     if remote:
         id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                          namespace=namespace)
+                          namespace=namespace, artifacts_path=None)
     else:
         client = Client(namespace=namespace or config.namespace)
+        conf = new_pipe_meta(artifacts_path)
         run_result = client.create_run_from_pipeline_func(
-            kfpipeline, arguments, experiment_name=name)
+            kfpipeline, arguments, experiment_name=name, pipeline_conf=conf)
         id = run_result.run_id
 
     return id

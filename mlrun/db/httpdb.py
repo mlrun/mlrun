@@ -24,6 +24,7 @@ from ..utils import dict_to_json, logger
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
 from ..config import config
+from ..kfpops import new_pipe_meta
 
 default_project = 'default'  # TODO: Name?
 
@@ -232,7 +233,8 @@ class HTTPRunDB(RunDBInterface):
         error = f'del artifact {project}/{key}'
         self.api_call('DELETE', path, error, params=params)
 
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(self, name='', project='', tag='', labels=None,
+                       since=None, until=None):
         project = project or default_project
         params = {
             'name': name,
@@ -378,13 +380,16 @@ class HTTPRunDB(RunDBInterface):
         return resp['data']
 
     def submit_pipeline(self, pipeline, arguments=None, experiment=None,
-                        run=None, namespace=None):
+                        run=None, namespace=None, artifacts_path=None,
+                        ops=None):
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.mktemp(suffix='.yaml')
-            kfp.compiler.Compiler().compile(pipeline, pipe_file)
+            conf = new_pipe_meta(artifacts_path, ops)
+            kfp.compiler.Compiler().compile(pipeline, pipe_file,
+                                            type_check=False, pipeline_conf=conf)
 
         if pipe_file.endswith('.yaml'):
             headers = {"content-type": "application/yaml"}

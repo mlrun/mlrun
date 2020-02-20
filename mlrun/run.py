@@ -37,7 +37,7 @@ from .config import config as mlconf
 
 
 def run_pipeline(pipeline, arguments=None, experiment=None,
-                 run=None, namespace=None, url=None):
+                 run=None, namespace=None, url=None, artifacts_path=None):
     """remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
@@ -56,7 +56,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None,
         raise ValueError('run pipeline require access to remote api-service'
                          ', please set the dbpath url')
     return mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
-                                run=run, namespace=namespace)
+                                run=run, namespace=namespace, artifacts_path=None)
 
 
 def get_or_create_ctx(name: str,

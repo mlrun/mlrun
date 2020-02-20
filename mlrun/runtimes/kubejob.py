@@ -91,9 +91,19 @@ class KubejobRuntime(KubeResource):
         if skip_deployed and self.is_deployed:
             return 'ready'
 
+        build = self.spec.build
+        if not build.source and not build.commands and not with_mlrun:
+            if not self.spec.image:
+                raise ValueError('noting to build and image is not specified, '
+                                 'please set the function image or build args')
+            return 'ready'
+
+        if not build.source and not build.commands and with_mlrun:
+            logger.info('running build to add mlrun package, set '
+                        'with_mlrun=False to skip if its already in the image')
+
         self.spec.build.image = self.spec.build.image \
                                 or default_image_name(self)
-        self.spec.image = ''
         self.status.state = ''
 
         if self._is_remote_api() and not is_kfp:

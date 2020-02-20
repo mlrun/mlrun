@@ -30,7 +30,7 @@ _missing = object()
 
 def create_logger(stream=None):
     level = logging.INFO
-    if config.log_level == 'debug':
+    if config.log_level.lower() == 'debug':
         level = logging.DEBUG
     handler = logging.StreamHandler(stream or stdout)
     handler.setFormatter(

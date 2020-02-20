@@ -223,8 +223,7 @@ class MlrunProject(ModelObj):
         self.save()
 
         add = add or []
-        if '.' not in add:
-            add.append('project.yaml')
+        add.append('project.yaml')
         repo.index.add(add)
         if update:
             repo.git.add(update=True)

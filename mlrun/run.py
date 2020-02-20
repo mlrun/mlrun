@@ -438,7 +438,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
 
     if with_doc:
         handlers = find_handlers(code)
-        r.spec.entry_points = {h[name]: h for h in handlers}
+        r.spec.entry_points = {h.name: h for h in handlers}
     return r
 
 

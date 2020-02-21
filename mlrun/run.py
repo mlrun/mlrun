@@ -381,7 +381,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             r.spec.base_spec = spec
             if with_doc:
                 handlers = find_handlers(code)
-                r.spec.entry_points = {h.name: as_func(h) for h in handlers}
+                r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -438,7 +438,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
 
     if with_doc:
         handlers = find_handlers(code)
-        r.spec.entry_points = {h.name: h for h in handlers}
+        r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
     return r
 
 
@@ -447,7 +447,7 @@ def as_func(handler):
         name=handler['name'],
         doc=handler['doc'],
         parameters=[as_entry(p) for p in handler['params']],
-        outputs=[as_entry(p) for p in handler['returns']],
+        outputs=[as_entry(p) for p in handler['return']],
         lineno=handler['lineno'],
     )
 

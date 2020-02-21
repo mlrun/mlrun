@@ -14,7 +14,6 @@
 
 import uuid
 from ast import literal_eval
-from datetime import datetime
 import getpass
 from copy import deepcopy
 from os import environ
@@ -25,8 +24,8 @@ from ..db import get_run_db, default_dbpath
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
-from ..utils import get_in, update_in, logger, is_ipython, now_date
-from .utils import calc_hash, RunError, results_to_iter, default_image_name
+from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image
+from .utils import calc_hash, RunError, results_to_iter
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
@@ -460,6 +459,7 @@ class BaseRuntime(ModelObj):
 
     def full_image_path(self, image=None):
         image = image or self.spec.image or ''
+        image = tag_image(image)
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:

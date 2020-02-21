@@ -315,3 +315,9 @@ def new_pipe_meta(artifacts_path=None, *args):
     for op in args:
         conf.add_op_transformer(op)
     return conf
+
+
+def tag_image(base):
+    if base in ['mlrun/mlrun'] and config.version:
+        base += ':' + config.version
+    return base

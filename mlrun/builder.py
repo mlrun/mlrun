@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 from .datastore import StoreManager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import logger, normalize_name
+from .utils import logger, normalize_name, tag_image
 from .config import config
 
 
@@ -219,8 +219,12 @@ def build_runtime(runtime, with_mlrun, interactive=False):
         extra = None
 
     name = normalize_name('mlrun-build-{}'.format(runtime.metadata.name))
+    base_image = tag_image(build.base_image or 'mlrun/mlrun')
+    if not build.base_image:
+        with_mlrun = False
+
     status = build_image(build.image,
-                         base_image=build.base_image or 'python:3.6-jessie',
+                         base_image=base_image,
                          commands=build.commands,
                          namespace=namespace,
                          #inline_code=inline,

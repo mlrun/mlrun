@@ -93,6 +93,7 @@ class DaskCluster(KubejobRuntime):
                  metadata=None):
         super().__init__(spec, metadata)
         self._cluster = None
+        self.use_remote = False
         self.spec.build.base_image = self.spec.build.base_image or 'daskdev/dask:latest'
 
     @property
@@ -182,15 +183,21 @@ class DaskCluster(KubejobRuntime):
         return self._cluster
 
     def _remote_addresses(self):
+        addr = self.status.scheduler_address
+        dash = ''
         if config.remote_host:
-            if self.spec.service_type != 'NodePort':
-                raise ValueError('remote host require NodePort')
-            addr = '{}:{}'.format(config.remote_host,
-                                  self.status.node_ports.get('scheduler'))
-            dash = '{}:{}'.format(config.remote_host,
-                                  self.status.node_ports.get('dashboard'))
-            return addr, dash
-        return self.status.scheduler_address, ''
+            if self.spec.service_type == 'NodePort' and self.use_remote:
+                addr = '{}:{}'.format(config.remote_host,
+                                      self.status.node_ports.get('scheduler'))
+
+            if self.spec.service_type == 'NodePort':
+                dash = '{}:{}'.format(config.remote_host,
+                                      self.status.node_ports.get('dashboard'))
+            else:
+                logger.info(
+                    'to get a dashboard link, use NodePort service_type')
+
+        return addr, dash
 
     @property
     def client(self):
@@ -217,8 +224,9 @@ class DaskCluster(KubejobRuntime):
                 status = self.get_status()
                 if status != 'running':
                     self._start()
-                addr = self.status.scheduler_address
+                addr, dash = self._remote_addresses()
                 client = Client(addr)
+
             logger.info('using remote dask scheduler ({}) at: {}'.format(
                 self.status.cluster_name, addr))
             if dash:

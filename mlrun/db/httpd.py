@@ -794,7 +794,7 @@ def list_schedules():
 
 @app.route('/api/healthz', methods=['GET'])
 def health():
-    return 'OK\n'
+    return jsonify(ok=True, version=config.version)
 
 
 @app.before_first_request

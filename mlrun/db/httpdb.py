@@ -49,6 +49,7 @@ class HTTPRunDB(RunDBInterface):
         self.user = user
         self.password = password
         self.token = token
+        self.server_version = ''
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -100,7 +101,14 @@ class HTTPRunDB(RunDBInterface):
         return f'{prefix}/{project}/{uid}'
 
     def connect(self, secrets=None):
-        self.api_call('GET', 'healthz', timeout=3)
+        resp = self.api_call('GET', 'healthz', timeout=3)
+        try:
+            self.server_version = resp.json()['version']
+            if self.server_version != config.version:
+                logger.warning('server ({}) and client ({}) ver dont match'
+                               .format(self.server_version, config.version))
+        except Exception:
+            pass
         return self
 
     def store_log(self, uid, project='', body=None, append=False):

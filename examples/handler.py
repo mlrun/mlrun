@@ -1,5 +1,10 @@
 
-def my_func(context, p1=1, p2='a-string'):
+def my_func(context, p1: int = 1, p2='a-string'):
+    """this is a two param function
+
+    :param p1  first param
+    :param p2  2nd param
+    """
     # access input metadata, values, files, and secrets (passwords)
     print('Run: {} (uid={})'.format(context.name, context.uid))
     print('Params: p1={}, p2={}'.format(p1, p2))

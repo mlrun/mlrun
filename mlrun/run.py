@@ -443,14 +443,17 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
 
 
 def as_func(handler):
+    ret = clean(handler['return'])
     return FunctionEntrypoint(
         name=handler['name'],
         doc=handler['doc'],
-        parameters=[as_entry(p) for p in handler['params']],
-        outputs=[as_entry(p) for p in handler['return']],
+        parameters=[clean(p) for p in handler['params']],
+        outputs=[ret] if ret else None,
         lineno=handler['lineno'],
-    )
+    ).to_dict()
 
 
-def as_entry(param):
-    return EntrypointParam(**param)
+def clean(struct: dict):
+    if not struct:
+        return None
+    return {k: v for k, v in struct.items() if v}

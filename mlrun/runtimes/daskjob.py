@@ -202,7 +202,7 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
-            logger.info('dask client at: {} dashboard: {}'.format(addr, dash))
+            logger.info('trying dask client at: {}'.format(addr))
             try:
                 client = Client(addr)
             except OSError as e:
@@ -223,9 +223,8 @@ class DaskCluster(KubejobRuntime):
                 self.status.cluster_name, addr))
             if dash:
                 url = '<a href="http://{}/status" target="_blank" >{} {}</a>'
-                ipython_display(url.format(dash, 'Dask Dashboard:', dash),
+                ipython_display(url.format(dash, 'dashboard link:', dash),
                                 alt_text='remote dashboard: {}'.format(dash))
-                logger.info()
 
             return client
         try:

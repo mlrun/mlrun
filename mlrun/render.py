@@ -137,10 +137,12 @@ def run_to_html(results, display=True):
     return ipython_display(html, display)
 
 
-def ipython_display(html, display=True):
+def ipython_display(html, display=True, alt_text=None):
     if display and html and is_ipython:
         import IPython
         IPython.display.display(IPython.display.HTML(html))
+    elif alt_text:
+        print(alt_text)
     return html
 
 

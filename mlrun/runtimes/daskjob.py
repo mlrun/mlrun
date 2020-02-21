@@ -30,7 +30,7 @@ from .pod import KubeResourceSpec
 from ..lists import RunList
 from ..config import config
 from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
-
+from ..render import ipython_display
 
 def get_dask_resource():
     return {
@@ -49,7 +49,8 @@ class DaskSpec(KubeResourceSpec):
                  replicas=None, image_pull_policy=None, service_account=None,
                  image_pull_secret=None, extra_pip=None, remote=None,
                  service_type=None, nthreads=None, kfp_image=None,
-                 node_port=None, min_replicas=None, max_replicas=None):
+                 node_port=None, min_replicas=None, max_replicas=None,
+                 scheduler_timeout=None):
 
         super().__init__(command=command, args=args, image=image,
                          mode=mode, volumes=volumes, volume_mounts=volume_mounts,
@@ -68,8 +69,8 @@ class DaskSpec(KubeResourceSpec):
         self.kfp_image = kfp_image
         self.node_port = node_port
         self.min_replicas = min_replicas or 0
-        self.max_replicas = max_replicas or 64
-        self.scheduler_timeout = '60 minutes'
+        self.max_replicas = max_replicas or 16
+        self.scheduler_timeout = scheduler_timeout or '60 minutes'
         self.nthreads = nthreads or 1
 
 
@@ -221,8 +222,10 @@ class DaskCluster(KubejobRuntime):
             logger.info('using remote dask scheduler ({}) at: {}'.format(
                 self.status.cluster_name, addr))
             if dash:
-                logger.info('remote dashboard (node) port: {}'.format(
-                    dash))
+                url = '<a href="http://{}/status" target="_blank" >{} {}</a>'
+                ipython_display(url.format(dash, 'Dask Dashboard:', dash),
+                                alt_text='remote dashboard: {}'.format(dash))
+                logger.info()
 
             return client
         try:

@@ -103,6 +103,17 @@ def inputs_html(x):
     return html
 
 
+def sources_list_html(x):
+    if not x:
+        return ''
+    html = ''
+    for src in x:
+        v = src.get('path', '')
+        link, ref = link_to_ipython(v)
+        html += '<div {}title="{}">{}</div>'.format(ref, link, src['name'])
+    return html
+
+
 def run_to_html(results, display=True):
     html = html_dict('Metadata', results['metadata'])
     html += html_dict('Spec', results['spec'])
@@ -338,7 +349,7 @@ def artifacts_to_html(df, display=True, classes=None):
         df['tree'] = df['tree'].apply(html_crop)
     df['path'] = df['path'].apply(link_html)
     df['hash'] = df['hash'].apply(html_crop)
-    df['sources'] = df['sources'].apply(inputs_html)
+    df['sources'] = df['sources'].apply(sources_list_html)
     df['labels'] = df['labels'].apply(dict_html)
     df['producer'] = df['producer'].apply(prod_htm)
     df['updated'] = df['updated'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))

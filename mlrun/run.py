@@ -14,6 +14,7 @@
 import json
 import socket
 import uuid
+from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -456,4 +457,14 @@ def as_func(handler):
 def clean(struct: dict):
     if not struct:
         return None
+    if 'default' in struct:
+        struct['default'] = py_eval(struct['default'])
     return {k: v for k, v in struct.items() if v}
+
+
+def py_eval(data):
+    try:
+        value = literal_eval(data)
+        return value
+    except (SyntaxError, ValueError):
+        return data

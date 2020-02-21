@@ -151,7 +151,7 @@ def parse_rst(docstring: str):
         elif tag == 'rtype':
             ret['type'] = text
         else:
-            raise ValueError(f'{i+1}: uknown tag - {lines[i]!r}')
+            raise ValueError(f'{i+1}: unknown tag - {lines[i]!r}')
 
     params = [params[name] for name in names]
     return doc, params, ret

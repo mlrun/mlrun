@@ -557,5 +557,7 @@ class BaseRuntime(ModelObj):
                 for ev in spec['env']:
                     if ev['name'].startswith('V3IO_'):
                         ev['value'] = ''
+            if 'status' in struct:
+                del struct['status']
         return struct
 

@@ -461,7 +461,7 @@ def logs(uid, project, offset, db, watch):
 @click.argument('context', type=str)
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
-@click.option('--workflow', '-w', help='workflow name ot .py file')
+@click.option('--run', '-r', help='run workflow name ot .py file')
 @click.option('--arguments', '-a', help='arguments dict')
 @click.option('--artifacts-path', '-p', help='output artifacts path')
 @click.option('--namespace', help='k8s namespace')
@@ -469,31 +469,34 @@ def logs(uid, project, offset, db, watch):
 @click.option('--init-git', is_flag=True, help='for new projects init git context')
 @click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
 @click.option('--sync', is_flag=True, help='sync functions into db')
-def project(context, name, url, workflow, arguments, artifacts_path,
+def project(context, name, url, run, arguments, artifacts_path,
             namespace, db, init_git, clone, sync):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
 
     proj = load_project(context, url, name, init_git=init_git, clone=clone)
-    print('Loading project {} from {} into {}:\n'.format(
-        proj.name, url or 'None', context))
+    print('Loading project {}{} into {}:\n'.format(
+        proj.name, ' from ' + url if url else '', context))
     print(proj.to_yaml())
 
-    if workflow:
+    if run:
         workflow_path = None
-        if workflow.endswith('.py'):
-            workflow_path = workflow
-            workflow = None
+        if run.endswith('.py'):
+            workflow_path = run
+            run = None
 
-        try:
-            args = literal_eval(arguments)
-        except (SyntaxError, ValueError):
-            print('arguments ({}) must be a dict object/str'.format(arguments))
-            exit(1)
+        args=None
+        if arguments:
+            try:
+                args = literal_eval(arguments)
+            except (SyntaxError, ValueError):
+                print('arguments ({}) must be a dict object/str'
+                      .format(arguments))
+                exit(1)
 
-        print('running workflow {} file: {}'.format(workflow, workflow_path))
-        run = proj.run(workflow, workflow_path, arguments=args,
+        print('running workflow {} file: {}'.format(run, workflow_path))
+        run = proj.run(run, workflow_path, arguments=args,
                        artifacts_path=artifacts_path, namespace=namespace,
                        sync=sync)
         print('run id: {}'.format(run))

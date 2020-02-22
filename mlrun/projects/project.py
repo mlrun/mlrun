@@ -108,7 +108,7 @@ class MlrunProject(ModelObj):
         self.description = description
         self.tag = ''
         self.origin_url = ''
-        self.source = ''
+        self._source = ''
         self.context = None
         self.subpath = ''
         self.branch = None
@@ -124,12 +124,32 @@ class MlrunProject(ModelObj):
         self.functions = functions or []
 
     @property
+    def source(self) -> str:
+        if not self._source:
+            if self.repo:
+                url = _get_repo_url(self.repo)
+                if url:
+                    self._source = url
+
+        return self._source
+
+    @source.setter
+    def source(self, src):
+        self.source = src
+
+    def _source_repo(self):
+        src = self.source
+        if src:
+            return src.split('#')[0]
+        return ''
+
+    @property
     def functions(self) -> list:
         funcs = []
         for name, f in self._function_defs.items():
             if hasattr(f, 'to_dict'):
                 spec = f.to_dict(strip=True)
-                if f.spec.build.source == self.source:
+                if f.spec.build.source.startswith(self._source_repo()):
                     update_in(spec, 'spec.build.source', './')
                 funcs.append({'name': name,
                               'spec': spec})
@@ -198,7 +218,7 @@ class MlrunProject(ModelObj):
                 raise ValueError('repo was not initialized, use load_project()')
             branch = branch or self.repo.active_branch.name
             remote = remote or 'origin'
-            self.repo.git.pull(remote, branch=branch)
+            self.repo.git.pull(remote, branch)
         elif url and url.endswith('.tar.gz'):
             if not self.context:
                 raise ValueError('target dit (context) is not set')

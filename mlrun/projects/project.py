@@ -135,7 +135,7 @@ class MlrunProject(ModelObj):
 
     @source.setter
     def source(self, src):
-        self.source = src
+        self._source = src
 
     def _source_repo(self):
         src = self.source
@@ -233,7 +233,7 @@ class MlrunProject(ModelObj):
             url = '{}#refs/heads/{}'.format(url, self.repo.active_branch.name)
         except Exception:
             pass
-        self.source = self.source or url
+        self._source = self.source or url
         self.origin_url = self.origin_url or url
 
     def push(self, branch, message=None, update=True, remote=None,
@@ -295,11 +295,8 @@ class MlrunProject(ModelObj):
                 'you seem to have uncommitted git changes, use .push()')
 
         if self.repo and not self.source:
-            url = _get_repo_url(self.repo)
-            if not url:
-                raise ProjectError(
-                    'remote repo is not defined, use .create_remote() + push')
-            self.source = url
+            raise ProjectError(
+                'remote repo is not defined, use .create_remote() + push()')
 
         self.sync_functions(always=sync)
         if not self._function_objects:

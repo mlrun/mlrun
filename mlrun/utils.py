@@ -313,7 +313,8 @@ def new_pipe_meta(artifacts_path=None, *args):
     if artifacts_path:
         conf.add_op_transformer(_set_artifacts_path)
     for op in args:
-        conf.add_op_transformer(op)
+        if op:
+            conf.add_op_transformer(op)
     return conf
 
 

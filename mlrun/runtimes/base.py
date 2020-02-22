@@ -24,7 +24,7 @@ from ..db import get_run_db, default_dbpath
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
-from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image
+from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image, dict_to_yaml, dict_to_json
 from .utils import calc_hash, RunError, results_to_iter
 from ..execution import MLClientCtx
 from ..lists import RunList
@@ -508,17 +508,18 @@ class BaseRuntime(ModelObj):
                         inputs=inputs, outputs=outputs, job_image=image,
                         out_path=out_path, in_path=in_path)
 
-    def export(self, target='', format='.yaml', secrets=None):
+    def export(self, target='', format='.yaml', secrets=None, strip=True):
         """save function spec to a local/remote path (default to
         ./function.yaml)"""
         if self.kind == 'handler':
             raise ValueError('cannot export local handler function, use ' +
                              'code_to_function() to serialize your function')
         calc_hash(self)
+        struct = self.to_dict(strip=strip)
         if format == '.yaml':
-            data = self.to_yaml()
+            data = dict_to_yaml(struct)
         else:
-            data = self.to_json()
+            data = dict_to_json(struct)
         stores = StoreManager(secrets)
         target = target or 'function.yaml'
         datastore, subpath = stores.get_or_create_store(target)
@@ -544,3 +545,17 @@ class BaseRuntime(ModelObj):
         db.store_function(obj, self.metadata.name,
                           self.metadata.project, tag)
         return hashkey
+
+    def to_dict(self, fields=None, exclude=None, strip=False):
+        struct = super().to_dict(fields, exclude=exclude)
+        if strip:
+            spec = struct['spec']
+            for attr in ['volumes', 'volume_mounts']:
+                if attr in spec:
+                    del spec[attr]
+            if 'env' in spec and spec['env']:
+                for ev in spec['env']:
+                    if ev['name'].startswith('V3IO_'):
+                        ev['value'] = ''
+        return struct
+

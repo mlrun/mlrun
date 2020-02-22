@@ -128,10 +128,9 @@ class MlrunProject(ModelObj):
         funcs = []
         for name, f in self._function_defs.items():
             if hasattr(f, 'to_dict'):
-                spec = f.to_dict()
+                spec = f.to_dict(strip=True)
                 if f.spec.build.source == self.source:
                     update_in(spec, 'spec.build.source', './')
-                # TODO: clean/change elements before persisting e.g. source
                 funcs.append({'name': name,
                               'spec': spec})
             else:
@@ -271,10 +270,6 @@ class MlrunProject(ModelObj):
     def run(self, name=None, workflow_path=None, arguments=None,
             artifacts_path=None, namespace=None, sync=False):
 
-        self.sync_functions(always=sync)
-        if not self._function_objects:
-            raise ValueError('no functions in the project')
-
         if self.repo and self.repo.is_dirty():
             raise ProjectError(
                 'you seem to have uncommitted git changes, use .push()')
@@ -286,19 +281,23 @@ class MlrunProject(ModelObj):
                     'remote repo is not defined, use .create_remote() + push')
             self.source = url
 
+        self.sync_functions(always=sync)
+        if not self._function_objects:
+            raise ValueError('no functions in the project')
+
         if not name and not workflow_path:
             raise ValueError('workflow name or path not specified')
         if not workflow_path:
             if name not in self.workflows:
                 raise ValueError('workflow {} not found'.format(name))
             workflow_path = self.workflows.get(name)
+            workflow_path = path.join(self.context, workflow_path)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
-        wfpath = path.join(self.context, workflow_path)
-        run = _run_pipeline(name, wfpath, self._function_objects, self.params,
-                            secrets=self._secrets, arguments=arguments,
-                            artifacts_path=artifacts_path, namespace=namespace,
-                            remote=self.remote)
+        run = _run_pipeline(name, workflow_path, self._function_objects,
+                            self.params, secrets=self._secrets,
+                            arguments=arguments, artifacts_path=artifacts_path,
+                            namespace=namespace, remote=self.remote)
         return run
 
     def save_workflow(self, name, target, artifacts_path=None):

@@ -408,16 +408,8 @@ def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
                                  artifacts_path)
 
     namespace = namespace or config.namespace
-    if remote:
-        id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                          namespace=namespace, artifacts_path=None)
-    else:
-        client = Client(namespace=namespace or config.namespace)
-        conf = new_pipe_meta(artifacts_path)
-        run_result = client.create_run_from_pipeline_func(
-            kfpipeline, arguments, experiment_name=name, pipeline_conf=conf)
-        id = run_result.run_id
-
+    id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
+                      namespace=namespace, artifacts_path=None, remote=remote)
     return id
 
 

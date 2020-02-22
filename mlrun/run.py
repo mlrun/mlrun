@@ -21,6 +21,7 @@ from os import environ, makedirs, path
 from tempfile import mktemp
 
 import yaml
+from kfp import Client
 from nuclio import build_file
 
 from .datastore import get_object
@@ -33,12 +34,13 @@ from .runtimes import (
 )
 from .runtimes.base import EntrypointParam, FunctionEntrypoint
 from .runtimes.utils import add_code_metadata
-from .utils import get_in, logger, parse_function_uri, update_in
+from .utils import get_in, logger, parse_function_uri, update_in, new_pipe_meta
 from .config import config as mlconf
 
 
-def run_pipeline(pipeline, arguments=None, experiment=None,
-                 run=None, namespace=None, url=None, artifacts_path=None):
+def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
+                 namespace=None, url=None, artifacts_path=None, ops=None,
+                 remote=False):
     """remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
@@ -49,15 +51,35 @@ def run_pipeline(pipeline, arguments=None, experiment=None,
     :param run        optional, run name
     :param namespace  Kubernetes namespace (if not using default)
     :param url        optional, url to mlrun API service
+    :param artifacts_path  target location/url for mlrun artifacts
+    :param ops        additional operators (.apply() to all pipeline functions)
+    :param remote     use mlrun remote API service vs direct KFP APIs
 
     :return kubeflow pipeline id
     """
-    mldb = get_run_db(url).connect()
-    if mldb.kind != 'http':
-        raise ValueError('run pipeline require access to remote api-service'
-                         ', please set the dbpath url')
-    return mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
-                                run=run, namespace=namespace, artifacts_path=None)
+
+    namespace = namespace or mlconf.namespace
+    if remote:
+        mldb = get_run_db(url).connect()
+        if mldb.kind != 'http':
+            raise ValueError('run pipeline require access to remote api-service'
+                             ', please set the dbpath url')
+        return mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
+                                    run=run, namespace=namespace, ops=ops,
+                                    artifacts_path=artifacts_path)
+
+    else:
+        client = Client(namespace=namespace)
+        if isinstance(pipeline, str):
+            experiment = client.create_experiment(name=experiment)
+            run_result = client.run_pipeline(experiment.id, run, pipeline,
+                                             params=arguments)
+        else:
+            conf = new_pipe_meta(artifacts_path, ops)
+            run_result = client.create_run_from_pipeline_func(
+                pipeline, arguments, experiment_name=experiment, pipeline_conf=conf)
+
+        return run_result.run_id
 
 
 def get_or_create_ctx(name: str,

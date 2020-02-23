@@ -78,6 +78,9 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
   * [Nuclio-serving (Serverless model serving)](examples/nuclio_serving.ipynb)
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun_sparkk8s.ipynb)
+* MLRun Projects
+  * [Load a project from remote Git and run pipelines](examples/load-project.ipynb)
+  * [Create a new project + functions + pipelines and upload to Git](examples/new-project.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 
@@ -91,13 +94,15 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 
 ### Managed and portable execution
 
-We have few main elements:
+We have few main elements which are usually grouped into "Projects":
 
 * **Function** - a software package with one or more methods and a bunch of `runtime` specific attributes (e.g. image, command, 
 args, environment, ..). function can run one or many runs/tasks, they can be created from templates, and be stored in a versioned database.
 * **Task** - define the desired parameters, inputs, outputs of a job/task. 
 Task can be created from a template and run over different `runtimes` or `functions`.
 * **Run** - is the result of running a Task on a Function, it has all the attributes of a Task + the execution status and results.
+* **Artifact** - versioned files, objects, datasets, models, etc. which are produced or consumed by functions/runs/workflows.
+* **Workflow** - defines a pipeline/graph (DAG) of functions (using KubeFlow pipelines)
 
 MLRun support multiple `runtimes` i.e. computation frameworks, such as local, 
 kubernetes job, dask, nuclio, spark, mpijob (Horovod). runtimes may support 

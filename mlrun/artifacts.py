@@ -67,7 +67,7 @@ class ArtifactManager:
 
     def log_artifact(
         self, execution, item, body=None, target_path='', src_path='', tag='',
-            viewer='', local_path='', artifact_path=None,
+            viewer='', local_path='', artifact_path=None, format=None,
             upload=True, labels=None):
         if isinstance(item, str):
             key = item
@@ -76,24 +76,22 @@ class ArtifactManager:
             key = item.key
             target_path = target_path or item.target_path
 
-        src_path = src_path or local_path # TODO: remove src_path
-        if artifact_path:
-            target_path = uxjoin(
-                artifact_path, local_path, execution.iteration)
-
-
-        # find the target path from defaults and config
-        item.viewer = viewer or item.viewer
-        item.src_path = src_path or item.src_path
+        src_path = src_path or local_path or item.src_path  # TODO: remove src_path
+        item.format = format or item.format
+        item.src_path = src_path
         if item.src_path and '://' in item.src_path:
             raise ValueError('source path cannot be a remote URL')
-        if not target_path:
+
+        artifact_path = artifact_path or self.out_path
+        if artifact_path or not target_path:
             target_path = uxjoin(
-                self.out_path, item.src_path or key, execution.iteration)
+                artifact_path, src_path or filename(key, item.format),
+                execution.iteration)
         elif not (target_path.startswith('/') or '://' in target_path):
             target_path = uxjoin(
                 self.out_path, target_path, execution.iteration)
         item.target_path = target_path
+        item.viewer = viewer or item.viewer
 
         item.tree = execution.tag
         if labels:
@@ -262,34 +260,25 @@ class TableArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['schema', 'header']
     kind = 'table'
 
-    def __init__(self, key, body=None, df=None, src_path=None, target_path='',
+    def __init__(self, key, df, src_path=None, target_path='',
                  viewer=None, visible=False, inline=False, format=None,
                  header=None, schema=None):
 
         super().__init__(
-            key, body, src_path, target_path, viewer, inline, format)
-        key_suffix = pathlib.Path(key).suffix
-        if not format and key_suffix:
-            format = key_suffix[1:]
+            key, None, src_path, target_path, viewer, inline)
 
-        if df is not None:
-            self._is_df = True
-            self.header = df.columns.values.tolist()
-            format = format or 'csv'
-            if format not in ['csv']:  # todo other formats
-                raise ValueError('format must be csv for now')
-            if visible and not key_suffix:
-                key += '.csv'
-            body = df
-        else:
-            self._is_df = False
-            self.header = header
+        self._is_df = True
+        self.header = df.columns.values.tolist()
+        self.format = 'csv' # todo other formats
+        # if visible and not key_suffix:
+        #     key += '.csv'
+        self._body = df
 
-        self.format = format
+        self.src_path = self.key + '.' + self.format
         self.schema = schema
         if not viewer:
             viewer = 'table' if visible else None
-        super().__init__(key, body, src_path, target_path, viewer, inline)
+        self.viewer = viewer
 
     def get_body(self):
         if not self._is_df:
@@ -355,3 +344,9 @@ class ChartArtifact(Artifact):
         return chart_template.replace('$data$', dict_to_json(data))\
             .replace('$opts$', dict_to_json(self.options))\
             .replace('$chart$', self.chart)
+
+
+def filename(key, format):
+    if not format:
+        return key
+    return '{}.{}'.format(key, format)

@@ -96,8 +96,8 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', KubeResourceSpec)
 
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude)
+    def to_dict(self, fields=None, exclude=None, strip=False):
+        struct = super().to_dict(fields, exclude, strip=strip)
         api = client.ApiClient()
         return api.sanitize_for_serialization(struct)
 

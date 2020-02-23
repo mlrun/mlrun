@@ -2,13 +2,10 @@ from mlrun import get_or_create_ctx
 from mlrun.artifacts import ChartArtifact, TableArtifact
 
 
-def my_job():
+def my_job(context, p1=1, p2='x'):
     # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-    context = get_or_create_ctx('train')
-    
+
     # get parameters from the runtime context (or use defaults)
-    p1 = context.get_param('p1', 1)
-    p2 = context.get_param('p2', 'a-string')
 
     # access input metadata, values, files, and secrets (passwords)
     print(f'Run: {context.name} (uid={context.uid})')
@@ -39,4 +36,7 @@ def my_job():
 
 
 if __name__ == "__main__":
-    my_job()
+    context = get_or_create_ctx('train')
+    p1 = context.get_param('p1', 1)
+    p2 = context.get_param('p2', 'a-string')
+    my_job(context, p1, p2)

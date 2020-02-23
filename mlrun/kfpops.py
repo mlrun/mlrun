@@ -15,9 +15,8 @@ import json
 from copy import deepcopy
 from os import environ
 
-from . import __version__
 from .db import default_dbpath
-from .utils import run_keys, dict_to_yaml, logger, update_in
+from .utils import run_keys, dict_to_yaml, logger
 from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
@@ -225,7 +224,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         function_name = function.metadata.name
         if function.kind == 'dask':
             image = image or function.spec.kfp_image \
-                    or 'mlrun/dask:{}'.format(__version__)
+                    or 'mlrun/dask:{}'.format(config.version)
 
     image = image or config.kfp_image
 

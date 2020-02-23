@@ -14,12 +14,14 @@
 import json
 import socket
 import uuid
+from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from tempfile import mktemp
 
 import yaml
+from kfp import Client
 from nuclio import build_file
 
 from .datastore import get_object
@@ -32,12 +34,13 @@ from .runtimes import (
 )
 from .runtimes.base import EntrypointParam, FunctionEntrypoint
 from .runtimes.utils import add_code_metadata
-from .utils import get_in, logger, parse_function_uri, update_in
+from .utils import get_in, logger, parse_function_uri, update_in, new_pipe_meta
 from .config import config as mlconf
 
 
-def run_pipeline(pipeline, arguments=None, experiment=None,
-                 run=None, namespace=None, url=None):
+def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
+                 namespace=None, artifacts_path=None, ops=None,
+                 url=None, remote=False):
     """remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
@@ -48,15 +51,38 @@ def run_pipeline(pipeline, arguments=None, experiment=None,
     :param run        optional, run name
     :param namespace  Kubernetes namespace (if not using default)
     :param url        optional, url to mlrun API service
+    :param artifacts_path  target location/url for mlrun artifacts
+    :param ops        additional operators (.apply() to all pipeline functions)
+    :param remote     use mlrun remote API service vs direct KFP APIs
 
     :return kubeflow pipeline id
     """
-    mldb = get_run_db(url).connect()
-    if mldb.kind != 'http':
-        raise ValueError('run pipeline require access to remote api-service'
-                         ', please set the dbpath url')
-    return mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
-                                run=run, namespace=namespace)
+
+    namespace = namespace or mlconf.namespace
+    if remote or url:
+        mldb = get_run_db(url).connect()
+        if mldb.kind != 'http':
+            raise ValueError('run pipeline require access to remote api-service'
+                             ', please set the dbpath url')
+        id = mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
+                                  run=run, namespace=namespace, ops=ops,
+                                  artifacts_path=artifacts_path)
+
+    else:
+        client = Client(namespace=namespace)
+        if isinstance(pipeline, str):
+            experiment = client.create_experiment(name=experiment)
+            run_result = client.run_pipeline(experiment.id, run, pipeline,
+                                             params=arguments)
+        else:
+            conf = new_pipe_meta(artifacts_path, ops)
+            run_result = client.create_run_from_pipeline_func(
+                pipeline, arguments, run_name=run,
+                experiment_name=experiment, pipeline_conf=conf)
+
+        id = run_result.run_id
+    logger.info('Pipeline run id={}, check UI or DB for progress'.format(id))
+    return id
 
 
 def get_or_create_ctx(name: str,
@@ -381,7 +407,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             r.spec.base_spec = spec
             if with_doc:
                 handlers = find_handlers(code)
-                r.spec.entry_points = {h.name: as_func(h) for h in handlers}
+                r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -438,19 +464,32 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
 
     if with_doc:
         handlers = find_handlers(code)
-        r.spec.entry_points = {h[name]: h for h in handlers}
+        r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
     return r
 
 
 def as_func(handler):
+    ret = clean(handler['return'])
     return FunctionEntrypoint(
         name=handler['name'],
         doc=handler['doc'],
-        parameters=[as_entry(p) for p in handler['params']],
-        outputs=[as_entry(p) for p in handler['returns']],
+        parameters=[clean(p) for p in handler['params']],
+        outputs=[ret] if ret else None,
         lineno=handler['lineno'],
-    )
+    ).to_dict()
 
 
-def as_entry(param):
-    return EntrypointParam(**param)
+def clean(struct: dict):
+    if not struct:
+        return None
+    if 'default' in struct:
+        struct['default'] = py_eval(struct['default'])
+    return {k: v for k, v in struct.items() if v}
+
+
+def py_eval(data):
+    try:
+        value = literal_eval(data)
+        return value
+    except (SyntaxError, ValueError):
+        return data

@@ -30,7 +30,7 @@ _missing = object()
 
 def create_logger(stream=None):
     level = logging.INFO
-    if config.log_level == 'debug':
+    if config.log_level.lower() == 'debug':
         level = logging.DEBUG
     handler = logging.StreamHandler(stream or stdout)
     handler.setFormatter(
@@ -298,3 +298,27 @@ def gen_html_table(header, rows=None):
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
     return style + '<table class="tg">\n' + out + '</table>\n\n'
+
+
+def new_pipe_meta(artifacts_path=None, *args):
+    from kfp.dsl import PipelineConf
+
+    def _set_artifacts_path(task):
+        from kubernetes import client as k8s_client
+        task.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_ARTIFACTS_PATH', value=artifacts_path))
+        return task
+
+    conf = PipelineConf()
+    if artifacts_path:
+        conf.add_op_transformer(_set_artifacts_path)
+    for op in args:
+        if op:
+            conf.add_op_transformer(op)
+    return conf
+
+
+def tag_image(base):
+    if base in ['mlrun/mlrun'] and config.version:
+        base += ':' + config.version
+    return base

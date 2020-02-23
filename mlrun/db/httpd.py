@@ -596,6 +596,7 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     iter = int(request.args.get('iter', '0'))
     _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
@@ -668,6 +669,7 @@ def store_artifact(project, uid, key):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
     iter = int(request.args.get('iter', '0'))
     _db.store_artifact(key, data, uid, iter=iter, tag=tag, project=project)
@@ -738,6 +740,7 @@ def store_function(project, name):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
 
     _db.store_function(data, name, project, tag)
@@ -791,7 +794,7 @@ def list_schedules():
 
 @app.route('/api/healthz', methods=['GET'])
 def health():
-    return 'OK\n'
+    return jsonify(ok=True, version=config.version)
 
 
 @app.before_first_request

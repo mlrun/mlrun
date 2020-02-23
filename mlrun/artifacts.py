@@ -77,6 +77,9 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         src_path = src_path or local_path or item.src_path  # TODO: remove src_path
+        if format == 'html' or (
+                src_path and pathlib.Path(src_path).suffix == 'html'):
+            viewer = 'web-app'
         item.format = format or item.format
         item.src_path = src_path
         if item.src_path and '://' in item.src_path:
@@ -238,7 +241,7 @@ class PlotArtifact(Artifact):
             raise ValueError(
                 'matplotlib fig must be provided as artifact body')
         if not pathlib.Path(self.key).suffix:
-            self.key += '.html'
+            self.format = 'html'
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use
@@ -260,21 +263,27 @@ class TableArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['schema', 'header']
     kind = 'table'
 
-    def __init__(self, key, df, src_path=None, target_path='',
+    def __init__(self, key, body=None, df=None, src_path=None, target_path='',
                  viewer=None, visible=False, inline=False, format=None,
                  header=None, schema=None):
 
+        key_suffix = pathlib.Path(key).suffix
+        if not format and key_suffix:
+            format = key_suffix[1:]
         super().__init__(
-            key, None, src_path, target_path, viewer, inline)
+            key, body, src_path, target_path, viewer, inline, format)
 
-        self._is_df = True
-        self.header = df.columns.values.tolist()
-        self.format = 'csv' # todo other formats
-        # if visible and not key_suffix:
-        #     key += '.csv'
-        self._body = df
+        if df is not None:
+            self._is_df = True
+            self.header = df.columns.values.tolist()
+            self.format = 'csv' # todo other formats
+            # if visible and not key_suffix:
+            #     key += '.csv'
+            self._body = df
+        else:
+            self._is_df = False
+            self.header = header
 
-        self.src_path = self.key + '.' + self.format
         self.schema = schema
         if not viewer:
             viewer = 'table' if visible else None
@@ -333,6 +342,7 @@ class ChartArtifact(Artifact):
             self._rows = data[1:]
         self.options = options
         self.chart = 'LineChart'
+        self.format = 'html'
 
     def add_row(self, row):
         self._rows += [row]

@@ -321,7 +321,7 @@ class MlrunProject(ModelObj):
         if not name or name not in self.workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        wfpath = self.workflows.get(name)
+        wfpath = path.join(self.context, self.workflows.get(name))
         pipeline = create_pipeline(wfpath, self._function_objects,
                                    self.params, secrets=self._secrets,
                                    artifacts_path=artifacts_path)

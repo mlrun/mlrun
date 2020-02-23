@@ -59,6 +59,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     """
 
     namespace = namespace or mlconf.namespace
+    arguments = arguments or {}
     if remote or url:
         mldb = get_run_db(url).connect()
         if mldb.kind != 'http':

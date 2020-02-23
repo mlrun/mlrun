@@ -13,7 +13,7 @@ from ..config import config
 from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
 from urllib.parse import urlparse
-from kfp import Client, compiler
+from kfp import compiler
 
 from ..utils import update_in, new_pipe_meta
 from ..runtimes.utils import add_code_metadata
@@ -326,7 +326,8 @@ class MlrunProject(ModelObj):
                                    self.params, secrets=self._secrets,
                                    artifacts_path=artifacts_path)
 
-        compiler.Compiler().compile(pipeline, target)
+        conf = new_pipe_meta(artifacts_path)
+        compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
 
     def clear_context(self):
         if self.context and path.exists(self.context) and path.isdir(self.context):
@@ -425,7 +426,8 @@ def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifacts_path=None, remote=remote)
+                      namespace=namespace, artifacts_path=artifacts_path,
+                      remote=remote)
     return id
 
 

@@ -469,8 +469,9 @@ def logs(uid, project, offset, db, watch):
 @click.option('--init-git', is_flag=True, help='for new projects init git context')
 @click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
 @click.option('--sync', is_flag=True, help='sync functions into db')
+@click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
 def project(context, name, url, run, arguments, artifacts_path,
-            namespace, db, init_git, clone, sync):
+            namespace, db, init_git, clone, sync, dirty):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
@@ -498,7 +499,7 @@ def project(context, name, url, run, arguments, artifacts_path,
         print('running workflow {} file: {}'.format(run, workflow_path))
         run = proj.run(run, workflow_path, arguments=args,
                        artifacts_path=artifacts_path, namespace=namespace,
-                       sync=sync)
+                       sync=sync, dirty=dirty)
         print('run id: {}'.format(run))
 
     elif sync:

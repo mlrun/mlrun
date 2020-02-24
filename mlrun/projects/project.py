@@ -293,7 +293,7 @@ class MlrunProject(ModelObj):
         if self.repo and self.repo.is_dirty():
             msg = 'you seem to have uncommitted git changes, use .push()'
             if dirty:
-                logger.warning(msg)
+                logger.warning('WARNING!, ' + msg)
             else:
                 raise ProjectError(msg + ' or dirty=True')
 

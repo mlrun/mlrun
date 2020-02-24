@@ -15,7 +15,7 @@ import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
 
-from ..utils import update_in, new_pipe_meta
+from ..utils import update_in, new_pipe_meta, logger
 from ..runtimes.utils import add_code_metadata
 
 
@@ -288,11 +288,14 @@ class MlrunProject(ModelObj):
         return self
 
     def run(self, name=None, workflow_path=None, arguments=None,
-            artifacts_path=None, namespace=None, sync=False):
+            artifacts_path=None, namespace=None, sync=False, dirty=False):
 
         if self.repo and self.repo.is_dirty():
-            raise ProjectError(
-                'you seem to have uncommitted git changes, use .push()')
+            msg = 'you seem to have uncommitted git changes, use .push()'
+            if dirty:
+                logger.warning(msg)
+            else:
+                raise ProjectError(msg + ' or dirty=True')
 
         if self.repo and not self.source:
             raise ProjectError(

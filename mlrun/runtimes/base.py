@@ -68,6 +68,7 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
+        self.workdir = None
         self.pythonpath = pythonpath
 
         self._build = None

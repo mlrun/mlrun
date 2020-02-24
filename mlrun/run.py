@@ -87,7 +87,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     return id
 
 
-def run_local(task, command: str = '', name: str = '', args: list = None,
+def run_local(task, command, name: str = '', args: list = None,
               workdir=None, project: str = '', tag: str = '', secrets=None):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -99,7 +99,7 @@ def run_local(task, command: str = '', name: str = '', args: list = None,
            run = run_local(spec, command='src/training.py', workdir='src')
 
     :param task:     task template object or dict (see RunTemplate)
-    :param command:  command/url
+    :param command:  command/url/function
     :param name:     ad hook function name
     :param args:     command line arguments (override the ones in command)
     :param workdir:  working dir to exec in
@@ -110,10 +110,14 @@ def run_local(task, command: str = '', name: str = '', args: list = None,
     :return: run object
     """
 
-    suffix = Path(command).suffix
-    if suffix == '.yaml':
-        obj = get_object(command, secrets)
-        runtime = yaml.load(obj, Loader=yaml.FullLoader)
+    is_obj = hasattr(command, 'to_dict')
+    suffix = '' if is_obj else Path(command).suffix
+    if is_obj or suffix == '.yaml':
+        if is_obj:
+            runtime = command.to_dict()
+        else:
+            data = get_object(command, secrets)
+            runtime = yaml.load(data, Loader=yaml.FullLoader)
         code = get_in(runtime, 'spec.build.functionSourceCode')
         cmd = get_in(runtime, 'spec.command', '')
         if code:
@@ -130,7 +134,7 @@ def run_local(task, command: str = '', name: str = '', args: list = None,
         else:
             raise RuntimeError('cannot run, command={}'.format(command))
 
-    elif suffix == '.ipynb':
+    elif command == '' or suffix == '.ipynb':
         fpath = mktemp('.py')
         fn = code_to_function(name, filename=command,
                               kind='local', code_output=fpath)
@@ -428,6 +432,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
            function object
     """
     filebase, _ = path.splitext(path.basename(filename))
+    if runtime:
+        logger.warning('"runtime=" param is deprecated, use "kind="')
     kind = runtime or kind  # for backwards computability
 
     def add_name(origin, name=''):

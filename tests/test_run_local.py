@@ -58,3 +58,12 @@ def test_run_local_yaml():
     verify_state(result)
 
 
+def test_run_local_obj():
+    spec = tag_test(base_spec, 'test_run_local_handler')
+    spec.spec.handler = 'training'
+    nbpath = '{}/mlrun_jobs.ipynb'.format(examples_path)
+    ymlpath = path.join(out_path, 'nbyaml.yaml')
+    print('out path:', out_path, ymlpath)
+    fn = code_to_function(filename=nbpath, kind='job').export(ymlpath)
+    result = run_local(spec, command=fn, workdir=out_path)
+    verify_state(result)

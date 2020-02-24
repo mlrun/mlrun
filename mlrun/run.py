@@ -87,7 +87,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     return id
 
 
-def run_local(task, command, name: str = '', args: list = None,
+def run_local(task, command='', name: str = '', args: list = None,
               workdir=None, project: str = '', tag: str = '', secrets=None):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -134,10 +134,12 @@ def run_local(task, command, name: str = '', args: list = None,
         else:
             raise RuntimeError('cannot run, command={}'.format(command))
 
-    elif command == '' or suffix == '.ipynb':
+    elif command == '':
+        pass
+
+    elif suffix == '.ipynb':
         fpath = mktemp('.py')
-        fn = code_to_function(name, filename=command,
-                              kind='local', code_output=fpath)
+        code_to_function(name, filename=command, kind='local', code_output=fpath)
         command = fpath
 
     elif suffix == '.py':

@@ -84,7 +84,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         image, watch, run_args):
     """Execute a task and inject parameters."""
 
-    out_path = out_path or environ.get('MLRUN_ARTIFACTS_PATH')
+    out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
     config = environ.get('MLRUN_EXEC_CONFIG')
     if from_env and config:
         config = json.loads(config)
@@ -463,14 +463,14 @@ def logs(uid, project, offset, db, watch):
 @click.option('--url', '-u', help='remote git or archive url')
 @click.option('--run', '-r', help='run workflow name ot .py file')
 @click.option('--arguments', '-a', help='arguments dict')
-@click.option('--artifacts-path', '-p', help='output artifacts path')
+@click.option('--artifact-path', '-p', help='output artifacts path')
 @click.option('--namespace', help='k8s namespace')
 @click.option('--db', help='api and db service path/url')
 @click.option('--init-git', is_flag=True, help='for new projects init git context')
 @click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
 @click.option('--sync', is_flag=True, help='sync functions into db')
 @click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
-def project(context, name, url, run, arguments, artifacts_path,
+def project(context, name, url, run, arguments, artifact_path,
             namespace, db, init_git, clone, sync, dirty):
     """load and/or run a project"""
     if db:
@@ -498,7 +498,7 @@ def project(context, name, url, run, arguments, artifacts_path,
 
         print('running workflow {} file: {}'.format(run, workflow_path))
         run = proj.run(run, workflow_path, arguments=args,
-                       artifacts_path=artifacts_path, namespace=namespace,
+                       artifact_path=artifact_path, namespace=namespace,
                        sync=sync, dirty=dirty)
         print('run id: {}'.format(run))
 

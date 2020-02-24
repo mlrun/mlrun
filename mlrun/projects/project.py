@@ -288,7 +288,7 @@ class MlrunProject(ModelObj):
         return self
 
     def run(self, name=None, workflow_path=None, arguments=None,
-            artifacts_path=None, namespace=None, sync=False, dirty=False):
+            artifact_path=None, namespace=None, sync=False, dirty=False):
 
         if self.repo and self.repo.is_dirty():
             msg = 'you seem to have uncommitted git changes, use .push()'
@@ -316,20 +316,20 @@ class MlrunProject(ModelObj):
         name = '{}-{}'.format(self.name, name) if name else self.name
         run = _run_pipeline(name, workflow_path, self._function_objects,
                             self.params, secrets=self._secrets,
-                            arguments=arguments, artifacts_path=artifacts_path,
+                            arguments=arguments, artifact_path=artifact_path,
                             namespace=namespace, remote=self.remote)
         return run
 
-    def save_workflow(self, name, target, artifacts_path=None):
+    def save_workflow(self, name, target, artifact_path=None):
         if not name or name not in self.workflows:
             raise ValueError('workflow {} not found'.format(name))
 
         wfpath = path.join(self.context, self.workflows.get(name))
         pipeline = create_pipeline(wfpath, self._function_objects,
                                    self.params, secrets=self._secrets,
-                                   artifacts_path=artifacts_path)
+                                   artifact_path=artifact_path)
 
-        conf = new_pipe_meta(artifacts_path)
+        conf = new_pipe_meta(artifact_path)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
 
     def clear_context(self):
@@ -400,7 +400,7 @@ def init_function_from_obj(func, project, name=None, in_context=True):
 
 
 def create_pipeline(pipeline, functions, params=None, secrets=None,
-                    artifacts_path=None):
+                    artifact_path=None):
 
     spec = imputil.spec_from_file_location('workflow', pipeline)
     if spec is None:
@@ -408,7 +408,7 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    setattr(mod, 'artifacts_path', artifacts_path)
+    setattr(mod, 'artifact_path', artifact_path)
     setattr(mod, 'funcs', functions)
 
     if hasattr(mod, 'init_functions'):
@@ -422,14 +422,14 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
 
 
 def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
-                  arguments=None, artifacts_path=None, namespace=None,
+                  arguments=None, artifact_path=None, namespace=None,
                   remote=False):
     kfpipeline = create_pipeline(pipeline, functions, params, secrets,
-                                 artifacts_path)
+                                 artifact_path)
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifacts_path=artifacts_path,
+                      namespace=namespace, artifact_path=artifact_path,
                       remote=remote)
     return id
 

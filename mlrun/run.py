@@ -39,7 +39,7 @@ from .config import config as mlconf
 
 
 def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
-                 namespace=None, artifacts_path=None, ops=None,
+                 namespace=None, artifact_path=None, ops=None,
                  url=None, remote=False):
     """remote KubeFlow pipeline execution
 
@@ -51,7 +51,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     :param run        optional, run name
     :param namespace  Kubernetes namespace (if not using default)
     :param url        optional, url to mlrun API service
-    :param artifacts_path  target location/url for mlrun artifacts
+    :param artifact_path  target location/url for mlrun artifacts
     :param ops        additional operators (.apply() to all pipeline functions)
     :param remote     use mlrun remote API service vs direct KFP APIs
 
@@ -67,7 +67,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
                              ', please set the dbpath url')
         id = mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
                                   run=run, namespace=namespace, ops=ops,
-                                  artifacts_path=artifacts_path)
+                                  artifact_path=artifact_path)
 
     else:
         client = Client(namespace=namespace)
@@ -76,7 +76,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
             run_result = client.run_pipeline(experiment.id, run, pipeline,
                                              params=arguments)
         else:
-            conf = new_pipe_meta(artifacts_path, ops)
+            conf = new_pipe_meta(artifact_path, ops)
             run_result = client.create_run_from_pipeline_func(
                 pipeline, arguments, run_name=run,
                 experiment_name=experiment, pipeline_conf=conf)

@@ -13,9 +13,9 @@ from ..config import config
 from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
 from urllib.parse import urlparse
-from kfp import Client, compiler
+from kfp import compiler
 
-from ..utils import update_in, new_pipe_meta
+from ..utils import update_in, new_pipe_meta, logger
 from ..runtimes.utils import add_code_metadata
 
 
@@ -288,11 +288,14 @@ class MlrunProject(ModelObj):
         return self
 
     def run(self, name=None, workflow_path=None, arguments=None,
-            artifacts_path=None, namespace=None, sync=False):
+            artifact_path=None, namespace=None, sync=False, dirty=False):
 
         if self.repo and self.repo.is_dirty():
-            raise ProjectError(
-                'you seem to have uncommitted git changes, use .push()')
+            msg = 'you seem to have uncommitted git changes, use .push()'
+            if dirty:
+                logger.warning('WARNING!, ' + msg)
+            else:
+                raise ProjectError(msg + ' or dirty=True')
 
         if self.repo and not self.source:
             raise ProjectError(
@@ -313,20 +316,21 @@ class MlrunProject(ModelObj):
         name = '{}-{}'.format(self.name, name) if name else self.name
         run = _run_pipeline(name, workflow_path, self._function_objects,
                             self.params, secrets=self._secrets,
-                            arguments=arguments, artifacts_path=artifacts_path,
+                            arguments=arguments, artifact_path=artifact_path,
                             namespace=namespace, remote=self.remote)
         return run
 
-    def save_workflow(self, name, target, artifacts_path=None):
+    def save_workflow(self, name, target, artifact_path=None):
         if not name or name not in self.workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        wfpath = self.workflows.get(name)
+        wfpath = path.join(self.context, self.workflows.get(name))
         pipeline = create_pipeline(wfpath, self._function_objects,
                                    self.params, secrets=self._secrets,
-                                   artifacts_path=artifacts_path)
+                                   artifact_path=artifact_path)
 
-        compiler.Compiler().compile(pipeline, target)
+        conf = new_pipe_meta(artifact_path)
+        compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
 
     def clear_context(self):
         if self.context and path.exists(self.context) and path.isdir(self.context):
@@ -396,7 +400,7 @@ def init_function_from_obj(func, project, name=None, in_context=True):
 
 
 def create_pipeline(pipeline, functions, params=None, secrets=None,
-                    artifacts_path=None):
+                    artifact_path=None):
 
     spec = imputil.spec_from_file_location('workflow', pipeline)
     if spec is None:
@@ -404,7 +408,7 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    setattr(mod, 'artifacts_path', artifacts_path)
+    setattr(mod, 'artifact_path', artifact_path)
     setattr(mod, 'funcs', functions)
 
     if hasattr(mod, 'init_functions'):
@@ -418,14 +422,15 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
 
 
 def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
-                  arguments=None, artifacts_path=None, namespace=None,
+                  arguments=None, artifact_path=None, namespace=None,
                   remote=False):
     kfpipeline = create_pipeline(pipeline, functions, params, secrets,
-                                 artifacts_path)
+                                 artifact_path)
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifacts_path=None, remote=remote)
+                      namespace=namespace, artifact_path=artifact_path,
+                      remote=remote)
     return id
 
 

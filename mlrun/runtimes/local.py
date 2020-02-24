@@ -54,7 +54,8 @@ class HandlerRuntime(BaseRuntime):
                                         tmp=tmp,
                                         host=socket.gethostname())
         sys.modules[__name__].mlrun_context = context
-        sout, serr = exec_from_params(handler, runobj, context)
+        sout, serr = exec_from_params(handler, runobj, context,
+                                      self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
 
@@ -93,7 +94,8 @@ class LocalRuntime(BaseRuntime):
                                             tmp=tmp,
                                             host=socket.gethostname())
             mod.mlrun_context = context
-            sout, serr = exec_from_params(fn, runobj, context)
+            sout, serr = exec_from_params(fn, runobj, context,
+                                          self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
             return context.to_dict()
 
@@ -110,7 +112,8 @@ class LocalRuntime(BaseRuntime):
                     pypath = '{}:{}'.format(environ['PYTHONPATH'], pypath)
                 env = {'PYTHONPATH': pypath}
 
-            sout, serr = run_exec(cmd, self.spec.args, env=env)
+            sout, serr = run_exec(cmd, self.spec.args, env=env,
+                                  cwd=self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
 
             try:
@@ -150,10 +153,10 @@ def load_module(file_name, handler):
     return mod, fn
 
 
-def run_exec(cmd, args, env=None):
+def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, env=env)
+    out = run(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
 
     err = out.stderr.decode('utf-8') if out.returncode != 0 else ''
     return out.stdout.decode('utf-8'), err
@@ -187,15 +190,19 @@ def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
     return val, stdout.getvalue(), err
 
 
-def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
+def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
+                     cwd=None):
     args_list = get_func_arg(handler, runobj, context)
 
     stdout = StringIO()
     err = ''
     val = None
+    old_dir = os.getcwd()
     with redirect_stdout(stdout):
         context.set_logger_stream(stdout)
         try:
+            if cwd:
+                os.chdir(cwd)
             val = handler(*args_list)
             context.set_state('completed', commit=False)
         except Exception as e:
@@ -203,6 +210,8 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
 
+    if cwd:
+        os.chdir(old_dir)
     context.set_logger_stream(sys.stdout)
     if val:
         context.log_result('return', val)

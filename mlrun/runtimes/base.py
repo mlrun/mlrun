@@ -68,6 +68,7 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
+        self.workdir = None
         self.pythonpath = pythonpath
 
         self._build = None
@@ -525,6 +526,7 @@ class BaseRuntime(ModelObj):
         datastore, subpath = stores.get_or_create_store(target)
         datastore.put(subpath, data)
         logger.info('function spec saved to path: {}'.format(target))
+        return self
 
     def save(self, tag='', versioned=True):
         db = self._get_db()

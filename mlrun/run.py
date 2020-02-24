@@ -19,12 +19,13 @@ from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from tempfile import mktemp
+from pathlib import Path
 
 import yaml
 from kfp import Client
 from nuclio import build_file
 
-from .datastore import get_object
+from .datastore import get_object, download_object
 from .db import default_dbpath, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
@@ -39,7 +40,7 @@ from .config import config as mlconf
 
 
 def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
-                 namespace=None, artifacts_path=None, ops=None,
+                 namespace=None, artifact_path=None, ops=None,
                  url=None, remote=False):
     """remote KubeFlow pipeline execution
 
@@ -51,7 +52,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     :param run        optional, run name
     :param namespace  Kubernetes namespace (if not using default)
     :param url        optional, url to mlrun API service
-    :param artifacts_path  target location/url for mlrun artifacts
+    :param artifact_path  target location/url for mlrun artifacts
     :param ops        additional operators (.apply() to all pipeline functions)
     :param remote     use mlrun remote API service vs direct KFP APIs
 
@@ -59,6 +60,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     """
 
     namespace = namespace or mlconf.namespace
+    arguments = arguments or {}
     if remote or url:
         mldb = get_run_db(url).connect()
         if mldb.kind != 'http':
@@ -66,7 +68,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
                              ', please set the dbpath url')
         id = mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
                                   run=run, namespace=namespace, ops=ops,
-                                  artifacts_path=artifacts_path)
+                                  artifact_path=artifact_path)
 
     else:
         client = Client(namespace=namespace)
@@ -75,7 +77,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
             run_result = client.run_pipeline(experiment.id, run, pipeline,
                                              params=arguments)
         else:
-            conf = new_pipe_meta(artifacts_path, ops)
+            conf = new_pipe_meta(artifact_path, ops)
             run_result = client.create_run_from_pipeline_func(
                 pipeline, arguments, run_name=run,
                 experiment_name=experiment, pipeline_conf=conf)
@@ -83,6 +85,75 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
         id = run_result.run_id
     logger.info('Pipeline run id={}, check UI or DB for progress'.format(id))
     return id
+
+
+def run_local(task, command='', name: str = '', args: list = None,
+              workdir=None, project: str = '', tag: str = '', secrets=None):
+    """Run a task on function/code (.py, .ipynb or .yaml) locally,
+
+    e.g.:
+           # define a task
+           task = NewTask(params={'p1': 8}, out_path=out_path)
+
+           # run
+           run = run_local(spec, command='src/training.py', workdir='src')
+
+    :param task:     task template object or dict (see RunTemplate)
+    :param command:  command/url/function
+    :param name:     ad hook function name
+    :param args:     command line arguments (override the ones in command)
+    :param workdir:  working dir to exec in
+    :param project:  function project (none for 'default')
+    :param tag:      function version tag (none for 'latest')
+    :param secrets:  secrets dict if the function source is remote (s3, v3io, ..)
+
+    :return: run object
+    """
+
+    is_obj = hasattr(command, 'to_dict')
+    suffix = '' if is_obj else Path(command).suffix
+    if is_obj or suffix == '.yaml':
+        if is_obj:
+            runtime = command.to_dict()
+        else:
+            data = get_object(command, secrets)
+            runtime = yaml.load(data, Loader=yaml.FullLoader)
+        code = get_in(runtime, 'spec.build.functionSourceCode')
+        cmd = get_in(runtime, 'spec.command', '')
+        if code:
+            fpath = mktemp('.py')
+            code = b64decode(code).decode('utf-8')
+            command = fpath
+            with open(fpath, 'w') as fp:
+                fp.write(code)
+        elif '://' not in command and cmd:
+            command = path.join(workdir, cmd)
+            if not path.isfile(command):
+                raise OSError('command file {} not found'.format(command))
+
+        else:
+            raise RuntimeError('cannot run, command={}'.format(command))
+
+    elif command == '':
+        pass
+
+    elif suffix == '.ipynb':
+        fpath = mktemp('.py')
+        code_to_function(name, filename=command, kind='local', code_output=fpath)
+        command = fpath
+
+    elif suffix == '.py':
+        if '://' in command:
+            fpath = mktemp('.py')
+            download_object(command, fpath, secrets)
+            command = fpath
+
+    else:
+        raise ValueError('unsupported suffix: {}'.format(suffix))
+
+    fn = new_function(name, project, tag, command=command, args=args)
+    fn.spec.workdir = workdir
+    return fn.run(task)
 
 
 def get_or_create_ctx(name: str,
@@ -363,6 +434,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
            function object
     """
     filebase, _ = path.splitext(path.basename(filename))
+    if runtime:
+        logger.warning('"runtime=" param is deprecated, use "kind="')
     kind = runtime or kind  # for backwards computability
 
     def add_name(origin, name=''):

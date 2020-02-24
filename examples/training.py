@@ -21,13 +21,13 @@ def my_job(context, p1=1, p2='x'):
     context.set_label('framework', 'sklearn')
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-    context.log_artifact('model', body=b'abc is 123', target_path='model.txt', labels={'framework': 'xgboost'})
-    context.log_artifact('html_result', body=b'<b> Some HTML <b>', target_path='result.html', viewer='web-app')
-    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n',
-                                        viewer='table', header=['A', 'B', 'C']), target_path='dataset.csv')
+    context.log_artifact('model', body=b'abc is 123', local_path='model.txt', labels={'framework': 'xgboost'})
+    context.log_artifact('html_result', body=b'<b> Some HTML <b>', local_path='result.html')
+    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', visible=True,
+                                        header=['A', 'B', 'C']), local_path='dataset.csv')
 
     # create a chart output (will show in the pipelines UI)
-    chart = ChartArtifact('chart.html')
+    chart = ChartArtifact('chart')
     chart.labels = {'type': 'roc'}
     chart.header = ['Epoch', 'Accuracy', 'Loss']
     for i in range(1, 8):

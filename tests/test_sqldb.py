@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -169,6 +169,33 @@ def test_list_artifact_tags(db: sqldb.SQLDB):
     assert {'t1', 't2'} == set(tags), 'bad tags'
 
 
+def test_list_artifact_date(db: sqldb.SQLDB):
+    t1 = datetime(2020, 2, 16)
+    t2 = t1 - timedelta(days=7)
+    t3 = t2 - timedelta(days=7)
+    prj = 'p7'
+
+    db.store_artifact('k1', {'updated': t1}, 'u1', project=prj)
+    db.store_artifact('k2', {'updated': t2}, 'u2', project=prj)
+    db.store_artifact('k3', {'updated': t3}, 'u3', project=prj)
+
+    arts = db.list_artifacts(project=prj, since=t3, tag='*')
+    assert 3 == len(arts), 'since t3'
+
+    arts = db.list_artifacts(project=prj, since=t2, tag='*')
+    assert 2 == len(arts), 'since t2'
+
+    arts = db.list_artifacts(
+        project=prj, since=t1 + timedelta(days=1), tag='*')
+    assert not arts, 'since t1+'
+
+    arts = db.list_artifacts(project=prj, until=t2, tag='*')
+    assert 2 == len(arts), 'until t2'
+
+    arts = db.list_artifacts(project=prj, since=t2, until=t2, tag='*')
+    assert 1 == len(arts), 'since/until t2'
+
+
 def test_list_projects(db: sqldb.SQLDB):
     for i in range(10):
         run = new_run('s1', ['l1', 'l2'], x=1)
@@ -208,3 +235,17 @@ def test_run_iter0(db: sqldb.SQLDB):
     for i in range(7):
         db.store_run(run, uid, prj, i)
     db._get_run(uid, prj, 0)  # See issue 140
+
+
+def test_artifacts_latest(db: sqldb.SQLDB):
+    k1, u1, art1 = 'k1', 'u1', {'a': 1}
+    prj = 'p38'
+    db.store_artifact(k1, art1, u1, project=prj)
+
+    arts = db.list_artifacts(project=prj, tag='latest')
+    assert art1['a'] == arts[0]['a'], 'bad artifact'
+
+    art2 = {'a': 17}
+    db.store_artifact(k1, art2, u1, project=prj)
+    arts = db.list_artifacts(project=prj, tag='latest')
+    assert art2['a'] == arts[0]['a'], 'bad artifact'

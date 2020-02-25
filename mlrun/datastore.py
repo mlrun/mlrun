@@ -39,6 +39,12 @@ def get_object(url, secrets=None, size=None, offset=0):
     return datastore.get(subpath, size, offset)
 
 
+def download_object(url, target, secrets=None):
+    stores = StoreManager(secrets)
+    datastore, subpath = stores.get_or_create_store(url)
+    datastore.download(subpath, target_path=target)
+
+
 def get_object_stat(url, secrets=None):
     stores = StoreManager(secrets)
     datastore, subpath = stores.get_or_create_store(url)

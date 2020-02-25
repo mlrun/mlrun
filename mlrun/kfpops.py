@@ -110,7 +110,7 @@ def get_kfp_outputs(artifacts, labels):
     return outputs, out_dict
 
 
-def mlrun_op(name: str = '', project: str = '', function=None,
+def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
              image: str = '', runobj=None, command: str = '',
              secrets: list = None, params: dict = None, job_image=None,
              hyperparams: dict = None, param_file: str = '',
@@ -128,7 +128,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                     the container should host all requiered packages + code
                     for the run, alternatively user can mount packages/code via
                     shared file volumes like v3io (see example below)
-    :param function: optional, function specification or url
+    :param function: optional, function object
+    :param func_url: optional, function object url
     :param command: exec command (or URL for functions)
     :param secrets: extra secrets specs, will be injected into the runtime
                     e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
@@ -206,24 +207,24 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
     runtime = None
     code_env = None
-    func_url = function_name = ''
+    function_name = ''
     if function:
-        if isinstance(function, str):
-            func_url = function
 
-        elif hasattr(function, 'to_dict'):
+        if not func_url:
             if function.kind in ['', 'local']:
                 image = image or function.spec.image
-                cmd = cmd or function.spec.command
+                command = command or function.spec.command
                 more_args = more_args or function.spec.args
                 mode = mode or function.spec.mode
                 rundb = rundb or function.spec.rundb
                 code_env = '{}'.format(function.spec.build.functionSourceCode)
             else:
                 runtime = '{}'.format(function.to_dict())
-            function_name = function.metadata.name
-        else:
-            raise ValueError('function must specify a function runtime object')
+
+        function_name = function.metadata.name
+        if function.kind == 'dask':
+            image = image or function.spec.kfp_image \
+                    or 'mlrun/dask:{}'.format(config.version)
 
     image = image or config.kfp_image
 

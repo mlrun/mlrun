@@ -28,6 +28,7 @@ import yaml
 
 from tabulate import tabulate
 
+from mlrun import load_project
 from . import get_version
 from .config import config as mlconf
 from .builder import upload_tarball
@@ -83,6 +84,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         image, watch, run_args):
     """Execute a task and inject parameters."""
 
+    out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
     config = environ.get('MLRUN_EXEC_CONFIG')
     if from_env and config:
         config = json.loads(config)
@@ -93,13 +95,6 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         runobj = RunTemplate.from_dict(task)
     else:
         runobj = RunTemplate()
-
-    code = environ.get('MLRUN_EXEC_CODE')
-    if from_env and code:
-        code = b64decode(code).decode('utf-8')
-        with open('main.py', 'w') as fp:
-            fp.write(code)
-        url = url or 'main.py'
 
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')
@@ -121,7 +116,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
             func_url = 'function.yaml' if func_url == '.' else func_url
             runtime = import_function_to_dict(func_url, {})
         kind = get_in(runtime, 'kind', '')
-        if kind not in ['', 'local'] and url:
+        if kind not in ['', 'local', 'dask'] and url:
             if path.isfile(url) and url.endswith('.py'):
                 with open(url) as fp:
                     body = fp.read()
@@ -130,19 +125,25 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
                 update_in(runtime, 'spec.build.functionSourceCode', based)
                 url = ''
                 update_in(runtime, 'spec.command', '')
-
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
             print('runtime parameter must be a dict, not {}'.format(type(runtime)))
             exit(1)
-        if kfp:
-            print('Runtime:')
-            pprint(runtime)
-            print('Run:')
-            pprint(runobj.to_dict())
     else:
         runtime = {}
+
+    code = environ.get('MLRUN_EXEC_CODE')
+    if get_in(runtime, 'kind', '') == 'dask':
+        code = get_in(runtime, 'spec.build.functionSourceCode', code)
+    if from_env and code:
+        code = b64decode(code).decode('utf-8')
+        if kfp:
+            print('code:\n{}\n'.format(code))
+        with open('main.py', 'w') as fp:
+            fp.write(code)
+        url = url or 'main.py'
+
     if url:
         update_in(runtime, 'spec.command', url)
     if run_args:
@@ -160,6 +161,13 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
+
+    if kfp:
+        print('Runtime:')
+        pprint(runtime)
+        print('Run:')
+        pprint(runobj.to_dict())
+
     try:
         update_in(runtime, 'metadata.name', name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
@@ -262,11 +270,12 @@ def build(func_url, name, project, tag, image, source, base_image, command,
         if kfp:
             state = func.status.state
             image = func.spec.image
-            print('function built, state={} image={}'.format(state, image))
             with open('/tmp/state', 'w') as fp:
                 fp.write(state)
+            full_image = func.full_image_path(image) or ''
             with open('/tmp/image', 'w') as fp:
-                fp.write(func.full_image_path(image))
+                fp.write(full_image)
+            print('function built, state={} image={}'.format(state, full_image))
     else:
         print('function does not have a deploy() method')
         exit(1)
@@ -446,6 +455,56 @@ def logs(uid, project, offset, db, watch):
 
     if state:
         print('final state: {}'.format(state))
+
+
+@main.command()
+@click.argument('context', type=str)
+@click.option('--name', '-n', help='project name')
+@click.option('--url', '-u', help='remote git or archive url')
+@click.option('--run', '-r', help='run workflow name ot .py file')
+@click.option('--arguments', '-a', help='arguments dict')
+@click.option('--artifact-path', '-p', help='output artifacts path')
+@click.option('--namespace', help='k8s namespace')
+@click.option('--db', help='api and db service path/url')
+@click.option('--init-git', is_flag=True, help='for new projects init git context')
+@click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
+@click.option('--sync', is_flag=True, help='sync functions into db')
+@click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
+def project(context, name, url, run, arguments, artifact_path,
+            namespace, db, init_git, clone, sync, dirty):
+    """load and/or run a project"""
+    if db:
+        mlconf.dbpath = db
+
+    proj = load_project(context, url, name, init_git=init_git, clone=clone)
+    print('Loading project {}{} into {}:\n'.format(
+        proj.name, ' from ' + url if url else '', context))
+    print(proj.to_yaml())
+
+    if run:
+        workflow_path = None
+        if run.endswith('.py'):
+            workflow_path = run
+            run = None
+
+        args=None
+        if arguments:
+            try:
+                args = literal_eval(arguments)
+            except (SyntaxError, ValueError):
+                print('arguments ({}) must be a dict object/str'
+                      .format(arguments))
+                exit(1)
+
+        print('running workflow {} file: {}'.format(run, workflow_path))
+        run = proj.run(run, workflow_path, arguments=args,
+                       artifact_path=artifact_path, namespace=namespace,
+                       sync=sync, dirty=dirty)
+        print('run id: {}'.format(run))
+
+    elif sync:
+        print('saving project functions to db ..')
+        proj.sync_functions(save=True)
 
 
 @main.command()

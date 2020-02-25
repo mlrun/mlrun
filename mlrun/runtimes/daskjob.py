@@ -30,7 +30,7 @@ from .pod import KubeResourceSpec
 from ..lists import RunList
 from ..config import config
 from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
-
+from ..render import ipython_display
 
 def get_dask_resource():
     return {
@@ -48,8 +48,9 @@ class DaskSpec(KubeResourceSpec):
                  build=None, entry_points=None, description=None,
                  replicas=None, image_pull_policy=None, service_account=None,
                  image_pull_secret=None, extra_pip=None, remote=None,
-                 service_type=None, nthreads=None,
-                 node_port=None, min_replicas=None, max_replicas=None):
+                 service_type=None, nthreads=None, kfp_image=None,
+                 node_port=None, min_replicas=None, max_replicas=None,
+                 scheduler_timeout=None):
 
         super().__init__(command=command, args=args, image=image,
                          mode=mode, volumes=volumes, volume_mounts=volume_mounts,
@@ -65,10 +66,11 @@ class DaskSpec(KubeResourceSpec):
             self.remote = True
 
         self.service_type = service_type
+        self.kfp_image = kfp_image
         self.node_port = node_port
         self.min_replicas = min_replicas or 0
-        self.max_replicas = max_replicas or math.inf
-        self.scheduler_timeout = '60 minutes'
+        self.max_replicas = max_replicas or 16
+        self.scheduler_timeout = scheduler_timeout or '60 minutes'
         self.nthreads = nthreads or 1
 
 
@@ -91,6 +93,7 @@ class DaskCluster(KubejobRuntime):
                  metadata=None):
         super().__init__(spec, metadata)
         self._cluster = None
+        self.use_remote = False
         self.spec.build.base_image = self.spec.build.base_image or 'daskdev/dask:latest'
 
     @property
@@ -131,6 +134,8 @@ class DaskCluster(KubejobRuntime):
 
             if db_func and 'status' in db_func:
                 self.status = db_func['status']
+                if self.kfp:
+                    logger.info('dask status: {}'.format(db_func['status']))
                 return 'scheduler_address' in db_func['status']
 
         return False
@@ -178,15 +183,21 @@ class DaskCluster(KubejobRuntime):
         return self._cluster
 
     def _remote_addresses(self):
+        addr = self.status.scheduler_address
+        dash = ''
         if config.remote_host:
-            if self.spec.service_type != 'NodePort':
-                raise ValueError('remote host require NodePort')
-            addr = '{}:{}'.format(config.remote_host,
-                                  self.status.node_ports.get('scheduler'))
-            dash = '{}:{}'.format(config.remote_host,
-                                  self.status.node_ports.get('dashboard'))
-            return addr, dash
-        return self.status.scheduler_address, ''
+            if self.spec.service_type == 'NodePort' and self.use_remote:
+                addr = '{}:{}'.format(config.remote_host,
+                                      self.status.node_ports.get('scheduler'))
+
+            if self.spec.service_type == 'NodePort':
+                dash = '{}:{}'.format(config.remote_host,
+                                      self.status.node_ports.get('dashboard'))
+            else:
+                logger.info(
+                    'to get a dashboard link, use NodePort service_type')
+
+        return addr, dash
 
     @property
     def client(self):
@@ -198,6 +209,7 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
+            logger.info('trying dask client at: {}'.format(addr))
             try:
                 client = Client(addr)
             except OSError as e:
@@ -205,19 +217,22 @@ class DaskCluster(KubejobRuntime):
                     addr, e
                 ))
 
-                if self._is_remote_api():
-                    raise Exception('no access to Kubernetes API')
+                # todo: figure out if test is needed
+                # if self._is_remote_api():
+                #     raise Exception('no access to Kubernetes API')
 
                 status = self.get_status()
                 if status != 'running':
                     self._start()
-                addr = self.status.scheduler_address
+                addr, dash = self._remote_addresses()
                 client = Client(addr)
+
             logger.info('using remote dask scheduler ({}) at: {}'.format(
                 self.status.cluster_name, addr))
             if dash:
-                logger.info('remote dashboard (node) port: {}'.format(
-                    dash))
+                url = '<a href="http://{}/status" target="_blank" >{} {}</a>'
+                ipython_display(url.format(dash, 'dashboard link:', dash),
+                                alt_text='remote dashboard: {}'.format(dash))
 
             return client
         try:
@@ -251,7 +266,7 @@ class DaskCluster(KubejobRuntime):
         setattr(context, 'dask_client', client)
         sout, serr = exec_from_params(handler, runobj, context)
         log_std(self._db_conn, runobj, sout, serr,
-                skip=self.is_child, show=False)
+                skip=self.is_child, show=self.kfp)
         return context.to_dict()
 
 

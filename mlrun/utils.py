@@ -15,7 +15,7 @@
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from os import path
 from sys import stdout
 
@@ -30,7 +30,7 @@ _missing = object()
 
 def create_logger(stream=None):
     level = logging.INFO
-    if config.log_level == 'debug':
+    if config.log_level.lower() == 'debug':
         level = logging.DEBUG
     handler = logging.StreamHandler(stream or stdout)
     handler.setFormatter(
@@ -71,6 +71,14 @@ class run_keys:
     data_stores = 'data_stores'
     secrets = 'secret_sources'
 
+
+def now_date():
+    return datetime.now(timezone.utc)
+
+def to_date_str(d):
+    if d:
+        return d.isoformat()
+    return ''
 
 def normalize_name(name):
     # TODO: Must match
@@ -290,3 +298,27 @@ def gen_html_table(header, rows=None):
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
     return style + '<table class="tg">\n' + out + '</table>\n\n'
+
+
+def new_pipe_meta(artifact_path=None, *args):
+    from kfp.dsl import PipelineConf
+
+    def _set_artifact_path(task):
+        from kubernetes import client as k8s_client
+        task.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_ARTIFACT_PATH', value=artifact_path))
+        return task
+
+    conf = PipelineConf()
+    if artifact_path:
+        conf.add_op_transformer(_set_artifact_path)
+    for op in args:
+        if op:
+            conf.add_op_transformer(op)
+    return conf
+
+
+def tag_image(base):
+    if base in ['mlrun/mlrun'] and config.version:
+        base += ':' + config.version
+    return base

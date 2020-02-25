@@ -22,29 +22,45 @@ from functools import wraps
 from http import HTTPStatus
 from os import environ, remove
 import traceback
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from kfp import Client as kfclient
 
 from flask import Flask, jsonify, request, Response
+from flask.json import JSONEncoder
 
 from mlrun.builder import build_runtime
 from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.sqldb import SQLDB
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger, parse_function_uri, get_in, update_in
+from mlrun.utils import logger, parse_function_uri, get_in, update_in, now_date
 from mlrun.config import config
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import K8sHelper
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
 
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        try:
+            if isinstance(obj, date):
+                return obj.isoformat()
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
+
+
 _scheduler: Scheduler = None
 _db: RunDBInterface
 _k8s: K8sHelper = None
 _logs_dir = None
 app = Flask(__name__)
+app.json_encoder = CustomJSONEncoder
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
 
@@ -533,7 +549,7 @@ def get_log(project, uid):
                     if resp:
                         out = resp.encode()[offset:]
                     if status == 'running':
-                        now = str(datetime.now())
+                        now = now_date().isoformat()
                         update_in(data, 'status.last_update', now)
                         if new_status == 'failed':
                             update_in(data, 'status.state', 'error')
@@ -580,6 +596,7 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     iter = int(request.args.get('iter', '0'))
     _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
@@ -652,6 +669,7 @@ def store_artifact(project, uid, key):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
     iter = int(request.args.get('iter', '0'))
     _db.store_artifact(key, data, uid, iter=iter, tag=tag, project=project)
@@ -722,6 +740,7 @@ def store_function(project, name):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
 
     _db.store_function(data, name, project, tag)
@@ -775,7 +794,7 @@ def list_schedules():
 
 @app.route('/api/healthz', methods=['GET'])
 def health():
-    return 'OK\n'
+    return jsonify(ok=True, version=config.version)
 
 
 @app.before_first_request

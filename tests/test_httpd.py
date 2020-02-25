@@ -26,6 +26,7 @@ def test_project(client):
     assert resp.status_code == HTTPStatus.OK, 'add'
     resp = client.get(f'/api/project/{name1}')
     out = {key: val for key, val in resp.json['project'].items() if val}
+    out['users'].sort()
     assert prj1 == out, 'get'
 
     data = {'description': 'lemon'}

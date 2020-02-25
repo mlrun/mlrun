@@ -256,6 +256,9 @@ def test_projects(db: sqldb.SQLDB):
         'name': 'p1',
         'description': 'banana',
         'users': ['u1', 'u2'],
+        'spec': {'company': 'ACME'},
+        'state': 'active',
+        'created': datetime.now(),
     }
     pid1 = db.add_project(prj1)
     p1 = db.get_project(project_id=pid1)
@@ -263,8 +266,11 @@ def test_projects(db: sqldb.SQLDB):
     out = {
         'name': p1.name,
         'description': p1.description,
-        'users': sorted(u.name for u in p1.users)
-        }
+        'users': sorted(u.name for u in p1.users),
+        'spec': p1.spec,
+        'state': p1.state,
+        'created': p1.created,
+    }
     assert prj1 == out, 'bad project'
 
     data = {'description': 'lemon'}

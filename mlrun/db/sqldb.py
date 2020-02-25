@@ -150,7 +150,19 @@ with warnings.catch_warnings():
         description = Column(String)
         owner = Column(String)
         source = Column(String)
+        _spec = Column('spec', BLOB)
+        created = Column(TIMESTAMP, default=datetime.utcnow)
+        state = Column(String)
         users = relationship(User, secondary=project_users)
+
+        @property
+        def spec(self):
+            if self._spec:
+                return pickle.loads(self._spec)
+
+        @spec.setter
+        def spec(self, value):
+            self._spec = pickle.dumps(value)
 
 
 class SQLDB(RunDBInterface):

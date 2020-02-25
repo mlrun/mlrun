@@ -394,7 +394,7 @@ class SQLDB(RunDBInterface):
             Artifact.uid,
             Artifact.project,
             Artifact.key,
-            func.max(Artifact.updated)
+            func.max(Artifact.updated),
         ).group_by(
             Artifact.project,
             Artifact.key.label('key'),

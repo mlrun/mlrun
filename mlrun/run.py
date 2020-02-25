@@ -87,6 +87,17 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     return id
 
 
+def get_pipline(run_id, wait=0, namespace=None):
+    """Get or wait for Pipeline status, wait time in sec"""
+
+    client = Client(namespace=namespace or mlconf.namespace)
+    if wait:
+        resp = client.wait_for_run_completion(run_id, wait)
+    else:
+        resp = client.get_run(run_id)
+    return resp
+
+
 def run_local(task, command='', name: str = '', args: list = None,
               workdir=None, project: str = '', tag: str = '', secrets=None):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
@@ -109,6 +120,13 @@ def run_local(task, command='', name: str = '', args: list = None,
 
     :return: run object
     """
+
+    if command and isinstance(command, str):
+        sp = command.split()
+        command = sp[0]
+        if len(sp) > 1:
+            args = args or []
+            args = sp[1:] + args
 
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix

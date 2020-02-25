@@ -170,7 +170,13 @@ class K8sHelper:
             if writer:
                 writer.write(out)
 
-        pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
+        for i in range(5):
+            pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
+            if pod_state != 'running':
+                break
+            logger.warning('pod still running, waiting 2 sec')
+            time.sleep(2)
+
         if pod_state == 'failed':
             logger.error('pod exited with error')
         if writer:

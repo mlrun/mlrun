@@ -12,34 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """mlrun database HTTP server"""
-from argparse import ArgumentParser
 import ast
 import mimetypes
 import tempfile
+import traceback
+from argparse import ArgumentParser
 from base64 import b64decode
+from datetime import date, datetime
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
+from operator import attrgetter
 from os import environ, remove
-import traceback
-from datetime import datetime, date
 from pathlib import Path
+
+from flask import Flask, Response, jsonify, request
+from flask.json import JSONEncoder
 from kfp import Client as kfclient
 
-from flask import Flask, jsonify, request, Response
-from flask.json import JSONEncoder
-
 from mlrun.builder import build_runtime
+from mlrun.config import config
 from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError, RunDBInterface, periodic
-from mlrun.db.sqldb import SQLDB
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger, parse_function_uri, get_in, update_in, now_date
-from mlrun.config import config
-from mlrun.run import new_function, import_function
+from mlrun.db.sqldb import SQLDB
+from mlrun.db.sqldb import to_dict as db2dict
 from mlrun.k8s_utils import K8sHelper
+from mlrun.run import import_function, new_function
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
+from mlrun.utils import get_in, logger, now_date, parse_function_uri, update_in
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -814,15 +816,16 @@ def get_project(name):
     return jsonify(ok=True, project=resp)
 
 
-# curl http://localhost:8080/projects
+# curl http://localhost:8080/projects?full=true
 @app.route('/api/projects', methods=['GET'])
 @catch_err
 def list_projects():
+    full = strtobool(request.args.get('full', 'no'))
+    fn = db2dict if full else attrgetter('name')
     return jsonify(
         ok=True,
-        projects=[p.name for p in _db.list_projects()]
+        projects=[fn(p) for p in _db.list_projects()]
     )
-
 
 # curl http://localhost:8080/schedules
 @app.route('/api/schedules', methods=['GET'])

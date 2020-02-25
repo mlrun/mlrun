@@ -581,3 +581,24 @@ def update_labels(obj, labels):
             obj.labels.append(old[name])
         else:
             obj.labels.append(obj.Label(name=name, parent=obj))
+
+
+def to_dict(obj):
+    if isinstance(obj, Base):
+        return {
+            attr: to_dict(getattr(obj, attr))
+            for attr in dir(obj)
+            if is_field(attr)
+        }
+
+    if isinstance(obj, (list, tuple)):
+        cls = type(obj)
+        return cls(to_dict(v) for v in obj)
+
+    return obj
+
+
+def is_field(name):
+    if name[0] == '_':
+        return False
+    return name != 'metadata'

@@ -48,6 +48,10 @@ def test_project(client):
     expected = {name1, name2}
     assert expected == expected & set(resp.json['projects']), 'list'
 
+    resp = client.get('/api/projects?full=true')
+    projects = resp.json['projects']
+    assert {dict} == set(type(p) for p in projects), 'dict'
+
 
 def test_list_artifact_tags(client):
     project = 'p11'

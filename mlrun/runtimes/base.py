@@ -14,7 +14,6 @@
 
 import uuid
 from ast import literal_eval
-from datetime import datetime
 import getpass
 from copy import deepcopy
 from os import environ
@@ -25,8 +24,8 @@ from ..db import get_run_db, default_dbpath
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
-from ..utils import get_in, update_in, logger, is_ipython
-from .utils import calc_hash, RunError, results_to_iter, default_image_name
+from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image, dict_to_yaml, dict_to_json
+from .utils import calc_hash, RunError, results_to_iter
 from ..execution import MLClientCtx
 from ..lists import RunList
 from .generators import get_generator
@@ -69,6 +68,7 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
+        self.workdir = None
         self.pythonpath = pythonpath
 
         self._build = None
@@ -211,7 +211,8 @@ class BaseRuntime(ModelObj):
         if runspec.spec.handler_name:
             def_name += '-' + runspec.spec.handler_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
-        runspec.metadata.project = project or runspec.metadata.project
+        runspec.metadata.project = project or runspec.metadata.project \
+                                   or self.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or runspec.spec.output_path
@@ -235,15 +236,15 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 "function image is not built/ready, use .build() method first")
 
-        if not self.is_child and self.kind != 'handler':
+        if not self.is_child:
             dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
             meta.labels['owner'] = environ.get(
                     'V3IO_USERNAME', getpass.getuser())
-            hashkey = calc_hash(self)
-            if db:
+            if db and self.kind != 'handler':
+                hashkey = calc_hash(self)
                 struct = self.to_dict()
                 update_in(struct, 'metadata.tag', '')
                 db.store_function(struct, self.metadata.name,
@@ -431,7 +432,7 @@ class BaseRuntime(ModelObj):
         updates = None
         last_state = get_in(resp, 'status.state', '')
         if last_state == 'error' or err:
-            updates = {'status.last_update': str(datetime.now())}
+            updates = {'status.last_update': now_date().isoformat()}
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
             if err:
@@ -440,7 +441,7 @@ class BaseRuntime(ModelObj):
             if err:
                 updates['status.error'] = str(err)
         elif not was_none and last_state != 'completed':
-            updates = {'status.last_update': str(datetime.now())}
+            updates = {'status.last_update': now_date().isoformat()}
             updates['status.state'] = 'completed'
             update_in(resp, 'status.state', 'completed')
 
@@ -459,6 +460,7 @@ class BaseRuntime(ModelObj):
 
     def full_image_path(self, image=None):
         image = image or self.spec.image or ''
+        image = tag_image(image)
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
@@ -496,39 +498,41 @@ class BaseRuntime(ModelObj):
             image = self.full_image_path()
 
         if use_db:
-            self.save(versioned=False)
-            func = 'db://' + self._function_uri()
+            hashkey = self.save(versioned=False)
+            url = 'db://' + self._function_uri(tag=hashkey)
         else:
-            func = self
+            url = None
 
-        return mlrun_op(name, project, func,
+        return mlrun_op(name, project, function=self, func_url=url,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,
                         out_path=out_path, in_path=in_path)
 
-    def export(self, target='', format='.yaml', secrets=None):
+    def export(self, target='', format='.yaml', secrets=None, strip=True):
         """save function spec to a local/remote path (default to
         ./function.yaml)"""
         if self.kind == 'handler':
             raise ValueError('cannot export local handler function, use ' +
                              'code_to_function() to serialize your function')
         calc_hash(self)
+        struct = self.to_dict(strip=strip)
         if format == '.yaml':
-            data = self.to_yaml()
+            data = dict_to_yaml(struct)
         else:
-            data = self.to_json()
+            data = dict_to_json(struct)
         stores = StoreManager(secrets)
         target = target or 'function.yaml'
         datastore, subpath = stores.get_or_create_store(target)
         datastore.put(subpath, data)
         logger.info('function spec saved to path: {}'.format(target))
+        return self
 
     def save(self, tag='', versioned=True):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
-            return
+            return ''
 
         tag = tag or self.metadata.tag or 'latest'
         self.metadata.tag = tag
@@ -542,3 +546,20 @@ class BaseRuntime(ModelObj):
                               self.metadata.project, hashkey)
         db.store_function(obj, self.metadata.name,
                           self.metadata.project, tag)
+        return hashkey
+
+    def to_dict(self, fields=None, exclude=None, strip=False):
+        struct = super().to_dict(fields, exclude=exclude)
+        if strip:
+            spec = struct['spec']
+            for attr in ['volumes', 'volume_mounts']:
+                if attr in spec:
+                    del spec[attr]
+            if 'env' in spec and spec['env']:
+                for ev in spec['env']:
+                    if ev['name'].startswith('V3IO_'):
+                        ev['value'] = ''
+            if 'status' in struct:
+                del struct['status']
+        return struct
+

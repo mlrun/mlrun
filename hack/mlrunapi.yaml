@@ -20,6 +20,10 @@ spec:
         image: mlrun/mlrun-api:latest
         imagePullPolicy: Always
         env:
+        - name: MLRUN_LOG_LEVEL
+          value: ERROR
+        - name: MLRUN_HTTPDB__DB_TYPE
+          value: filerundb
         - name: MLRUN_HTTPDB__DIRPATH
           value: "/mlrun/db"
         - name: DEFAULT_DOCKER_REGISTRY

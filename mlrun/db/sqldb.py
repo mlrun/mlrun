@@ -15,7 +15,7 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
-
+from dateutil import parser
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
     and_, create_engine, func, or_
@@ -31,7 +31,7 @@ from .base import RunDBError, RunDBInterface
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = '%Y-%m-%d %H:%M:%S.%f'
+run_time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
 
 
 class HasStruct:
@@ -241,7 +241,9 @@ class SQLDB(RunDBInterface):
             self, key, artifact, uid, iter=None, tag='', project=''):
         project = project or config.default_project
         artifact = artifact.copy()
-        updated = artifact['updated'] = datetime.now(timezone.utc)
+        updated = artifact.get('updated')
+        if not updated:
+            updated = artifact['updated'] = datetime.now(timezone.utc)
         if iter:
             key = '{}-{}'.format(iter, key)
         art = self._get_artifact(uid, project, key)
@@ -277,12 +279,14 @@ class SQLDB(RunDBInterface):
             raise RunDBError(f'Artifact {key}:{tag}:{project} not found')
         return art.struct
 
-    def list_artifacts(self, name=None, project=None, tag=None, labels=None):
+    def list_artifacts(
+        self, name=None, project=None, tag=None, labels=None,
+            since=None, until=None):
         project = project or config.default_project
-        arts = ArtifactList()
-        arts.extend(
+        tag = tag or 'latest'
+        arts = ArtifactList(
             obj.struct
-            for obj in self._find_artifacts(project, tag, labels)
+            for obj in self._find_artifacts(project, tag, labels, since, until)
         )
         return arts
 
@@ -300,13 +304,13 @@ class SQLDB(RunDBInterface):
     def del_artifacts(
             self, name='', project='', tag='', labels=None):
         project = project or config.default_project
-        for obj in self._find_artifacts(project, tag, labels):
+        for obj in self._find_artifacts(project, tag, labels, None, None):
             self.session.delete(obj)
         self.session.commit()
 
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
-        update_in(func, 'metadata.updated', datetime.now())
+        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         fn = self._get_function(name, project, tag)
         if not fn:
             fn = Function(
@@ -410,7 +414,7 @@ class SQLDB(RunDBInterface):
             )
         )
 
-    def _find_artifacts(self, project, tag, labels):
+    def _find_artifacts(self, project, tag, labels, since, until):
         labels = label_set(labels)
         query = self._query(Artifact, project=project)
         if tag != '*':
@@ -424,6 +428,15 @@ class SQLDB(RunDBInterface):
 
         if labels:
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
+
+        if since or until:
+            since = since or datetime.min
+            until = until or datetime.max
+            query = query.filter(and_(
+                Artifact.updated >= since,
+                Artifact.updated <= until
+            ))
+
         return query
 
     def _find_functions(self, name, project, tag, labels):
@@ -470,7 +483,7 @@ def run_start_time(run):
     ts = get_in(run, 'status.start_time', '')
     if not ts:
         return None
-    return datetime.strptime(ts, run_time_fmt)
+    return parser.parse(ts)
 
 
 def run_labels(run):

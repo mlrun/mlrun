@@ -70,7 +70,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(
+        self, name='', project='', tag='', labels=None,
+            since=None, until=None):
         pass
 
     @abstractmethod

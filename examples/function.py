@@ -24,8 +24,8 @@ def handler(context, event):
     ctx.log_result('latency', p1 * 3)
 
     # log various types of artifacts (and set UI viewers)
-    ctx.log_artifact('test.txt', body=b'abc is 123')
-    ctx.log_artifact('test.html', body=b'<b> Some HTML <b>', viewer='web-app')
+    ctx.log_artifact('test', body=b'abc is 123', local_path='test.txt')
+    ctx.log_artifact('test_html', body=b'<b> Some HTML <b>', format='html')
 
     context.logger.info('run complete!')
     return ctx.to_json()

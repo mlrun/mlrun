@@ -101,7 +101,7 @@ class MpiRuntime(KubejobRuntime):
 
         resp = self._submit_mpijob(job, meta.namespace)
         state = None
-        timeout = int(config.k8s_submit_timeout) or 120
+        timeout = int(config.submit_timeout) or 120
         for _ in range(timeout):
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.launcherStatus')

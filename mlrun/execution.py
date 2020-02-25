@@ -21,7 +21,7 @@ from .artifacts import ArtifactManager
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger, dict_to_json
+from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str
 
 
 class MLCtxValueError(Exception):
@@ -74,8 +74,8 @@ class MLClientCtx(object):
         self._error = None
         self._commit = ''
         self._host = None
-        self._start_time = datetime.now()
-        self._last_update = datetime.now()
+        self._start_time = now_date()
+        self._last_update = now_date()
         self._iteration_results = None
 
     def set_logger_stream(self, stream):
@@ -328,7 +328,7 @@ class MLClientCtx(object):
 
     def set_state(self, state: str = None, error: str = None, commit=True):
         """modify and store the run state or mark an error"""
-        updates = {'status.last_update': str(datetime.now())}
+        updates = {'status.last_update': now_date().isoformat()}
 
         if error:
             self._state = 'error'
@@ -377,8 +377,8 @@ class MLClientCtx(object):
             'status':
                 {'state': self._state,
                  'results': self._results,
-                 'start_time': str(self._start_time),
-                 'last_update': str(self._last_update)},
+                 'start_time': to_date_str(self._start_time),
+                 'last_update': to_date_str(self._last_update)},
             }
 
         set_if_valid(struct['status'], 'error', self._error)
@@ -399,7 +399,7 @@ class MLClientCtx(object):
         return dict_to_json(self.to_dict())
 
     def _update_db(self, commit=False, message=''):
-        self.last_update = datetime.now()
+        self.last_update = now_date()
         if self._tmpfile:
             data = self.to_json()
             with open(self._tmpfile, 'w') as fp:

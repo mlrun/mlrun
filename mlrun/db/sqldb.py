@@ -397,7 +397,7 @@ class SQLDB(RunDBInterface):
             func.max(Artifact.updated)
         ).group_by(
             Artifact.project,
-            Artifact.key.label('key')
+            Artifact.key.label('key'),
         ).subquery('max_key')
 
         # Join curreny query with sub query on (project, key, uid)

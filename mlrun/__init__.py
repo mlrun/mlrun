@@ -15,7 +15,7 @@
 __version__ = '0.4.4'
 
 from .run import (get_or_create_ctx, new_function, code_to_function,
-                  import_function, run_pipeline)
+                  import_function, run_pipeline, run_local)
 from .db import get_run_db
 from .model import RunTemplate, NewTask, RunObject
 from .kfpops import mlrun_op
@@ -34,5 +34,7 @@ def get_version():
 
 
 if 'IGZ_NAMESPACE_DOMAIN' in environ:
-    kfp_ep = 'https://dashboard.{}/pipelines'.format(environ['IGZ_NAMESPACE_DOMAIN'])
+    igz_domain = environ['IGZ_NAMESPACE_DOMAIN']
+    kfp_ep = 'https://dashboard.{}/pipelines'.format(igz_domain)
     environ['KF_PIPELINES_UI_ENDPOINT'] = kfp_ep
+    mlconf.remote_host = mlconf.remote_host or igz_domain

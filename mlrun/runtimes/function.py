@@ -18,9 +18,8 @@ import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
-import logging
-from sys import stdout
 from nuclio.deploy import deploy_config
+import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
@@ -30,11 +29,6 @@ from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in
 from ..lists import RunList
 from ..model import RunObject
-
-from nuclio_sdk import Context as _Context, Logger
-from nuclio_sdk.logger import HumanReadableFormatter
-from nuclio_sdk import Event
-import nuclio
 
 serving_handler = 'handler'
 
@@ -365,25 +359,4 @@ async def submit(session, url, run, headers=None):
 
 
 def fake_nuclio_context(body, headers=None):
-
-    class FunctionContext(_Context):
-        """Wrapper around nuclio_sdk.Context to make automatically create
-        logger"""
-
-        def __getattribute__(self, attr):
-            value = object.__getattribute__(self, attr)
-            if value is None and attr == 'logger':
-                value = self.logger = Logger(level=logging.INFO)
-                value.set_handler(
-                    'mlrun', stdout, HumanReadableFormatter())
-            return value
-
-        def set_logger_level(self, verbose=False):
-            if verbose:
-                level = logging.DEBUG
-            else:
-                level = logging.INFO
-            value = self.logger = Logger(level=level)
-            value.set_handler('mlrun', stdout, HumanReadableFormatter())
-
-    return FunctionContext(), Event(body=body, headers=headers)
+    return nuclio.Context(), nuclio.Event(body=body, headers=headers)

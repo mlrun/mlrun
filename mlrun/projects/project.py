@@ -13,10 +13,14 @@ from ..config import config
 from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
 from urllib.parse import urlparse
-from kfp import Client, compiler
+from kfp import compiler
 
-from ..utils import update_in
+from ..utils import update_in, new_pipe_meta, logger
 from ..runtimes.utils import add_code_metadata
+
+
+class ProjectError(Exception):
+    pass
 
 
 def new_project(name, context=None, functions=None, workflows=None,
@@ -104,7 +108,7 @@ class MlrunProject(ModelObj):
         self.description = description
         self.tag = ''
         self.origin_url = ''
-        self.source = ''
+        self._source = ''
         self.context = None
         self.subpath = ''
         self.branch = None
@@ -120,14 +124,33 @@ class MlrunProject(ModelObj):
         self.functions = functions or []
 
     @property
+    def source(self) -> str:
+        if not self._source:
+            if self.repo:
+                url = _get_repo_url(self.repo)
+                if url:
+                    self._source = url
+
+        return self._source
+
+    @source.setter
+    def source(self, src):
+        self._source = src
+
+    def _source_repo(self):
+        src = self.source
+        if src:
+            return src.split('#')[0]
+        return ''
+
+    @property
     def functions(self) -> list:
         funcs = []
         for name, f in self._function_defs.items():
             if hasattr(f, 'to_dict'):
-                spec = f.to_dict()
-                if f.spec.build.source == self.source:
+                spec = f.to_dict(strip=True)
+                if f.spec.build.source.startswith(self._source_repo()):
                     update_in(spec, 'spec.build.source', './')
-                # TODO: clean/change elements before persisting e.g. source
                 funcs.append({'name': name,
                               'spec': spec})
             else:
@@ -188,22 +211,41 @@ class MlrunProject(ModelObj):
             self.sync_functions()
         return self._function_objects[key]
 
-    def pull(self):
+    def pull(self, branch=None, remote=None):
         url = self.origin_url
         if url and url.startswith('git://'):
             if not self.repo:
                 raise ValueError('repo was not initialized, use load_project()')
-            self.repo.git.pull()
+            branch = branch or self.repo.active_branch.name
+            remote = remote or 'origin'
+            self.repo.git.pull(remote, branch)
         elif url and url.endswith('.tar.gz'):
             if not self.context:
                 raise ValueError('target dit (context) is not set')
             clone_tgz(url, self.context, self._secrets, False)
 
-    def push(self, branch, message=None, update=True, remote=None):
+    def create_remote(self, url, name='origin'):
+        if not self.repo:
+            raise ValueError('git repo is not set/defined')
+        self.repo.create_remote(name, url=url)
+        url = url.replace('https://', 'git://')
+        try:
+            url = '{}#refs/heads/{}'.format(url, self.repo.active_branch.name)
+        except Exception:
+            pass
+        self._source = self.source or url
+        self.origin_url = self.origin_url or url
+
+    def push(self, branch, message=None, update=True, remote=None,
+             add: list = None):
         repo = self.repo
         if not repo:
             raise ValueError('git repo is not set/defined')
         self.save()
+
+        add = add or []
+        add.append('project.yaml')
+        repo.index.add(add)
         if update:
             repo.git.add(update=True)
         if repo.is_dirty():
@@ -215,7 +257,7 @@ class MlrunProject(ModelObj):
             raise ValueError('please specify the remote branch')
         repo.git.push(remote or 'origin', branch)
 
-    def sync_functions(self, names: list = None, always=True):
+    def sync_functions(self, names: list = None, always=True, save=False):
         if self._initialized and not always:
             return
 
@@ -235,6 +277,8 @@ class MlrunProject(ModelObj):
                 name, func = init_function_from_dict(f, self)
             func.spec.build.code_origin = origin
             funcs[name] = func
+            if save:
+                func.save(versioned=False)
 
         self._function_objects = funcs
         self._initialized = True
@@ -244,7 +288,18 @@ class MlrunProject(ModelObj):
         return self
 
     def run(self, name=None, workflow_path=None, arguments=None,
-            artifacts_path=None, namespace=None, sync=False):
+            artifact_path=None, namespace=None, sync=False, dirty=False):
+
+        if self.repo and self.repo.is_dirty():
+            msg = 'you seem to have uncommitted git changes, use .push()'
+            if dirty:
+                logger.warning('WARNING!, ' + msg)
+            else:
+                raise ProjectError(msg + ' or dirty=True')
+
+        if self.repo and not self.source:
+            raise ProjectError(
+                'remote repo is not defined, use .create_remote() + push()')
 
         self.sync_functions(always=sync)
         if not self._function_objects:
@@ -256,25 +311,26 @@ class MlrunProject(ModelObj):
             if name not in self.workflows:
                 raise ValueError('workflow {} not found'.format(name))
             workflow_path = self.workflows.get(name)
+            workflow_path = path.join(self.context, workflow_path)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
-        wfpath = path.join(self.context, workflow_path)
-        run = _run_pipeline(name, wfpath, self._function_objects, self.params,
-                            secrets=self._secrets, arguments=arguments,
-                            artifacts_path=artifacts_path, namespace=namespace,
-                            remote=self.remote)
+        run = _run_pipeline(name, workflow_path, self._function_objects,
+                            self.params, secrets=self._secrets,
+                            arguments=arguments, artifact_path=artifact_path,
+                            namespace=namespace, remote=self.remote)
         return run
 
-    def save_workflow(self, name, target, artifacts_path=None):
+    def save_workflow(self, name, target, artifact_path=None):
         if not name or name not in self.workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        wfpath = self.workflows.get(name)
+        wfpath = path.join(self.context, self.workflows.get(name))
         pipeline = create_pipeline(wfpath, self._function_objects,
                                    self.params, secrets=self._secrets,
-                                   artifacts_path=artifacts_path)
+                                   artifact_path=artifact_path)
 
-        compiler.Compiler().compile(pipeline, target)
+        conf = new_pipe_meta(artifact_path)
+        compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
 
     def clear_context(self):
         if self.context and path.exists(self.context) and path.isdir(self.context):
@@ -305,15 +361,18 @@ def init_function_from_dict(f, project):
             raise Exception('{} not found'.format(url))
 
     if 'spec' in f:
-        func = new_function(runtime=f['spec'])
+        func = new_function(name, runtime=f['spec'])
     elif url.endswith('.yaml') or url.startswith('db://'):
         func = import_function(url)
     elif url.endswith('.ipynb'):
-        func = code_to_function(filename=url, image=image, kind=kind)
+        func = code_to_function(name, filename=url, image=image, kind=kind)
     elif url.endswith('.py'):
         if not image:
             raise ValueError('image must be provided with py code files')
-        func = code_to_function(filename=url, image=image, kind=kind or 'job')
+        if in_context:
+            func = new_function(name, command=url, image=image, kind=kind or 'job')
+        else:
+            func = code_to_function(name, filename=url, image=image, kind=kind or 'job')
     else:
         raise ValueError('unsupported function url {} or no spec'.format(url))
 
@@ -341,7 +400,7 @@ def init_function_from_obj(func, project, name=None, in_context=True):
 
 
 def create_pipeline(pipeline, functions, params=None, secrets=None,
-                    artifacts_path=None):
+                    artifact_path=None):
 
     spec = imputil.spec_from_file_location('workflow', pipeline)
     if spec is None:
@@ -349,7 +408,7 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    setattr(mod, 'artifacts_path', artifacts_path)
+    setattr(mod, 'artifact_path', artifact_path)
     setattr(mod, 'funcs', functions)
 
     if hasattr(mod, 'init_functions'):
@@ -363,21 +422,15 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
 
 
 def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
-                  arguments=None, artifacts_path=None, namespace=None,
+                  arguments=None, artifact_path=None, namespace=None,
                   remote=False):
     kfpipeline = create_pipeline(pipeline, functions, params, secrets,
-                                 artifacts_path)
+                                 artifact_path)
 
     namespace = namespace or config.namespace
-    if remote:
-        id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                          namespace=namespace)
-    else:
-        client = Client(namespace=namespace or config.namespace)
-        run_result = client.create_run_from_pipeline_func(
-            kfpipeline, arguments, experiment_name=name)
-        id = run_result.run_id
-
+    id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
+                      namespace=namespace, artifact_path=artifact_path,
+                      remote=remote)
     return id
 
 

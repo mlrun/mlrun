@@ -198,8 +198,9 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 @click.option('--db', default='', help='save run results to path or DB url')
 @click.option('--runtime', '-r', default='', help='function spec dict, for pipeline usage')
 @click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines, do not use')
+@click.option('--skip', is_flag=True, help='skip if already deployed')
 def build(func_url, name, project, tag, image, source, base_image, command,
-          secret_name, archive, silent, with_mlrun, db, runtime, kfp):
+          secret_name, archive, silent, with_mlrun, db, runtime, kfp, skip):
     """Build a container image from code and requirements."""
 
     if runtime:
@@ -262,7 +263,8 @@ def build(func_url, name, project, tag, image, source, base_image, command,
     if hasattr(func, 'deploy'):
         logger.info('remote deployment started')
         try:
-            func.deploy(with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp)
+            func.deploy(with_mlrun=with_mlrun, watch=not silent,
+                        is_kfp=kfp, skip_deployed=skip)
         except Exception as err:
             print('deploy error, {}'.format(err))
             exit(1)

@@ -87,7 +87,7 @@ def _load_project_dir(context, name='', subpath=''):
         project = MlrunProject(name=func.metadata.project,
                                functions=[{'url': 'function.yaml',
                                            'name': func.metadata.name}],
-                               workflows={})
+                               workflows=[])
     else:
         raise ValueError('project or function YAML not found in path')
 
@@ -113,7 +113,8 @@ class MlrunProject(ModelObj):
         self.subpath = ''
         self.branch = None
         self.repo = None
-        self.workflows = workflows or {}
+        self.workflows = workflows or []
+        self._workflows = {}
         self._secrets = {}
         self.params = params or {}
         self.conda = conda or {}
@@ -176,6 +177,27 @@ class MlrunProject(ModelObj):
 
         self._function_defs = func_defs
 
+    @property
+    def workflows(self) -> list:
+        return [w for w in self._workflows.values()]
+
+    @workflows.setter
+    def workflows(self, workflows):
+        if not isinstance(workflows, list):
+            raise ValueError('workflows must be a list')
+
+        wfdict = {}
+        for w in workflows:
+            if not isinstance(w, dict):
+                raise ValueError('workflow must be a dict')
+            name = w.get('name', '')
+            # todo: support steps dsl as code alternative
+            if not name or 'code' not in w:
+                raise ValueError('workflow "name" and "code" must be specified')
+            wfdict[name] = w
+
+        self._workflows = wfdict
+
     def reload(self, sync=False):
         project = _load_project_dir(self.context, self.name, self.subpath)
         project.source = self.source
@@ -222,7 +244,7 @@ class MlrunProject(ModelObj):
         elif url and url.endswith('.tar.gz'):
             if not self.context:
                 raise ValueError('target dit (context) is not set')
-            clone_tgz(url, self.context, self._secrets, False)
+            clone_tgz(url, self.context, self._secrets)
 
     def create_remote(self, url, name='origin'):
         if not self.repo:
@@ -310,7 +332,7 @@ class MlrunProject(ModelObj):
         if not workflow_path:
             if name not in self.workflows:
                 raise ValueError('workflow {} not found'.format(name))
-            workflow_path = self.workflows.get(name)
+            workflow_path = self._workflows.get(name)['code']
             workflow_path = path.join(self.context, workflow_path)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
@@ -321,10 +343,10 @@ class MlrunProject(ModelObj):
         return run
 
     def save_workflow(self, name, target, artifact_path=None):
-        if not name or name not in self.workflows:
+        if not name or name not in self._workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        wfpath = path.join(self.context, self.workflows.get(name))
+        wfpath = path.join(self.context, self._workflows.get(name)['code'])
         pipeline = create_pipeline(wfpath, self._function_objects,
                                    self.params, secrets=self._secrets,
                                    artifact_path=artifact_path)

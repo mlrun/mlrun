@@ -43,6 +43,7 @@ class HandlerRuntime(BaseRuntime):
     def _run(self, runobj: RunObject, execution):
         handler = runobj.spec.handler
         self._force_handler(handler)
+        environ['MLRUN_EXEC_CONFIG'] = runobj.to_json()
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
         if self.spec.pythonpath:

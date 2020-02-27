@@ -312,7 +312,7 @@ class MLClientCtx(object):
 
     def log_artifact(self, item, body=None, target_path='', src_path=None,
                      tag='', viewer=None, local_path=None, artifact_path=None,
-                     upload=True, labels=None, **kwargs):
+                     upload=True, labels=None, format=None, **kwargs):
         """log an output artifact and optionally upload it"""
         self._artifacts_manager.log_artifact(self, item, body=body,
                                              target_path=target_path,
@@ -322,7 +322,8 @@ class MLClientCtx(object):
                                              tag=tag,
                                              viewer=viewer,
                                              upload=upload,
-                                             labels=labels)
+                                             labels=labels,
+                                             format=format)
         self._update_db()
 
     def commit(self, message: str = ''):

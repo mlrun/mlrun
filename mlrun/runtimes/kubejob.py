@@ -176,12 +176,12 @@ class KubejobRuntime(KubeResource):
             return None
 
     def deploy_step(self, image=None, base_image=None, commands: list = None,
-                    secret_name='', with_mlrun=True):
+                    secret_name='', with_mlrun=True, skip_deployed=False):
 
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         return build_op(name, self, image=image, base_image=base_image,
                         commands=commands, secret_name=secret_name,
-                        with_mlrun=with_mlrun)
+                        with_mlrun=with_mlrun, skip_deployed=skip_deployed)
 
     def _run(self, runobj: RunObject, execution):
 

@@ -32,6 +32,20 @@ class RunError(Exception):
 mlrun_key = 'mlrun/'
 
 
+class _ContextStore:
+    def __init__(self):
+        self._context = None
+
+    def get(self):
+        return self._context
+
+    def set(self, context):
+        self._context = context
+
+
+global_context = _ContextStore()
+
+
 def calc_hash(func, tag=''):
     # remove tag, hash, date from calculation
     tag = tag or func.metadata.tag

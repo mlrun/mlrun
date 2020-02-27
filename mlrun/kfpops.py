@@ -366,7 +366,7 @@ def add_env(env=None):
 
 
 def build_op(name, function=None, func_url=None, image=None, base_image=None, commands: list = None,
-             secret_name='', with_mlrun=True):
+             secret_name='', with_mlrun=True, skip_deployed=False):
     """build Docker image."""
 
     from kfp import dsl
@@ -390,6 +390,8 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
         cmd += ['--secret-name', secret_name]
     if with_mlrun:
         cmd += ['--with_mlrun']
+    if skip_deployed:
+        cmd += ['--skip']
     for c in commands:
         cmd += ['-c', c]
     if func_url and not function:

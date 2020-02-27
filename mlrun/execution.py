@@ -203,6 +203,11 @@ class MLClientCtx(object):
         return self._out_path
 
     @property
+    def artifact_path(self):
+        """default output path for artifacts"""
+        return self._out_path
+
+    @property
     def labels(self):
         """dictionary with labels (read-only)"""
         return deepcopy(self._labels)

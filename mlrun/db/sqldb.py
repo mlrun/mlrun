@@ -15,10 +15,11 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
+
 from dateutil import parser
 from sqlalchemy import (
-    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
-    create_engine, func, or_, and_, Table
+    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, Table,
+    UniqueConstraint, and_, create_engine, func, or_
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -496,25 +497,39 @@ class SQLDB(RunDBInterface):
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
         return query
 
-    def _latest_artifact_uid(self):
-        query = (
-            self.session.query(Artifact.uid)
-            .order_by(Artifact.updated.desc())
-            .limit(1)
+    def _latest_uid_filter(self, query):
+        # Create a sub query of latest uid (by updated) per (project,key)
+        subq = self.session.query(
+            Artifact.uid,
+            Artifact.project,
+            Artifact.key,
+            func.max(Artifact.updated),
+        ).group_by(
+            Artifact.project,
+            Artifact.key.label('key'),
+        ).subquery('max_key')
+
+        # Join curreny query with sub query on (project, key, uid)
+        return query.join(
+            subq,
+            and_(
+                Artifact.project == subq.c.project,
+                Artifact.key == subq.c.key,
+                Artifact.uid == subq.c.uid,
+            )
         )
-        out = query.one_or_none()
-        if out:
-            return out[0]
 
     def _find_artifacts(self, project, tag, labels, since, until):
         labels = label_set(labels)
         query = self._query(Artifact, project=project)
         if tag != '*':
             if tag == 'latest':
-                tag = self._latest_artifact_uid()
-                if not tag:
-                    return []  # no artifacts
-            query = query.filter(or_(Artifact.tag == tag, Artifact.uid == tag))
+                query = self._latest_uid_filter(query)
+            else:
+                query = query.filter(or_(
+                    Artifact.tag == tag,
+                    Artifact.uid == tag,
+                ))
 
         if labels:
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))

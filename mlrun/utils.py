@@ -75,10 +75,12 @@ class run_keys:
 def now_date():
     return datetime.now(timezone.utc)
 
+
 def to_date_str(d):
     if d:
         return d.isoformat()
     return ''
+
 
 def normalize_name(name):
     # TODO: Must match
@@ -214,8 +216,8 @@ def dict_to_list(struct: dict):
 
 
 def dict_to_yaml(struct):
-    return yaml.dump(struct, default_flow_style=False,
-                     sort_keys=False)
+    return yaml.safe_dump(struct, default_flow_style=False,
+                          sort_keys=False)
 
 
 # solve numpy json serialization

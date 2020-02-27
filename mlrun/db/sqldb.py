@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from dateutil import parser
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
-    and_, create_engine, func, or_
+    and_, create_engine, func
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -276,22 +276,21 @@ class SQLDB(RunDBInterface):
         art.struct = artifact
         self._upsert(art)
         if tag:
-            self.create_tag(project, 'artifact', tag, uid, force=True)
+            self.store_tag(project, 'artifact', tag, uid, force=True)
 
     def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or config.default_project
-        uid = None  # TODO: Is tag also uid?
+        uid = None
         if tag:
-            uid = self.get_tag(project, 'artifact', tag)
-            if not uid:
-                raise ValueError(f'unknown tag - {tag}')
+            uid = self.get_tag(project, 'artifact', tag) or tag
 
         if iter:
             key = '{}-{}'.format(iter, key)
+
         query = self._query(
             Artifact, key=key, project=project)
-        if tag:
-            query = query.filter(Artifact.tag == tag)
+        if uid:
+            query = query.filter(Artifact.uid == uid)
         else:
             # Select by last updated
             max_updated = self.session.query(
@@ -308,10 +307,16 @@ class SQLDB(RunDBInterface):
         self, name=None, project=None, tag=None, labels=None,
             since=None, until=None):
         project = project or config.default_project
-        tag = tag or 'latest'
+        uid = 'latest'
+        if tag:
+            uid = tag
+            tag = self._find_tag(project, 'artifact', uid)
+            if tag:
+                uid = tag.uid
+
         arts = ArtifactList(
             obj.struct
-            for obj in self._find_artifacts(project, tag, labels, since, until)
+            for obj in self._find_artifacts(project, uid, labels, since, until)
         )
         return arts
 
@@ -369,8 +374,8 @@ class SQLDB(RunDBInterface):
         return [row[0] for row in self.session.query(Run.project).distinct()]
 
     def list_artifact_tags(self, project):
-        query = self.session.query(Artifact.tag).filter(
-            Artifact.project == project).distinct()
+        query = self.session.query(Artifact.Tag.name).filter(
+            Artifact.Tag.project == project).distinct()
         return [row[0] for row in query]
 
     def store_schedule(self, data):
@@ -381,7 +386,7 @@ class SQLDB(RunDBInterface):
     def list_schedules(self):
         return [s.struct for s in self.session.query(Schedule)]
 
-    def create_tag(
+    def store_tag(
         self, project: str, typ: str, name: str, uid: str,
             *, force: bool = False) -> None:
         """Create a new tag for (project, typ, uid) with name
@@ -410,9 +415,6 @@ class SQLDB(RunDBInterface):
     def _find_tag(self, project, typ, name):
         cls = type2tag(typ)
         return self._query(cls, project=project, name=name).one_or_none()
-
-    def _set_tag(cls, tag, uid):
-        pass
 
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
@@ -472,17 +474,14 @@ class SQLDB(RunDBInterface):
             )
         )
 
-    def _find_artifacts(self, project, tag, labels, since, until):
+    def _find_artifacts(self, project, uid, labels, since, until):
         labels = label_set(labels)
         query = self._query(Artifact, project=project)
-        if tag != '*':
-            if tag == 'latest':
+        if uid != '*':
+            if uid == 'latest':
                 query = self._latest_uid_filter(query)
             else:
-                query = query.filter(or_(
-                    Artifact.tag == tag,
-                    Artifact.uid == tag,
-                ))
+                query = query.filter(Artifact.uid == uid)
 
         if labels:
             query = query.join(Run.Label).filter(Run.Label.name.in_(labels))

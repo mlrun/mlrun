@@ -261,6 +261,14 @@ def test_artifacts_latest(db: sqldb.SQLDB):
 @pytest.mark.parametrize('typ', sorted(sqldb._type2tag))
 def test_tags(db: sqldb.SQLDB, typ):
     p1, u1, n1 = 'prj1', 'uid1', 'name1'
-    db.create_tag(p1, typ, n1, u1)
+    db.store_tag(p1, typ, n1, u1)
     u = db.get_tag(p1, typ, n1)
     assert u1 == u, 'uid'
+
+    with pytest.raises(ValueError):
+        db.store_tag(p1, typ, n1, u1)
+
+    u2 = 'uid2'
+    db.store_tag(p1, typ, n1, u2, force=True)
+    u = db.get_tag(p1, typ, n1)
+    assert u2 == u, 'uid change'

@@ -792,10 +792,38 @@ def list_schedules():
     )
 
 
-@app.route('/api/tags/<project>/<typ>/<name>/<uid>', method=['POST'])
+@app.route('/api/tag/<project>/<typ>/<name>/<uid>', methods=['POST', 'PUT'])
 @catch_err
-def new_tag(project, typ, name, uid):
-    _db.create_tag(project, typ, name, uid)
+def store_tag(project, typ, name, uid):
+    force = request.method == 'PUT'
+    try:
+        _db.store_tag(project, typ, name, uid, force=force)
+    except ValueError as err:
+        return json_error(error=str(err))
+    return jsonify(
+        project=project,
+        type=typ,
+        name=name,
+        uid=uid,
+    )
+
+
+@app.route('/api/tag/<project>/<typ>/<name>', methods=['GET'])
+@catch_err
+def get_tag(project, typ, name):
+    uid = _db.get_tag(project, typ, name)
+    if not uid:
+        return json_error(
+            HTTPStatus.NOT_FOUND,
+            error=f'tag {project}/{typ}/{name} not found',
+        )
+
+    return jsonify(
+        project=project,
+        type=typ,
+        name=name,
+        uid=uid,
+    )
 
 
 @app.route('/api/healthz', methods=['GET'])

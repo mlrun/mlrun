@@ -12,5 +12,5 @@ docs/_build
 iteration_results.csv
 mlrun.egg-info/
 model.txt
-results.html
+result*.html
 tests/test_results/

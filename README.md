@@ -72,12 +72,15 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 #### Examples & Notebooks
 * [Learn MLRun basics](examples/mlrun_basics.ipynb)
 * [From local runs to Kubernetes jobs, and automated pipelines in a single Notebook](examples/mlrun_jobs.ipynb)
-* [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](examples/train_xgboost_serverless.ipynb)
+* [Create an end to end XGBoost pipeline: ingest, train, verify, deploy](https://github.com/mlrun/demo-xgb-project)
 * Examples for MLRun with scale-out runtimes
   * [Distributed TensorFlow (Horovod and MpiJob)](examples/mlrun_mpijob_classify.ipynb)
-  * [Nuclio-serving (Serverless model serving)](examples/nuclio_serving.ipynb)
+  * [Nuclio-serving (Serverless model serving)](examples/xgb_serving.ipynb)
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun_sparkk8s.ipynb)
+* MLRun Projects
+  * [Load a project from remote Git and run pipelines](https://github.com/mlrun/demo-xgb-project/blob/master/load-project.ipynb)
+  * [Create a new project + functions + pipelines and upload to Git](examples/new-project.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)
 
@@ -91,13 +94,15 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
 
 ### Managed and portable execution
 
-We have few main elements:
+We have few main elements which are usually grouped into "Projects":
 
 * **Function** - a software package with one or more methods and a bunch of `runtime` specific attributes (e.g. image, command, 
 args, environment, ..). function can run one or many runs/tasks, they can be created from templates, and be stored in a versioned database.
 * **Task** - define the desired parameters, inputs, outputs of a job/task. 
 Task can be created from a template and run over different `runtimes` or `functions`.
 * **Run** - is the result of running a Task on a Function, it has all the attributes of a Task + the execution status and results.
+* **Artifact** - versioned files, objects, datasets, models, etc. which are produced or consumed by functions/runs/workflows.
+* **Workflow** - defines a pipeline/graph (DAG) of functions (using KubeFlow pipelines)
 
 MLRun support multiple `runtimes` i.e. computation frameworks, such as local, 
 kubernetes job, dask, nuclio, spark, mpijob (Horovod). runtimes may support 
@@ -157,13 +162,13 @@ from mlrun.artifacts import TableArtifact, PlotArtifact
 import pandas as pd
 
 
-def iris_generator(context, target=''):
+def iris_generator(context):
     iris = load_iris()
     iris_dataset = pd.DataFrame(data=iris.data, columns=iris.feature_names)
     iris_labels = pd.DataFrame(data=iris.target, columns=['label'])
     iris_dataset = pd.concat([iris_dataset, iris_labels], axis=1)
-    context.logger.info('saving iris dataframe to {}'.format(target))
-    context.log_artifact(TableArtifact('iris_dataset', df=iris_dataset, target_path=target))
+    context.logger.info('saving iris dataframe to {}'.format(context.out_path))
+    context.log_artifact(TableArtifact('iris_dataset', df=iris_dataset))
     
 
 def xgb_train(context, 
@@ -183,23 +188,20 @@ def xgb_train(context,
     dtrain = xgb.DMatrix(X_train, label=Y_train)
     dtest = xgb.DMatrix(X_test, label=Y_test)
 
-    # Get params from event
     param = {"max_depth": max_depth,
              "eta": eta, "nthread": 4,
              "num_class": num_class,
              "gamma": gamma,
              "objective": "multi:softprob"}
 
-    # Train model
     xgb_model = xgb.train(param, dtrain, steps)
 
     preds = xgb_model.predict(dtest)
     best_preds = np.asarray([np.argmax(line) for line in preds])
 
-    # log results and artifacts
     context.log_result('accuracy', float(accuracy_score(Y_test, best_preds)))
     context.log_artifact('model', body=bytes(xgb_model.save_raw()), 
-                         target_path=model_name, labels={'framework': 'xgboost'})
+                         local_path=model_name, labels={'framework': 'xgboost'})
 ```  
 
 
@@ -226,21 +228,18 @@ from mlrun import get_or_create_ctx
 from mlrun.artifacts import ChartArtifact, TableArtifact
 
 
-def my_job():
+def my_job(context, p1=1, p2='x'):
     # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-    context = get_or_create_ctx('train')
-    
+
     # get parameters from the runtime context (or use defaults)
-    p1 = context.get_param('p1', 1)
-    p2 = context.get_param('p2', 'a-string')
 
     # access input metadata, values, files, and secrets (passwords)
     print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(context.get_input('infile.txt').get()))
+    print('file\n{}\n'.format(context.get_input('infile.txt', 'infile.txt').get()))
     
-    # RUN some useful code e.g. ML training, data prep, etc.
+    # Run some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)
     context.log_result('accuracy', p1 * 2)
@@ -248,13 +247,13 @@ def my_job():
     context.set_label('framework', 'sklearn')
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-    context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
-    context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
-    context.log_artifact(TableArtifact('dataset.csv', '1,2,3\n4,5,6\n',
-                                        viewer='table', header=['A', 'B', 'C']))
+    context.log_artifact('model', body=b'abc is 123', local_path='model.txt', labels={'framework': 'xgboost'})
+    context.log_artifact('html_result', body=b'<b> Some HTML <b>', local_path='result.html')
+    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', visible=True,
+                                        header=['A', 'B', 'C']), local_path='dataset.csv')
 
     # create a chart output (will show in the pipelines UI)
-    chart = ChartArtifact('chart.html')
+    chart = ChartArtifact('chart')
     chart.labels = {'type': 'roc'}
     chart.header = ['Epoch', 'Accuracy', 'Loss']
     for i in range(1, 8):
@@ -263,13 +262,16 @@ def my_job():
 
 
 if __name__ == "__main__":
-    my_job()
+    context = get_or_create_ctx('train')
+    p1 = context.get_param('p1', 1)
+    p2 = context.get_param('p2', 'a-string')
+    my_job(context, p1, p2)
 ```
 
 
 the code above can be invoked by calling:
 
-    run = new_function(command='training.py').run(task)
+    run = run_local(task, command='training.py')
 
 or using the cli (while substituting the parameter and input data with remote S3 file):
 
@@ -299,7 +301,7 @@ function above by using `hyper params`:
          }
 
     task = NewTask(handler=xgb_train, out_path='/User/mlrun/data').with_hyper_params(parameters, 'max.accuracy')
-    run = new_function().run(task)
+    run = run_local(task)
 
     
 The line above tells mlrun to run the same task while choosing the parameters from multiple lists (GridSearch).
@@ -313,7 +315,7 @@ This can also be done via the CLI:
 We can use a parameter file if we want to control the parameter combinations or if the parameters are more complex.
 
     task = NewTask(handler=xgb_train).with_param_file('params.csv', 'max.accuracy')
-    run = new_function().run(task)
+    run = run_local(task)
 
   
 > Note: parameter list can be used for various tasks, another example is to pass a list of files and 
@@ -373,7 +375,7 @@ fn.build(image='mlrun/nuctest:latest')
 Running in a pipeline would be similar to running using the command line
 mlrun will automatically save outputs and artifacts in a way which will be visible to KubeFlow, and allow interconnecting steps
 
-see a [full pipelines notebook example](examples/train_xgboost_serverless.ipynb)
+see a [full pipelines notebook example](https://github.com/mlrun/demo-xgb-project/blob/master/notebooks/train-xgboost.ipynb)
 ```python
 @dsl.pipeline(
     name='My XGBoost training pipeline',
@@ -384,20 +386,19 @@ def xgb_pipeline(
 ):
 
     ingest = xgbfn.as_step(name='ingest_iris', handler='iris_generator',
-                          params = {'target': df_path},
-                          outputs=['iris_dataset'], out_path=artifacts_path).apply(mount_v3io())
+                          outputs=['iris_dataset'])
 
     
     train = xgbfn.as_step(name='xgb_train', handler='xgb_train',
                           hyperparams = {'eta': eta, 'gamma': gamma},
                           selector='max.accuracy',
                           inputs = {'dataset': ingest.outputs['iris_dataset']}, 
-                          outputs=['model'], out_path=artifacts_path).apply(mount_v3io())
+                          outputs=['model'])
 
     
     plot = xgbfn.as_step(name='plot', handler='plot_iter',
                          inputs={'iterations': train.outputs['iteration_results']},
-                         outputs=['iris_dataset'], out_path=artifacts_path).apply(mount_v3io())
+                         outputs=['iris_dataset'])
 
     # deploy the model serving function with inputs from the training stage
     deploy = srvfn.deploy_step(project = 'iris', models={'iris_v1': train.outputs['model']})

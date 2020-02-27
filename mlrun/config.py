@@ -43,6 +43,7 @@ default_config = {
     'dbpath': '',
     'ui_url': '',
     'remote_host': '',
+    'version': '',
     'kfp_image': '',
     'kaniko_version': 'v0.14.0',
     'package_path': 'mlrun',
@@ -183,6 +184,7 @@ def read_env(env=None, prefix=env_prefix):
     if not config.get('kfp_image'):
         tag = __version__ or 'latest'
         config['kfp_image'] = 'mlrun/mlrun:{}'.format(tag)
+    config['version'] = __version__
 
     return config
 

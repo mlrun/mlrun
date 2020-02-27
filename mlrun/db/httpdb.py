@@ -20,7 +20,7 @@ from os import path, remove
 import kfp
 import requests
 
-from ..utils import dict_to_json, logger
+from ..utils import dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
 from ..config import config
@@ -49,6 +49,7 @@ class HTTPRunDB(RunDBInterface):
         self.user = user
         self.password = password
         self.token = token
+        self.server_version = ''
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -100,7 +101,14 @@ class HTTPRunDB(RunDBInterface):
         return f'{prefix}/{project}/{uid}'
 
     def connect(self, secrets=None):
-        self.api_call('GET', 'healthz', timeout=3)
+        resp = self.api_call('GET', 'healthz', timeout=3)
+        try:
+            self.server_version = resp.json()['version']
+            if self.server_version != config.version:
+                logger.warning('server ({}) and client ({}) ver dont match'
+                               .format(self.server_version, config.version))
+        except Exception:
+            pass
         return self
 
     def store_log(self, uid, project='', body=None, append=False):
@@ -232,7 +240,8 @@ class HTTPRunDB(RunDBInterface):
         error = f'del artifact {project}/{key}'
         self.api_call('DELETE', path, error, params=params)
 
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(self, name='', project='', tag='', labels=None,
+                       since=None, until=None):
         project = project or default_project
         params = {
             'name': name,
@@ -378,13 +387,16 @@ class HTTPRunDB(RunDBInterface):
         return resp['data']
 
     def submit_pipeline(self, pipeline, arguments=None, experiment=None,
-                        run=None, namespace=None):
+                        run=None, namespace=None, artifact_path=None,
+                        ops=None):
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.mktemp(suffix='.yaml')
-            kfp.compiler.Compiler().compile(pipeline, pipe_file)
+            conf = new_pipe_meta(artifact_path, ops)
+            kfp.compiler.Compiler().compile(pipeline, pipe_file,
+                                            type_check=False, pipeline_conf=conf)
 
         if pipe_file.endswith('.yaml'):
             headers = {"content-type": "application/yaml"}

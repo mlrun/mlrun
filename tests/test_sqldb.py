@@ -256,3 +256,11 @@ def test_artifacts_latest(db: sqldb.SQLDB):
     arts = db.list_artifacts(project=prj, tag='latest')
     assert 2 == len(arts), 'number'
     assert {17, 99} == set(art['a'] for art in arts), 'latest'
+
+
+@pytest.mark.parametrize('typ', sorted(sqldb._type2tag))
+def test_tags(db: sqldb.SQLDB, typ):
+    p1, u1, n1 = 'prj1', 'uid1', 'name1'
+    db.create_tag(p1, typ, n1, u1)
+    u = db.get_tag(p1, typ, n1)
+    assert u1 == u, 'uid'

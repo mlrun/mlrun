@@ -792,6 +792,12 @@ def list_schedules():
     )
 
 
+@app.route('/api/tags/<project>/<typ>/<name>/<uid>', method=['POST'])
+@catch_err
+def new_tag(project, typ, name, uid):
+    _db.create_tag(project, typ, name, uid)
+
+
 @app.route('/api/healthz', methods=['GET'])
 def health():
     return jsonify(ok=True, version=config.version)

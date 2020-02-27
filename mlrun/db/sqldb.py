@@ -55,6 +55,21 @@ def make_label(table):
     return Label
 
 
+def make_tag(table):
+    class Tags(Base):
+        __tablename__ = f'{table}_tags'
+        __table_args__ = (
+            UniqueConstraint('project', 'name', name=f'_{table}_tags_uc'),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String)
+        name = Column(String)
+        uid = Column(Integer, ForeignKey(f'{table}.uid'))
+
+    return Tags
+
+
 # quell SQLAlchemy warnings on duplicate class name (Label)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -66,11 +81,11 @@ with warnings.catch_warnings():
         )
 
         Label = make_label(__tablename__)
+        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         key = Column(String)
         project = Column(String)
-        tag = Column(String)
         uid = Column(String)
         updated = Column(TIMESTAMP)
         body = Column(BLOB)
@@ -94,6 +109,8 @@ with warnings.catch_warnings():
     class Log(Base):
         __tablename__ = 'logs'
 
+        Tag = make_tag(__tablename__)
+
         id = Column(Integer, primary_key=True)
         uid = Column(String)
         project = Column(String)
@@ -106,6 +123,7 @@ with warnings.catch_warnings():
         )
 
         Label = make_label(__tablename__)
+        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         uid = Column(String)
@@ -252,15 +270,22 @@ class SQLDB(RunDBInterface):
             art = Artifact(
                 key=key,
                 uid=uid,
-                tag=tag,
                 updated=updated,
                 project=project)
         update_labels(art, labels)
         art.struct = artifact
         self._upsert(art)
+        if tag:
+            self.create_tag(project, 'artifact', tag, uid, force=True)
 
     def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or config.default_project
+        uid = None  # TODO: Is tag also uid?
+        if tag:
+            uid = self.get_tag(project, 'artifact', tag)
+            if not uid:
+                raise ValueError(f'unknown tag - {tag}')
+
         if iter:
             key = '{}-{}'.format(iter, key)
         query = self._query(
@@ -355,6 +380,39 @@ class SQLDB(RunDBInterface):
 
     def list_schedules(self):
         return [s.struct for s in self.session.query(Schedule)]
+
+    def create_tag(
+        self, project: str, typ: str, name: str, uid: str,
+            *, force: bool = False) -> None:
+        """Create a new tag for (project, typ, uid) with name
+
+        If force=True it'll either create a new tag or update an existing one.
+        """
+        tag = self._find_tag(project, typ, name)
+        if tag and not force:
+            raise ValueError(f'duplicate tag ({project!r}, {typ!r}, {uid!r})')
+
+        if not tag:
+            cls = type2tag(typ)
+            tag = cls(project=project, name=name, uid=uid)
+        else:
+            tag.uid = uid
+        self._upsert(tag)
+
+    def get_tag(self, project: str, typ: str, name: str) -> str:
+        """Get UID associated with (project, typ, name)
+
+        If not tag found, will return an empty str.
+        """
+        tag = self._find_tag(project, typ, name)
+        return tag.uid if tag else ''
+
+    def _find_tag(self, project, typ, name):
+        cls = type2tag(typ)
+        return self._query(cls, project=project, name=name).one_or_none()
+
+    def _set_tag(cls, tag, uid):
+        pass
 
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
@@ -503,3 +561,19 @@ def update_labels(obj, labels):
             obj.labels.append(old[name])
         else:
             obj.labels.append(obj.Label(name=name, parent=obj))
+
+
+_type2tag = {
+    'artifact': Artifact.Tag,
+    # 'function': Function.Tag,
+    'log': Log.Tag,
+    'run': Run.Tag,
+}
+
+
+def type2tag(typ):
+    cls = _type2tag.get(typ)
+    if cls is None:
+        types = ', '.join(sorted(_type2tag))
+        raise ValueError(f'type {typ} not one of {types}')
+    return cls

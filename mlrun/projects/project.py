@@ -198,6 +198,9 @@ class MlrunProject(ModelObj):
 
         self._workflows = wfdict
 
+    def set_workflow(self, name, code):
+        self._workflows[name] = {'name': name, 'code':code}
+
     def reload(self, sync=False):
         project = _load_project_dir(self.context, self.name, self.subpath)
         project.source = self.source
@@ -330,7 +333,7 @@ class MlrunProject(ModelObj):
         if not name and not workflow_path:
             raise ValueError('workflow name or path not specified')
         if not workflow_path:
-            if name not in self.workflows:
+            if name not in self._workflows:
                 raise ValueError('workflow {} not found'.format(name))
             workflow_path = self._workflows.get(name)['code']
             workflow_path = path.join(self.context, workflow_path)

@@ -198,6 +198,9 @@ class MlrunProject(ModelObj):
 
         self._workflows = wfdict
 
+    def set_workflow(self, name, code):
+        self._workflows[name] = {'name': name, 'code':code}
+
     def reload(self, sync=False):
         project = _load_project_dir(self.context, self.name, self.subpath)
         project.source = self.source

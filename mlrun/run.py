@@ -34,7 +34,7 @@ from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
 )
 from .runtimes.base import EntrypointParam, FunctionEntrypoint
-from .runtimes.utils import add_code_metadata
+from .runtimes.utils import add_code_metadata, global_context
 from .utils import get_in, logger, parse_function_uri, update_in, new_pipe_meta
 from .config import config as mlconf
 
@@ -224,8 +224,11 @@ def get_or_create_ctx(name: str,
 
     """
 
-    if 'mlrun_context' in globals() and not spec and not event:
-        return globals().get('mlrun_context')
+    if global_context.get() and not spec and not event:
+        return global_context.get()
+
+    if 'global_mlrun_context' in globals() and not spec and not event:
+        return globals().get('global_mlrun_context')
 
     newspec = {}
     config = environ.get('MLRUN_EXEC_CONFIG')

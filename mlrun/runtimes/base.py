@@ -232,8 +232,9 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
-        runspec.spec.output_path = runspec.spec.output_path.replace(
-            '{{run.uid}}', meta.uid)
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                '{{run.uid}}', meta.uid)
 
         db = self._get_db()
 

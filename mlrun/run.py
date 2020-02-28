@@ -148,7 +148,7 @@ def run_local(task, command='', name: str = '', args: list = None,
             with open(fpath, 'w') as fp:
                 fp.write(code)
         elif command and not is_remote:
-            command = path.join(workdir, command)
+            command = path.join(workdir or '', command)
             if not path.isfile(command):
                 raise OSError('command file {} not found'.format(command))
 

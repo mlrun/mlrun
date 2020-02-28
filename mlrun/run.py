@@ -131,21 +131,24 @@ def run_local(task, command='', name: str = '', args: list = None,
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
     if is_obj or suffix == '.yaml':
+        is_remote = False
         if is_obj:
             runtime = command.to_dict()
+            command = command.spec.command
         else:
+            is_remote = '://' in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
+            command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
-        cmd = get_in(runtime, 'spec.command', '')
         if code:
             fpath = mktemp('.py')
             code = b64decode(code).decode('utf-8')
             command = fpath
             with open(fpath, 'w') as fp:
                 fp.write(code)
-        elif '://' not in command and cmd:
-            command = path.join(workdir, cmd)
+        elif command and not is_remote:
+            command = path.join(workdir, command)
             if not path.isfile(command):
                 raise OSError('command file {} not found'.format(command))
 

@@ -37,7 +37,7 @@ _mpijob_template = {
          'metadata': {},
          'spec': {
              'containers': [{
-                 'image': 'zilbermanor/horovod_cpu:0.2',
+                 'image': 'mlrun/mpijob',
                  'name': 'base',
                  'command': [],
                  'env': [],
@@ -90,6 +90,10 @@ class MpiRuntime(KubejobRuntime):
         if self.spec.resources:
             _update_container(job, 'resources', self.spec.resources)
 
+        if self.spec.image_pull_secret:
+            update_in(job, 'spec.template.spec.imagePullSecrets',
+                      [{'name': self.spec.image_pull_secret}])
+
         if self.spec.command:
             _update_container(
                 job, 'command',
@@ -97,7 +101,7 @@ class MpiRuntime(KubejobRuntime):
 
         resp = self._submit_mpijob(job, meta.namespace)
         state = None
-        timeout = int(config.k8s_submit_timeout) or 120
+        timeout = int(config.submit_timeout) or 120
         for _ in range(timeout):
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.launcherStatus')

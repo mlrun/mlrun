@@ -151,7 +151,7 @@ def parse_rst(docstring: str):
         elif tag == 'rtype':
             ret['type'] = text
         else:
-            raise ValueError(f'{i+1}: uknown tag - {lines[i]!r}')
+            raise ValueError(f'{i+1}: unknown tag - {lines[i]!r}')
 
     params = [params[name] for name in names]
     return doc, params, ret
@@ -159,7 +159,7 @@ def parse_rst(docstring: str):
 
 def ast_func_info(func: ast.FunctionDef):
     doc = ast.get_docstring(func) or ''
-    rtype = func.returns.id if func.returns else ''
+    rtype = getattr(func.returns, 'id', '')
     params = [ast_param_dict(p) for p in func.args.args]
     defaults = func.args.defaults
     if defaults:

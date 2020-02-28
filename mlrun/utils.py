@@ -15,12 +15,13 @@
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from os import path
 from sys import stdout
 
 import numpy as np
 import yaml
+from yaml.representer import RepresenterError
 
 from .config import config
 
@@ -30,7 +31,7 @@ _missing = object()
 
 def create_logger(stream=None):
     level = logging.INFO
-    if config.log_level == 'debug':
+    if config.log_level.lower() == 'debug':
         level = logging.DEBUG
     handler = logging.StreamHandler(stream or stdout)
     handler.setFormatter(
@@ -70,6 +71,16 @@ class run_keys:
     outputs = 'outputs'
     data_stores = 'data_stores'
     secrets = 'secret_sources'
+
+
+def now_date():
+    return datetime.now(timezone.utc)
+
+
+def to_date_str(d):
+    if d:
+        return d.isoformat()
+    return ''
 
 
 def normalize_name(name):
@@ -205,9 +216,32 @@ def dict_to_list(struct: dict):
     return ['{}={}'.format(k, v) for k, v in struct.items()]
 
 
+def numpy_representer_seq(dumper, data):
+    return dumper.represent_list(data.tolist())
+
+
+def float_representer(dumper, data):
+    return dumper.represent_float(data)
+
+
+def int_representer(dumper, data):
+    return dumper.represent_int(data)
+
+
+yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.ndarray, numpy_representer_seq, Dumper=yaml.SafeDumper)
+
+
 def dict_to_yaml(struct):
-    return yaml.dump(struct, default_flow_style=False,
-                     sort_keys=False)
+    try:
+        data = yaml.safe_dump(struct, default_flow_style=False,
+                              sort_keys=False)
+    except RepresenterError as e:
+        raise ValueError('error: data result cannot be serialized to YAML'
+                         ', {} '.format(e))
+    return data
 
 
 # solve numpy json serialization
@@ -215,7 +249,7 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
-        elif isinstance(obj, np.floating):
+        elif isinstance(obj, np.floating) or isinstance(obj, np.float64):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -290,3 +324,27 @@ def gen_html_table(header, rows=None):
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
     return style + '<table class="tg">\n' + out + '</table>\n\n'
+
+
+def new_pipe_meta(artifact_path=None, *args):
+    from kfp.dsl import PipelineConf
+
+    def _set_artifact_path(task):
+        from kubernetes import client as k8s_client
+        task.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_ARTIFACT_PATH', value=artifact_path))
+        return task
+
+    conf = PipelineConf()
+    if artifact_path:
+        conf.add_op_transformer(_set_artifact_path)
+    for op in args:
+        if op:
+            conf.add_op_transformer(op)
+    return conf
+
+
+def tag_image(base):
+    if base in ['mlrun/mlrun'] and config.version:
+        base += ':' + config.version
+    return base

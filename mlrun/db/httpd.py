@@ -12,35 +12,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """mlrun database HTTP server"""
+from argparse import ArgumentParser
+import ast
 import mimetypes
+import tempfile
 from base64 import b64decode
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
-from os import environ
+from os import environ, remove
 import traceback
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
+from kfp import Client as kfclient
 
 from flask import Flask, jsonify, request, Response
+from flask.json import JSONEncoder
 
 from mlrun.builder import build_runtime
 from mlrun.datastore import get_object, get_object_stat
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.sqldb import SQLDB
 from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger, parse_function_uri, get_in, update_in
+from mlrun.utils import logger, parse_function_uri, get_in, update_in, now_date
 from mlrun.config import config
 from mlrun.run import new_function, import_function
 from mlrun.k8s_utils import K8sHelper
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
 
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        try:
+            if isinstance(obj, date):
+                return obj.isoformat()
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
+
+
 _scheduler: Scheduler = None
 _db: RunDBInterface
 _k8s: K8sHelper = None
 _logs_dir = None
 app = Flask(__name__)
+app.json_encoder = CustomJSONEncoder
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
 
@@ -116,7 +136,8 @@ def catch_err(fn):
 # curl -d@/path/to/job.json http://localhost:8080/submit
 @app.route('/api/submit', methods=['POST'])
 @app.route('/api/submit/', methods=['POST'])
-@app.route('/api/submit/<path:func>', methods=['POST'])
+@app.route('/api/submit_job', methods=['POST'])
+@app.route('/api/submit_job/', methods=['POST'])
 @catch_err
 def submit_job():
     try:
@@ -166,7 +187,7 @@ def _submit(data):
         if schedule:
             args = (task, )
             job_id = _scheduler.add(schedule, fn, args)
-            _db.save_schedule(data)
+            _db.store_schedule(data)
             resp = {'schedule': schedule, 'id': job_id}
         else:
             resp = fn.run(task, watch=False)
@@ -182,6 +203,55 @@ def _submit(data):
     if not isinstance(resp, dict):
         resp = resp.to_dict()
     return jsonify(ok=True, data=resp)
+
+
+# curl -d@/path/to/pipe.yaml http://localhost:8080/submit_pipeline
+@app.route('/api/submit_pipeline', methods=['POST'])
+@app.route('/api/submit_pipeline/', methods=['POST'])
+@catch_err
+def submit_pipeline():
+    namespace = request.args.get('namespace', config.namespace)
+    experiment_name = request.args.get('experiment', 'Default')
+    run_name = request.args.get('run', '')
+    run_name = run_name or experiment_name + ' ' + datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+
+    arguments = {}
+    arguments_data = request.headers.get('pipeline-arguments')
+    if arguments_data:
+        arguments = ast.literal_eval(arguments_data)
+        logger.info('pipeline arguments {}'.format(arguments_data))
+
+    ctype = request.content_type
+    if '/yaml' in ctype:
+        ctype = '.yaml'
+    elif ' /zip' in ctype:
+        ctype = '.zip'
+    else:
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='unsupported pipeline type {}'.format(ctype))
+
+    logger.info('writing file {}'.format(ctype))
+    if not request.data:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='post data is empty')
+
+    print(str(request.data))
+    pipe_tmp = tempfile.mktemp(suffix=ctype)
+    with open(pipe_tmp, 'wb') as fp:
+        fp.write(request.data)
+
+    try:
+        client = kfclient(namespace=namespace)
+        experiment = client.create_experiment(name=experiment_name)
+        run_info = client.run_pipeline(experiment.id, run_name, pipe_tmp,
+                                       params=arguments)
+    except Exception as e:
+        remove(pipe_tmp)
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='kfp err: {}'.format(e))
+
+    remove(pipe_tmp)
+    return jsonify(ok=True, id=run_info.run_id,
+                   name=run_info.run_info.name)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function
@@ -479,7 +549,7 @@ def get_log(project, uid):
                     if resp:
                         out = resp.encode()[offset:]
                     if status == 'running':
-                        now = str(datetime.now())
+                        now = now_date().isoformat()
                         update_in(data, 'status.last_update', now)
                         if new_status == 'failed':
                             update_in(data, 'status.state', 'error')
@@ -526,6 +596,7 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     iter = int(request.args.get('iter', '0'))
     _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
@@ -554,21 +625,21 @@ def del_run(project, uid):
 @app.route('/api/runs', methods=['GET'])
 @catch_err
 def list_runs():
-    name = request.args.get('name', '')
-    uid = request.args.get('uid', '')
-    project = request.args.get('project', 'default')
+    name = request.args.get('name')
+    uid = request.args.get('uid')
+    project = request.args.get('project')
     labels = request.args.getlist('label')
-    state = request.args.get('state', '')
+    state = request.args.get('state')
     sort = strtobool(request.args.get('sort', 'on'))
     iter = strtobool(request.args.get('iter', 'on'))
     last = int(request.args.get('last', '0'))
 
     runs = _db.list_runs(
-        name=name,
-        uid=uid,
-        project=project,
+        name=name or None,
+        uid=uid or None,
+        project=project or None,
         labels=labels,
-        state=state,
+        state=state or None,
         sort=sort,
         last=last,
         iter=iter,
@@ -598,16 +669,30 @@ def store_artifact(project, uid, key):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
-    _db.store_artifact(key, data, uid, tag, project)
+    iter = int(request.args.get('iter', '0'))
+    _db.store_artifact(key, data, uid, iter=iter, tag=tag, project=project)
     return jsonify(ok=True)
+
+
+# curl http://localhost:8080/artifact/p1/tags
+@app.route('/api/projects/<project>/artifact-tags', methods=['GET'])
+@catch_err
+def list_artifact_tags(project):
+    return jsonify(
+        ok=True,
+        project=project,
+        tags=_db.list_artifact_tags(project),
+    )
 
 
 # curl http://localhost:8080/artifact/p1/tag/key
 @app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
 @catch_err
 def read_artifact(project, tag, key):
-    data = _db.read_artifact(key, tag, project)
+    iter = int(request.args.get('iter', '0'))
+    data = _db.read_artifact(key, tag=tag, iter=iter, project=project)
     return data
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
@@ -626,9 +711,9 @@ def del_artifact(project, uid):
 @app.route('/api/artifacts', methods=['GET'])
 @catch_err
 def list_artifacts():
-    name = request.args.get('name', '')
-    project = request.args.get('project', 'default')
-    tag = request.args.get('tag', '')
+    name = request.args.get('name') or None
+    project = request.args.get('project', config.default_project)
+    tag = request.args.get('tag') or None
     labels = request.args.getlist('label')
 
     artifacts = _db.list_artifacts(name, project, tag, labels)
@@ -655,6 +740,7 @@ def store_function(project, name):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
 
     _db.store_function(data, name, project, tag)
@@ -674,9 +760,9 @@ def get_function(project, name):
 @app.route('/api/funcs', methods=['GET'])
 @catch_err
 def list_functions():
-    name = request.args.get('name', '')
-    project = request.args.get('project', 'default')
-    tag = request.args.get('tag', '')
+    name = request.args.get('name') or None
+    project = request.args.get('project', config.default_project)
+    tag = request.args.get('tag') or None
     labels = request.args.getlist('label')
 
     out = _db.list_functions(name, project, tag, labels)
@@ -686,9 +772,29 @@ def list_functions():
     )
 
 
+# curl http://localhost:8080/projects
+@app.route('/api/projects', methods=['GET'])
+@catch_err
+def list_projects():
+    return jsonify(
+        ok=True,
+        projects=_db.list_projects()
+    )
+
+
+# curl http://localhost:8080/schedules
+@app.route('/api/schedules', methods=['GET'])
+@catch_err
+def list_schedules():
+    return jsonify(
+        ok=True,
+        schedules=list(_db.list_schedules())
+    )
+
+
 @app.route('/api/healthz', methods=['GET'])
 def health():
-    return 'OK\n'
+    return jsonify(ok=True, version=config.version)
 
 
 @app.before_first_request
@@ -724,6 +830,8 @@ def init_app():
 
 # Don't remove this function, it's an entry point in setup.py
 def main():
+    parser = ArgumentParser(description=__doc__)
+    parser.parse_args()
     app.run(
         host='0.0.0.0',
         port=config.httpdb.port,

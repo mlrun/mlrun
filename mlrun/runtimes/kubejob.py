@@ -16,7 +16,7 @@ from kubernetes import client
 
 from ..kfpops import build_op
 from .pod import KubeResource
-from .utils import AsyncLogWriter, add_code_metadata, default_image_name
+from .utils import AsyncLogWriter, default_image_name
 from ..model import RunObject
 from .base import RunError
 from ..db import RunDBError
@@ -65,8 +65,10 @@ class KubejobRuntime(KubeResource):
         return False
 
     def build_config(self, image='', base_image=None,
-                     commands: list = None, secret=None):
-        self.spec.build.image = image or self.spec.build.image
+                     commands: list = None, secret=None,
+                     source=None):
+        if image:
+            self.spec.build.image = image
         if commands:
             if not isinstance(commands, list):
                 raise ValueError('commands must be a string list')
@@ -76,6 +78,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.secret = secret
         if base_image:
             self.spec.build.base_image = base_image
+        if source:
+            self.spec.build.source = source
 
     def build(self, **kw):
         raise ValueError('.build() is deprecated, use .deploy() instead')
@@ -87,13 +91,20 @@ class KubejobRuntime(KubeResource):
         if skip_deployed and self.is_deployed:
             return 'ready'
 
+        build = self.spec.build
+        if not build.source and not build.commands and not with_mlrun:
+            if not self.spec.image:
+                raise ValueError('noting to build and image is not specified, '
+                                 'please set the function image or build args')
+            return 'ready'
+
+        if not build.source and not build.commands and with_mlrun:
+            logger.info('running build to add mlrun package, set '
+                        'with_mlrun=False to skip if its already in the image')
+
         self.spec.build.image = self.spec.build.image \
                                 or default_image_name(self)
-        self.spec.image = ''
         self.status.state = ''
-        code_origin = add_code_metadata()
-        self.spec.build.code_origin = self.spec.build.code_origin \
-                                      or code_origin
 
         if self._is_remote_api() and not is_kfp:
             db = self._get_db()
@@ -165,12 +176,12 @@ class KubejobRuntime(KubeResource):
             return None
 
     def deploy_step(self, image=None, base_image=None, commands: list = None,
-                    secret_name='', with_mlrun=True):
+                    secret_name='', with_mlrun=True, skip_deployed=False):
 
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         return build_op(name, self, image=image, base_image=base_image,
                         commands=commands, secret_name=secret_name,
-                        with_mlrun=with_mlrun)
+                        with_mlrun=with_mlrun, skip_deployed=skip_deployed)
 
     def _run(self, runobj: RunObject, execution):
 
@@ -205,7 +216,6 @@ class KubejobRuntime(KubeResource):
 
 
 def func_to_pod(image, runtime, extra_env, command, args):
-
     container = client.V1Container(name='base',
                                    image=image,
                                    env=extra_env + runtime.spec.env,
@@ -219,5 +229,9 @@ def func_to_pod(image, runtime, extra_env, command, args):
                                 restart_policy='Never',
                                 volumes=runtime.spec.volumes,
                                 service_account=runtime.spec.service_account)
+
+    if runtime.spec.image_pull_secret:
+        pod_spec.image_pull_secrets = [
+            client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)]
 
     return pod_spec

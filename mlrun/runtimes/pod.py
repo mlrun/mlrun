@@ -23,11 +23,13 @@ from .base import BaseRuntime, FunctionSpec
 class KubeResourceSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 entry_points=None, description=None, replicas=None,
-                 image_pull_policy=None, service_account=None, build=None):
-        super().__init__(command=command, args=args, image=image,
-                         mode=mode, build=build,
-                         entry_points=entry_points, description=description)
+                 default_handler=None, entry_points=None, description=None,
+                 replicas=None, image_pull_policy=None, service_account=None,
+                 build=None, image_pull_secret=None):
+        super().__init__(command=command, args=args, image=image, mode=mode,
+                         build=build, entry_points=entry_points,
+                         description=description,
+                         default_handler=default_handler)
         self._volumes = {}
         self._volume_mounts = {}
         self.volumes = volumes or []
@@ -37,6 +39,7 @@ class KubeResourceSpec(FunctionSpec):
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
+        self.image_pull_secret = image_pull_secret
 
     @property
     def volumes(self) -> list:
@@ -93,8 +96,8 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', KubeResourceSpec)
 
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude)
+    def to_dict(self, fields=None, exclude=None, strip=False):
+        struct = super().to_dict(fields, exclude, strip=strip)
         api = client.ApiClient()
         return api.sanitize_for_serialization(struct)
 

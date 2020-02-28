@@ -12,18 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.6-slim
-RUN apt-get update && apt-get install -y gcc git-core
-RUN python -m pip install --upgrade --no-cache pip
-WORKDIR /mlrun
-COPY requirements.txt ./
-RUN python -m pip install -r requirements.txt
-COPY . .
-RUN pip install dask distributed kubernetes==10.0.0 dask_kubernetes==0.10.0 kubernetes-asyncio==10.0.0
-ENV MLRUN_httpdb__dirpath=/mlrun/db
-ENV MLRUN_httpdb__port=8080
-VOLUME /mlrun/db
-CMD gunicorn \
-    --bind=0.0.0.0:$MLRUN_httpdb__port \
-    --worker-class gevent \
-    mlrun.db.httpd:app
+from .project import load_project, new_project

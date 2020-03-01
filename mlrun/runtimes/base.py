@@ -173,20 +173,21 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', workdir: str = '',
+            out_path: str = '', workdir: str = '', artifact_path='',
             watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
-        :param runspec:    run template object or dict (see RunTemplate)
-        :param handler:    pointer or name of a function handler
-        :param name:       execution name
-        :param project:    project name
-        :param params:     input parameters (dict)
-        :param inputs:     input objects (dict of key: path)
-        :param out_path:   default artifact output path
-        :param workdir:    default input artifacts path
-        :param watch:      watch/follow run log
-        :param schedule:   cron string for scheduled jobs
+        :param runspec:       run template object or dict (see RunTemplate)
+        :param handler:       pointer or name of a function handler
+        :param name:          execution name
+        :param project:       project name
+        :param params:        input parameters (dict)
+        :param inputs:        input objects (dict of key: path)
+        :param out_path:      default artifact output path
+        :param artifact_path: default artifact output path (will replace out_path)
+        :param workdir:       default input artifacts path
+        :param watch:         watch/follow run log
+        :param schedule:      cron string for scheduled jobs
 
         :return: run context object (dict) with run metadata, results and
             status
@@ -215,7 +216,8 @@ class BaseRuntime(ModelObj):
                                    or self.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
-        runspec.spec.output_path = out_path or runspec.spec.output_path
+        runspec.spec.output_path = out_path or artifact_path \
+                                   or runspec.spec.output_path
         runspec.spec.input_path = workdir or runspec.spec.input_path
 
         spec = runspec.spec
@@ -230,6 +232,10 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                '{{run.uid}}', meta.uid)
+
         db = self._get_db()
 
         if not self.is_deployed:

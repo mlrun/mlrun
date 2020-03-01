@@ -50,12 +50,12 @@ both YAMLs can be found in `./hack`, edit according to the comments and
 apply to your cluster using `kubectl apply -f <yaml-file>`
 
 ```
-curl -O https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunapi.yaml
+curl -O https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrun-all.yaml
 # as a minimum replace the <set default registry url> and <access-key> with real values
 # in iguazio cloud the default registry url is: docker-registry.default-tenant.<cluster-dns>:80
+# Note: must suffix :80 for local registry!!! (docker defaults to another port)
 
 kubectl apply -n <namespace> -f <updated-yaml-file> 
-kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrunui.yaml
 ```
  
 #### Architecture and tutorial
@@ -79,7 +79,7 @@ kubectl apply -n <namespace> -f https://raw.githubusercontent.com/mlrun/mlrun/ma
   * [Dask](examples/mlrun_dask.ipynb)
   * [Spark](examples/mlrun_sparkk8s.ipynb)
 * MLRun Projects
-  * [Load a project from remote Git and run pipelines](https://github.com/mlrun/demo-xgb-project/blob/master/load-project.ipynb)
+  * [Load a project from remote Git and run pipelines](examples/load-project.ipynb)
   * [Create a new project + functions + pipelines and upload to Git](examples/new-project.ipynb)
 * [Importing and exporting functions using files or git](examples/mlrun_export_import.ipynb)
 * [Query MLRUN DB](examples/mlrun_db.ipynb)

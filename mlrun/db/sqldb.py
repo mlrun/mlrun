@@ -15,6 +15,8 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
 from dateutil import parser
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
@@ -94,15 +96,16 @@ with warnings.catch_warnings():
     class Function(Base, HasStruct):
         __tablename__ = 'functions'
         __table_args__ = (
-            UniqueConstraint('name', 'project', 'tag', name='_functions_uc'),
+            UniqueConstraint('name', 'project', 'uid', name='_functions_uc'),
         )
 
         Label = make_label(__tablename__)
+        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
         project = Column(String)
-        tag = Column(String)
+        uid = Column(String)
         body = Column(BLOB)
         labels = relationship(Label)
 
@@ -309,10 +312,7 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         uid = 'latest'
         if tag:
-            uid = tag
-            tag = self._find_tag(project, 'artifact', uid)
-            if tag:
-                uid = tag.uid
+            uid = self._resolve_tag(project, 'artifact', tag)
 
         arts = ArtifactList(
             obj.struct
@@ -340,13 +340,14 @@ class SQLDB(RunDBInterface):
 
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
+        uid = tag or uuid4().hex
         update_in(func, 'metadata.updated', datetime.now(timezone.utc))
-        fn = self._get_function(name, project, tag)
+        fn = self._get_function(name, project, uid)
         if not fn:
             fn = Function(
                 name=name,
                 project=project,
-                tag=tag,
+                uid=uid,
             )
         labels = label_set(get_in(func, 'metadata.labels', []))
         update_labels(fn, labels)
@@ -355,7 +356,10 @@ class SQLDB(RunDBInterface):
 
     def get_function(self, name, project='', tag=''):
         project = project or config.default_project
-        query = self._query(Function, name=name, project=project, tag=tag)
+        query = self._query(Function, name=name, project=project)
+        if tag:
+            uid = self._resolve_tag(project, 'function', tag)
+            query = query.filter(Function.Tag.uid == uid)
         obj = query.one_or_none()
         if obj:
             return obj.struct
@@ -363,10 +367,14 @@ class SQLDB(RunDBInterface):
     def list_functions(
             self, name, project=None, tag=None, labels=None):
         project = project or config.default_project
+        uid = tag
+        if uid:
+            uid = self._resolve_tag(project, 'function', uid)
+
         funcs = FunctionList()
         funcs.extend(
             obj.struct
-            for obj in self._find_functions(name, project, tag, labels)
+            for obj in self._find_functions(name, project, uid, labels)
         )
         return funcs
 
@@ -412,6 +420,12 @@ class SQLDB(RunDBInterface):
         tag = self._find_tag(project, typ, name)
         return tag.uid if tag else ''
 
+    def _resolve_tag(self, project, typ, name):
+        tag = self._find_tag(project, typ, name)
+        if tag:
+            return tag.uid
+        return name
+
     def _find_tag(self, project, typ, name):
         cls = type2tag(typ)
         return self._query(cls, project=project, name=name).one_or_none()
@@ -420,8 +434,8 @@ class SQLDB(RunDBInterface):
         kw = {k: v for k, v in kw.items() if v is not None}
         return self.session.query(cls).filter_by(**kw)
 
-    def _get_function(self, name, project, tag):
-        query = self._query(Function, name=name, project=project, tag=tag)
+    def _get_function(self, name, project, uid):
+        query = self._query(Function, name=name, project=project, uid=uid)
         return query.one_or_none()
 
     def _get_artifact(self, uid, project, key):
@@ -496,10 +510,12 @@ class SQLDB(RunDBInterface):
 
         return query
 
-    def _find_functions(self, name, project, tag, labels):
-        query = self._query(Function, name=name, project=project, tag=tag)
-        labels = label_set(labels)
+    def _find_functions(self, name, project, uid, labels):
+        query = self._query(Function, name=name, project=project)
+        if uid:
+            query = query.filter(Function.Tag.uid == uid)
 
+        labels = label_set(labels)
         for obj in query:
             func = obj.struct
             if labels:

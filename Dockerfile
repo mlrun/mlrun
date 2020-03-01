@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.6
+FROM python:3.6-slim
 WORKDIR /mlrun
 
+RUN pip install --upgrade pip
 COPY requirements.txt ./
 RUN python -m pip install -r requirements.txt
 

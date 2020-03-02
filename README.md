@@ -8,7 +8,7 @@
 A generic an easy to use mechanism for data scientists and developers/engineers 
 to describe and run machine learning related tasks in various scalable runtime environments and ML pipelines
 while automatically tracking code, metadata, inputs, and outputs of executions.
-MLRun is integrate/use [Nuclio serverless project](https://github.com/nuclio/nuclio) and [KubeFlow](https://www.kubeflow.org/).
+MLRun integrate/use [Nuclio serverless project](https://github.com/nuclio/nuclio) and [KubeFlow](https://www.kubeflow.org/).
 
 ## General Concept and Motivation
 

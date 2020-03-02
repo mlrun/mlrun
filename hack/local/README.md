@@ -1,4 +1,4 @@
-# Install MLRun on a locally
+# Install MLRun locally
  
 ## Run Using Local Docker
 
@@ -25,6 +25,7 @@ docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://
 docker run -it -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data -e MLRUN_DBPATH=http://${LOCAL_IP}:8080 -e MLRUN_ARTIFACT_PATH=/home/jovyan/data mlrun/jupy:latest
 
 ``` 
+ <br>
  
 ## Install on a Local Kubernetes cluster
 
@@ -63,6 +64,7 @@ copy the [mljupy.yaml](mljupy.yaml) file to you cluster and type:
 
     kubectl apply -f mljupy.yaml
     
+See the Jupyter [Dockerfile](Dockerfile.jupy) if you need to change or add packages.
 
 ### Start working
 
@@ -70,5 +72,5 @@ login to the Jupyter notebook at Node port `30040` and run the examples
 
 Use the UI at Nodeport `30068` 
 
-The ports can be changes by editing the yaml files, alternatively you can use `ingress` for better security.
+The ports can be changes by editing the yaml files, you can use `ingress` for better security.
     

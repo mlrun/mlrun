@@ -46,7 +46,7 @@ helm install stable/nfs-server-provisioner --name nfsprov
 
 copy the [nfs-pvc.yaml](nfs-pvc.yaml) file to you cluster and type:
 
-    kubectl apply -f nfs-pvc.yaml
+    kubectl apply -n <namespace> -f nfs-pvc.yaml
     
 > Note: the `/home/jovyan/data` path is used by both Jupyter and MLRun service to reference the data.
     
@@ -55,14 +55,14 @@ copy the [nfs-pvc.yaml](nfs-pvc.yaml) file to you cluster and type:
 
 copy and edit the [mlrun-local.yaml](mlrun-local.yaml) file as needed and type:
 
-    kubectl apply -f mlrun-local.yaml
+    kubectl apply -n <namespace> -f mlrun-local.yaml
 
 
 ### Install a Jupyter Server (with pre-loaded MLRun)
 
 copy the [mljupy.yaml](mljupy.yaml) file to you cluster and type:
 
-    kubectl apply -f mljupy.yaml
+    kubectl apply -n <namespace> -f mljupy.yaml
     
 See the Jupyter [Dockerfile](Dockerfile.jupy) if you need to change or add packages.
 

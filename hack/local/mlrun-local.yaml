@@ -30,8 +30,8 @@ spec:
           value: filerundb
         - name: MLRUN_HTTPDB__DIRPATH
           value: "/mlrun/db"
-        - name: MLRUN_HTTPDB__FILES_PATH
-          value: "/home/jovyan"
+        - name: MLRUN_HTTPDB__DATA_VOLUME
+          value: "/home/jovyan/data"
         - name: DEFAULT_DOCKER_REGISTRY
           value: "<set default registry url>"
         - name: DEFAULT_DOCKER_SECRET

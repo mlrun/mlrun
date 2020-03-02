@@ -44,9 +44,6 @@ spec:
       - name: notebooks
         persistentVolumeClaim:
           claimName: nfsvol
-      - name: config-volume
-        configMap:
-          name: jupyter-config
 ---
 kind: Service
 apiVersion: v1

@@ -69,7 +69,7 @@ kubectl apply -n <namespace> -f <updated-yaml-file>
 * [Automated code deployment and containerization](#automated-code-deployment-and-containerization)
 * [Build and run function from a remote IDE using the CLI](examples/remote.md)
 * [Running with KubeFlow ML Pipeline](#running-with-kubeflow-ml-pipeline)
-* [MLRun UI - WIP](#mlrun-user-interface)
+* [MLRun UI](#mlrun-user-interface)
 * [Run and Artifact Database](#run-and-artifact-database)
 
 #### Examples & Notebooks
@@ -409,7 +409,7 @@ def xgb_pipeline(
 
 ## MLRun User Interface
 
-The UI require running the DB/API server, see k8s YAML files under [/hack](./hack), this is still under development.
+The UI require running the DB/API server, see k8s YAML files under [/hack](./hack).
 
 <br><p align="center"><img src="mlrunui.png" width="800"/></p><br>
 

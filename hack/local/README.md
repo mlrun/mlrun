@@ -6,6 +6,8 @@ To use MLRun on your local docker run the API service, the UI,
 and the Examples Jupyter server using the following script. 
 You must provide a valid path for the shared data dir and the host local IP.
 
+Using docker is limited to local runtimes
+
 Once its running open Jupyter (in port 8888) and run the `mlrun_basics` notebook in `/examples`.
 and open the UI (in port 4000).
 
@@ -27,8 +29,10 @@ docker run -it -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/da
 ``` 
  <br>
  
-## Install on a Local Kubernetes cluster
+## Install on a Kubernetes cluster
 
+The following install will allow you to use local, job, and dask runtimes. 
+for Mpijob (Horovod) and Spark ypo need to install the additional custom resources (CRDs). 
 
 ### Install Shared Volume Storage (NFS Server Provisioner)
 
@@ -53,7 +57,11 @@ copy the [nfs-pvc.yaml](nfs-pvc.yaml) file to you cluster and type:
 
 ### Install MLRun API & UI Services
 
-copy and edit the [mlrun-local.yaml](mlrun-local.yaml) file as needed and type:
+If you plan on pushing containers or use a private registry you need to first create a secret with your Docker registry information.
+
+`kubectl create -n <namespace> secret docker-registry my-docker --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>`
+
+copy and edit the [mlrun-local.yaml](mlrun-local.yaml), file as needed and type:
 
     kubectl apply -n <namespace> -f mlrun-local.yaml
 

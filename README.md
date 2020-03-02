@@ -8,7 +8,7 @@
 A generic an easy to use mechanism for data scientists and developers/engineers 
 to describe and run machine learning related tasks in various scalable runtime environments and ML pipelines
 while automatically tracking code, metadata, inputs, and outputs of executions.
-MLRun is integrate/use [Nuclio serverless project](https://github.com/nuclio/nuclio) and [KubeFlow](https://www.kubeflow.org/).
+MLRun integrate/use [Nuclio serverless project](https://github.com/nuclio/nuclio) and [KubeFlow](https://www.kubeflow.org/).
 
 ## General Concept and Motivation
 
@@ -45,9 +45,12 @@ and the idea is to make all the resources pluggable, this way developers code to
 
 run `pip install mlrun` to get the library and CLI
 
-For Kubernetes cluster installation, you need to install the API service and UI, 
-both YAMLs can be found in `./hack`, edit according to the comments and 
-apply to your cluster using `kubectl apply -f <yaml-file>`
+MLRun require two containers (API and UI), you can also use the pre-baked Jupyter lab image. 
+
+for running MLRun using Docker or Kubernetes [see the instructions page](hack/local/README.md) 
+
+for installation on Iguazio clusters use [this yaml](hack/mlrun-all.yaml) and remember to set the 
+access-key and default registry url, e.g.:
 
 ```
 curl -O https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrun-all.yaml
@@ -66,7 +69,7 @@ kubectl apply -n <namespace> -f <updated-yaml-file>
 * [Automated code deployment and containerization](#automated-code-deployment-and-containerization)
 * [Build and run function from a remote IDE using the CLI](examples/remote.md)
 * [Running with KubeFlow ML Pipeline](#running-with-kubeflow-ml-pipeline)
-* [MLRun UI - WIP](#mlrun-user-interface)
+* [MLRun UI](#mlrun-user-interface)
 * [Run and Artifact Database](#run-and-artifact-database)
 
 #### Examples & Notebooks
@@ -406,7 +409,7 @@ def xgb_pipeline(
 
 ## MLRun User Interface
 
-The UI require running the DB/API server, see k8s YAML files under [/hack](./hack), this is still under development.
+The UI require running the DB/API server, see k8s YAML files under [/hack](./hack).
 
 <br><p align="center"><img src="mlrunui.png" width="800"/></p><br>
 

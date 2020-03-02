@@ -26,7 +26,7 @@ from kfp import Client
 from nuclio import build_file
 
 from .datastore import get_object, download_object
-from .db import default_dbpath, get_run_db
+from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
 from .model import RunObject
@@ -282,7 +282,7 @@ def import_function(url='', secrets=None, db=''):
     if url.startswith('db://'):
         url = url[5:]
         project, name, tag = parse_function_uri(url)
-        db = get_run_db(db or default_dbpath()).connect(secrets)
+        db = get_run_db(db or get_or_set_dburl()).connect(secrets)
         runtime = db.get_function(name, project, tag)
         if not runtime:
             raise KeyError('function {}:{} not found in the DB'.format(

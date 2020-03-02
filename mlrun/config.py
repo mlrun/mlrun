@@ -53,6 +53,7 @@ default_config = {
     'ipython_widget': True,
     'log_level': 'ERROR',
     'submit_timeout': '120',
+    'artifact_path': '',
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
@@ -62,7 +63,8 @@ default_config = {
         'password': '',
         'token': '',
         'logs_path': expanduser('~/.mlrun/logs'),
-        'files_path': '',
+        'data_volume': '',
+        'real_path': '',
         'db_type': 'sqldb',
     },
 }

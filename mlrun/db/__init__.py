@@ -18,17 +18,19 @@ from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
 from .httpdb import HTTPRunDB
 from .sqldb import SQLDB
+from os import environ
 
 
-def default_dbpath(default=''):
+def get_or_set_dburl(default=''):
     if not config.dbpath and default:
         config.dbpath = default
+        environ['MLRUN_DBPATH'] = default
     return config.dbpath
 
 
 def get_run_db(url=''):
     if not url:
-        url = default_dbpath() or './'
+        url = get_or_set_dburl('./')
 
     p = urlparse(url)
     scheme = p.scheme.lower()

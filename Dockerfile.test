@@ -30,6 +30,6 @@ WORKDIR /mlrun
 COPY requirements.txt dev-requirements.txt httpd-requirements.txt ./
 RUN pip install \
     -r dev-requirements.txt \
-    -r httpd-requirements.txt
+    -r httpd-requirements.txt \
     -r requirements.txt
 COPY . .

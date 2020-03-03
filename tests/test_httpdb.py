@@ -30,7 +30,7 @@ from conftest import wait_for_server, in_docker
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
 
-docker_tag = 'mlrun/test-db-gunicorn'
+docker_tag = 'mlrun/test-httpd-gunicorn'
 
 
 def free_port():
@@ -87,7 +87,7 @@ def docker_fixture():
         env_config = {} if env_config is None else env_config
         cmd = [
             'docker', 'build',
-            '-f', 'Dockerfile.db-gunicorn',
+            '-f', 'Dockerfile.httpd',
             '--tag', docker_tag,
             '.',
         ]

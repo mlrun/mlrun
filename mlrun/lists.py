@@ -44,7 +44,7 @@ class RunList(list):
 
     def to_df(self, flat=False):
         rows = self.to_rows()
-        df = pd.DataFrame(rows[1:], columns=rows[0]) #.set_index('iter')
+        df = pd.DataFrame(rows[1:], columns=rows[0])  # .set_index('iter')
         df['start'] = pd.to_datetime(df['start'])
 
         if flat:

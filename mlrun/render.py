@@ -334,8 +334,8 @@ def runs_to_html(df, display=True, classes=None):
 
     df = df.apply(expand_error, axis=1)
     df.drop('error', axis=1, inplace=True)
-    pd.set_option('display.max_colwidth', -1)
-    return get_tblframe(df, display, classes=classes)
+    with pd.option_context('display.max_colwidth', None):
+        return get_tblframe(df, display, classes=classes)
 
 
 def artifacts_to_html(df, display=True, classes=None):
@@ -355,6 +355,5 @@ def artifacts_to_html(df, display=True, classes=None):
     df['labels'] = df['labels'].apply(dict_html)
     df['producer'] = df['producer'].apply(prod_htm)
     df['updated'] = df['updated'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))
-    pd.set_option('display.max_colwidth', -1)
-
-    return get_tblframe(df, display, classes=classes)
+    with pd.option_context('display.max_colwidth', None):
+        return get_tblframe(df, display, classes=classes)

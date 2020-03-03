@@ -266,7 +266,10 @@ class SQLDB(RunDBInterface):
         query = self._query(
             Artifact, key=key, project=project)
         if tag:
-            query = query.filter(Artifact.tag == tag)
+            query = query.filter(or_(
+                Artifact.uid == tag,
+                Artifact.tag == tag)
+            )
         else:
             # Select by last updated
             max_updated = self.session.query(

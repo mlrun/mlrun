@@ -172,7 +172,7 @@ def match_labels(labels, conditions):
             l, val = splitter('=', condition)
             match = match and val == l
         else:
-            match = match and (labels.get(condition.strip(), '') != '')
+            match = match and (condition.strip() in labels)
     return match
 
 

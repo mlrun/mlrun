@@ -16,13 +16,13 @@ FROM python:3.6-slim
 RUN apt-get update && apt-get install -y g++ make git-core
 RUN python -m pip install --upgrade --no-cache pip
 WORKDIR /mlrun
-COPY requirements.txt dev-requirements.txt httpd-requirements.txt ./
+COPY *requirements.txt ./
 RUN python -m pip install \
     -r dev-requirements.txt \
     -r httpd-requirements.txt \
     -r requirements.txt
 COPY . .
 ENV PYTHONPATH=/mlrun
-{args}
-{pip}
+# {args}
+# {pip}
 RUN jupyter nbconvert --execute {notebook}

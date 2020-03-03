@@ -15,10 +15,11 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
+
 from dateutil import parser
 from sqlalchemy import (
-    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, UniqueConstraint,
-    and_, create_engine, func, or_
+    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, Table,
+    UniqueConstraint, and_, create_engine, func, or_
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -122,6 +123,48 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         body = Column(BLOB)
 
+    # Define "many to many" users/projects
+    project_users = Table(
+        'project_users', Base.metadata,
+        Column('project_id', Integer, ForeignKey('projects.id')),
+        Column('user_id', Integer, ForeignKey('users.id')),
+    )
+
+    class User(Base):
+        __tablename__ = 'users'
+        __table_args__ = (
+            UniqueConstraint('name', name='_users_uc'),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+
+    class Project(Base):
+        __tablename__ = 'projects'
+        # For now since we use project name a lot
+        __table_args__ = (
+            UniqueConstraint('name', name='_projects_uc'),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        description = Column(String)
+        owner = Column(String)
+        source = Column(String)
+        _spec = Column('spec', BLOB)
+        created = Column(TIMESTAMP, default=datetime.utcnow)
+        state = Column(String)
+        users = relationship(User, secondary=project_users)
+
+        @property
+        def spec(self):
+            if self._spec:
+                return pickle.loads(self._spec)
+
+        @spec.setter
+        def spec(self, value):
+            self._spec = pickle.dumps(value)
+
 
 class SQLDB(RunDBInterface):
     def __init__(self, dsn):
@@ -137,6 +180,7 @@ class SQLDB(RunDBInterface):
 
     def store_log(self, uid, project='', body=b'', append=False):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         log = self._query(Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -157,6 +201,7 @@ class SQLDB(RunDBInterface):
 
     def store_run(self, struct, uid, project='', iter=0):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         run = self._get_run(uid, project, iter)
         if not run:
             run = Run(
@@ -240,6 +285,7 @@ class SQLDB(RunDBInterface):
     def store_artifact(
             self, key, artifact, uid, iter=None, tag='', project=''):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         artifact = artifact.copy()
         updated = artifact.get('updated')
         if not updated:
@@ -313,6 +359,7 @@ class SQLDB(RunDBInterface):
 
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
+        self._create_project_if_not_exists(project)
         update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         fn = self._get_function(name, project, tag)
         if not fn:
@@ -343,9 +390,6 @@ class SQLDB(RunDBInterface):
         )
         return funcs
 
-    def list_projects(self):
-        return [row[0] for row in self.session.query(Run.project).distinct()]
-
     def list_artifact_tags(self, project):
         query = self.session.query(Artifact.tag).filter(
             Artifact.project == project).distinct()
@@ -359,9 +403,70 @@ class SQLDB(RunDBInterface):
     def list_schedules(self):
         return [s.struct for s in self.session.query(Schedule)]
 
+    def add_project(self, project: dict):
+        project = project.copy()
+        name = project.get('name')
+        if not name:
+            raise ValueError('project missing name')
+
+        user_names = project.pop('users', [])
+        prj = Project(**project)
+        users = self._find_or_create_users(user_names)
+        prj.users.extend(users)
+        self._upsert(prj)
+        return prj.id
+
+    def update_project(self, name, data: dict):
+        prj = self.get_project(name)
+        if not prj:
+            raise RunDBError(f'unknown project - {name}')
+
+        data = data.copy()
+        user_names = data.pop('users', [])
+        for key, value in data.items():
+            if not hasattr(prj, key):
+                raise RunDBError(f'unknown project attribute - {key}')
+            setattr(prj, key, value)
+
+        users = self._find_or_create_users(user_names)
+        prj.users.clear()
+        prj.users.extend(users)
+        self._upsert(prj)
+
+    def get_project(self, name=None, project_id=None):
+        if not (project_id or name):
+            raise ValueError('need at least one of project_id or name')
+
+        if project_id:
+            return self._query(Project).get(project_id)
+
+        return self._query(Project, name=name).one_or_none()
+
+    def list_projects(self, owner=None):
+        return self._query(Project, owner=owner)
+
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
         return self.session.query(cls).filter_by(**kw)
+
+    def _create_project_if_not_exists(self, name):
+        if not self.get_project(name):
+            self.add_project({'name': name})
+
+    def _find_or_create_users(self, user_names):
+        users = list(self._query(User).filter(User.name.in_(user_names)))
+        new = set(user_names) - {user.name for user in users}
+        if new:
+            for name in new:
+                user = User(name=name)
+                self.session.add(user)
+                users.append(user)
+            try:
+                self.session.commit()
+            except SQLAlchemyError as err:
+                self.session.rollback()
+                raise RunDBError(f'add user: {err}') from err
+        return users
 
     def _get_function(self, name, project, tag):
         query = self._query(Function, name=name, project=project, tag=tag)
@@ -386,7 +491,7 @@ class SQLDB(RunDBInterface):
         except SQLAlchemyError as err:
             self.session.rollback()
             cls = obj.__class__.__name__
-            raise RunDBError(f'duplicate {cls} - {err}')
+            raise RunDBError(f'duplicate {cls} - {err}') from err
 
     def _find_runs(self, uid, project, labels, state):
         labels = label_set(labels)
@@ -506,3 +611,24 @@ def update_labels(obj, labels):
             obj.labels.append(old[name])
         else:
             obj.labels.append(obj.Label(name=name, parent=obj))
+
+
+def to_dict(obj):
+    if isinstance(obj, Base):
+        return {
+            attr: to_dict(getattr(obj, attr))
+            for attr in dir(obj)
+            if is_field(attr)
+        }
+
+    if isinstance(obj, (list, tuple)):
+        cls = type(obj)
+        return cls(to_dict(v) for v in obj)
+
+    return obj
+
+
+def is_field(name):
+    if name[0] == '_':
+        return False
+    return name != 'metadata'

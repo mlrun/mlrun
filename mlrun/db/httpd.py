@@ -435,8 +435,11 @@ def get_obj_path(schema, path):
     elif path.startswith('/User/'):
         user = environ.get('V3IO_USERNAME', 'admin')
         return 'v3io:///users/' + user + path[5:]
-    elif config.httpdb.files_path and \
-            path.startswith(config.httpdb.files_path):
+    elif config.httpdb.data_volume and \
+            path.startswith(config.httpdb.data_volume):
+        if config.httpdb.real_path:
+            path = config.httpdb.real_path + \
+                   path[len(config.httpdb.data_volume)-1:]
         return path
     return None
 

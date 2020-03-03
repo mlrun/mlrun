@@ -26,7 +26,7 @@ from kfp import Client
 from nuclio import build_file
 
 from .datastore import get_object, download_object
-from .db import default_dbpath, get_run_db
+from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
 from .model import RunObject
@@ -34,7 +34,7 @@ from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
 )
 from .runtimes.base import EntrypointParam, FunctionEntrypoint
-from .runtimes.utils import add_code_metadata
+from .runtimes.utils import add_code_metadata, global_context
 from .utils import get_in, logger, parse_function_uri, update_in, new_pipe_meta
 from .config import config as mlconf
 
@@ -131,21 +131,24 @@ def run_local(task, command='', name: str = '', args: list = None,
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
     if is_obj or suffix == '.yaml':
+        is_remote = False
         if is_obj:
             runtime = command.to_dict()
+            command = command.spec.command
         else:
+            is_remote = '://' in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
+            command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
-        cmd = get_in(runtime, 'spec.command', '')
         if code:
             fpath = mktemp('.py')
             code = b64decode(code).decode('utf-8')
             command = fpath
             with open(fpath, 'w') as fp:
                 fp.write(code)
-        elif '://' not in command and cmd:
-            command = path.join(workdir, cmd)
+        elif command and not is_remote:
+            command = path.join(workdir or '', command)
             if not path.isfile(command):
                 raise OSError('command file {} not found'.format(command))
 
@@ -224,8 +227,11 @@ def get_or_create_ctx(name: str,
 
     """
 
-    if 'mlrun_context' in globals() and not spec and not event:
-        return globals().get('mlrun_context')
+    if global_context.get() and not spec and not event:
+        return global_context.get()
+
+    if 'global_mlrun_context' in globals() and not spec and not event:
+        return globals().get('global_mlrun_context')
 
     newspec = {}
     config = environ.get('MLRUN_EXEC_CONFIG')
@@ -276,7 +282,7 @@ def import_function(url='', secrets=None, db=''):
     if url.startswith('db://'):
         url = url[5:]
         project, name, tag = parse_function_uri(url)
-        db = get_run_db(db or default_dbpath()).connect(secrets)
+        db = get_run_db(db or get_or_set_dburl()).connect(secrets)
         runtime = db.get_function(name, project, tag)
         if not runtime:
             raise KeyError('function {}:{} not found in the DB'.format(

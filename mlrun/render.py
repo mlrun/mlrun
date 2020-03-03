@@ -19,7 +19,7 @@ from .utils import is_ipython, get_in, dict_to_list
 from .datastore import uri_to_ipython
 from .config import config
 
-JUPYTER_SERVER_ROOT = environ.get('JUPYTER_SERVER_ROOT', '/User')
+JUPYTER_SERVER_ROOT = environ.get('HOME', '/User')
 supported_viewers = ['.htm', '.html', '.json', '.yaml', '.txt', '.log', '.jpg', '.png', '.csv', '.py']
 
 def html_dict(title, data, open=False, show_nil=False):

@@ -169,10 +169,6 @@ class RemoteRuntime(KubeResource):
     def add_model(self, key, model):
         if model.startswith('v3io://'):
             model = '/User/' + '/'.join(model.split('/')[5:])
-        #if '://' not in model:
-        #    model = 'file://' + model
-        if not model.endswith('/'):
-            model = model[:model.rfind('/')]
         self.set_env('SERVING_MODEL_{}'.format(key), model)
         return self
 

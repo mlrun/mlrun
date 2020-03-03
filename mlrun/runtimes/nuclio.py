@@ -15,7 +15,7 @@ import inspect
 import json
 import socket
 
-from ..db import default_dbpath
+from ..db import get_or_set_dburl
 from ..model import RunTemplate
 from ..execution import MLClientCtx
 from .serving import nuclio_serving_init
@@ -50,7 +50,7 @@ def nuclio_jobs_handler(context, event):
             body='{} is not a public function handler'.format(paths[0]),
             content_type='text/plain', status_code=400)
 
-    out = default_dbpath()
+    out = get_or_set_dburl()
     if out:
         context.logger.info('logging run results to: {}'.format(out))
 

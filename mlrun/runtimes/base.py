@@ -16,11 +16,11 @@ import uuid
 from ast import literal_eval
 import getpass
 from copy import deepcopy
-from os import environ
+from os import environ, path
 
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
-from ..db import get_run_db, default_dbpath
+from ..db import get_run_db, get_or_set_dburl
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
@@ -165,7 +165,7 @@ class BaseRuntime(ModelObj):
 
     def _get_db(self):
         if not self._db_conn:
-            self.spec.rundb = self.spec.rundb or default_dbpath()
+            self.spec.rundb = self.spec.rundb or get_or_set_dburl()
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb).connect(
                         self._secrets)
@@ -235,7 +235,11 @@ class BaseRuntime(ModelObj):
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 '{{run.uid}}', meta.uid)
-
+        elif config.artifact_path:
+            runspec.spec.output_path = path.join(config.artifact_path, meta.uid)
+        if is_local(runspec.spec.output_path):
+            logger.warning('artifact path is not defined or is local,'
+                           'artifacts will not be visible in the UI')
         db = self._get_db()
 
         if not self.is_deployed:
@@ -569,3 +573,8 @@ class BaseRuntime(ModelObj):
                 del struct['status']
         return struct
 
+
+def is_local(url):
+    if not url:
+        return True
+    return '://' not in url and not url.startswith('/')

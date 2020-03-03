@@ -82,3 +82,37 @@
           default: "1"
       lineno: 1
   id: inc_ann_default
+- code: |
+    def open_archive(context, 
+                     target_dir: str = 'content',
+                     archive_url: str = ''):
+        """Open a file/object archive into a target directory
+        
+        :param target_dir:   target directory
+        :param archive_url:  source archive path/url
+        
+        :returns: content dir
+        """
+  expected:
+      name: open_archive
+      doc: Open a file/object archive into a target directory
+      return:
+        name: ""
+        type: ""
+        doc: "content dir"
+        default: ""
+      params:
+        - name: context
+          type: ""
+          doc: ""
+          default: ""
+        - name: target_dir
+          type: str
+          doc: "target directory"
+          default: "'content'"
+        - name: archive_url
+          type: str
+          doc: "source archive path/url"
+          default: "''"
+      lineno: 1
+  id: undocumented param

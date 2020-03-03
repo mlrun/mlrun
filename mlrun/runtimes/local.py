@@ -26,7 +26,7 @@ from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
 from .base import BaseRuntime
-from .utils import log_std
+from .utils import log_std, global_context
 from sys import executable
 from subprocess import run, PIPE
 
@@ -53,7 +53,7 @@ class HandlerRuntime(BaseRuntime):
                                         autocommit=False,
                                         tmp=tmp,
                                         host=socket.gethostname())
-        sys.modules[__name__].mlrun_context = context
+        global_context.set(context)
         sout, serr = exec_from_params(handler, runobj, context,
                                       self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr)
@@ -93,7 +93,8 @@ class LocalRuntime(BaseRuntime):
                                             autocommit=False,
                                             tmp=tmp,
                                             host=socket.gethostname())
-            mod.mlrun_context = context
+            mod.global_mlrun_context = context
+            global_context.set(context)
             sout, serr = exec_from_params(fn, runobj, context,
                                           self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
@@ -160,34 +161,6 @@ def run_exec(cmd, args, env=None, cwd=None):
 
     err = out.stderr.decode('utf-8') if out.returncode != 0 else ''
     return out.stdout.decode('utf-8'), err
-
-
-def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
-    """Run a function from file with args and kw.
-
-    ctx values are injected to module during function run time.
-    """
-    mod = load_module(file_name)
-    fn = getattr(mod, name)  # Will raise if name not found
-
-    if ctx is not None:
-        for attr, value in ctx.items():
-            setattr(mod, attr, value)
-
-    args = [] if args is None else args
-    kw = {} if kw is None else kw
-
-    stdout = StringIO()
-    err = ''
-    val = None
-    with redirect_stdout(stdout):
-        try:
-            val = fn(*args, **kw)
-        except Exception as e:
-            logger.error(traceback.format_exc())
-            err = str(e)
-
-    return val, stdout.getvalue(), err
 
 
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,

@@ -364,7 +364,8 @@ class RunObject(RunTemplate):
 def NewTask(name=None, project=None, handler=None,
             params=None, hyper_params=None, param_file=None, selector=None,
             inputs=None, outputs=None,
-            in_path=None, out_path=None, secrets=None, base=None):
+            in_path=None, out_path=None, artifact_path=None,
+            secrets=None, base=None):
 
     if base:
         run = deepcopy(base)
@@ -380,6 +381,6 @@ def NewTask(name=None, project=None, handler=None,
     run.spec.inputs = inputs or run.spec.inputs
     run.spec.outputs = outputs or run.spec.outputs or []
     run.spec.input_path = in_path or run.spec.input_path
-    run.spec.output_path = out_path or run.spec.output_path
+    run.spec.output_path = artifact_path or out_path or run.spec.output_path
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run

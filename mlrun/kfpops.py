@@ -15,7 +15,7 @@ import json
 from copy import deepcopy
 from os import environ
 
-from .db import default_dbpath
+from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger
 from .config import config
 
@@ -198,7 +198,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     inputs = {} if inputs is None else inputs
     outputs = [] if outputs is None else outputs
 
-    rundb = rundb or default_dbpath()
+    rundb = rundb or get_or_set_dburl()
     cmd = [
         'python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow',
         '{{workflow.uid}}'
@@ -366,7 +366,7 @@ def add_env(env=None):
 
 
 def build_op(name, function=None, func_url=None, image=None, base_image=None, commands: list = None,
-             secret_name='', with_mlrun=True):
+             secret_name='', with_mlrun=True, skip_deployed=False):
     """build Docker image."""
 
     from kfp import dsl
@@ -390,6 +390,8 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
         cmd += ['--secret-name', secret_name]
     if with_mlrun:
         cmd += ['--with_mlrun']
+    if skip_deployed:
+        cmd += ['--skip']
     for c in commands:
         cmd += ['-c', c]
     if func_url and not function:

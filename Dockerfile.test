@@ -28,5 +28,8 @@ RUN apt update && apt-get install -y docker-ce-cli
 RUN python -m pip install --upgrade --no-cache pip
 WORKDIR /mlrun
 COPY requirements.txt dev-requirements.txt httpd-requirements.txt ./
-RUN pip install -r requirements.txt -r dev-requirements.txt -r httpd-requirements.txt
+RUN pip install \
+    -r dev-requirements.txt \
+    -r httpd-requirements.txt
+    -r requirements.txt
 COPY . .

@@ -117,7 +117,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             self.server_version = resp.json()['version']
             if self.server_version != config.version:
-                logger.warning('server ({}) and client ({}) ver dont match'
+                logger.warning('warning!, server ({}) and client ({}) ver dont match'
                                .format(self.server_version, config.version))
         except Exception:
             pass

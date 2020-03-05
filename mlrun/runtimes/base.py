@@ -20,7 +20,7 @@ from os import environ, path
 
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
-from ..db import get_run_db, get_or_set_dburl
+from ..db import get_run_db, get_or_set_dburl, RunDBError
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
@@ -360,7 +360,10 @@ class BaseRuntime(ModelObj):
             project = task.metadata.project
             uid = task.metadata.uid
             iter = task.metadata.iteration
-            return self._get_db().read_run(uid, project, iter=iter)
+            try:
+                return self._get_db().read_run(uid, project, iter=iter)
+            except RunDBError:
+                return None
         if task:
             return task.to_dict()
 
@@ -403,7 +406,7 @@ class BaseRuntime(ModelObj):
                 resp = self._post_run(resp, task=task)
             except RunError as err:
                 task.status.state = 'error'
-                task.status.error = err
+                task.status.error = str(err)
                 resp = self._post_run(task=task, err=err)
             results.append(resp)
         return results
@@ -429,6 +432,10 @@ class BaseRuntime(ModelObj):
         if resp is None and task:
             was_none = True
             resp = self._get_db_run(task)
+
+            if not resp:
+                self.store_run(task)
+                return task.to_dict()
 
             if task.status.status_text:
                 update_in(resp, 'status.status_text', task.status.status_text)

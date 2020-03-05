@@ -58,7 +58,7 @@ def make_label(table):
 
 
 def make_tag(table):
-    class Tags(Base):
+    class Tag(Base):
         __tablename__ = f'{table}_tags'
         __table_args__ = (
             UniqueConstraint('project', 'name', name=f'_{table}_tags_uc'),
@@ -67,9 +67,9 @@ def make_tag(table):
         id = Column(Integer, primary_key=True)
         project = Column(String)
         name = Column(String)
-        uid = Column(Integer, ForeignKey(f'{table}.uid'))
+        obj_id = Column(Integer, ForeignKey(f'{table}.id'))
 
-    return Tags
+    return Tag
 
 
 # quell SQLAlchemy warnings on duplicate class name (Label)
@@ -184,6 +184,10 @@ with warnings.catch_warnings():
         @spec.setter
         def spec(self, value):
             self._spec = pickle.dumps(value)
+
+
+# Must be after all table definitions
+_tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, 'Tag')]
 
 
 class SQLDB(RunDBInterface):
@@ -324,7 +328,7 @@ class SQLDB(RunDBInterface):
         art.struct = artifact
         self._upsert(art)
         if tag:
-            self.store_tag(project, 'artifact', tag, uid, force=True)
+            self.tag_objects([art], project, tag)
 
     def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or config.default_project
@@ -357,7 +361,7 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         uid = 'latest'
         if tag:
-            uid = self._resolve_tag(project, 'artifact', tag)
+            uid = self._resolve_tag(Artifact, project, tag)
 
         arts = ArtifactList(
             obj.struct
@@ -404,7 +408,7 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         query = self._query(Function, name=name, project=project)
         if tag:
-            uid = self._resolve_tag(project, 'function', tag)
+            uid = self._resolve_tag(Function, project, tag)
             query = query.filter(Function.Tag.uid == uid)
         obj = query.one_or_none()
         if obj:
@@ -415,7 +419,7 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         uid = tag
         if uid:
-            uid = self._resolve_tag(project, 'function', uid)
+            uid = self._resolve_tag(Function, project, uid)
 
         funcs = FunctionList()
         funcs.extend(
@@ -437,41 +441,31 @@ class SQLDB(RunDBInterface):
     def list_schedules(self):
         return [s.struct for s in self.session.query(Schedule)]
 
-    def store_tag(
-        self, project: str, typ: str, name: str, uid: str,
-            *, force: bool = False) -> None:
-        """Create a new tag for (project, typ, uid) with name
+    def tag_objects(self, objs, project: str, name: str):
+        """Tag objects with (project, name) tag.
 
-        If force=True it'll either create a new tag or update an existing one.
+        If force==True will update tag
         """
-        tag = self._find_tag(project, typ, name)
-        if tag and not force:
-            raise ValueError(f'duplicate tag ({project!r}, {typ!r}, {uid!r})')
+        for obj in objs:
+            tag = obj.Tag(project=project, name=name, obj_id=obj.id)
+            self.session.add(tag)
 
-        if not tag:
-            cls = type2tag(typ)
-            tag = cls(project=project, name=name, uid=uid)
-        else:
-            tag.uid = uid
-        self._upsert(tag)
+    def del_tag(self, project: str, name: str):
+        """Remove tag (project, name) from all objects"""
+        for cls in _tagged:
+            for obj in self._query(cls.Tag, project=project, name=name):
+                self.session.delete(obj)
 
-    def get_tag(self, project: str, typ: str, name: str) -> str:
-        """Get UID associated with (project, typ, name)
+    def find_tagged(self, project: str, name: str):
+        """Return all objects tagged with (project, name)
 
         If not tag found, will return an empty str.
         """
-        tag = self._find_tag(project, typ, name)
-        return tag.uid if tag else ''
-
-    def _resolve_tag(self, project, typ, name):
-        tag = self._find_tag(project, typ, name)
-        if tag:
-            return tag.uid
-        return name
-
-    def _find_tag(self, project, typ, name):
-        cls = type2tag(typ)
-        return self._query(cls, project=project, name=name).one_or_none()
+        objs = []
+        for cls in _tagged:
+            for tag in self._query(cls.Tag, project=project, name=name):
+                objs.append(self._query(cls).get(tag.obj_id))
+        return objs
 
     def add_project(self, project: dict):
         project = project.copy()
@@ -514,6 +508,11 @@ class SQLDB(RunDBInterface):
 
     def list_projects(self, owner=None):
         return self._query(Project, owner=owner)
+
+    def _resolve_tag(self, cls, project, name):
+        for tag in self._query(cls.Tag, project=project, name=name):
+            return self._query(cls).get(tag.obj_id).uid
+        return name  # Not found, return original uid
 
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
@@ -645,17 +644,6 @@ def label_set(labels):
     return set(labels or [])
 
 
-class RunWrapper:
-    def __init__(self, run):
-        self.run = run
-
-    def __getattr__(self, attr):
-        try:
-            return self.run[attr]
-        except KeyError:
-            raise AttributeError(attr)
-
-
 def run_start_time(run):
     ts = get_in(run, 'status.start_time', '')
     if not ts:
@@ -680,22 +668,6 @@ def update_labels(obj, labels):
             obj.labels.append(old[name])
         else:
             obj.labels.append(obj.Label(name=name, parent=obj))
-
-
-_type2tag = {
-    'artifact': Artifact.Tag,
-    # 'function': Function.Tag,
-    'log': Log.Tag,
-    'run': Run.Tag,
-}
-
-
-def type2tag(typ):
-    cls = _type2tag.get(typ)
-    if cls is None:
-        types = ', '.join(sorted(_type2tag))
-        raise ValueError(f'type {typ} not one of {types}')
-    return cls
 
 
 def to_dict(obj):

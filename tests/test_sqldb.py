@@ -112,20 +112,21 @@ def test_artifacts_latest(db: sqldb.SQLDB):
     assert {17, 99} == set(art['a'] for art in arts), 'latest'
 
 
-@pytest.mark.parametrize('typ', sorted(sqldb._type2tag))
-def test_tags(db: sqldb.SQLDB, typ):
-    p1, u1, n1 = 'prj1', 'uid1', 'name1'
-    db.store_tag(p1, typ, n1, u1)
-    u = db.get_tag(p1, typ, n1)
-    assert u1 == u, 'uid'
+@pytest.mark.parametrize('cls', sqldb._tagged)
+def test_tags(db: sqldb.SQLDB, cls):
+    p1, n1 = 'prj1', 'name1'
+    obj1, obj2 = cls(), cls()
+    db.session.add(obj1)
+    db.session.add(obj2)
+    db.session.commit()
 
-    with pytest.raises(ValueError):
-        db.store_tag(p1, typ, n1, u1)
+    db.tag_objects([obj1], p1, n1)
+    objs = db.find_tagged(p1, n1)
+    assert [obj1] == objs, 'find tags'
 
-    u2 = 'uid2'
-    db.store_tag(p1, typ, n1, u2, force=True)
-    u = db.get_tag(p1, typ, n1)
-    assert u2 == u, 'uid change'
+    db.del_tag(p1, n1)
+    objs = db.find_tagged(p1, n1)
+    assert [] == objs, 'find tags after del'
 
 
 def test_projects(db: sqldb.SQLDB):

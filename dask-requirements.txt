@@ -1,0 +1,6 @@
+dask==2.9.1
+dask_kubernetes==0.10.0
+distributed==2.9.1
+kubernetes-asyncio==10.0.0
+kubernetes==10.0.0
+msgpack==0.6.2

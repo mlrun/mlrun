@@ -52,7 +52,7 @@ class FileRunDB(RunDBInterface):
 
     def store_log(self, uid, project='', body=None, append=False):
         filepath = self._filepath(run_logs, project, uid, '') + '.log'
-        makedirs(path.join(self.dirpath, run_logs, project), exist_ok=True)
+        makedirs(path.dirname(filepath), exist_ok=True)
         mode = 'ab' if append else 'wb'
         with open(filepath, mode) as fp:
             fp.write(body)
@@ -92,7 +92,7 @@ class FileRunDB(RunDBInterface):
         filepath = self._filepath(
             run_logs, project, self._run_path(uid, iter), '') + self.format
         if not pathlib.Path(filepath).is_file():
-            return None
+            raise RunDBError(uid)
         data = self._datastore.get(filepath)
         return self._loads(data)
 
@@ -126,7 +126,7 @@ class FileRunDB(RunDBInterface):
     def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
 
         labels = [] if labels is None else labels
-        if not name and not state and not days_ago:
+        if not any([name, state, days_ago, labels]):
             raise RunDBError(
                 'filter is too wide, select name and/or state and/or days_ago')
 
@@ -164,12 +164,14 @@ class FileRunDB(RunDBInterface):
         self._datastore.put(filepath, data)
 
     def read_artifact(self, key, tag='', iter=None, project=''):
+        tag = tag or 'latest'
         if iter:
             key = '{}-{}'.format(iter, key)
         filepath = self._filepath(
             artifacts_dir, project, key, tag) + self.format
+
         if not pathlib.Path(filepath).is_file():
-            return None
+            raise RunDBError(key)
         data = self._datastore.get(filepath)
         return self._loads(data)
 
@@ -206,6 +208,7 @@ class FileRunDB(RunDBInterface):
         return results
 
     def del_artifact(self, key, tag='', project=''):
+        tag = tag or 'latest'
         filepath = self._filepath(
             artifacts_dir, project, key, tag) + self.format
         self._safe_del(filepath)
@@ -281,7 +284,6 @@ class FileRunDB(RunDBInterface):
             return []
         return [d for d in listdir(run_dir)
                 if path.isdir(path.join(run_dir, d))]
-
 
     @property
     def schedules_dir(self):

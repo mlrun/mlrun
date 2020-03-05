@@ -874,7 +874,11 @@ def del_tag(project, name):
 @app.route('/api/<project>/tags', methods=['GET'])
 @catch_err
 def list_tags(project):
-    return jsonify(ok=True, project=project, tags=list(_db.list_tags(project))
+    return jsonify(
+        ok=True,
+        project=project,
+        tags=list(_db.list_tags(project)),
+    )
 
 
 @app.route('/api/<project>/tag/<name>', methods=['GET'])

@@ -187,6 +187,7 @@ with warnings.catch_warnings():
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, 'Tag')]
+_table2cls = {cls.__table__: cls for cls in Base.__subclasses__()}
 
 
 class SQLDB(RunDBInterface):
@@ -469,6 +470,14 @@ class SQLDB(RunDBInterface):
                 objs.append(self._query(cls).get(tag.obj_id))
         return objs
 
+    def list_tags(self, project: str):
+        """Return all tags for a project"""
+        tags = set()
+        for cls in _tagged:
+            for tag in self._query(cls.Tag, project=project):
+                tags.add(tag.name)
+        return tags
+
     def add_project(self, project: dict):
         project = project.copy()
         name = project.get('name')
@@ -637,6 +646,10 @@ class SQLDB(RunDBInterface):
     def _find_lables(self, cls, label_cls, labels):
         return self.session.query(cls).join(label_cls).filter(
                 label_cls.name.in_(labels))
+
+
+def table2cls(name):
+    return _table2cls.get(name)
 
 
 def label_set(labels):

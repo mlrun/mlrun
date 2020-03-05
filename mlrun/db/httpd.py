@@ -843,37 +843,49 @@ def list_schedules():
     )
 
 
-@app.route('/api/tag/<project>/<typ>/<name>/<uid>', methods=['POST', 'PUT'])
+@app.route('/api/<project>/tag/<name>', methods=['POST'])
 @catch_err
-def store_tag(project, typ, name, uid):
-    force = request.method == 'PUT'
+def tag_objects(project, name):
     try:
-        _db.store_tag(project, typ, name, uid, force=force)
-    except ValueError as err:
-        return json_error(error=str(err))
-    return jsonify(
-        project=project,
-        type=typ,
-        name=name,
-        uid=uid,
-    )
+        data: dict = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    objs = []
+    for typ, query in data.items():
+        cls = sqldb.table2cls(typ)
+        if cls is None:
+            err = f'unknown type - {typ}'
+            return json_error(HTTPStatus.BAD_REQUEST, reason=err)
+        # TODO: Change _query to query?
+        # TODO: Not happy about exposing db internals to API
+        objs.extend(_db.session.query(cls).filter(**query))
+    _db.tag_objects(objs, project, name)
+    return jsonify(ok=True, project=project, name=name, count=len(objs))
 
 
-@app.route('/api/tag/<project>/<typ>/<name>', methods=['GET'])
+@app.route('/api/<project>/tag/<name>', methods=['DELETE'])
 @catch_err
-def get_tag(project, typ, name):
-    uid = _db.get_tag(project, typ, name)
-    if not uid:
-        return json_error(
-            HTTPStatus.NOT_FOUND,
-            error=f'tag {project}/{typ}/{name} not found',
-        )
+def del_tag(project, name):
+    count = _db.del_tab(project, name)
+    return jsonify(ok=True, project=project, name=name, count=count)
 
+
+@app.route('/api/<project>/tags', methods=['GET'])
+@catch_err
+def list_tags(project):
+    return jsonify(ok=True, project=project, tags=list(_db.list_tags(project))
+
+
+@app.route('/api/<project>/tag/<name>', methods=['GET'])
+@catch_err
+def get_tagged(project, name):
+    objs = _db.find_tagged(project, name)
     return jsonify(
+        ok=True,
         project=project,
-        type=typ,
-        name=name,
-        uid=uid,
+        tag=name,
+        objects=[db2dict(obj) for obj in objs],
     )
 
 

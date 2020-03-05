@@ -115,14 +115,15 @@ def test_artifacts_latest(db: sqldb.SQLDB):
 @pytest.mark.parametrize('cls', sqldb._tagged)
 def test_tags(db: sqldb.SQLDB, cls):
     p1, n1 = 'prj1', 'name1'
-    obj1, obj2 = cls(), cls()
+    obj1, obj2, obj3 = cls(), cls(), cls()
     db.session.add(obj1)
     db.session.add(obj2)
+    db.session.add(obj3)
     db.session.commit()
 
-    db.tag_objects([obj1], p1, n1)
+    db.tag_objects([obj1, obj2], p1, n1)
     objs = db.find_tagged(p1, n1)
-    assert [obj1] == objs, 'find tags'
+    assert {obj1, obj2} == set(objs), 'find tags'
 
     db.del_tag(p1, n1)
     objs = db.find_tagged(p1, n1)

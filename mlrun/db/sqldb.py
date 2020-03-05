@@ -61,7 +61,8 @@ def make_tag(table):
     class Tag(Base):
         __tablename__ = f'{table}_tags'
         __table_args__ = (
-            UniqueConstraint('project', 'name', name=f'_{table}_tags_uc'),
+            UniqueConstraint(
+                'project', 'name', 'obj_id', name=f'_{table}_tags_uc'),
         )
 
         id = Column(Integer, primary_key=True)
@@ -111,8 +112,6 @@ with warnings.catch_warnings():
 
     class Log(Base):
         __tablename__ = 'logs'
-
-        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         uid = Column(String)
@@ -452,9 +451,12 @@ class SQLDB(RunDBInterface):
 
     def del_tag(self, project: str, name: str):
         """Remove tag (project, name) from all objects"""
+        count = 0
         for cls in _tagged:
             for obj in self._query(cls.Tag, project=project, name=name):
                 self.session.delete(obj)
+                count += 1
+        return count
 
     def find_tagged(self, project: str, name: str):
         """Return all objects tagged with (project, name)

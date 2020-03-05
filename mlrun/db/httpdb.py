@@ -19,6 +19,8 @@ from os import path, remove
 
 import kfp
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 from ..utils import dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
@@ -41,6 +43,10 @@ def bool2str(val):
     return 'yes' if val else 'no'
 
 
+http_adapter = HTTPAdapter(max_retries=Retry(
+    total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504]))
+
+
 class HTTPRunDB(RunDBInterface):
     kind = 'http'
 
@@ -50,6 +56,7 @@ class HTTPRunDB(RunDBInterface):
         self.password = password
         self.token = token
         self.server_version = ''
+        self.session = None
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -70,8 +77,13 @@ class HTTPRunDB(RunDBInterface):
         elif self.token:
             kw['headers'] = {'Authorization': 'Bearer ' + self.token}
 
+        if not self.session:
+            self.session = requests.Session()
+            self.session.mount('http://', http_adapter)
+            self.session.mount('https://', http_adapter)
+
         try:
-            resp = requests.request(method, url, timeout=timeout, **kw)
+            resp = self.session.request(method, url, timeout=timeout, **kw)
         except requests.RequestException as err:
             error = error or '{} {}, error: {}'.format(method, url, err)
             raise RunDBError(error) from err
@@ -101,11 +113,11 @@ class HTTPRunDB(RunDBInterface):
         return f'{prefix}/{project}/{uid}'
 
     def connect(self, secrets=None):
-        resp = self.api_call('GET', 'healthz', timeout=3)
+        resp = self.api_call('GET', 'healthz', timeout=5)
         try:
             self.server_version = resp.json()['version']
             if self.server_version != config.version:
-                logger.warning('server ({}) and client ({}) ver dont match'
+                logger.warning('warning!, server ({}) and client ({}) ver dont match'
                                .format(self.server_version, config.version))
         except Exception:
             pass

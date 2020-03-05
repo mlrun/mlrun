@@ -100,6 +100,14 @@ def test_local_runtime():
     verify_state(result)
 
 
+def test_local_runtime_hyper():
+    spec = tag_test(base_spec, 'test_local_runtime_hyper')
+    spec.with_hyper_params({'p1': [1, 5, 3]}, selector='max.accuracy')
+    result = new_function(command='{}/training.py'.format(
+        examples_path)).run(spec)
+    verify_state(result)
+
+
 def test_local_handler():
     spec = tag_test(base_spec, 'test_local_runtime')
     result = new_function(command='{}/handler.py'.format(

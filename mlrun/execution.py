@@ -193,6 +193,11 @@ class MLClientCtx(object):
         return deepcopy(self._parameters)
 
     @property
+    def inputs(self):
+        """dictionary of input data items (read-only)"""
+        return deepcopy(self._inputs)
+
+    @property
     def in_path(self):
         """default input path for data objects"""
         return self._in_path
@@ -200,6 +205,7 @@ class MLClientCtx(object):
     @property
     def out_path(self):
         """default output path for artifacts"""
+        logger.info('.out_path will soon be deprecated, use .artifact_path')
         return self._out_path
 
     @property

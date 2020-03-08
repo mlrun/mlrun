@@ -187,7 +187,7 @@ with warnings.catch_warnings():
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, 'Tag')]
-_table2cls = {cls.__table__: cls for cls in Base.__subclasses__()}
+_table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}
 
 
 class SQLDB(RunDBInterface):
@@ -701,4 +701,4 @@ def to_dict(obj):
 def is_field(name):
     if name[0] == '_':
         return False
-    return name != 'metadata'
+    return name not in ('metadata', 'Tag', 'Label')

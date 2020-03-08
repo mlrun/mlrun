@@ -332,10 +332,7 @@ class SQLDB(RunDBInterface):
 
     def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or config.default_project
-        uid = None
-        if tag:
-            uid = self.get_tag(project, 'artifact', tag) or tag
-
+        uid = self._resolve_tag(Artifact, project, tag)
         if iter:
             key = '{}-{}'.format(iter, key)
 
@@ -549,7 +546,8 @@ class SQLDB(RunDBInterface):
         return users
 
     def _get_function(self, name, project, tag):
-        query = self._query(Function, name=name, project=project, tag=tag)
+        uid = self._resolve_tag(Function, project, name)
+        query = self._query(Function, name=name, project=project, uid=uid)
         return query.one_or_none()
 
     def _get_artifact(self, uid, project, key):

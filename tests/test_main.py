@@ -50,7 +50,7 @@ def test_main_run_basic():
 
 def test_main_run_hyper():
     out = exec_run(f'{examples_path}/training.py',
-                   param_list(dict(p2=[4,5,6]), '-x'),
+                   param_list(dict(p2=[4, 5, 6]), '-x'),
                    'test_main_run_hyper')
     print(out)
     assert out.find('state: completed') != -1, out

@@ -76,12 +76,13 @@ def main():
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.option('--image', default='', help='container image')
+@click.option('--workdir', default='', help='run working directory')
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
         selector, func_url, task, handler, mode, schedule, from_env, dump,
-        image, watch, run_args):
+        image, workdir, watch, run_args):
     """Execute a task and inject parameters."""
 
     out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
@@ -172,6 +173,8 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     try:
         update_in(runtime, 'metadata.name', name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
+        if workdir:
+            fn.spec.workdir = workdir
         fn.is_child = from_env and not kfp
         resp = fn.run(runobj, watch=watch, schedule=schedule)
         if resp and dump:

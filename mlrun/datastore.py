@@ -19,7 +19,6 @@ from shutil import copyfile
 from urllib.parse import urlparse
 
 from .config import config
-from .db import get_run_db, RunDBError
 from .utils import run_keys
 from datetime import datetime
 import time
@@ -91,9 +90,7 @@ class StoreManager:
     def _get_db(self):
         if self._db:
             return self._db
-        self._db = get_run_db()
-        self._db.connect(self._secrets)
-        return self._db
+        raise ValueError('run db is not set')
 
     def from_dict(self, struct: dict):
         stor_list = struct.get(run_keys.data_stores)
@@ -125,8 +122,8 @@ class StoreManager:
             try:
                 meta = self._get_db().read_artifact(p.path, tag=tag,
                                                     project=project)
-            except RunDBError as e:
-                raise OSError('artifact {} not found'.format(url))
+            except Exception as e:
+                raise OSError('artifact {} not found, {}'.format(url, e))
             artifact_url = url
             url = meta.get('target_path', '')
 

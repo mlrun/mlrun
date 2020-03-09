@@ -83,7 +83,6 @@ class MLClientCtx(object):
         if len(handlers)>0:
             handlers[0].stream = stream
 
-
     def _init_dbs(self, rundb):
         if rundb:
             if isinstance(rundb, str):
@@ -91,7 +90,7 @@ class MLClientCtx(object):
                 self._rundb.connect(self._secrets_manager)
             else:
                 self._rundb = rundb
-        self._data_stores = StoreManager(self._secrets_manager)
+        self._data_stores = StoreManager(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(
             self._data_stores, db=self._rundb, out_path=self._out_path)
 
@@ -255,7 +254,7 @@ class MLClientCtx(object):
             url = key
         if self.in_path and not (url.startswith('/') or '://' in url):
             url = uxjoin(self._in_path, url)
-        obj = self._data_stores.object(key, url)
+        obj = self._data_stores.object(key, url, project=self._project)
         self._inputs[key] = obj
         return obj
 

@@ -8,7 +8,7 @@ from git import Repo
 import yaml
 from os import path, remove
 
-from ..datastore import StoreManager
+from ..datastore import StoreManager, download_object
 from ..config import config
 from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
@@ -521,10 +521,8 @@ def clone_tgz(url, context, secrets):
 
     if path.exists(context) and path.isdir(context):
         shutil.rmtree(context)
-    stores = StoreManager(secrets)
-    datastore, subpath = stores.get_or_create_store(url)
     tmp = mktemp()
-    datastore.download(subpath, tmp)
+    download_object(url, tmp, secrets=secrets)
     tf = tarfile.open(tmp)
     tf.extractall(context)
     tf.close()

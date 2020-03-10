@@ -409,7 +409,7 @@ class MLClientCtx(object):
             struct['status']['iterations'] = self._iteration_results
         struct['status'][run_keys.artifacts] = \
             self._artifacts_manager.artifact_list()
-        self._artifacts_manager.to_dict(struct['status'])
+        self._data_stores.to_dict(struct['spec'])
         return struct
 
     def to_yaml(self):

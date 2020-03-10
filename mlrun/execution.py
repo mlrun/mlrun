@@ -197,6 +197,16 @@ class MLClientCtx(object):
         return deepcopy(self._inputs)
 
     @property
+    def results(self):
+        """dictionary of results (read-only)"""
+        return deepcopy(self._results)
+
+    @property
+    def artifacts(self):
+        """dictionary of artifacts (read-only)"""
+        return deepcopy(self._artifacts_manager.artifacts())
+
+    @property
     def in_path(self):
         """default input path for data objects"""
         return self._in_path
@@ -397,7 +407,8 @@ class MLClientCtx(object):
 
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
-        self._data_stores.to_dict(struct['spec'])
+        struct['status'][run_keys.artifacts] = \
+            self._artifacts_manager.artifacts()
         self._artifacts_manager.to_dict(struct['status'])
         return struct
 

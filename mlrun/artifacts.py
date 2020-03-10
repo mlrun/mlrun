@@ -56,14 +56,17 @@ class ArtifactManager:
         self.input_artifacts = {}
         self.artifacts = {}
 
-    def to_dict(self, status):
+    def artifacts(self, full=False):
         artifacts = []
         for artifact in self.artifacts.values():
             if isinstance(artifact, dict):
                 artifacts.append(artifact)
             else:
-                artifacts.append(artifact.base_dict())
-        status[run_keys.artifacts] = artifacts
+                if full:
+                    artifacts.append(artifact.to_dict())
+                else:
+                    artifacts.append(artifact.base_dict())
+        return artifacts
 
     def log_artifact(
         self, execution, item, body=None, target_path='', src_path='', tag='',

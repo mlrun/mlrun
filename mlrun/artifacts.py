@@ -56,7 +56,7 @@ class ArtifactManager:
         self.input_artifacts = {}
         self.artifacts = {}
 
-    def artifacts(self, full=False):
+    def artifact_list(self, full=False):
         artifacts = []
         for artifact in self.artifacts.values():
             if isinstance(artifact, dict):

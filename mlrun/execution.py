@@ -204,7 +204,7 @@ class MLClientCtx(object):
     @property
     def artifacts(self):
         """dictionary of artifacts (read-only)"""
-        return deepcopy(self._artifacts_manager.artifacts())
+        return deepcopy(self._artifacts_manager.artifact_list())
 
     @property
     def in_path(self):
@@ -408,7 +408,7 @@ class MLClientCtx(object):
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
         struct['status'][run_keys.artifacts] = \
-            self._artifacts_manager.artifacts()
+            self._artifacts_manager.artifact_list()
         self._artifacts_manager.to_dict(struct['status'])
         return struct
 

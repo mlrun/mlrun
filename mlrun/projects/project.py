@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import shutil
 
 from ..model import ModelObj
@@ -8,7 +22,7 @@ from git import Repo
 import yaml
 from os import path, remove
 
-from ..datastore import StoreManager
+from ..datastore import download_object
 from ..config import config
 from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
@@ -521,10 +535,8 @@ def clone_tgz(url, context, secrets):
 
     if path.exists(context) and path.isdir(context):
         shutil.rmtree(context)
-    stores = StoreManager(secrets)
-    datastore, subpath = stores.get_or_create_store(url)
     tmp = mktemp()
-    datastore.download(subpath, tmp)
+    download_object(url, tmp, secrets=secrets)
     tf = tarfile.open(tmp)
     tf.extractall(context)
     tf.close()

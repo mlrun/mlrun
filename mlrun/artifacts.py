@@ -56,14 +56,17 @@ class ArtifactManager:
         self.input_artifacts = {}
         self.artifacts = {}
 
-    def to_dict(self, status):
+    def artifact_list(self, full=False):
         artifacts = []
         for artifact in self.artifacts.values():
             if isinstance(artifact, dict):
                 artifacts.append(artifact)
             else:
-                artifacts.append(artifact.base_dict())
-        status[run_keys.artifacts] = artifacts
+                if full:
+                    artifacts.append(artifact.to_dict())
+                else:
+                    artifacts.append(artifact.base_dict())
+        return artifacts
 
     def log_artifact(
         self, execution, item, body=None, target_path='', src_path='', tag='',
@@ -106,7 +109,7 @@ class ArtifactManager:
         self.artifacts[key] = item
 
         if upload:
-            store, ipath = self.get_store(target_path)
+            store, ipath = self._get_store(target_path)
             body = item.get_body()
             if body:
                 if self.calc_hash:
@@ -150,7 +153,7 @@ class ArtifactManager:
                                             iter=execution.iteration, tag=tag,
                                             project=execution.project)
 
-    def get_store(self, url):
+    def _get_store(self, url):
         return self.data_stores.get_or_create_store(url)
 
 

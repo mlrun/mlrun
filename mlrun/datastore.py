@@ -17,6 +17,8 @@ from copy import deepcopy
 from os import path, environ, makedirs, listdir, stat
 from shutil import copyfile
 from urllib.parse import urlparse
+
+from .config import config
 from .utils import run_keys
 from datetime import datetime
 import time
@@ -24,6 +26,7 @@ import boto3
 import requests
 
 V3IO_LOCAL_ROOT = 'v3io'
+DB_SCHEMA = 'db'
 
 
 class FileStats:
@@ -57,7 +60,7 @@ def parseurl(url):
     endpoint = p.hostname
     if p.port:
         endpoint += ':{}'.format(p.port)
-    return schema, endpoint, p.path
+    return schema, endpoint, p
 
 
 def schema_to_store(schema):
@@ -74,22 +77,28 @@ def schema_to_store(schema):
 
 
 def uri_to_ipython(link):
-    schema, endpoint, subpath = parseurl(link)
-    return schema_to_store(schema).uri_to_ipython(endpoint, subpath)
+    schema, endpoint, p = parseurl(link)
+    return schema_to_store(schema).uri_to_ipython(endpoint, p.path)
 
 
 class StoreManager:
-    def __init__(self, secrets=None):
+    def __init__(self, secrets=None, db=None):
         self._stores = {}
         self._secrets = secrets or {}
+        self._db = db
+
+    def _get_db(self):
+        if self._db:
+            return self._db
+        raise ValueError('run db is not set')
 
     def from_dict(self, struct: dict):
         stor_list = struct.get(run_keys.data_stores)
         if stor_list and isinstance(stor_list, list):
             for stor in stor_list:
-                schema, endpoint, subpath = parseurl(stor.get('url'))
+                schema, endpoint, p = parseurl(stor.get('url'))
                 new_stor = schema_to_store(schema)(self, schema, stor['name'], endpoint)
-                new_stor.subpath = subpath
+                new_stor.subpath = p.path
                 new_stor.secret_pfx = stor.get('secret_pfx')
                 new_stor.options = stor.get('options', {})
                 new_stor.from_spec = True
@@ -104,12 +113,27 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
-    def object(self, key, url=''):
+    def object(self, key, url='', project=''):
+        meta = artifact_url = None
+        if url.startswith(DB_SCHEMA + '://'):
+            schema, endpoint, p = parseurl(url)
+            project = endpoint or project or config.default_project
+            tag = p.fragment if p.fragment else ''
+            try:
+                meta = self._get_db().read_artifact(p.path, tag=tag,
+                                                    project=project)
+            except Exception as e:
+                raise OSError('artifact {} not found, {}'.format(url, e))
+            artifact_url = url
+            url = meta.get('target_path', '')
+
         store, subpath = self.get_or_create_store(url)
-        return DataItem(key, store, subpath, url)
+        return DataItem(key, store, subpath, url,
+                        meta=meta, artifact_url=artifact_url)
 
     def get_or_create_store(self, url):
-        schema, endpoint, subpath = parseurl(url)
+        schema, endpoint, p = parseurl(url)
+        subpath = p.path
 
         if not schema and endpoint:
             if endpoint in self._stores.keys():
@@ -199,15 +223,25 @@ class DataStore:
 
 
 class DataItem:
-    def __init__(self, key, store, subpath, url=''):
+    def __init__(self, key, store, subpath, url='', meta=None, artifact_url=None):
         self._store = store
         self._key = key
         self._url = url
         self._path = subpath
+        self._meta = meta
+        self._artifact_url = artifact_url
 
     @property
     def kind(self):
         return self._store.kind
+
+    @property
+    def meta(self):
+        return self._meta
+
+    @property
+    def artifact_url(self):
+        return self._artifact_url
 
     @property
     def url(self):
@@ -429,7 +463,6 @@ class V3ioStore(DataStore):
         modified = time.mktime(datetime.strptime(
             datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple())
         return FileStats(size, modified)
-
 
 
 def get_range(size, offset):

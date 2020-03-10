@@ -1,12 +1,11 @@
-# dockerfiles
+# dockerfiles and build script
 
 
-to build run **`build REPO PREFIX MLRUN_TAG NEW_TAG`** where:<br>
-* `REPO` is your docker hub account<br>
-* `PREFIX` is some prefix common to all the images created here,
+to build run **`docker-build REPO PREFIX MLRUN_TAG NEW_TAG`** where:
+* `REPO` is your docker hub account (like `mlrun`)
+* `PREFIX` is some prefix common to all the images created here (like `ml`)
 * `MLRUN_TAG` is a specific mlrun commit or tag _(prefix only tags with a `v`, like `v0.4.5`)_
-* `NEW_TAG` in addition to MLRUN_TAG, a second tag is created with this name (so 
-this might be `latest` or `0.4.5`)<br>
+* `NEW_TAG` in addition to MLRUN_TAG, a second tag is created with this name (like `latest` or `0.4.5`)
 
 the script generates 2 sets of 4 images:
 * one set with the current commit number

@@ -267,17 +267,15 @@ def get_or_create_ctx(name: str,
 
 
 def import_function(url='', secrets=None, db=''):
-    """create function object from DB or local/remote YAML file
+    """Create function object from DB or local/remote YAML file
 
-    reading from a file or remote URL (http(s), s3, git, v3io, ..)
-    :param url:      path/url to function YAML file
-                     or
-                     db://{project}/{name}[:tag] when reading from mlrun db
+    Reading from a file or remote URL (http(s), s3, git, v3io, ..)
 
-    :param secrets:  optional, credentials dict for DB or URL (s3, v3io, ..)
-    :param db        optional, mlrun api/db path
-
-    :return: function object
+    :param url: path/url to function YAML file or
+                'db://{project}/{name}[:tag]' when reading from mlrun db
+    :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
+    :param db: optional, mlrun api/db path
+    :returns: function object
     """
     if url.startswith('db://'):
         url = url[5:]

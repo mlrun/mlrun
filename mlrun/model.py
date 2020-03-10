@@ -100,23 +100,25 @@ class BaseMetadata(ModelObj):
 
 
 class ImageBuilder(ModelObj):
+    """An Image builder"""
     def __init__(
         self, functionSourceCode=None, source=None, image=None,
             base_image=None, commands=None, secret=None,
             code_origin=None, registry=None):
-        self.functionSourceCode = functionSourceCode
-        self.codeEntryType = ''
-        self.source = source
-        self.code_origin = code_origin
-        self.image = image
-        self.base_image = base_image
-        self.commands = commands or []
-        self.secret = secret
-        self.registry = registry
+        self.functionSourceCode = functionSourceCode  #: functionSourceCode
+        self.codeEntryType = ''  #: codeEntryType
+        self.source = source  #: course
+        self.code_origin = code_origin  #: code_origin
+        self.image = image  #: image
+        self.base_image = base_image  #: base_image
+        self.commands = commands or []  #: commands
+        self.secret = secret  #: secret
+        self.registry = registry  #: registry
         self.build_pod = None
 
 
 class RunMetadata(ModelObj):
+    """Run metadata"""
     def __init__(
         self, uid=None, name=None, project=None, labels=None,
             annotations=None, iteration=None):

@@ -139,6 +139,7 @@ class RunMetadata(ModelObj):
 
 
 class RunSpec(ModelObj):
+    """Run specification"""
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  selector=None, handler=None, inputs=None, outputs=None,
                  input_path=None, output_path=None, function=None,
@@ -209,6 +210,7 @@ class RunSpec(ModelObj):
 
 
 class RunStatus(ModelObj):
+    """Run status"""
     def __init__(self, state=None, error=None, host=None, commit=None,
                  status_text=None, results=None, artifacts=None,
                  start_time=None, last_update=None, iterations=None):
@@ -225,6 +227,7 @@ class RunStatus(ModelObj):
 
 
 class RunTemplate(ModelObj):
+    """Run template"""
     def __init__(self, spec: RunSpec = None,
                  metadata: RunMetadata = None):
         self._spec = None
@@ -281,6 +284,7 @@ class RunTemplate(ModelObj):
 
 
 class RunObject(RunTemplate):
+    """A run"""
     def __init__(self, spec: RunSpec = None,
                  metadata: RunMetadata = None,
                  status: RunStatus = None):
@@ -368,6 +372,7 @@ def NewTask(name=None, project=None, handler=None,
             inputs=None, outputs=None,
             in_path=None, out_path=None, artifact_path=None,
             secrets=None, base=None):
+    """Create new task"""
 
     if base:
         run = deepcopy(base)

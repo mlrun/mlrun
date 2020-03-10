@@ -29,6 +29,7 @@ def get_or_set_dburl(default=''):
 
 
 def get_run_db(url=''):
+    """Returns the runtime database"""
     if not url:
         url = get_or_set_dburl('./')
 

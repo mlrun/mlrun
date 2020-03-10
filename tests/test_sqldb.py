@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""SQLDB specific tests, common tests should be in test_dbs.py"""
 
-# SQLDB specific tests, common tests should be in test_dbs.py
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 import pytest
@@ -110,6 +111,46 @@ def test_artifacts_latest(db: sqldb.SQLDB):
     arts = db.list_artifacts(project=prj, tag='latest')
     assert 2 == len(arts), 'number'
     assert {17, 99} == set(art['a'] for art in arts), 'latest'
+
+
+@pytest.mark.parametrize('cls', sqldb._tagged)
+def test_tags(db: sqldb.SQLDB, cls):
+    p1, n1 = 'prj1', 'name1'
+    obj1, obj2, obj3 = cls(), cls(), cls()
+    db.session.add(obj1)
+    db.session.add(obj2)
+    db.session.add(obj3)
+    db.session.commit()
+
+    db.tag_objects([obj1, obj2], p1, n1)
+    objs = db.find_tagged(p1, n1)
+    assert {obj1, obj2} == set(objs), 'find tags'
+
+    db.del_tag(p1, n1)
+    objs = db.find_tagged(p1, n1)
+    assert [] == objs, 'find tags after del'
+
+
+def tag_objs(db, count, project, tags):
+    by_tag = defaultdict(list)
+    for i in range(count):
+        cls = sqldb._tagged[i % len(sqldb._tagged)]
+        obj = cls()
+        by_tag[tags[i % len(tags)]].append(obj)
+        db.session.add(obj)
+    db.session.commit()
+    for tag, objs in by_tag.items():
+        db.tag_objects(objs, project, tag)
+
+
+def test_list_tags(db: sqldb.SQLDB):
+    p1, tags1 = 'prj1', ['a', 'b', 'c']
+    tag_objs(db, 17, p1, tags1)
+    p2, tags2 = 'prj2', ['b', 'c', 'd', 'e']
+    tag_objs(db, 11, p2, tags2)
+
+    tags = db.list_tags(p1)
+    assert set(tags) == set(tags1), 'tags'
 
 
 def test_projects(db: sqldb.SQLDB):

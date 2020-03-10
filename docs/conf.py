@@ -10,8 +10,23 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+
+import re
 import sys
+from pathlib import Path
+
 sys.path.insert(0, '..')
+
+
+def current_version():
+    root = Path(__file__).absolute().parent.parent
+    with open(f'{root}/mlrun/__init__.py') as fp:
+        for line in fp:
+            # __version__ = '0.4.6'
+            match = re.search(r"__version__\s*=\s*'([^']+)'", line)
+            if match:
+                return match.group(1)
+    return 'UNKNOWN'
 
 
 # -- Project information -----------------------------------------------------
@@ -21,10 +36,11 @@ copyright = '2020, Iguazio'
 author = 'Iguazio'
 
 # The short X.Y version
-version = '0.4.1'
+version = current_version()
+version = version[:version.rfind('.')]
 
 # The full version, including alpha/beta/rc tags
-release = '0.4.1'
+release = current_version()
 
 
 # -- General configuration ---------------------------------------------------

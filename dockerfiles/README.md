@@ -26,7 +26,7 @@ be named:
     - other popular ml/ai packages
   * **`mlrun/ml-dask`**
     - can be used to launch 'dask' runtime jobs
-    - adds a `dask` layer to `ml-models` 
+    - adds a **`dask`** layer to **`ml-models`** 
     - complete distributed/kubernetes functionality
   * **`mlrun/ml-serving`**
     - derived from the base image, provides only predict/serving functionality
@@ -34,10 +34,10 @@ be named:
 
 WIP:
 * **`horovod-cpu`** and **`horovod-gpu`**
-* openBLAS version of `ml-models` (no MKL)
+* openBLAS version of **`ml-models`** (no MKL)
 * NVIDIA optimized base images
 * ONNX serving...
 
 
-To run an image locally and explore its contents:  `docker run -it REPO/PREFIX-ml:0.4.5 /bin/bash`<br>
-or to load python (or run a script): `docker run -it REPO/PREFIX-ml:0.4.5 python`.  
+To run an image locally and explore its contents:  **`docker run -it REPO/PREFIX-ml:0.4.5 /bin/bash`**<br>
+or to load python (or run a script): **`docker run -it REPO/PREFIX-ml:0.4.5 python`**.  

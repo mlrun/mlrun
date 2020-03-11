@@ -58,8 +58,8 @@ RUN cd /repos && \
 
 ENV USE_DAAL4PY_SKLEARN YES
 
-RUN conda clean -tipsy \
-    && find /opt/conda/ -type f,l -name '*.a' -delete \
-    && find /opt/conda/ -type f,l -name '*.pyc' -delete \
-    && find /opt/conda/ -type f,l -name '*.js.map' -delete \
-    && rm -rf /opt/conda/pkgs
+# RUN conda clean -tipsy \
+#     && find /opt/conda/ -type f,l -name '*.a' -delete \
+#     && find /opt/conda/ -type f,l -name '*.pyc' -delete \
+#     && find /opt/conda/ -type f,l -name '*.js.map' -delete \
+#     && rm -rf /opt/conda/pkgs

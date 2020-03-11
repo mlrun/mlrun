@@ -15,12 +15,15 @@ FROM continuumio/miniconda3:4.7.12
 
 MAINTAINER yashab@iguazio.com
 
-ARG MLRUN_TAG=v0.4.5
+ARG REPO
+ARG PREFIX
+ARG MLRUN_TAG
+
 
 RUN apt update -qqq \
- && apt -y upgrade \
- && apt install -yq --no-install-recommends build-essential \
- 	graphviz \
+	&& apt -y upgrade \
+	&& apt install -yq --no-install-recommends build-essential \
+	graphviz \
 	cmake \
 	curl \
 	libreadline7 \
@@ -28,21 +31,21 @@ RUN apt update -qqq \
 	libboost-dev \
 	libboost-system-dev \
 	libboost-filesystem-dev \
- && apt install -y ca-certificates \
- && update-ca-certificates --fresh \
- && apt clean \
- && apt autoremove \
- && rm -rf /var/lib/apt/lists/*
+	&& apt install -y ca-certificates \
+	&& update-ca-certificates --fresh \
+	&& apt clean \
+	&& apt autoremove \
+	&& rm -rf /var/lib/apt/lists/*
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN conda update conda && \
-    conda config --add channels intel && \
-    conda config --add channels conda-forge && \
-    conda init bash && \
-    conda install -n base intelpython3_core python=3 h5py joblib \
+	conda config --add channels intel && \
+	conda config --add channels conda-forge && \
+	conda init bash && \
+	conda install -n base intelpython3_core python=3 h5py joblib \
 	dill cloudpickle python-blosc lz4 msgpack-python==0.6.2 'fsspec>=0.6.2' \
-        tini==0.18.0 cytoolz nomkl python-graphviz 
+	tini==0.18.0 cytoolz nomkl python-graphviz 
 
 # ml/ai pipelines
 RUN conda install -n base kfp

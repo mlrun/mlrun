@@ -1,28 +1,27 @@
-mlrun Package
+mlrun Modules
 =============
 
-Module contents
----------------
+The ``mlrun`` package includes the following modules:
 
 .. automodule:: mlrun
    :members:
    :show-inheritance:
 
-mlrun.config module
+mlrun.config Module
 -------------------
 
 .. automodule:: mlrun.config
    :members:
    :show-inheritance:
 
-mlrun.model module
+mlrun.model Module
 ------------------
 
 .. automodule:: mlrun.model
    :members:
    :show-inheritance:
 
-mlrun.run module
+mlrun.run Module
 ----------------
 
 .. automodule:: mlrun.run

@@ -15,7 +15,7 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
    :maxdepth: 4
    :caption: Contents:
 
-   mlrun
+   modules
 
 
 Indices and Tables

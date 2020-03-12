@@ -579,7 +579,7 @@ class SQLDB(RunDBInterface):
     def _find_runs(self, uid, project, labels, state):
         labels = label_set(labels)
         query = self._query(Run, uid=uid, project=project, state=state)
-        return add_labels_filter(query, Run, labels)
+        return self._add_labels_filter(query, Run, labels)
 
     def _latest_uid_filter(self, query):
         # Create a sub query of latest uid (by updated) per (project,key)
@@ -612,7 +612,7 @@ class SQLDB(RunDBInterface):
             else:
                 query = query.filter(Artifact.uid == uid)
 
-        query = add_labels_filter(query, Run, labels)
+        query = self._add_labels_filter(query, Run, labels)
 
         if since or until:
             since = since or datetime.min
@@ -627,7 +627,7 @@ class SQLDB(RunDBInterface):
     def _find_functions(self, name, project, tag, labels):
         query = self._query(Function, name=name, project=project, tag=tag)
         labels = label_set(labels)
-        return add_labels_filter(query, Function, labels)
+        return self._add_labels_filter(query, Function, labels)
 
     def _delete(self, cls, **kw):
         query = self.session.query(cls).filter_by(**kw)
@@ -638,6 +638,22 @@ class SQLDB(RunDBInterface):
     def _find_lables(self, cls, label_cls, labels):
         return self.session.query(cls).join(label_cls).filter(
                 label_cls.name.in_(labels))
+
+    def _add_labels_filter(self, query, cls, labels):
+        if not labels:
+            return query
+
+        preds = []
+        for lbl in labels:
+            if '=' in lbl:
+                name, value = [v.strip() for v in lbl.split('=', 1)]
+                cond = and_(cls.Label.name == name, cls.Label.value == value)
+                preds.append(cond)
+            else:
+                preds.append(cls.Label.name == lbl.strip())
+
+        subq = self.session.query(cls.Label).filter(*preds).subquery('labels')
+        return query.join(subq)
 
 
 def table2cls(name):
@@ -695,19 +711,3 @@ def is_field(name):
     if name[0] == '_':
         return False
     return name not in ('metadata', 'Tag', 'Label')
-
-
-def add_labels_filter(query, cls, labels):
-    if not labels:
-        return query
-
-    filter_args = []
-    for query in labels:
-        if '=' in query:
-            name, value = [v.strip() for v in query.split('=', 1)]
-            cond = and_(cls.Label.name == name, cls.Label.value == value)
-            filter_args.append(cond)
-        else:
-            filter_args.append(cls.Label.name == query.strip())
-
-        return query.join(cls.Label).filter(*filter_args)

@@ -83,7 +83,6 @@ class MLClientCtx(object):
         if len(handlers)>0:
             handlers[0].stream = stream
 
-
     def _init_dbs(self, rundb):
         if rundb:
             if isinstance(rundb, str):
@@ -91,7 +90,7 @@ class MLClientCtx(object):
                 self._rundb.connect(self._secrets_manager)
             else:
                 self._rundb = rundb
-        self._data_stores = StoreManager(self._secrets_manager)
+        self._data_stores = StoreManager(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(
             self._data_stores, db=self._rundb, out_path=self._out_path)
 
@@ -198,6 +197,16 @@ class MLClientCtx(object):
         return deepcopy(self._inputs)
 
     @property
+    def results(self):
+        """dictionary of results (read-only)"""
+        return deepcopy(self._results)
+
+    @property
+    def artifacts(self):
+        """dictionary of artifacts (read-only)"""
+        return deepcopy(self._artifacts_manager.artifact_list())
+
+    @property
     def in_path(self):
         """default input path for data objects"""
         return self._in_path
@@ -255,7 +264,7 @@ class MLClientCtx(object):
             url = key
         if self.in_path and not (url.startswith('/') or '://' in url):
             url = uxjoin(self._in_path, url)
-        obj = self._data_stores.object(key, url)
+        obj = self._data_stores.object(key, url, project=self._project)
         self._inputs[key] = obj
         return obj
 
@@ -398,8 +407,9 @@ class MLClientCtx(object):
 
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
+        struct['status'][run_keys.artifacts] = \
+            self._artifacts_manager.artifact_list()
         self._data_stores.to_dict(struct['spec'])
-        self._artifacts_manager.to_dict(struct['status'])
         return struct
 
     def to_yaml(self):

@@ -15,11 +15,12 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from dateutil import parser
 from sqlalchemy import (
     BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, Table,
-    UniqueConstraint, and_, create_engine, func, or_
+    UniqueConstraint, and_, create_engine, func
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -60,6 +61,22 @@ def make_label(table):
     return Label
 
 
+def make_tag(table):
+    class Tag(Base):
+        __tablename__ = f'{table}_tags'
+        __table_args__ = (
+            UniqueConstraint(
+                'project', 'name', 'obj_id', name=f'_{table}_tags_uc'),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String)
+        name = Column(String)
+        obj_id = Column(Integer, ForeignKey(f'{table}.id'))
+
+    return Tag
+
+
 # quell SQLAlchemy warnings on duplicate class name (Label)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -71,11 +88,11 @@ with warnings.catch_warnings():
         )
 
         Label = make_label(__tablename__)
+        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         key = Column(String)
         project = Column(String)
-        tag = Column(String)
         uid = Column(String)
         updated = Column(TIMESTAMP)
         body = Column(BLOB)
@@ -84,15 +101,16 @@ with warnings.catch_warnings():
     class Function(Base, HasStruct):
         __tablename__ = 'functions'
         __table_args__ = (
-            UniqueConstraint('name', 'project', 'tag', name='_functions_uc'),
+            UniqueConstraint('name', 'project', 'uid', name='_functions_uc'),
         )
 
         Label = make_label(__tablename__)
+        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
         project = Column(String)
-        tag = Column(String)
+        uid = Column(String)
         body = Column(BLOB)
         labels = relationship(Label)
 
@@ -111,6 +129,7 @@ with warnings.catch_warnings():
         )
 
         Label = make_label(__tablename__)
+        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         uid = Column(String)
@@ -168,6 +187,11 @@ with warnings.catch_warnings():
         @spec.setter
         def spec(self, value):
             self._spec = pickle.dumps(value)
+
+
+# Must be after all table definitions
+_tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, 'Tag')]
+_table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}
 
 
 class SQLDB(RunDBInterface):
@@ -303,24 +327,24 @@ class SQLDB(RunDBInterface):
             art = Artifact(
                 key=key,
                 uid=uid,
-                tag=tag,
                 updated=updated,
                 project=project)
         update_labels(art, labels)
         art.struct = artifact
         self._upsert(art)
+        if tag:
+            self.tag_objects([art], project, tag)
 
     def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or config.default_project
+        uid = self._resolve_tag(Artifact, project, tag)
         if iter:
             key = '{}-{}'.format(iter, key)
+
         query = self._query(
             Artifact, key=key, project=project)
-        if tag:
-            query = query.filter(or_(
-                Artifact.uid == tag,
-                Artifact.tag == tag)
-            )
+        if uid:
+            query = query.filter(Artifact.uid == uid)
         else:
             # Select by last updated
             max_updated = self.session.query(
@@ -337,10 +361,13 @@ class SQLDB(RunDBInterface):
         self, name=None, project=None, tag=None, labels=None,
             since=None, until=None):
         project = project or config.default_project
-        tag = tag or 'latest'
+        uid = 'latest'
+        if tag:
+            uid = self._resolve_tag(Artifact, project, tag)
+
         arts = ArtifactList(
             obj.struct
-            for obj in self._find_artifacts(project, tag, labels, since, until)
+            for obj in self._find_artifacts(project, uid, labels, since, until)
         )
         return arts
 
@@ -365,13 +392,14 @@ class SQLDB(RunDBInterface):
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
         self._create_project_if_not_exists(project)
+        uid = tag or uuid4().hex
         update_in(func, 'metadata.updated', datetime.now(timezone.utc))
-        fn = self._get_function(name, project, tag)
+        fn = self._get_function(name, project, uid)
         if not fn:
             fn = Function(
                 name=name,
                 project=project,
-                tag=tag,
+                uid=uid,
             )
         labels = get_in(func, 'metadata.labels', {})
         update_labels(fn, labels)
@@ -380,7 +408,10 @@ class SQLDB(RunDBInterface):
 
     def get_function(self, name, project='', tag=''):
         project = project or config.default_project
-        query = self._query(Function, name=name, project=project, tag=tag)
+        query = self._query(Function, name=name, project=project)
+        if tag:
+            uid = self._resolve_tag(Function, project, tag)
+            query = query.filter(Function.Tag.uid == uid)
         obj = query.one_or_none()
         if obj:
             return obj.struct
@@ -388,16 +419,20 @@ class SQLDB(RunDBInterface):
     def list_functions(
             self, name, project=None, tag=None, labels=None):
         project = project or config.default_project
+        uid = tag
+        if uid:
+            uid = self._resolve_tag(Function, project, uid)
+
         funcs = FunctionList()
         funcs.extend(
             obj.struct
-            for obj in self._find_functions(name, project, tag, labels)
+            for obj in self._find_functions(name, project, uid, labels)
         )
         return funcs
 
     def list_artifact_tags(self, project):
-        query = self.session.query(Artifact.tag).filter(
-            Artifact.project == project).distinct()
+        query = self.session.query(Artifact.Tag.name).filter(
+            Artifact.Tag.project == project).distinct()
         return [row[0] for row in query]
 
     def store_schedule(self, data):
@@ -407,6 +442,43 @@ class SQLDB(RunDBInterface):
 
     def list_schedules(self):
         return [s.struct for s in self.session.query(Schedule)]
+
+    def tag_objects(self, objs, project: str, name: str):
+        """Tag objects with (project, name) tag.
+
+        If force==True will update tag
+        """
+        for obj in objs:
+            tag = obj.Tag(project=project, name=name, obj_id=obj.id)
+            self.session.add(tag)
+
+    def del_tag(self, project: str, name: str):
+        """Remove tag (project, name) from all objects"""
+        count = 0
+        for cls in _tagged:
+            for obj in self._query(cls.Tag, project=project, name=name):
+                self.session.delete(obj)
+                count += 1
+        return count
+
+    def find_tagged(self, project: str, name: str):
+        """Return all objects tagged with (project, name)
+
+        If not tag found, will return an empty str.
+        """
+        objs = []
+        for cls in _tagged:
+            for tag in self._query(cls.Tag, project=project, name=name):
+                objs.append(self._query(cls).get(tag.obj_id))
+        return objs
+
+    def list_tags(self, project: str):
+        """Return all tags for a project"""
+        tags = set()
+        for cls in _tagged:
+            for tag in self._query(cls.Tag, project=project):
+                tags.add(tag.name)
+        return tags
 
     def add_project(self, project: dict):
         project = project.copy()
@@ -450,6 +522,11 @@ class SQLDB(RunDBInterface):
     def list_projects(self, owner=None):
         return self._query(Project, owner=owner)
 
+    def _resolve_tag(self, cls, project, name):
+        for tag in self._query(cls.Tag, project=project, name=name):
+            return self._query(cls).get(tag.obj_id).uid
+        return name  # Not found, return original uid
+
     def _query(self, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
         return self.session.query(cls).filter_by(**kw)
@@ -474,7 +551,8 @@ class SQLDB(RunDBInterface):
         return users
 
     def _get_function(self, name, project, tag):
-        query = self._query(Function, name=name, project=project, tag=tag)
+        uid = self._resolve_tag(Function, project, name)
+        query = self._query(Function, name=name, project=project, uid=uid)
         return query.one_or_none()
 
     def _get_artifact(self, uid, project, key):
@@ -525,17 +603,14 @@ class SQLDB(RunDBInterface):
             )
         )
 
-    def _find_artifacts(self, project, tag, labels, since, until):
+    def _find_artifacts(self, project, uid, labels, since, until):
         labels = label_set(labels)
         query = self._query(Artifact, project=project)
-        if tag != '*':
-            if tag == 'latest':
+        if uid != '*':
+            if uid == 'latest':
                 query = self._latest_uid_filter(query)
             else:
-                query = query.filter(or_(
-                    Artifact.tag == tag,
-                    Artifact.uid == tag,
-                ))
+                query = query.filter(Artifact.uid == uid)
 
         query = add_labels_filter(query, Run, labels)
 
@@ -565,22 +640,15 @@ class SQLDB(RunDBInterface):
                 label_cls.name.in_(labels))
 
 
+def table2cls(name):
+    return _table2cls.get(name)
+
+
 def label_set(labels):
     if isinstance(labels, str):
         labels = labels.split(',')
 
     return set(labels or [])
-
-
-class RunWrapper:
-    def __init__(self, run):
-        self.run = run
-
-    def __getattr__(self, attr):
-        try:
-            return self.run[attr]
-        except KeyError:
-            raise AttributeError(attr)
 
 
 def run_start_time(run):
@@ -626,7 +694,7 @@ def to_dict(obj):
 def is_field(name):
     if name[0] == '_':
         return False
-    return name != 'metadata'
+    return name not in ('metadata', 'Tag', 'Label')
 
 
 def add_labels_filter(query, cls, labels):

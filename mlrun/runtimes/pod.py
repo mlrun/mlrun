@@ -99,7 +99,17 @@ class KubeResource(BaseRuntime):
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude, strip=strip)
         api = client.ApiClient()
-        return api.sanitize_for_serialization(struct)
+        struct = api.sanitize_for_serialization(struct)
+        if strip:
+            spec = struct['spec']
+            for attr in ['volumes', 'volume_mounts']:
+                if attr in spec:
+                    del spec[attr]
+            if 'env' in spec and spec['env']:
+                for ev in spec['env']:
+                    if ev['name'].startswith('V3IO_'):
+                        ev['value'] = ''
+        return struct
 
     def apply(self, modify):
         return apply_kfp(modify, self._cop, self)

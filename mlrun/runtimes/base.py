@@ -568,14 +568,6 @@ class BaseRuntime(ModelObj):
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)
         if strip:
-            spec = struct['spec']
-            for attr in ['volumes', 'volume_mounts']:
-                if attr in spec:
-                    del spec[attr]
-            if 'env' in spec and spec['env']:
-                for ev in spec['env']:
-                    if ev['name'].startswith('V3IO_'):
-                        ev['value'] = ''
             if 'status' in struct:
                 del struct['status']
         return struct

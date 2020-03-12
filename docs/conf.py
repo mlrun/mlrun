@@ -10,8 +10,23 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+
+import re
 import sys
+from os import path
+
 sys.path.insert(0, '..')
+
+
+def current_version():
+    root = path.dirname(path.dirname(path.abspath(__file__)))
+    with open('{}/mlrun/__init__.py'.format(root)) as fp:
+        for line in fp:
+            # __version__ = '0.4.6'
+            match = re.search(r"__version__\s*=\s*'([^']+)'", line)
+            if match:
+                return match.group(1)
+    return 'UNKNOWN'
 
 
 # -- Project information -----------------------------------------------------
@@ -21,10 +36,11 @@ copyright = '2020, Iguazio'
 author = 'Iguazio'
 
 # The short X.Y version
-version = '0.4.1'
+version = current_version()
+version = version[:version.rfind('.')]
 
 # The full version, including alpha/beta/rc tags
-release = '0.4.1'
+release = current_version()
 
 
 # -- General configuration ---------------------------------------------------
@@ -61,6 +77,11 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # a list of builtin themes.
 #
 html_theme = 'alabaster'
+try:
+    import sphinx_rtd_theme  # noqa
+    html_theme = 'sphinx_rtd_theme'
+except ImportError:
+    pass
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

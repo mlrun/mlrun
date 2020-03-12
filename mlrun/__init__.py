@@ -11,6 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+A generic an easy to use mechanism for data scientists and
+developers/engineers.
+
+to describe and run machine learning related tasks in various scalable runtime
+environments and ML pipelines while automatically tracking code, metadata,
+inputs, and outputs of executions.  MLRun integrate/use
+`Nuclio serverless project`_ and `KubeFlow`_.
+
+.. _`Nuclio serverless project`: https://github.com/nuclio/nuclio
+.. _KubeFlow: https://www.kubeflow.org/
+"""
 
 __version__ = '0.4.6'
 

@@ -194,7 +194,8 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        pod_spec = func_to_pod(self.full_image_path(), self, extra_env, command, args)
+        pod_spec = func_to_pod(self.full_image_path(), self, extra_env,
+                               command, args, self.spec.workdir)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace = k8s.create_pod(pod)
@@ -215,12 +216,13 @@ class KubejobRuntime(KubeResource):
         return None
 
 
-def func_to_pod(image, runtime, extra_env, command, args):
+def func_to_pod(image, runtime, extra_env, command, args, workdir):
     container = client.V1Container(name='base',
                                    image=image,
                                    env=extra_env + runtime.spec.env,
                                    command=[command],
                                    args=args,
+                                   working_dir=workdir,
                                    image_pull_policy=runtime.spec.image_pull_policy,
                                    volume_mounts=runtime.spec.volume_mounts,
                                    resources=runtime.spec.resources)

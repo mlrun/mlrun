@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import shutil
-
 from ..model import ModelObj
 import tarfile
 from tempfile import mktemp
@@ -37,12 +36,18 @@ class ProjectError(Exception):
     pass
 
 
-def new_project(name, context=None, functions=None, workflows=None,
-                init_git=False):
-    """Create a new MLRun project"""
+def new_project(name, context=None, functions=None, init_git=False):
+    """Create a new MLRun project
+
+    :param name:       project name
+    :param context:    project local directory path
+    :param functions:  list of function links/objects
+    :param init_git:   if True, will git init the context dir
+
+    :returns: project object
+    """
     project = MlrunProject(name=name,
-                           functions=functions,
-                           workflows=workflows)
+                           functions=functions)
     project.context = context
 
     if init_git:
@@ -53,8 +58,20 @@ def new_project(name, context=None, functions=None, workflows=None,
 
 
 def load_project(context, url=None, name=None, secrets=None,
-                 mount_url=None, init_git=False, subpath='', clone=False):
-    """Load an MLRun project from git or tar or dir"""
+                 init_git=False, subpath='', clone=False):
+    """Load an MLRun project from git or tar or dir
+
+    :param context:    project local directory path
+    :param url:        git or tar.gz sources archive path e.g.:
+                       git://github.com/mlrun/demo-xgb-project.git
+    :param name:       project name
+    :param secrets:    dict of key:secret to be used in workflows/jobs
+    :param init_git:   if True, will git init the context dir
+    :param subpath:    project subpath (within the archive)
+    :param clone:      if True, always clone (delete any existing content)
+
+    :returns: project object
+    """
 
     secrets = secrets or {}
     repo = None
@@ -78,7 +95,7 @@ def load_project(context, url=None, name=None, secrets=None,
                 repo = Repo.init(context)
 
     project = _load_project_dir(context, name, subpath)
-    project.source = mount_url or url
+    project.source = url
     project.repo = repo
     if repo:
         project.branch = repo.active_branch.name
@@ -100,8 +117,7 @@ def _load_project_dir(context, name='', subpath=''):
         func = import_function(path.join(context, subpath, 'function.yaml'))
         project = MlrunProject(name=func.metadata.project,
                                functions=[{'url': 'function.yaml',
-                                           'name': func.metadata.name}],
-                               workflows=[])
+                                           'name': func.metadata.name}])
     else:
         raise ValueError('project or function YAML not found in path')
 
@@ -115,7 +131,7 @@ class MlrunProject(ModelObj):
     kind = 'project'
 
     def __init__(self, name=None, description=None, params=None,
-                 functions=None, workflows=None, conda=None):
+                 functions=None, workflows=None, artifacts=None, conda=None):
 
         self._initialized = False
         self.name = name
@@ -127,12 +143,14 @@ class MlrunProject(ModelObj):
         self.subpath = ''
         self.branch = None
         self.repo = None
-        self.workflows = workflows or []
-        self._workflows = {}
         self._secrets = {}
         self.params = params or {}
         self.conda = conda or {}
         self.remote = False
+        self._mount = None
+
+        self.workflows = workflows or []
+        self.artifacts = artifacts or []
 
         self._function_objects = {}
         self._function_defs = {}
@@ -157,6 +175,16 @@ class MlrunProject(ModelObj):
         if src:
             return src.split('#')[0]
         return ''
+
+    @property
+    def mount(self) -> str:
+        if self._mount and self._mount in ['.', './']:
+            return path.abspath(self.context)
+        return self._mount
+
+    @mount.setter
+    def mount(self, mount):
+        self._mount = mount
 
     @property
     def functions(self) -> list:
@@ -215,6 +243,27 @@ class MlrunProject(ModelObj):
     def set_workflow(self, name, code):
         self._workflows[name] = {'name': name, 'code':code}
 
+    @property
+    def artifacts(self) -> list:
+        return [a for a in self._artifacts.values()]
+
+    @artifacts.setter
+    def artifacts(self, artifacts):
+        if not isinstance(artifacts, list):
+            raise ValueError('artifacts must be a list')
+
+        afdict = {}
+        for a in artifacts:
+            if not isinstance(a, dict):
+                raise ValueError('artifacts must be a dict')
+            name = a.get('name', '')
+            # todo: support steps dsl as code alternative
+            if not name:
+                raise ValueError('artifacts "name" must be specified')
+            afdict[name] = a
+
+        self._artifacts = afdict
+
     def reload(self, sync=False):
         project = _load_project_dir(self.context, self.name, self.subpath)
         project.source = self.source
@@ -223,6 +272,7 @@ class MlrunProject(ModelObj):
         project.origin_url = self.origin_url
         if sync:
             project.sync_functions()
+        self.__dict__.update(project.__dict__)
         return project
 
     def set_function(self, func, name='', kind='', image=None):
@@ -353,10 +403,9 @@ class MlrunProject(ModelObj):
             workflow_path = path.join(self.context, workflow_path)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
-        run = _run_pipeline(name, workflow_path, self._function_objects,
-                            self.params, secrets=self._secrets,
-                            arguments=arguments, artifact_path=artifact_path,
-                            namespace=namespace, remote=self.remote)
+        run = _run_pipeline(self, name, workflow_path, self._function_objects,
+                            secrets=self._secrets, arguments=arguments,
+                            artifact_path=artifact_path, namespace=namespace)
         return run
 
     def save_workflow(self, name, target, artifact_path=None):
@@ -364,9 +413,8 @@ class MlrunProject(ModelObj):
             raise ValueError('workflow {} not found'.format(name))
 
         wfpath = path.join(self.context, self._workflows.get(name)['code'])
-        pipeline = create_pipeline(wfpath, self._function_objects,
-                                   self.params, secrets=self._secrets,
-                                   artifact_path=artifact_path)
+        pipeline = create_pipeline(self, wfpath, self._function_objects,
+                                   secrets=self._secrets)
 
         conf = new_pipe_meta(artifact_path)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
@@ -387,6 +435,10 @@ def init_function_from_dict(f, project):
     url = f.get('url', '')
     kind = f.get('kind', '')
     image = f.get('image', None)
+    with_repo = f.get('with_repo', False)
+
+    if with_repo and not project.source:
+        raise ValueError('project source must be specified when cloning context')
 
     in_context = False
     if not url and 'spec' not in f:
@@ -397,7 +449,7 @@ def init_function_from_dict(f, project):
             url = path.join(project.context, url)
             in_context = True
         if not path.isfile(url):
-            raise Exception('{} not found'.format(url))
+            raise OSError('{} not found'.format(url))
 
     if 'spec' in f:
         func = new_function(name, runtime=f['spec'])
@@ -408,28 +460,29 @@ def init_function_from_dict(f, project):
     elif url.endswith('.py'):
         if not image:
             raise ValueError('image must be provided with py code files')
-        if in_context:
+        if in_context and with_repo:
             func = new_function(name, command=url, image=image, kind=kind or 'job')
         else:
             func = code_to_function(name, filename=url, image=image, kind=kind or 'job')
     else:
         raise ValueError('unsupported function url {} or no spec'.format(url))
 
-    return init_function_from_obj(func, project, name, in_context)
+    if with_repo:
+        func.spec.build.source = './'
+
+    return init_function_from_obj(func, project, name)
 
 
-def init_function_from_obj(func, project, name=None, in_context=True):
+def init_function_from_obj(func, project, name=None):
     build = func.spec.build
-    if project.source and in_context and \
-            (not build.source or build.source in ['.', './']):
-        build.source = project.source
-        if project.repo:
-            origin = project.origin_url
-            try:
+    if project.origin_url:
+        origin = project.origin_url
+        try:
+            if project.repo:
                 origin += '#' + project.repo.head.commit.hexsha
-            except Exception:
-                pass
-            build.code_origin = origin
+        except Exception:
+            pass
+        build.code_origin = origin
     if project.name:
         func.metadata.project = project.name
     if project.tag:
@@ -438,8 +491,18 @@ def init_function_from_obj(func, project, name=None, in_context=True):
     return name or func.metadata.name, func
 
 
-def create_pipeline(pipeline, functions, params=None, secrets=None,
-                    artifact_path=None):
+def create_pipeline(project, pipeline, funcs, secrets=None):
+    functions = {}
+    for name, func in funcs.items():
+        f = func.copy()
+        src = f.spec.build.source
+        if project.source and src and src in ['.', './']:
+            if project.mount:
+                f.spec.workdir = project.mount
+            else:
+                f.spec.build.source = project.source
+
+        functions[name] = f
 
     spec = imputil.spec_from_file_location('workflow', pipeline)
     if spec is None:
@@ -447,11 +510,10 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    setattr(mod, 'artifact_path', artifact_path)
     setattr(mod, 'funcs', functions)
 
     if hasattr(mod, 'init_functions'):
-        getattr(mod, 'init_functions')(functions, params, secrets)
+        getattr(mod, 'init_functions')(functions, project, secrets)
 
     if not hasattr(mod, 'kfpipeline'):
         raise ValueError('pipeline function (kfpipeline) not found')
@@ -460,11 +522,10 @@ def create_pipeline(pipeline, functions, params=None, secrets=None,
     return kfpipeline
 
 
-def _run_pipeline(name, pipeline, functions, params=None, secrets=None,
-                  arguments=None, artifact_path=None, namespace=None,
-                  remote=False):
-    kfpipeline = create_pipeline(pipeline, functions, params, secrets,
-                                 artifact_path)
+def _run_pipeline(project, name, pipeline, functions, secrets=None,
+                  arguments=None, artifact_path=None, namespace=None):
+    remote = project.remote
+    kfpipeline = create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,

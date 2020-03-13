@@ -60,7 +60,7 @@ class FunctionEntrypoint(ModelObj):
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  build=None, entry_points=None, description=None,
-                 default_handler=None, pythonpath=None):
+                 workdir=None, default_handler=None, pythonpath=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -68,7 +68,7 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
-        self.workdir = None
+        self.workdir = workdir
         self.pythonpath = pythonpath
 
         self._build = None
@@ -218,7 +218,8 @@ class BaseRuntime(ModelObj):
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or artifact_path \
                                    or runspec.spec.output_path
-        runspec.spec.input_path = workdir or runspec.spec.input_path
+        runspec.spec.input_path = workdir or runspec.spec.input_path \
+                                  or self.spec.workdir
 
         spec = runspec.spec
         if self.spec.mode and self.spec.mode == 'noctx':

@@ -15,6 +15,7 @@
 import json
 import logging
 import re
+import pathlib
 from datetime import datetime, timezone
 from os import path
 from sys import stdout
@@ -253,6 +254,8 @@ class MyEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, pathlib.PosixPath):
+            return str(obj)
         else:
             return super(MyEncoder, self).default(obj)
 

@@ -173,7 +173,7 @@ def run_local(task, command='', name: str = '', args: list = None,
         raise ValueError('unsupported suffix: {}'.format(suffix))
 
     fn = new_function(name, project, tag, command=command, args=args)
-    fn.spec.workdir = workdir
+    fn.spec.workdir = str(workdir or '')
     return fn.run(task)
 
 

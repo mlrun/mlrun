@@ -89,14 +89,16 @@ class KubejobRuntime(KubeResource):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
-            return 'ready'
+            self.status.state = 'ready'
+            return True
 
         build = self.spec.build
         if not build.source and not build.commands and not with_mlrun:
             if not self.spec.image:
                 raise ValueError('noting to build and image is not specified, '
                                  'please set the function image or build args')
-            return 'ready'
+            self.status.state = 'ready'
+            return True
 
         if not build.source and not build.commands and with_mlrun:
             logger.info('running build to add mlrun package, set '

@@ -499,6 +499,7 @@ def create_pipeline(project, pipeline, funcs, secrets=None):
         if project.source and src and src in ['.', './']:
             if project.mount:
                 f.spec.workdir = project.mount
+                f.spec.build.source = ''
             else:
                 f.spec.build.source = project.source
 

@@ -147,7 +147,7 @@ class MlrunProject(ModelObj):
         self.params = params or {}
         self.conda = conda or {}
         self.remote = False
-        self._mount = None
+        self._mountdir = None
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -158,6 +158,7 @@ class MlrunProject(ModelObj):
 
     @property
     def source(self) -> str:
+        """source url or git repo"""
         if not self._source:
             if self.repo:
                 url = _get_repo_url(self.repo)
@@ -177,17 +178,21 @@ class MlrunProject(ModelObj):
         return ''
 
     @property
-    def mount(self) -> str:
-        if self._mount and self._mount in ['.', './']:
-            return path.abspath(self.context)
-        return self._mount
+    def mountdir(self) -> str:
+        """specify to mount the context dir inside the function container
+        use '.' to use the same path as in the client e.g. Jupyter"""
 
-    @mount.setter
-    def mount(self, mount):
-        self._mount = mount
+        if self._mountdir and self._mountdir in ['.', './']:
+            return path.abspath(self.context)
+        return self._mountdir
+
+    @mountdir.setter
+    def mountdir(self, mountdir):
+        self._mountdir = mountdir
 
     @property
     def functions(self) -> list:
+        """list of function object/specs used in this project"""
         funcs = []
         for name, f in self._function_defs.items():
             if hasattr(f, 'to_dict'):
@@ -221,6 +226,7 @@ class MlrunProject(ModelObj):
 
     @property
     def workflows(self) -> list:
+        """list of workflows specs used in this project"""
         return [w for w in self._workflows.values()]
 
     @workflows.setter
@@ -245,6 +251,7 @@ class MlrunProject(ModelObj):
 
     @property
     def artifacts(self) -> list:
+        """list of artifacts used in this project"""
         return [a for a in self._artifacts.values()]
 
     @artifacts.setter
@@ -265,6 +272,12 @@ class MlrunProject(ModelObj):
         self._artifacts = afdict
 
     def reload(self, sync=False):
+        """reload the project and function objects from yaml/specs
+
+        :param sync:  set to True to load functions objects
+
+        :returns: project object
+        """
         project = _load_project_dir(self.context, self.name, self.subpath)
         project.source = self.source
         project.repo = self.repo
@@ -276,14 +289,39 @@ class MlrunProject(ModelObj):
         return project
 
     def set_function(self, func, name='', kind='', image=None):
+        """update or add a function object to the project
+
+        function can be provided as an object (func) or a .py/.ipynb/.yaml url
+        support url prefixes:
+            object (s3://, v3io://, ..)
+            MLRun DB e.g. db://project/func:ver
+            functions hub/market: e.g. hub://sklearn_classifier:master
+
+        examples:
+
+        proj.set_function(func_object)
+        proj.set_function('./src/mycode.py', 'ingest', image='myrepo/ing:latest')
+        proj.set_function('http://.../mynb.ipynb', 'train')
+        proj.set_function('./func.yaml')
+        proj.set_function('hub://get_toy_data', 'getdata')
+
+        :param func:   function object or spec/code url
+        :param name:   name of the function (under the project)
+        :param kind:   runtime kind e.g. job, nuclio, spark, dask, mpijob
+                       default: job
+        :param image:  docker image to be used, can also be specified in the
+                       function object/yaml
+
+        :returns: project object
+        """
         if isinstance(func, str):
             if not name:
                 raise ValueError('function name must be specified')
             fdict = {'url': func, 'name': name, 'kind': kind, 'image': image}
             func = {k: v for k, v in fdict.items() if v}
-            name, f = init_function_from_dict(func, self)
+            name, f = _init_function_from_dict(func, self)
         elif hasattr(func, 'to_dict'):
-            name, f = init_function_from_obj(func, self, name=name)
+            name, f = _init_function_from_obj(func, self, name=name)
             if not name:
                 raise ValueError('function name must be specified')
         else:
@@ -294,6 +332,12 @@ class MlrunProject(ModelObj):
         return self
 
     def func(self, key, sync=False):
+        """get function object by name
+
+        :param sync:  will reload/reinit the function
+
+        :returns: function object
+        """
         if key not in self._function_defs:
             raise KeyError('function {} not found'.format(key))
         if sync or not self._initialized or key not in self._function_objects:
@@ -301,6 +345,11 @@ class MlrunProject(ModelObj):
         return self._function_objects[key]
 
     def pull(self, branch=None, remote=None):
+        """pull/update sources from git or tar into the context dir
+
+        :param branch:  git branch, if not the current one
+        :param remote:  git remote, if other than origin
+        """
         url = self.origin_url
         if url and url.startswith('git://'):
             if not self.repo:
@@ -314,6 +363,11 @@ class MlrunProject(ModelObj):
             clone_tgz(url, self.context, self._secrets)
 
     def create_remote(self, url, name='origin'):
+        """create remote for the project git
+
+        :param url:   remote git url
+        :param name:  name for the remote (default is 'origin')
+        """
         if not self.repo:
             raise ValueError('git repo is not set/defined')
         self.repo.create_remote(name, url=url)
@@ -327,6 +381,14 @@ class MlrunProject(ModelObj):
 
     def push(self, branch, message=None, update=True, remote=None,
              add: list = None):
+        """update spec and push updates to remote git repo
+
+         :param branch:  target git branch
+         :param message: git commit message
+         :param update:  update files (git add update=True)
+         :param remote:  git remote, default to origin
+         :param add:     list of files to add
+         """
         repo = self.repo
         if not repo:
             raise ValueError('git repo is not set/defined')
@@ -347,6 +409,7 @@ class MlrunProject(ModelObj):
         repo.git.push(remote or 'origin', branch)
 
     def sync_functions(self, names: list = None, always=True, save=False):
+        """reload function objects from specs and files"""
         if self._initialized and not always:
             return
 
@@ -359,11 +422,11 @@ class MlrunProject(ModelObj):
             if not f:
                 raise ValueError('function named {} not found'.format(name))
             if hasattr(f, 'to_dict'):
-                name, func = init_function_from_obj(f, self)
+                name, func = _init_function_from_obj(f, self)
             else:
                 if not isinstance(f, dict):
                     raise ValueError('function must be an object or dict')
-                name, func = init_function_from_dict(f, self)
+                name, func = _init_function_from_dict(f, self)
             func.spec.build.code_origin = origin
             funcs[name] = func
             if save:
@@ -373,11 +436,28 @@ class MlrunProject(ModelObj):
         self._initialized = True
 
     def with_secrets(self, secrets):
+        """provide a dict of secrets: {'key': 'val', ..}"""
         self._secrets = secrets
         return self
 
     def run(self, name=None, workflow_path=None, arguments=None,
             artifact_path=None, namespace=None, sync=False, dirty=False):
+        """run a workflow using kubeflow pipelines
+
+        :param name:      name of the workflow
+        :param workflow_path:
+                          url to a workflow file, if not a project workflow
+        :param arguments:
+                          kubeflow pipelines arguments (parameters)
+        :param artifact_path:
+                          target path/url for workflow artifacts, the string
+                          '{{workflow.uid}}' will be replaced by workflow id
+        :param namespace: kubernetes namespace if other than default
+        :param sync:      force functions sync before run
+        :param dirty:     allow running the workflow when the git repo is dirty
+
+        :returns: run id
+        """
 
         if self.repo and self.repo.is_dirty():
             msg = 'you seem to have uncommitted git changes, use .push()'
@@ -409,28 +489,38 @@ class MlrunProject(ModelObj):
         return run
 
     def save_workflow(self, name, target, artifact_path=None):
+        """create and save a workflow as a yaml or archive file
+
+        :param name:   workflow name
+        :param target: target file path (can end with .yaml or .zip)
+        :param artifact_path:
+                       target path/url for workflow artifacts, the string
+                       '{{workflow.uid}}' will be replaced by workflow id
+        """
         if not name or name not in self._workflows:
             raise ValueError('workflow {} not found'.format(name))
 
         wfpath = path.join(self.context, self._workflows.get(name)['code'])
-        pipeline = create_pipeline(self, wfpath, self._function_objects,
-                                   secrets=self._secrets)
+        pipeline = _create_pipeline(self, wfpath, self._function_objects,
+                                    secrets=self._secrets)
 
         conf = new_pipe_meta(artifact_path)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
 
     def clear_context(self):
+        """delete all files and clear the context dir"""
         if self.context and path.exists(self.context) and path.isdir(self.context):
             shutil.rmtree(self.context)
 
     def save(self, filepath=None):
+        """save the project object into a file (default to project.yaml)"""
         filepath = filepath or path.join(self.context, self.subpath,
                                          'project.yaml')
         with open(filepath, 'w') as fp:
             fp.write(self.to_yaml())
 
 
-def init_function_from_dict(f, project):
+def _init_function_from_dict(f, project):
     name = f.get('name', '')
     url = f.get('url', '')
     kind = f.get('kind', '')
@@ -470,10 +560,10 @@ def init_function_from_dict(f, project):
     if with_repo:
         func.spec.build.source = './'
 
-    return init_function_from_obj(func, project, name)
+    return _init_function_from_obj(func, project, name)
 
 
-def init_function_from_obj(func, project, name=None):
+def _init_function_from_obj(func, project, name=None):
     build = func.spec.build
     if project.origin_url:
         origin = project.origin_url
@@ -491,14 +581,14 @@ def init_function_from_obj(func, project, name=None):
     return name or func.metadata.name, func
 
 
-def create_pipeline(project, pipeline, funcs, secrets=None):
+def _create_pipeline(project, pipeline, funcs, secrets=None):
     functions = {}
     for name, func in funcs.items():
         f = func.copy()
         src = f.spec.build.source
         if project.source and src and src in ['.', './']:
-            if project.mount:
-                f.spec.workdir = project.mount
+            if project.mountdir:
+                f.spec.workdir = project.mountdir
                 f.spec.build.source = ''
             else:
                 f.spec.build.source = project.source
@@ -526,7 +616,7 @@ def create_pipeline(project, pipeline, funcs, secrets=None):
 def _run_pipeline(project, name, pipeline, functions, secrets=None,
                   arguments=None, artifact_path=None, namespace=None):
     remote = project.remote
-    kfpipeline = create_pipeline(project, pipeline, functions, secrets)
+    kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,

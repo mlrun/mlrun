@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .project import load_project, new_project
+from .project import load_project, new_project, MlrunProject

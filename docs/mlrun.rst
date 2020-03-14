@@ -8,6 +8,20 @@ Module contents
    :members:
    :show-inheritance:
 
+mlrun.run module
+----------------
+
+.. automodule:: mlrun.run
+   :members:
+   :show-inheritance:
+
+mlrun.project module
+----------------
+
+.. automodule:: mlrun.project
+   :members:
+   :show-inheritance:
+
 mlrun.config module
 -------------------
 
@@ -19,12 +33,5 @@ mlrun.model module
 ------------------
 
 .. automodule:: mlrun.model
-   :members:
-   :show-inheritance:
-
-mlrun.run module
-----------------
-
-.. automodule:: mlrun.run
    :members:
    :show-inheritance:

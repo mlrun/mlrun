@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import uuid
+from copy import deepcopy
+
 from kubernetes import client
+from kfp.dsl import ContainerOp
 
 from .utils import apply_kfp, set_named_item, get_item_name
 from ..utils import normalize_name, update_in
@@ -79,12 +82,6 @@ class KubeResource(BaseRuntime):
     _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
-        try:
-            from kfp.dsl import ContainerOp
-        except (ImportError, ModuleNotFoundError) as e:
-            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
-            raise e
-
         super().__init__(metadata, spec)
         self._cop = ContainerOp('name', 'image')
         self.verbose = False
@@ -168,3 +165,10 @@ class KubeResource(BaseRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
+
+    def copy(self):
+        self._cop = None
+        fn = deepcopy(self)
+        self._cop = ContainerOp('name', 'image')
+        fn._cop = ContainerOp('name', 'image')
+        return fn

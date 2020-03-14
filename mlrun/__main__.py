@@ -15,18 +15,16 @@
 # limitations under the License.
 
 import json
-import sys
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
-
 import click
 import yaml
-
 from tabulate import tabulate
+
 
 from mlrun import load_project
 from . import get_version
@@ -218,7 +216,6 @@ def build(func_url, name, project, tag, image, source, base_image, command,
         func = new_function(runtime=runtime)
     elif func_url.startswith('db://'):
         func_url = func_url[5:]
-        project, name, tag = parse_function_uri(func_url)
         func = import_function(func_url, db=db)
     elif func_url:
         func_url = 'function.yaml' if func_url == '.' else func_url

@@ -33,9 +33,10 @@ from .model import RunObject
 from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
 )
-from .runtimes.base import EntrypointParam, FunctionEntrypoint
+from .runtimes.base import FunctionEntrypoint
 from .runtimes.utils import add_code_metadata, global_context
-from .utils import get_in, logger, parse_function_uri, update_in, new_pipe_meta
+from .utils import (get_in, logger, parse_function_uri, update_in,
+                    new_pipe_meta, extend_hub_uri)
 from .config import config as mlconf
 
 
@@ -289,6 +290,7 @@ def import_function(url='', secrets=None, db=''):
             ))
         return new_function(runtime=runtime)
 
+    url = extend_hub_uri(url)
     runtime = import_function_to_dict(url, secrets)
     return new_function(runtime=runtime)
 

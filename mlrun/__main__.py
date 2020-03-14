@@ -267,17 +267,20 @@ def build(func_url, name, project, tag, image, source, base_image, command,
     if hasattr(func, 'deploy'):
         logger.info('remote deployment started')
         try:
-            func.deploy(with_mlrun=with_mlrun, watch=not silent,
-                        is_kfp=kfp, skip_deployed=skip)
+            ready = func.deploy(with_mlrun=with_mlrun, watch=not silent,
+                                is_kfp=kfp, skip_deployed=skip)
         except Exception as err:
             print('deploy error, {}'.format(err))
             exit(1)
 
         if kfp:
+            print('Post Build: {}'.format(ready))
+            pprint(func.to_yaml())
+
             state = func.status.state
             image = func.spec.image
             with open('/tmp/state', 'w') as fp:
-                fp.write(state)
+                fp.write(state or 'none')
             full_image = func.full_image_path(image) or ''
             with open('/tmp/image', 'w') as fp:
                 fp.write(full_image)

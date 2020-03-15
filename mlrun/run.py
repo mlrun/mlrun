@@ -77,14 +77,14 @@ def run_local(task, command='', name: str = '', args: list = None,
         is_remote = False
         if is_obj:
             runtime = command.to_dict()
-            command = command.spec.command
             handler = command.spec.default_handler
+            command = command.spec.command
         else:
             is_remote = '://' in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
-            command = get_in(runtime, 'spec.command', '')
             handler = get_in(runtime, 'spec.default_handler', '')
+            command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
         if code:
             fpath = mktemp('.py')

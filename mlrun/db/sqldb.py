@@ -546,7 +546,7 @@ class SQLDB(RunDBInterface):
         return users
 
     def _get_function(self, name, project, tag):
-        uid = self._resolve_tag(Function, project, name)
+        uid = self._resolve_tag(Function, project, tag)
         query = self._query(Function, name=name, project=project, uid=uid)
         return query.one_or_none()
 

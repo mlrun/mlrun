@@ -673,7 +673,7 @@ def clone_git(url, context, secrets, clone):
     if urlobj.fragment:
         refs = urlobj.fragment
         if refs.startswith('refs/'):
-            branch = branch[branch.rfind('/')+1:]
+            branch = refs[refs.rfind('/')+1:]
         else:
             url = url.replace('#' + refs, '#refs/heads/{}'.format(refs))
 

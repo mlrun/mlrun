@@ -106,6 +106,7 @@ class BaseRuntime(ModelObj):
         self._status = None
         self.status = None
         self._is_api_server = False
+        self.verbose = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
@@ -173,7 +174,7 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', workdir: str = '', artifact_path='',
+            out_path: str = '', workdir: str = '', artifact_path: str = '',
             watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
@@ -240,12 +241,15 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = path.join(config.artifact_path, meta.uid)
         if is_local(runspec.spec.output_path):
             logger.warning('artifact path is not defined or is local,'
-                           'artifacts will not be visible in the UI')
+                           ' artifacts will not be visible in the UI')
         db = self._get_db()
 
         if not self.is_deployed:
             raise RunError(
                 "function image is not built/ready, use .build() method first")
+
+        if self.verbose:
+            logger.info('runspec:\n{}'.format(runspec.to_yaml()))
 
         if not self.is_child:
             dbstr = 'self' if self._is_api_server else self.spec.rundb

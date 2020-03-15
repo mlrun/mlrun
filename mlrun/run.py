@@ -72,16 +72,19 @@ def run_local(task, command='', name: str = '', args: list = None,
 
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
+    handler = None
     if is_obj or suffix == '.yaml':
         is_remote = False
         if is_obj:
             runtime = command.to_dict()
             command = command.spec.command
+            handler = command.spec.default_handler
         else:
             is_remote = '://' in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
             command = get_in(runtime, 'spec.command', '')
+            handler = get_in(runtime, 'spec.default_handler', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
         if code:
             fpath = mktemp('.py')
@@ -117,6 +120,8 @@ def run_local(task, command='', name: str = '', args: list = None,
     fn = new_function(name, project, tag, command=command, args=args)
     if workdir:
         fn.spec.workdir = str(workdir)
+    if handler:
+        fn.spec.default_handler = handler
     return fn.run(task)
 
 

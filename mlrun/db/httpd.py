@@ -830,10 +830,14 @@ def get_project(name):
 def list_projects():
     full = strtobool(request.args.get('full', 'no'))
     fn = db2dict if full else attrgetter('name')
-    return jsonify(
-        ok=True,
-        projects=[fn(p) for p in _db.list_projects()]
-    )
+    projects = []
+    for p in _db.list_projects():
+        if isinstance(p, str):
+            projects.append(p)
+        else:
+            projects.append(fn(p))
+
+    return jsonify(ok=True, projects=projects)
 
 # curl http://localhost:8080/schedules
 @app.route('/api/schedules', methods=['GET'])

@@ -33,69 +33,11 @@ from .model import RunObject
 from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
 )
-from .runtimes.base import EntrypointParam, FunctionEntrypoint
+from .runtimes.base import FunctionEntrypoint
 from .runtimes.utils import add_code_metadata, global_context
-from .utils import get_in, logger, parse_function_uri, update_in, new_pipe_meta
+from .utils import (get_in, logger, parse_function_uri, update_in,
+                    new_pipe_meta, extend_hub_uri)
 from .config import config as mlconf
-
-
-def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
-                 namespace=None, artifact_path=None, ops=None,
-                 url=None, remote=False):
-    """remote KubeFlow pipeline execution
-
-    Submit a workflow task to KFP via mlrun API service
-
-    :param pipeline   KFP pipeline function or path to .yaml/.zip pipeline file
-    :param arguments  pipeline arguments
-    :param experiment experiment name
-    :param run        optional, run name
-    :param namespace  Kubernetes namespace (if not using default)
-    :param url        optional, url to mlrun API service
-    :param artifact_path  target location/url for mlrun artifacts
-    :param ops        additional operators (.apply() to all pipeline functions)
-    :param remote     use mlrun remote API service vs direct KFP APIs
-
-    :return kubeflow pipeline id
-    """
-
-    namespace = namespace or mlconf.namespace
-    arguments = arguments or {}
-    if remote or url:
-        mldb = get_run_db(url).connect()
-        if mldb.kind != 'http':
-            raise ValueError('run pipeline require access to remote api-service'
-                             ', please set the dbpath url')
-        id = mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
-                                  run=run, namespace=namespace, ops=ops,
-                                  artifact_path=artifact_path)
-
-    else:
-        client = Client(namespace=namespace)
-        if isinstance(pipeline, str):
-            experiment = client.create_experiment(name=experiment)
-            run_result = client.run_pipeline(experiment.id, run, pipeline,
-                                             params=arguments)
-        else:
-            conf = new_pipe_meta(artifact_path, ops)
-            run_result = client.create_run_from_pipeline_func(
-                pipeline, arguments, run_name=run,
-                experiment_name=experiment, pipeline_conf=conf)
-
-        id = run_result.run_id
-    logger.info('Pipeline run id={}, check UI or DB for progress'.format(id))
-    return id
-
-
-def get_pipline(run_id, wait=0, namespace=None):
-    """Get or wait for Pipeline status, wait time in sec"""
-
-    client = Client(namespace=namespace or mlconf.namespace)
-    if wait:
-        resp = client.wait_for_run_completion(run_id, wait)
-    else:
-        resp = client.get_run(run_id)
-    return resp
 
 
 def run_local(task, command='', name: str = '', args: list = None,
@@ -130,15 +72,18 @@ def run_local(task, command='', name: str = '', args: list = None,
 
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
+    handler = None
     if is_obj or suffix == '.yaml':
         is_remote = False
         if is_obj:
             runtime = command.to_dict()
+            handler = command.spec.default_handler
             command = command.spec.command
         else:
             is_remote = '://' in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
+            handler = get_in(runtime, 'spec.default_handler', '')
             command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
         if code:
@@ -173,7 +118,10 @@ def run_local(task, command='', name: str = '', args: list = None,
         raise ValueError('unsupported suffix: {}'.format(suffix))
 
     fn = new_function(name, project, tag, command=command, args=args)
-    fn.spec.workdir = workdir
+    if workdir:
+        fn.spec.workdir = str(workdir)
+    if handler:
+        fn.spec.default_handler = handler
     return fn.run(task)
 
 
@@ -288,6 +236,7 @@ def import_function(url='', secrets=None, db=''):
             ))
         return new_function(runtime=runtime)
 
+    url = extend_hub_uri(url)
     runtime = import_function_to_dict(url, secrets)
     return new_function(runtime=runtime)
 
@@ -561,6 +510,65 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         handlers = find_handlers(code)
         r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
     return r
+
+
+def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
+                 namespace=None, artifact_path=None, ops=None,
+                 url=None, remote=False):
+    """remote KubeFlow pipeline execution
+
+    Submit a workflow task to KFP via mlrun API service
+
+    :param pipeline   KFP pipeline function or path to .yaml/.zip pipeline file
+    :param arguments  pipeline arguments
+    :param experiment experiment name
+    :param run        optional, run name
+    :param namespace  Kubernetes namespace (if not using default)
+    :param url        optional, url to mlrun API service
+    :param artifact_path  target location/url for mlrun artifacts
+    :param ops        additional operators (.apply() to all pipeline functions)
+    :param remote     use mlrun remote API service vs direct KFP APIs
+
+    :return kubeflow pipeline id
+    """
+
+    namespace = namespace or mlconf.namespace
+    arguments = arguments or {}
+    if remote or url:
+        mldb = get_run_db(url).connect()
+        if mldb.kind != 'http':
+            raise ValueError('run pipeline require access to remote api-service'
+                             ', please set the dbpath url')
+        id = mldb.submit_pipeline(pipeline, arguments, experiment=experiment,
+                                  run=run, namespace=namespace, ops=ops,
+                                  artifact_path=artifact_path)
+
+    else:
+        client = Client(namespace=namespace)
+        if isinstance(pipeline, str):
+            experiment = client.create_experiment(name=experiment)
+            run_result = client.run_pipeline(experiment.id, run, pipeline,
+                                             params=arguments)
+        else:
+            conf = new_pipe_meta(artifact_path, ops)
+            run_result = client.create_run_from_pipeline_func(
+                pipeline, arguments, run_name=run,
+                experiment_name=experiment, pipeline_conf=conf)
+
+        id = run_result.run_id
+    logger.info('Pipeline run id={}, check UI or DB for progress'.format(id))
+    return id
+
+
+def get_pipline(run_id, wait=0, namespace=None):
+    """Get or wait for Pipeline status, wait time in sec"""
+
+    client = Client(namespace=namespace or mlconf.namespace)
+    if wait:
+        resp = client.wait_for_run_completion(run_id, wait)
+    else:
+        resp = client.get_run(run_id)
+    return resp
 
 
 def as_func(handler):

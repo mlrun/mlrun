@@ -50,6 +50,7 @@ default_config = {
     'default_image': 'python:3.6-jessie',
     'default_project': 'default',
     'default_archive': '',
+    'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'ERROR',
     'submit_timeout': '120',

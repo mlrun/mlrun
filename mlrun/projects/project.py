@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import shutil
+
+from secrets import SecretsStore
 from ..model import ModelObj
 import tarfile
 from tempfile import mktemp
@@ -36,18 +38,16 @@ class ProjectError(Exception):
     pass
 
 
-def new_project(name, context=None, functions=None, init_git=False):
+def new_project(name, context=None, init_git=False):
     """Create a new MLRun project
 
     :param name:       project name
     :param context:    project local directory path
-    :param functions:  list of function links/objects
     :param init_git:   if True, will git init the context dir
 
     :returns: project object
     """
-    project = MlrunProject(name=name,
-                           functions=functions)
+    project = MlrunProject(name=name)
     project.context = context
 
     if init_git:
@@ -65,7 +65,7 @@ def load_project(context, url=None, name=None, secrets=None,
     :param url:        git or tar.gz sources archive path e.g.:
                        git://github.com/mlrun/demo-xgb-project.git
     :param name:       project name
-    :param secrets:    dict of key:secret to be used in workflows/jobs
+    :param secrets:    key:secret dict or SecretsStore used to download sources
     :param init_git:   if True, will git init the context dir
     :param subpath:    project subpath (within the archive)
     :param clone:      if True, always clone (delete any existing content)
@@ -143,7 +143,7 @@ class MlrunProject(ModelObj):
         self.subpath = ''
         self.branch = None
         self.repo = None
-        self._secrets = {}
+        self._secrets = SecretsStore()
         self.params = params or {}
         self.conda = conda or {}
         self.remote = False
@@ -438,9 +438,22 @@ class MlrunProject(ModelObj):
         self._function_objects = funcs
         self._initialized = True
 
-    def with_secrets(self, secrets):
-        """provide a dict of secrets: {'key': 'val', ..}"""
-        self._secrets = secrets
+    def with_secrets(self, kind, source, prefix=''):
+        """register a secrets source (file, env or dict)
+
+        read secrets from a source provider to be used in workflows, e.g.
+
+        proj.with_secrets('file', 'file.txt')
+        proj.with_secrets('inline', {'key': 'val'})
+        proj.with_secrets('env', 'ENV1,ENV2', prefix='PFX_')
+
+        :param kind:   secret type (file, inline, env)
+        :param source: secret data or link (see example)
+        :param prefix: add a prefix to the keys in this source
+
+        :returns: project object
+        """
+        self._secrets = SecretsStore.add_source(kind, source, prefix)
         return self
 
     def run(self, name=None, workflow_path=None, arguments=None,

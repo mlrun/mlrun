@@ -229,7 +229,7 @@ class BaseRuntime(ModelObj):
                 self.spec.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
-            self._secrets = SecretsStore.from_dict(spec.to_dict())
+            self._secrets = SecretsStore.from_list(spec.secret_sources)
 
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata

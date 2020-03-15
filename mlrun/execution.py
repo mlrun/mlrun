@@ -123,7 +123,8 @@ class MLClientCtx(object):
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
         if spec:
-            self._secrets_manager = SecretsStore.from_dict(spec)
+            self._secrets_manager = SecretsStore.from_list(
+                spec.get(run_keys.secrets))
             self._log_level = spec.get('log_level', self._log_level)
             self._function = spec.get('function', self._function)
             self._parameters = spec.get('parameters', self._parameters)

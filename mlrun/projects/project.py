@@ -288,7 +288,7 @@ class MlrunProject(ModelObj):
         self.__dict__.update(project.__dict__)
         return project
 
-    def set_function(self, func, name='', kind='', image=None):
+    def set_function(self, func, name='', kind='', image=None, with_repo=None):
         """update or add a function object to the project
 
         function can be provided as an object (func) or a .py/.ipynb/.yaml url
@@ -300,24 +300,27 @@ class MlrunProject(ModelObj):
         examples:
 
         proj.set_function(func_object)
-        proj.set_function('./src/mycode.py', 'ingest', image='myrepo/ing:latest')
+        proj.set_function('./src/mycode.py', 'ingest',
+                          image='myrepo/ing:latest', with_repo=True)
         proj.set_function('http://.../mynb.ipynb', 'train')
         proj.set_function('./func.yaml')
         proj.set_function('hub://get_toy_data', 'getdata')
 
-        :param func:   function object or spec/code url
-        :param name:   name of the function (under the project)
-        :param kind:   runtime kind e.g. job, nuclio, spark, dask, mpijob
-                       default: job
-        :param image:  docker image to be used, can also be specified in the
-                       function object/yaml
+        :param func:      function object or spec/code url
+        :param name:      name of the function (under the project)
+        :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
+                          default: job
+        :param image:     docker image to be used, can also be specified in
+                          the function object/yaml
+        :param with_repo: add (clone) the current repo to the build source
 
         :returns: project object
         """
         if isinstance(func, str):
             if not name:
                 raise ValueError('function name must be specified')
-            fdict = {'url': func, 'name': name, 'kind': kind, 'image': image}
+            fdict = {'url': func, 'name': name, 'kind': kind,
+                     'image': image, 'with_repo': with_repo}
             func = {k: v for k, v in fdict.items() if v}
             name, f = _init_function_from_dict(func, self)
         elif hasattr(func, 'to_dict'):

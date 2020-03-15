@@ -1,0 +1,15 @@
+name: Add new issues to mlrun project
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  automate-project-columns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: alex-page/github-project-automation-plus@v0.1.3
+        with:
+          project: mlrun
+          column: To do
+          repo-token: ${{ secrets.GITHUB_TOKEN }}

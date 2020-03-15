@@ -14,7 +14,7 @@
 
 import shutil
 
-from secrets import SecretsStore
+from ..secrets import SecretsStore
 from ..model import ModelObj
 import tarfile
 from tempfile import mktemp
@@ -618,6 +618,8 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
     spec.loader.exec_module(mod)
 
     setattr(mod, 'funcs', functions)
+    setattr(mod, 'this_project', project)
+    setattr(mod, 'project_secrets', secrets)
 
     if hasattr(mod, 'init_functions'):
         getattr(mod, 'init_functions')(functions, project, secrets)

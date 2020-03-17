@@ -559,7 +559,8 @@ def _init_function_from_dict(f, project):
 
     if 'spec' in f:
         func = new_function(name, runtime=f['spec'])
-    elif url.endswith('.yaml') or url.startswith('db://'):
+    elif url.endswith('.yaml') or url.startswith('db://') \
+            or url.startswith('hub://'):
         func = import_function(url)
     elif url.endswith('.ipynb'):
         func = code_to_function(name, filename=url, image=image, kind=kind)

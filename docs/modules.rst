@@ -7,6 +7,20 @@ The ``mlrun`` package includes the following modules:
    :members:
    :show-inheritance:
 
+mlrun.run Module
+----------------
+
+.. automodule:: mlrun.run
+   :members:
+   :show-inheritance:
+
+mlrun.project module
+--------------------
+
+.. automodule:: mlrun.project
+   :members:
+   :show-inheritance:
+
 mlrun.config Module
 -------------------
 
@@ -18,12 +32,5 @@ mlrun.model Module
 ------------------
 
 .. automodule:: mlrun.model
-   :members:
-   :show-inheritance:
-
-mlrun.run Module
-----------------
-
-.. automodule:: mlrun.run
    :members:
    :show-inheritance:

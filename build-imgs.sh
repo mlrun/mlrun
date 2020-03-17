@@ -3,7 +3,7 @@ if [ $# -eq 0 ]
     echo "No argument (ver tag) supplied"
 fi
 
-sudo docker build . -f Dockerfile.db-gunicorn -t mlrun/mlrun-api:$1
+sudo docker build . -f Dockerfile.httpd -t mlrun/mlrun-api:$1
 sudo docker push mlrun/mlrun-api:$1
 
 sudo docker build . -t mlrun/mlrun:$1

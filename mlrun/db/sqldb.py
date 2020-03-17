@@ -194,6 +194,7 @@ class SQLDB(RunDBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self.session = None
+        self._projects = set()  # project cache
 
     def connect(self, secrets=None):
         engine = create_engine(self.dsn)
@@ -201,6 +202,9 @@ class SQLDB(RunDBInterface):
         cls = sessionmaker(bind=engine)
         # TODO: One session per call?
         self.session = cls()
+
+        for project in self.list_projects():
+            self._projects.add(project.name)
 
     def store_log(self, uid, project='', body=b'', append=False):
         project = project or config.default_project
@@ -486,6 +490,7 @@ class SQLDB(RunDBInterface):
         users = self._find_or_create_users(user_names)
         prj.users.extend(users)
         self._upsert(prj)
+        self._projects.add(prj.name)
         return prj.id
 
     def update_project(self, name, data: dict):
@@ -527,8 +532,9 @@ class SQLDB(RunDBInterface):
         return self.session.query(cls).filter_by(**kw)
 
     def _create_project_if_not_exists(self, name):
-        if not self.get_project(name):
+        if name not in self._projects:
             self.add_project({'name': name})
+            self._projects.add(name)
 
     def _find_or_create_users(self, user_names):
         users = list(self._query(User).filter(User.name.in_(user_names)))
@@ -546,7 +552,7 @@ class SQLDB(RunDBInterface):
         return users
 
     def _get_function(self, name, project, tag):
-        uid = self._resolve_tag(Function, project, name)
+        uid = self._resolve_tag(Function, project, tag)
         query = self._query(Function, name=name, project=project, uid=uid)
         return query.one_or_none()
 

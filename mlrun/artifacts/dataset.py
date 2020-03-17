@@ -68,16 +68,16 @@ class DatasetArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['schema', 'header', 'length']
     kind = 'dataset'
 
-    def __init__(self, key, df=None, preview=None, format=None,
+    def __init__(self, key, df=None, preview=None, format='',
                  stats=None, **kwargs):
 
         format = format.lower()
         super().__init__(key, None, format=format)
-        if not df:
+        if df is None:
             raise ValueError('empty dataframe (df=)')
         if format and format not in supported_formats:
             raise ValueError('unsupported format {} use one of {}'.format(
-                '|'.join(supported_formats)))
+                format, '|'.join(supported_formats)))
 
         self.header = df.columns.values.tolist()
         self.length = df.shape[0]
@@ -85,7 +85,6 @@ class DatasetArtifact(Artifact):
             format = 'csv' if self.length < max_csv else 'parquet'
         elif format == 'pq':
             format = 'parquet'
-
 
         self.format = format
         self._df = df

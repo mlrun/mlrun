@@ -20,7 +20,7 @@ from ..utils import uxjoin, run_keys, logger
 
 from .base import Artifact, LinkArtifact
 from .plots import PlotArtifact, ChartArtifact
-from .dataset import TableArtifact
+from .dataset import TableArtifact, DatasetArtifact
 from .model import ModelArtifact
 
 artifact_types = {
@@ -30,7 +30,21 @@ artifact_types = {
     'chart': ChartArtifact,
     'table': TableArtifact,
     'model': ModelArtifact,
+    'dataset': DatasetArtifact,
 }
+
+
+class ArtifactProducer:
+    def __init__(self, kind, project, name, tag=None):
+        self.kind = kind
+        self.project = project
+        self.name = name
+        self.tag = tag
+        self.iteration = 0
+        self.inputs = {}
+
+    def get_meta(self):
+        return {'kind': self.kind, 'name': self.name, 'tag': self.tag}
 
 
 class ArtifactManager:
@@ -60,7 +74,7 @@ class ArtifactManager:
         return artifacts
 
     def log_artifact(
-        self, execution, item, body=None, target_path='', src_path='', tag='',
+        self, producer, item, body=None, target_path='', tag='',
             viewer='', local_path='', artifact_path=None, format=None,
             upload=True, labels=None):
         if isinstance(item, str):
@@ -70,7 +84,7 @@ class ArtifactManager:
             key = item.key
             target_path = target_path or item.target_path
 
-        src_path = src_path or local_path or item.src_path  # TODO: remove src_path
+        src_path = local_path or item.src_path  # TODO: remove src_path
         if format == 'html' or (
                 src_path and pathlib.Path(src_path).suffix == 'html'):
             viewer = 'web-app'
@@ -83,50 +97,49 @@ class ArtifactManager:
         if artifact_path or not target_path:
             target_path = uxjoin(
                 artifact_path, src_path or filename(key, item.format),
-                execution.iteration)
+                producer.iteration)
         elif not (target_path.startswith('/') or '://' in target_path):
             target_path = uxjoin(
-                self.out_path, target_path, execution.iteration)
+                self.out_path, target_path, producer.iteration)
 
         item.target_path = target_path
         item.viewer = viewer or item.viewer
-        item.tree = execution.tag
+        item.tree = producer.tag
         item.labels = labels
+        item.producer = producer.get_meta()
+        item.iter = producer.iteration
         self.artifacts[key] = item
 
         if upload:
             item.upload(self.data_stores)
 
-        self._log_to_db(key, execution, item, tag)
+        self._log_to_db(key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or '?'
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
             key, target_path, size, 'Y' if self.artifact_db else 'N'
         ))
 
-    def _log_to_db(self, key, execution, item, tag):
+    def _log_to_db(self, key, project, sources, item, tag):
         if self.artifact_db:
-            sources = execution.inputs
             if sources:
-                item.sources = [{'name': k, 'path': v}
+                item.sources = [{'name': k, 'path': str(v)}
                                 for k, v in sources.items()]
-            item.producer = execution.get_meta()
-            item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            iter=execution.iteration, tag=tag,
-                                            project=execution.project)
+                                            iter=item.iteration, tag=tag,
+                                            project=project)
 
-    def link_artifact(self, execution, key, artifact_path='', tag='',
+    def link_artifact(self, project, tree, key, iter=0, artifact_path='', tag='',
                       link_iteration=0, link_key=None, link_tree=None):
         if self.artifact_db:
             item = LinkArtifact(key, artifact_path,
                                 link_iteration=link_iteration,
                                 link_key=link_key,
                                 link_tree=link_tree)
-            item.tree = execution.tag
-            item.iter = execution.iteration
+            item.tree = tree
+            item.iter = iter
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            iter=execution.iteration, tag=tag,
-                                            project=execution.project)
+                                            iter=iter, tag=tag,
+                                            project=project)
 
     def _get_store(self, url):
         return self.data_stores.get_or_create_store(url)

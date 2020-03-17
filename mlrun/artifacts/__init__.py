@@ -15,6 +15,6 @@
 from .manager import ArtifactManager
 from .base import Artifact
 from .plots import PlotArtifact, ChartArtifact
-from .dataset import TableArtifact
+from .dataset import TableArtifact, DatasetArtifact
 from .model import ModelArtifact
 

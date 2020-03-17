@@ -16,8 +16,7 @@ from copy import deepcopy
 from datetime import datetime
 import uuid
 
-
-from .artifacts import ArtifactManager
+from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
@@ -195,7 +194,7 @@ class MLClientCtx(object):
     @property
     def inputs(self):
         """dictionary of input data items (read-only)"""
-        return deepcopy(self._inputs)
+        return self._inputs
 
     @property
     def results(self):
@@ -302,7 +301,8 @@ class MLClientCtx(object):
                 self._results[k] = v
             for a in get_in(task, ['status', run_keys.artifacts], []):
                 self._artifacts_manager.artifacts[a['key']] = a
-                self._artifacts_manager.link_artifact(self, a['key'],
+                self._artifacts_manager.link_artifact(self.project, self.tag,
+                                                      a['key'], self.iteration,
                                                       a['target_path'],
                                                       link_iteration=best)
 
@@ -330,9 +330,9 @@ class MLClientCtx(object):
                      tag='', viewer=None, local_path=None, artifact_path=None,
                      upload=True, labels=None, format=None, **kwargs):
         """log an output artifact and optionally upload it"""
+        local_path = src_path or local_path
         self._artifacts_manager.log_artifact(self, item, body=body,
                                              target_path=target_path,
-                                             src_path=src_path,
                                              local_path=local_path,
                                              artifact_path=artifact_path,
                                              tag=tag,
@@ -340,6 +340,21 @@ class MLClientCtx(object):
                                              upload=upload,
                                              labels=labels,
                                              format=format)
+        self._update_db()
+
+    def log_dataset(self, key, df, tag='', local_path=None,
+                    artifact_path=None, upload=True, labels=None,
+                    format='', preview=None, stats=True, **kwargs):
+        """log a dataset artifact and optionally upload it"""
+
+        ds = DatasetArtifact(key, df, preview=preview,
+                             format=format, stats=stats, **kwargs)
+
+        self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
+                                             artifact_path=artifact_path,
+                                             tag=tag,
+                                             upload=upload,
+                                             labels=labels)
         self._update_db()
 
     def commit(self, message: str = ''):

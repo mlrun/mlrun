@@ -11,12 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import pathlib
 from io import StringIO
+from tempfile import mktemp
+
+from pandas.io.json import build_table_schema
 
 from .base import Artifact
 
+preview_lines = 20
+max_csv = 10000
 
 class TableArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['schema', 'header']
@@ -56,3 +61,73 @@ class TableArtifact(Artifact):
         return csv_buffer.getvalue()
 
 
+supported_formats = ['csv', 'parquet', 'pq', 'tsdb', 'kv']
+
+
+class DatasetArtifact(Artifact):
+    _dict_fields = Artifact._dict_fields + ['schema', 'header', 'length']
+    kind = 'dataset'
+
+    def __init__(self, key, df=None, preview=None, format=None,
+                 stats=None, **kwargs):
+
+        format = format.lower()
+        super().__init__(key, None, format=format)
+        if not df:
+            raise ValueError('empty dataframe (df=)')
+        if format and format not in supported_formats:
+            raise ValueError('unsupported format {} use one of {}'.format(
+                '|'.join(supported_formats)))
+
+        self.header = df.columns.values.tolist()
+        self.length = df.shape[0]
+        if not format:
+            format = 'csv' if self.length < max_csv else 'parquet'
+        elif format == 'pq':
+            format = 'parquet'
+
+
+        self.format = format
+        self._df = df
+
+        preview = preview or preview_lines
+        shortdf = df
+        if self.length > preview:
+            shortdf = df.head(preview)
+        self.preview = shortdf.values.tolist()
+        self.schema = build_table_schema(df)
+        self.stats = None
+        if stats:
+            self.stats = df.describe().to_dict()
+        self._kw = kwargs
+
+    def get_body(self):
+        csv_buffer = StringIO()
+        self._body.to_csv(
+            csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
+        return csv_buffer.getvalue()
+
+    def upload(self, data_stores):
+        src_path = self.src_path
+        if src_path and os.path.isfile(src_path):
+            self._upload_file(src_path, data_stores)
+            return
+
+        if self.format in ['csv', 'parquet']:
+            writer_string = 'to_{}'.format(self.format)
+            saving_func = getattr(self._df, writer_string, None)
+            target = self.target_path
+            to_upload = False
+            if '://' in target:
+                target = mktemp()
+                to_upload = True
+
+            saving_func(target, **self._kw)
+            if to_upload:
+                self._upload_file(target, data_stores)
+                os.remove(target)
+            else:
+                self._set_meta(target)
+            return
+
+        raise ValueError('not implemented')

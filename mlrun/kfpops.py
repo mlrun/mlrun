@@ -16,7 +16,7 @@ from copy import deepcopy
 from os import environ
 
 from .db import get_or_set_dburl
-from .utils import run_keys, dict_to_yaml, logger
+from .utils import run_keys, dict_to_yaml, logger, gen_md_table
 from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
@@ -106,6 +106,16 @@ def get_kfp_outputs(artifacts, labels):
                         'header': header,
                         'source': target}
                 outputs += [meta]
+
+        elif output['kind'] == 'dataset':
+            header = output.get('header')
+            tbl_md = gen_md_table(header, output['preview'])
+            text = '## Dataset {}  path: {}\n'.format(key, target) + tbl_md
+
+            meta = {'type': 'markdown',
+                    'storage': 'inline',
+                    'source': text}
+            outputs += [meta]
 
     return outputs, out_dict
 

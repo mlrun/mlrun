@@ -80,10 +80,18 @@ class Artifact(ModelObj):
             store.put(ipath, body)
         else:
             if src_path and os.path.isfile(src_path):
-                if calc_hash:
-                    self.hash = file_hash(src_path)
-                self.size = os.stat(src_path).st_size
-                store.upload(ipath, src_path)
+                self._upload_file(src_path, data_stores)
+
+    def _upload_file(self, src, data_stores):
+        store, ipath = data_stores.get_or_create_store(self.target_path)
+        self._set_meta(src)
+        store.upload(ipath, src)
+
+    def _set_meta(self, src):
+        if calc_hash:
+            self.hash = file_hash(src)
+        self.size = os.stat(src).st_size
+
 
 
 class LinkArtifact(Artifact):

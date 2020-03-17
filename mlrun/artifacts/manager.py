@@ -97,13 +97,13 @@ class ArtifactManager:
         if upload:
             item.upload(self.data_stores)
 
-        self._log_to_db(execution, item, tag)
+        self._log_to_db(key, execution, item, tag)
         size = str(item.size) or '?'
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
             key, target_path, size, 'Y' if self.artifact_db else 'N'
         ))
 
-    def _log_to_db(self, execution, item, tag):
+    def _log_to_db(self, key, execution, item, tag):
         if self.artifact_db:
             sources = execution.inputs
             if sources:

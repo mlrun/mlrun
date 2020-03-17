@@ -22,15 +22,14 @@ class TableArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['schema', 'header']
     kind = 'table'
 
-    def __init__(self, key, body=None, df=None, src_path=None, target_path='',
-                 viewer=None, visible=False, inline=False, format=None,
-                 header=None, schema=None):
+    def __init__(self, key, body=None, df=None, viewer=None, visible=False,
+                 inline=False, format=None, header=None, schema=None):
 
         key_suffix = pathlib.Path(key).suffix
         if not format and key_suffix:
             format = key_suffix[1:]
         super().__init__(
-            key, body, src_path, target_path, viewer, inline, format)
+            key, body, viewer=viewer, inline=inline, format=format)
 
         if df is not None:
             self._is_df = True

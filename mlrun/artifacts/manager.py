@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import hashlib
 import pathlib
 
 from ..datastore import StoreManager
@@ -33,24 +31,6 @@ artifact_types = {
     'table': TableArtifact,
     'model': ModelArtifact,
 }
-
-
-def file_hash(filename):
-    h = hashlib.sha1()
-    b = bytearray(128*1024)
-    mv = memoryview(b)
-    with open(filename, 'rb', buffering=0) as f:
-        for n in iter(lambda: f.readinto(mv), 0):
-            h.update(mv[:n])
-    return h.hexdigest()
-
-
-def blob_hash(data):
-    if isinstance(data, str):
-        data = data.encode()
-    h = hashlib.sha1()
-    h.update(data)
-    return h.hexdigest()
 
 
 class ArtifactManager:
@@ -107,49 +87,33 @@ class ArtifactManager:
         elif not (target_path.startswith('/') or '://' in target_path):
             target_path = uxjoin(
                 self.out_path, target_path, execution.iteration)
+
         item.target_path = target_path
         item.viewer = viewer or item.viewer
-
         item.tree = execution.tag
-        if labels:
-            if not item.labels:
-                item.labels = {}
-            for k, v in labels.items():
-                item.labels[k] = str(v)
-
+        item.labels = labels
         self.artifacts[key] = item
 
         if upload:
-            store, ipath = self._get_store(target_path)
-            body = item.get_body()
-            if body:
-                if self.calc_hash:
-                    item.hash = blob_hash(body)
-                item.size = len(body)
-                store.put(ipath, body)
-            else:
-                if src_path and os.path.isfile(src_path):
-                    if self.calc_hash:
-                        item.hash = file_hash(src_path)
-                    item.size = os.stat(src_path).st_size
-                    store.upload(ipath, src_path)
+            item.upload(self.data_stores)
 
+        self._log_to_db(execution, item, tag)
+        size = str(item.size) or '?'
+        logger.info('log artifact {} at {}, size: {}, db: {}'.format(
+            key, target_path, size, 'Y' if self.artifact_db else 'N'
+        ))
+
+    def _log_to_db(self, execution, item, tag):
         if self.artifact_db:
-            if not item.sources:
-                sources = execution.to_dict()['spec'][run_keys.inputs]
-                if sources:
-                    item.sources = [{'name': k, 'path': v}
-                                    for k, v in sources.items()]
+            sources = execution.inputs
+            if sources:
+                item.sources = [{'name': k, 'path': v}
+                                for k, v in sources.items()]
             item.producer = execution.get_meta()
             item.iter = execution.iteration
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
                                             iter=execution.iteration, tag=tag,
                                             project=execution.project)
-
-        size = str(item.size) or '?'
-        logger.info('log artifact {} at {}, size: {}, db: {}'.format(
-            key, target_path, size, 'Y' if self.artifact_db else 'N'
-        ))
 
     def link_artifact(self, execution, key, artifact_path='', tag='',
                       link_iteration=0, link_key=None, link_tree=None):

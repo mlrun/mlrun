@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import hashlib
 from ..model import ModelObj
+
+calc_hash = True
 
 
 class Artifact(ModelObj):
@@ -22,15 +26,15 @@ class Artifact(ModelObj):
         'description', 'viewer', 'inline', 'format', 'size']
     kind = ''
 
-    def __init__(self, key, body=None, src_path=None, target_path='',
-                 viewer=None, inline=False, format=None, size=None):
+    def __init__(self, key, body=None, viewer=None, inline=False,
+                 format=None, size=None):
         self.key = key
         self.size = size
         self.iter = None
         self.tree = None
         self.updated = None
-        self.target_path = target_path
-        self.src_path = src_path
+        self.target_path = None
+        self.src_path = None
         self._body = body
         self.format = format
         self.description = None
@@ -65,6 +69,22 @@ class Artifact(ModelObj):
             self._dict_fields + [
                 'updated', 'labels', 'annotations', 'producer', 'sources'])
 
+    def upload(self, data_stores):
+        src_path = self.src_path
+        store, ipath = data_stores.get_or_create_store(self.target_path)
+        body = self.get_body()
+        if body:
+            if calc_hash:
+                self.hash = blob_hash(body)
+            self.size = len(body)
+            store.put(ipath, body)
+        else:
+            if src_path and os.path.isfile(src_path):
+                if calc_hash:
+                    self.hash = file_hash(src_path)
+                self.size = os.stat(src_path).st_size
+                store.upload(ipath, src_path)
+
 
 class LinkArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
@@ -77,5 +97,24 @@ class LinkArtifact(Artifact):
         self.link_iteration = link_iteration
         self.link_key = link_key
         self.link_tree = link_tree
+
+
+def file_hash(filename):
+    h = hashlib.sha1()
+    b = bytearray(128*1024)
+    mv = memoryview(b)
+    with open(filename, 'rb', buffering=0) as f:
+        for n in iter(lambda: f.readinto(mv), 0):
+            h.update(mv[:n])
+    return h.hexdigest()
+
+
+def blob_hash(data):
+    if isinstance(data, str):
+        data = data.encode()
+    h = hashlib.sha1()
+    h.update(data)
+    return h.hexdigest()
+
 
 

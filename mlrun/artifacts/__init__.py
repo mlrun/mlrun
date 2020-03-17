@@ -18,10 +18,3 @@ from .plots import PlotArtifact, ChartArtifact
 from .dataset import TableArtifact
 from .model import ModelArtifact
 
-artifact_types = {
-    '': Artifact,
-    'plot': PlotArtifact,
-    'chart': ChartArtifact,
-    'table': TableArtifact,
-    'model': ModelArtifact,
-}

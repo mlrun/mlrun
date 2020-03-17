@@ -16,14 +16,14 @@ from .base import Artifact
 
 
 class ModelArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['framework']
+    _dict_fields = Artifact._dict_fields + ['framework', 'algo', 'metrics']
     kind = 'model'
 
-    def __init__(self, key, body=None, src_path=None, target_path='',
-                 viewer=None, inline=False, format=None, framework=None):
+    def __init__(self, key, body=None, format=None,
+                 framework=None, algo=None, metrics=None):
 
         super().__init__(
-            key, body, src_path, target_path, viewer, inline, format)
+            key, body, format=format)
         self.framework = framework
-
-
+        self.algo = algo
+        self.metrics = metrics

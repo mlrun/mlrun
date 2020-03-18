@@ -40,6 +40,7 @@ def write_kfpmeta(struct):
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
 
+    struct = deepcopy(struct)
     output_artifacts, out_dict = get_kfp_outputs(
         struct['status'].get(run_keys.artifacts, []), struct['metadata'].get('labels', {}))
 
@@ -59,7 +60,6 @@ def write_kfpmeta(struct):
 
     text = '# Run Report\n'
     if 'iterations' in struct['status']:
-        struct = deepcopy(struct)
         del struct['status']['iterations']
 
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
@@ -109,13 +109,16 @@ def get_kfp_outputs(artifacts, labels):
 
         elif output['kind'] == 'dataset':
             header = output.get('header')
-            tbl_md = gen_md_table(header, output['preview'])
-            text = '## Dataset {}  \npath: {}\n\n'.format(key, target) + tbl_md
+            preview = output.get('preview')
+            if preview:
+                tbl_md = gen_md_table(header, preview)
+                text = '## Dataset: {}  \n\n'.format(key) + tbl_md
+                del output['preview']
 
-            meta = {'type': 'markdown',
-                    'storage': 'inline',
-                    'source': text}
-            outputs += [meta]
+                meta = {'type': 'markdown',
+                        'storage': 'inline',
+                        'source': text}
+                outputs += [meta]
 
     return outputs, out_dict
 

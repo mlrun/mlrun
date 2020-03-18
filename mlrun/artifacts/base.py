@@ -101,7 +101,8 @@ class LinkArtifact(Artifact):
     def __init__(self, key, target_path='', link_iteration=None,
                  link_key=None, link_tree=None):
 
-        super().__init__(key, target_path=target_path)
+        super().__init__(key)
+        self.target_path = target_path
         self.link_iteration = link_iteration
         self.link_key = link_key
         self.link_tree = link_tree

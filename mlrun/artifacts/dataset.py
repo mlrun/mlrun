@@ -98,7 +98,7 @@ class DatasetArtifact(Artifact):
         self.schema = build_table_schema(df)
         self.stats = None
         if stats or self.length < max_csv:
-            self.stats = df.describe(include='all').to_dict()
+            self.stats = df.describe(include='all').fillna('').to_dict()
         self._kw = kwargs
 
     def get_body(self):

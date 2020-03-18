@@ -125,7 +125,7 @@ class ArtifactManager:
                 item.sources = [{'name': k, 'path': str(v)}
                                 for k, v in sources.items()]
             self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            iter=item.iteration, tag=tag,
+                                            iter=item.iter, tag=tag,
                                             project=project)
 
     def link_artifact(self, project, tree, key, iter=0, artifact_path='', tag='',

@@ -15,6 +15,7 @@
 import csv
 from os import listdir
 from tempfile import mktemp
+import pandas as pd
 
 import yaml
 
@@ -58,6 +59,14 @@ def my_job(context, p1=1, p2='a-string'):
     for i in range(1, 8):
         chart.add_row([i, i / 20 + 0.75, 0.30 - i / 20])
     context.log_artifact(chart)
+
+    raw_data = {'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
+                'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
+                'age': [42, 52, 36, 24, 73],
+                'postTestScore': [25, 94, 57, 62, 70]}
+    df = pd.DataFrame(raw_data, columns=[
+        'first_name', 'last_name', 'age', 'postTestScore'])
+    context.log_dataset('mydf', df=df)
 
 
 def test_kfp_run():

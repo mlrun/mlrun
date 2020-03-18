@@ -110,7 +110,7 @@ def get_kfp_outputs(artifacts, labels):
         elif output['kind'] == 'dataset':
             header = output.get('header')
             tbl_md = gen_md_table(header, output['preview'])
-            text = '## Dataset {}  path: {}\n'.format(key, target) + tbl_md
+            text = '## Dataset {}  \npath: {}\n\n'.format(key, target) + tbl_md
 
             meta = {'type': 'markdown',
                     'storage': 'inline',

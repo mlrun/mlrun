@@ -344,7 +344,7 @@ class MLClientCtx(object):
 
     def log_dataset(self, key, df, tag='', local_path=None,
                     artifact_path=None, upload=True, labels=None,
-                    format='', preview=None, stats=True, **kwargs):
+                    format='', preview=None, stats=False, **kwargs):
         """log a dataset artifact and optionally upload it"""
 
         ds = DatasetArtifact(key, df, preview=preview,

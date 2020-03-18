@@ -97,7 +97,7 @@ class DatasetArtifact(Artifact):
         self.preview = shortdf.values.tolist()
         self.schema = build_table_schema(df)
         self.stats = None
-        if stats:
+        if stats or self.length < max_csv:
             self.stats = df.describe().to_dict()
         self._kw = kwargs
 

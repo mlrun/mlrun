@@ -65,7 +65,8 @@ supported_formats = ['csv', 'parquet', 'pq', 'tsdb', 'kv']
 
 
 class DatasetArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['schema', 'header', 'length']
+    _dict_fields = Artifact._dict_fields + [
+        'schema', 'header', 'length', 'preview', 'stats']
     kind = 'dataset'
 
     def __init__(self, key, df=None, preview=None, format='',

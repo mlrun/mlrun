@@ -12,20 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.6-slim
-RUN apt-get update && apt-get install -y gcc git-core
-RUN python -m pip install --upgrade --no-cache pip
-WORKDIR /mlrun
-COPY *requirements.txt ./
-RUN python -m pip install \
-    -r dask-requirements.txt \
-    -r httpd-requirements.txt \
-    -r requirements.txt
-COPY . .
-ENV MLRUN_httpdb__dirpath=/mlrun/db
-ENV MLRUN_httpdb__port=8080
-VOLUME /mlrun/db
-CMD gunicorn \
-    --bind=0.0.0.0:$MLRUN_httpdb__port \
-    --worker-class gevent \
-    mlrun.httpd:app
+from .app import app, catch_err, db
+from flask import jsonify
+
+
+# curl http://localhost:8080/schedules
+@app.route('/api/schedules', methods=['GET'])
+@catch_err
+def list_schedules():
+    return jsonify(
+        ok=True,
+        schedules=list(db.list_schedules())
+    )

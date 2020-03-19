@@ -12,20 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.6-slim
-RUN apt-get update && apt-get install -y gcc git-core
-RUN python -m pip install --upgrade --no-cache pip
-WORKDIR /mlrun
-COPY *requirements.txt ./
-RUN python -m pip install \
-    -r dask-requirements.txt \
-    -r httpd-requirements.txt \
-    -r requirements.txt
-COPY . .
-ENV MLRUN_httpdb__dirpath=/mlrun/db
-ENV MLRUN_httpdb__port=8080
-VOLUME /mlrun/db
-CMD gunicorn \
-    --bind=0.0.0.0:$MLRUN_httpdb__port \
-    --worker-class gevent \
-    mlrun.httpd:app
+"""mlrun database HTTP server"""
+
+from argparse import ArgumentParser
+
+from mlrun.config import config
+
+from mlrun.httpd import app
+from mlrun.httpd import routes  # noqa - register routes
+
+
+# Don't remove this function, it's an entry point in setup.py
+def main():
+    parser = ArgumentParser(description=__doc__)
+    parser.parse_args()
+    app.run(
+        host='0.0.0.0',
+        port=config.httpdb.port,
+        debug=config.httpdb.debug,
+    )
+
+
+if __name__ == '__main__':
+    main()

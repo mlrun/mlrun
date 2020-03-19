@@ -1,20 +1,35 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from http import HTTPStatus
 from uuid import uuid4
 
 import pytest
 
-from mlrun.db import httpd
+from mlrun.httpd.app import app
+from mlrun.httpd import routes  # noqa - register routes
 from mlrun.run import new_function
 
 
 @pytest.fixture
 def client():
-    old_testing = httpd.app.config['TESTING']
-    httpd.app.config['TESTING'] = True
-    with httpd.app.test_client() as client:
+    old_testing = app.config['TESTING']
+    app.config['TESTING'] = True
+    with app.test_client() as client:
         yield client
 
-    httpd.app.config['TESTING'] = old_testing
+    app.config['TESTING'] = old_testing
 
 
 def test_project(client):

@@ -55,7 +55,7 @@ def start_server(db_path, log_file, env_config: dict):
 
     cmd = [
         executable,
-        '-m', 'mlrun.db.httpd',
+        '-m', 'mlrun.httpd',
     ]
     proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
     url = f'http://localhost:{port}'

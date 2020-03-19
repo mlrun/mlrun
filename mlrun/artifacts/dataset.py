@@ -75,8 +75,6 @@ class DatasetArtifact(Artifact):
 
         format = format.lower()
         super().__init__(key, None, format=format)
-        if df is None:
-            raise ValueError('empty dataframe (df=)')
         if format and format not in supported_formats:
             raise ValueError('unsupported format {} use one of {}'.format(
                 format, '|'.join(supported_formats)))
@@ -86,7 +84,7 @@ class DatasetArtifact(Artifact):
         self.format = format
         self.stats = None
 
-        if df:
+        if df is not None:
             self.header = df.columns.values.tolist()
             self.length = df.shape[0]
             preview = preview or preview_lines
@@ -118,7 +116,7 @@ class DatasetArtifact(Artifact):
             self._upload_file(src_path, data_stores)
             return
 
-        if not self._df:
+        if self._df is not None:
             return
 
         if self.format in ['csv', 'parquet']:

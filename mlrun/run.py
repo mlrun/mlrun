@@ -86,7 +86,7 @@ def run_local(task, command='', name: str = '', args: list = None,
         handler = get_in(runtime, 'spec.default_handler', '')
         command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
-        
+
         meta = BaseMetadata.from_dict(runtime['metadata'])
         meta.name = name or meta.name
         meta.project = project or meta.project

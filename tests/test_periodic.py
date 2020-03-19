@@ -17,7 +17,7 @@ from time import sleep
 
 import pytest
 
-from mlrun.db import periodic
+from mlrun.httpd import periodic
 
 
 class Task:

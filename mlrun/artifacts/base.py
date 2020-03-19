@@ -26,7 +26,7 @@ class Artifact(ModelObj):
         'description', 'viewer', 'inline', 'format', 'size']
     kind = ''
 
-    def __init__(self, key, body=None, viewer=None, is_inline=False,
+    def __init__(self, key=None, body=None, viewer=None, is_inline=False,
                  format=None, size=None):
         self.key = key
         self.size = size
@@ -102,7 +102,7 @@ class LinkArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
     kind = 'link'
 
-    def __init__(self, key, target_path='', link_iteration=None,
+    def __init__(self, key=None, target_path='', link_iteration=None,
                  link_key=None, link_tree=None):
 
         super().__init__(key)

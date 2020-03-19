@@ -27,7 +27,7 @@ class TableArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['schema', 'header']
     kind = 'table'
 
-    def __init__(self, key, body=None, df=None, viewer=None, visible=False,
+    def __init__(self, key=None, body=None, df=None, viewer=None, visible=False,
                  inline=False, format=None, header=None, schema=None):
 
         key_suffix = pathlib.Path(key).suffix
@@ -69,7 +69,7 @@ class DatasetArtifact(Artifact):
         'schema', 'header', 'length', 'preview', 'stats']
     kind = 'dataset'
 
-    def __init__(self, key, df=None, preview=None, format='',
+    def __init__(self, key=None, df=None, preview=None, format='',
                  stats=None, **kwargs):
 
         format = format.lower()

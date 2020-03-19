@@ -19,7 +19,7 @@ class ModelArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['framework', 'algo', 'metrics']
     kind = 'model'
 
-    def __init__(self, key, body=None, format=None,
+    def __init__(self, key=None, body=None, format=None,
                  framework=None, algo=None, metrics=None):
 
         super().__init__(

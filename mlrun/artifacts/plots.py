@@ -80,7 +80,7 @@ class ChartArtifact(Artifact):
         'description', 'viewer',
     ]
 
-    def __init__(self, key, data=None, header=None, options=None,
+    def __init__(self, key=None, data=None, header=None, options=None,
                  title=None, chart=None):
         data = [] if data is None else data
         options = {} if options is None else options
@@ -88,24 +88,24 @@ class ChartArtifact(Artifact):
         self.viewer = 'chart'
         self.header = header or []
         self.title = title
-        self._rows = []
+        self.rows = []
         if data:
             if header:
-                self._rows = data
+                self.rows = data
             else:
                 self.header = data[0]
-                self._rows = data[1:]
+                self.rows = data[1:]
         self.options = options
         self.chart = chart or 'LineChart'
         self.format = 'html'
 
     def add_row(self, row):
-        self._rows += [row]
+        self.rows += [row]
 
     def get_body(self):
         if not self.options.get('title'):
             self.options['title'] = self.title or self.key
-        data = [self.header] + self._rows
+        data = [self.header] + self.rows
         return chart_template.replace('$data$', dict_to_json(data))\
             .replace('$opts$', dict_to_json(self.options))\
             .replace('$chart$', self.chart)

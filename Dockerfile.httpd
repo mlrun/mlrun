@@ -28,4 +28,4 @@ VOLUME /mlrun/db
 CMD gunicorn \
     --bind=0.0.0.0:$MLRUN_httpdb__port \
     --worker-class gevent \
-    mlrun.httpd.app:app
+    mlrun.httpd:app

@@ -65,7 +65,7 @@ def start_server(db_path, log_file, env_config: dict):
 
 
 # Used when running container in the background, see below
-def noo_docker_fixture():
+def noop_docker_fixture():
     def create(env=None):
         url = 'http://localhost:8080'
         conn = HTTPRunDB(url)

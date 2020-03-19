@@ -332,9 +332,9 @@ class MLClientCtx(object):
         """log an output artifact and optionally upload it"""
         local_path = src_path or local_path
         self._artifacts_manager.log_artifact(self, item, body=body,
-                                             target_path=target_path,
                                              local_path=local_path,
                                              artifact_path=artifact_path,
+                                             target_path=target_path,
                                              tag=tag,
                                              viewer=viewer,
                                              upload=upload,

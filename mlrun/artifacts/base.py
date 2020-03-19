@@ -26,7 +26,7 @@ class Artifact(ModelObj):
         'description', 'viewer', 'inline', 'format', 'size']
     kind = ''
 
-    def __init__(self, key, body=None, viewer=None, inline=False,
+    def __init__(self, key, body=None, viewer=None, is_inline=False,
                  format=None, size=None):
         self.key = key
         self.size = size
@@ -45,7 +45,7 @@ class Artifact(ModelObj):
         self.sources = []
         self.producer = None
         self.hash = None
-        self._inline = inline
+        self._inline = is_inline
         self.license = ''
         self._post_init()
 

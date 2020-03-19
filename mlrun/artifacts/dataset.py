@@ -98,7 +98,7 @@ class DatasetArtifact(Artifact):
         self.schema = build_table_schema(df)
         self.stats = None
         if stats or self.length < max_csv:
-            self.stats = df.describe(include='all').fillna('').to_dict()
+            self.stats = get_stats(df)
         self._kw = kwargs
 
     def get_body(self):
@@ -131,3 +131,12 @@ class DatasetArtifact(Artifact):
             return
 
         raise ValueError('not implemented')
+
+
+def get_stats(df):
+    d = {}
+    for k, v in df.describe(include='all').items():
+        v = {m: float(x) if not isinstance(x, str) else x
+             for m, x in v.dropna().items()}
+        d[k] = v
+    return d

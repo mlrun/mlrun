@@ -45,9 +45,9 @@ def db(request):
 
 
 def test_save_get_function(db: RunDBInterface):
-    func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
-    db.store_function(func, name, proj)
-    db_func = db.get_function(name, proj)
+    func, name, proj, tag = {'x': 1, 'y': 2}, 'f1', 'p2', 't3u'
+    db.store_function(func, name, proj, tag)
+    db_func = db.get_function(name, proj, tag)
     updated = db_func['metadata']['updated']
     if isinstance(db, FileRunDB):
         db_func['metadata']['updated'] = updated.replace(tzinfo=timezone.utc)
@@ -67,7 +67,7 @@ def new_func(labels, **kw):
 def test_list_functions(db: RunDBInterface):
     name = 'fn'
     fn1 = new_func(['l1', 'l2'], x=1)
-    db.store_function(fn1, name)
+    db.store_function(fn1, name, tag='t0')
     fn2 = new_func(['l2', 'l3'], x=2)
     db.store_function(fn2, name, tag='t1')
     fn3 = new_func(['l3'], x=3)

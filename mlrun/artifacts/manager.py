@@ -35,11 +35,13 @@ artifact_types = {
 
 
 class ArtifactProducer:
-    def __init__(self, kind, project, name, tag=None):
+    def __init__(self, kind, project, name, tag=None, owner=None):
         self.kind = kind
         self.project = project
         self.name = name
         self.tag = tag
+        self.owner = owner
+        self.uri = '/'
         self.iteration = 0
         self.inputs = {}
 

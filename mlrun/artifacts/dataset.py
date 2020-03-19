@@ -30,9 +30,10 @@ class TableArtifact(Artifact):
     def __init__(self, key=None, body=None, df=None, viewer=None, visible=False,
                  inline=False, format=None, header=None, schema=None):
 
-        key_suffix = pathlib.Path(key).suffix
-        if not format and key_suffix:
-            format = key_suffix[1:]
+        if key:
+            key_suffix = pathlib.Path(key).suffix
+            if not format and key_suffix:
+                format = key_suffix[1:]
         super().__init__(
             key, body, viewer=viewer, is_inline=inline, format=format)
 
@@ -80,25 +81,27 @@ class DatasetArtifact(Artifact):
             raise ValueError('unsupported format {} use one of {}'.format(
                 format, '|'.join(supported_formats)))
 
-        self.header = df.columns.values.tolist()
-        self.length = df.shape[0]
-        if not format:
-            format = 'csv' if self.length < max_csv else 'parquet'
-        elif format == 'pq':
+        if format == 'pq':
             format = 'parquet'
-
         self.format = format
+        self.stats = None
+
+        if df:
+            self.header = df.columns.values.tolist()
+            self.length = df.shape[0]
+            preview = preview or preview_lines
+            shortdf = df
+            if self.length > preview:
+                shortdf = df.head(preview)
+            self.preview = shortdf.values.tolist()
+            self.schema = build_table_schema(df)
+            if stats or self.length < max_csv:
+                self.stats = get_stats(df)
+
+
+
         self._df = df
 
-        preview = preview or preview_lines
-        shortdf = df
-        if self.length > preview:
-            shortdf = df.head(preview)
-        self.preview = shortdf.values.tolist()
-        self.schema = build_table_schema(df)
-        self.stats = None
-        if stats or self.length < max_csv:
-            self.stats = get_stats(df)
         self._kw = kwargs
 
     def get_body(self):
@@ -108,9 +111,14 @@ class DatasetArtifact(Artifact):
         return csv_buffer.getvalue()
 
     def upload(self, data_stores):
+        if not self.format:
+            self.format = 'csv' if self.length < max_csv else 'parquet'
         src_path = self.src_path
         if src_path and os.path.isfile(src_path):
             self._upload_file(src_path, data_stores)
+            return
+
+        if not self._df:
             return
 
         if self.format in ['csv', 'parquet']:

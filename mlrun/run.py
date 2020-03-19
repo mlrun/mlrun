@@ -29,7 +29,7 @@ from .datastore import get_object, download_object
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
-from .model import RunObject
+from .model import RunObject, BaseMetadata
 from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
 )
@@ -73,19 +73,25 @@ def run_local(task, command='', name: str = '', args: list = None,
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
     handler = None
+    meta = BaseMetadata(name, project=project, tag=tag)
     if is_obj or suffix == '.yaml':
         is_remote = False
         if is_obj:
             runtime = command.to_dict()
-            handler = command.spec.default_handler
-            command = command.spec.command
         else:
             is_remote = '://' in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
-            handler = get_in(runtime, 'spec.default_handler', '')
-            command = get_in(runtime, 'spec.command', '')
+
+        handler = get_in(runtime, 'spec.default_handler', '')
+        command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
+        
+        meta = BaseMetadata.from_dict(runtime['metadata'])
+        meta.name = name or meta.name
+        meta.project = project or meta.project
+        meta.tag = tag or meta.tag
+
         if code:
             fpath = mktemp('.py')
             code = b64decode(code).decode('utf-8')
@@ -117,7 +123,8 @@ def run_local(task, command='', name: str = '', args: list = None,
     else:
         raise ValueError('unsupported suffix: {}'.format(suffix))
 
-    fn = new_function(name, project, tag, command=command, args=args)
+    fn = new_function(name, command=command, args=args)
+    fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
     if handler:

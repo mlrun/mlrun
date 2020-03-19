@@ -14,10 +14,10 @@ mlrun.run Module
    :members:
    :show-inheritance:
 
-mlrun.project module
---------------------
+mlrun.projects module
+---------------------
 
-.. automodule:: mlrun.project
+.. automodule:: mlrun.projects
    :members:
    :show-inheritance:
 

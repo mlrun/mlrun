@@ -273,11 +273,11 @@ class MlrunProject(ModelObj):
         for a in artifacts:
             if not isinstance(a, dict):
                 raise ValueError('artifacts must be a dict')
-            name = a.get('name', '')
+            key = a.get('key', '')
             # todo: support steps dsl as code alternative
-            if not name:
-                raise ValueError('artifacts "name" must be specified')
-            afdict[name] = a
+            if not key:
+                raise ValueError('artifacts "key" must be specified')
+            afdict[key] = a
 
         self._artifacts = afdict
 

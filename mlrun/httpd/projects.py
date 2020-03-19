@@ -18,20 +18,20 @@ from operator import attrgetter
 from flask import jsonify, request
 
 from ..db.sqldb import to_dict as db2dict
-from .app import app, catch_err, db, json_error
+from . import app
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' \
 #   http://localhost:8080/project
 @app.route('/api/project', methods=['POST'])
-@catch_err
+@app.catch_err
 def add_project():
     data = request.get_json(force=True)
     for attr in ('name', 'owner'):
         if attr not in data:
-            return json_error(error=f'missing {attr!r}')
+            return app.json_error(error=f'missing {attr!r}')
 
-    project_id = db.add_project(data)
+    project_id = app.db.add_project(data)
     return jsonify(
         ok=True,
         id=project_id,
@@ -41,19 +41,19 @@ def add_project():
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' \
 #   -X UPDATE http://localhost:8080/project
 @app.route('/api/project/<name>', methods=['POST'])
-@catch_err
+@app.catch_err
 def update_project(name):
     data = request.get_json(force=True)
-    db.update_project(name, data)
+    app.db.update_project(name, data)
     return jsonify(ok=True)
 
 # curl http://localhost:8080/project/<name>
 @app.route('/api/project/<name>', methods=['GET'])
-@catch_err
+@app.catch_err
 def get_project(name):
-    project = db.get_project(name)
+    project = app.db.get_project(name)
     if not project:
-        return json_error(error=f'project {name!r} not found')
+        return app.json_error(error=f'project {name!r} not found')
 
     resp = {
         'name': project.name,
@@ -68,12 +68,12 @@ def get_project(name):
 
 # curl http://localhost:8080/projects?full=true
 @app.route('/api/projects', methods=['GET'])
-@catch_err
+@app.catch_err
 def list_projects():
     full = strtobool(request.args.get('full', 'no'))
     fn = db2dict if full else attrgetter('name')
     projects = []
-    for p in db.list_projects():
+    for p in app.db.list_projects():
         if isinstance(p, str):
             projects.append(p)
         else:

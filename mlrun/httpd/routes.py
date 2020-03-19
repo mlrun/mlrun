@@ -15,5 +15,6 @@
 
 # import routes
 from . import (  # noqa
-    artifacts, files, functions, logs, projects, runs, schedules, submit, tags
+    artifacts, auth, files, functions, logs, projects, runs, schedules, submit,
+    tags
 )

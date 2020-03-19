@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .app import app, catch_err, db
 from flask import jsonify
+from . import app
 
 
 # curl http://localhost:8080/schedules
 @app.route('/api/schedules', methods=['GET'])
-@catch_err
+@app.catch_err
 def list_schedules():
     return jsonify(
         ok=True,
-        schedules=list(db.list_schedules())
+        schedules=list(app.db.list_schedules())
     )

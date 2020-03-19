@@ -18,62 +18,62 @@ from http import HTTPStatus
 
 from flask import jsonify, request
 
-from .app import app, catch_err, db, json_error, logger
+from . import app
 
 
 # curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @app.route('/api/run/<project>/<uid>', methods=['POST'])
-@catch_err
+@app.catch_err
 def store_run(project, uid):
     try:
         data = request.get_json(force=True)
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+        return app.json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    logger.debug(data)
+    app.logger.debug(data)
     iter = int(request.args.get('iter', '0'))
-    db.store_run(data, uid, project, iter=iter)
-    app.logger.info('store run: {}'.format(data))
+    app.db.store_run(data, uid, project, iter=iter)
+    app.app.logger.info('store run: {}'.format(data))
     return jsonify(ok=True)
 
 
 # curl -X PATCH -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @app.route('/api/run/<project>/<uid>', methods=['PATCH'])
-@catch_err
+@app.catch_err
 def update_run(project, uid):
     try:
         data = request.get_json(force=True)
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+        return app.json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    logger.debug(data)
+    app.logger.debug(data)
     iter = int(request.args.get('iter', '0'))
-    db.update_run(data, uid, project, iter=iter)
-    app.logger.info('update run: {}'.format(data))
+    app.db.update_run(data, uid, project, iter=iter)
+    app.app.logger.info('update run: {}'.format(data))
     return jsonify(ok=True)
 
 
 # curl http://localhost:8080/run/p1/3
 @app.route('/api/run/<project>/<uid>', methods=['GET'])
-@catch_err
+@app.catch_err
 def read_run(project, uid):
     iter = int(request.args.get('iter', '0'))
-    data = db.read_run(uid, project, iter=iter)
+    data = app.db.read_run(uid, project, iter=iter)
     return jsonify(ok=True, data=data)
 
 
 # curl -X DELETE http://localhost:8080/run/p1/3
 @app.route('/api/run/<project>/<uid>', methods=['DELETE'])
-@catch_err
+@app.catch_err
 def del_run(project, uid):
     iter = int(request.args.get('iter', '0'))
-    db.del_run(uid, project, iter=iter)
+    app.db.del_run(uid, project, iter=iter)
     return jsonify(ok=True)
 
 
 # curl http://localhost:8080/runs?project=p1&name=x&label=l1&label=l2&sort=no
 @app.route('/api/runs', methods=['GET'])
-@catch_err
+@app.catch_err
 def list_runs():
     name = request.args.get('name')
     uid = request.args.get('uid')
@@ -84,7 +84,7 @@ def list_runs():
     iter = strtobool(request.args.get('iter', 'on'))
     last = int(request.args.get('last', '0'))
 
-    runs = db.list_runs(
+    runs = app.db.list_runs(
         name=name or None,
         uid=uid or None,
         project=project or None,
@@ -98,7 +98,7 @@ def list_runs():
 
 # curl -X DELETE http://localhost:8080/runs?project=p1&name=x&days_ago=3
 @app.route('/api/runs', methods=['DELETE'])
-@catch_err
+@app.catch_err
 def del_runs():
     name = request.args.get('name', '')
     project = request.args.get('project', '')
@@ -106,5 +106,5 @@ def del_runs():
     state = request.args.get('state', '')
     days_ago = int(request.args.get('days_ago', '0'))
 
-    db.del_runs(name, project, labels, state, days_ago)
+    app.db.del_runs(name, project, labels, state, days_ago)
     return jsonify(ok=True)

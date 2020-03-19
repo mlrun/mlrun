@@ -4,7 +4,7 @@ from http import HTTPStatus
 from flask import jsonify, request
 
 from ..config import config
-from .app import app
+from . import app
 
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '

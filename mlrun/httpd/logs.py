@@ -19,15 +19,15 @@ from pathlib import Path
 from flask import Response, jsonify, request
 
 from ..utils import get_in, now_date, update_in
-from .app import app, catch_err, db, json_error, k8s, logs_dir
+from . import app
 
 
 def log_path(project, uid) -> Path:
-    return logs_dir / project / uid
+    return app.logs_dir / project / uid
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @app.route('/api/log/<project>/<uid>', methods=['POST'])
-@catch_err
+@app.catch_err
 def store_log(project, uid):
     append = strtobool(request.args.get('append', 'no'))
     log_file = log_path(project, uid)
@@ -53,21 +53,21 @@ def get_log(project, uid):
             out = fp.read(size)
         status = ''
     else:
-        data = db.read_run(uid, project)
+        data = app.db.read_run(uid, project)
         if not data:
-            return json_error(HTTPStatus.NOT_FOUND,
-                              project=project, uid=uid)
+            return app.json_error(
+                HTTPStatus.NOT_FOUND, project=project, uid=uid)
 
         status = get_in(data, 'status.state', '')
-        if k8s:
-            pods = k8s.get_logger_pods(uid)
+        if app.k8s:
+            pods = app.k8s.get_logger_pods(uid)
             if pods:
                 pod, new_status = list(pods.items())[0]
                 new_status = new_status.lower()
 
                 # TODO: handle in cron/tracking
                 if new_status != 'pending':
-                    resp = k8s.logs(pod)
+                    resp = app.k8s.logs(pod)
                     if resp:
                         out = resp.encode()[offset:]
                     if status == 'running':
@@ -77,16 +77,16 @@ def get_log(project, uid):
                             update_in(data, 'status.state', 'error')
                             update_in(
                                 data, 'status.error', 'error, check logs')
-                            db.store_run(data, uid, project)
+                            app.db.store_run(data, uid, project)
                         if new_status == 'succeeded':
                             update_in(data, 'status.state', 'completed')
-                            db.store_run(data, uid, project)
+                            app.db.store_run(data, uid, project)
                 status = new_status
             elif status == 'running':
                 update_in(data, 'status.state', 'error')
                 update_in(
                     data, 'status.error', 'pod not found, maybe terminated')
-                db.store_run(data, uid, project)
+                app.db.store_run(data, uid, project)
                 status = 'failed'
 
     return Response(out, mimetype='text/plain',

@@ -18,55 +18,55 @@ from flask import jsonify, request
 
 from ..db.sqldb import table2cls
 from ..db.sqldb import to_dict as db2dict
-from .app import app, catch_err, db, json_error
+from . import app
 
 
 @app.route('/api/<project>/tag/<name>', methods=['POST'])
-@catch_err
+@app.catch_err
 def tag_objects(project, name):
     try:
         data: dict = request.get_json(force=True)
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+        return app.json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     objs = []
     for typ, query in data.items():
         cls = table2cls(typ)
         if cls is None:
             err = f'unknown type - {typ}'
-            return json_error(HTTPStatus.BAD_REQUEST, reason=err)
+            return app.json_error(HTTPStatus.BAD_REQUEST, reason=err)
         # {'name': 'bugs'} -> [Function.name=='bugs']
         db_query = [
             getattr(cls, key) == value for key, value in query.items()
         ]
         # TODO: Change _query to query?
         # TODO: Not happy about exposing db internals to API
-        objs.extend(db.session.query(cls).filter(*db_query))
-    db.tag_objects(objs, project, name)
+        objs.extend(app.db.session.query(cls).filter(*db_query))
+    app.db.tag_objects(objs, project, name)
     return jsonify(ok=True, project=project, name=name, count=len(objs))
 
 
 @app.route('/api/<project>/tag/<name>', methods=['DELETE'])
-@catch_err
+@app.catch_err
 def del_tag(project, name):
-    count = db.del_tag(project, name)
+    count = app.db.del_tag(project, name)
     return jsonify(ok=True, project=project, name=name, count=count)
 
 
 @app.route('/api/<project>/tags', methods=['GET'])
-@catch_err
+@app.catch_err
 def list_tags(project):
     return jsonify(
         ok=True,
         project=project,
-        tags=list(db.list_tags(project)),
+        tags=list(app.db.list_tags(project)),
     )
 
 
 @app.route('/api/<project>/tag/<name>', methods=['GET'])
-@catch_err
+@app.catch_err
 def get_tagged(project, name):
-    objs = db.find_tagged(project, name)
+    objs = app.db.find_tagged(project, name)
     return jsonify(
         ok=True,
         project=project,

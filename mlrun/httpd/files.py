@@ -12,17 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .app import app, catch_err, json_error
-from flask import request, jsonify, Response
-from os import environ
-from http import HTTPStatus
-from mlrun.datastore import get_object, get_object_stat
 import mimetypes
+from http import HTTPStatus
+from os import environ
+
+from flask import Response, jsonify, request
+
+from mlrun.datastore import get_object, get_object_stat
+
 from ..config import config
+from . import app
+
 
 # curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @app.route('/api/files', methods=['GET'])
-@catch_err
+@app.catch_err
 def get_files():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
@@ -33,15 +37,16 @@ def get_files():
 
     path = get_obj_path(schema, path)
     if not path:
-        return json_error(HTTPStatus.NOT_FOUND, path=path,
-                          err='illegal path prefix or schema')
+        return app.json_error(
+            HTTPStatus.NOT_FOUND, path=path,
+            err='illegal path prefix or schema')
 
     try:
         body = get_object(path, size, offset)
     except FileNotFoundError as e:
-        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+        return app.json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
     if body is None:
-        return json_error(HTTPStatus.NOT_FOUND, path=path)
+        return app.json_error(HTTPStatus.NOT_FOUND, path=path)
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:
@@ -53,7 +58,7 @@ def get_files():
 
 # curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
 @app.route('/api/filestat', methods=['GET'])
-@catch_err
+@app.catch_err
 def get_filestat():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
@@ -62,13 +67,14 @@ def get_filestat():
 
     path = get_obj_path(schema, path)
     if not path:
-        return json_error(HTTPStatus.NOT_FOUND, path=path,
-                          err='illegal path prefix or schema')
+        return app.json_error(
+            HTTPStatus.NOT_FOUND, path=path,
+            err='illegal path prefix or schema')
 
     try:
         stat = get_object_stat(path)
     except FileNotFoundError as e:
-        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+        return app.json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:

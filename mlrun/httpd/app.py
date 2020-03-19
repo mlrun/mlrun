@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# IMPORTANT:
+# This module should be import as "from . import app"
+# (*NOT* "from .app import db") so initialization will work as expected
+
 from datetime import date
 from functools import wraps
 from http import HTTPStatus
@@ -50,6 +54,9 @@ class CustomJSONEncoder(JSONEncoder):
 app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 
+route = app.route
+before_request = app.before_request
+
 
 def catch_err(fn):
     @wraps(fn)
@@ -71,7 +78,7 @@ def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
     return reply
 
 
-@app.route('/api/healthz', methods=['GET'])
+@route('/api/healthz', methods=['GET'])
 def health():
     return jsonify(ok=True, version=config.version)
 

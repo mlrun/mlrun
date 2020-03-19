@@ -26,7 +26,7 @@ from mlrun.httpd import routes  # noqa - register routes
 def main():
     parser = ArgumentParser(description=__doc__)
     parser.parse_args()
-    app.run(
+    app.app.run(
         host='0.0.0.0',
         port=config.httpdb.port,
         debug=config.httpdb.debug,

@@ -22,7 +22,7 @@ from flask import jsonify, request
 from kfp import Client as kfclient
 
 from ..config import config
-from .app import app, catch_err, json_error, logger
+from . import app
 from . import _submit
 
 
@@ -31,21 +31,21 @@ from . import _submit
 @app.route('/api/submit/', methods=['POST'])
 @app.route('/api/submit_job', methods=['POST'])
 @app.route('/api/submit_job/', methods=['POST'])
-@catch_err
+@app.catch_err
 def submit_job():
     try:
         data: dict = request.get_json(force=True)
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+        return app.json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
-    logger.info('submit_job: {}'.format(data))
+    app.logger.info('submit_job: {}'.format(data))
     return _submit.submit(data)
 
 
 # curl -d@/path/to/pipe.yaml http://localhost:8080/submit_pipeline
 @app.route('/api/submit_pipeline', methods=['POST'])
 @app.route('/api/submit_pipeline/', methods=['POST'])
-@catch_err
+@app.catch_err
 def submit_pipeline():
     namespace = request.args.get('namespace', config.namespace)
     experiment_name = request.args.get('experiment', 'Default')
@@ -57,7 +57,7 @@ def submit_pipeline():
     arguments_data = request.headers.get('pipeline-arguments')
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
-        logger.info('pipeline arguments {}'.format(arguments_data))
+        app.logger.info('pipeline arguments {}'.format(arguments_data))
 
     ctype = request.content_type
     if '/yaml' in ctype:
@@ -65,12 +65,14 @@ def submit_pipeline():
     elif ' /zip' in ctype:
         ctype = '.zip'
     else:
-        return json_error(HTTPStatus.BAD_REQUEST,
-                          reason='unsupported pipeline type {}'.format(ctype))
+        return app.json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='unsupported pipeline type {}'.format(ctype))
 
-    logger.info('writing file {}'.format(ctype))
+    app.logger.info('writing file {}'.format(ctype))
     if not request.data:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='post data is empty')
+        return app.json_error(
+            HTTPStatus.BAD_REQUEST, reason='post data is empty')
 
     print(str(request.data))
     pipe_tmp = tempfile.mktemp(suffix=ctype)
@@ -84,8 +86,8 @@ def submit_pipeline():
                                        params=arguments)
     except Exception as e:
         remove(pipe_tmp)
-        return json_error(HTTPStatus.BAD_REQUEST,
-                          reason='kfp err: {}'.format(e))
+        return app.json_error(
+            HTTPStatus.BAD_REQUEST, reason='kfp err: {}'.format(e))
 
     remove(pipe_tmp)
     return jsonify(ok=True, id=run_info.run_id,

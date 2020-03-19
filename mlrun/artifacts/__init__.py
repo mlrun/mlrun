@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .manager import ArtifactManager
+from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
 from .base import Artifact
 from .plots import PlotArtifact, ChartArtifact
 from .dataset import TableArtifact, DatasetArtifact

@@ -34,7 +34,7 @@ class TableArtifact(Artifact):
         if not format and key_suffix:
             format = key_suffix[1:]
         super().__init__(
-            key, body, viewer=viewer, inline=inline, format=format)
+            key, body, viewer=viewer, is_inline=inline, format=format)
 
         if df is not None:
             self._is_df = True

@@ -47,6 +47,12 @@ class ArtifactProducer:
         return {'kind': self.kind, 'name': self.name, 'tag': self.tag}
 
 
+def dict_to_artifact(struct: dict):
+    kind = struct.get('kind', '')
+    artifact_class = artifact_types[kind]
+    return artifact_class.from_dict(struct)
+
+
 class ArtifactManager:
 
     def __init__(self, stores: StoreManager,
@@ -105,7 +111,7 @@ class ArtifactManager:
         item.target_path = target_path
         item.viewer = viewer or item.viewer
         item.tree = producer.tag
-        item.labels = labels
+        item.labels = labels or item.labels
         item.producer = producer.get_meta()
         item.iter = producer.iteration
         self.artifacts[key] = item

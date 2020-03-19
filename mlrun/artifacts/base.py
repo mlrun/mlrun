@@ -58,6 +58,10 @@ class Artifact(ModelObj):
             return self.get_body()
         return None
 
+    @inline.setter
+    def inline(self, body):
+        self._body = body
+
     def get_body(self):
         return self._body
 

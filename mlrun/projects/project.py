@@ -14,6 +14,8 @@
 
 import shutil
 
+from ..db import get_run_db
+from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
 from ..secrets import SecretsStore
 from ..model import ModelObj
 import tarfile
@@ -177,6 +179,14 @@ class MlrunProject(ModelObj):
             return src.split('#')[0]
         return ''
 
+    def _get_hexsha(self):
+        try:
+            if self.repo:
+                return self.repo.head.commit.hexsha
+        except Exception:
+            pass
+        return None
+
     @property
     def mountdir(self) -> str:
         """specify to mount the context dir inside the function container
@@ -270,6 +280,15 @@ class MlrunProject(ModelObj):
             afdict[name] = a
 
         self._artifacts = afdict
+
+    def register_artifacts(self):
+        db = get_run_db().connect(self._secrets)
+        am = ArtifactManager(None, db)
+        producer = ArtifactProducer('project', self.name, self.name,
+                                    tag=self._get_hexsha() or 'latest')
+        for name, obj in self._artifacts.items():
+            artifact = dict_to_artifact(obj)
+            am.log_artifact(producer, artifact, upload=False)
 
     def reload(self, sync=False):
         """reload the project and function objects from yaml/specs

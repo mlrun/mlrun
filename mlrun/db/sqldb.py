@@ -15,7 +15,6 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 
 from dateutil import parser
 from sqlalchemy import (
@@ -108,6 +107,7 @@ with warnings.catch_warnings():
         project = Column(String)
         uid = Column(String)
         body = Column(BLOB)
+        updated = Column(TIMESTAMP)
         labels = relationship(Label)
 
     class Log(Base):
@@ -391,8 +391,13 @@ class SQLDB(RunDBInterface):
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
         self._create_project_if_not_exists(project)
-        uid = tag or uuid4().hex
-        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
+        tag = tag or get_in(func, 'metadata.tag')
+        if not tag:
+            raise RunDBError('store_function without a tag')
+
+        uid = self._resolve_tag(Function, project, tag)
+        updated = datetime.now(timezone.utc)
+        update_in(func, 'metadata.updated', updated)
         fn = self._get_function(name, project, uid)
         if not fn:
             fn = Function(
@@ -400,6 +405,7 @@ class SQLDB(RunDBInterface):
                 project=project,
                 uid=uid,
             )
+        fn.updated = updated
         labels = label_set(get_in(func, 'metadata.labels', []))
         update_labels(fn, labels)
         fn.struct = func
@@ -409,8 +415,14 @@ class SQLDB(RunDBInterface):
         project = project or config.default_project
         query = self._query(Function, name=name, project=project)
         if tag:
-            uid = self._resolve_tag(Function, project, tag)
-            query = query.filter(Function.Tag.uid == uid)
+            if tag == 'latest':
+                uid = self._function_latest_uid(project, name)
+                if not uid:
+                    raise RunDBError(
+                        f'no latest version for function {project}:{name}')
+            else:
+                uid = self._resolve_tag(Function, project, tag)
+        query = query.filter(Function.uid == uid)
         obj = query.one_or_none()
         if obj:
             return obj.struct
@@ -531,10 +543,20 @@ class SQLDB(RunDBInterface):
         kw = {k: v for k, v in kw.items() if v is not None}
         return self.session.query(cls).filter_by(**kw)
 
+    def _function_latest_uid(self, project, name):
+        # FIXME
+        query = (
+            self._query(Function.uid)
+            .filter(Function.project == project, Function.name == name)
+            .order_by(Function.updated.desc())
+        ).limit(1)
+        out = query.one_or_none()
+        if out:
+            return out[0]
+
     def _create_project_if_not_exists(self, name):
         if name not in self._projects:
             self.add_project({'name': name})
-            self._projects.add(name)
 
     def _find_or_create_users(self, user_names):
         users = list(self._query(User).filter(User.name.in_(user_names)))

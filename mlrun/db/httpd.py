@@ -749,8 +749,9 @@ def store_function(project, name):
 
     logger.debug(data)
     tag = request.args.get('tag', '')
-
-    _db.store_function(data, name, project, tag)
+    logger.info(
+        'store function: project=%s, name=%s, tag=%s', project, name, tag)
+    _db.store_function(data, name, project, tag=tag)
     return jsonify(ok=True)
 
 

@@ -19,6 +19,7 @@ from socket import socket
 from subprocess import Popen, run, PIPE
 from sys import executable
 from tempfile import mkdtemp
+from uuid import uuid4
 
 import pytest
 
@@ -294,8 +295,9 @@ def test_set_get_function(create_server):
     db: HTTPRunDB = server.conn
 
     func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
-    db.store_function(func, name, proj)
-    db_func = db.get_function(name, proj)
+    tag = uuid4().hex
+    db.store_function(func, name, proj, tag=tag)
+    db_func = db.get_function(name, proj, tag=tag)
     del db_func['metadata']
     assert db_func == func, 'wrong func'
 
@@ -309,8 +311,9 @@ def test_list_functions(create_server):
     for i in range(count):
         name = f'func{i}'
         func = {'fid': i}
-        db.store_function(func, name, proj)
-    db.store_function({}, 'f2', 'p7')
+        tag = uuid4().hex
+        db.store_function(func, name, proj, tag=tag)
+    db.store_function({}, 'f2', 'p7', tag=uuid4().hex)
 
     out = db.list_functions('', proj)
     assert len(out) == count, 'bad list'

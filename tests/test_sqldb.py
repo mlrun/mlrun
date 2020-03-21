@@ -218,12 +218,12 @@ def test_cache_projects(db: sqldb.SQLDB):
     mock.assert_called_once()
 
 
-def test_function_latest(db: sqldb.SQLDB):
-    fn1, t1 = {'x': 1}, 'u83'
-    fn2, t2 = {'x': 2}, 'u23'
-    prj, name = 'p388', 'n3023'
-    db.store_function(fn1, name, prj, t1)
-    db.store_function(fn2, name, prj, t2)
-
-    fn = db.get_function(name, prj, 'latest')
-    assert fn2 == fn, 'latest'
+# def test_function_latest(db: sqldb.SQLDB):
+#     fn1, t1 = {'x': 1}, 'u83'
+#     fn2, t2 = {'x': 2}, 'u23'
+#     prj, name = 'p388', 'n3023'
+#     db.store_function(fn1, name, prj, t1)
+#     db.store_function(fn2, name, prj, t2)
+#
+#     fn = db.get_function(name, prj, 'latest')
+#     assert fn2 == fn, 'latest'

@@ -493,7 +493,7 @@ You can view the results and perform operations on the database by using either 
 
 The MLRun dashboard is a graphical user interface (GUI) for working with MLRun and viewing run data.
 
-<br><p align="center"><img src="mlrunui.png" width="800"/></p><br>
+<br><p align="center"><img src="docs/assets/images/mlrunui.png" width="800"/></p><br>
 
 [Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
 

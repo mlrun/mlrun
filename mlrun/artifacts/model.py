@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.6
-WORKDIR /mlrun
+from .base import Artifact
 
-COPY requirements.txt ./
-COPY dask-requirements.txt ./
-RUN python -m pip install -r requirements.txt -r dask-requirements.txt
 
-COPY . .
-RUN python setup.py install
+class ModelArtifact(Artifact):
+    _dict_fields = Artifact._dict_fields + ['framework', 'algo', 'metrics']
+    kind = 'model'
+
+    def __init__(self, key=None, body=None, format=None, framework=None,
+                 algo=None, metrics=None, target_path=None):
+
+        super().__init__(key, body, format=format, target_path=target_path)
+        self.framework = framework
+        self.algo = algo
+        self.metrics = metrics

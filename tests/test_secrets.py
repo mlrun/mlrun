@@ -28,7 +28,7 @@ spec = {
 def test_load():
     environ['ENV123'] = 'xx'
     environ['ENV456'] = 'yy'
-    ss = SecretsStore.from_dict(spec)
+    ss = SecretsStore.from_list(spec['secret_sources'])
 
     assert ss.get('ENV123') == 'xx', 'failed on 1st env var secret'
     assert ss.get('ENV456') == 'yy', 'failed on 1st env var secret'
@@ -44,7 +44,7 @@ def test_inline_str():
         ],
     }
 
-    ss = SecretsStore.from_dict(spec)
+    ss = SecretsStore.from_list(spec['secret_sources'])
     assert ss.get('abc') == 'def', 'failed on 1st env var secret'
 
 

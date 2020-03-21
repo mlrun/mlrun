@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import shutil
+
+from ..db import get_run_db
+from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
+from ..secrets import SecretsStore
 from ..model import ModelObj
 import tarfile
 from tempfile import mktemp
@@ -21,7 +25,7 @@ from git import Repo
 import yaml
 from os import path, remove
 
-from ..datastore import download_object
+from ..datastore import download_object, StoreManager
 from ..config import config
 from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
@@ -36,18 +40,16 @@ class ProjectError(Exception):
     pass
 
 
-def new_project(name, context=None, functions=None, init_git=False):
+def new_project(name, context=None, init_git=False):
     """Create a new MLRun project
 
     :param name:       project name
     :param context:    project local directory path
-    :param functions:  list of function links/objects
     :param init_git:   if True, will git init the context dir
 
     :returns: project object
     """
-    project = MlrunProject(name=name,
-                           functions=functions)
+    project = MlrunProject(name=name)
     project.context = context
 
     if init_git:
@@ -65,7 +67,7 @@ def load_project(context, url=None, name=None, secrets=None,
     :param url:        git or tar.gz sources archive path e.g.:
                        git://github.com/mlrun/demo-xgb-project.git
     :param name:       project name
-    :param secrets:    dict of key:secret to be used in workflows/jobs
+    :param secrets:    key:secret dict or SecretsStore used to download sources
     :param init_git:   if True, will git init the context dir
     :param subpath:    project subpath (within the archive)
     :param clone:      if True, always clone (delete any existing content)
@@ -100,6 +102,7 @@ def load_project(context, url=None, name=None, secrets=None,
     if repo:
         project.branch = repo.active_branch.name
     project.origin_url = url
+    project.register_artifacts()
     return project
 
 
@@ -143,11 +146,12 @@ class MlrunProject(ModelObj):
         self.subpath = ''
         self.branch = None
         self.repo = None
-        self._secrets = {}
+        self._secrets = SecretsStore()
         self.params = params or {}
         self.conda = conda or {}
         self.remote = False
         self._mountdir = None
+        self._artifact_mngr = None
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -176,6 +180,14 @@ class MlrunProject(ModelObj):
         if src:
             return src.split('#')[0]
         return ''
+
+    def _get_hexsha(self):
+        try:
+            if self.repo:
+                return self.repo.head.commit.hexsha
+        except Exception:
+            pass
+        return None
 
     @property
     def mountdir(self) -> str:
@@ -247,6 +259,7 @@ class MlrunProject(ModelObj):
         self._workflows = wfdict
 
     def set_workflow(self, name, code):
+        """add or update a workflow, specify a name and the code path"""
         self._workflows[name] = {'name': name, 'code':code}
 
     @property
@@ -261,15 +274,46 @@ class MlrunProject(ModelObj):
 
         afdict = {}
         for a in artifacts:
-            if not isinstance(a, dict):
-                raise ValueError('artifacts must be a dict')
-            name = a.get('name', '')
-            # todo: support steps dsl as code alternative
-            if not name:
-                raise ValueError('artifacts "name" must be specified')
-            afdict[name] = a
+            if not isinstance(a, dict) and not hasattr(a, 'to_dict'):
+                raise ValueError('artifacts must be a dict or class')
+            if isinstance(a, dict):
+                key = a.get('key', '')
+                if not key:
+                    raise ValueError('artifacts "key" must be specified')
+            else:
+                key = a.key
+                a = a.to_dict()
+
+            afdict[key] = a
 
         self._artifacts = afdict
+
+    def _get_artifact_mngr(self):
+        if self._artifact_mngr:
+            return self._artifact_mngr
+        db = get_run_db().connect(self._secrets)
+        sm = StoreManager(self._secrets, db)
+        self._artifact_mngr = ArtifactManager(sm, db)
+        return self._artifact_mngr
+
+    def register_artifacts(self):
+        """register the artifacts in the MLRun DB (under this project)"""
+        am = self._get_artifact_mngr()
+        producer = ArtifactProducer('project', self.name, self.name,
+                                    tag=self._get_hexsha() or 'latest')
+        for name, obj in self._artifacts.items():
+            artifact = dict_to_artifact(obj)
+            am.log_artifact(producer, artifact, upload=False)
+
+    def log_artifact(self, item, body=None, tag='',
+            local_path='', artifact_path=None, format=None,
+            upload=True, labels=None):
+        am = self._get_artifact_mngr()
+        producer = ArtifactProducer('project', self.name, self.name,
+                                    tag=self._get_hexsha() or 'latest')
+        am.log_artifact(producer, item, body, tag=tag, local_path=local_path,
+                        artifact_path=artifact_path, format=format,
+                        upload=upload, labels=labels)
 
     def reload(self, sync=False):
         """reload the project and function objects from yaml/specs
@@ -288,7 +332,7 @@ class MlrunProject(ModelObj):
         self.__dict__.update(project.__dict__)
         return project
 
-    def set_function(self, func, name='', kind='', image=None):
+    def set_function(self, func, name='', kind='', image=None, with_repo=None):
         """update or add a function object to the project
 
         function can be provided as an object (func) or a .py/.ipynb/.yaml url
@@ -300,24 +344,27 @@ class MlrunProject(ModelObj):
         examples:
 
         proj.set_function(func_object)
-        proj.set_function('./src/mycode.py', 'ingest', image='myrepo/ing:latest')
+        proj.set_function('./src/mycode.py', 'ingest',
+                          image='myrepo/ing:latest', with_repo=True)
         proj.set_function('http://.../mynb.ipynb', 'train')
         proj.set_function('./func.yaml')
         proj.set_function('hub://get_toy_data', 'getdata')
 
-        :param func:   function object or spec/code url
-        :param name:   name of the function (under the project)
-        :param kind:   runtime kind e.g. job, nuclio, spark, dask, mpijob
-                       default: job
-        :param image:  docker image to be used, can also be specified in the
-                       function object/yaml
+        :param func:      function object or spec/code url
+        :param name:      name of the function (under the project)
+        :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
+                          default: job
+        :param image:     docker image to be used, can also be specified in
+                          the function object/yaml
+        :param with_repo: add (clone) the current repo to the build source
 
         :returns: project object
         """
         if isinstance(func, str):
             if not name:
                 raise ValueError('function name must be specified')
-            fdict = {'url': func, 'name': name, 'kind': kind, 'image': image}
+            fdict = {'url': func, 'name': name, 'kind': kind,
+                     'image': image, 'with_repo': with_repo}
             func = {k: v for k, v in fdict.items() if v}
             name, f = _init_function_from_dict(func, self)
         elif hasattr(func, 'to_dict'):
@@ -435,9 +482,22 @@ class MlrunProject(ModelObj):
         self._function_objects = funcs
         self._initialized = True
 
-    def with_secrets(self, secrets):
-        """provide a dict of secrets: {'key': 'val', ..}"""
-        self._secrets = secrets
+    def with_secrets(self, kind, source, prefix=''):
+        """register a secrets source (file, env or dict)
+
+        read secrets from a source provider to be used in workflows, e.g.
+
+        proj.with_secrets('file', 'file.txt')
+        proj.with_secrets('inline', {'key': 'val'})
+        proj.with_secrets('env', 'ENV1,ENV2', prefix='PFX_')
+
+        :param kind:   secret type (file, inline, env)
+        :param source: secret data or link (see example)
+        :param prefix: add a prefix to the keys in this source
+
+        :returns: project object
+        """
+        self._secrets = SecretsStore.add_source(kind, source, prefix)
         return self
 
     def run(self, name=None, workflow_path=None, arguments=None,
@@ -543,7 +603,8 @@ def _init_function_from_dict(f, project):
 
     if 'spec' in f:
         func = new_function(name, runtime=f['spec'])
-    elif url.endswith('.yaml') or url.startswith('db://'):
+    elif url.endswith('.yaml') or url.startswith('db://') \
+            or url.startswith('hub://'):
         func = import_function(url)
     elif url.endswith('.ipynb'):
         func = code_to_function(name, filename=url, image=image, kind=kind)
@@ -602,6 +663,8 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
     spec.loader.exec_module(mod)
 
     setattr(mod, 'funcs', functions)
+    setattr(mod, 'this_project', project)
+    setattr(mod, 'project_secrets', secrets)
 
     if hasattr(mod, 'init_functions'):
         getattr(mod, 'init_functions')(functions, project, secrets)

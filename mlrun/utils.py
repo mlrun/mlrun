@@ -229,6 +229,7 @@ def int_representer(dumper, data):
     return dumper.represent_int(data)
 
 
+yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
@@ -359,7 +360,8 @@ def new_pipe_meta(artifact_path=None, *args):
     return conf
 
 
-def tag_image(base):
-    if base in ['mlrun/mlrun'] and config.version:
+def tag_image(base: str):
+    if config.version and (base == 'mlrun/mlrun' or (
+            base.startswith('mlrun/ml-') and ':' not in base)):
         base += ':' + config.version
     return base

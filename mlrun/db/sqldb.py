@@ -391,19 +391,18 @@ class SQLDB(RunDBInterface):
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
         self._create_project_if_not_exists(project)
-        tag = tag or get_in(func, 'metadata.tag')
-        if not tag:
-            raise RunDBError('store_function without a tag')
+        tag = tag or get_in(func, 'metadata.tag') or 'latest'
 
-        uid = self._resolve_tag(Function, project, tag)
+        #uid = self._resolve_tag(Function, project, tag)
         updated = datetime.now(timezone.utc)
         update_in(func, 'metadata.updated', updated)
-        fn = self._get_function(name, project, uid)
+#        fn = self._get_function(name, project, uid)
+        fn = self._get_function(name, project, tag)
         if not fn:
             fn = Function(
                 name=name,
                 project=project,
-                uid=uid,
+                uid=tag,
             )
         fn.updated = updated
         labels = label_set(get_in(func, 'metadata.labels', []))
@@ -414,15 +413,16 @@ class SQLDB(RunDBInterface):
     def get_function(self, name, project='', tag=''):
         project = project or config.default_project
         query = self._query(Function, name=name, project=project)
-        if tag:
-            if tag == 'latest':
-                uid = self._function_latest_uid(project, name)
-                if not uid:
-                    raise RunDBError(
-                        f'no latest version for function {project}:{name}')
-            else:
-                uid = self._resolve_tag(Function, project, tag)
-        query = query.filter(Function.uid == uid)
+        tag = tag or 'latest'
+        # if tag:
+        #     if tag == 'latest':
+        #         uid = self._function_latest_uid(project, name)
+        #         if not uid:
+        #             raise RunDBError(
+        #                 f'no latest version for function {project}:{name}')
+        #     else:
+        #         uid = self._resolve_tag(Function, project, tag)
+        query = query.filter(Function.uid == tag)
         obj = query.one_or_none()
         if obj:
             return obj.struct
@@ -431,8 +431,8 @@ class SQLDB(RunDBInterface):
             self, name, project=None, tag=None, labels=None):
         project = project or config.default_project
         uid = tag
-        if uid:
-            uid = self._resolve_tag(Function, project, uid)
+        # if uid:
+        #     uid = self._resolve_tag(Function, project, uid)
 
         funcs = FunctionList()
         funcs.extend(

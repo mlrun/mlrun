@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.6
-WORKDIR /mlrun
+from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
+from .base import Artifact
+from .plots import PlotArtifact, ChartArtifact
+from .dataset import TableArtifact, DatasetArtifact
+from .model import ModelArtifact
 
-COPY requirements.txt ./
-COPY dask-requirements.txt ./
-RUN python -m pip install -r requirements.txt -r dask-requirements.txt
-
-COPY . .
-RUN python setup.py install

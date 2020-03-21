@@ -229,7 +229,7 @@ class BaseRuntime(ModelObj):
                 self.spec.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
-            self._secrets = SecretsStore.from_dict(spec.to_dict())
+            self._secrets = SecretsStore.from_list(spec.secret_sources)
 
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
@@ -550,16 +550,15 @@ class BaseRuntime(ModelObj):
         logger.info('function spec saved to path: {}'.format(target))
         return self
 
-    def save(self, tag='', versioned=True):
+    def save(self, tag='', versioned=False):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
             return ''
 
         tag = tag or self.metadata.tag or 'latest'
-        self.metadata.tag = tag
+        hashkey = calc_hash(self, tag=tag)
         obj = self.to_dict()
-        hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))

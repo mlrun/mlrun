@@ -119,7 +119,7 @@ class DatasetArtifact(Artifact):
             self._upload_file(src_path, data_stores)
             return
 
-        if self._df is not None:
+        if self._df is None:
             return
 
         if self.format in ['csv', 'parquet']:

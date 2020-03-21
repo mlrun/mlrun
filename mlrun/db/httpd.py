@@ -270,7 +270,6 @@ def build_function():
     logger.info('build_function:\n{}'.format(data))
     function = data.get('function')
     with_mlrun = strtobool(data.get('with_mlrun', 'on'))
-    ready = False
 
     try:
         fn = new_function(runtime=function)
@@ -749,8 +748,9 @@ def store_function(project, name):
 
     logger.debug(data)
     tag = request.args.get('tag', '')
-
-    _db.store_function(data, name, project, tag)
+    logger.info(
+        'store function: project=%s, name=%s, tag=%s', project, name, tag)
+    _db.store_function(data, name, project, tag=tag)
     return jsonify(ok=True)
 
 
@@ -830,10 +830,17 @@ def get_project(name):
 def list_projects():
     full = strtobool(request.args.get('full', 'no'))
     fn = db2dict if full else attrgetter('name')
-    return jsonify(
-        ok=True,
-        projects=[fn(p) for p in _db.list_projects()]
-    )
+    projects = []
+    for p in _db.list_projects():
+        if isinstance(p, dict):
+            if full:
+                projects.append(p)
+            else:
+                projects.append(p.get('name'))
+        else:
+            projects.append(fn(p))
+
+    return jsonify(ok=True, projects=projects)
 
 # curl http://localhost:8080/schedules
 @app.route('/api/schedules', methods=['GET'])

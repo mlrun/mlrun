@@ -15,6 +15,7 @@
 import json
 import logging
 import re
+import pathlib
 from datetime import datetime, timezone
 from os import path
 from sys import stdout
@@ -27,7 +28,7 @@ from .config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
-
+hub_prefix = 'hub://'
 
 def create_logger(stream=None):
     level = logging.INFO
@@ -228,6 +229,7 @@ def int_representer(dumper, data):
     return dumper.represent_int(data)
 
 
+yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
@@ -253,6 +255,8 @@ class MyEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, pathlib.PosixPath):
+            return str(obj)
         else:
             return super(MyEncoder, self).default(obj)
 
@@ -284,6 +288,18 @@ def parse_function_uri(uri):
         tag = uri[loc+1:]
         uri = uri[:loc]
     return project, uri, tag
+
+
+def extend_hub_uri(uri):
+    if not uri.startswith(hub_prefix):
+        return uri
+    name = uri[len(hub_prefix):]
+    tag = 'master'
+    if ':' in name:
+        loc = name.find(':')
+        tag = name[loc+1:]
+        name = name[:loc]
+    return config.hub_url.format(name=name, tag=tag)
 
 
 def gen_md_table(header, rows=None):
@@ -344,7 +360,8 @@ def new_pipe_meta(artifact_path=None, *args):
     return conf
 
 
-def tag_image(base):
-    if base in ['mlrun/mlrun'] and config.version:
+def tag_image(base: str):
+    if config.version and (base == 'mlrun/mlrun' or (
+            base.startswith('mlrun/ml-') and ':' not in base)):
         base += ':' + config.version
     return base

@@ -22,18 +22,17 @@ class SecretsStore:
         self._secrets = {}
 
     @classmethod
-    def from_dict(cls, struct: dict):
+    def from_list(cls, src_list: list):
         store = cls()
-        src_list = struct.get(run_keys.secrets)
         if src_list and isinstance(src_list, list):
             for src in src_list:
-                store._add_source(src['kind'], src.get('source'), src.get('prefix', ''))
+                store.add_source(src['kind'], src.get('source'), src.get('prefix', ''))
         return store
 
     def to_dict(self, struct):
         pass
 
-    def _add_source(self, kind, source='', prefix=''):
+    def add_source(self, kind, source='', prefix=''):
 
         if kind == 'inline':
             if isinstance(source, str):
@@ -55,8 +54,8 @@ class SecretsStore:
                 k = key.strip()
                 self._secrets[prefix + k] = environ.get(k)
 
-    def get(self, key):
-        return self._secrets.get(key)
+    def get(self, key, default=None):
+        return self._secrets.get(key, default)
 
     def get_all(self):
         return self._secrets.copy()

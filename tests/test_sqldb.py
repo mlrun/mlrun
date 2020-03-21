@@ -13,8 +13,10 @@
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
 
+from contextlib import contextmanager
 from collections import defaultdict
 from datetime import datetime, timedelta
+from unittest.mock import Mock
 
 import pytest
 
@@ -27,6 +29,19 @@ def db():
     db = sqldb.SQLDB('sqlite:///:memory:?check_same_thread=false')
     db.connect()
     return db
+
+
+@contextmanager
+def patch(obj, **kw):
+    old = {}
+    for k, v in kw.items():
+        old[k] = getattr(obj, k)
+        setattr(obj, k, v)
+    try:
+        yield obj
+    finally:
+        for k, v in old.items():
+            setattr(obj, k, v)
 
 
 def test_list_artifact_tags(db: sqldb.SQLDB):
@@ -184,3 +199,31 @@ def test_projects(db: sqldb.SQLDB):
     db.add_project(prj2)
     prjs = {p.name for p in db.list_projects()}
     assert {prj1['name'], prj2['name']} == prjs, 'list'
+
+
+def test_cache_projects(db: sqldb.SQLDB):
+    assert 0 == len(db._projects), 'empty cache'
+    name = 'prj348'
+    db.add_project({'name': name})
+    assert {name} == db._projects, 'project'
+
+    mock = Mock()
+    with patch(db, add_project=mock):
+        db._create_project_if_not_exists(name)
+    mock.assert_not_called()
+
+    mock = Mock()
+    with patch(db, add_project=mock):
+        db._create_project_if_not_exists(name + '-new')
+    mock.assert_called_once()
+
+
+# def test_function_latest(db: sqldb.SQLDB):
+#     fn1, t1 = {'x': 1}, 'u83'
+#     fn2, t2 = {'x': 2}, 'u23'
+#     prj, name = 'p388', 'n3023'
+#     db.store_function(fn1, name, prj, t1)
+#     db.store_function(fn2, name, prj, t2)
+#
+#     fn = db.get_function(name, prj, 'latest')
+#     assert fn2 == fn, 'latest'

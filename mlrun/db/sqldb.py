@@ -112,6 +112,7 @@ with warnings.catch_warnings():
         project = Column(String)
         uid = Column(String)
         body = Column(BLOB)
+        updated = Column(TIMESTAMP)
         labels = relationship(Label)
 
     class Log(Base):
@@ -198,6 +199,7 @@ class SQLDB(RunDBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self.session = None
+        self._projects = set()  # project cache
 
     def connect(self, secrets=None):
         engine = create_engine(self.dsn)
@@ -205,6 +207,9 @@ class SQLDB(RunDBInterface):
         cls = sessionmaker(bind=engine)
         # TODO: One session per call?
         self.session = cls()
+
+        for project in self.list_projects():
+            self._projects.add(project.name)
 
     def store_log(self, uid, project='', body=b'', append=False):
         project = project or config.default_project
@@ -392,15 +397,20 @@ class SQLDB(RunDBInterface):
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
         self._create_project_if_not_exists(project)
-        uid = tag or uuid4().hex
-        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
-        fn = self._get_function(name, project, uid)
+        tag = tag or get_in(func, 'metadata.tag') or 'latest'
+
+        #uid = self._resolve_tag(Function, project, tag)
+        updated = datetime.now(timezone.utc)
+        update_in(func, 'metadata.updated', updated)
+#        fn = self._get_function(name, project, uid)
+        fn = self._get_function(name, project, tag)
         if not fn:
             fn = Function(
                 name=name,
                 project=project,
-                uid=uid,
+                uid=tag,
             )
+        fn.updated = updated
         labels = get_in(func, 'metadata.labels', {})
         update_labels(fn, labels)
         fn.struct = func
@@ -409,9 +419,16 @@ class SQLDB(RunDBInterface):
     def get_function(self, name, project='', tag=''):
         project = project or config.default_project
         query = self._query(Function, name=name, project=project)
-        if tag:
-            uid = self._resolve_tag(Function, project, tag)
-            query = query.filter(Function.Tag.uid == uid)
+        tag = tag or 'latest'
+        # if tag:
+        #     if tag == 'latest':
+        #         uid = self._function_latest_uid(project, name)
+        #         if not uid:
+        #             raise RunDBError(
+        #                 f'no latest version for function {project}:{name}')
+        #     else:
+        #         uid = self._resolve_tag(Function, project, tag)
+        query = query.filter(Function.uid == tag)
         obj = query.one_or_none()
         if obj:
             return obj.struct
@@ -420,8 +437,8 @@ class SQLDB(RunDBInterface):
             self, name, project=None, tag=None, labels=None):
         project = project or config.default_project
         uid = tag
-        if uid:
-            uid = self._resolve_tag(Function, project, uid)
+        # if uid:
+        #     uid = self._resolve_tag(Function, project, uid)
 
         funcs = FunctionList()
         funcs.extend(
@@ -491,6 +508,7 @@ class SQLDB(RunDBInterface):
         users = self._find_or_create_users(user_names)
         prj.users.extend(users)
         self._upsert(prj)
+        self._projects.add(prj.name)
         return prj.id
 
     def update_project(self, name, data: dict):
@@ -531,8 +549,19 @@ class SQLDB(RunDBInterface):
         kw = {k: v for k, v in kw.items() if v is not None}
         return self.session.query(cls).filter_by(**kw)
 
+    def _function_latest_uid(self, project, name):
+        # FIXME
+        query = (
+            self._query(Function.uid)
+            .filter(Function.project == project, Function.name == name)
+            .order_by(Function.updated.desc())
+        ).limit(1)
+        out = query.one_or_none()
+        if out:
+            return out[0]
+
     def _create_project_if_not_exists(self, name):
-        if not self.get_project(name):
+        if name not in self._projects:
             self.add_project({'name': name})
 
     def _find_or_create_users(self, user_names):
@@ -551,7 +580,7 @@ class SQLDB(RunDBInterface):
         return users
 
     def _get_function(self, name, project, tag):
-        uid = self._resolve_tag(Function, project, name)
+        uid = self._resolve_tag(Function, project, tag)
         query = self._query(Function, name=name, project=project, uid=uid)
         return query.one_or_none()
 
@@ -624,8 +653,11 @@ class SQLDB(RunDBInterface):
 
         return query
 
-    def _find_functions(self, name, project, tag, labels):
-        query = self._query(Function, name=name, project=project, tag=tag)
+    def _find_functions(self, name, project, uid, labels):
+        query = self._query(Function, name=name, project=project)
+        if uid:
+            query = query.filter(Function.Tag.uid == uid)
+
         labels = label_set(labels)
         return self._add_labels_filter(query, Function, labels)
 

@@ -274,6 +274,19 @@ class RunTemplate(ModelObj):
         return self
 
     def with_secrets(self, kind, source):
+        """register a secrets source (file, env or dict)
+
+        read secrets from a source provider to be used in workflows, e.g.
+
+        proj.with_secrets('file', 'file.txt')
+        proj.with_secrets('inline', {'key': 'val'})
+        proj.with_secrets('env', 'ENV1,ENV2')
+
+        :param kind:   secret type (file, inline, env)
+        :param source: secret data or link (see example)
+
+        :returns: project object
+        """
         self.spec.secret_sources.append({'kind': kind, 'source': source})
         return self
 

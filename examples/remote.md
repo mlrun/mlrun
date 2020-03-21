@@ -1,67 +1,101 @@
-# Using MLRurn from a remote client
+# Using MLRun from a Remote Client
 
-MLRun can be used from a local IDE and run jobs on a remote cluster, you first need to:
-1. Install mlrun locally (use: pip unstall mlrun)
-2. Have remote access to your MLRun servive (node port on the remote k8s cluster)
-3. set environment variables with appropriate information:
+This tutorial explains how to use MLRun from a local development environment (IDE) to run jobs on a remote cluster.
 
-as a minimum specify the remote address:
+#### In This Document
 
-    MLRUN_DBPATH=http://<cluster-ip>:<port>
-    
-If you want to use iguazio data services you need to add their credentials:    
+- [Prerequisites](#prerequisites)
+- [CLI Commands](#cli-commands)
+  - [The `build` Command](#cli-cmd-build)
+  - [The `run` Command](#cli-cmd-run)
+- [Building and Running a Function from a Git Repository](#git-func)
+- [Using a Sources Archive](#sources-archive)
 
-    V3IO_USERNAME=<user-name>
-    V3IO_API=<api endpoint, e.g.: webapi.default-tenant.app.xxx.iguazio-cd2.com>
-    V3IO_ACCESS_KEY=<access_key>
+<a id="prerequisites"></a>
+## Prerequisites
 
+Before you begin, ensure that the following prerequisites are met:
 
-## CLI commands
+1. Install MLRun locally.
+    You can do this by running the following from a command line:
+    ```sh
+    pip install mlrun
+    ```
+2. Ensure that you have remote access to your MLRun service (i.e., to the service's NodePort on the remote Kubernetes cluster).
+3. Set environment variables to define your MLRun configuration.
+    As a minimum requirement &mdash;
 
-the `build` command will build all the function dependencies (docker image)
-from the function spec 
+    - Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
 
+      ```sh
+      MLRUN_DBPATH=http://<cluster IP>:<port>
+      ```
+    - If the remote service is on an instance of the Iguazio Data Science Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
+
+      ```sh
+      V3IO_USERNAME=<username of a platform user with MLRun admin privileges>
+      V3IO_API=<API endpoint of the web-APIs service endpoint; e.g., "webapi.default-tenant.app.mycluster.iguazio.com">
+      V3IO_ACCESS_KEY=<platform access key>
+      ```
+
+<a id="cli-commands"></a>
+## CLI Commands
+
+Use the following commands of the MLRun command-line interface (CLI) &mdash; `mlrun` &mdash; to build and run MLRun functions:
+
+- [`build`](#cli-cmd-build)
+- [`run`](#cli-cmd-run)
+
+<a id="cli-cmd-build"></a>
+### The `build` Command
+
+Use the `build` CLI command to build all the function dependencies from the function specification into a function container (Docker image).
+This command supports many options, including the following; for the full list, run `mlrun build --help`:
+
+```sh
+  --name TEXT            Function name
+  --project TEXT         Project name
+  --tag TEXT             Function tag
+  -i, --image TEXT       Target image path
+  -s, --source TEXT      Path/URL of the function source code - a PY file, or a directory to archive
+                         when using the -a|--archive option (default: './')
+  -b, --base-image TEXT  Base Docker image
+  -c, --command TEXT     Build commands; for example, '-c pip install pandas'
+  --secret-name TEXT     Name of a container-registry secret
+  -a, --archive TEXT     Path/URL of a target function-sources archive directory: as part of
+                         the build, the function sources (see -s|--source) are archived into a
+                         TAR file and then extracted into the archive directory 
+  --silent               Don't show build logs
+  --with-mlrun           Add the MLRun package ("mlrun")
 ```
-  --name TEXT            function name
-  --project TEXT         project name
-  --tag TEXT             function tag
-  -i, --image TEXT       location/url of the source files dir/tar
-  -s, --source TEXT      location/url of the source files dir/tar
-  -b, --base-image TEXT  base docker image
-  -c, --command TEXT     build commands, e.g. '-c pip install pandas'
-  --secret-name TEXT     container registry secret name
-  -a, --archive TEXT     destination archive for code (tar)
-  --silent               do not show build logs
-  --with-mlrun           add MLRun package
+
+> **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#sources-archive) later in this tutorial.
+
+<a id="cli-cmd-run"></a>
+### The `run` Command
+
+Use the `run` CLI command to execute a task by using a local or remote function.
+This command supports many options, including the following; for the full list, run `mlrun run --help`:
+
+```sh
+  -p, --param key=val    Parameter name and value tuples; for example, `-p x=37 -p y='text'`
+  -i, --inputs key=path  Input artifact; for example, `-i infile.txt=s3://mybucket/infile.txt`
+  --in-path TEXT         Base directory path/URL for storing input artifacts
+  --out-path TEXT        Base directory path/URL for storing output artifacts
+  -s, --secrets TEXT     Secrets, either as `file=<filename>` or `env=<ENVAR>,...`; for example, `-s file=secrets.txt`
+  --name TEXT            Run name
+  --project TEXT         Project name or ID
+  -f, --func-url TEXT    Path/URL of a YAML function-configuration file, or db://<project>/<name>[:tag] for a DB function object
+  --task TEXT            Path/URL of a YAML task-configuration file
+  --handler TEXT         Invoke the function handler inside the code file
 ```
 
-the archive option allow defining a remote location e.g. s3 or v3io object path that will store tar files with all the 
-code dependencies we need, it can also be set using the `MLRUN_DEFAULT_ARCHIVE` env var
- 
- 
- the `run` executes a task using a local or remote function it can accept many options, see `mlrun run --help` for details.
- the key ones are:
- 
-```
-  -p, --param key=val    parameter name and value tuples, e.g. -p x=37 -p y='text'
-  -i, --inputs key=path  input artifact url 
-  --in-path TEXT         default input path/url (prefix) for artifact
-  --out-path TEXT        default output path/url (prefix) for artifact
-  -s, --secrets TEXT     secrets file=<filename> or env=ENV_KEY1,..
-  --name TEXT            optional run name 
-  --project TEXT         project name/id
-  -f, --func-url TEXT    path/url of function yaml or db://<project>/<name>[:tag]
-  --task TEXT            path/url to task yaml
-  --handler TEXT         invoke function handler inside the code file
-```
+<a id="git-func"></a>
+## Building and Running a Function from a Git Repository
 
-
-
-## Running function from a git repo
-
-in your IDE working directory place a YAML file describing the 
-function, example:
-
+To build and run a function from a Git repository, start out by adding a YAML function-configuration file in your local environment.
+This file should describe the function and define its specification.
+For example, create a **myfunc.yaml** file with the following content in your working directory:
 ```yaml
 kind: job
 metadata:
@@ -78,19 +112,20 @@ spec:
     source: git://github.com/mlrun/mlrun
 ```
 
-save it as `myfunc.yaml`
+Then, run the following CLI command and pass the path to your local function-configuration file as an argument to build the function's container image according to the configured requirements.
+For example, the following command builds the function using the **myfunc.yaml** file from the current directory:
+```sh
+mlrun build myfunc.yaml
+```
 
-in the command line run mlrun build command to build the container image:
+When the build completes, you can use the `run` CLI command to run the function.
+Set the `-f` option to the path to the local function-configuration file, and pass relevant parameters.
+For example:
+```sh
+mlrun run -f myfunc.yaml -w -p p1=3
+```
 
-    mlrun build myfunc.yaml
-    
-the function will be built according to the specified requirements, once the build is complete we can run the function
-
-    mlrun run -f myfunc.yaml -w -p p1=3
-    
-
-You can also try the following example based on the mlrun ci demo:
-
+You can also try the following function-configuration example, which is based on the MLRun CI demo:
 ```yaml
 kind: job
 metadata:
@@ -105,16 +140,21 @@ spec:
     commands: ['pip install pandas']
     base_image: mlrun/mlrun:dev
     source: git://github.com/mlrun/ci-demo.git
-``` 
+```
 
-## Working with Archive
+<a id="sources-archive"></a>
+## Using a Sources Archive
 
-If you work with local files and want mlrun to imporporate all of those into your function container
-you can use the archive option, it will tar your working directory and upload it into an archive path
-the remote builder will untar all the files into the container working directory
+The `-a|--archive` option of the CLI [`build`](#cli-cmd-build) command enables you to define a remote object path for storing TAR archive files with all the required code dependencies.
+The remote location can be, for example, in an AWS S3 bucket or in a data container in an Iguazio Data Science Platform ("platform") cluster.
+Alternatively, you can also set the archive path by using the `MLRUN_DEFAULT_ARCHIVE` environment variable.
+When an archive path is provided, the remote builder archives the configured function sources (see the `-s|-source` [`build`](#cli-cmd-build) option) into a TAR archive file, and then extracts (untars) all of the archive files (i.e., the function sources) into the configured archive location.
+<!-- [IntInfo] MLRUN_DEFAULT_ARCHIVE is referenced in the code using
+  `mlconf.default_archive` when using `from .config import config as mlconf`.
+-->
 
-example, create a `function.yaml` file in the working directory with the following text:
-
+To use the archive option, first create a local function-configuration file.
+For example, you can create a **function.yaml** file in your working directory with the following content; the specification describes the environment to use, defines a Python base image, adds several packages, and defines **examples/training.py** as the application to execute on `run` commands:
 ```yaml
 kind: job
 metadata:
@@ -129,16 +169,23 @@ spec:
     base_image: python:3.6-jessie
 ```
 
-the function spec tells the system to use a python base image and add couple of packages
-, the `examples/training.py` will be the file we execute on `run` commands.
+Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:
+```sh
+mlrun build <function-configuration file path> -a <archive path/URL> [-s <function-sources path/URL>]
+```
+> **Note:**
+> - `.` is a shorthand for a **function.yaml** configuration file in the local working directory.
+> - The `-a|--archive` option is used to instruct MLRun to create an archive file from the function-code sources at the location specified by the `-s|--sources` option; the default sources location is the current directory (`./`).
 
-next we build that function (`.` is a shortcut for `function.yaml`).
-we use the `-a` flag to specify we want to tar and upload our local dir to the remote archive 
-(`,/` is the default source, another source can be specified using `-s` options).
-The builder will inflate the tar into the container working dir.
+For example, the following command uses the **function.yaml** configuration file (`.`), relies on the default function-sources path (`./`), and sets the target archive path to `v3io:///users/$V3IO_USERNAME/tars`.
+So, for a user named "admin", for example, the function sources from the local working directory will be archived and then extracted into an **admin/tars** directory in the "users" data container of the configured platform cluster (which is accessed via the `v3io` data mount):
+```sh
+mlrun build . -a v3io:///users/$V3IO_USERNAME/tars
+```
 
-    mlrun build . -a v3io:///users/admin/tars
-    
-once the function is built we can run it with some parameters
+After the function build completes, you can run the function with some parameters.
+For example:
+```sh
+mlrun run -f . -w -p p1=3
+```
 
-    mlrun run -f . -w -p p1=3

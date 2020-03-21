@@ -60,7 +60,7 @@ class FunctionEntrypoint(ModelObj):
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  build=None, entry_points=None, description=None,
-                 default_handler=None, pythonpath=None):
+                 workdir=None, default_handler=None, pythonpath=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -68,7 +68,7 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
-        self.workdir = None
+        self.workdir = workdir
         self.pythonpath = pythonpath
 
         self._build = None
@@ -106,6 +106,7 @@ class BaseRuntime(ModelObj):
         self._status = None
         self.status = None
         self._is_api_server = False
+        self.verbose = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
@@ -173,7 +174,7 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', workdir: str = '', artifact_path='',
+            out_path: str = '', workdir: str = '', artifact_path: str = '',
             watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
@@ -218,7 +219,8 @@ class BaseRuntime(ModelObj):
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or artifact_path \
                                    or runspec.spec.output_path
-        runspec.spec.input_path = workdir or runspec.spec.input_path
+        runspec.spec.input_path = workdir or runspec.spec.input_path \
+                                  or self.spec.workdir
 
         spec = runspec.spec
         if self.spec.mode and self.spec.mode == 'noctx':
@@ -227,7 +229,7 @@ class BaseRuntime(ModelObj):
                 self.spec.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
-            self._secrets = SecretsStore.from_dict(spec.to_dict())
+            self._secrets = SecretsStore.from_list(spec.secret_sources)
 
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
@@ -239,12 +241,15 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = path.join(config.artifact_path, meta.uid)
         if is_local(runspec.spec.output_path):
             logger.warning('artifact path is not defined or is local,'
-                           'artifacts will not be visible in the UI')
+                           ' artifacts will not be visible in the UI')
         db = self._get_db()
 
         if not self.is_deployed:
             raise RunError(
                 "function image is not built/ready, use .build() method first")
+
+        if self.verbose:
+            logger.info('runspec:\n{}'.format(runspec.to_yaml()))
 
         if not self.is_child:
             dbstr = 'self' if self._is_api_server else self.spec.rundb
@@ -545,16 +550,15 @@ class BaseRuntime(ModelObj):
         logger.info('function spec saved to path: {}'.format(target))
         return self
 
-    def save(self, tag='', versioned=True):
+    def save(self, tag='', versioned=False):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
             return ''
 
         tag = tag or self.metadata.tag or 'latest'
-        self.metadata.tag = tag
+        hashkey = calc_hash(self, tag=tag)
         obj = self.to_dict()
-        hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))

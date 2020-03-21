@@ -173,10 +173,9 @@ def results_to_iter(results, runspec, execution):
         csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
     execution.log_artifact(
         TableArtifact('iteration_results',
-                      src_path='iteration_results.csv',
                       body=csv_buffer.getvalue(),
                       header=header,
-                      viewer='table'))
+                      viewer='table'), local_path='iteration_results.csv')
     if failed:
         execution.set_state(
             error='{} or {} tasks failed, check logs in db for details'.format(

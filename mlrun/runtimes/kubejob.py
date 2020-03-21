@@ -89,14 +89,16 @@ class KubejobRuntime(KubeResource):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
-            return 'ready'
+            self.status.state = 'ready'
+            return True
 
         build = self.spec.build
         if not build.source and not build.commands and not with_mlrun:
             if not self.spec.image:
                 raise ValueError('noting to build and image is not specified, '
                                  'please set the function image or build args')
-            return 'ready'
+            self.status.state = 'ready'
+            return True
 
         if not build.source and not build.commands and with_mlrun:
             logger.info('running build to add mlrun package, set '
@@ -194,7 +196,8 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        pod_spec = func_to_pod(self.full_image_path(), self, extra_env, command, args)
+        pod_spec = func_to_pod(self.full_image_path(), self, extra_env,
+                               command, args, self.spec.workdir)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace = k8s.create_pod(pod)
@@ -215,12 +218,13 @@ class KubejobRuntime(KubeResource):
         return None
 
 
-def func_to_pod(image, runtime, extra_env, command, args):
+def func_to_pod(image, runtime, extra_env, command, args, workdir):
     container = client.V1Container(name='base',
                                    image=image,
                                    env=extra_env + runtime.spec.env,
                                    command=[command],
                                    args=args,
+                                   working_dir=workdir,
                                    image_pull_policy=runtime.spec.image_pull_policy,
                                    volume_mounts=runtime.spec.volume_mounts,
                                    resources=runtime.spec.resources)

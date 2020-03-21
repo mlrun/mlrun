@@ -21,13 +21,14 @@ from sys import platform
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
-from mlrun.db import sqldb
-
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
 is_ci = 'CI' in environ
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
+Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
+environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
+print(f'KFP: {results}/kfp/')
 
 rundb_path = f'{results}/rundb'
 out_path = f'{results}/out'
@@ -36,8 +37,7 @@ examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
 
-Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
-environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
+from mlrun.db import sqldb
 
 
 def check_docker():

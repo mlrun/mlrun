@@ -26,7 +26,7 @@ import boto3
 import requests
 
 V3IO_LOCAL_ROOT = 'v3io'
-DB_SCHEMA = 'db'
+DB_SCHEMA = 'store'
 
 
 class FileStats:

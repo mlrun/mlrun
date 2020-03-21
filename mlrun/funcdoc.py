@@ -185,10 +185,31 @@ def ast_func_info(func: ast.FunctionDef):
 def ast_param_dict(param: ast.arg) -> dict:
     return {
         'name': param.arg,
-        'type': param.annotation.id if param.annotation else '',
+        'type': ann_type(param.annotation) if param.annotation else '',
         'doc': '',
         'default': '',
     }
+
+
+def ann_type(ann):
+    if hasattr(ann, 'slice'):
+        name = ann.value.id
+        inner = ', '.join(ann_type(e) for e in iter_elems(ann.slice))
+        return f'{name}[{inner}]'
+
+    return getattr(ann, 'id', '')
+
+
+def iter_elems(ann):
+    if hasattr(ann.value, 'elts'):
+        return ann.value.elts
+    if not hasattr(ann, 'slice'):
+        return [ann.value]
+    elif hasattr(ann.slice, 'elts'):
+        return ann.slice.elts
+    elif hasattr(ann.slice, 'value'):
+        return [ann.slice.value]
+    return []
 
 
 class ASTVisitor(ast.NodeVisitor):

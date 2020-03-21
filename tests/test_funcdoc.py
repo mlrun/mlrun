@@ -46,7 +46,7 @@ def is_ast_func(obj):
 
 def ast_func(code):
     funcs = [s for s in ast.parse(code).body if is_ast_func(s)]
-    assert len(funcs) == 1, f'more than one function in:\n{code}'
+    assert len(funcs) == 1, f'{len(funcs)} functions in:\n{code}'
     return funcs[0]
 
 
@@ -143,3 +143,15 @@ def test_ast_none():
     '''
     fn = ast.parse(dedent(code)).body[0]
     funcdoc.ast_func_info(fn)
+
+
+def test_ast_compound():
+    with open(f'{here}/arc.txt') as fp:
+        code = fp.read()
+
+    fn = ast_func(code)
+    info = funcdoc.ast_func_info(fn)
+    for i, param in enumerate(info['params']):
+        if i in (4, 8):
+            continue
+        assert param['type'], f'{i}: {param}'

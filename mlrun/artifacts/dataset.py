@@ -138,7 +138,7 @@ class DatasetArtifact(Artifact):
 
 def get_stats(df):
     d = {}
-    for k, v in df.describe(include='all').items():
+    for k, v in df.describe().items():  # todo: add (include='all')
         v = {m: float(x) if not isinstance(x, str) else x
              for m, x in v.dropna().items()}
         d[k] = v

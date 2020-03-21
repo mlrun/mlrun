@@ -48,9 +48,13 @@ class HasStruct:
 def make_label(table):
     class Label(Base):
         __tablename__ = f'{table}_labels'
+        __table_args__ = (
+            UniqueConstraint('name', 'parent', name=f'_{table}_labels_uc'),
+        )
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
+        value = Column(String)
         parent = Column(Integer, ForeignKey(f'{table}.id'))
 
     return Label
@@ -260,8 +264,9 @@ class SQLDB(RunDBInterface):
         if start_time:
             run.start_time = start_time
         run.labels.clear()
-        for label in run_labels(struct):
-            run.labels.append(Run.Label(name=label, parent=run))
+        for name, value in run_labels(struct).items():
+            lbl = Run.Label(name=name, value=value, parent=run.id)
+            run.labels.append(lbl)
         self.session.merge(run)
         self.session.commit()
         self._delete_empty_labels(Run.Label)
@@ -321,7 +326,7 @@ class SQLDB(RunDBInterface):
         if iter:
             key = '{}-{}'.format(iter, key)
         art = self._get_artifact(uid, project, key)
-        labels = label_set(artifact.get('labels', []))
+        labels = artifact.get('labels', {})
         if not art:
             art = Artifact(
                 key=key,
@@ -405,7 +410,7 @@ class SQLDB(RunDBInterface):
                 uid=tag,
             )
         fn.updated = updated
-        labels = label_set(get_in(func, 'metadata.labels', []))
+        labels = get_in(func, 'metadata.labels', {})
         update_labels(fn, labels)
         fn.struct = func
         self._upsert(fn)
@@ -602,9 +607,7 @@ class SQLDB(RunDBInterface):
     def _find_runs(self, uid, project, labels, state):
         labels = label_set(labels)
         query = self._query(Run, uid=uid, project=project, state=state)
-        if labels:
-            query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
-        return query
+        return self._add_labels_filter(query, Run, labels)
 
     def _latest_uid_filter(self, query):
         # Create a sub query of latest uid (by updated) per (project,key)
@@ -637,8 +640,7 @@ class SQLDB(RunDBInterface):
             else:
                 query = query.filter(Artifact.uid == uid)
 
-        if labels:
-            query = query.join(Run.Label).filter(Run.Label.name.in_(labels))
+        query = self._add_labels_filter(query, Run, labels)
 
         if since or until:
             since = since or datetime.min
@@ -653,15 +655,10 @@ class SQLDB(RunDBInterface):
     def _find_functions(self, name, project, uid, labels):
         query = self._query(Function, name=name, project=project)
         if uid:
-            query = query.filter(Function.Tag.uid == uid)
+            query = query.filter(Function.uid == uid)
 
         labels = label_set(labels)
-        for obj in query:
-            func = obj.struct
-            if labels:
-                if not (labels & set(get_in(func, 'metadata.labels', []))):
-                    continue
-            yield obj
+        return self._add_labels_filter(query, Function, labels)
 
     def _delete(self, cls, **kw):
         query = self.session.query(cls).filter_by(**kw)
@@ -672,6 +669,22 @@ class SQLDB(RunDBInterface):
     def _find_lables(self, cls, label_cls, labels):
         return self.session.query(cls).join(label_cls).filter(
                 label_cls.name.in_(labels))
+
+    def _add_labels_filter(self, query, cls, labels):
+        if not labels:
+            return query
+
+        preds = []
+        for lbl in labels:
+            if '=' in lbl:
+                name, value = [v.strip() for v in lbl.split('=', 1)]
+                cond = and_(cls.Label.name == name, cls.Label.value == value)
+                preds.append(cond)
+            else:
+                preds.append(cls.Label.name == lbl.strip())
+
+        subq = self.session.query(cls.Label).filter(*preds).subquery('labels')
+        return query.join(subq)
 
 
 def table2cls(name):
@@ -692,23 +705,22 @@ def run_start_time(run):
     return parser.parse(ts)
 
 
-def run_labels(run):
-    labels = get_in(run, 'metadata.labels', [])
-    return label_set(labels)
+def run_labels(run) -> dict:
+    return get_in(run, 'metadata.labels', {})
 
 
 def run_state(run):
     return get_in(run, 'status.state', '')
 
 
-def update_labels(obj, labels):
+def update_labels(obj, labels: dict):
     old = {label.name: label for label in obj.labels}
     obj.labels.clear()
-    for name in labels:
+    for name, value in labels.items():
         if name in old:
             obj.labels.append(old[name])
         else:
-            obj.labels.append(obj.Label(name=name, parent=obj))
+            obj.labels.append(obj.Label(name=name, value=value, parent=obj.id))
 
 
 def to_dict(obj):

@@ -82,7 +82,7 @@ def test_list_artifact_date(db: sqldb.SQLDB):
 
 def test_list_projects(db: sqldb.SQLDB):
     for i in range(10):
-        run = new_run('s1', ['l1', 'l2'], x=1)
+        run = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, x=1)
         db.store_run(run, 'u7', project=f'prj{i%3}', iter=i)
 
     assert {'prj0', 'prj1', 'prj2'} == {p.name for p in db.list_projects()}
@@ -101,7 +101,7 @@ def test_schedules(db: sqldb.SQLDB):
 
 def test_run_iter0(db: sqldb.SQLDB):
     uid, prj = 'uid39', 'lemon'
-    run = new_run('s1', ['l1', 'l2'], x=1)
+    run = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, x=1)
     for i in range(7):
         db.store_run(run, uid, prj, i)
     db._get_run(uid, prj, 0)  # See issue 140

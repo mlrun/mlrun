@@ -1,5 +1,23 @@
 from http import HTTPStatus
 from uuid import uuid4
+from contextlib import contextmanager
+
+import pytest
+
+from mlrun.db import httpd, sqldb
+
+
+@contextmanager
+def temp_db():
+    old_db = httpd._db
+    db = sqldb.SQLDB('sqlite:///:memory:?check_same_thread=false')
+    db.connect()
+    httpd._db = db
+
+    try:
+        yield
+    finally:
+        httpd._db = old_db
 
 import pytest
 
@@ -11,7 +29,7 @@ from mlrun.run import new_function
 def client():
     old_testing = httpd.app.config['TESTING']
     httpd.app.config['TESTING'] = True
-    with httpd.app.test_client() as client:
+    with httpd.app.test_client() as client, temp_db():
         yield client
 
     httpd.app.config['TESTING'] = old_testing

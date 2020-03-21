@@ -66,14 +66,14 @@ def new_func(labels, **kw):
 
 def test_list_functions(db: RunDBInterface):
     name = 'fn'
-    fn1 = new_func(['l1', 'l2'], x=1)
-    db.store_function(fn1, name, tag='t0')
-    fn2 = new_func(['l2', 'l3'], x=2)
+    fn1 = new_func({'l1': 'v1', 'l2': 'v2'}, x=1)
+    db.store_function(fn1, name)
+    fn2 = new_func({'l2': 'v2', 'l3': 'v3'}, x=2)
     db.store_function(fn2, name, tag='t1')
-    fn3 = new_func(['l3'], x=3)
+    fn3 = new_func({'l3': 'v3'}, x=3)
     db.store_function(fn3, name, tag='t2')
 
-    funcs = db.list_functions(name, labels=['l2'])
+    funcs = db.list_functions(name, labels={'l2': 'v2'})
     assert 2 == len(funcs), 'num of funcs'
     assert {1, 2} == {fn['x'] for fn in funcs}, 'xs'
 
@@ -95,11 +95,11 @@ def test_log(db: RunDBInterface):
 
 
 def test_runs(db: RunDBInterface):
-    run1 = new_run('s1', ['l1', 'l2'], x=1)
+    run1 = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, x=1)
     db.store_run(run1, 'uid1')
-    run2 = new_run('s1', ['l2', 'l3'], x=2)
+    run2 = new_run('s1', {'l2': 'v2', 'l3': 'v3'}, x=2)
     db.store_run(run2, 'uid2')
-    run3 = new_run('s2', ['l3'], x=2)
+    run3 = new_run('s2', {'l3': 'v3'}, x=2)
     uid3 = 'uid3'
     db.store_run(run3, uid3)
     db.store_run(run3, uid3)  # should not raise
@@ -112,7 +112,7 @@ def test_runs(db: RunDBInterface):
     }
     db.update_run(updates, uid3)
 
-    runs = db.list_runs(labels=['l2'])
+    runs = db.list_runs(labels={'l2': 'v2'})
     assert 2 == len(runs), 'labels length'
     assert {1, 2} == {r['x'] for r in runs}, 'xs labels'
 
@@ -133,7 +133,7 @@ def test_runs(db: RunDBInterface):
 
 def test_update_run(db: sqldb.SQLDB):
     uid = 'uid83'
-    run = new_run('s1', ['l1', 'l2'], x=1)
+    run = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, x=1)
     db.store_run(run, uid)
     val = 13
     db.update_run({'x': val}, uid)
@@ -169,7 +169,7 @@ def test_list_runs(db: RunDBInterface):
     if isinstance(db, FileRunDB):
         pytest.skip('FIXME')
     uid = 'u183'
-    run = new_run('s1', ['l1', 'l2'], uid, x=1)
+    run = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, uid, x=1)
     count = 5
     for iter in range(count):
         db.store_run(run, uid, iter=iter)

@@ -550,16 +550,15 @@ class BaseRuntime(ModelObj):
         logger.info('function spec saved to path: {}'.format(target))
         return self
 
-    def save(self, tag='', versioned=True):
+    def save(self, tag='', versioned=False):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
             return ''
 
         tag = tag or self.metadata.tag or 'latest'
-        self.metadata.tag = tag
+        hashkey = calc_hash(self, tag=tag)
         obj = self.to_dict()
-        hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))

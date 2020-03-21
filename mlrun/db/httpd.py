@@ -270,7 +270,6 @@ def build_function():
     logger.info('build_function:\n{}'.format(data))
     function = data.get('function')
     with_mlrun = strtobool(data.get('with_mlrun', 'on'))
-    ready = False
 
     try:
         fn = new_function(runtime=function)
@@ -833,8 +832,11 @@ def list_projects():
     fn = db2dict if full else attrgetter('name')
     projects = []
     for p in _db.list_projects():
-        if isinstance(p, str):
-            projects.append(p)
+        if isinstance(p, dict):
+            if full:
+                projects.append(p)
+            else:
+                projects.append(p.get('name'))
         else:
             projects.append(fn(p))
 

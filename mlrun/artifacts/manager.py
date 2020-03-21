@@ -124,7 +124,7 @@ class ArtifactManager:
         self._log_to_db(key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or '?'
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
-            key, target_path, size, 'Y' if self.artifact_db else 'N'
+            key, item.target_path, size, 'Y' if self.artifact_db else 'N'
         ))
 
     def _log_to_db(self, key, project, sources, item, tag):

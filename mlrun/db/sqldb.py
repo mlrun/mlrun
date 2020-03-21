@@ -15,7 +15,6 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 
 from dateutil import parser
 from sqlalchemy import (

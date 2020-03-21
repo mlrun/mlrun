@@ -27,13 +27,13 @@ class Artifact(ModelObj):
     kind = ''
 
     def __init__(self, key=None, body=None, viewer=None, is_inline=False,
-                 format=None, size=None):
+                 format=None, size=None, target_path=None):
         self.key = key
         self.size = size
         self.iter = None
         self.tree = None
         self.updated = None
-        self.target_path = None
+        self.target_path = target_path
         self.src_path = None
         self._body = body
         self.format = format

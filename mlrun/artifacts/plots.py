@@ -81,10 +81,10 @@ class ChartArtifact(Artifact):
     ]
 
     def __init__(self, key=None, data=None, header=None, options=None,
-                 title=None, chart=None):
+                 title=None, chart=None, target_path=None):
         data = [] if data is None else data
         options = {} if options is None else options
-        super().__init__(key)
+        super().__init__(key, target_path=target_path)
         self.viewer = 'chart'
         self.header = header or []
         self.title = title

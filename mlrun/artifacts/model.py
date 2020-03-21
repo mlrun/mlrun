@@ -19,11 +19,10 @@ class ModelArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['framework', 'algo', 'metrics']
     kind = 'model'
 
-    def __init__(self, key=None, body=None, format=None,
-                 framework=None, algo=None, metrics=None):
+    def __init__(self, key=None, body=None, format=None, framework=None,
+                 algo=None, metrics=None, target_path=None):
 
-        super().__init__(
-            key, body, format=format)
+        super().__init__(key, body, format=format, target_path=target_path)
         self.framework = framework
         self.algo = algo
         self.metrics = metrics

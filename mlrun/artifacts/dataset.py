@@ -71,10 +71,10 @@ class DatasetArtifact(Artifact):
     kind = 'dataset'
 
     def __init__(self, key=None, df=None, preview=None, format='',
-                 stats=None, **kwargs):
+                 stats=None, target_path=None, **kwargs):
 
         format = format.lower()
-        super().__init__(key, None, format=format)
+        super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in supported_formats:
             raise ValueError('unsupported format {} use one of {}'.format(
                 format, '|'.join(supported_formats)))
@@ -96,10 +96,7 @@ class DatasetArtifact(Artifact):
             if stats or self.length < max_csv:
                 self.stats = get_stats(df)
 
-
-
         self._df = df
-
         self._kw = kwargs
 
     def get_body(self):

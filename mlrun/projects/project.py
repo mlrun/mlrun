@@ -25,7 +25,7 @@ from git import Repo
 import yaml
 from os import path, remove
 
-from ..datastore import download_object
+from ..datastore import download_object, StoreManager
 from ..config import config
 from ..run import import_function, code_to_function, new_function, run_pipeline
 import importlib.util as imputil
@@ -102,6 +102,7 @@ def load_project(context, url=None, name=None, secrets=None,
     if repo:
         project.branch = repo.active_branch.name
     project.origin_url = url
+    project.register_artifacts()
     return project
 
 
@@ -150,6 +151,7 @@ class MlrunProject(ModelObj):
         self.conda = conda or {}
         self.remote = False
         self._mountdir = None
+        self._artifact_mngr = None
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -257,6 +259,7 @@ class MlrunProject(ModelObj):
         self._workflows = wfdict
 
     def set_workflow(self, name, code):
+        """add or update a workflow, specify a name and the code path"""
         self._workflows[name] = {'name': name, 'code':code}
 
     @property
@@ -271,24 +274,46 @@ class MlrunProject(ModelObj):
 
         afdict = {}
         for a in artifacts:
-            if not isinstance(a, dict):
-                raise ValueError('artifacts must be a dict')
-            key = a.get('key', '')
-            # todo: support steps dsl as code alternative
-            if not key:
-                raise ValueError('artifacts "key" must be specified')
+            if not isinstance(a, dict) and not hasattr(a, 'to_dict'):
+                raise ValueError('artifacts must be a dict or class')
+            if isinstance(a, dict):
+                key = a.get('key', '')
+                if not key:
+                    raise ValueError('artifacts "key" must be specified')
+            else:
+                key = a.key
+                a = a.to_dict()
+
             afdict[key] = a
 
         self._artifacts = afdict
 
-    def register_artifacts(self):
+    def _get_artifact_mngr(self):
+        if self._artifact_mngr:
+            return self._artifact_mngr
         db = get_run_db().connect(self._secrets)
-        am = ArtifactManager(None, db)
+        sm = StoreManager(self._secrets, db)
+        self._artifact_mngr = ArtifactManager(sm, db)
+        return self._artifact_mngr
+        
+    def register_artifacts(self):
+        """register the artifacts in the MLRun DB (under this project)"""
+        am = self._get_artifact_mngr()
         producer = ArtifactProducer('project', self.name, self.name,
                                     tag=self._get_hexsha() or 'latest')
         for name, obj in self._artifacts.items():
             artifact = dict_to_artifact(obj)
             am.log_artifact(producer, artifact, upload=False)
+
+    def log_artifact(self, item, body=None, tag='',
+            local_path='', artifact_path=None, format=None,
+            upload=True, labels=None):
+        am = self._get_artifact_mngr()
+        producer = ArtifactProducer('project', self.name, self.name,
+                                    tag=self._get_hexsha() or 'latest')
+        am.log_artifact(producer, item, body, tag=tag, local_path=local_path,
+                        artifact_path=artifact_path, format=format,
+                        upload=upload, labels=labels)
 
     def reload(self, sync=False):
         """reload the project and function objects from yaml/specs

@@ -23,6 +23,7 @@ from .base import Artifact
 preview_lines = 20
 max_csv = 10000
 
+
 class TableArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['schema', 'header']
     kind = 'table'
@@ -106,8 +107,13 @@ class DatasetArtifact(Artifact):
         return csv_buffer.getvalue()
 
     def upload(self, data_stores):
+        suffix = pathlib.Path(self.target_path).suffix
         if not self.format:
-            self.format = 'csv' if self.length < max_csv else 'parquet'
+            if suffix and suffix in ['.csv', '.parquet', '.pq']:
+                self.format = 'csv' if suffix=='.csv' else 'parquet'
+            else:
+                self.format = 'csv' if self.length < max_csv else 'parquet'
+
         src_path = self.src_path
         if src_path and os.path.isfile(src_path):
             self._upload_file(src_path, data_stores)
@@ -117,6 +123,8 @@ class DatasetArtifact(Artifact):
             return
 
         if self.format in ['csv', 'parquet']:
+            if not suffix:
+                self.target_path = self.target_path + '.' + self.format
             writer_string = 'to_{}'.format(self.format)
             saving_func = getattr(self._df, writer_string, None)
             target = self.target_path
@@ -133,7 +141,7 @@ class DatasetArtifact(Artifact):
                 self._set_meta(target)
             return
 
-        raise ValueError('not implemented')
+        raise ValueError(f'format {self.format} not implemented yes')
 
 
 def get_stats(df):

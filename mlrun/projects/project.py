@@ -295,7 +295,7 @@ class MlrunProject(ModelObj):
         sm = StoreManager(self._secrets, db)
         self._artifact_mngr = ArtifactManager(sm, db)
         return self._artifact_mngr
-        
+
     def register_artifacts(self):
         """register the artifacts in the MLRun DB (under this project)"""
         am = self._get_artifact_mngr()

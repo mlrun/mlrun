@@ -123,7 +123,7 @@ def run_local(task, command='', name: str = '', args: list = None,
     else:
         raise ValueError('unsupported suffix: {}'.format(suffix))
 
-    fn = new_function(name, command=command, args=args)
+    fn = new_function(meta.name, command=command, args=args)
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)

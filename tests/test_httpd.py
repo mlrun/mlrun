@@ -78,7 +78,8 @@ def test_tag(client):
     for i in range(7):
         name = fn_name(i)
         fn = new_function(name=name, project=prj).to_dict()
-        resp = client.post(f'/api/func/{prj}/{name}', json=fn)
+        tag = uuid4().hex
+        resp = client.post(f'/api/func/{prj}/{name}?tag={tag}', json=fn)
         assert resp.status_code == HTTPStatus.OK, 'status create'
     tag = 't1'
     tagged = {fn_name(i) for i in (1, 3, 4)}

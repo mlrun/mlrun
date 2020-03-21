@@ -656,7 +656,7 @@ class SQLDB(RunDBInterface):
     def _find_functions(self, name, project, uid, labels):
         query = self._query(Function, name=name, project=project)
         if uid:
-            query = query.filter(Function.Tag.uid == uid)
+            query = query.filter(Function.uid == uid)
 
         labels = label_set(labels)
         return self._add_labels_filter(query, Function, labels)

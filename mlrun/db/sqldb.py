@@ -640,7 +640,7 @@ class SQLDB(RunDBInterface):
             else:
                 query = query.filter(Artifact.uid == uid)
 
-        query = self._add_labels_filter(query, Run, labels)
+        query = self._add_labels_filter(query, Artifact, labels)
 
         if since or until:
             since = since or datetime.min

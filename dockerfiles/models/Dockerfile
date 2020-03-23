@@ -24,21 +24,21 @@ ARG XGB_VER=1.0.1
 ARG LGBM_VER=2.3.1
 
 RUN apt update -qqq \
- && apt -y upgrade \
- && apt install -yq --no-install-recommends build-essential \
-        graphviz \
-        cmake \
-        curl \
-        libreadline7 \
-        libreadline-dev \
-        libboost-dev \
-        libboost-system-dev \
-        libboost-filesystem-dev \
- && apt install -y ca-certificates \
- && update-ca-certificates --fresh \
- && apt clean \
- && apt autoremove \
- && rm -rf /var/lib/apt/lists/*
+    && apt -y upgrade \
+    && apt install -yq --no-install-recommends build-essential \
+    graphviz \
+    cmake \
+    curl \
+    libreadline7 \
+    libreadline-dev \
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    && apt install -y ca-certificates \
+    && update-ca-certificates --fresh \
+    && apt clean \
+    && apt autoremove \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
@@ -46,6 +46,7 @@ RUN conda update conda
 
 RUN python -m pip install -U --no-cache-dir \
     yellowbrick \
+    wrapt \
     kfp \
     pytest \
     pyarrow \
@@ -78,9 +79,7 @@ RUN cd /repos && \
 
 RUN python -m pip install  --ignore-installed --no-cache-dir git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
 
-RUN python -m pip uninstall -y pandas && \
-    conda uninstall -n base pandas && \
-    conda install -n base -c anaconda pandas
+RUN conda update -n base -c anaconda pandas
 
 RUN conda clean -tipsy \
     && find /opt/conda/ -type f,l -name '*.a' -delete \

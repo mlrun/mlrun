@@ -19,42 +19,41 @@ ARG REPO
 ARG PREFIX
 ARG MLRUN_TAG
 
-
 RUN apt update -qqq \
-	&& apt -y upgrade \
-	&& apt install -yq --no-install-recommends build-essential \
-	graphviz \
-	cmake \
-	curl \
-	libreadline7 \
-	libreadline-dev \
-	libboost-dev \
-	libboost-system-dev \
-	libboost-filesystem-dev \
-	&& apt install -y ca-certificates \
-	&& update-ca-certificates --fresh \
-	&& apt clean \
-	&& apt autoremove \
-	&& rm -rf /var/lib/apt/lists/*
+ && apt -y upgrade \
+ && apt install -yq --no-install-recommends build-essential \
+    graphviz \
+    cmake \
+    curl \
+    libreadline7 \
+    libreadline-dev \
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+ && apt install -y ca-certificates \
+ && update-ca-certificates --fresh \
+ && apt clean \
+ && apt autoremove \
+ && rm -rf /var/lib/apt/lists/*
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN conda update conda && \
-	conda config --add channels intel && \
-	conda config --add channels conda-forge && \
-	conda init bash && \
-	conda install -n base intelpython3_core python=3 h5py joblib \
-	dill cloudpickle python-blosc lz4 msgpack-python==0.6.2 'fsspec>=0.6.2' \
-	tini==0.18.0 cytoolz nomkl python-graphviz 
+    conda config --add channels conda-forge && \
+    conda config --add channels anaconda && \
+    conda init bash && \
+    conda install -n base python=3.7 h5py joblib \
+    dill cloudpickle python-blosc lz4 msgpack-python==0.6.2 'fsspec>=0.6.2' \
+        tini==0.18.0 cytoolz nomkl python-graphviz 
 
 # ml/ai pipelines
 RUN conda install -n base kfp
 
-RUN python -m pip install  --ignore-installed git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
+RUN python -m pip install  --ignore-installed --no-cache-dir git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
 
-RUN python -m pip uninstall -y pyarrow && python -m pip install pyarrow
+RUN python -m pip uninstall -y pyarrow && python -m pip install --no-cache-dir pyarrow
 
-RUN python -m pip install -U gnureadline
+RUN python -m pip install -U --no-cache-dir gnureadline
 
 COPY base/prepare.sh /usr/bin/prepare.sh
 

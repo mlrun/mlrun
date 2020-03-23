@@ -19,7 +19,7 @@ FROM ${REPO}/${PREFIX}-models:${MLRUN_TAG}
 
 MAINTAINER yashab@iguazio.com
 
-RUN conda install -y -n base -c conda-forge \
+RUN conda install -y -n base -c conda-forge -c anaconda \
     dask \
     distributed \
     dask-ml \
@@ -30,4 +30,4 @@ RUN conda install -y -n base -c conda-forge \
 
 RUN python -m pip install --no-cache-dir dask-lightgbm
 
-RUN python -m pip install -U lz4 cloudpickle
+RUN python -m pip install -U --no-cache-dir lz4 cloudpickle

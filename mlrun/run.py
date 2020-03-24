@@ -40,16 +40,21 @@ from .utils import (get_in, logger, parse_function_uri, update_in,
 from .config import config as mlconf
 
 
-def run_local(task, command='', name: str = '', args: list = None,
-              workdir=None, project: str = '', tag: str = '', secrets=None):
+def run_local(task=None, command='', name: str = '', args: list = None,
+              workdir=None, project: str = '', tag: str = '', secrets=None,
+              handler=None, params: dict = None, inputs: dict = None,
+              artifact_path: str = ''):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
     e.g.:
            # define a task
            task = NewTask(params={'p1': 8}, out_path=out_path)
-
            # run
            run = run_local(spec, command='src/training.py', workdir='src')
+
+           or specify base task parameters (handler, params, ..) in the call
+
+           run = run_local(handler=my_function, params={'x': 5})
 
     :param task:     task template object or dict (see RunTemplate)
     :param command:  command/url/function
@@ -59,6 +64,11 @@ def run_local(task, command='', name: str = '', args: list = None,
     :param project:  function project (none for 'default')
     :param tag:      function version tag (none for 'latest')
     :param secrets:  secrets dict if the function source is remote (s3, v3io, ..)
+
+    :param handler:  pointer or name of a function handler
+    :param params:   input parameters (dict)
+    :param inputs:   input objects (dict of key: path)
+    :param artifact_path: default artifact output path
 
     :return: run object
     """
@@ -72,7 +82,6 @@ def run_local(task, command='', name: str = '', args: list = None,
 
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
-    handler = None
     meta = BaseMetadata(name, project=project, tag=tag)
     if is_obj or suffix == '.yaml':
         is_remote = False
@@ -83,7 +92,7 @@ def run_local(task, command='', name: str = '', args: list = None,
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
 
-        handler = get_in(runtime, 'spec.default_handler', '')
+        handler = handler or get_in(runtime, 'spec.default_handler', '')
         command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
 
@@ -123,14 +132,16 @@ def run_local(task, command='', name: str = '', args: list = None,
     else:
         raise ValueError('unsupported suffix: {}'.format(suffix))
 
+    if not (command or handler or task):
+        raise ValueError('nothing to run, specify command or handler')
+
     fn = new_function(meta.name, command=command, args=args)
     meta.name = fn.metadata.name
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
-    if handler:
-        fn.spec.default_handler = handler
-    return fn.run(task)
+    return fn.run(task, handler=handler, params=params, inputs=inputs,
+                  artifact_path=artifact_path)
 
 
 def get_or_create_ctx(name: str,
@@ -517,6 +528,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     if with_doc:
         handlers = find_handlers(code)
         r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
+    r.spec.default_handler = handler
     return r
 
 

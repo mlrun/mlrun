@@ -209,7 +209,8 @@ class MlrunProject(ModelObj):
         for name, f in self._function_defs.items():
             if hasattr(f, 'to_dict'):
                 spec = f.to_dict(strip=True)
-                if f.spec.build.source.startswith(self._source_repo()):
+                if f.spec.build.source and \
+                        f.spec.build.source.startswith(self._source_repo()):
                     update_in(spec, 'spec.build.source', './')
                 funcs.append({'name': name,
                               'spec': spec})

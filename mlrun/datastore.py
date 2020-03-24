@@ -17,6 +17,7 @@ from copy import deepcopy
 from os import path, environ, makedirs, listdir, stat
 from shutil import copyfile
 from urllib.parse import urlparse
+import urllib3
 
 from .config import config
 from .utils import run_keys
@@ -27,6 +28,10 @@ import requests
 
 V3IO_LOCAL_ROOT = 'v3io'
 DB_SCHEMA = 'store'
+
+verify_ssl = False
+if not verify_ssl:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class FileStats:
@@ -364,7 +369,7 @@ def basic_auth_header(user, password):
 
 def http_get(url, headers=None, auth=None):
     try:
-        resp = requests.get(url, headers=headers, auth=auth, verify=False)
+        resp = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
 
@@ -375,7 +380,7 @@ def http_get(url, headers=None, auth=None):
 
 def http_head(url, headers=None, auth=None):
     try:
-        resp = requests.head(url, headers=headers, auth=auth, verify=False)
+        resp = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
     if not resp.ok:
@@ -385,7 +390,8 @@ def http_head(url, headers=None, auth=None):
 
 def http_put(url, data, headers=None, auth=None):
     try:
-        resp = requests.put(url, data=data, headers=headers, auth=auth, verify=False)
+        resp = requests.put(url, data=data, headers=headers,
+                            auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
     if not resp.ok:

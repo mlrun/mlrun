@@ -517,6 +517,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     if with_doc:
         handlers = find_handlers(code)
         r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
+    r.spec.default_handler = handler
     return r
 
 

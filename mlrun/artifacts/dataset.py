@@ -132,6 +132,10 @@ class DatasetArtifact(Artifact):
             if '://' in target:
                 target = mktemp()
                 to_upload = True
+            else:
+                dir = os.path.dirname(target)
+                if dir:
+                    os.makedirs(dir, exist_ok=True)
 
             saving_func(target, **self._kw)
             if to_upload:

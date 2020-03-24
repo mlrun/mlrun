@@ -30,6 +30,9 @@ from ..lists import ArtifactList, FunctionList, RunList
 from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
 
+from threading import RLock
+
+sql_lock = RLock()
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
@@ -597,12 +600,15 @@ class SQLDB(RunDBInterface):
 
     def _upsert(self, obj):
         try:
+            sql_lock.acquire()
             self.session.add(obj)
             self.session.commit()
         except SQLAlchemyError as err:
             self.session.rollback()
+            sql_lock.release()
             cls = obj.__class__.__name__
             raise RunDBError(f'duplicate {cls} - {err}') from err
+        sql_lock.release()
 
     def _find_runs(self, uid, project, labels, state):
         labels = label_set(labels)

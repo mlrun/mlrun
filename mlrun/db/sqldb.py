@@ -507,7 +507,7 @@ class SQLDB(RunDBInterface):
 
         user_names = project.pop('users', [])
         prj = Project(**project)
-        users = self._find_or_create_users(user_names)
+        users = [] #self._find_or_create_users(user_names)
         prj.users.extend(users)
         self._upsert(prj)
         self._projects.add(prj.name)
@@ -525,7 +525,7 @@ class SQLDB(RunDBInterface):
                 raise RunDBError(f'unknown project attribute - {key}')
             setattr(prj, key, value)
 
-        users = self._find_or_create_users(user_names)
+        users = [] #self._find_or_create_users(user_names)
         prj.users.clear()
         prj.users.extend(users)
         self._upsert(prj)
@@ -591,8 +591,13 @@ class SQLDB(RunDBInterface):
         return query.one_or_none()
 
     def _get_run(self, uid, project, iteration):
-        return self._query(
-            Run, uid=uid, project=project, iteration=iteration).one_or_none()
+        try:
+            sql_lock.acquire()
+            resp = self._query(
+                Run, uid=uid, project=project, iteration=iteration).one_or_none()
+            return resp
+        finally:
+            sql_lock.release()
 
     def _delete_empty_labels(self, cls):
         self.session.query(cls).filter(cls.parent == NULL).delete()

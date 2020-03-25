@@ -30,11 +30,10 @@ from mlrun import load_project
 from . import get_version
 from .config import config as mlconf
 from .builder import upload_tarball
-from .datastore import get_object
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
-from .run import new_function, import_function_to_dict, import_function
+from .run import new_function, import_function_to_dict, import_function, get_object
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
                     parse_function_uri, dict_to_yaml)

@@ -18,6 +18,7 @@ import os
 import socket
 import sys
 import traceback
+from copy import copy
 from os import environ, remove
 from tempfile import mktemp
 
@@ -212,7 +213,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
 
     for key in list(args.keys())[i:]:
         if args[key].name in params:
-            args_list.append(params[key])
+            args_list.append(copy(params[key]))
         elif args[key].name in inputs:
             obj = context.get_input(key, inputs[key])
             if type(args[key].default) is str:

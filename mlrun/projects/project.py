@@ -307,16 +307,17 @@ class MlrunProject(ModelObj):
             artifact = dict_to_artifact(obj)
             am.log_artifact(producer, artifact, upload=False)
 
-    def log_artifact(self, item, body=None, tag='',
-            local_path='', artifact_path=None, format=None,
-            upload=True, labels=None):
+    def log_artifact(self, item, body=None, tag='', local_path='',
+                     artifact_path=None, format=None, upload=True,
+                     labels=None, target_path=None):
         am = self._get_artifact_mngr()
         producer = ArtifactProducer('project', self.name, self.name,
                                     tag=self._get_hexsha() or 'latest')
         item = am.log_artifact(producer, item, body, tag=tag,
                                local_path=local_path,
                                artifact_path=artifact_path, format=format,
-                               upload=upload, labels=labels)
+                               upload=upload, labels=labels,
+                               target_path=target_path)
         self._artifacts[item.key] = item.base_dict()
 
     def reload(self, sync=False):

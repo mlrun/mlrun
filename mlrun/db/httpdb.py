@@ -237,7 +237,7 @@ class HTTPRunDB(RunDBInterface):
     def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or default_project
         tag = tag or 'latest'
-        path = self._path_of('artifact', project, tag) + '/' + key
+        path = 'projects/{}/artifact/{}?tag={}'.format(project, key, tag)
         error = f'read artifact {project}/{key}'
         params = {'iter': str(iter)} if iter else {}
         resp = self.api_call('GET', path, error, params=params)

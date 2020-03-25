@@ -693,7 +693,7 @@ def list_artifact_tags(project):
     )
 
 
-# curl http://localhost:8080/projects/my-proj/artifact/key
+# curl http://localhost:8080/projects/my-proj/artifact/key?tag=latest
 @app.route('/api/projects/<project>/artifact/<path:key>', methods=['GET'])
 @catch_err
 def read_artifact(project, key):

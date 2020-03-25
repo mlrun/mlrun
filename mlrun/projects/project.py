@@ -25,9 +25,10 @@ from git import Repo
 import yaml
 from os import path, remove
 
-from ..datastore import download_object, StoreManager
+from ..datastore import StoreManager
 from ..config import config
-from ..run import import_function, code_to_function, new_function, run_pipeline
+from ..run import (import_function, code_to_function, new_function,
+                   download_object, run_pipeline)
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
@@ -312,9 +313,11 @@ class MlrunProject(ModelObj):
         am = self._get_artifact_mngr()
         producer = ArtifactProducer('project', self.name, self.name,
                                     tag=self._get_hexsha() or 'latest')
-        am.log_artifact(producer, item, body, tag=tag, local_path=local_path,
-                        artifact_path=artifact_path, format=format,
-                        upload=upload, labels=labels)
+        item = am.log_artifact(producer, item, body, tag=tag,
+                               local_path=local_path,
+                               artifact_path=artifact_path, format=format,
+                               upload=upload, labels=labels)
+        self._artifacts[item.key] = item.base_dict()
 
     def reload(self, sync=False):
         """reload the project and function objects from yaml/specs

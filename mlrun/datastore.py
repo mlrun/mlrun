@@ -41,22 +41,9 @@ class FileStats:
         self.content_type = content_type
 
 
-def get_object(url, secrets=None, size=None, offset=0):
-    stores = StoreManager(secrets)
-    datastore, subpath = stores.get_or_create_store(url)
-    return datastore.get(subpath, size, offset)
-
-
-def download_object(url, target, secrets=None):
-    stores = StoreManager(secrets)
-    datastore, subpath = stores.get_or_create_store(url)
-    datastore.download(subpath, target_path=target)
-
-
 def get_object_stat(url, secrets=None):
     stores = StoreManager(secrets)
-    datastore, subpath = stores.get_or_create_store(url)
-    return datastore.stat(subpath)
+    return stores.object(url=url).stat()
 
 
 def parseurl(url):
@@ -118,7 +105,7 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
-    def object(self, key, url='', project=''):
+    def object(self, key='', url='', project=''):
         meta = artifact_url = None
         if url.startswith(DB_SCHEMA + '://'):
             schema, endpoint, p = parseurl(url)

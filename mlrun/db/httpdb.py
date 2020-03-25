@@ -241,7 +241,7 @@ class HTTPRunDB(RunDBInterface):
         error = f'read artifact {project}/{key}'
         params = {'iter': str(iter)} if iter else {}
         resp = self.api_call('GET', path, error, params=params)
-        return resp.content
+        return resp.json()['data']
 
     def del_artifact(self, key, tag='', project=''):
         path = self._path_of('artifact', project, key)  # TODO: uid?

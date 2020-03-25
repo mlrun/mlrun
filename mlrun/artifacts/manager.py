@@ -126,6 +126,7 @@ class ArtifactManager:
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
             key, item.target_path, size, 'Y' if self.artifact_db else 'N'
         ))
+        return item
 
     def _log_to_db(self, key, project, sources, item, tag):
         if self.artifact_db:

@@ -25,7 +25,7 @@ import yaml
 from kfp import Client
 from nuclio import build_file
 
-from .datastore import get_object, download_object
+from .datastore import StoreManager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
@@ -616,3 +616,16 @@ def py_eval(data):
         return value
     except (SyntaxError, ValueError):
         return data
+
+
+def get_object(url, secrets=None, size=None, offset=0, db=None):
+    db = db or get_run_db().connect()
+    stores = StoreManager(secrets, db=db)
+    return stores.object(url=url).get(size, offset)
+
+
+def download_object(url, target, secrets=None):
+    stores = StoreManager(secrets, db=get_run_db().connect())
+    stores.object(url=url).download(target_path=target)
+
+

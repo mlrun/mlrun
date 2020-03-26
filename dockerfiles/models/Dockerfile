@@ -13,7 +13,7 @@
 # limitations under the License.
 ARG REPO
 ARG PREFIX
-ARG MLRUN_TAG
+ARG MLRUN_TAG=development
 
 FROM continuumio/anaconda3:2020.02
 
@@ -77,9 +77,20 @@ RUN cd /repos && \
     cd ../python-package && \
     python -m pip install --no-cache-dir -e .
 
-RUN python -m pip install  --ignore-installed --no-cache-dir git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
+RUN echo ${MLRUN_TAG}
 
-RUN conda update -n base -c anaconda pandas
+RUN python -m pip install  --ignore-installed --no-cache-dir git+https://github.com/mlrun/mlrun.git@development
+
+#RUN python -m pip uninstall -y pandas && \
+#    conda uninstall -n base pandas && \
+RUN    conda update -n base -c anaconda pandas
+
+RUN git clone https://github.com/yjb-ds/mlutils.git && \
+    cd mlutils && \
+    python setup.py develop && \
+    python gen_all_configs.py
+
+ENV PYTHONPATH "${PYTHONPATH}:/mlutils"
 
 RUN conda clean -tipsy \
     && find /opt/conda/ -type f,l -name '*.a' -delete \

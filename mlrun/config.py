@@ -45,7 +45,7 @@ default_config = {
     'remote_host': '',
     'version': '',
     'kfp_image': '',
-    'kaniko_version': 'v0.14.0',
+    'kaniko_version': 'v0.19.0',
     'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
     'default_project': 'default',

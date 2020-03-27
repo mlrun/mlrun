@@ -117,7 +117,7 @@ class StoreManager:
             except Exception as e:
                 raise OSError('artifact {} not found, {}'.format(url, e))
             artifact_url = url
-            url = meta.get('target_path', '')
+            url = meta.get('target_path', ' ')[1:]
 
         store, subpath = self.get_or_create_store(url)
         return DataItem(key, store, subpath, url,

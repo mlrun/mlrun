@@ -43,6 +43,3 @@ if 'IGZ_NAMESPACE_DOMAIN' in environ:
     kfp_ep = 'https://dashboard.{}/pipelines'.format(igz_domain)
     environ['KF_PIPELINES_UI_ENDPOINT'] = kfp_ep
     mlconf.remote_host = mlconf.remote_host or igz_domain
-
-    if 'MLRUN_UI_SERVICE_HOST' in environ:
-        environ['MLRUN_UI_URL'] = 'https://mlrun-ui.{}'.format(igz_domain)

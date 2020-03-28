@@ -181,12 +181,20 @@ def read_env(env=None, prefix=env_prefix):
         cfg[path[0]] = value
 
     # check for mlrun-api or db kubernetes service
-    svc = env.get('MLRUN_API_PORT', env.get('MLRUN_DB_PORT'))
+    svc = env.get('MLRUN_API_PORT')
     if svc and not config.get('dbpath'):
         config['dbpath'] = 'http://' + urlparse(svc).netloc
+
+    uisvc = env.get('MLRUN_UI_SERVICE_HOST')
+    if uisvc and not config.get('ui_url'):
+        igz_domain = env.get('IGZ_NAMESPACE_DOMAIN')
+        if igz_domain:
+            config['ui_url'] = 'https://mlrun-ui.{}'.format(igz_domain)
+
     if not config.get('kfp_image'):
         tag = __version__ or 'latest'
         config['kfp_image'] = 'mlrun/mlrun:{}'.format(tag)
+
     config['version'] = __version__
 
     return config

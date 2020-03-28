@@ -256,8 +256,11 @@ class BaseRuntime(ModelObj):
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
-            meta.labels['owner'] = environ.get(
-                    'V3IO_USERNAME', getpass.getuser())
+            if 'V3IO_USERNAME' in environ and 'v3io_user' not in meta.labels:
+                meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
+            if 'owner' not in meta.labels:
+                meta.labels['owner'] = environ.get(
+                        'V3IO_USERNAME', getpass.getuser())
             if db and self.kind != 'handler':
                 hashkey = calc_hash(self)
                 struct = self.to_dict()

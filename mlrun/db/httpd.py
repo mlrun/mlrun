@@ -432,11 +432,11 @@ def build_status():
                              "builder_pod": pod})
 
 
-def get_obj_path(schema, path):
+def get_obj_path(schema, path, user=''):
     if schema:
         return schema + '://' + path
     elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', 'admin')
+        user = environ.get('V3IO_USERNAME', user or 'admin')
         return 'v3io:///users/' + user + path[5:]
     elif config.httpdb.data_volume and \
             path.startswith(config.httpdb.data_volume):
@@ -453,12 +453,13 @@ def get_obj_path(schema, path):
 def get_files():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
+    user = request.args.get('user', '')
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
 
     _, filename = path.split(path)
 
-    path = get_obj_path(schema, path)
+    path = get_obj_path(schema, path, user=user)
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')
@@ -484,10 +485,11 @@ def get_files():
 def get_filestat():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
+    user = request.args.get('user', '')
 
     _, filename = path.split(path)
 
-    path = get_obj_path(schema, path)
+    path = get_obj_path(schema, path, user=user)
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')

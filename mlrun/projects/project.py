@@ -254,15 +254,15 @@ class MlrunProject(ModelObj):
                 raise ValueError('workflow must be a dict')
             name = w.get('name', '')
             # todo: support steps dsl as code alternative
-            if not name or 'code' not in w:
+            if not name or 'path' not in w:
                 raise ValueError('workflow "name" and "code" must be specified')
             wfdict[name] = w
 
         self._workflows = wfdict
 
-    def set_workflow(self, name, code):
+    def set_workflow(self, name, path, embed=False):
         """add or update a workflow, specify a name and the code path"""
-        self._workflows[name] = {'name': name, 'code':code}
+        self._workflows[name] = {'name': name, 'path': path}
 
     @property
     def artifacts(self) -> list:
@@ -544,7 +544,7 @@ class MlrunProject(ModelObj):
         if not workflow_path:
             if name not in self._workflows:
                 raise ValueError('workflow {} not found'.format(name))
-            workflow_path = self._workflows.get(name)['code']
+            workflow_path = self._workflows.get(name)['path']
             workflow_path = path.join(self.context, workflow_path)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
@@ -565,7 +565,7 @@ class MlrunProject(ModelObj):
         if not name or name not in self._workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        wfpath = path.join(self.context, self._workflows.get(name)['code'])
+        wfpath = path.join(self.context, self._workflows.get(name)['path'])
         pipeline = _create_pipeline(self, wfpath, self._function_objects,
                                     secrets=self._secrets)
 

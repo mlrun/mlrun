@@ -172,7 +172,7 @@ def test_projects(db: sqldb.SQLDB):
     prj1 = {
         'name': 'p1',
         'description': 'banana',
-        'users': ['u1', 'u2'],
+        # 'users': ['u1', 'u2'],
         'spec': {'company': 'ACME'},
         'state': 'active',
         'created': datetime.now(),
@@ -183,7 +183,7 @@ def test_projects(db: sqldb.SQLDB):
     out = {
         'name': p1.name,
         'description': p1.description,
-        'users': sorted(u.name for u in p1.users),
+        # 'users': sorted(u.name for u in p1.users),
         'spec': p1.spec,
         'state': p1.state,
         'created': p1.created,

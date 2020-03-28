@@ -360,8 +360,11 @@ def new_pipe_meta(artifact_path=None, *args):
     return conf
 
 
-def tag_image(base: str):
+def tag_image(base: str, gpu_image=False):
     if config.version and (base == 'mlrun/mlrun' or (
             base.startswith('mlrun/ml-') and ':' not in base)):
-        base += ':' + config.version
+        if base == '' or not gpu_image:
+            base += ':' + config.version
+        else:
+            base += '-gpu:' + config.version
     return base

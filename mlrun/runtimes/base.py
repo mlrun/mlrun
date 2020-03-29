@@ -256,8 +256,11 @@ class BaseRuntime(ModelObj):
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
-            meta.labels['owner'] = environ.get(
-                    'V3IO_USERNAME', getpass.getuser())
+            if 'V3IO_USERNAME' in environ and 'v3io_user' not in meta.labels:
+                meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
+            if 'owner' not in meta.labels:
+                meta.labels['owner'] = environ.get(
+                        'V3IO_USERNAME', getpass.getuser())
             if db and self.kind != 'handler':
                 hashkey = calc_hash(self)
                 struct = self.to_dict()
@@ -482,7 +485,14 @@ class BaseRuntime(ModelObj):
 
     def full_image_path(self, image=None):
         image = image or self.spec.image or ''
-        image = tag_image(image)
+
+        gpu_image = False
+        if hasattr(self.spec, 'resources'):
+            gpus = get_in(self.spec.resources, 'limits.nvidia.com/gpu', 0)
+            if gpus:
+                gpu_image = True
+
+        image = tag_image(image, gpu_image=gpu_image)
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:

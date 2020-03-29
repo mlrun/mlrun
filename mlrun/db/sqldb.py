@@ -27,7 +27,7 @@ from sqlalchemy.orm import relationship, sessionmaker
 
 from ..config import config
 from ..lists import ArtifactList, FunctionList, RunList
-from ..utils import get_in, update_in
+from ..utils import get_in, update_in, logger
 from .base import RunDBError, RunDBInterface
 
 from threading import RLock
@@ -249,7 +249,7 @@ class SQLDB(RunDBInterface):
         labels = run_labels(struct)
         update_labels(run, labels)
         run.struct = struct
-        self._upsert(run)
+        self._upsert(run, ignore=True)
 
     def update_run(self, updates: dict, uid, project='', iter=0):
         project = project or config.default_project
@@ -507,7 +507,7 @@ class SQLDB(RunDBInterface):
 
         user_names = project.pop('users', [])
         prj = Project(**project)
-        users = self._find_or_create_users(user_names)
+        users = [] #self._find_or_create_users(user_names)
         prj.users.extend(users)
         self._upsert(prj)
         self._projects.add(prj.name)
@@ -525,10 +525,10 @@ class SQLDB(RunDBInterface):
                 raise RunDBError(f'unknown project attribute - {key}')
             setattr(prj, key, value)
 
-        users = self._find_or_create_users(user_names)
+        users = [] #self._find_or_create_users(user_names)
         prj.users.clear()
         prj.users.extend(users)
-        self._upsert(prj)
+        self._upsert(prj, ignore=True)
 
     def get_project(self, name=None, project_id=None):
         if not (project_id or name):
@@ -591,23 +591,31 @@ class SQLDB(RunDBInterface):
         return query.one_or_none()
 
     def _get_run(self, uid, project, iteration):
-        return self._query(
-            Run, uid=uid, project=project, iteration=iteration).one_or_none()
+        try:
+            sql_lock.acquire()
+            resp = self._query(
+                Run, uid=uid, project=project, iteration=iteration).one_or_none()
+            return resp
+        finally:
+            sql_lock.release()
+            pass
 
     def _delete_empty_labels(self, cls):
         self.session.query(cls).filter(cls.parent == NULL).delete()
         self.session.commit()
 
-    def _upsert(self, obj):
+    def _upsert(self, obj, ignore=False):
         try:
             sql_lock.acquire()
             self.session.add(obj)
             self.session.commit()
         except SQLAlchemyError as err:
             self.session.rollback()
-            sql_lock.release()
             cls = obj.__class__.__name__
-            raise RunDBError(f'duplicate {cls} - {err}') from err
+            logger.warning(f'conflict adding {cls}, {err}')
+            if not ignore:
+                sql_lock.release()
+                raise RunDBError(f'duplicate {cls} - {err}') from err
         sql_lock.release()
 
     def _find_runs(self, uid, project, labels, state):

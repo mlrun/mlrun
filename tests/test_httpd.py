@@ -41,13 +41,13 @@ def test_project(client):
         'name': name1,
         'owner': 'u0',
         'description': 'banana',
-        'users': ['u1', 'u2'],
+        # 'users': ['u1', 'u2'],
     }
     resp = client.post('/api/project', json=prj1)
     assert resp.status_code == HTTPStatus.OK, 'add'
     resp = client.get(f'/api/project/{name1}')
     out = {key: val for key, val in resp.json['project'].items() if val}
-    out['users'].sort()
+    # out['users'].sort()
     assert prj1 == out, 'get'
 
     data = {'description': 'lemon'}
@@ -61,7 +61,7 @@ def test_project(client):
         'name': name2,
         'owner': 'u0',
         'description': 'banana',
-        'users': ['u1', 'u3'],
+        # 'users': ['u1', 'u3'],
     }
     resp = client.post('/api/project', json=prj2)
     assert resp.status_code == HTTPStatus.OK, 'add (2)'

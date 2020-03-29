@@ -25,9 +25,10 @@ from git import Repo
 import yaml
 from os import path, remove
 
-from ..datastore import download_object, StoreManager
+from ..datastore import StoreManager
 from ..config import config
-from ..run import import_function, code_to_function, new_function, run_pipeline
+from ..run import (import_function, code_to_function, new_function,
+                   download_object, run_pipeline)
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
@@ -253,15 +254,15 @@ class MlrunProject(ModelObj):
                 raise ValueError('workflow must be a dict')
             name = w.get('name', '')
             # todo: support steps dsl as code alternative
-            if not name or 'code' not in w:
+            if not name or 'path' not in w:
                 raise ValueError('workflow "name" and "code" must be specified')
             wfdict[name] = w
 
         self._workflows = wfdict
 
-    def set_workflow(self, name, code):
+    def set_workflow(self, name, path, embed=False):
         """add or update a workflow, specify a name and the code path"""
-        self._workflows[name] = {'name': name, 'code':code}
+        self._workflows[name] = {'name': name, 'path': path}
 
     @property
     def artifacts(self) -> list:
@@ -306,15 +307,18 @@ class MlrunProject(ModelObj):
             artifact = dict_to_artifact(obj)
             am.log_artifact(producer, artifact, upload=False)
 
-    def log_artifact(self, item, body=None, tag='',
-            local_path='', artifact_path=None, format=None,
-            upload=True, labels=None):
+    def log_artifact(self, item, body=None, tag='', local_path='',
+                     artifact_path=None, format=None, upload=True,
+                     labels=None, target_path=None):
         am = self._get_artifact_mngr()
         producer = ArtifactProducer('project', self.name, self.name,
                                     tag=self._get_hexsha() or 'latest')
-        am.log_artifact(producer, item, body, tag=tag, local_path=local_path,
-                        artifact_path=artifact_path, format=format,
-                        upload=upload, labels=labels)
+        item = am.log_artifact(producer, item, body, tag=tag,
+                               local_path=local_path,
+                               artifact_path=artifact_path, format=format,
+                               upload=upload, labels=labels,
+                               target_path=target_path)
+        self._artifacts[item.key] = item.base_dict()
 
     def reload(self, sync=False):
         """reload the project and function objects from yaml/specs
@@ -540,7 +544,7 @@ class MlrunProject(ModelObj):
         if not workflow_path:
             if name not in self._workflows:
                 raise ValueError('workflow {} not found'.format(name))
-            workflow_path = self._workflows.get(name)['code']
+            workflow_path = self._workflows.get(name)['path']
             workflow_path = path.join(self.context, workflow_path)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
@@ -561,7 +565,7 @@ class MlrunProject(ModelObj):
         if not name or name not in self._workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        wfpath = path.join(self.context, self._workflows.get(name)['code'])
+        wfpath = path.join(self.context, self._workflows.get(name)['path'])
         pipeline = _create_pipeline(self, wfpath, self._function_objects,
                                     secrets=self._secrets)
 

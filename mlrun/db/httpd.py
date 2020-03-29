@@ -32,12 +32,12 @@ from kfp import Client as kfclient
 
 from mlrun.builder import build_runtime
 from mlrun.config import config
-from mlrun.datastore import get_object, get_object_stat
+from mlrun.datastore import get_object_stat
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.filedb import FileRunDB
 from mlrun.db.sqldb import SQLDB, to_dict as db2dict, table2cls
 from mlrun.k8s_utils import K8sHelper
-from mlrun.run import import_function, new_function
+from mlrun.run import get_object, import_function, new_function
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
 from mlrun.utils import get_in, logger, now_date, parse_function_uri, update_in
@@ -432,11 +432,11 @@ def build_status():
                              "builder_pod": pod})
 
 
-def get_obj_path(schema, path):
+def get_obj_path(schema, path, user=''):
     if schema:
         return schema + '://' + path
     elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', 'admin')
+        user = environ.get('V3IO_USERNAME', user or 'admin')
         return 'v3io:///users/' + user + path[5:]
     elif config.httpdb.data_volume and \
             path.startswith(config.httpdb.data_volume):
@@ -453,12 +453,13 @@ def get_obj_path(schema, path):
 def get_files():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
+    user = request.args.get('user', '')
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
 
     _, filename = path.split(path)
 
-    path = get_obj_path(schema, path)
+    path = get_obj_path(schema, path, user=user)
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')
@@ -484,10 +485,11 @@ def get_files():
 def get_filestat():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
+    user = request.args.get('user', '')
 
     _, filename = path.split(path)
 
-    path = get_obj_path(schema, path)
+    path = get_obj_path(schema, path, user=user)
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')
@@ -693,13 +695,14 @@ def list_artifact_tags(project):
     )
 
 
-# curl http://localhost:8080/artifact/p1/tag/key
-@app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
+# curl http://localhost:8080/projects/my-proj/artifact/key?tag=latest
+@app.route('/api/projects/<project>/artifact/<path:key>', methods=['GET'])
 @catch_err
-def read_artifact(project, tag, key):
+def read_artifact(project, key):
+    tag = request.args.get('tag', 'latest')
     iter = int(request.args.get('iter', '0'))
     data = _db.read_artifact(key, tag=tag, iter=iter, project=project)
-    return data
+    return jsonify(ok=True, data=data)
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
 @app.route('/api/artifact/<project>/<uid>', methods=['DELETE'])

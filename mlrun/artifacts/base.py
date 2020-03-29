@@ -23,12 +23,13 @@ class Artifact(ModelObj):
 
     _dict_fields = [
         'key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
-        'description', 'viewer', 'inline', 'format', 'size']
+        'description', 'viewer', 'inline', 'format', 'size', 'db_key']
     kind = ''
 
     def __init__(self, key=None, body=None, viewer=None, is_inline=False,
                  format=None, size=None, target_path=None):
         self.key = key
+        self.db_key = None
         self.size = size
         self.iter = None
         self.tree = None

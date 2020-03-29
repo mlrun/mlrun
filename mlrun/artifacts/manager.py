@@ -116,14 +116,16 @@ class ArtifactManager:
         item.labels = labels or item.labels
         item.producer = producer.get_meta()
         item.iter = producer.iteration
+
+        if db_prefix is None and producer.kind == 'run':
+            db_prefix = producer.name + '/'
+        db_key = db_prefix + key if db_prefix else key
+        item.db_key = db_key
+
         self.artifacts[key] = item
 
         if upload:
             item.upload(self.data_stores)
-
-        if db_prefix is None and producer.kind == 'run':
-            db_prefix = producer.name + '_'
-        db_key = db_prefix + key if db_prefix else key
 
         self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or '?'

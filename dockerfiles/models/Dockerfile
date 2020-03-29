@@ -13,44 +13,43 @@
 # limitations under the License.
 ARG REPO
 ARG PREFIX
-ARG MLRUN_TAG
+ARG MLRUN_TAG=development
 
 FROM continuumio/anaconda3:2020.02
 
 MAINTAINER yashab@iguazio.com
 
 ARG TF_VER=2.1.0
-ARG XGB_VER=1.0.1
+ARG XGB_VER=1.0.2
 ARG LGBM_VER=2.3.1
 
 RUN apt update -qqq \
-    && apt -y upgrade \
-    && apt install -yq --no-install-recommends build-essential \
-    graphviz \
-    cmake \
-    curl \
-    libreadline7 \
-    libreadline-dev \
-    libboost-dev \
-    libboost-system-dev \
-    libboost-filesystem-dev \
-    && apt install -y ca-certificates \
-    && update-ca-certificates --fresh \
-    && apt clean \
-    && apt autoremove \
-    && rm -rf /var/lib/apt/lists/*
+ && apt -y upgrade \
+ && apt install -yq --no-install-recommends build-essential \
+        graphviz \
+        cmake \
+        curl \
+        libreadline7 \
+        libreadline-dev \
+        libboost-dev \
+        libboost-system-dev \
+        libboost-filesystem-dev \
+ && apt install -y ca-certificates \
+ && update-ca-certificates --fresh \
+ && apt clean \
+ && apt autoremove \
+ && rm -rf /var/lib/apt/lists/*
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN conda update conda
 
 RUN python -m pip install -U --no-cache-dir \
-    yellowbrick \
+	yellowbrick \
     wrapt \
-    kfp \
-    pytest \
-    pyarrow \
-    gnureadline
+	pytest \
+	pyarrow \
+	gnureadline
 
 # xgboost
 RUN mkdir /repos && \
@@ -77,9 +76,19 @@ RUN cd /repos && \
     cd ../python-package && \
     python -m pip install --no-cache-dir -e .
 
-RUN python -m pip install  --ignore-installed --no-cache-dir git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
+RUN echo ${MLRUN_TAG}
 
-RUN conda update -n base -c anaconda pandas
+RUN python -m pip install  --ignore-installed --no-cache-dir git+https://github.com/mlrun/mlrun.git@development
+
+RUN    conda update -n base -c anaconda pandas
+
+RUN python -m pip install --no-cache-dir urllib3==1.24.3 && \ 
+    git clone https://github.com/yjb-ds/mlutils.git && \
+    cd mlutils && \
+    python setup.py develop && \
+    python gen_all_configs.py
+
+ENV PYTHONPATH "${PYTHONPATH}:/mlutils"
 
 RUN conda clean -tipsy \
     && find /opt/conda/ -type f,l -name '*.a' -delete \

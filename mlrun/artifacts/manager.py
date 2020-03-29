@@ -137,8 +137,8 @@ class ArtifactManager:
             if sources:
                 item.sources = [{'name': k, 'path': str(v)}
                                 for k, v in sources.items()]
-                struct = item.to_dict()
-                struct['key'] = key
+            struct = item.to_dict()
+            struct['key'] = key
             self.artifact_db.store_artifact(key, struct, item.tree,
                                             iter=item.iter, tag=tag,
                                             project=project)

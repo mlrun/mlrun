@@ -359,3 +359,9 @@ async def submit(session, url, run, headers=None):
 
 def fake_nuclio_context(body, headers=None):
     return nuclio.Context(), nuclio.Event(body=body, headers=headers)
+
+
+def _fullname(project, name):
+    if project:
+        return '{}-{}'.format(project, name)
+    return name

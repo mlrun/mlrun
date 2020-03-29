@@ -41,6 +41,7 @@ class MLClientCtx(object):
 
     see doc for the individual params and methods
     """
+    kind = 'run'
 
     def __init__(self, autocommit=False, tmp='', log_stream=None):
         self._uid = ''
@@ -398,6 +399,7 @@ class MLClientCtx(object):
                 struct[key] = val
 
         struct = {
+            'kind': 'run',
             'metadata':
                 {'name': self.name,
                  'uid': self._uid,

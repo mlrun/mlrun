@@ -109,15 +109,17 @@ class StoreManager:
         meta = artifact_url = None
         if url.startswith(DB_SCHEMA + '://'):
             schema, endpoint, p = parseurl(url)
+            if not p.path:
+                raise ValueError('store url without a path {}'.format(url))
             project = endpoint or project or config.default_project
             tag = p.fragment if p.fragment else ''
             try:
-                meta = self._get_db().read_artifact(p.path, tag=tag,
+                meta = self._get_db().read_artifact(p.path[1:], tag=tag,
                                                     project=project)
             except Exception as e:
                 raise OSError('artifact {} not found, {}'.format(url, e))
             artifact_url = url
-            url = meta.get('target_path', ' ')[1:]
+            url = meta.get('target_path', '')
 
         store, subpath = self.get_or_create_store(url)
         return DataItem(key, store, subpath, url,

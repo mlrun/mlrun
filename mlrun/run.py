@@ -140,7 +140,7 @@ def run_local(task=None, command='', name: str = '', args: list = None,
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
-    return fn.run(task, handler=handler, params=params, inputs=inputs,
+    return fn.run(task, name=name, handler=handler, params=params, inputs=inputs,
                   artifact_path=artifact_path)
 
 

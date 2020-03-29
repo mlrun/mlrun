@@ -251,13 +251,14 @@ class BaseRuntime(ModelObj):
         if self.verbose:
             logger.info('runspec:\n{}'.format(runspec.to_yaml()))
 
+        if 'V3IO_USERNAME' in environ and 'v3io_user' not in meta.labels:
+            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
+
         if not self.is_child:
             dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
-            if 'V3IO_USERNAME' in environ and 'v3io_user' not in meta.labels:
-                meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
             if 'owner' not in meta.labels:
                 meta.labels['owner'] = environ.get(
                         'V3IO_USERNAME', getpass.getuser())

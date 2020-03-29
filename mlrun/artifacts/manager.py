@@ -16,7 +16,7 @@ import pathlib
 
 from ..datastore import StoreManager
 from ..db import RunDBInterface
-from ..utils import uxjoin, run_keys, logger
+from ..utils import uxjoin, logger
 
 from .base import Artifact, LinkArtifact
 from .plots import PlotArtifact, ChartArtifact
@@ -84,7 +84,7 @@ class ArtifactManager:
     def log_artifact(
         self, producer, item, body=None, target_path='', tag='',
             viewer='', local_path='', artifact_path=None, format=None,
-            upload=True, labels=None):
+            upload=True, labels=None, db_prefix=None):
         if isinstance(item, str):
             key = item
             item = Artifact(key, body)
@@ -116,12 +116,18 @@ class ArtifactManager:
         item.labels = labels or item.labels
         item.producer = producer.get_meta()
         item.iter = producer.iteration
+
+        if db_prefix is None and producer.kind == 'run':
+            db_prefix = producer.name + '_'
+        db_key = db_prefix + key if db_prefix else key
+        item.db_key = db_key
+
         self.artifacts[key] = item
 
         if upload:
             item.upload(self.data_stores)
 
-        self._log_to_db(key, producer.project, producer.inputs, item, tag)
+        self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or '?'
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
             key, item.target_path, size, 'Y' if self.artifact_db else 'N'
@@ -133,7 +139,9 @@ class ArtifactManager:
             if sources:
                 item.sources = [{'name': k, 'path': str(v)}
                                 for k, v in sources.items()]
-            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
+            struct = item.to_dict()
+            struct['key'] = key
+            self.artifact_db.store_artifact(key, struct, item.tree,
                                             iter=item.iter, tag=tag,
                                             project=project)
 

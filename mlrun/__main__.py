@@ -74,12 +74,13 @@ def main():
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.option('--image', default='', help='container image')
 @click.option('--workdir', default='', help='run working directory')
+@click.option('--label', multiple=True, help="run labels (key=val)")
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
         selector, func_url, task, handler, mode, schedule, from_env, dump,
-        image, workdir, watch, run_args):
+        image, workdir, label, watch, run_args):
     """Execute a task and inject parameters."""
 
     out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
@@ -97,6 +98,11 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')
     set_item(runobj.metadata, project, 'project')
+
+    if label:
+        label_dict = list2dict(label)
+        for k, v in label_dict.items():
+            runobj.metadata.labels[k] = v
 
     if workflow:
         runobj.metadata.labels['workflow'] = workflow

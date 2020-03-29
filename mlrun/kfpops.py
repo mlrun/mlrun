@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import getpass
 import json
 from copy import deepcopy
 from os import environ
@@ -210,6 +211,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     hyperparams = {} if hyperparams is None else hyperparams
     inputs = {} if inputs is None else inputs
     outputs = [] if outputs is None else outputs
+    labels = {}
 
     rundb = rundb or get_or_set_dburl()
     cmd = [
@@ -253,6 +255,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         out_path = out_path or runobj.spec.output_path
         secrets = secrets or runobj.spec.secret_sources
         project = project or runobj.metadata.project
+        labels = runobj.metadata.labels or {}
 
     if not name:
         if not function_name:
@@ -269,6 +272,11 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     inputs = inputs or {}
     secrets = secrets or []
 
+    if 'V3IO_USERNAME' in environ and 'v3io_user' not in labels:
+        labels['v3io_user'] = environ.get('V3IO_USERNAME')
+    if 'owner' not in labels:
+        labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
+
     if name:
         cmd += ['--name', name]
     if func_url:
@@ -281,6 +289,8 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         cmd += ['-x', '{}={}'.format(x, val)]
     for i, val in inputs.items():
         cmd += ['-i', '{}={}'.format(i, val)]
+    for l, val in labels.items():
+        cmd += ['--label', '{}={}'.format(l, val)]
     for o in outputs:
         cmd += ['-o', '{}'.format(o)]
         file_outputs[o.replace('.', '_')] = '/tmp/{}'.format(o)

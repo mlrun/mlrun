@@ -593,12 +593,13 @@ class BaseRuntime(ModelObj):
         if self.spec.default_handler:
             print('default handler:', self.spec.default_handler)
         if self.spec.entry_points:
+            print('entry points:')
             for name, entry in self.spec.entry_points.items():
-                print('{}: {}'.format(name, entry.get('doc', '')))
+                print('  {}: {}'.format(name, entry.get('doc', '')))
                 params = entry.get('parameters')
                 if params:
                     for p in params:
-                        print('  {}'.format(p))
+                        print('    {}'.format(p))
 
 
 def is_local(url):

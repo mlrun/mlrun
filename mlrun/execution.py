@@ -328,7 +328,7 @@ class MLClientCtx(object):
 
     def log_artifact(self, item, body=None, target_path='', src_path=None,
                      tag='', viewer=None, local_path=None, artifact_path=None,
-                     upload=True, labels=None, format=None, **kwargs):
+                     upload=True, labels=None, format=None, db_prefix=None, **kwargs):
         """log an output artifact and optionally upload it"""
         local_path = src_path or local_path
         self._artifacts_manager.log_artifact(self, item, body=body,
@@ -339,12 +339,13 @@ class MLClientCtx(object):
                                              viewer=viewer,
                                              upload=upload,
                                              labels=labels,
+                                             db_prefix=db_prefix,
                                              format=format)
         self._update_db()
 
     def log_dataset(self, key, df, tag='', local_path=None,
                     artifact_path=None, upload=True, labels=None,
-                    format='', preview=None, stats=False, **kwargs):
+                    format='', preview=None, stats=False, db_prefix=None, **kwargs):
         """log a dataset artifact and optionally upload it"""
 
         ds = DatasetArtifact(key, df, preview=preview,
@@ -354,6 +355,7 @@ class MLClientCtx(object):
                                              artifact_path=artifact_path,
                                              tag=tag,
                                              upload=upload,
+                                             db_prefix=db_prefix,
                                              labels=labels)
         self._update_db()
 

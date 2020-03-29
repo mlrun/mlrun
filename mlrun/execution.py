@@ -14,6 +14,7 @@
 
 from copy import deepcopy
 from datetime import datetime
+import numpy as np
 import uuid
 
 from .artifacts import ArtifactManager, DatasetArtifact
@@ -279,7 +280,7 @@ class MLClientCtx(object):
 
     def log_result(self, key: str, value, commit=False):
         """log a scalar result value"""
-        self._results[str(key)] = value
+        self._results[str(key)] = _cast_result(value)
         self._update_db(commit=commit)
 
     def log_results(self, results: dict, commit=False):
@@ -289,7 +290,7 @@ class MLClientCtx(object):
                 '(multiple) results must be in the form of dict')
 
         for p in results.keys():
-            self._results[str(p)] = results[p]
+            self._results[str(p)] = _cast_result(results[p])
         self._update_db(commit=commit)
 
     def log_iteration_results(
@@ -453,3 +454,20 @@ class MLClientCtx(object):
             if self._rundb:
                 self._rundb.store_run(
                     self.to_dict(), self._uid, self.project, iter=self._iteration)
+
+
+def _cast_result(value):
+    if isinstance(value, (int, str, float)):
+        return value
+    if isinstance(value, list):
+        return [_cast_result(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _cast_result(v) for k, v in value.items()}
+    if isinstance(value, (np.int64, np.integer)):
+        return int(value)
+    if isinstance(value, (np.floating, np.float64)):
+        return float(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return str(value)
+

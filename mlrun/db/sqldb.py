@@ -587,8 +587,14 @@ class SQLDB(RunDBInterface):
         return query.one_or_none()
 
     def _get_artifact(self, uid, project, key):
-        query = self._query(Artifact, uid=uid, project=project, key=key)
-        return query.one_or_none()
+        try:
+            sql_lock.acquire()
+            resp = self._query(
+                Artifact, uid=uid, project=project, key=key).one_or_none()
+            return resp
+        finally:
+            sql_lock.release()
+            pass
 
     def _get_run(self, uid, project, iteration):
         try:

@@ -587,6 +587,19 @@ class BaseRuntime(ModelObj):
                 del struct['status']
         return struct
 
+    def doc(self):
+        print('function:', self.metadata.name)
+        print(self.spec.description)
+        if self.spec.default_handler:
+            print('default handler:', self.spec.default_handler)
+        if self.spec.entry_points:
+            for name, entry in self.spec.entry_points.items():
+                print('{}: {}'.format(name, entry.get('doc', '')))
+                params = entry.get('parameters')
+                if params:
+                    for p in params:
+                        print('  {}'.format(p))
+
 
 def is_local(url):
     if not url:

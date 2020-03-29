@@ -118,7 +118,7 @@ class ArtifactManager:
         item.iter = producer.iteration
 
         if db_prefix is None and producer.kind == 'run':
-            db_prefix = producer.name + '/'
+            db_prefix = producer.name + '_'
         db_key = db_prefix + key if db_prefix else key
         item.db_key = db_key
 

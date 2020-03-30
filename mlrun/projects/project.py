@@ -381,7 +381,7 @@ class MlrunProject(ModelObj):
 
         self._function_defs[name] = func
         self._function_objects[name] = f
-        return self
+        return f
 
     def func(self, key, sync=False):
         """get function object by name

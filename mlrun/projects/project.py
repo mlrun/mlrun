@@ -524,14 +524,15 @@ class MlrunProject(ModelObj):
         :returns: run id
         """
 
+        need_repo = self._need_repo()
         if self.repo and self.repo.is_dirty():
             msg = 'you seem to have uncommitted git changes, use .push()'
-            if dirty:
+            if dirty or not need_repo:
                 logger.warning('WARNING!, ' + msg)
             else:
                 raise ProjectError(msg + ' or dirty=True')
 
-        if self.repo and not self.source:
+        if need_repo and self.repo and not self.source:
             raise ProjectError(
                 'remote repo is not defined, use .create_remote() + push()')
 
@@ -552,6 +553,12 @@ class MlrunProject(ModelObj):
                             secrets=self._secrets, arguments=arguments,
                             artifact_path=artifact_path, namespace=namespace)
         return run
+
+    def _need_repo(self):
+        for f in self._function_objects.values():
+            if f.spec.build.source in ['.', './']:
+                return True
+        return False
 
     def save_workflow(self, name, target, artifact_path=None):
         """create and save a workflow as a yaml or archive file
@@ -615,8 +622,8 @@ def _init_function_from_dict(f, project):
         func = code_to_function(name, filename=url, image=image, kind=kind)
     elif url.endswith('.py'):
         if not image:
-            logger.warning('function was added without specifying an image, '
-                           'remember to set the image or build commands!')
+            raise ValueError('image must be provided with py code files, '
+                             'use function object for more control/settings')
         if in_context and with_repo:
             func = new_function(name, command=url, image=image, kind=kind or 'job')
         else:

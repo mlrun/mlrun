@@ -9,7 +9,10 @@ export PREFIX=${args[1]}
 export MLRUN_COMMIT=${args[2]}
 export NEW_TAG=${args[3]}
 
-for IMAGE in 'base' 'models' 'dask' 'serving'
+# we may end up with mlrun/mlrun, mlrun/models, mlrun/serving
+# and a couple of other utility images
+# currently only builds the cpu `base` and `models`
+for IMAGE in 'base' 'models' # 'models/gpu' 'horovod' 'horovod/gpu' 'serving'
 do
     docker build \
         -f $IMAGE/Dockerfile \

@@ -11,52 +11,59 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM nvidia/cuda:10.1-devel-ubuntu18.04
+FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
-MAINTAINER yashab@iguazio.com
+ARG MLRUN_TAG=development
+ENV MLRUN_TAG=$MLRUN_TAG
 
-ENV CUDNN_VERSION=7.6.4.38-1+cuda10.1
-ENV NCCL_VERSION=2.5.6-1+cuda10.1
-
-# Python 2.7 or 3.6 is supported by Ubuntu Bionic out of the box
-ARG python=3.7
-ENV PYTHON_VERSION=${python}
+LABEL maintainer="yashab@iguazio.com"
+LABEL org="iguazio.com"
 
 # Set default shell to /bin/bash
 SHELL ["/bin/bash", "-cu"]
 
-RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
-        build-essential \
-        cmake \
-        g++-4.8 \
-        git \
-        curl \
-        vim \
-        wget \
-        ca-certificates \
-        libcudnn7=${CUDNN_VERSION} \
-        libnccl2=${NCCL_VERSION} \
-        libnccl-dev=${NCCL_VERSION} \
-        libjpeg-dev \
-        libpng-dev \
-        python${PYTHON_VERSION} \
-        python${PYTHON_VERSION}-dev \
-        librdmacm1 \                                                                                                                                           libibverbs1 \
-        ibverbs-providers
-
-RUN if [[ "${PYTHON_VERSION}" == "3.7" ]]; then \
-        apt-get install -y python${PYTHON_VERSION}-distutils; \
-    fi
-RUN ln -s /usr/bin/python${PYTHON_VERSION} /usr/bin/python
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    curl \
+    nano \
+    wget \
+    bzip2 \
+    libglib2.0-0 \
+    libxext6 \
+    libsm6 \
+    python3 \
+    python3-dev \
+    python3-distutils \
+    libxrender1 \
+    mercurial \
+    subversion \
+    libreadline7 \
+    libreadline-dev \
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    libjpeg-dev \
+    libpng-dev \
+    librdmacm1 \
+    libibverbs1 \
+    ibverbs-providers \
+    python3-libnvinfer \
+    python3-libnvinfer-dev && \
+    apt install -y ca-certificates  && \
+    update-ca-certificates --fresh && \
+    apt clean && \
+    apt autoremove
 
 RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
-    python get-pip.py && \
+    python3 get-pip.py && \
     rm get-pip.py
 
 # Install TensorFlow, Keras, PyTorch and MXNet
-RUN python -m pip install --no-cache-dir future typing
-RUN python -m pip install --no-cache-dir numpy tensorflow h5py
-RUN python -m pip install --no-cache-dir torch torchvision
+RUN python3 -m pip install --no-cache-dir tensorflow h5py torch torchvision
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -65,36 +72,40 @@ RUN mkdir /tmp/openmpi && \
     tar zxf openmpi-4.0.3.tar.gz && \
     cd openmpi-4.0.3 && \
     ./configure --enable-orterun-prefix-by-default && \
-    make -j $(nproc) all && \
+    make -j`nproc` all && \
     make install && \
     ldconfig && \
     rm -rf /tmp/openmpi
 
-# Install Horovod, temporarily using CUDA stubs
+# # Install Horovod, temporarily using CUDA stubs
 RUN ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
     HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-         python -m pip install --no-cache-dir horovod && \
+    python3 -m pip install --no-cache-dir horovod && \
     ldconfig
 
-# Install OpenSSH for MPI to communicate between containers
+# # Install OpenSSH for MPI to communicate between containers
 RUN apt-get install -y --no-install-recommends openssh-client openssh-server && \
     mkdir -p /var/run/sshd
 
-# Allow OpenSSH to talk to containers without asking for confirmation
+# # Allow OpenSSH to talk to containers without asking for confirmation
 RUN cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
     mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
 
-# Download examples
+# # Download examples
 RUN apt-get install -y --no-install-recommends subversion && \
     svn checkout https://github.com/horovod/horovod/trunk/examples && \
     rm -rf /examples/.svn
 
-RUN python -m pip install --no-cache-dir git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
+RUN python3 -m pip install --no-cache-dir git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
 
-RUN python -m pip install --no-cache-dir scikit-build cmake face_recognition opencv-contrib-python imutils
+RUN python3 -m pip install --no-cache-dir scikit-build cmake face_recognition opencv-contrib-python imutils
 
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python2.7 0 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.6 1 && \
+    update-alternatives  --set python /usr/bin/python3.6
 
 WORKDIR "/examples"

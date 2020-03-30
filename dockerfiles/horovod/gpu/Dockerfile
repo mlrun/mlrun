@@ -14,7 +14,7 @@
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
 ARG MLRUN_TAG=development
-ENV MLRUN_TAG=$MLRUN_TAG
+ENV MLRUN_TAG=${MLRUN_TAG}
 
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"

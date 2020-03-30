@@ -29,7 +29,7 @@ from .config import config as mlconf
 from .runtimes import new_model_server
 from .platforms import mount_v3io, v3io_cred
 from .projects import load_project, new_project
-
+from .mlutils import get_class_fit, plot_importance, plot_roc, gcf_clear
 
 from os import environ
 

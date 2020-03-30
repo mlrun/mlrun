@@ -16,7 +16,8 @@ FROM python:3.8-slim-buster
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
-ARG MLRUN_TAG
+ARG MLRUN_TAG=development
+ENV MLRUN_TAG=${MLRUN_TAG}
 
 RUN apt update -qqq \
  && apt -y upgrade \

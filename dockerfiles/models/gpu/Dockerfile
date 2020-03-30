@@ -3,6 +3,12 @@ FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
+ARG MLRUN_TAG=development
+ENV MLRUN_TAG=${MLRUN_TAG}
+
+ARG MLUTILS=master
+ENV MLUTILS=${MLUTILS}
+
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
 
@@ -86,15 +92,13 @@ RUN find /opt/conda/ -follow -type f -name '*.a' -delete && \
     find /opt/conda/ -follow -type f -name '*.js.map' -delete && \
     /opt/conda/bin/conda clean -afy
 
-RUN python -m pip install  
-
 RUN python -m pip install --no-cache-dir \
         yellowbrick \
         gnureadline \
         pyod \
         urllib3==1.24.3 \
         git+https://github.com/scikit-multiflow/scikit-multiflow \
-        git+https://github.com/mlrun/mlrun.git@development
+        git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
 
 # xgboost
 RUN mkdir /repos && \
@@ -110,6 +114,6 @@ RUN mkdir /repos && \
     cd ../python-package && \
     python -m pip install --no-cache-dir -e .
 
-RUN python  -m pip install git+https://github.com/yjb-ds/mlutils.git
+RUN python  -m pip install git+https://github.com/yjb-ds/mlutils.git@${MLUTILS}
 
 WORKDIR "/examples"

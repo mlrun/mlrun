@@ -615,7 +615,8 @@ def _init_function_from_dict(f, project):
         func = code_to_function(name, filename=url, image=image, kind=kind)
     elif url.endswith('.py'):
         if not image:
-            raise ValueError('image must be provided with py code files')
+            logger.warning('function was added without specifying an image, '
+                           'remember to set the image or build commands!')
         if in_context and with_repo:
             func = new_function(name, command=url, image=image, kind=kind or 'job')
         else:

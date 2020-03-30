@@ -767,7 +767,7 @@ def _get_repo_url(repo):
     url = ''
     remotes = [remote.url for remote in repo.remotes]
     if not remotes:
-        return '', ''
+        return ''
 
     url = remotes[0]
     url = url.replace('https://', 'git://')

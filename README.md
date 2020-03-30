@@ -108,13 +108,17 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 
 - Learn MLRun basics &mdash; [**examples/mlrun_basics.ipynb**](examples/mlrun_basics.ipynb)
 - Convert local runs to Kubernetes jobs and create automated pipelines in a single notebook &mdash; [**examples/mlrun_jobs.ipynb**](examples/mlrun_jobs.ipynb)
-- End-to-end XGBoost pipeline, including data ingestion, model training, verification, and deployment &mdash; [**demo-xgb-project**](https://github.com/mlrun/demo-xgb-project) repo
+- End-to-end ML pipeline&mdash; [**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe), including:
+  - Data ingestion and analysis 
+  - Model training
+  - Verification
+  - Model deployment
 - MLRun with scale-out runtimes &mdash;
-  - Distributed TensorFlow with Horovod and MPIJob &mdash; [**examples/mlrun_mpijob_classify.ipynb**](examples/mlrun_mpijob_classify.ipynb)
+  - Distributed TensorFlow with Horovod and MPIJob &mdash; [**horovod-project.ipynb**](https://github.com/mlrun/demos/blob/master/horovod-pipe/horovod-project.ipynb)
   - Serverless model serving with Nuclio &mdash; [**examples/xgb_serving.ipynb**](examples/xgb_serving.ipynb)
   - Dask &mdash; [**examples/mlrun_dask.ipynb**](examples/mlrun_dask.ipynb)
   - Spark &mdash; [**examples/mlrun_sparkk8s.ipynb**](examples/mlrun_sparkk8s.ipynb)
-- MLRun projects &mdash;
+- MLRun project and Git lifecycle &mdash;
   - Load a project from a remote Git location and run pipelines &mdash; [**examples/load-project.ipynb**](examples/load-project.ipynb)
   - Create a new project, functions, and pipelines, and upload to Git &mdash; [**examples/new-project.ipynb**](examples/new-project.ipynb)
 - Import and export functions using files or Git &mdash; [**examples/mlrun_export_import.ipynb**](examples/mlrun_export_import.ipynb)
@@ -125,7 +129,7 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 
 - Deep-learning pipeline (full end-to-end application), including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [mlrun/demo-image-classification](https://github.com/mlrun/demo-image-classification) repo
 - Additional end-to-end use-case applications &mdash; [mlrun/demos](https://github.com/mlrun/demos) repo
-- MLRun functions Library &mdash; [mlrun/functions](https://github.com/mlrun/functions) repo [WORK IN PROGRESS]
+- MLRun functions Library &mdash; [mlrun/functions](https://github.com/mlrun/functions) repo 
 
 [Back to top](#top)
 
@@ -149,7 +153,6 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
   - [Replacing Runtime Context Parameters from the CLI](#replace-runtime-context-param-from-cli)
   - [Remote Execution](#remote-execution)
 - [Running an MLRun Service](#run-mlrun-service)
-  - [Using Docker](#run-mlrun-service-docker)
   - [Using the MLRun CLI](#run-mlrun-service-cli)
 
 <a id="basic-components"></a>
@@ -271,7 +274,7 @@ def xgb_train(context,
 
 The example training function can be executed locally with parameters, and the run results and artifacts can be logged automatically into a database by using a single command, as demonstrated in the following example; the example sets the function's `eta` parameter:
 ```python
-train_run = new_function().run(handler=xgb_train).with_params(eta=0.3)
+train_run = run_local(handler=xgb_train, pramas={'eta': 0.3})
 ```
 
 Alternatively, you can replace the function with a serverless runtime to run the same code on a remote cluster, which could result in a ~10x performance boost.
@@ -283,41 +286,48 @@ The code also demonstrates how you can use the context object to read and write 
 ```python
 from mlrun import get_or_create_ctx
 from mlrun.artifacts import ChartArtifact, TableArtifact
+import pandas as pd
 
 
 def my_job(context, p1=1, p2='x'):
-    # Load the MLRun runtime context. The context is set by the runtime
-    # framework - for example, Kubeflow.
+    # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
 
-    # Access runtime-context information - input metadata, parameter values,
-    # authentication secret (access key), and input artifacts (files)
+    # get parameters from the runtime context (or use defaults)
+
+    # access input metadata, values, files, and secrets (passwords)
     print(f'Run: {context.name} (uid={context.uid})')
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(context.get_input('infile.txt', 'infile.txt')
-          .get()))
+    print('file\n{}\n'.format(context.get_input('infile.txt', 'infile.txt').get()))
+    
+    # Run some useful code e.g. ML training, data prep, etc.
 
-    # TODO: Run some useful code, such as ML training or data preparation.
-
-    # Log scalar result values (job-result metrics)
+    # log scalar result values (job result metrics)
     context.log_result('accuracy', p1 * 2)
     context.log_result('loss', p1 * 3)
     context.set_label('framework', 'sklearn')
 
-    # Log various types of artifacts (file, web page, table), which will be
-    # versioned and visible on the MLRun dashboard
+    # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
     context.log_artifact('model', body=b'abc is 123', local_path='model.txt', labels={'framework': 'xgboost'})
     context.log_artifact('html_result', body=b'<b> Some HTML <b>', local_path='result.html')
     context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', visible=True,
                                         header=['A', 'B', 'C']), local_path='dataset.csv')
 
-    # Create a chart output, which will be visible in the Kubeflow Pipelines UI
+    # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart')
     chart.labels = {'type': 'roc'}
     chart.header = ['Epoch', 'Accuracy', 'Loss']
     for i in range(1, 8):
         chart.add_row([i, i/20+0.75, 0.30-i/20])
     context.log_artifact(chart)
+
+    raw_data = {'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
+                'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
+                'age': [42, 52, 36, 24, 73],
+                'testScore': [25, 94, 57, 62, 70]}
+    df = pd.DataFrame(raw_data, columns=[
+        'first_name', 'last_name', 'age', 'testScore'])
+    context.log_dataset('mydf', df=df, stats=True)
 
 
 if __name__ == "__main__":
@@ -445,34 +455,65 @@ ML pipeline execution with MLRun is similar to CLI execution.
 A pipeline is created by running an MLRun workflow.
 MLRun automatically saves outputs and artifacts in a way that is visible to [Kubeflow Pipelines](https://github.com/kubeflow/pipelines), and allows interconnecting steps.
 
-For an example of a full ML pipeline that's implemented in a web notebook, see the XGBoost MLRun demo ([**demo-xgb-project**](https://github.com/mlrun/demo-xgb-project)).
-The  [**train-xgboost.ipynb**](https://github.com/mlrun/demo-xgb-project/blob/master/notebooks/train-xgboost.ipynb) demo notebook includes the following code for implementing an XGBoost ML-training pipeline:
+For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe)).
+The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/tree/master/sklearn-pipe/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
 ```python
+from kfp import dsl
+from mlrun import mount_v3io
+
+funcs = {}
+DATASET = 'iris_dataset'
+LABELS  = "label"
+
+def init_functions(functions: dict, project=None, secrets=None):
+    for f in functions.values():
+        f.apply(mount_v3io())
+        f.spec.image_pull_policy = 'Always'
+
 @dsl.pipeline(
-    name='My XGBoost training pipeline',
-    description='Demonstrates how to use MLRun.'
+    name="My XGBoost training pipeline",
+    description="Shows how to use mlrun."
 )
-def xgb_pipeline(
-   eta = [0.1, 0.2, 0.3], gamma = [0.1, 0.2, 0.3]
-):
+def kfpipeline():
+    
+    # build our ingestion function (container image)
+    builder = funcs['gen-iris'].deploy_step(skip_deployed=True)
+    
+    # run the ingestion function with the new image and params
+    ingest = funcs['gen-iris'].as_step(
+        name="get-data",
+        handler='iris_generator',
+        image=builder.outputs['image'],
+        params={'format': 'pq'},
+        outputs=[DATASET])
 
-    ingest = xgbfn.as_step(name='ingest_iris', handler='iris_generator',
-                          outputs=['iris_dataset'])
+    # analyze our dataset
+    describe = funcs["describe"].as_step(
+        name="summary",
+        params={"label_column": LABELS},
+        inputs={"table": ingest.outputs[DATASET]})
+    
+    # train with hyper-paremeters 
+    train = funcs["train"].as_step(
+        name="train-skrf",
+        params={"model_pkg_class" : "sklearn.ensemble.RandomForestClassifier",
+                "sample"          : -1, 
+                "label_column"    : LABELS,
+                "test_size"       : 0.10},
+        hyperparams={'CLASS_n_estimators': [100, 300, 500]},
+        selector='max.accuracy',
+        inputs={"dataset"         : ingest.outputs[DATASET]},
+        outputs=['model', 'test_set'])
 
+    # test and visualize our model
+    test = funcs["test"].as_step(
+        name="test",
+        params={"label_column": LABELS},
+        inputs={"models_path" : train.outputs['model'],
+                "test_set"    : train.outputs['test_set']})
 
-    train = xgbfn.as_step(name='xgb_train', handler='xgb_train',
-                          hyperparams = {'eta': eta, 'gamma': gamma},
-                          selector='max.accuracy',
-                          inputs = {'dataset': ingest.outputs['iris_dataset']},
-                          outputs=['model'])
-
-
-    plot = xgbfn.as_step(name='plot', handler='plot_iter',
-                         inputs={'iterations': train.outputs['iteration_results']},
-                         outputs=['iris_dataset'])
-
-    # Deploy the model-serving function with inputs from the training stage
-    deploy = srvfn.deploy_step(project = 'iris', models={'iris_v1': train.outputs['model']})
+    # deploy our model as a serverless function
+    deploy = funcs["serving"].deploy_step(models={f"{DATASET}_v1": train.outputs['model']})
 ```
 
 [Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
@@ -594,14 +635,6 @@ You can create and run an MLRun service by using either of the following methods
 - [Using the MLRun CLI](#run-mlrun-service-cli)
 
 > **Note:** For both methods, you can optionally configure the service port and/or directory path by setting the `MLRUN_httpdb__port` and `MLRUN_httpdb__dirpath` environment variables instead of the respective run parameters or CLI options.
-
-<a id="run-mlrun-service-docker"></a>
-#### Using Docker to Run an MLRun Service
-
-Run the following command to use Docker to create and run an instance of the MLRun service; replace `<service-directory path>` with a path to the service directory:
-```sh
-docker run -p 8080:8080 -v <service-directory path>:/mlrun/db
-```
 
 <a id="run-mlrun-service-cli"></a>
 #### Using the MLRun CLI to Run an MLRun Service

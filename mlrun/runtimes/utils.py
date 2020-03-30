@@ -161,7 +161,10 @@ def results_to_iter(results, runspec, execution):
         logger.warning('warning!, zero iteration results')
         return
 
-    df = pd.io.json.json_normalize(iter).sort_values('iter')
+    if hasattr(pd, 'json_normalize'):
+        df = pd.json_normalize(iter).sort_values('iter')
+    else:
+        df = pd.io.json.json_normalize(iter).sort_values('iter')
     header = df.columns.values.tolist()
     summary = [header] + df.values.tolist()
     item, id = selector(results, runspec.spec.selector)

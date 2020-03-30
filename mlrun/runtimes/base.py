@@ -198,6 +198,9 @@ class BaseRuntime(ModelObj):
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
                 runspec = literal_eval(runspec)
+            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
+                raise ValueError('task/runspec is not a valid task object,'
+                                 ' type={}'.format(type(runspec)))
 
         if isinstance(runspec, RunTemplate):
             runspec = RunObject.from_template(runspec)
@@ -487,13 +490,7 @@ class BaseRuntime(ModelObj):
     def full_image_path(self, image=None):
         image = image or self.spec.image or ''
 
-        gpu_image = False
-        if hasattr(self.spec, 'resources'):
-            gpus = get_in(self.spec.resources, 'limits.nvidia.com/gpu', 0)
-            if gpus:
-                gpu_image = True
-
-        image = tag_image(image, gpu_image=gpu_image)
+        image = tag_image(image)
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:

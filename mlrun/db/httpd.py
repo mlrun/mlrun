@@ -166,7 +166,7 @@ def _submit(data):
     # remote/container runtime)
 
     try:
-        if function:
+        if function and not url:
             fn = new_function(runtime=function)
         else:
             if '://' in url:
@@ -181,6 +181,14 @@ def _submit(data):
                             url),
                     )
                 fn = new_function(runtime=runtime)
+
+            if function:
+                fn2 = new_function(runtime=function)
+                for attr in ['volumes', 'volume_mounts', 'env', 'resources',
+                             'image_pull_policy', 'replicas']:
+                    val = getattr(fn2.spec, attr, None)
+                    if val:
+                        setattr(fn.spec, attr, val)
 
         fn.set_db_connection(_db, True)
         logger.info('func:\n{}'.format(fn.to_yaml()))

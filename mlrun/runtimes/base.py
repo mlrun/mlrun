@@ -198,6 +198,9 @@ class BaseRuntime(ModelObj):
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
                 runspec = literal_eval(runspec)
+            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
+                raise ValueError('task/runspec is not a valid task object,'
+                                 ' type={}'.format(type(runspec)))
 
         if isinstance(runspec, RunTemplate):
             runspec = RunObject.from_template(runspec)

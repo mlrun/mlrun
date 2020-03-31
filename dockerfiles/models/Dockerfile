@@ -11,45 +11,63 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG REPO
-ARG PREFIX
-ARG MLRUN_TAG=development
-
 FROM continuumio/anaconda3:2020.02
 
-MAINTAINER yashab@iguazio.com
+LABEL maintainer="yashab@iguazio.com"
+LABEL org="iguazio.com"
+
+ARG REPO=mlrun
+
+ARG MLRUN_TAG=development
+ENV MLRUN_TAG=$MLRUN_TAG
 
 ARG TF_VER=2.1.0
 ARG XGB_VER=1.0.2
 ARG LGBM_VER=2.3.1
 
 RUN apt update -qqq \
- && apt -y upgrade \
- && apt install -yq --no-install-recommends build-essential \
-        graphviz \
-        cmake \
-        curl \
-        libreadline7 \
-        libreadline-dev \
-        libboost-dev \
-        libboost-system-dev \
-        libboost-filesystem-dev \
- && apt install -y ca-certificates \
- && update-ca-certificates --fresh \
- && apt clean \
- && apt autoremove \
- && rm -rf /var/lib/apt/lists/*
+    && apt -y upgrade \
+    && apt install -yq --no-install-recommends \
+    build-essential \
+    graphviz \
+    cmake \
+    curl \
+    libreadline7 \
+    libreadline-dev \
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    && apt install -y ca-certificates \
+    && update-ca-certificates --fresh \
+    && apt clean \
+    && apt autoremove \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
-RUN conda update conda
+RUN conda config --add channels conda-forge && \
+    conda config --add channels anaconda && \
+    conda install -y \
+    dask[complete] \
+    distributed \
+    dask-ml \
+    dask-kubernetes \
+    dask-xgboost \
+    fsspec \
+    bokeh \
+    wrapt \
+    pytest \
+    scikit-optimize \
+    pyarrow
 
 RUN python -m pip install -U --no-cache-dir \
-	yellowbrick \
-    wrapt \
-	pytest \
-	pyarrow \
-	gnureadline
+    yellowbrick \
+    gnureadline \
+    pyod \
+    git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG} \
+    urllib3==1.24.3 \
+    git+https://github.com/scikit-multiflow/scikit-multiflow.git
+
 
 # xgboost
 RUN mkdir /repos && \
@@ -76,19 +94,6 @@ RUN cd /repos && \
     cd ../python-package && \
     python -m pip install --no-cache-dir -e .
 
-RUN echo ${MLRUN_TAG}
-
-RUN python -m pip install  --ignore-installed --no-cache-dir git+https://github.com/mlrun/mlrun.git@development
-
-RUN    conda update -n base -c anaconda pandas
-
-RUN python -m pip install --no-cache-dir urllib3==1.24.3 && \ 
-    git clone https://github.com/yjb-ds/mlutils.git && \
-    cd mlutils && \
-    python setup.py develop && \
-    python gen_all_configs.py
-
-ENV PYTHONPATH "${PYTHONPATH}:/mlutils"
 
 RUN conda clean -tipsy \
     && find /opt/conda/ -type f,l -name '*.a' -delete \

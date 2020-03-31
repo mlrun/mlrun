@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG REPO
-ARG PREFIX
 ARG MLRUN_TAG
 
 FROM ${REPO}/${PREFIX}-base:${MLRUN_TAG}
 
-RUN python -m pip install --no-cache-dir -U kfserving
+RUN python3 -m pip install --no-cache-dir -U kfserving

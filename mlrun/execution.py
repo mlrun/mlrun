@@ -303,7 +303,7 @@ class MLClientCtx(object):
                 self._results[k] = v
             for a in get_in(task, ['status', run_keys.artifacts], []):
                 self._artifacts_manager.artifacts[a['key']] = a
-                self._artifacts_manager.link_artifact(self.project, self.tag,
+                self._artifacts_manager.link_artifact(self.project, self.name, self.tag,
                                                       a['key'], self.iteration,
                                                       a['target_path'],
                                                       link_iteration=best)

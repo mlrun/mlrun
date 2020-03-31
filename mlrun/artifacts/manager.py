@@ -139,13 +139,11 @@ class ArtifactManager:
             if sources:
                 item.sources = [{'name': k, 'path': str(v)}
                                 for k, v in sources.items()]
-            struct = item.to_dict()
-            struct['key'] = key
-            self.artifact_db.store_artifact(key, struct, item.tree,
+            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
                                             iter=item.iter, tag=tag,
                                             project=project)
 
-    def link_artifact(self, project, tree, key, iter=0, artifact_path='', tag='',
+    def link_artifact(self, project, name, tree, key, iter=0, artifact_path='', tag='',
                       link_iteration=0, link_key=None, link_tree=None):
         if self.artifact_db:
             item = LinkArtifact(key, artifact_path,
@@ -154,7 +152,8 @@ class ArtifactManager:
                                 link_tree=link_tree)
             item.tree = tree
             item.iter = iter
-            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
+            item.db_key = name + '_' + key
+            self.artifact_db.store_artifact(item.db_key, item.to_dict(), item.tree,
                                             iter=iter, tag=tag,
                                             project=project)
 

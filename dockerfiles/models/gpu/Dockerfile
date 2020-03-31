@@ -116,6 +116,4 @@ RUN mkdir /repos && \
     cd ../python-package && \
     python -m pip install --no-cache-dir -e .
 
-RUN python  -m pip install git+https://github.com/yjb-ds/mlutils.git@${MLUTILS}
-
 WORKDIR "/examples"

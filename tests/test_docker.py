@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 from os import environ
 from subprocess import PIPE, run
 from uuid import uuid4
@@ -27,39 +28,26 @@ is_ci = 'CI' in environ
 should_run = (not in_docker) and is_ci
 
 
-@pytest.fixture
-def build_docker():
+@contextmanager
+def clean_docker(cmd, tag):
+    yield
+    run(['docker', cmd, '-f', tag])
+
+
+@pytest.mark.skipif(not should_run, reason='in docker container or not CI')
+def test_docker():
     tag = f'mlrun/test-{uuid4().hex}'
     cid = None
 
-    def build(dockerfile):
-        nonlocal cid
-
-        cmd = ['docker', 'build', '-f', dockerfile, '-t', tag, '.']
-        run(cmd, cwd=prj_dir, check=True)
-
+    cmd = ['docker', 'build', '-f', 'Dockerfile.httpd', '-t', tag, '.']
+    run(cmd, cwd=prj_dir, check=True)
+    with clean_docker('rmi', tag):
         port = 8080
         cmd = ['docker', 'run', '--detach', '-p', f'{port}:{port}', tag]
         out = run(cmd, stdout=PIPE, check=True)
         cid = out.stdout.decode('utf-8').strip()
-
-        url = f'http://localhost:{port}/api/healthz'
-        timeout = 30
-        assert wait_for_server(url, timeout), \
-            f'server failed to start after {timeout} seconds, url={url}'
-        return cid
-
-    yield build
-
-    if cid is not None:
-        run(['docker', 'rm', '-f', cid])
-    run(['docker', 'rmi', '-f', tag])
-
-
-dockerfiles = ['Dockerfile.db', 'Dockerfile.db-gunicorn']
-
-
-@pytest.mark.skipif(not should_run, reason='in docker container or not CI')
-@pytest.mark.parametrize('dockerfile', dockerfiles)
-def test_docker(build_docker, dockerfile):
-    build_docker(dockerfile)
+        with clean_docker('rm', cid):
+            url = f'http://localhost:{port}/api/healthz'
+            timeout = 30
+            assert wait_for_server(url, timeout), \
+                f'server failed to start after {timeout} seconds, url={url}'

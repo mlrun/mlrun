@@ -65,7 +65,7 @@ def func_info(fn) -> dict:
         name=fn.__name__,
         doc=doc,
         params=[inspect_param(p) for p in sig.parameters.values()],
-        returns=param_dict(type=type_name(sig.return_annotation), doc=doc),
+        returns=param_dict(type=type_name(sig.return_annotation)),
         lineno=func_lineno(fn),
     )
 
@@ -86,14 +86,16 @@ def merge_doc(out, doc):
     doc, params, ret = parse_rst(doc)
     out['doc'] = doc
 
-    # TODO: Check that doc matches signature
-    for tparam, param in zip(out['params'], params):
-        tparam['doc'] = param['doc']
-        if not tparam['type']:
-            tparam['type'] = param['type']
-    out['return']['doc'] = ret['doc']
-    if not out['return']['type']:
-        out['return']['type'] = ret['type']
+    for param in params:
+        for out_param in out['params']:
+            if out_param['name'] != param['name']:
+                continue
+            out_param['doc'] = param['doc'] or out_param['doc']
+            out_param['type'] = param['type'] or out_param['type']
+            break
+
+    out['return']['doc'] = ret['doc'] or out['return']['doc']
+    out['return']['type'] = ret['type'] or out['return']['type']
     return out
 
 
@@ -183,10 +185,31 @@ def ast_func_info(func: ast.FunctionDef):
 def ast_param_dict(param: ast.arg) -> dict:
     return {
         'name': param.arg,
-        'type': param.annotation.id if param.annotation else '',
+        'type': ann_type(param.annotation) if param.annotation else '',
         'doc': '',
         'default': '',
     }
+
+
+def ann_type(ann):
+    if hasattr(ann, 'slice'):
+        name = ann.value.id
+        inner = ', '.join(ann_type(e) for e in iter_elems(ann.slice))
+        return f'{name}[{inner}]'
+
+    return getattr(ann, 'id', '')
+
+
+def iter_elems(ann):
+    if hasattr(ann.value, 'elts'):
+        return ann.value.elts
+    if not hasattr(ann, 'slice'):
+        return [ann.value]
+    elif hasattr(ann.slice, 'elts'):
+        return ann.slice.elts
+    elif hasattr(ann.slice, 'value'):
+        return [ann.slice.value]
+    return []
 
 
 class ASTVisitor(ast.NodeVisitor):

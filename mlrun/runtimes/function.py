@@ -26,7 +26,7 @@ from ..kfpops import deploy_op
 from ..platforms.iguazio import mount_v3io
 from .base import RunError
 from .utils import log_std, set_named_item, get_item_name
-from ..utils import logger, update_in, get_in
+from ..utils import logger, update_in, get_in, tag_image
 from ..lists import RunList
 from ..model import RunObject
 
@@ -218,6 +218,9 @@ class RemoteRuntime(KubeResource):
                 self.spec.base_spec, spec, tag, self.spec.build.code_origin)
             update_in(config, 'metadata.name', self.metadata.name)
             update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
+            base_image = get_in(config, 'spec.build.baseImage')
+            if base_image:
+                update_in(config, 'spec.build.baseImage', tag_image(base_image))
 
             logger.info('deploy started')
             addr = nuclio.deploy.deploy_config(
@@ -356,3 +359,9 @@ async def submit(session, url, run, headers=None):
 
 def fake_nuclio_context(body, headers=None):
     return nuclio.Context(), nuclio.Event(body=body, headers=headers)
+
+
+def _fullname(project, name):
+    if project:
+        return '{}-{}'.format(project, name)
+    return name

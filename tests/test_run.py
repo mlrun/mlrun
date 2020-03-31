@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-
+import pandas as pd
 from conftest import (
     examples_path, has_secrets, here, out_path, tag_test, verify_state
 )
@@ -30,6 +30,14 @@ def my_func(context, p1=1, p2='a-string'):
     context.logger.debug('debug info')
     context.log_metric('loss', 7)
     context.log_artifact('chart', body='abc')
+
+    raw_data = {'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
+                'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
+                'age': [42, 52, 36, 24, 73],
+                'postTestScore': [25, 94, 57, 62, 70]}
+    df = pd.DataFrame(raw_data, columns=[
+        'first_name', 'last_name', 'age', 'postTestScore'])
+    context.log_dataset('mydf', df=df)
 
 
 base_spec = NewTask(params={'p1': 8}, out_path=out_path)
@@ -95,6 +103,14 @@ def test_handler_hyperlist():
 
 def test_local_runtime():
     spec = tag_test(base_spec, 'test_local_runtime')
+    result = new_function(command='{}/training.py'.format(
+        examples_path)).run(spec)
+    verify_state(result)
+
+
+def test_local_runtime_hyper():
+    spec = tag_test(base_spec, 'test_local_runtime_hyper')
+    spec.with_hyper_params({'p1': [1, 5, 3]}, selector='max.accuracy')
     result = new_function(command='{}/training.py'.format(
         examples_path)).run(spec)
     verify_state(result)

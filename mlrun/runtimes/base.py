@@ -20,7 +20,7 @@ from os import environ, path
 
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
-from ..db import get_run_db, get_or_set_dburl
+from ..db import get_run_db, get_or_set_dburl, RunDBError
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
@@ -60,7 +60,7 @@ class FunctionEntrypoint(ModelObj):
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  build=None, entry_points=None, description=None,
-                 default_handler=None, pythonpath=None):
+                 workdir=None, default_handler=None, pythonpath=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -68,7 +68,7 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
-        self.workdir = None
+        self.workdir = workdir
         self.pythonpath = pythonpath
 
         self._build = None
@@ -106,6 +106,7 @@ class BaseRuntime(ModelObj):
         self._status = None
         self.status = None
         self._is_api_server = False
+        self.verbose = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
@@ -173,7 +174,7 @@ class BaseRuntime(ModelObj):
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', workdir: str = '', artifact_path='',
+            out_path: str = '', workdir: str = '', artifact_path: str = '',
             watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
@@ -197,6 +198,9 @@ class BaseRuntime(ModelObj):
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
                 runspec = literal_eval(runspec)
+            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
+                raise ValueError('task/runspec is not a valid task object,'
+                                 ' type={}'.format(type(runspec)))
 
         if isinstance(runspec, RunTemplate):
             runspec = RunObject.from_template(runspec)
@@ -218,7 +222,8 @@ class BaseRuntime(ModelObj):
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.output_path = out_path or artifact_path \
                                    or runspec.spec.output_path
-        runspec.spec.input_path = workdir or runspec.spec.input_path
+        runspec.spec.input_path = workdir or runspec.spec.input_path \
+                                  or self.spec.workdir
 
         spec = runspec.spec
         if self.spec.mode and self.spec.mode == 'noctx':
@@ -227,7 +232,7 @@ class BaseRuntime(ModelObj):
                 self.spec.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
-            self._secrets = SecretsStore.from_dict(spec.to_dict())
+            self._secrets = SecretsStore.from_list(spec.secret_sources)
 
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
@@ -239,20 +244,27 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = path.join(config.artifact_path, meta.uid)
         if is_local(runspec.spec.output_path):
             logger.warning('artifact path is not defined or is local,'
-                           'artifacts will not be visible in the UI')
+                           ' artifacts will not be visible in the UI')
         db = self._get_db()
 
         if not self.is_deployed:
             raise RunError(
                 "function image is not built/ready, use .build() method first")
 
+        if self.verbose:
+            logger.info('runspec:\n{}'.format(runspec.to_yaml()))
+
+        if 'V3IO_USERNAME' in environ and 'v3io_user' not in meta.labels:
+            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
+
         if not self.is_child:
             dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
-            meta.labels['owner'] = environ.get(
-                    'V3IO_USERNAME', getpass.getuser())
+            if 'owner' not in meta.labels:
+                meta.labels['owner'] = environ.get(
+                        'V3IO_USERNAME', getpass.getuser())
             if db and self.kind != 'handler':
                 hashkey = calc_hash(self)
                 struct = self.to_dict()
@@ -360,7 +372,10 @@ class BaseRuntime(ModelObj):
             project = task.metadata.project
             uid = task.metadata.uid
             iter = task.metadata.iteration
-            return self._get_db().read_run(uid, project, iter=iter)
+            try:
+                return self._get_db().read_run(uid, project, iter=iter)
+            except RunDBError:
+                return None
         if task:
             return task.to_dict()
 
@@ -403,7 +418,7 @@ class BaseRuntime(ModelObj):
                 resp = self._post_run(resp, task=task)
             except RunError as err:
                 task.status.state = 'error'
-                task.status.error = err
+                task.status.error = str(err)
                 resp = self._post_run(task=task, err=err)
             results.append(resp)
         return results
@@ -429,6 +444,10 @@ class BaseRuntime(ModelObj):
         if resp is None and task:
             was_none = True
             resp = self._get_db_run(task)
+
+            if not resp:
+                self.store_run(task)
+                return task.to_dict()
 
             if task.status.status_text:
                 update_in(resp, 'status.status_text', task.status.status_text)
@@ -470,6 +489,7 @@ class BaseRuntime(ModelObj):
 
     def full_image_path(self, image=None):
         image = image or self.spec.image or ''
+
         image = tag_image(image)
         if not image.startswith('.'):
             return image
@@ -538,16 +558,15 @@ class BaseRuntime(ModelObj):
         logger.info('function spec saved to path: {}'.format(target))
         return self
 
-    def save(self, tag='', versioned=True):
+    def save(self, tag='', versioned=False):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
             return ''
 
         tag = tag or self.metadata.tag or 'latest'
-        self.metadata.tag = tag
+        hashkey = calc_hash(self, tag=tag)
         obj = self.to_dict()
-        hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))
@@ -561,17 +580,23 @@ class BaseRuntime(ModelObj):
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)
         if strip:
-            spec = struct['spec']
-            for attr in ['volumes', 'volume_mounts']:
-                if attr in spec:
-                    del spec[attr]
-            if 'env' in spec and spec['env']:
-                for ev in spec['env']:
-                    if ev['name'].startswith('V3IO_'):
-                        ev['value'] = ''
             if 'status' in struct:
                 del struct['status']
         return struct
+
+    def doc(self):
+        print('function:', self.metadata.name)
+        print(self.spec.description)
+        if self.spec.default_handler:
+            print('default handler:', self.spec.default_handler)
+        if self.spec.entry_points:
+            print('entry points:')
+            for name, entry in self.spec.entry_points.items():
+                print('  {}: {}'.format(name, entry.get('doc', '')))
+                params = entry.get('parameters')
+                if params:
+                    for p in params:
+                        print('    {}'.format(p))
 
 
 def is_local(url):

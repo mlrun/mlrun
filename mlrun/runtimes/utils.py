@@ -138,24 +138,33 @@ def results_to_iter(results, runspec, execution):
     failed = 0
     running = 0
     for task in results:
-        state = get_in(task, ['status', 'state'])
-        id = get_in(task, ['metadata', 'iteration'])
-        struct = {'param': get_in(task, ['spec', 'parameters'], {}),
-                  'output': get_in(task, ['status', 'results'], {}),
-                  'state': state,
-                  'iter': id,
-                  }
-        if state == 'error':
-            failed += 1
-            err = get_in(task, ['status', 'error'], '')
-            logger.error('error in task  {}:{} - {}'.format(
-                runspec.metadata.uid, id, err))
-        elif state != 'completed':
-            running += 1
+        if task:
+            state = get_in(task, ['status', 'state'])
+            id = get_in(task, ['metadata', 'iteration'])
+            struct = {'param': get_in(task, ['spec', 'parameters'], {}),
+                      'output': get_in(task, ['status', 'results'], {}),
+                      'state': state,
+                      'iter': id,
+                      }
+            if state == 'error':
+                failed += 1
+                err = get_in(task, ['status', 'error'], '')
+                logger.error('error in task  {}:{} - {}'.format(
+                    runspec.metadata.uid, id, err))
+            elif state != 'completed':
+                running += 1
 
-        iter.append(struct)
+            iter.append(struct)
 
-    df = pd.io.json.json_normalize(iter).sort_values('iter')
+    if not iter:
+        execution.set_state('completed', commit=True)
+        logger.warning('warning!, zero iteration results')
+        return
+
+    if hasattr(pd, 'json_normalize'):
+        df = pd.json_normalize(iter).sort_values('iter')
+    else:
+        df = pd.io.json.json_normalize(iter).sort_values('iter')
     header = df.columns.values.tolist()
     summary = [header] + df.values.tolist()
     item, id = selector(results, runspec.spec.selector)
@@ -167,14 +176,13 @@ def results_to_iter(results, runspec, execution):
         csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
     execution.log_artifact(
         TableArtifact('iteration_results',
-                      src_path='iteration_results.csv',
                       body=csv_buffer.getvalue(),
                       header=header,
-                      viewer='table'))
+                      viewer='table'), local_path='iteration_results.csv')
     if failed:
         execution.set_state(
-            error='{} tasks failed, check logs in db for details'.format(
-                failed), commit=False)
+            error='{} or {} tasks failed, check logs in db for details'.format(
+                failed, len(results)), commit=False)
     elif running == 0:
         execution.set_state('completed', commit=False)
     execution.commit()

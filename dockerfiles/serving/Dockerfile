@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2020 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,17 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ARG MLRUN_TAG
 
-FROM python:3.6-slim
-RUN apt-get update && apt-get install -y gcc git-core
-RUN python -m pip install --upgrade --no-cache pip
-WORKDIR /mlrun
-COPY requirements.txt ./
-RUN python -m pip install -r requirements.txt
-COPY . .
-ENV MLRUN_httpdb__dirpath=/mlrun/db
-ENV MLRUN_httpdb__port=8080
-VOLUME /mlrun/db
-# TODO: gunicorn/uwsgi? (underlying filedb & concurrency issues)
-# See Dockerfile.db-gunicorn
-CMD ["python", "-m", "mlrun", "db"]
+FROM ${REPO}/${PREFIX}-base:${MLRUN_TAG}
+
+RUN python3 -m pip install --no-cache-dir -U kfserving

@@ -15,28 +15,25 @@
 # limitations under the License.
 
 import json
-import sys
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
-
 import click
 import yaml
-
 from tabulate import tabulate
+
 
 from mlrun import load_project
 from . import get_version
 from .config import config as mlconf
 from .builder import upload_tarball
-from .datastore import get_object
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
-from .run import new_function, import_function_to_dict, import_function
+from .run import new_function, import_function_to_dict, import_function, get_object
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
                     parse_function_uri, dict_to_yaml)
@@ -76,12 +73,14 @@ def main():
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
 @click.option('--dump', is_flag=True, help='dump run results as YAML')
 @click.option('--image', default='', help='container image')
+@click.option('--workdir', default='', help='run working directory')
+@click.option('--label', multiple=True, help="run labels (key=val)")
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
         selector, func_url, task, handler, mode, schedule, from_env, dump,
-        image, watch, run_args):
+        image, workdir, label, watch, run_args):
     """Execute a task and inject parameters."""
 
     out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
@@ -99,6 +98,11 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.metadata, uid, 'uid')
     set_item(runobj.metadata, name, 'name')
     set_item(runobj.metadata, project, 'project')
+
+    if label:
+        label_dict = list2dict(label)
+        for k, v in label_dict.items():
+            runobj.metadata.labels[k] = v
 
     if workflow:
         runobj.metadata.labels['workflow'] = workflow
@@ -172,6 +176,8 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     try:
         update_in(runtime, 'metadata.name', name, replace=False)
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode)
+        if workdir:
+            fn.spec.workdir = workdir
         fn.is_child = from_env and not kfp
         resp = fn.run(runobj, watch=watch, schedule=schedule)
         if resp and dump:
@@ -215,7 +221,6 @@ def build(func_url, name, project, tag, image, source, base_image, command,
         func = new_function(runtime=runtime)
     elif func_url.startswith('db://'):
         func_url = func_url[5:]
-        project, name, tag = parse_function_uri(func_url)
         func = import_function(func_url, db=db)
     elif func_url:
         func_url = 'function.yaml' if func_url == '.' else func_url
@@ -274,7 +279,7 @@ def build(func_url, name, project, tag, image, source, base_image, command,
             state = func.status.state
             image = func.spec.image
             with open('/tmp/state', 'w') as fp:
-                fp.write(state)
+                fp.write(state or 'none')
             full_image = func.full_image_path(image) or ''
             with open('/tmp/image', 'w') as fp:
                 fp.write(full_image)

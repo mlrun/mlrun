@@ -1,6 +1,5 @@
 FROM jupyter/scipy-notebook
-RUN pip install mlrun
-RUN pip install dask==2.9.1 distributed==2.9.1 kubernetes==10.0.0 dask_kubernetes==0.10.0 kubernetes-asyncio==10.0.0 msgpack==0.6.2
+RUN pip install mlrun[dask]
 copy ./README.md /home/jovyan/
 copy ./examples /home/jovyan/examples/
 

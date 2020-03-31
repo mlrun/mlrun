@@ -37,7 +37,7 @@ def test_nuclio_nb():
 
 
 def test_nuclio_nb_serving():
-    fn = code_to_function(filename='https://raw.githubusercontent.com/mlrun/functions/master/serving/xgboost/xgb_serving.ipynb')
+    fn = code_to_function(filename='https://raw.githubusercontent.com/mlrun/mlrun/master/examples/xgb_serving.ipynb')
     assert fn.kind == 'remote', 'kind not set, test failed'
     assert fn.spec.function_kind == 'serving', 'code not embedded'
 

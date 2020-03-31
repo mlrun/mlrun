@@ -89,6 +89,8 @@ class MpiRuntime(KubejobRuntime):
                 job, 'imagePullPolicy', self.spec.image_pull_policy)
         if self.spec.resources:
             _update_container(job, 'resources', self.spec.resources)
+        if self.spec.workdir:
+            _update_container(job, 'workingDir', self.spec.workdir)
 
         if self.spec.image_pull_secret:
             update_in(job, 'spec.template.spec.imagePullSecrets',

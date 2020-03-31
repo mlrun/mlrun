@@ -18,6 +18,7 @@ import os
 import socket
 import sys
 import traceback
+from copy import copy
 from os import environ, remove
 from tempfile import mktemp
 
@@ -26,7 +27,7 @@ from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
 from .base import BaseRuntime
-from .utils import log_std, global_context
+from .utils import log_std, global_context, RunError
 from sys import executable
 from subprocess import run, PIPE
 
@@ -147,10 +148,14 @@ def load_module(file_name, handler):
         mod_name = mod_name[:-len(path.suffix)]
     spec = imputil.spec_from_file_location(mod_name, file_name)
     if spec is None:
-        raise ImportError(f'cannot import from {file_name!r}')
+        raise RunError(f'cannot import from {file_name!r}')
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    fn = getattr(mod, handler)  # Will raise if name not found
+    try:
+        fn = getattr(mod, handler)  # Will raise if name not found
+    except AttributeError as e:
+        raise RunError('handler {} not found in {}'.format(handler, file_name))
+
     return mod, fn
 
 
@@ -208,7 +213,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
 
     for key in list(args.keys())[i:]:
         if args[key].name in params:
-            args_list.append(params[key])
+            args_list.append(copy(params[key]))
         elif args[key].name in inputs:
             obj = context.get_input(key, inputs[key])
             if type(args[key].default) is str:

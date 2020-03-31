@@ -304,6 +304,9 @@ def get_tblframe(df, display, classes=None):
     return ipython_display(html, display)
 
 
+uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/{}/info" target="_blank" >...{}</a></div>'
+
+
 def runs_to_html(df, display=True, classes=None):
 
     def time_str(x):
@@ -321,10 +324,11 @@ def runs_to_html(df, display=True, classes=None):
     df['start'] = df['start'].apply(time_str)
 
     if config.ui_url:
-        uid_template = '<div title="{}"><a href="{}/jobs/{}/info" target="_blank" >...{}</a></div>'
-        df['uid'] = df['uid'].apply(lambda x: uid_template.format(x, config.ui_url, x, x[-6:]))
+        df['uid'] = df.apply(lambda x: uid_template.format(
+            x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]), axis=1)
     else:
-        df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+        df['uid'] = df['uid'].apply(
+            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 
     def expand_error(x):
         if x['state'] == 'error':
@@ -334,8 +338,8 @@ def runs_to_html(df, display=True, classes=None):
 
     df = df.apply(expand_error, axis=1)
     df.drop('error', axis=1, inplace=True)
-    pd.set_option('display.max_colwidth', -1)
-    return get_tblframe(df, display, classes=classes)
+    with pd.option_context('display.max_colwidth', None):
+        return get_tblframe(df, display, classes=classes)
 
 
 def artifacts_to_html(df, display=True, classes=None):
@@ -355,6 +359,5 @@ def artifacts_to_html(df, display=True, classes=None):
     df['labels'] = df['labels'].apply(dict_html)
     df['producer'] = df['producer'].apply(prod_htm)
     df['updated'] = df['updated'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))
-    pd.set_option('display.max_colwidth', -1)
-
-    return get_tblframe(df, display, classes=classes)
+    with pd.option_context('display.max_colwidth', None):
+        return get_tblframe(df, display, classes=classes)

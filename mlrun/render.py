@@ -304,6 +304,9 @@ def get_tblframe(df, display, classes=None):
     return ipython_display(html, display)
 
 
+uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/{}/info" target="_blank" >...{}</a></div>'
+
+
 def runs_to_html(df, display=True, classes=None):
 
     def time_str(x):
@@ -321,8 +324,7 @@ def runs_to_html(df, display=True, classes=None):
     df['start'] = df['start'].apply(time_str)
 
     if config.ui_url:
-        uid_template = '<div title="{}"><a href="{}/jobs/{}/info" target="_blank" >...{}</a></div>'
-        df['uid'] = df['uid'].apply(lambda x: uid_template.format(x, config.ui_url, x, x[-6:]))
+        df['uid'] = df.apply(lambda x: uid_template.format(x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]))
     else:
         df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 

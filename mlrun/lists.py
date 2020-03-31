@@ -14,6 +14,8 @@
 
 
 import pandas as pd
+
+from .config import config
 from .utils import get_in, flatten
 from .render import runs_to_html, artifacts_to_html
 
@@ -22,10 +24,11 @@ class RunList(list):
 
     def to_rows(self):
         rows = []
-        head = ['uid', 'iter', 'start', 'state', 'name', 'labels',
+        head = ['project', 'uid', 'iter', 'start', 'state', 'name', 'labels',
                 'inputs', 'parameters', 'results', 'artifacts', 'error']
         for run in self:
             row = [
+                get_in(run, 'metadata.project', config.default_project),
                 get_in(run, 'metadata.uid', ''),
                 get_in(run, 'metadata.iteration', ''),
                 get_in(run, 'status.start_time', ''),

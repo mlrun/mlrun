@@ -16,11 +16,10 @@ FROM continuumio/anaconda3:2020.02
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
+ARG REPO=mlrun
+
 ARG MLRUN_TAG=development
 ENV MLRUN_TAG=$MLRUN_TAG
-
-ARG MLUTILS=master
-ENV MLUTILS=$MLUTILS
 
 ARG TF_VER=2.1.0
 ARG XGB_VER=1.0.2
@@ -65,7 +64,7 @@ RUN python -m pip install -U --no-cache-dir \
     yellowbrick \
     gnureadline \
     pyod \
-    git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG} \
+    git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG} \
     urllib3==1.24.3 \
     git+https://github.com/scikit-multiflow/scikit-multiflow.git
 
@@ -95,8 +94,6 @@ RUN cd /repos && \
     cd ../python-package && \
     python -m pip install --no-cache-dir -e .
 
-RUN python -m pip install --no-cache-dir --upgrade \
-    git+https://github.com/yjb-ds/mlutils.git@${MLUTILS}
 
 RUN conda clean -tipsy \
     && find /opt/conda/ -type f,l -name '*.a' -delete \

@@ -3,6 +3,8 @@ FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
+ARG REPO=mlrun
+
 ARG MLRUN_TAG=development
 ENV MLRUN_TAG=${MLRUN_TAG}
 
@@ -98,7 +100,7 @@ RUN python -m pip install --no-cache-dir \
         pyod \
         urllib3==1.24.3 \
         git+https://github.com/scikit-multiflow/scikit-multiflow \
-        git+https://github.com/mlrun/mlrun.git@${MLRUN_TAG}
+        git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
 
 # xgboost
 RUN mkdir /repos && \

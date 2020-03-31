@@ -324,9 +324,11 @@ def runs_to_html(df, display=True, classes=None):
     df['start'] = df['start'].apply(time_str)
 
     if config.ui_url:
-        df['uid'] = df.apply(lambda x: uid_template.format(x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]))
+        df['uid'] = df.apply(lambda x: uid_template.format(
+            x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]), axis=1)
     else:
-        df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+        df['uid'] = df['uid'].apply(
+            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 
     def expand_error(x):
         if x['state'] == 'error':

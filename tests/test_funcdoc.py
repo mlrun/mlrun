@@ -155,3 +155,21 @@ def test_ast_compound():
         if i in (4, 8):
             continue
         assert param['type'], f'{i}: {param}'
+
+
+underscore_code = '''
+def info(message):
+    _log('INFO', message)
+
+def warning(message):
+    _log('WARNING', message)
+
+def _log(level, message):
+    print(f'{level} - {message}')
+'''
+
+
+def test_ignore_underscore():
+    funcs = funcdoc.find_handlers(underscore_code)
+    names = {fn['name'] for fn in funcs}
+    assert {'info', 'warning'} == names, 'names'

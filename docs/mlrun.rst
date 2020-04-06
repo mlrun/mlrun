@@ -22,6 +22,8 @@ mlrun.projects module
    :members:
    :show-inheritance:
 
+   .. autoclass:: MlrunProject
+
 mlrun.config module
 -------------------
 

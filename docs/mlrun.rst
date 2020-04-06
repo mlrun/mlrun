@@ -16,7 +16,7 @@ mlrun.run module
    :show-inheritance:
 
 mlrun.projects module
---------------------
+---------------------
 
 .. automodule:: mlrun.projects
    :members:

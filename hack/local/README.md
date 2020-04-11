@@ -19,22 +19,20 @@ This guide outlines the steps for installing and running MLRun locally.
 To use MLRun with your local Docker registry, run the MLRun API service, dashboard, and example Jupyter server by using the following script.
 
 > **Note:**
-> - You must provide valid paths for the shared data directory and the local host IP.
-> - Both the Jupyter and MLRun services use the path **/home/jovyan/data** within the shared directory to reference the data.
+> - By default the MLRun API service will run inside the Jupyter server, set the MLRUN_DBPATH env var in Jupyter to point to an alternative service address.
+> - The artifacts and DB will be stored under **/home/jovyan/data**, use docker -v option to persist the content on the host (e.g. `-v $(SHARED_DIR}:/home/jovyan/data`)
 > - Using Docker is limited to local runtimes.
 
 ```
+MLRUN_IP=localhost
 SHARED_DIR=/home/me/data
-LOCAL_IP=x.x.x.x
-# On Windows, use host.docker.internal for LOCAL_IP
+# On Windows, use host.docker.internal for MLRUN_IP
 
 docker pull quay.io/iguazio/mlrun-ui:latest
-docker pull mlrun/mlrun-api:latest
 docker pull mlrun/jupy:latest
 
-docker run -it -p 8080:8080 --rm -d --name mlrun-api -v $(SHARED_DIR}:/home/jovyan/data -e MLRUN_HTTPDB_DATA_VOLUME=/home/jovyan/data mlrun/mlrun-api:latest
-docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${LOCAL_IP}:8080 quay.io/iguazio/mlrun-ui:latest
-docker run -it -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data -e MLRUN_DBPATH=http://${LOCAL_IP}:8080 -e MLRUN_ARTIFACT_PATH=/home/jovyan/data mlrun/jupy:latest
+docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 quay.io/iguazio/mlrun-ui:latest
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data mlrun/jupy:latest
 ```
 
 When the execution completes &mdash;

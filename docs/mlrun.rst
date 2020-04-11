@@ -16,11 +16,14 @@ mlrun.run module
    :show-inheritance:
 
 mlrun.projects module
---------------------
+---------------------
 
 .. automodule:: mlrun.projects
    :members:
    :show-inheritance:
+
+.. autoclass:: MlrunProject
+   :members:
 
 mlrun.config module
 -------------------

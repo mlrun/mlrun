@@ -32,7 +32,7 @@ docker pull quay.io/iguazio/mlrun-ui:latest
 docker pull mlrun/mlrun-api:latest
 docker pull mlrun/jupy:latest
 
-docker run -it -p 8080:8080 --rm -d --name mlrun-api -v $(SHARED_DIR}:/home/jovyan/data -e MLRUN_HTTPDB_DATA_VOLUME=/home/jovyan/data mlrun/mlrun-api:0.4.5
+docker run -it -p 8080:8080 --rm -d --name mlrun-api -v $(SHARED_DIR}:/home/jovyan/data -e MLRUN_HTTPDB_DATA_VOLUME=/home/jovyan/data mlrun/mlrun-api:latest
 docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${LOCAL_IP}:8080 quay.io/iguazio/mlrun-ui:latest
 docker run -it -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data -e MLRUN_DBPATH=http://${LOCAL_IP}:8080 -e MLRUN_ARTIFACT_PATH=/home/jovyan/data mlrun/jupy:latest
 ```

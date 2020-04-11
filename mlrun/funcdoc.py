@@ -242,7 +242,7 @@ def find_handlers(code: str, handlers=None):
 def filter_funcs(funcs, markers):
     markers = list(markers)
     if not markers:
-        return funcs
+        return [func for func in funcs if func['name'][0] != '_']
 
     return [func for func in funcs if is_marked(func, markers)]
 

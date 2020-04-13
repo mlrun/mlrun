@@ -19,12 +19,14 @@ from shutil import copyfile
 from urllib.parse import urlparse
 import urllib3
 
+from .platforms.iguazio import split_path
 from .config import config
 from .utils import run_keys
 from datetime import datetime
 import time
 import boto3
 import requests
+import v3io.dataplane
 
 V3IO_LOCAL_ROOT = 'v3io'
 DB_SCHEMA = 'store'
@@ -195,6 +197,9 @@ class DataStore:
     def stat(self, key):
         pass
 
+    def listdir(self, key):
+        raise ValueError('data store doesnt support listdir')
+
     def download(self, key, target_path):
         data = self.get(key)
         mode = 'wb'
@@ -256,6 +261,9 @@ class DataItem:
     def stat(self):
         return self._store.stat(self._path)
 
+    def listdir(self):
+        return self._store.listdir(self._path)
+
     def __str__(self):
         return self.url
 
@@ -312,6 +320,9 @@ class FileStore(DataStore):
         s = stat(self._join(key))
         return FileStats(size=s.st_size, modified=s.st_mtime)
 
+    def listdir(self, key):
+        return listdir(key)
+
 
 class S3Store(DataStore):
     def __init__(self, parent: StoreManager, schema, name, endpoint=''):
@@ -346,6 +357,13 @@ class S3Store(DataStore):
         size = obj.content_length
         modified = obj.last_modified
         return FileStats(size, time.mktime(modified.timetuple()))
+
+    def listdir(self, key):
+        if not key.endswith('/'):
+            key += '/'
+        l = len(key)
+        bucket = self.s3.Bucket(self.endpoint)
+        return [obj.key[l:] for obj in bucket.objects.filter(Prefix=key)]
 
 
 def basic_auth_header(user, password):
@@ -424,6 +442,7 @@ class V3ioStore(DataStore):
 
         self.headers = None
         self.auth = None
+        self.token = token
         if token:
             self.headers = {'X-v3io-session-key': token}
         elif username and password:
@@ -458,6 +477,21 @@ class V3ioStore(DataStore):
         modified = time.mktime(datetime.strptime(
             datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple())
         return FileStats(size, modified)
+
+    def listdir(self, key):
+        v3io_client = v3io.dataplane.Client(endpoint=self.endpoint,
+                                            access_key=self.token)
+        container, subpath = split_path(self._join(key))
+        if not subpath.endswith('/'):
+            subpath += '/'
+        l = len(subpath) - 1
+        response = v3io_client.get_container_contents(container=container,
+                                                      path=subpath,
+                                                      get_all_attributes=False,
+                                                      directories_only=False)
+
+        # todo: full = key, size, last_modified
+        return [obj.key[l:] for obj in response.output.contents]
 
 
 def get_range(size, offset):

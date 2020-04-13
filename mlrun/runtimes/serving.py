@@ -14,9 +14,64 @@
 
 import json
 import os
+import socket
 from io import BytesIO
+from tempfile import mktemp
 from typing import Dict
 from urllib.request import urlopen
+from datetime import datetime
+
+from ..datastore import StoreManager
+from ..platforms.iguazio import OutputStream
+
+
+class MLModelServer:
+
+    def __init__(self, name: str, model_dir: str = None, model=None):
+        self.name = name
+        self.ready = False
+        self.model_dir = model_dir
+        self._stores = StoreManager()
+        if model:
+            self.model = model
+            self.ready = True
+
+    def get_model_file(self, suffix=''):
+        model_file = ''
+        suffix = suffix or '.pkl'
+        if self.model_dir.endswith(suffix):
+            model_file = self.model_dir
+        else:
+            for file in self._stores.object(self.model_dir).listdir():
+                if file.endswith(suffix):
+                    model_file = os.path.join(self.model_dir, file)
+                    break
+        if not model_file:
+            raise ValueError('cant resolve model file for {} suffix{}'.format(
+                self.model_dir, suffix))
+        obj = self._stores.object(model_file)
+        if obj.kind == 'file':
+            return model_file, obj.meta
+
+        tmp = mktemp(suffix)
+        obj.download(tmp)
+        return tmp, obj.meta
+
+    def load(self):
+        if not self.ready and not self.model:
+            raise ValueError('please specify a load method or a model object')
+
+    def preprocess(self, request: Dict) -> Dict:
+        return request
+
+    def postprocess(self, request: Dict) -> Dict:
+        return request
+
+    def predict(self, request: Dict) -> Dict:
+        raise NotImplementedError
+
+    def explain(self, request: Dict) -> Dict:
+        raise NotImplementedError
 
 
 def nuclio_serving_init(context, data):
@@ -37,8 +92,10 @@ def nuclio_serving_init(context, data):
     context.logger.info(f'Loaded {list(models.keys())}')
 
     # Initialize route handlers
-    predictor = PredictHandler(models).with_context(context)
-    explainer = ExplainHandler(models).with_context(context)
+    hostname = socket.gethostname()
+    server_context = _ServerContext(context, hostname)
+    predictor = PredictHandler(models).with_context(server_context)
+    explainer = ExplainHandler(models).with_context(server_context)
     router = {
         'predict': predictor.post,
         'explain': explainer.post
@@ -67,13 +124,23 @@ def nuclio_serving_handler(context, event):
     return route(context, model_name, event)
 
 
-class HTTPHandler:
-    def __init__(self, models: Dict):
-        self.models = models # pylint:disable=attribute-defined-outside-init
-        self.context = None
-
-    def with_context(self, context):
+class _ServerContext:
+    def __init__(self, context, hostname):
         self.context = context
+        self.hostname = hostname
+        self.output_stream = None
+        out_stream = os.environ.get('INFERENCE_STREAM', '')
+        if out_stream:
+            self.output_stream = OutputStream(out_stream)
+
+
+class HTTPHandler:
+    def __init__(self, models: Dict, context: _ServerContext = None):
+        self.models = models # pylint:disable=attribute-defined-outside-init
+        self.srv_context = context
+
+    def with_context(self, context: _ServerContext):
+        self.srv_context = context
         return self
 
     def get_model(self, name: str):
@@ -86,7 +153,7 @@ class HTTPHandler:
         model = self.models[name]
         if not model.ready:
             model.load()
-        setattr(model, 'context', self.context)
+        setattr(model, 'context', self.srv_context.context)
         return model
 
     def parse_event(self, event):
@@ -130,12 +197,22 @@ class HTTPHandler:
 class PredictHandler(HTTPHandler):
     def post(self, context, name: str, event):
         model = self.get_model(name)
-        context.logger.info('event type: {}'.format(type(event.body)))
+        context.logger.debug('event: {}'.format(type(event.body)))
+        start = datetime.now()
         body = self.parse_event(event)
         request = model.preprocess(body)
         request = self.validate(request)
         response = model.predict(request)
         response = model.postprocess(response)
+        if self.srv_context.output_stream:
+            data = {'kind': 'predict',
+                    'request': request, 'resp': response,
+                    'model': model.name,
+                    'host': self.srv_context.hostname,
+                    'when': str(start),
+                    'microsec': (datetime.now() - start).microseconds}
+
+            self.srv_context.output_stream.push(data)
 
         return context.Response(body=json.dumps(response),
                                 content_type='application/json',
@@ -152,10 +229,20 @@ class ExplainHandler(HTTPHandler):
                                     content_type='text/plain',
                                     status_code=400)
 
+        start = datetime.now()
         request = model.preprocess(body)
         request = self.validate(request)
         response = model.explain(request)
         response = model.postprocess(response)
+        if self.srv_context.output_stream:
+            data = {'kind': 'explain',
+                    'request': request, 'resp': response,
+                    'model': model.name,
+                    'host': self.srv_context.hostname,
+                    'when': str(start),
+                    'microsec': (datetime.now() - start).microseconds}
+
+            self.srv_context.output_stream.push(data)
 
         return context.Response(body=json.dumps(response),
                                 content_type='application/json',

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 
 
 def xcp_op(src, dst, f='', recursive=False, mtime='', log_level='info', minsize=0, maxsize=0):
@@ -153,3 +154,22 @@ def v3io_to_vol(name, remote='~/', access_key='', user='', secret=None):
     vol = {'flexVolume': client.V1FlexVolumeSource(
         'v3io/fuse', options=opts, secret_ref=secret), 'name': name}
     return vol
+
+
+class OutputStream:
+    def __init__(self, stream_path, shards=1):
+        import v3io
+        self._v3io_client = v3io.dataplane.Client()
+        self._container, self._stream_path = split_path(stream_path)
+        response = self._v3io_client.create_stream(
+            container=self._container,
+            path=self._stream_path,
+            shard_count=shards,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never)
+        response.raise_for_status([409, 204])
+
+    def push(self, data):
+        records = [{'data': json.dumps(rec)} for rec in data]
+        response = self._v3io_client.put_records(container=self._container,
+                                                 path=self._stream_path,
+                                                 records=records)

@@ -4,8 +4,8 @@ jobs:
     machine: true
     steps:
       - checkout
-      - run: make circleci
-      - run: make docs-html
+        #      - run: make circleci
+      - run: make html-docs
       - store_artifacts:
           path: docs/_build/html
           destination: docs

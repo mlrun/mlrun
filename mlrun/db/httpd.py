@@ -464,6 +464,7 @@ def get_files():
     user = request.args.get('user', '')
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
+    access_key = request.headers.get('X-V3io-Session-Key', 'NOT_FOUND')
 
     _, filename = path.split(path)
 
@@ -472,8 +473,11 @@ def get_files():
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')
 
+    secrets = {
+        'V3IO_ACCESS_KEY': access_key,
+    }
     try:
-        body = get_object(path, size, offset)
+        body = get_object(path, secrets, size, offset)
     except FileNotFoundError as e:
         return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
     if body is None:
@@ -494,6 +498,7 @@ def get_filestat():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
     user = request.args.get('user', '')
+    access_key = request.headers.get('X-V3io-Session-Key', 'NOT_FOUND')
 
     _, filename = path.split(path)
 
@@ -501,9 +506,11 @@ def get_filestat():
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')
-
+    secrets = {
+        'V3IO_ACCESS_KEY': access_key,
+    }
     try:
-        stat = get_object_stat(path)
+        stat = get_object_stat(path, secrets)
     except FileNotFoundError as e:
         return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
 

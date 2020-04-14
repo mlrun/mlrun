@@ -464,7 +464,7 @@ def get_files():
     user = request.args.get('user', '')
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
-    access_key = request.headers.get('X-V3io-Session-Key', 'NOT_FOUND')
+    access_key = request.headers.get('X-V3io-Session-Key')
 
     _, filename = path.split(path)
 
@@ -498,7 +498,7 @@ def get_filestat():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
     user = request.args.get('user', '')
-    access_key = request.headers.get('X-V3io-Session-Key', 'NOT_FOUND')
+    access_key = request.headers.get('X-V3io-Session-Key')
 
     _, filename = path.split(path)
 

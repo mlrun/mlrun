@@ -29,7 +29,8 @@ class Task:
     def run(self):
         self.runs.append(datetime.now())
         sleep(self.sleep_time)
-        if self.fail:
+        # Limit to 5 failure to keep test logs clean
+        if self.fail and len(self.runs) < 5:
             raise ValueError('oopsy')
 
 

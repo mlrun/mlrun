@@ -54,10 +54,10 @@ docker-httpd:
 circleci:
 	docker build -f Dockerfile.test -t mlrun/test .
 	-docker network create mlrun
-	#docker run \
-	#    -v /var/run/docker.sock:/var/run/docker.sock \
-	#    --network mlrun \
-	#    mlrun/test make test
+	docker run \
+	    -v /var/run/docker.sock:/var/run/docker.sock \
+	    --network mlrun \
+	    mlrun/test make test
 	docker run \
 	    -v $(PWD)/docs/_build:/mlrun/docs/_build \
 	    mlrun/test make html-docs

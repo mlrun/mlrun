@@ -35,6 +35,8 @@ project = 'mlrun'
 copyright = '2020, Iguazio'
 author = 'Iguazio'
 
+master_doc = 'index'
+
 # The short X.Y version
 version = current_version()
 version = version[:version.rfind('.')]

@@ -13,13 +13,19 @@
 # limitations under the License.
 
 import json
+import tempfile
 import time
+from os import path, remove
 
+import kfp
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
-from ..utils import dict_to_json, logger
+from ..utils import dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
+from ..config import config
 
 default_project = 'default'  # TODO: Name?
 
@@ -37,6 +43,10 @@ def bool2str(val):
     return 'yes' if val else 'no'
 
 
+http_adapter = HTTPAdapter(max_retries=Retry(
+    total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504]))
+
+
 class HTTPRunDB(RunDBInterface):
     kind = 'http'
 
@@ -45,18 +55,20 @@ class HTTPRunDB(RunDBInterface):
         self.user = user
         self.password = password
         self.token = token
+        self.server_version = ''
+        self.session = None
 
     def __repr__(self):
         cls = self.__class__.__name__
         return f'{cls}({self.base_url!r})'
 
     def api_call(self, method, path, error=None, params=None,
-                 body=None, json=None, timeout=20):
+                 body=None, json=None, headers=None, timeout=20):
         url = f'{self.base_url}/api/{path}'
         kw = {
             key: value
             for key, value in (('params', params), ('data', body),
-                               ('json', json))
+                               ('json', json), ('headers', headers))
             if value is not None
         }
 
@@ -65,20 +77,50 @@ class HTTPRunDB(RunDBInterface):
         elif self.token:
             kw['headers'] = {'Authorization': 'Bearer ' + self.token}
 
+        if not self.session:
+            self.session = requests.Session()
+            self.session.mount('http://', http_adapter)
+            self.session.mount('https://', http_adapter)
+
         try:
-            resp = requests.request(method, url, timeout=timeout, **kw)
-            resp.raise_for_status()
-            return resp
+            resp = self.session.request(method, url, timeout=timeout, **kw)
         except requests.RequestException as err:
             error = error or '{} {}, error: {}'.format(method, url, err)
             raise RunDBError(error) from err
+
+        if not resp.ok:
+            if resp.content:
+                try:
+                    data = resp.json()
+                    reason = data.get('reason', '')
+                except Exception:
+                    reason = ''
+            if reason:
+                error = error or '{} {}, error: {}'.format(method, url, reason)
+                raise RunDBError(error)
+
+            try:
+                resp.raise_for_status()
+            except requests.RequestException as err:
+                error = error or '{} {}, error: {}'.format(method, url, err)
+                raise RunDBError(error) from err
+
+        return resp
+
 
     def _path_of(self, prefix, project, uid):
         project = project or default_project
         return f'{prefix}/{project}/{uid}'
 
     def connect(self, secrets=None):
-        self.api_call('GET', 'healthz', timeout=3)
+        resp = self.api_call('GET', 'healthz', timeout=5)
+        try:
+            self.server_version = resp.json()['version']
+            if self.server_version != config.version:
+                logger.warning('warning!, server ({}) and client ({}) ver dont match'
+                               .format(self.server_version, config.version))
+        except Exception:
+            pass
         return self
 
     def store_log(self, uid, project='', body=None, append=False):
@@ -97,8 +139,9 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', path, error, params=params)
         if resp.headers:
             state = resp.headers.get('pod_status', '')
+            return state.lower(), resp.content
 
-        return state.lower(), resp.content
+        return 'unknown', resp.content
 
     def watch_log(self, uid, project='', watch=True, offset=0):
         state, text = self.get_log(uid, project, offset=offset)
@@ -177,11 +220,13 @@ class HTTPRunDB(RunDBInterface):
         error = 'del runs'
         self.api_call('DELETE', 'runs', error, params=params)
 
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
         path = self._path_of('artifact', project, uid) + '/' + key
         params = {
             'tag': tag,
         }
+        if iter:
+            params['iter'] = str(iter)
 
         error = f'store artifact {project}/{uid}/{key}'
 
@@ -189,13 +234,14 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             'POST', path, error, params=params, body=body)
 
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', iter=None, project=''):
         project = project or default_project
         tag = tag or 'latest'
-        path = self._path_of('artifact', project, tag) + '/' + key
+        path = 'projects/{}/artifact/{}?tag={}'.format(project, key, tag)
         error = f'read artifact {project}/{key}'
-        resp = self.api_call('GET', path, error)
-        return resp.content
+        params = {'iter': str(iter)} if iter else {}
+        resp = self.api_call('GET', path, error, params=params)
+        return resp.json()['data']
 
     def del_artifact(self, key, tag='', project=''):
         path = self._path_of('artifact', project, key)  # TODO: uid?
@@ -206,7 +252,8 @@ class HTTPRunDB(RunDBInterface):
         error = f'del artifact {project}/{key}'
         self.api_call('DELETE', path, error, params=params)
 
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(self, name='', project='', tag='', labels=None,
+                       since=None, until=None):
         project = project or default_project
         params = {
             'name': name,
@@ -304,7 +351,8 @@ class HTTPRunDB(RunDBInterface):
     def remote_start(self, func_url):
         try:
             req = {'functionUrl': func_url}
-            resp = self.api_call('POST', 'start/function', json=req)
+            resp = self.api_call('POST', 'start/function', json=req,
+                                 timeout=int(config.submit_timeout) or 60)
         except OSError as err:
             logger.error('error starting function: {}'.format(err))
             raise OSError(
@@ -316,10 +364,28 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
-    def submit_job(self, runspec):
+    def remote_status(self, kind, selector):
+        try:
+            req = {'kind': kind, 'selector': selector}
+            resp = self.api_call('POST', 'status/function', json=req)
+        except OSError as err:
+            logger.error('error starting function: {}'.format(err))
+            raise OSError(
+                'error: cannot start function, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad function status response')
+
+        return resp.json()['data']
+
+    def submit_job(self, runspec, schedule=None):
         try:
             req = {'task': runspec.to_dict()}
-            resp = self.api_call('POST', 'submit', json=req, timeout=90)
+            if schedule:
+                req['schedule'] = schedule
+            timeout = (int(config.submit_timeout) or 120) + 20
+            resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)
         except OSError as err:
             logger.error('error submitting task: {}'.format(err))
             raise OSError(
@@ -331,6 +397,55 @@ class HTTPRunDB(RunDBInterface):
 
         resp = resp.json()
         return resp['data']
+
+    def submit_pipeline(self, pipeline, arguments=None, experiment=None,
+                        run=None, namespace=None, artifact_path=None,
+                        ops=None):
+
+        if isinstance(pipeline, str):
+            pipe_file = pipeline
+        else:
+            pipe_file = tempfile.mktemp(suffix='.yaml')
+            conf = new_pipe_meta(artifact_path, ops)
+            kfp.compiler.Compiler().compile(pipeline, pipe_file,
+                                            type_check=False, pipeline_conf=conf)
+
+        if pipe_file.endswith('.yaml'):
+            headers = {"content-type": "application/yaml"}
+        elif pipe_file.endswith('.zip'):
+            headers = {"content-type": "application/zip"}
+        else:
+            raise ValueError('pipeline file must be .yaml or .zip')
+        if arguments:
+            if not isinstance(arguments, dict):
+                raise ValueError('arguments must be dict type')
+            headers['pipeline-arguments'] = str(arguments)
+
+        if not path.isfile(pipe_file):
+            raise OSError('file {} doesnt exist'.format(pipe_file))
+        with open(pipe_file, 'rb') as fp:
+            data = fp.read()
+        if not isinstance(pipeline, str):
+            remove(pipe_file)
+
+        try:
+            params = {'namespace': namespace,
+                      'experiment': experiment,
+                      'run': run}
+            resp = self.api_call('POST', 'submit_pipeline', params=params,
+                                 timeout=20, body=data, headers=headers)
+        except OSError as err:
+            logger.error('error cannot submit pipeline: {}'.format(err))
+            raise OSError(
+                'error: cannot cannot submit pipeline, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad submit pipeline response, {}'.format(resp.text))
+
+        resp = resp.json()
+        logger.info('submitted pipeline {} id={id}'.format(resp['name'], resp['id']))
+        return resp['id']
 
 
 def _as_json(obj):

@@ -14,9 +14,11 @@
 
 import json
 import inspect
+import os
 import socket
 import sys
 import traceback
+from copy import copy
 from os import environ, remove
 from tempfile import mktemp
 
@@ -25,7 +27,7 @@ from ..model import RunObject
 from ..utils import logger
 from ..execution import MLClientCtx
 from .base import BaseRuntime
-from .utils import log_std
+from .utils import log_std, global_context, RunError
 from sys import executable
 from subprocess import run, PIPE
 
@@ -33,7 +35,7 @@ import importlib.util as imputil
 from io import StringIO
 from contextlib import redirect_stdout
 from pathlib import Path
-from nuclio_sdk import Event
+from nuclio import Event
 
 
 class HandlerRuntime(BaseRuntime):
@@ -44,13 +46,17 @@ class HandlerRuntime(BaseRuntime):
         self._force_handler(handler)
         tmp = mktemp('.json')
         environ['MLRUN_META_TMPFILE'] = tmp
+        if self.spec.pythonpath:
+            set_paths(self.spec.pythonpath)
+
         context = MLClientCtx.from_dict(runobj.to_dict(),
                                         rundb=self.spec.rundb,
                                         autocommit=False,
                                         tmp=tmp,
                                         host=socket.gethostname())
-        sys.modules[__name__].mlrun_context = context
-        sout, serr = exec_from_params(handler, runobj, context)
+        global_context.set(context)
+        sout, serr = exec_from_params(handler, runobj, context,
+                                      self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
 
@@ -79,19 +85,37 @@ class LocalRuntime(BaseRuntime):
 
         handler = runobj.spec.handler
         if handler:
+            if self.spec.pythonpath:
+                set_paths(self.spec.pythonpath)
+
             mod, fn = load_module(self.spec.command, handler)
             context = MLClientCtx.from_dict(runobj.to_dict(),
                                             rundb=self.spec.rundb,
                                             autocommit=False,
                                             tmp=tmp,
                                             host=socket.gethostname())
-            mod.mlrun_context = context
-            sout, serr = exec_from_params(fn, runobj, context)
+            mod.global_mlrun_context = context
+            global_context.set(context)
+            sout, serr = exec_from_params(fn, runobj, context,
+                                          self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
             return context.to_dict()
 
         else:
-            sout, serr = run_exec(self.spec.command, self.spec.args)
+            if self.spec.mode == 'pass':
+                cmd = [self.spec.command]
+            else:
+                cmd = [executable, self.spec.command]
+
+            env = None
+            if self.spec.pythonpath:
+                pypath = self.spec.pythonpath
+                if 'PYTHONPATH' in environ:
+                    pypath = '{}:{}'.format(environ['PYTHONPATH'], pypath)
+                env = {'PYTHONPATH': pypath}
+
+            sout, serr = run_exec(cmd, self.spec.args, env=env,
+                                  cwd=self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
 
             try:
@@ -106,6 +130,16 @@ class LocalRuntime(BaseRuntime):
             return runobj.to_dict()
 
 
+def set_paths(pythonpath=''):
+    paths = pythonpath.split(':')
+    if not paths:
+        return
+    for p in paths:
+        abspath = os.path.abspath(p)
+        if abspath not in sys.path:
+            sys.path.append(abspath)
+
+
 def load_module(file_name, handler):
     """Load module from file name"""
     path = Path(file_name)
@@ -114,60 +148,39 @@ def load_module(file_name, handler):
         mod_name = mod_name[:-len(path.suffix)]
     spec = imputil.spec_from_file_location(mod_name, file_name)
     if spec is None:
-        raise ImportError(f'cannot import from {file_name!r}')
+        raise RunError(f'cannot import from {file_name!r}')
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    fn = getattr(mod, handler)  # Will raise if name not found
+    try:
+        fn = getattr(mod, handler)  # Will raise if name not found
+    except AttributeError as e:
+        raise RunError('handler {} not found in {}'.format(handler, file_name))
+
     return mod, fn
 
 
-def run_exec(command, args, env=None):
-    cmd = [executable, command]
+def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, env=env)
+    out = run(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
 
     err = out.stderr.decode('utf-8') if out.returncode != 0 else ''
     return out.stdout.decode('utf-8'), err
 
 
-def run_func(file_name, name='main', args=None, kw=None, *, ctx=None):
-    """Run a function from file with args and kw.
-
-    ctx values are injected to module during function run time.
-    """
-    mod = load_module(file_name)
-    fn = getattr(mod, name)  # Will raise if name not found
-
-    if ctx is not None:
-        for attr, value in ctx.items():
-            setattr(mod, attr, value)
-
-    args = [] if args is None else args
-    kw = {} if kw is None else kw
-
-    stdout = StringIO()
-    err = ''
-    val = None
-    with redirect_stdout(stdout):
-        try:
-            val = fn(*args, **kw)
-        except Exception as e:
-            logger.error(traceback.format_exc())
-            err = str(e)
-
-    return val, stdout.getvalue(), err
-
-
-def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
+def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
+                     cwd=None):
     args_list = get_func_arg(handler, runobj, context)
 
     stdout = StringIO()
     err = ''
     val = None
+    old_dir = os.getcwd()
     with redirect_stdout(stdout):
         context.set_logger_stream(stdout)
         try:
+            if cwd:
+                os.chdir(cwd)
             val = handler(*args_list)
             context.set_state('completed', commit=False)
         except Exception as e:
@@ -175,6 +188,8 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx):
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
 
+    if cwd:
+        os.chdir(old_dir)
     context.set_logger_stream(sys.stdout)
     if val:
         context.log_result('return', val)
@@ -198,7 +213,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
 
     for key in list(args.keys())[i:]:
         if args[key].name in params:
-            args_list.append(params[key])
+            args_list.append(copy(params[key]))
         elif args[key].name in inputs:
             obj = context.get_input(key, inputs[key])
             if type(args[key].default) is str:

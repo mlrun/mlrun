@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from kubernetes import client
+
+from ..kfpops import build_op
 from .pod import KubeResource
-from .utils import AsyncLogWriter, add_code_metadata, default_image_name
+from .utils import AsyncLogWriter, default_image_name
 from ..model import RunObject
 from .base import RunError
 from ..db import RunDBError
@@ -49,8 +51,8 @@ class KubejobRuntime(KubeResource):
         if self.spec.image:
             return True
 
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
+            db = self._get_db()
             try:
                 db.get_builder_status(self, logs=False)
             except RunDBError:
@@ -63,8 +65,10 @@ class KubejobRuntime(KubeResource):
         return False
 
     def build_config(self, image='', base_image=None,
-                     commands: list = None, secret=None):
-        self.spec.build.image = image or self.spec.build.image
+                     commands: list = None, secret=None,
+                     source=None):
+        if image:
+            self.spec.build.image = image
         if commands:
             if not isinstance(commands, list):
                 raise ValueError('commands must be a string list')
@@ -74,24 +78,38 @@ class KubejobRuntime(KubeResource):
             self.spec.build.secret = secret
         if base_image:
             self.spec.build.base_image = base_image
+        if source:
+            self.spec.build.source = source
 
     def build(self, **kw):
         raise ValueError('.build() is deprecated, use .deploy() instead')
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False):
+    def deploy(self, watch=True, with_mlrun=True,
+               skip_deployed=False, is_kfp=False):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
-            return 'ready'
+            self.status.state = 'ready'
+            return True
+
+        build = self.spec.build
+        if not build.source and not build.commands and not with_mlrun:
+            if not self.spec.image:
+                raise ValueError('noting to build and image is not specified, '
+                                 'please set the function image or build args')
+            self.status.state = 'ready'
+            return True
+
+        if not build.source and not build.commands and with_mlrun:
+            logger.info('running build to add mlrun package, set '
+                        'with_mlrun=False to skip if its already in the image')
 
         self.spec.build.image = self.spec.build.image \
                                 or default_image_name(self)
-        self.spec.image = ''
         self.status.state = ''
-        add_code_metadata(self.metadata.labels)
 
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api() and not is_kfp:
+            db = self._get_db()
             logger.info('starting remote build, image: {}'.format(
                 self.spec.build.image))
             data = db.remote_builder(self, with_mlrun)
@@ -103,7 +121,9 @@ class KubejobRuntime(KubeResource):
                 ready = state == 'ready'
                 self.status.state = state
         else:
-            ready = build_runtime(self, with_mlrun, watch)
+            self.save(versioned=False)
+            ready = build_runtime(self, with_mlrun, watch or is_kfp)
+            self.save(versioned=False)
 
         return ready
 
@@ -128,8 +148,7 @@ class KubejobRuntime(KubeResource):
         return self.status.state
 
     def builder_status(self, watch=True, logs=True):
-        db = self._get_db()
-        if db and db.kind == 'http':
+        if self._is_remote_api():
             return self._build_watch(watch, logs)
 
         else:
@@ -158,6 +177,14 @@ class KubejobRuntime(KubeResource):
                 logger.info('builder status is: {}, wait for it to complete'.format(status))
             return None
 
+    def deploy_step(self, image=None, base_image=None, commands: list = None,
+                    secret_name='', with_mlrun=True, skip_deployed=False):
+
+        name = 'deploy_{}'.format(self.metadata.name or 'function')
+        return build_op(name, self, image=image, base_image=base_image,
+                        commands=commands, secret_name=secret_name,
+                        with_mlrun=with_mlrun, skip_deployed=skip_deployed)
+
     def _run(self, runobj: RunObject, execution):
 
         with_mlrun = (not self.spec.mode) or (self.spec.mode != 'pass')
@@ -169,10 +196,11 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        pod_spec = func_to_pod(self.full_image_path(), self, extra_env, command, args)
+        pod_spec = func_to_pod(self.full_image_path(), self, extra_env,
+                               command, args, self.spec.workdir)
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
-            pod_name, namespace =  k8s.create_pod(pod)
+            pod_name, namespace = k8s.create_pod(pod)
         except client.rest.ApiException as e:
             raise RunError(str(e))
 
@@ -190,13 +218,13 @@ class KubejobRuntime(KubeResource):
         return None
 
 
-def func_to_pod(image, runtime, extra_env, command, args):
-
+def func_to_pod(image, runtime, extra_env, command, args, workdir):
     container = client.V1Container(name='base',
                                    image=image,
                                    env=extra_env + runtime.spec.env,
                                    command=[command],
                                    args=args,
+                                   working_dir=workdir,
                                    image_pull_policy=runtime.spec.image_pull_policy,
                                    volume_mounts=runtime.spec.volume_mounts,
                                    resources=runtime.spec.resources)
@@ -205,5 +233,9 @@ def func_to_pod(image, runtime, extra_env, command, args):
                                 restart_policy='Never',
                                 volumes=runtime.spec.volumes,
                                 service_account=runtime.spec.service_account)
+
+    if runtime.spec.image_pull_secret:
+        pod_spec.image_pull_secrets = [
+            client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)]
 
     return pod_spec

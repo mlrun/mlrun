@@ -15,6 +15,7 @@ import time
 from copy import deepcopy
 
 from .utils import AsyncLogWriter, RunError
+from ..config import config
 from ..model import RunObject
 from .kubejob import KubejobRuntime
 from ..utils import update_in, logger, get_in
@@ -36,7 +37,7 @@ _mpijob_template = {
          'metadata': {},
          'spec': {
              'containers': [{
-                 'image': 'zilbermanor/horovod_cpu:0.2',
+                 'image': 'mlrun/mpijob',
                  'name': 'base',
                  'command': [],
                  'env': [],
@@ -88,6 +89,12 @@ class MpiRuntime(KubejobRuntime):
                 job, 'imagePullPolicy', self.spec.image_pull_policy)
         if self.spec.resources:
             _update_container(job, 'resources', self.spec.resources)
+        if self.spec.workdir:
+            _update_container(job, 'workingDir', self.spec.workdir)
+
+        if self.spec.image_pull_secret:
+            update_in(job, 'spec.template.spec.imagePullSecrets',
+                      [{'name': self.spec.image_pull_secret}])
 
         if self.spec.command:
             _update_container(
@@ -96,7 +103,8 @@ class MpiRuntime(KubejobRuntime):
 
         resp = self._submit_mpijob(job, meta.namespace)
         state = None
-        for _ in range(60):
+        timeout = int(config.submit_timeout) or 120
+        for _ in range(timeout):
             resp = self.get_job(meta.name, meta.namespace)
             state = get_in(resp, 'status.launcherStatus')
             if resp and state:

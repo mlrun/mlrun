@@ -12,33 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """mlrun database HTTP server"""
+import ast
 import mimetypes
+import tempfile
+import traceback
+from argparse import ArgumentParser
 from base64 import b64decode
+from datetime import date, datetime
 from distutils.util import strtobool
 from functools import wraps
 from http import HTTPStatus
-from os import environ
-import traceback
-from datetime import datetime
+from operator import attrgetter
+from os import environ, remove
 from pathlib import Path
 
-from flask import Flask, jsonify, request, Response
+from flask import Flask, Response, jsonify, request
+from flask.json import JSONEncoder
+from kfp import Client as kfclient
 
 from mlrun.builder import build_runtime
-from mlrun.datastore import get_object, get_object_stat
-from mlrun.db import RunDBError, RunDBInterface, periodic
-from mlrun.db.sqldb import SQLDB
-from mlrun.db.filedb import FileRunDB
-from mlrun.utils import logger, parse_function_uri, get_in, update_in
 from mlrun.config import config
-from mlrun.run import new_function, import_function
+from mlrun.datastore import get_object_stat
+from mlrun.db import RunDBError, RunDBInterface, periodic
+from mlrun.db.filedb import FileRunDB
+from mlrun.db.sqldb import SQLDB, to_dict as db2dict, table2cls
 from mlrun.k8s_utils import K8sHelper
+from mlrun.run import get_object, import_function, new_function
 from mlrun.runtimes import runtime_resources_map
+from mlrun.scheduler import Scheduler
+from mlrun.utils import get_in, logger, now_date, parse_function_uri, update_in
 
-_db: RunDBInterface
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        try:
+            if isinstance(obj, date):
+                return obj.isoformat()
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
+
+
+_scheduler: Scheduler = None
+_db: RunDBInterface = None
 _k8s: K8sHelper = None
 _logs_dir = None
 app = Flask(__name__)
+app.json_encoder = CustomJSONEncoder
 basic_prefix = 'Basic '
 bearer_prefix = 'Bearer '
 
@@ -111,19 +134,23 @@ def catch_err(fn):
 
     return wrapper
 
-
 # curl -d@/path/to/job.json http://localhost:8080/submit
 @app.route('/api/submit', methods=['POST'])
 @app.route('/api/submit/', methods=['POST'])
-@app.route('/api/submit/<path:func>', methods=['POST'])
+@app.route('/api/submit_job', methods=['POST'])
+@app.route('/api/submit_job/', methods=['POST'])
 @catch_err
 def submit_job():
     try:
-        data = request.get_json(force=True)
+        data: dict = request.get_json(force=True)
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
     logger.info('submit_job: {}'.format(data))
+    return _submit(data)
+
+
+def _submit(data):
     task = data.get('task')
     function = data.get('function')
     url = data.get('functionUrl')
@@ -139,7 +166,7 @@ def submit_job():
     # remote/container runtime)
 
     try:
-        if function:
+        if function and not url:
             fn = new_function(runtime=function)
         else:
             if '://' in url:
@@ -150,24 +177,92 @@ def submit_job():
                 if not runtime:
                     return json_error(
                         HTTPStatus.BAD_REQUEST,
-                        reason='runtime error: function {} not found'.format(url),
+                        reason='runtime error: function {} not found'.format(
+                            url),
                     )
                 fn = new_function(runtime=runtime)
 
+            if function:
+                fn2 = new_function(runtime=function)
+                for attr in ['volumes', 'volume_mounts', 'env', 'resources',
+                             'image_pull_policy', 'replicas']:
+                    val = getattr(fn2.spec, attr, None)
+                    if val:
+                        setattr(fn.spec, attr, val)
+
         fn.set_db_connection(_db, True)
-        print('func:\n{}'.format(fn.to_yaml()))
+        logger.info('func:\n{}'.format(fn.to_yaml()))
         # fn.spec.rundb = 'http://mlrun-api:8080'
-        resp = fn.run(task)
+        schedule = data.get('schedule')
+        if schedule:
+            args = (task, )
+            job_id = _scheduler.add(schedule, fn, args)
+            _db.store_schedule(data)
+            resp = {'schedule': schedule, 'id': job_id}
+        else:
+            resp = fn.run(task, watch=False)
 
         logger.info('resp: %s', resp.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
         )
 
-    return jsonify(ok=True, data=resp.to_dict())
+    if not isinstance(resp, dict):
+        resp = resp.to_dict()
+    return jsonify(ok=True, data=resp)
+
+
+# curl -d@/path/to/pipe.yaml http://localhost:8080/submit_pipeline
+@app.route('/api/submit_pipeline', methods=['POST'])
+@app.route('/api/submit_pipeline/', methods=['POST'])
+@catch_err
+def submit_pipeline():
+    namespace = request.args.get('namespace', config.namespace)
+    experiment_name = request.args.get('experiment', 'Default')
+    run_name = request.args.get('run', '')
+    run_name = run_name or \
+        experiment_name + ' ' + datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+
+    arguments = {}
+    arguments_data = request.headers.get('pipeline-arguments')
+    if arguments_data:
+        arguments = ast.literal_eval(arguments_data)
+        logger.info('pipeline arguments {}'.format(arguments_data))
+
+    ctype = request.content_type
+    if '/yaml' in ctype:
+        ctype = '.yaml'
+    elif ' /zip' in ctype:
+        ctype = '.zip'
+    else:
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='unsupported pipeline type {}'.format(ctype))
+
+    logger.info('writing file {}'.format(ctype))
+    if not request.data:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='post data is empty')
+
+    print(str(request.data))
+    pipe_tmp = tempfile.mktemp(suffix=ctype)
+    with open(pipe_tmp, 'wb') as fp:
+        fp.write(request.data)
+
+    try:
+        client = kfclient(namespace=namespace)
+        experiment = client.create_experiment(name=experiment_name)
+        run_info = client.run_pipeline(experiment.id, run_name, pipe_tmp,
+                                       params=arguments)
+    except Exception as e:
+        remove(pipe_tmp)
+        return json_error(HTTPStatus.BAD_REQUEST,
+                          reason='kfp err: {}'.format(e))
+
+    remove(pipe_tmp)
+    return jsonify(ok=True, id=run_info.run_id,
+                   name=run_info.run_info.name)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function
@@ -183,7 +278,6 @@ def build_function():
     logger.info('build_function:\n{}'.format(data))
     function = data.get('function')
     with_mlrun = strtobool(data.get('with_mlrun', 'on'))
-    ready = False
 
     try:
         fn = new_function(runtime=function)
@@ -194,7 +288,7 @@ def build_function():
         fn.save(versioned=False)
         logger.info('Fn:\n %s', fn.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
@@ -239,17 +333,57 @@ def start_function():
 
     try:
         fn.set_db_connection(_db)
-        resp = resource['start'](fn)
+        #  resp = resource['start'](fn)  # TODO: handle resp?
+        resource['start'](fn)
         fn.save(versioned=False)
         logger.info('Fn:\n %s', fn.to_yaml())
     except Exception as err:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
             reason='runtime error: {}'.format(err),
         )
 
     return jsonify(ok=True, data=fn.to_dict())
+
+
+# curl -d@/path/to/job.json http://localhost:8080/status/function
+@app.route('/api/status/function', methods=['POST'])
+@app.route('/api/status/function/', methods=['POST'])
+@catch_err
+def function_status():
+    try:
+        data = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    logger.info('function_status:\n{}'.format(data))
+    selector = data.get('selector')
+    kind = data.get('kind')
+    if not selector or not kind:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: selector or runtime kind not specified',
+        )
+
+    resource = runtime_resources_map.get(kind)
+    if 'status' not in resource:
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: "status" not supported by this runtime',
+        )
+
+    try:
+        resp = resource['status'](selector)
+        logger.info('status: %s', resp)
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        return json_error(
+            HTTPStatus.BAD_REQUEST,
+            reason='runtime error: {}'.format(err),
+        )
+
+    return jsonify(ok=True, data=resp)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/status
@@ -306,14 +440,17 @@ def build_status():
                              "builder_pod": pod})
 
 
-def get_obj_path(schema, path):
+def get_obj_path(schema, path, user=''):
     if schema:
         return schema + '://' + path
     elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', 'admin')
+        user = environ.get('V3IO_USERNAME', user or 'admin')
         return 'v3io:///users/' + user + path[5:]
-    elif config.httpdb.files_path and \
-            path.startswith(config.httpdb.files_path):
+    elif config.httpdb.data_volume and \
+            path.startswith(config.httpdb.data_volume):
+        if config.httpdb.real_path:
+            path = config.httpdb.real_path + \
+                   path[len(config.httpdb.data_volume)-1:]
         return path
     return None
 
@@ -324,12 +461,13 @@ def get_obj_path(schema, path):
 def get_files():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
+    user = request.args.get('user', '')
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
 
     _, filename = path.split(path)
 
-    path = get_obj_path(schema, path)
+    path = get_obj_path(schema, path, user=user)
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')
@@ -355,10 +493,11 @@ def get_files():
 def get_filestat():
     schema = request.args.get('schema', '')
     path = request.args.get('path', '')
+    user = request.args.get('user', '')
 
     _, filename = path.split(path)
 
-    path = get_obj_path(schema, path)
+    path = get_obj_path(schema, path, user=user)
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
                           err='illegal path prefix or schema')
@@ -426,7 +565,7 @@ def get_log(project, uid):
                     if resp:
                         out = resp.encode()[offset:]
                     if status == 'running':
-                        now = str(datetime.now())
+                        now = now_date().isoformat()
                         update_in(data, 'status.last_update', now)
                         if new_status == 'failed':
                             update_in(data, 'status.state', 'error')
@@ -437,6 +576,12 @@ def get_log(project, uid):
                             update_in(data, 'status.state', 'completed')
                             _db.store_run(data, uid, project)
                 status = new_status
+            elif status == 'running':
+                update_in(data, 'status.state', 'error')
+                update_in(
+                    data, 'status.error', 'pod not found, maybe terminated')
+                _db.store_run(data, uid, project)
+                status = 'failed'
 
     return Response(out, mimetype='text/plain',
                     headers={"pod_status": status})
@@ -467,6 +612,7 @@ def update_run(project, uid):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     iter = int(request.args.get('iter', '0'))
     _db.update_run(data, uid, project, iter=iter)
     app.logger.info('update run: {}'.format(data))
@@ -495,21 +641,21 @@ def del_run(project, uid):
 @app.route('/api/runs', methods=['GET'])
 @catch_err
 def list_runs():
-    name = request.args.get('name', '')
-    uid = request.args.get('uid', '')
-    project = request.args.get('project', 'default')
+    name = request.args.get('name')
+    uid = request.args.get('uid')
+    project = request.args.get('project')
     labels = request.args.getlist('label')
-    state = request.args.get('state', '')
+    state = request.args.get('state')
     sort = strtobool(request.args.get('sort', 'on'))
     iter = strtobool(request.args.get('iter', 'on'))
     last = int(request.args.get('last', '0'))
 
     runs = _db.list_runs(
-        name=name,
-        uid=uid,
-        project=project,
+        name=name or None,
+        uid=uid or None,
+        project=project or None,
         labels=labels,
-        state=state,
+        state=state or None,
         sort=sort,
         last=last,
         iter=iter,
@@ -539,17 +685,32 @@ def store_artifact(project, uid, key):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
-    _db.store_artifact(key, data, uid, tag, project)
+    iter = int(request.args.get('iter', '0'))
+    _db.store_artifact(key, data, uid, iter=iter, tag=tag, project=project)
     return jsonify(ok=True)
 
 
-# curl http://localhost:8080/artifact/p1/tag/key
-@app.route('/api/artifact/<project>/<tag>/<path:key>', methods=['GET'])
+# curl http://localhost:8080/artifact/p1/tags
+@app.route('/api/projects/<project>/artifact-tags', methods=['GET'])
 @catch_err
-def read_artifact(project, tag, key):
-    data = _db.read_artifact(key, tag, project)
-    return data
+def list_artifact_tags(project):
+    return jsonify(
+        ok=True,
+        project=project,
+        tags=_db.list_artifact_tags(project),
+    )
+
+
+# curl http://localhost:8080/projects/my-proj/artifact/key?tag=latest
+@app.route('/api/projects/<project>/artifact/<path:key>', methods=['GET'])
+@catch_err
+def read_artifact(project, key):
+    tag = request.args.get('tag', 'latest')
+    iter = int(request.args.get('iter', '0'))
+    data = _db.read_artifact(key, tag=tag, iter=iter, project=project)
+    return jsonify(ok=True, data=data)
 
 # curl -X DELETE http://localhost:8080/artifact/p1&key=k&tag=t
 @app.route('/api/artifact/<project>/<uid>', methods=['DELETE'])
@@ -567,9 +728,9 @@ def del_artifact(project, uid):
 @app.route('/api/artifacts', methods=['GET'])
 @catch_err
 def list_artifacts():
-    name = request.args.get('name', '')
-    project = request.args.get('project', 'default')
-    tag = request.args.get('tag', '')
+    name = request.args.get('name') or None
+    project = request.args.get('project', config.default_project)
+    tag = request.args.get('tag') or None
     labels = request.args.getlist('label')
 
     artifacts = _db.list_artifacts(name, project, tag, labels)
@@ -596,9 +757,11 @@ def store_function(project, name):
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
 
+    logger.debug(data)
     tag = request.args.get('tag', '')
-
-    _db.store_function(data, name, project, tag)
+    logger.info(
+        'store function: project=%s, name=%s, tag=%s', project, name, tag)
+    _db.store_function(data, name, project, tag=tag)
     return jsonify(ok=True)
 
 
@@ -615,9 +778,9 @@ def get_function(project, name):
 @app.route('/api/funcs', methods=['GET'])
 @catch_err
 def list_functions():
-    name = request.args.get('name', '')
-    project = request.args.get('project', 'default')
-    tag = request.args.get('tag', '')
+    name = request.args.get('name') or None
+    project = request.args.get('project', config.default_project)
+    tag = request.args.get('tag') or None
     labels = request.args.getlist('label')
 
     out = _db.list_functions(name, project, tag, labels)
@@ -627,14 +790,141 @@ def list_functions():
     )
 
 
+# curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' \
+#   http://localhost:8080/project
+@app.route('/api/project', methods=['POST'])
+@catch_err
+def add_project():
+    data = request.get_json(force=True)
+    for attr in ('name', 'owner'):
+        if attr not in data:
+            return json_error(error=f'missing {attr!r}')
+
+    project_id = _db.add_project(data)
+    return jsonify(
+        ok=True,
+        id=project_id,
+        name=data['name'],
+    )
+
+# curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' \
+#   -X UPDATE http://localhost:8080/project
+@app.route('/api/project/<name>', methods=['POST'])
+@catch_err
+def update_project(name):
+    data = request.get_json(force=True)
+    _db.update_project(name, data)
+    return jsonify(ok=True)
+
+# curl http://localhost:8080/project/<name>
+@app.route('/api/project/<name>', methods=['GET'])
+@catch_err
+def get_project(name):
+    project = _db.get_project(name)
+    if not project:
+        return json_error(error=f'project {name!r} not found')
+
+    resp = {
+        'name': project.name,
+        'description': project.description,
+        'owner': project.owner,
+        'source': project.source,
+        'users': [u.name for u in project.users],
+    }
+
+    return jsonify(ok=True, project=resp)
+
+
+# curl http://localhost:8080/projects?full=true
+@app.route('/api/projects', methods=['GET'])
+@catch_err
+def list_projects():
+    full = strtobool(request.args.get('full', 'no'))
+    fn = db2dict if full else attrgetter('name')
+    projects = []
+    for p in _db.list_projects():
+        if isinstance(p, dict):
+            if full:
+                projects.append(p)
+            else:
+                projects.append(p.get('name'))
+        else:
+            projects.append(fn(p))
+
+    return jsonify(ok=True, projects=projects)
+
+# curl http://localhost:8080/schedules
+@app.route('/api/schedules', methods=['GET'])
+@catch_err
+def list_schedules():
+    return jsonify(
+        ok=True,
+        schedules=list(_db.list_schedules())
+    )
+
+
+@app.route('/api/<project>/tag/<name>', methods=['POST'])
+@catch_err
+def tag_objects(project, name):
+    try:
+        data: dict = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    objs = []
+    for typ, query in data.items():
+        cls = table2cls(typ)
+        if cls is None:
+            err = f'unknown type - {typ}'
+            return json_error(HTTPStatus.BAD_REQUEST, reason=err)
+        # {'name': 'bugs'} -> [Function.name=='bugs']
+        db_query = [
+            getattr(cls, key) == value for key, value in query.items()
+        ]
+        # TODO: Change _query to query?
+        # TODO: Not happy about exposing db internals to API
+        objs.extend(_db.session.query(cls).filter(*db_query))
+    _db.tag_objects(objs, project, name)
+    return jsonify(ok=True, project=project, name=name, count=len(objs))
+
+
+@app.route('/api/<project>/tag/<name>', methods=['DELETE'])
+@catch_err
+def del_tag(project, name):
+    count = _db.del_tag(project, name)
+    return jsonify(ok=True, project=project, name=name, count=count)
+
+
+@app.route('/api/<project>/tags', methods=['GET'])
+@catch_err
+def list_tags(project):
+    return jsonify(
+        ok=True,
+        project=project,
+        tags=list(_db.list_tags(project)),
+    )
+
+
+@app.route('/api/<project>/tag/<name>', methods=['GET'])
+@catch_err
+def get_tagged(project, name):
+    objs = _db.find_tagged(project, name)
+    return jsonify(
+        ok=True,
+        project=project,
+        tag=name,
+        objects=[db2dict(obj) for obj in objs],
+    )
+
+
 @app.route('/api/healthz', methods=['GET'])
 def health():
-    return 'OK\n'
+    return jsonify(ok=True, version=config.version)
 
 
 @app.before_first_request
 def init_app():
-    global _db, _logs_dir, _k8s
+    global _db, _logs_dir, _k8s, _scheduler
 
     logger.info('configuration dump\n%s', config.dump_yaml())
     if config.httpdb.db_type == 'sqldb':
@@ -655,9 +945,18 @@ def init_app():
     task = periodic.Task()
     periodic.schedule(task, 60)
 
+    _scheduler = Scheduler()
+    for data in _db.list_schedules():
+        if 'schedule' not in data:
+            logger.warning('bad scheduler data - %s', data)
+            continue
+        _submit(data)
+
 
 # Don't remove this function, it's an entry point in setup.py
 def main():
+    parser = ArgumentParser(description=__doc__)
+    parser.parse_args()
     app.run(
         host='0.0.0.0',
         port=config.httpdb.port,

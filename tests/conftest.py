@@ -13,18 +13,22 @@
 # limitations under the License.
 
 import shutil
+from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
+from sys import platform
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
-from sys import platform
-
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
+is_ci = 'CI' in environ
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
+Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
+environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
+print(f'KFP: {results}/kfp/')
 
 rundb_path = f'{results}/rundb'
 out_path = f'{results}/out'
@@ -33,8 +37,7 @@ examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
 
-Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
-environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
+from mlrun.db import sqldb
 
 
 def check_docker():
@@ -82,3 +85,23 @@ def wait_for_server(url, timeout_sec):
             pass
         sleep(0.1)
     return False
+
+
+def run_now():
+    return datetime.now().strftime(sqldb.run_time_fmt)
+
+
+def new_run(state, labels, uid=None, **kw):
+    obj = {
+        'metadata': {
+            'labels': labels,
+        },
+        'status': {
+            'state': state,
+            'start_time': run_now(),
+        },
+    }
+    if uid:
+        obj['metadata']['uid'] = uid
+    obj.update(kw)
+    return obj

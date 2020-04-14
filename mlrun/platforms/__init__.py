@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .iguazio import v3io_cred, mount_v3io
+from .other import mount_pvc

@@ -62,15 +62,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, key, artifact, uid, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag='', project=''):
+    def read_artifact(self, key, tag='', iter=None, project=''):
         pass
 
     @abstractmethod
-    def list_artifacts(self, name='', project='', tag='', labels=None):
+    def list_artifacts(
+        self, name='', project='', tag='', labels=None,
+            since=None, until=None):
         pass
 
     @abstractmethod
@@ -101,3 +103,9 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_functions(self, name, project='', tag='', labels=None):
         pass
+
+    def list_projects(self):
+        return []
+
+    def list_artifact_tags(self, project):
+        return []

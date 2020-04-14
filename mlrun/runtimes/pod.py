@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import uuid
+from copy import deepcopy
+
 from kubernetes import client
+from kfp.dsl import ContainerOp
 
 from .utils import apply_kfp, set_named_item, get_item_name
 from ..utils import normalize_name, update_in
@@ -23,11 +26,14 @@ from .base import BaseRuntime, FunctionSpec
 class KubeResourceSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 entry_points=None, description=None, replicas=None,
-                 image_pull_policy=None, service_account=None, build=None):
-        super().__init__(command=command, args=args, image=image,
-                         mode=mode, build=build,
-                         entry_points=entry_points, description=description)
+                 default_handler=None, entry_points=None, description=None,
+                 workdir=None, replicas=None, image_pull_policy=None,
+                 service_account=None, build=None, image_pull_secret=None):
+        super().__init__(command=command, args=args, image=image, mode=mode,
+                         build=build, entry_points=entry_points,
+                         description=description,
+                         workdir=workdir,
+                         default_handler=default_handler)
         self._volumes = {}
         self._volume_mounts = {}
         self.volumes = volumes or []
@@ -37,6 +43,7 @@ class KubeResourceSpec(FunctionSpec):
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
+        self.image_pull_secret = image_pull_secret
 
     @property
     def volumes(self) -> list:
@@ -75,12 +82,6 @@ class KubeResource(BaseRuntime):
     _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
-        try:
-            from kfp.dsl import ContainerOp
-        except (ImportError, ModuleNotFoundError) as e:
-            print('KubeFlow pipelines sdk is not installed, use "pip install kfp"')
-            raise e
-
         super().__init__(metadata, spec)
         self._cop = ContainerOp('name', 'image')
         self.verbose = False
@@ -93,10 +94,20 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', KubeResourceSpec)
 
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude)
+    def to_dict(self, fields=None, exclude=None, strip=False):
+        struct = super().to_dict(fields, exclude, strip=strip)
         api = client.ApiClient()
-        return api.sanitize_for_serialization(struct)
+        struct = api.sanitize_for_serialization(struct)
+        if strip:
+            spec = struct['spec']
+            for attr in ['volumes', 'volume_mounts']:
+                if attr in spec:
+                    del spec[attr]
+            if 'env' in spec and spec['env']:
+                for ev in spec['env']:
+                    if ev['name'].startswith('V3IO_'):
+                        ev['value'] = ''
+        return struct
 
     def apply(self, modify):
         return apply_kfp(modify, self._cop, self)
@@ -154,3 +165,10 @@ class KubeResource(BaseRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
+
+    def copy(self):
+        self._cop = None
+        fn = deepcopy(self)
+        self._cop = ContainerOp('name', 'image')
+        fn._cop = ContainerOp('name', 'image')
+        return fn

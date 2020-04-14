@@ -18,23 +18,17 @@ import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
-import logging
-from sys import stdout
 from nuclio.deploy import deploy_config
+import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
 from ..platforms.iguazio import mount_v3io
 from .base import RunError
 from .utils import log_std, set_named_item, get_item_name
-from ..utils import logger, update_in, get_in
+from ..utils import logger, update_in, get_in, tag_image
 from ..lists import RunList
 from ..model import RunObject
-
-from nuclio_sdk import Context as _Context, Logger
-from nuclio_sdk.logger import HumanReadableFormatter
-from nuclio_sdk import Event
-import nuclio
 
 serving_handler = 'handler'
 
@@ -175,10 +169,6 @@ class RemoteRuntime(KubeResource):
     def add_model(self, key, model):
         if model.startswith('v3io://'):
             model = '/User/' + '/'.join(model.split('/')[5:])
-        #if '://' not in model:
-        #    model = 'file://' + model
-        if not model.endswith('/'):
-            model = model[:model.rfind('/')]
         self.set_env('SERVING_MODEL_{}'.format(key), model)
         return self
 
@@ -190,9 +180,11 @@ class RemoteRuntime(KubeResource):
             for k, v in models.items():
                 self.set_env('SERVING_MODEL_{}'.format(k), v)
 
-        self.set_env('TRANSPORT_PROTOCOL', protocol or 'seldon')
+        if protocol:
+            self.set_env('TRANSPORT_PROTOCOL', protocol)
+        if model_class:
+            self.set_env('MODEL_CLASS', model_class)
         self.set_env('ENABLE_EXPLAINER', str(explainer))
-        self.set_env('MODEL_CLASS', model_class)
         self.with_http(workers, host=endpoint, canary=canary)
         self.spec.function_kind = 'serving'
 
@@ -223,9 +215,12 @@ class RemoteRuntime(KubeResource):
             if kind:
                 raise ValueError('kind cannot be specified on built functions')
             config = nuclio.config.extend_config(
-                self.spec.base_spec, spec, tag, self.spec.source)
+                self.spec.base_spec, spec, tag, self.spec.build.code_origin)
             update_in(config, 'metadata.name', self.metadata.name)
             update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
+            base_image = get_in(config, 'spec.build.baseImage')
+            if base_image:
+                update_in(config, 'spec.build.baseImage', tag_image(base_image))
 
             logger.info('deploy started')
             addr = nuclio.deploy.deploy_config(
@@ -363,25 +358,10 @@ async def submit(session, url, run, headers=None):
 
 
 def fake_nuclio_context(body, headers=None):
+    return nuclio.Context(), nuclio.Event(body=body, headers=headers)
 
-    class FunctionContext(_Context):
-        """Wrapper around nuclio_sdk.Context to make automatically create
-        logger"""
 
-        def __getattribute__(self, attr):
-            value = object.__getattribute__(self, attr)
-            if value is None and attr == 'logger':
-                value = self.logger = Logger(level=logging.INFO)
-                value.set_handler(
-                    'mlrun', stdout, HumanReadableFormatter())
-            return value
-
-        def set_logger_level(self, verbose=False):
-            if verbose:
-                level = logging.DEBUG
-            else:
-                level = logging.INFO
-            value = self.logger = Logger(level=level)
-            value.set_handler('mlrun', stdout, HumanReadableFormatter())
-
-    return FunctionContext(), Event(body=body, headers=headers)
+def _fullname(project, name):
+    if project:
+        return '{}-{}'.format(project, name)
+    return name

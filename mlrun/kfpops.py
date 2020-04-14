@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import getpass
 import json
 from copy import deepcopy
 from os import environ
 
-from .db import default_dbpath
-from .utils import run_keys, dict_to_yaml, logger
+from .db import get_or_set_dburl
+from .utils import run_keys, dict_to_yaml, logger, gen_md_table
 from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
@@ -40,6 +41,7 @@ def write_kfpmeta(struct):
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
         json.dump(metrics, f)
 
+    struct = deepcopy(struct)
     output_artifacts, out_dict = get_kfp_outputs(
         struct['status'].get(run_keys.artifacts, []), struct['metadata'].get('labels', {}))
 
@@ -59,7 +61,6 @@ def write_kfpmeta(struct):
 
     text = '# Run Report\n'
     if 'iterations' in struct['status']:
-        struct = deepcopy(struct)
         del struct['status']['iterations']
 
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
@@ -107,12 +108,25 @@ def get_kfp_outputs(artifacts, labels):
                         'source': target}
                 outputs += [meta]
 
+        elif output['kind'] == 'dataset':
+            header = output.get('header')
+            preview = output.get('preview')
+            if preview:
+                tbl_md = gen_md_table(header, preview)
+                text = '## Dataset: {}  \n\n'.format(key) + tbl_md
+                del output['preview']
+
+                meta = {'type': 'markdown',
+                        'storage': 'inline',
+                        'source': text}
+                outputs += [meta]
+
     return outputs, out_dict
 
 
-def mlrun_op(name: str = '', project: str = '', function=None,
+def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
              image: str = '', runobj=None, command: str = '',
-             secrets: list = None, params: dict = None,
+             secrets: list = None, params: dict = None, job_image=None,
              hyperparams: dict = None, param_file: str = '',
              selector: str = '', inputs: dict = None, outputs: list = None,
              in_path: str = '', out_path: str = '', rundb: str = '',
@@ -128,7 +142,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                     the container should host all requiered packages + code
                     for the run, alternatively user can mount packages/code via
                     shared file volumes like v3io (see example below)
-    :param runtime: optional, runtime specification
+    :param function: optional, function object
+    :param func_url: optional, function object url
     :param command: exec command (or URL for functions)
     :param secrets: extra secrets specs, will be injected into the runtime
                     e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
@@ -138,6 +153,7 @@ def mlrun_op(name: str = '', project: str = '', function=None,
                         executed for every parameter combination (GridSearch)
     :param param_file:  a csv file with parameter combinations, first row hold
                         the parameter names, following rows hold param values
+    :param selector  selection criteria for hyperparams e.g. "max.accuracy"
     :param inputs:   dictionary of input objects + optional paths (if path is
                      omitted the path will be the in_path/key.
     :param outputs:  dictionary of input objects + optional paths (if path is
@@ -146,6 +162,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'noctx' for pushing params as args
+    :param handler   code entry-point/hanfler name
+    :param job_image name of the image user for the job
 
     :return: KFP step operation
 
@@ -193,8 +211,9 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     hyperparams = {} if hyperparams is None else hyperparams
     inputs = {} if inputs is None else inputs
     outputs = [] if outputs is None else outputs
+    labels = {}
 
-    rundb = rundb or default_dbpath()
+    rundb = rundb or get_or_set_dburl()
     cmd = [
         'python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow',
         '{{workflow.uid}}'
@@ -203,19 +222,24 @@ def mlrun_op(name: str = '', project: str = '', function=None,
 
     runtime = None
     code_env = None
+    function_name = ''
     if function:
-        if not hasattr(function, 'to_dict'):
-            raise ValueError('function must specify a function runtime object')
-        if function.kind in ['', 'local']:
-            image = image or function.spec.image
-            cmd = cmd or function.spec.command
-            more_args = more_args or function.spec.args
-            mode = mode or function.spec.mode
-            rundb = rundb or function.spec.rundb
-            code_env = '{}'.format(function.spec.build.functionSourceCode)
-        else:
-            runtime = '{}'.format(function.to_dict())
-        name = name or function.metadata.name
+
+        if not func_url:
+            if function.kind in ['', 'local']:
+                image = image or function.spec.image
+                command = command or function.spec.command
+                more_args = more_args or function.spec.args
+                mode = mode or function.spec.mode
+                rundb = rundb or function.spec.rundb
+                code_env = '{}'.format(function.spec.build.functionSourceCode)
+            else:
+                runtime = '{}'.format(function.to_dict())
+
+        function_name = function.metadata.name
+        if function.kind == 'dask':
+            image = image or function.spec.kfp_image \
+                    or 'mlrun/dask:{}'.format(config.version)
 
     image = image or config.kfp_image
 
@@ -231,6 +255,14 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         out_path = out_path or runobj.spec.output_path
         secrets = secrets or runobj.spec.secret_sources
         project = project or runobj.metadata.project
+        labels = runobj.metadata.labels or {}
+
+    if not name:
+        if not function_name:
+            raise ValueError('name or function object must be specified')
+        name = function_name
+        if handler:
+            name += '-' + handler
 
     if hyperparams or param_file:
         outputs.append('iteration_results')
@@ -240,8 +272,15 @@ def mlrun_op(name: str = '', project: str = '', function=None,
     inputs = inputs or {}
     secrets = secrets or []
 
+    if 'V3IO_USERNAME' in environ and 'v3io_user' not in labels:
+        labels['v3io_user'] = environ.get('V3IO_USERNAME')
+    if 'owner' not in labels:
+        labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
+
     if name:
         cmd += ['--name', name]
+    if func_url:
+        cmd += ['-f', func_url]
     for s in secrets:
         cmd += ['-s', '{}'.format(s)]
     for p, val in params.items():
@@ -250,6 +289,8 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['-x', '{}={}'.format(x, val)]
     for i, val in inputs.items():
         cmd += ['-i', '{}={}'.format(i, val)]
+    for l, val in labels.items():
+        cmd += ['--label', '{}={}'.format(l, val)]
     for o in outputs:
         cmd += ['-o', '{}'.format(o)]
         file_outputs[o.replace('.', '_')] = '/tmp/{}'.format(o)
@@ -267,12 +308,14 @@ def mlrun_op(name: str = '', project: str = '', function=None,
         cmd += ['--param-file', param_file]
     if selector:
         cmd += ['--selector', selector]
+    if job_image:
+        cmd += ['--image', job_image]
     if mode:
         cmd += ['--mode', mode]
     if more_args:
         cmd += more_args
 
-    if image.startswith('.'):
+    if image and image.startswith('.'):
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
             image = '{}/{}'.format(
                 environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
@@ -345,35 +388,56 @@ def add_env(env=None):
     return _add_env
 
 
-def build_op(image, context_path, secret_name='docker-secret'):
-    """use kaniko to build Docker image."""
+def build_op(name, function=None, func_url=None, image=None, base_image=None, commands: list = None,
+             secret_name='', with_mlrun=True, skip_deployed=False):
+    """build Docker image."""
 
-    from kubernetes import client as k8s_client
     from kfp import dsl
+    from os import environ
+    from kubernetes import client as k8s_client
 
-    cops = dsl.ContainerOp(
-        name='kaniko',
-        image='gcr.io/kaniko-project/executor:latest',
-        arguments=["--dockerfile", "/context/Dockerfile",
-                   "--context", "/context",
-                   "--destination", image],
+    cmd = ['python', '-m', 'mlrun', 'build', '--kfp']
+    if function:
+        if not hasattr(function, 'to_dict'):
+            raise ValueError('function must specify a function runtime object')
+        cmd += ['-r', '{}'.format(function.to_dict())]
+    elif not func_url:
+        raise ValueError('function object or func_url must be specified')
+
+    commands = commands or []
+    if image:
+        cmd += ['-i', image]
+    if base_image:
+        cmd += ['-b', base_image]
+    if secret_name:
+        cmd += ['--secret-name', secret_name]
+    if with_mlrun:
+        cmd += ['--with_mlrun']
+    if skip_deployed:
+        cmd += ['--skip']
+    for c in commands:
+        cmd += ['-c', c]
+    if func_url and not function:
+        cmd += [func_url]
+
+    cop = dsl.ContainerOp(
+        name=name,
+        image=config.kfp_image,
+        command=cmd,
+        file_outputs={'state': '/tmp/state', 'image': '/tmp/image'},
     )
 
-    cops.add_volume(
-        k8s_client.V1Volume(
-            name='registry-creds',
-            secret=k8s_client.V1SecretVolumeSource(
-                secret_name=secret_name,
-                items=[{
-                    'key': '.dockerconfigjson',
-                    'path': '.docker/config.json',
-                }],
-            )
-        ))
-    cops.container.add_volume_mount(
-        k8s_client.V1VolumeMount(
-            name='registry-creds',
-            mount_path='/root/',
-        )
-    )
-    return cops
+    if 'DEFAULT_DOCKER_REGISTRY' in environ:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='DEFAULT_DOCKER_REGISTRY', value=environ.get('DEFAULT_DOCKER_REGISTRY')))
+    if 'IGZ_NAMESPACE_DOMAIN' in environ:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='IGZ_NAMESPACE_DOMAIN', value=environ.get('IGZ_NAMESPACE_DOMAIN')))
+
+    is_v3io = function.spec.build.source and \
+              function.spec.build.source.startswith('v3io')
+    if 'V3IO_ACCESS_KEY' in environ and is_v3io:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='V3IO_ACCESS_KEY', value=environ.get('V3IO_ACCESS_KEY')))
+
+    return cop

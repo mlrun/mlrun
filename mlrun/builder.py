@@ -14,29 +14,33 @@
 
 import tarfile
 from base64 import b64decode, b64encode
-from os import environ, path
+from os import environ, path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
 from .datastore import StoreManager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import logger, normalize_name
+from .utils import logger, normalize_name, tag_image
 from .config import config
 
 
 def make_dockerfile(base_image,
                     commands=None, src_dir=None,
-                    requirements=None):
+                    requirements=None,
+                    workdir='/mlrun',
+                    extra=''):
     dock = 'FROM {}\n'.format(base_image)
-    dock += 'WORKDIR /run\n'
     if src_dir:
-        dock += 'ADD {} /run\n'.format(src_dir)
+        dock += 'RUN mkdir -p {}\n'.format(workdir)
+        dock += 'WORKDIR {}\n'.format(workdir)
+        dock += 'ADD {} {}\n'.format(src_dir, workdir)
+        dock += 'ENV PYTHONPATH {}\n'.format(workdir)
     if requirements:
         dock += 'RUN pip install -r {}\n'.format(requirements)
     if commands:
         dock += ''.join(['RUN {}\n'.format(b) for b in commands])
-    dock += 'ENV PYTHONPATH /run'
-
+    if extra:
+        dock += extra
     print(dock)
     return dock
 
@@ -102,6 +106,7 @@ def upload_tarball(source_dir, target, secrets=None):
     stores = StoreManager(secrets)
     datastore, subpath = stores.get_or_create_store(target)
     datastore.upload(subpath, tmpfile)
+    remove(tmpfile)
 
 
 def build_image(dest,
@@ -118,14 +123,22 @@ def build_image(dest,
                 registry=None,
                 interactive=True,
                 name='',
+                extra=None,
                 verbose=False):
 
     if registry:
         dest = '{}/{}'.format(registry, dest)
-    elif not secret_name and 'DOCKER_REGISTRY_SERVICE_HOST' in environ:
-        if dest.startswith('.'):
-            dest = dest[1:]
-        dest = '{}:5000/{}'.format(environ.get('DOCKER_REGISTRY_SERVICE_HOST'), dest)
+    elif dest.startswith('.'):
+        dest = dest[1:]
+        if 'DOCKER_REGISTRY_PORT' in environ:
+            registry = urlparse(environ.get('DOCKER_REGISTRY_PORT')).netloc
+        else:
+            registry = environ.get('DEFAULT_DOCKER_REGISTRY')
+            secret_name = secret_name or environ.get('DEFAULT_DOCKER_SECRET')
+        if not registry:
+            raise ValueError('local docker registry is not defined, set '
+                             'DEFAULT_DOCKER_REGISTRY/SECRET env vars')
+        dest = '{}/{}'.format(registry, dest)
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -166,7 +179,8 @@ def build_image(dest,
 
     dock = make_dockerfile(base_image, commands,
                            src_dir=src_dir,
-                           requirements=requirements_path)
+                           requirements=requirements_path,
+                           extra=extra)
 
     kpod = make_kaniko_pod(context, dest, dockertext=dock,
                            inline_code=inline_code, inline_path=inline_path,
@@ -198,9 +212,19 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if not build.image:
         raise ValueError('build spec must have a target image, set build.image = <target image>')
     logger.info(f'building image ({build.image})')
+
+    if runtime.kind == 'dask':
+        extra = 'ENTRYPOINT ["tini", "-g", "--", "/usr/bin/prepare.sh"]'
+    else:
+        extra = None
+
     name = normalize_name('mlrun-build-{}'.format(runtime.metadata.name))
+    base_image = tag_image(build.base_image or 'mlrun/mlrun')
+    if not build.base_image:
+        with_mlrun = False
+
     status = build_image(build.image,
-                         base_image=build.base_image or 'python:3.6-jessie',
+                         base_image=base_image,
                          commands=build.commands,
                          namespace=namespace,
                          #inline_code=inline,
@@ -208,6 +232,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
                          secret_name=build.secret,
                          interactive=interactive,
                          name=name,
+                         extra=extra,
                          with_mlrun=with_mlrun)
     runtime.status.build_pod = None
     if status == 'skipped':
@@ -224,7 +249,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if status in ['failed', 'error']:
         raise ValueError(' build {}!'.format(status))
 
-    local = '' if build.secret else '.'
+    local = '' if build.secret or build.image.startswith('.') else '.'
     runtime.spec.image = local + build.image
     runtime.status.state = 'ready'
     return True

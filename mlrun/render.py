@@ -19,7 +19,7 @@ from .utils import is_ipython, get_in, dict_to_list
 from .datastore import uri_to_ipython
 from .config import config
 
-JUPYTER_SERVER_ROOT = environ.get('JUPYTER_SERVER_ROOT', '/User')
+JUPYTER_SERVER_ROOT = environ.get('HOME', '/User')
 supported_viewers = ['.htm', '.html', '.json', '.yaml', '.txt', '.log', '.jpg', '.png', '.csv', '.py']
 
 def html_dict(title, data, open=False, show_nil=False):
@@ -103,6 +103,17 @@ def inputs_html(x):
     return html
 
 
+def sources_list_html(x):
+    if not x:
+        return ''
+    html = ''
+    for src in x:
+        v = src.get('path', '')
+        link, ref = link_to_ipython(v)
+        html += '<div {}title="{}">{}</div>'.format(ref, link, src['name'])
+    return html
+
+
 def run_to_html(results, display=True):
     html = html_dict('Metadata', results['metadata'])
     html += html_dict('Spec', results['spec'])
@@ -126,10 +137,12 @@ def run_to_html(results, display=True):
     return ipython_display(html, display)
 
 
-def ipython_display(html, display=True):
+def ipython_display(html, display=True, alt_text=None):
     if display and html and is_ipython:
         import IPython
         IPython.display.display(IPython.display.HTML(html))
+    elif alt_text:
+        print(alt_text)
     return html
 
 
@@ -291,6 +304,9 @@ def get_tblframe(df, display, classes=None):
     return ipython_display(html, display)
 
 
+uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/{}/info" target="_blank" >...{}</a></div>'
+
+
 def runs_to_html(df, display=True, classes=None):
 
     def time_str(x):
@@ -308,10 +324,11 @@ def runs_to_html(df, display=True, classes=None):
     df['start'] = df['start'].apply(time_str)
 
     if config.ui_url:
-        uid_template = '<div title="{}"><a href="{}/jobs/{}/info" target="_blank" >...{}</a></div>'
-        df['uid'] = df['uid'].apply(lambda x: uid_template.format(x, config.ui_url, x, x[-6:]))
+        df['uid'] = df.apply(lambda x: uid_template.format(
+            x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]), axis=1)
     else:
-        df['uid'] = df['uid'].apply(lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+        df['uid'] = df['uid'].apply(
+            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 
     def expand_error(x):
         if x['state'] == 'error':
@@ -321,8 +338,8 @@ def runs_to_html(df, display=True, classes=None):
 
     df = df.apply(expand_error, axis=1)
     df.drop('error', axis=1, inplace=True)
-    pd.set_option('display.max_colwidth', -1)
-    return get_tblframe(df, display, classes=classes)
+    with pd.option_context('display.max_colwidth', None):
+        return get_tblframe(df, display, classes=classes)
 
 
 def artifacts_to_html(df, display=True, classes=None):
@@ -338,10 +355,9 @@ def artifacts_to_html(df, display=True, classes=None):
         df['tree'] = df['tree'].apply(html_crop)
     df['path'] = df['path'].apply(link_html)
     df['hash'] = df['hash'].apply(html_crop)
-    df['sources'] = df['sources'].apply(inputs_html)
+    df['sources'] = df['sources'].apply(sources_list_html)
     df['labels'] = df['labels'].apply(dict_html)
     df['producer'] = df['producer'].apply(prod_htm)
     df['updated'] = df['updated'].apply(lambda x: x.strftime("%b %d %H:%M:%S"))
-    pd.set_option('display.max_colwidth', -1)
-
-    return get_tblframe(df, display, classes=classes)
+    with pd.option_context('display.max_colwidth', None):
+        return get_tblframe(df, display, classes=classes)

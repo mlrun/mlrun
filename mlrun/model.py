@@ -88,33 +88,39 @@ class ModelObj:
 
 class BaseMetadata(ModelObj):
     def __init__(self, name=None, tag=None, hash=None, namespace=None,
-                 project=None, labels=None, annotations=None, updated=None):
+                 project=None, labels=None, annotations=None,
+                 categories=None, updated=None):
         self.name = name
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
         self.project = project or config.default_project
         self.labels = labels or {}
+        self.categories = categories or []
         self.annotations = annotations or {}
         self.updated = updated
 
 
 class ImageBuilder(ModelObj):
+    """An Image builder"""
     def __init__(
         self, functionSourceCode=None, source=None, image=None,
-            base_image=None, commands=None, secret=None, registry=None):
-        self.functionSourceCode = functionSourceCode
-        self.codeEntryType = ''
-        self.source = source
-        self.image = image
-        self.base_image = base_image
-        self.commands = commands or []
-        self.secret = secret
-        self.registry = registry
+            base_image=None, commands=None, secret=None,
+            code_origin=None, registry=None):
+        self.functionSourceCode = functionSourceCode  #: functionSourceCode
+        self.codeEntryType = ''  #: codeEntryType
+        self.source = source  #: course
+        self.code_origin = code_origin  #: code_origin
+        self.image = image  #: image
+        self.base_image = base_image  #: base_image
+        self.commands = commands or []  #: commands
+        self.secret = secret  #: secret
+        self.registry = registry  #: registry
         self.build_pod = None
 
 
 class RunMetadata(ModelObj):
+    """Run metadata"""
     def __init__(
         self, uid=None, name=None, project=None, labels=None,
             annotations=None, iteration=None):
@@ -135,6 +141,7 @@ class RunMetadata(ModelObj):
 
 
 class RunSpec(ModelObj):
+    """Run specification"""
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  selector=None, handler=None, inputs=None, outputs=None,
                  input_path=None, output_path=None, function=None,
@@ -205,6 +212,7 @@ class RunSpec(ModelObj):
 
 
 class RunStatus(ModelObj):
+    """Run status"""
     def __init__(self, state=None, error=None, host=None, commit=None,
                  status_text=None, results=None, artifacts=None,
                  start_time=None, last_update=None, iterations=None):
@@ -221,6 +229,7 @@ class RunStatus(ModelObj):
 
 
 class RunTemplate(ModelObj):
+    """Run template"""
     def __init__(self, spec: RunSpec = None,
                  metadata: RunMetadata = None):
         self._spec = None
@@ -265,6 +274,19 @@ class RunTemplate(ModelObj):
         return self
 
     def with_secrets(self, kind, source):
+        """register a secrets source (file, env or dict)
+
+        read secrets from a source provider to be used in workflows, e.g.
+
+        proj.with_secrets('file', 'file.txt')
+        proj.with_secrets('inline', {'key': 'val'})
+        proj.with_secrets('env', 'ENV1,ENV2')
+
+        :param kind:   secret type (file, inline, env)
+        :param source: secret data or link (see example)
+
+        :returns: project object
+        """
         self.spec.secret_sources.append({'kind': kind, 'source': source})
         return self
 
@@ -277,6 +299,7 @@ class RunTemplate(ModelObj):
 
 
 class RunObject(RunTemplate):
+    """A run"""
     def __init__(self, spec: RunSpec = None,
                  metadata: RunMetadata = None,
                  status: RunStatus = None):
@@ -342,7 +365,7 @@ class RunObject(RunTemplate):
             db = get_run_db().connect()
         if not db:
             print('DB is not configured, cannot show logs')
-            return
+            return None
 
         if db.kind == 'http':
             state = db.watch_log(self.metadata.uid,
@@ -356,12 +379,15 @@ class RunObject(RunTemplate):
 
         if state:
             print('final state: {}'.format(state))
+        return state
 
 
 def NewTask(name=None, project=None, handler=None,
             params=None, hyper_params=None, param_file=None, selector=None,
             inputs=None, outputs=None,
-            in_path=None, out_path=None, secrets=None, base=None):
+            in_path=None, out_path=None, artifact_path=None,
+            secrets=None, base=None):
+    """Create new task"""
 
     if base:
         run = deepcopy(base)
@@ -377,6 +403,6 @@ def NewTask(name=None, project=None, handler=None,
     run.spec.inputs = inputs or run.spec.inputs
     run.spec.outputs = outputs or run.spec.outputs or []
     run.spec.input_path = in_path or run.spec.input_path
-    run.spec.output_path = out_path or run.spec.output_path
+    run.spec.output_path = artifact_path or out_path or run.spec.output_path
     run.spec.secret_sources = secrets or run.spec.secret_sources or []
     return run

@@ -14,14 +14,14 @@
 
 from copy import deepcopy
 from datetime import datetime
+import numpy as np
 import uuid
 
-
-from .artifacts import ArtifactManager
+from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger, dict_to_json
+from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str
 
 
 class MLCtxValueError(Exception):
@@ -42,6 +42,7 @@ class MLClientCtx(object):
 
     see doc for the individual params and methods
     """
+    kind = 'run'
 
     def __init__(self, autocommit=False, tmp='', log_stream=None):
         self._uid = ''
@@ -74,15 +75,14 @@ class MLClientCtx(object):
         self._error = None
         self._commit = ''
         self._host = None
-        self._start_time = datetime.now()
-        self._last_update = datetime.now()
+        self._start_time = now_date()
+        self._last_update = now_date()
         self._iteration_results = None
 
     def set_logger_stream(self, stream):
         handlers = self._logger.handlers
         if len(handlers)>0:
             handlers[0].stream = stream
-
 
     def _init_dbs(self, rundb):
         if rundb:
@@ -91,7 +91,7 @@ class MLClientCtx(object):
                 self._rundb.connect(self._secrets_manager)
             else:
                 self._rundb = rundb
-        self._data_stores = StoreManager(self._secrets_manager)
+        self._data_stores = StoreManager(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(
             self._data_stores, db=self._rundb, out_path=self._out_path)
 
@@ -124,7 +124,8 @@ class MLClientCtx(object):
             self._labels = meta.get('labels', self._labels)
         spec = attrs.get('spec')
         if spec:
-            self._secrets_manager = SecretsStore.from_dict(spec)
+            self._secrets_manager = SecretsStore.from_list(
+                spec.get(run_keys.secrets))
             self._log_level = spec.get('log_level', self._log_level)
             self._function = spec.get('function', self._function)
             self._parameters = spec.get('parameters', self._parameters)
@@ -193,12 +194,33 @@ class MLClientCtx(object):
         return deepcopy(self._parameters)
 
     @property
+    def inputs(self):
+        """dictionary of input data items (read-only)"""
+        return self._inputs
+
+    @property
+    def results(self):
+        """dictionary of results (read-only)"""
+        return deepcopy(self._results)
+
+    @property
+    def artifacts(self):
+        """dictionary of artifacts (read-only)"""
+        return deepcopy(self._artifacts_manager.artifact_list())
+
+    @property
     def in_path(self):
         """default input path for data objects"""
         return self._in_path
 
     @property
     def out_path(self):
+        """default output path for artifacts"""
+        logger.info('.out_path will soon be deprecated, use .artifact_path')
+        return self._out_path
+
+    @property
+    def artifact_path(self):
         """default output path for artifacts"""
         return self._out_path
 
@@ -244,7 +266,7 @@ class MLClientCtx(object):
             url = key
         if self.in_path and not (url.startswith('/') or '://' in url):
             url = uxjoin(self._in_path, url)
-        obj = self._data_stores.object(key, url)
+        obj = self._data_stores.object(key, url, project=self._project)
         self._inputs[key] = obj
         return obj
 
@@ -258,7 +280,7 @@ class MLClientCtx(object):
 
     def log_result(self, key: str, value, commit=False):
         """log a scalar result value"""
-        self._results[str(key)] = value
+        self._results[str(key)] = _cast_result(value)
         self._update_db(commit=commit)
 
     def log_results(self, results: dict, commit=False):
@@ -268,7 +290,7 @@ class MLClientCtx(object):
                 '(multiple) results must be in the form of dict')
 
         for p in results.keys():
-            self._results[str(p)] = results[p]
+            self._results[str(p)] = _cast_result(results[p])
         self._update_db(commit=commit)
 
     def log_iteration_results(
@@ -281,6 +303,10 @@ class MLClientCtx(object):
                 self._results[k] = v
             for a in get_in(task, ['status', run_keys.artifacts], []):
                 self._artifacts_manager.artifacts[a['key']] = a
+                self._artifacts_manager.link_artifact(self.project, self.name, self.tag,
+                                                      a['key'], self.iteration,
+                                                      a['target_path'],
+                                                      link_iteration=best)
 
         self._iteration_results = summary
         if commit:
@@ -304,16 +330,34 @@ class MLClientCtx(object):
 
     def log_artifact(self, item, body=None, target_path='', src_path=None,
                      tag='', viewer=None, local_path=None, artifact_path=None,
-                     upload=True, labels=None, **kwargs):
+                     upload=True, labels=None, format=None, db_prefix=None, **kwargs):
         """log an output artifact and optionally upload it"""
+        local_path = src_path or local_path
         self._artifacts_manager.log_artifact(self, item, body=body,
-                                             target_path=target_path,
-                                             src_path=src_path,
                                              local_path=local_path,
                                              artifact_path=artifact_path,
+                                             target_path=target_path,
                                              tag=tag,
                                              viewer=viewer,
                                              upload=upload,
+                                             labels=labels,
+                                             db_prefix=db_prefix,
+                                             format=format)
+        self._update_db()
+
+    def log_dataset(self, key, df, tag='', local_path=None,
+                    artifact_path=None, upload=True, labels=None,
+                    format='', preview=None, stats=False, db_prefix=None, **kwargs):
+        """log a dataset artifact and optionally upload it"""
+
+        ds = DatasetArtifact(key, df, preview=preview,
+                             format=format, stats=stats, **kwargs)
+
+        self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
+                                             artifact_path=artifact_path,
+                                             tag=tag,
+                                             upload=upload,
+                                             db_prefix=db_prefix,
                                              labels=labels)
         self._update_db()
 
@@ -325,7 +369,7 @@ class MLClientCtx(object):
 
     def set_state(self, state: str = None, error: str = None, commit=True):
         """modify and store the run state or mark an error"""
-        updates = {'status.last_update': str(datetime.now())}
+        updates = {'status.last_update': now_date().isoformat()}
 
         if error:
             self._state = 'error'
@@ -356,6 +400,7 @@ class MLClientCtx(object):
                 struct[key] = val
 
         struct = {
+            'kind': 'run',
             'metadata':
                 {'name': self.name,
                  'uid': self._uid,
@@ -374,8 +419,8 @@ class MLClientCtx(object):
             'status':
                 {'state': self._state,
                  'results': self._results,
-                 'start_time': str(self._start_time),
-                 'last_update': str(self._last_update)},
+                 'start_time': to_date_str(self._start_time),
+                 'last_update': to_date_str(self._last_update)},
             }
 
         set_if_valid(struct['status'], 'error', self._error)
@@ -383,8 +428,9 @@ class MLClientCtx(object):
 
         if self._iteration_results:
             struct['status']['iterations'] = self._iteration_results
+        struct['status'][run_keys.artifacts] = \
+            self._artifacts_manager.artifact_list()
         self._data_stores.to_dict(struct['spec'])
-        self._artifacts_manager.to_dict(struct['status'])
         return struct
 
     def to_yaml(self):
@@ -396,7 +442,7 @@ class MLClientCtx(object):
         return dict_to_json(self.to_dict())
 
     def _update_db(self, commit=False, message=''):
-        self.last_update = datetime.now()
+        self.last_update = now_date()
         if self._tmpfile:
             data = self.to_json()
             with open(self._tmpfile, 'w') as fp:
@@ -408,3 +454,20 @@ class MLClientCtx(object):
             if self._rundb:
                 self._rundb.store_run(
                     self.to_dict(), self._uid, self.project, iter=self._iteration)
+
+
+def _cast_result(value):
+    if isinstance(value, (int, str, float)):
+        return value
+    if isinstance(value, list):
+        return [_cast_result(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _cast_result(v) for k, v in value.items()}
+    if isinstance(value, (np.int64, np.integer)):
+        return int(value)
+    if isinstance(value, (np.floating, np.float64)):
+        return float(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return str(value)
+

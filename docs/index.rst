@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to mlrun's documentation!
-=================================
+mlrun Package Documentation
+============================
 
 .. toctree::
    :maxdepth: 4
@@ -14,7 +14,7 @@ Welcome to mlrun's documentation!
    mlrun
 
 
-Indices and tables
+Indices and Tables
 ==================
 
 * :ref:`genindex`

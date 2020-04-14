@@ -1,5 +1,21 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import pandas as pd
+
+from .config import config
 from .utils import get_in, flatten
 from .render import runs_to_html, artifacts_to_html
 
@@ -8,10 +24,11 @@ class RunList(list):
 
     def to_rows(self):
         rows = []
-        head = ['uid', 'iter', 'start', 'state', 'name', 'labels',
+        head = ['project', 'uid', 'iter', 'start', 'state', 'name', 'labels',
                 'inputs', 'parameters', 'results', 'artifacts', 'error']
         for run in self:
             row = [
+                get_in(run, 'metadata.project', config.default_project),
                 get_in(run, 'metadata.uid', ''),
                 get_in(run, 'metadata.iteration', ''),
                 get_in(run, 'status.start_time', ''),
@@ -30,7 +47,7 @@ class RunList(list):
 
     def to_df(self, flat=False):
         rows = self.to_rows()
-        df = pd.DataFrame(rows[1:], columns=rows[0]) #.set_index('iter')
+        df = pd.DataFrame(rows[1:], columns=rows[0])  # .set_index('iter')
         df['start'] = pd.to_datetime(df['start'])
 
         if flat:
@@ -65,7 +82,7 @@ class ArtifactList(list):
     def to_df(self, flat=False):
         rows = self.to_rows()
         df = pd.DataFrame(rows[1:], columns=rows[0])
-        df['updated'] = pd.to_datetime(df['updated'], unit='s')
+        df['updated'] = pd.to_datetime(df['updated'])
 
         if flat:
             df = flatten(df, 'producer', 'prod_')

@@ -12,23 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import re
-from datetime import datetime
+import pathlib
+from datetime import datetime, timezone
 from os import path
 from sys import stdout
-import yaml
-import json
+
 import numpy as np
+import yaml
+from yaml.representer import RepresenterError
+
 from .config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
-
+hub_prefix = 'hub://'
 
 def create_logger(stream=None):
     level = logging.INFO
-    if config.log_level == 'debug':
+    if config.log_level.lower() == 'debug':
         level = logging.DEBUG
     handler = logging.StreamHandler(stream or stdout)
     handler.setFormatter(
@@ -68,6 +72,16 @@ class run_keys:
     outputs = 'outputs'
     data_stores = 'data_stores'
     secrets = 'secret_sources'
+
+
+def now_date():
+    return datetime.now(timezone.utc)
+
+
+def to_date_str(d):
+    if d:
+        return d.isoformat()
+    return ''
 
 
 def normalize_name(name):
@@ -159,7 +173,7 @@ def match_labels(labels, conditions):
             l, val = splitter('=', condition)
             match = match and val == l
         else:
-            match = match and (labels.get(condition.strip(), '') != '')
+            match = match and (condition.strip() in labels)
     return match
 
 
@@ -203,9 +217,33 @@ def dict_to_list(struct: dict):
     return ['{}={}'.format(k, v) for k, v in struct.items()]
 
 
+def numpy_representer_seq(dumper, data):
+    return dumper.represent_list(data.tolist())
+
+
+def float_representer(dumper, data):
+    return dumper.represent_float(data)
+
+
+def int_representer(dumper, data):
+    return dumper.represent_int(data)
+
+
+yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.ndarray, numpy_representer_seq, Dumper=yaml.SafeDumper)
+
+
 def dict_to_yaml(struct):
-    return yaml.dump(struct, default_flow_style=False,
-                     sort_keys=False)
+    try:
+        data = yaml.safe_dump(struct, default_flow_style=False,
+                              sort_keys=False)
+    except RepresenterError as e:
+        raise ValueError('error: data result cannot be serialized to YAML'
+                         ', {} '.format(e))
+    return data
 
 
 # solve numpy json serialization
@@ -213,10 +251,12 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
-        elif isinstance(obj, np.floating):
+        elif isinstance(obj, np.floating) or isinstance(obj, np.float64):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, pathlib.PosixPath):
+            return str(obj)
         else:
             return super(MyEncoder, self).default(obj)
 
@@ -248,6 +288,18 @@ def parse_function_uri(uri):
         tag = uri[loc+1:]
         uri = uri[:loc]
     return project, uri, tag
+
+
+def extend_hub_uri(uri):
+    if not uri.startswith(hub_prefix):
+        return uri
+    name = uri[len(hub_prefix):]
+    tag = 'master'
+    if ':' in name:
+        loc = name.find(':')
+        tag = name[loc+1:]
+        name = name[:loc]
+    return config.hub_url.format(name=name, tag=tag)
 
 
 def gen_md_table(header, rows=None):
@@ -288,3 +340,28 @@ def gen_html_table(header, rows=None):
     for r in rows:
         out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
     return style + '<table class="tg">\n' + out + '</table>\n\n'
+
+
+def new_pipe_meta(artifact_path=None, *args):
+    from kfp.dsl import PipelineConf
+
+    def _set_artifact_path(task):
+        from kubernetes import client as k8s_client
+        task.add_env_variable(k8s_client.V1EnvVar(
+            name='MLRUN_ARTIFACT_PATH', value=artifact_path))
+        return task
+
+    conf = PipelineConf()
+    if artifact_path:
+        conf.add_op_transformer(_set_artifact_path)
+    for op in args:
+        if op:
+            conf.add_op_transformer(op)
+    return conf
+
+
+def tag_image(base: str):
+    if config.version and (base == 'mlrun/mlrun' or (
+            base.startswith('mlrun/ml-') and ':' not in base)):
+        base += ':' + config.version
+    return base

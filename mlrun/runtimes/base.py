@@ -14,18 +14,17 @@
 
 import uuid
 from ast import literal_eval
-from datetime import datetime
 import getpass
 from copy import deepcopy
-from os import environ
+from os import environ, path
 
 from ..datastore import StoreManager
 from ..kfpops import write_kfpmeta, mlrun_op
-from ..db import get_run_db, default_dbpath
+from ..db import get_run_db, get_or_set_dburl, RunDBError
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
-from ..utils import get_in, update_in, logger, is_ipython
+from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image, dict_to_yaml, dict_to_json
 from .utils import calc_hash, RunError, results_to_iter
 from ..execution import MLClientCtx
 from ..lists import RunList
@@ -41,23 +40,27 @@ class FunctionStatus(ModelObj):
 
 
 class EntrypointParam(ModelObj):
-    def __init__(self, type=None, default=None, help=None):
+    def __init__(self, name='', type=None, default=None, doc=''):
+        self.name = name
         self.type = type
         self.default = default
-        self.help = help
+        self.doc = doc
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, doc=None, parameters=None, outputs=None):
+    def __init__(
+            self, name='', doc='', parameters=None, outputs=None, lineno=-1):
+        self.name = name
         self.doc = doc
-        # TODO: type verification, EntrypointParam dict
-        self.parameters = parameters or {}
-        self.outputs = outputs or {}
+        self.parameters = [] if parameters is None else parameters
+        self.outputs = [] if outputs is None else outputs
+        self.lineno = lineno
 
 
 class FunctionSpec(ModelObj):
     def __init__(self, command=None, args=None, image=None, mode=None,
-                 build=None, entry_points=None, description=None):
+                 build=None, entry_points=None, description=None,
+                 workdir=None, default_handler=None, pythonpath=None):
 
         self.command = command or ''
         self.image = image or ''
@@ -65,9 +68,12 @@ class FunctionSpec(ModelObj):
         self.args = args or []
         self.rundb = None
         self.description = description or ''
+        self.workdir = workdir
+        self.pythonpath = pythonpath
 
         self._build = None
         self.build = build
+        self.default_handler = default_handler
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
 
@@ -100,6 +106,7 @@ class BaseRuntime(ModelObj):
         self._status = None
         self.status = None
         self._is_api_server = False
+        self.verbose = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
@@ -141,6 +148,12 @@ class BaseRuntime(ModelObj):
     def is_deployed(self):
         return True
 
+    def _is_remote_api(self):
+        db = self._get_db()
+        if db and db.kind == 'http':
+            return True
+        return False
+
     def _use_remote_api(self):
         if self._is_remote and not self.kfp and not self._is_api_server \
                 and self._get_db() and self._get_db().kind == 'http':
@@ -153,24 +166,29 @@ class BaseRuntime(ModelObj):
 
     def _get_db(self):
         if not self._db_conn:
-            self.spec.rundb = self.spec.rundb or default_dbpath()
+            self.spec.rundb = self.spec.rundb or get_or_set_dburl()
             if self.spec.rundb:
-                self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
+                self._db_conn = get_run_db(self.spec.rundb).connect(
+                        self._secrets)
         return self._db_conn
 
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
-            out_path: str = '', watch: bool = True):
+            out_path: str = '', workdir: str = '', artifact_path: str = '',
+            watch: bool = True, schedule: str = ''):
         """Run a local or remote task.
 
-        :param runspec:    run template object or dict (see RunTemplate)
-        :param handler:    pointer or name of a function handler
-        :param name:       execution name
-        :param project:    project name
-        :param params:     input parameters (dict)
-        :param inputs:     input objects (dict of key: path)
-        :param out_path:   default artifact output path
-        :param watch:      watch/follow run log
+        :param runspec:       run template object or dict (see RunTemplate)
+        :param handler:       pointer or name of a function handler
+        :param name:          execution name
+        :param project:       project name
+        :param params:        input parameters (dict)
+        :param inputs:        input objects (dict of key: path)
+        :param out_path:      default artifact output path
+        :param artifact_path: default artifact output path (will replace out_path)
+        :param workdir:       default input artifacts path
+        :param watch:         watch/follow run log
+        :param schedule:      cron string for scheduled jobs
 
         :return: run context object (dict) with run metadata, results and
             status
@@ -180,22 +198,32 @@ class BaseRuntime(ModelObj):
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
                 runspec = literal_eval(runspec)
+            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
+                raise ValueError('task/runspec is not a valid task object,'
+                                 ' type={}'.format(type(runspec)))
 
         if isinstance(runspec, RunTemplate):
             runspec = RunObject.from_template(runspec)
         if isinstance(runspec, dict) or runspec is None:
             runspec = RunObject.from_dict(runspec)
 
-        runspec.spec.handler = handler or runspec.spec.handler or ''
+        runspec.spec.handler = handler or runspec.spec.handler or \
+                               self.spec.default_handler or ''
         if runspec.spec.handler and self.kind not in ['handler', 'dask']:
             runspec.spec.handler = runspec.spec.handler_name
 
-        runspec.metadata.name = name or runspec.metadata.name or \
-            runspec.spec.handler_name or self.metadata.name
-        runspec.metadata.project = project or runspec.metadata.project
+        def_name = self.metadata.name
+        if runspec.spec.handler_name:
+            def_name += '-' + runspec.spec.handler_name
+        runspec.metadata.name = name or runspec.metadata.name or def_name
+        runspec.metadata.project = project or runspec.metadata.project \
+                                   or self.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
-        runspec.spec.output_path = out_path or runspec.spec.output_path
+        runspec.spec.output_path = out_path or artifact_path \
+                                   or runspec.spec.output_path
+        runspec.spec.input_path = workdir or runspec.spec.input_path \
+                                  or self.spec.workdir
 
         spec = runspec.spec
         if self.spec.mode and self.spec.mode == 'noctx':
@@ -204,24 +232,41 @@ class BaseRuntime(ModelObj):
                 self.spec.args += ['--{}'.format(k), str(v)]
 
         if spec.secret_sources:
-            self._secrets = SecretsStore.from_dict(spec.to_dict())
+            self._secrets = SecretsStore.from_list(spec.secret_sources)
 
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                '{{run.uid}}', meta.uid)
+        elif config.artifact_path:
+            runspec.spec.output_path = path.join(config.artifact_path, meta.uid)
+        if is_local(runspec.spec.output_path):
+            logger.warning('artifact path is not defined or is local,'
+                           ' artifacts will not be visible in the UI')
         db = self._get_db()
 
         if not self.is_deployed:
-            raise RunError("function image is not built/ready, use .build() method first")
+            raise RunError(
+                "function image is not built/ready, use .build() method first")
 
-        if not self.is_child and self.kind != 'handler':
+        if self.verbose:
+            logger.info('runspec:\n{}'.format(runspec.to_yaml()))
+
+        if 'V3IO_USERNAME' in environ and 'v3io_user' not in meta.labels:
+            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
+
+        if not self.is_child:
             dbstr = 'self' if self._is_api_server else self.spec.rundb
             logger.info('starting run {} uid={}  -> {}'.format(
                 meta.name, meta.uid, dbstr))
             meta.labels['kind'] = self.kind
-            meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
-            hashkey = calc_hash(self)
-            if db:
+            if 'owner' not in meta.labels:
+                meta.labels['owner'] = environ.get(
+                        'V3IO_USERNAME', getpass.getuser())
+            if db and self.kind != 'handler':
+                hashkey = calc_hash(self)
                 struct = self.to_dict()
                 update_in(struct, 'metadata.tag', '')
                 db.store_function(struct, self.metadata.name,
@@ -233,7 +278,11 @@ class BaseRuntime(ModelObj):
             if self._secrets:
                 runspec.spec.secret_sources = self._secrets.to_serial()
             try:
-                resp = db.submit_job(runspec)
+                resp = db.submit_job(runspec, schedule=schedule)
+                if schedule:
+                    logger.info('task scheduled, {}'.format(resp))
+                    return
+
                 if resp:
                     txt = get_in(resp, 'status.status_text')
                     if txt:
@@ -242,12 +291,15 @@ class BaseRuntime(ModelObj):
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:
+                logger.error('got remote run err, {}'.format(err))
                 result = self._post_run(task=runspec, err=err)
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
-            logger.warning('warning!, Api url not set, trying to exec remote runtime locally')
+            logger.warning(
+                'warning!, Api url not set, '
+                'trying to exec remote runtime locally')
 
         execution = MLClientCtx.from_dict(runspec.to_dict(),
                                           db, autocommit=False)
@@ -270,8 +322,9 @@ class BaseRuntime(ModelObj):
             try:
                 resp = self._run(runspec, execution)
                 if watch and self.kind not in ['', 'handler', 'local']:
-                    runspec.logs(True, self._get_db())
-                    resp = self._get_db_run(runspec)
+                    state = runspec.logs(True, self._get_db())
+                    if state != 'succeeded':
+                        logger.warning('run ended with state {}'.format(state))
                 result = self._post_run(resp, task=runspec)
             except RunError as err:
                 last_err = err
@@ -319,7 +372,10 @@ class BaseRuntime(ModelObj):
             project = task.metadata.project
             uid = task.metadata.uid
             iter = task.metadata.iteration
-            return self._get_db().read_run(uid, project, iter=iter)
+            try:
+                return self._get_db().read_run(uid, project, iter=iter)
+            except RunDBError:
+                return None
         if task:
             return task.to_dict()
 
@@ -332,11 +388,14 @@ class BaseRuntime(ModelObj):
         code = self.spec.build.functionSourceCode \
             if hasattr(self.spec, 'build') else None
 
+        if (code or runobj.spec.handler) and self.spec.mode == 'pass':
+            raise ValueError('cannot use "pass" mode with code or handler')
+
         if code:
             extra_env['MLRUN_EXEC_CODE'] = code
 
         if with_mlrun:
-            args = ['run', '--name', self.metadata.name, '--from-env']
+            args = ['run', '--name', runobj.metadata.name, '--from-env']
             if not code:
                 args += [command]
             command = 'mlrun'
@@ -354,12 +413,12 @@ class BaseRuntime(ModelObj):
         results = RunList()
         for task in tasks:
             try:
-                #self.store_run(task)
+                # self.store_run(task)
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
             except RunError as err:
                 task.status.state = 'error'
-                task.status.error = err
+                task.status.error = str(err)
                 resp = self._post_run(task=task, err=err)
             results.append(resp)
         return results
@@ -378,12 +437,17 @@ class BaseRuntime(ModelObj):
             iter = get_in(rundict, 'metadata.iteration', 0)
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
-    def _post_run(self, resp: dict = None, task: RunObject = None, err=None) -> dict:
+    def _post_run(
+            self, resp: dict = None, task: RunObject = None, err=None) -> dict:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
             was_none = True
             resp = self._get_db_run(task)
+
+            if not resp:
+                self.store_run(task)
+                return task.to_dict()
 
             if task.status.status_text:
                 update_in(resp, 'status.status_text', task.status.status_text)
@@ -397,7 +461,7 @@ class BaseRuntime(ModelObj):
         updates = None
         last_state = get_in(resp, 'status.state', '')
         if last_state == 'error' or err:
-            updates = {'status.last_update': str(datetime.now())}
+            updates = {'status.last_update': now_date().isoformat()}
             updates['status.state'] = 'error'
             update_in(resp, 'status.state', 'error')
             if err:
@@ -406,7 +470,7 @@ class BaseRuntime(ModelObj):
             if err:
                 updates['status.error'] = str(err)
         elif not was_none and last_state != 'completed':
-            updates = {'status.last_update': str(datetime.now())}
+            updates = {'status.last_update': now_date().isoformat()}
             updates['status.state'] = 'completed'
             update_in(resp, 'status.state', 'completed')
 
@@ -423,8 +487,10 @@ class BaseRuntime(ModelObj):
             raise RunError(
                 'handler must be provided for {} runtime'.format(self.kind))
 
-    def full_image_path(self):
-        image = self.spec.image
+    def full_image_path(self, image=None):
+        image = image or self.spec.image or ''
+
+        image = tag_image(image)
         if not image.startswith('.'):
             return image
         if 'DEFAULT_DOCKER_REGISTRY' in environ:
@@ -441,7 +507,7 @@ class BaseRuntime(ModelObj):
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = ''):
+                in_path: str = '', out_path: str = '', image: str = '', use_db=False):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -453,46 +519,54 @@ class BaseRuntime(ModelObj):
         :param selector:   selection criteria for hyper params
         :param inputs:     input objects (dict of key: path)
         :param outputs:    list of outputs which can pass in the workflow
+        :param image:      container image to use
 
         :return: KubeFlow containerOp
         """
 
-        # expand local registry path, TODO: copy self to avoid modify the fn?
-        self.spec.image = self.full_image_path()
+        if self.spec.image and not image:
+            image = self.full_image_path()
 
-        return mlrun_op(name, project, self,
+        if use_db:
+            hashkey = self.save(versioned=False)
+            url = 'db://' + self._function_uri(tag=hashkey)
+        else:
+            url = None
+
+        return mlrun_op(name, project, function=self, func_url=url,
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
-                        inputs=inputs, outputs=outputs,
+                        inputs=inputs, outputs=outputs, job_image=image,
                         out_path=out_path, in_path=in_path)
 
-    def export(self, target='', format='.yaml', secrets=None):
+    def export(self, target='', format='.yaml', secrets=None, strip=True):
         """save function spec to a local/remote path (default to
         ./function.yaml)"""
         if self.kind == 'handler':
             raise ValueError('cannot export local handler function, use ' +
                              'code_to_function() to serialize your function')
         calc_hash(self)
+        struct = self.to_dict(strip=strip)
         if format == '.yaml':
-            data = self.to_yaml()
+            data = dict_to_yaml(struct)
         else:
-            data = self.to_json()
+            data = dict_to_json(struct)
         stores = StoreManager(secrets)
         target = target or 'function.yaml'
         datastore, subpath = stores.get_or_create_store(target)
         datastore.put(subpath, data)
         logger.info('function spec saved to path: {}'.format(target))
+        return self
 
-    def save(self, tag='', versioned=True):
+    def save(self, tag='', versioned=False):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
-            return
+            return ''
 
         tag = tag or self.metadata.tag or 'latest'
-        self.metadata.tag = tag
+        hashkey = calc_hash(self, tag=tag)
         obj = self.to_dict()
-        hashkey = calc_hash(self)
         logger.info('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))
@@ -501,3 +575,31 @@ class BaseRuntime(ModelObj):
                               self.metadata.project, hashkey)
         db.store_function(obj, self.metadata.name,
                           self.metadata.project, tag)
+        return hashkey
+
+    def to_dict(self, fields=None, exclude=None, strip=False):
+        struct = super().to_dict(fields, exclude=exclude)
+        if strip:
+            if 'status' in struct:
+                del struct['status']
+        return struct
+
+    def doc(self):
+        print('function:', self.metadata.name)
+        print(self.spec.description)
+        if self.spec.default_handler:
+            print('default handler:', self.spec.default_handler)
+        if self.spec.entry_points:
+            print('entry points:')
+            for name, entry in self.spec.entry_points.items():
+                print('  {}: {}'.format(name, entry.get('doc', '')))
+                params = entry.get('parameters')
+                if params:
+                    for p in params:
+                        print('    {}'.format(p))
+
+
+def is_local(url):
+    if not url:
+        return True
+    return '://' not in url and not url.startswith('/')

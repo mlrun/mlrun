@@ -7,7 +7,7 @@ one you can view at https://mlrun.readthedocs.io
 ## Technology
 
 We use [sphinx](https://www.sphinx-doc.org/en/master/) for documentation.
-The documentation files are in  
+The documentation files are in
 [reStructuredText](https://docutils.sourceforge.io/rst.html) format.
 The master document is `docs/index.rst` and the configuration is at
 `docs/conf.py`.

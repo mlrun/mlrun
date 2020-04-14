@@ -14,6 +14,11 @@ The master document is `docs/index.rst` and the configuration is at
 
 To build the doc, run `make html-docs`, then open `docs/_build/html/index.html`
 
+## "External" Documentation
+In order to avoid duplication, the `setup` function in `docs/conf.py` copies
+over some markdown files into `docs/external/`. It also generates HTML from a
+notebook in the `examples` directory which is embedded in `docs/examples.rst`.
+
 ## readthedocs
 There's a git hook in `readthedocs` that builds the documentation.
 See https://readthedocs.org/projects/mlrun/ for more details.

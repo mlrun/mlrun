@@ -43,7 +43,8 @@ mlrun.run module
 ```
 
 When the object is import in `__init__.py` from a sub module, you'll need to
-tell sphinx a bit more one how to document it. For example:
+tell sphinx a bit more one how to document it and *must* add the object to
+`__all__`. For example:
 
 ```rst
 mlrun.projects module

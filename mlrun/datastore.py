@@ -16,6 +16,7 @@ from base64 import b64encode
 from copy import deepcopy
 from os import path, environ, makedirs, listdir, stat
 from shutil import copyfile
+from tempfile import mktemp
 from urllib.parse import urlparse
 import urllib3
 
@@ -46,6 +47,33 @@ class FileStats:
 def get_object_stat(url, secrets=None):
     stores = StoreManager(secrets)
     return stores.object(url=url).stat()
+
+
+def get_model_file(model_dir, suffix='', stores=None, model_dir_list=None):
+    model_file = ''
+    suffix = suffix or '.pkl'
+    dirmeta = None
+    stores = stores or StoreManager()
+    if model_dir.endswith(suffix):
+        model_file = model_dir
+    else:
+        dirobj = stores.object(model_dir)
+        model_dir_list = model_dir_list or dirobj.listdir()
+        for file in model_dir_list:
+            if file.endswith(suffix):
+                model_file = path.join(model_dir, file)
+                dirmeta = dirobj.meta
+                break
+    if not model_file:
+        raise ValueError('cant resolve model file for {} suffix{}'.format(
+            model_dir, suffix))
+    obj = stores.object(model_file)
+    if obj.kind == 'file':
+        return model_file, obj.meta or dirmeta, model_dir_list
+
+    tmp = mktemp(suffix)
+    obj.download(tmp)
+    return tmp, obj.meta or dirmeta, model_dir_list
 
 
 def parseurl(url):

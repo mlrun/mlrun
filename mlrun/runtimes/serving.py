@@ -21,7 +21,7 @@ from typing import Dict
 from urllib.request import urlopen
 from datetime import datetime
 
-from ..datastore import StoreManager
+from ..datastore import StoreManager, get_model_file
 from ..platforms.iguazio import OutputStream
 
 
@@ -32,30 +32,15 @@ class MLModelServer:
         self.ready = False
         self.model_dir = model_dir
         self._stores = StoreManager()
+        self._model_dir_list = None
         if model:
             self.model = model
             self.ready = True
 
     def get_model_file(self, suffix=''):
-        model_file = ''
-        suffix = suffix or '.pkl'
-        if self.model_dir.endswith(suffix):
-            model_file = self.model_dir
-        else:
-            for file in self._stores.object(self.model_dir).listdir():
-                if file.endswith(suffix):
-                    model_file = os.path.join(self.model_dir, file)
-                    break
-        if not model_file:
-            raise ValueError('cant resolve model file for {} suffix{}'.format(
-                self.model_dir, suffix))
-        obj = self._stores.object(model_file)
-        if obj.kind == 'file':
-            return model_file, obj.meta
-
-        tmp = mktemp(suffix)
-        obj.download(tmp)
-        return tmp, obj.meta
+        name, meta, self._model_dir_list = get_model_file(
+            self.model_dir, suffix, self._stores, self._model_dir_list)
+        return name, meta
 
     def load(self):
         if not self.ready and not self.model:

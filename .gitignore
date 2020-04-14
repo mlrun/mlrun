@@ -1,6 +1,7 @@
 *.pyc
 .aws-secrets
 .ipynb_checkpoints
+.vscode/
 Dockerfile.mlrun-test-nb
 build
 chart
@@ -10,9 +11,10 @@ dask-worker-space/
 dataset.csv
 dist
 docs/_build
+docs/external/*.html
+docs/external/*.md
 iteration_results.csv
 mlrun.egg-info/
 model.txt
 result*.html
 tests/test_results/
-.vscode/

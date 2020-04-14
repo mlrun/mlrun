@@ -14,6 +14,8 @@
 import re
 import sys
 from os import path
+from subprocess import check_call
+
 
 sys.path.insert(0, '..')
 
@@ -51,10 +53,11 @@ release = current_version()
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.todo',
     'numpydoc',
+    'recommonmark',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.todo',
+    'sphinx.ext.viewcode',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -71,6 +74,11 @@ language = 'en'
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+source_suffix = {
+    '.md': 'markdown',
+    '.rst': 'restructuredtext',
+}
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -97,3 +105,28 @@ html_static_path = ['_static']
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
+
+
+def copy_doc(src, dest, title=''):
+    """Copy over .md documentation from other parts of the project"""
+    with open(dest, 'w') as out:
+        with open(src) as fp:
+            changed = False
+            for line in fp:
+                if title and re.match('^# .*', line) and not changed:
+                    line = f'# {title}'
+                    changed = True
+                out.write(line)
+
+
+def setup(app):
+    project_root = path.dirname(path.dirname(path.abspath(__file__)))
+    copy_doc(
+        f'{project_root}/README.md', 'external/general.md', 'Introduction')
+    copy_doc(
+        f'{project_root}/hack/local/README.md', 'external/install.md')
+    check_call([
+        'jupyter', 'nbconvert',
+        '--output', f'{project_root}/docs/external/basics.html',
+        f'{project_root}/examples/mlrun_basics.ipynb',
+    ])

@@ -61,4 +61,5 @@ circleci:
 
 .PHONY: html-docs
 html-docs:
+	rm -f docs/external/*.md
 	cd docs && make html

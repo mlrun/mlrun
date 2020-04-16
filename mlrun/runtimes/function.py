@@ -246,12 +246,12 @@ class RemoteRuntime(KubeResource):
         self.spec.command = 'http://{}'.format(addr)
         return self.spec.command
 
-    def deploy_step(self, dashboard='', project='', models=None):
+    def deploy_step(self, dashboard='', project='', models=None, env=None):
         models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         project = project or self.metadata.project
         return deploy_op(name, self, dashboard=dashboard,
-                         project=project, models=models)
+                         project=project, models=models, env=env)
 
     def _raise_mlrun(self):
         if self.spec.function_kind != 'mlrun':

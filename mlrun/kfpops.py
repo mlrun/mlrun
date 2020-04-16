@@ -345,7 +345,8 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
 
 
 def deploy_op(name, function, source='', dashboard='',
-              project='', models: dict = None, tag='', verbose=False):
+              project='', models: dict = None, env: dict = None,
+              tag='', verbose=False):
     from kfp import dsl
 
     models = {} if models is None else models
@@ -359,7 +360,9 @@ def deploy_op(name, function, source='', dashboard='',
         cmd += ['-p', project]
     for m, val in models.items():
         cmd += ['-m', '{}={}'.format(m, val)]
-
+    if env:
+        for key, val in env.items():
+            cmd += ['--env', '{}={}'.format(key, val)]
     cop = dsl.ContainerOp(
         name=name,
         image=config.kfp_image,

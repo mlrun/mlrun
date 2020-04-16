@@ -53,6 +53,7 @@ def new_model_server(name, model_class: str, models: dict = None, filename='',
 class NuclioSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  entry_points=None, description=None, replicas=None,
+                 min_replicas=None, max_replicas=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
                  config=None, base_spec=None, no_cache=None,
                  source=None, image_pull_policy=None, function_kind=None,
@@ -80,7 +81,9 @@ class NuclioSpec(KubeResourceSpec):
         self.config = config or {}
         self.function_handler = ''
         self.no_cache = no_cache
-
+        self.replicas = replicas
+        self.min_replicas = min_replicas or 0
+        self.max_replicas = max_replicas or 16
 
     @property
     def volumes(self) -> list:
@@ -201,6 +204,14 @@ class RemoteRuntime(KubeResource):
 
     def deploy(self, dashboard='', project='', tag='', kind=None):
 
+        def get_fullname(config, name, project, tag):
+            if project:
+                name = '{}_{}'.format(project, name)
+            if tag:
+                name = '{}_{}'.format(name, tag)
+            update_in(config, 'metadata.name', name)
+            return name
+
         self.set_config('metadata.labels.mlrun/class', self.kind)
         env_dict = {get_item_name(v): get_item_name(v, 'value')
                     for v in self.spec.env}
@@ -210,6 +221,12 @@ class RemoteRuntime(KubeResource):
         handler = self.spec.function_handler
         if self.spec.no_cache:
             spec.set_config('spec.build.noCache', True)
+        if self.spec.replicas:
+            spec.set_config('spec.minReplicas', self.spec.replicas)
+            spec.set_config('spec.maxReplicas', self.spec.replicas)
+        else:
+            spec.set_config('spec.minReplicas', self.spec.min_replicas)
+            spec.set_config('spec.maxReplicas', self.spec.max_replicas)
 
         if self.spec.base_spec:
             if kind:
@@ -223,8 +240,9 @@ class RemoteRuntime(KubeResource):
                 update_in(config, 'spec.build.baseImage', tag_image(base_image))
 
             logger.info('deploy started')
+            name = get_fullname(config, self.metadata.name, project, tag)
             addr = nuclio.deploy.deploy_config(
-                config, dashboard, name=self.metadata.name,
+                config, dashboard, name=name,
                 project=project, tag=tag, verbose=self.verbose,
                 create_new=True)
         else:
@@ -239,6 +257,7 @@ class RemoteRuntime(KubeResource):
                                                    verbose=self.verbose)
 
             update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
+            name = get_fullname(config, name, project, tag)
             addr = deploy_config(
                 config, dashboard_url=dashboard, name=name, project=project,
                 tag=tag, verbose=self.verbose, create_new=True)

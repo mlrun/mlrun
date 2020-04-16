@@ -138,7 +138,7 @@ class HTTPHandler:
     kind = ''
 
     def __init__(self, models: Dict, server: _ServerInfo = None):
-        self.models = models 
+        self.models = models
         self.srvinfo = server
         self.context = None
         self._sample_iter = 0

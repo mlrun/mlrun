@@ -31,11 +31,16 @@ class MLModelServer:
         self.name = name
         self.ready = False
         self.model_dir = model_dir
+        self._params = {}
+        self.metrics = {}
         self._stores = StoreManager()
         self._model_dir_list = None
         if model:
             self.model = model
             self.ready = True
+
+    def get_param(self, key: str, default=None):
+        return self._params.get(key, default)
 
     def get_model_file(self, suffix=''):
         name, meta, self._model_dir_list = get_model_file(
@@ -61,15 +66,22 @@ class MLModelServer:
 
 def nuclio_serving_init(context, data):
     model_prefix = 'SERVING_MODEL_'
+    params_prefix = 'SERVING_PARAMS'
 
     # Initialize models from environment variables
     # Using the {model_prefix}_{model_name} = {model_path} syntax
     model_paths = {k[len(model_prefix):]: v for k, v in os.environ.items() if
                    k.startswith(model_prefix)}
-    model_class = os.environ.get('MODEL_CLASS', 'MLModel')
+    model_class = os.environ.get('MODEL_CLASS', 'MLModelServer')
     fhandler = data[model_class]
     models = {name: fhandler(name=name, model_dir=path) for name, path in
               model_paths.items()}
+
+    common_params = os.environ.get(params_prefix)
+    for name, model in models.items():
+        params = os.environ.get(params_prefix + '_' + name, common_params)
+        if params:
+            setattr(model, '_params', json.loads(params))
 
     # Verify that models are loaded
     assert len(
@@ -78,7 +90,7 @@ def nuclio_serving_init(context, data):
 
     # Initialize route handlers
     hostname = socket.gethostname()
-    server_context = _ServerContext(context, hostname)
+    server_context = _ServerInfo(context, hostname)
     predictor = PredictHandler(models).with_context(server_context)
     explainer = ExplainHandler(models).with_context(server_context)
     router = {
@@ -109,23 +121,33 @@ def nuclio_serving_handler(context, event):
     return route(context, model_name, event)
 
 
-class _ServerContext:
+class _ServerInfo:
     def __init__(self, context, hostname):
         self.context = context
+        self.worker = context.worker_id
         self.hostname = hostname
         self.output_stream = None
         out_stream = os.environ.get('INFERENCE_STREAM', '')
+        self.stream_sample = int(os.environ.get('INFERENCE_STREAM_SAMPLE', '1'))
+        self.stream_batch = int(os.environ.get('INFERENCE_STREAM_BATCH', '1'))
         if out_stream:
             self.output_stream = OutputStream(out_stream)
 
 
 class HTTPHandler:
-    def __init__(self, models: Dict, context: _ServerContext = None):
-        self.models = models # pylint:disable=attribute-defined-outside-init
-        self.srv_context = context
+    kind = ''
 
-    def with_context(self, context: _ServerContext):
-        self.srv_context = context
+    def __init__(self, models: Dict, server: _ServerInfo = None):
+        self.models = models 
+        self.srvinfo = server
+        self.context = None
+        self._sample_iter = 0
+        self._batch_iter = 0
+        self._batch = []
+
+    def with_context(self, server: _ServerInfo):
+        self.srvinfo = server
+        self.context = server.context
         return self
 
     def get_model(self, name: str):
@@ -138,7 +160,7 @@ class HTTPHandler:
         model = self.models[name]
         if not model.ready:
             model.load()
-        setattr(model, 'context', self.srv_context.context)
+        setattr(model, 'context', self.srvinfo.context)
         return model
 
     def parse_event(self, event):
@@ -178,8 +200,32 @@ class HTTPHandler:
 
         return request
 
+    def push_to_stream(self, start, request, resp, model):
+        self._sample_iter = self._sample_iter % self.srvinfo.stream_sample
+        if self.srvinfo.output_stream and self._sample_iter == 0:
+            data = {'kind': self.kind,
+                    'worker': self.srvinfo.worker,
+                    'request': request, 'resp': resp,
+                    'model': model.name,
+                    'host': self.srvinfo.hostname,
+                    'when': str(start),
+                    'microsec': (datetime.now() - start).microseconds}
+            if getattr(model, 'metrics', None) or self.srvinfo.stream_batch > 1:
+                data['metrics'] = model.metrics
+
+            if self.srvinfo.stream_batch > 1:
+                if self._batch_iter == 0:
+                    self._batch = [data.keys()]
+                self._batch.append(data.values())
+                self._batch_iter = self._batch_iter % self.srvinfo.stream_batch
+
+            if self._batch_iter == 0:
+                self.srvinfo.output_stream.push(data)
+
 
 class PredictHandler(HTTPHandler):
+    kind = 'predict'
+
     def post(self, context, name: str, event):
         model = self.get_model(name)
         context.logger.debug('event: {}'.format(type(event.body)))
@@ -189,15 +235,7 @@ class PredictHandler(HTTPHandler):
         request = self.validate(request)
         response = model.predict(request)
         response = model.postprocess(response)
-        if self.srv_context.output_stream:
-            data = {'kind': 'predict',
-                    'request': request, 'resp': response,
-                    'model': model.name,
-                    'host': self.srv_context.hostname,
-                    'when': str(start),
-                    'microsec': (datetime.now() - start).microseconds}
-
-            self.srv_context.output_stream.push(data)
+        self.push_to_stream(start, request, response, model)
 
         return context.Response(body=json.dumps(response),
                                 content_type='application/json',
@@ -205,6 +243,8 @@ class PredictHandler(HTTPHandler):
 
 
 class ExplainHandler(HTTPHandler):
+    kind = 'explain'
+
     def post(self, context, name: str, event):
         model = self.get_model(name)
         try:
@@ -219,15 +259,7 @@ class ExplainHandler(HTTPHandler):
         request = self.validate(request)
         response = model.explain(request)
         response = model.postprocess(response)
-        if self.srv_context.output_stream:
-            data = {'kind': 'explain',
-                    'request': request, 'resp': response,
-                    'model': model.name,
-                    'host': self.srv_context.hostname,
-                    'when': str(start),
-                    'microsec': (datetime.now() - start).microseconds}
-
-            self.srv_context.output_stream.push(data)
+        self.push_to_stream(start, request, response, model)
 
         return context.Response(body=json.dumps(response),
                                 content_type='application/json',

@@ -257,6 +257,8 @@ class MyEncoder(json.JSONEncoder):
             return obj.tolist()
         elif isinstance(obj, pathlib.PosixPath):
             return str(obj)
+        elif np.isnan(obj) or np.isinf(obj):
+            return str(obj)
         else:
             return super(MyEncoder, self).default(obj)
 

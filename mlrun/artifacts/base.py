@@ -98,7 +98,6 @@ class Artifact(ModelObj):
         self.size = os.stat(src).st_size
 
 
-
 class LinkArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
     kind = 'link'

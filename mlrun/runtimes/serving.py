@@ -90,7 +90,7 @@ def nuclio_serving_init(context, data):
 
     # Initialize route handlers
     hostname = socket.gethostname()
-    server_context = _ServerInfo(context, hostname)
+    server_context = _ServerInfo(context, hostname, model_class)
     predictor = PredictHandler(models).with_context(server_context)
     explainer = ExplainHandler(models).with_context(server_context)
     router = {
@@ -122,9 +122,10 @@ def nuclio_serving_handler(context, event):
 
 
 class _ServerInfo:
-    def __init__(self, context, hostname):
+    def __init__(self, context, hostname, model_class):
         self.context = context
         self.worker = context.worker_id
+        self.model_class = model_class
         self.hostname = hostname
         self.output_stream = None
         out_stream = os.environ.get('INFERENCE_STREAM', '')
@@ -203,7 +204,8 @@ class HTTPHandler:
     def push_to_stream(self, start, request, resp, model):
         self._sample_iter = self._sample_iter % self.srvinfo.stream_sample
         if self.srvinfo.output_stream and self._sample_iter == 0:
-            data = {'kind': self.kind,
+            data = {'op': self.kind,
+                    'class': self.srvinfo.model_class,
                     'worker': self.srvinfo.worker,
                     'request': request, 'resp': resp,
                     'model': model.name,

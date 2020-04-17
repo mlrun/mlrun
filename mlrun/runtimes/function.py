@@ -206,9 +206,9 @@ class RemoteRuntime(KubeResource):
 
         def get_fullname(config, name, project, tag):
             if project:
-                name = '{}_{}'.format(project, name)
+                name = '{}-{}'.format(project, name)
             if tag:
-                name = '{}_{}'.format(name, tag)
+                name = '{}-{}'.format(name, tag)
             update_in(config, 'metadata.name', name)
             return name
 

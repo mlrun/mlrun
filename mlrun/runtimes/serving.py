@@ -221,8 +221,10 @@ class HTTPHandler:
                 self._batch.append(data.values())
                 self._batch_iter = self._batch_iter % self.srvinfo.stream_batch
 
-            if self._batch_iter == 0:
-                self.srvinfo.output_stream.push(data)
+                if self._batch_iter == 0:
+                    self.srvinfo.output_stream.push(data)
+            else:
+                self.srvinfo.output_stream.push([data])
 
 
 class PredictHandler(HTTPHandler):

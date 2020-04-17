@@ -31,6 +31,7 @@ from ..lists import RunList
 from ..model import RunObject
 
 serving_handler = 'handler'
+default_max_replicas = 4
 
 
 def new_model_server(name, model_class: str, models: dict = None, filename='',
@@ -83,7 +84,7 @@ class NuclioSpec(KubeResourceSpec):
         self.no_cache = no_cache
         self.replicas = replicas
         self.min_replicas = min_replicas or 0
-        self.max_replicas = max_replicas or 16
+        self.max_replicas = max_replicas or default_max_replicas
 
     @property
     def volumes(self) -> list:

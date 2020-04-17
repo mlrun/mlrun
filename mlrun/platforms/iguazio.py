@@ -169,6 +169,8 @@ class OutputStream:
         response.raise_for_status([409, 204])
 
     def push(self, data):
+        if not isinstance(data, list):
+            data = [data]
         records = [{'data': json.dumps(rec)} for rec in data]
         response = self._v3io_client.put_records(container=self._container,
                                                  path=self._stream_path,

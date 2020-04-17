@@ -333,17 +333,18 @@ class MLClientCtx(object):
                      upload=True, labels=None, format=None, db_prefix=None, **kwargs):
         """log an output artifact and optionally upload it"""
         local_path = src_path or local_path
-        self._artifacts_manager.log_artifact(self, item, body=body,
-                                             local_path=local_path,
-                                             artifact_path=artifact_path,
-                                             target_path=target_path,
-                                             tag=tag,
-                                             viewer=viewer,
-                                             upload=upload,
-                                             labels=labels,
-                                             db_prefix=db_prefix,
-                                             format=format)
+        item = self._artifacts_manager.log_artifact(self, item, body=body,
+                                                    local_path=local_path,
+                                                    artifact_path=artifact_path,
+                                                    target_path=target_path,
+                                                    tag=tag,
+                                                    viewer=viewer,
+                                                    upload=upload,
+                                                    labels=labels,
+                                                    db_prefix=db_prefix,
+                                                    format=format)
         self._update_db()
+        return item
 
     def log_dataset(self, key, df, tag='', local_path=None,
                     artifact_path=None, upload=True, labels=None,
@@ -353,13 +354,14 @@ class MLClientCtx(object):
         ds = DatasetArtifact(key, df, preview=preview,
                              format=format, stats=stats, **kwargs)
 
-        self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
-                                             artifact_path=artifact_path,
-                                             tag=tag,
-                                             upload=upload,
-                                             db_prefix=db_prefix,
-                                             labels=labels)
+        item = self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
+                                                    artifact_path=artifact_path,
+                                                    tag=tag,
+                                                    upload=upload,
+                                                    db_prefix=db_prefix,
+                                                    labels=labels)
         self._update_db()
+        return item
 
     def commit(self, message: str = ''):
         """save run state and add a commit message"""

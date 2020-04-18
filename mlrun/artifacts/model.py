@@ -16,17 +16,18 @@ from .base import Artifact
 
 
 class ModelArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['framework', 'algo', 'metrics',
+    _dict_fields = Artifact._dict_fields + ['framework', 'algo', 'metrics', 'parameters',
                                             'inputs', 'outputs', 'extra_data']
     kind = 'model'
 
     def __init__(self, key=None, body=None, format=None, framework=None,
-                 algo=None, metrics=None, target_path=None, inputs=None,
-                 outputs=None, extra_data=None):
+                 algo=None, metrics=None, target_path=None, parameters=None,
+                 inputs=None, outputs=None, extra_data=None):
 
         super().__init__(key, body, format=format, target_path=target_path)
         self.framework = framework
         self.algo = algo
+        self.parameters = parameters or {}
         self.metrics = metrics or {}
         self.inputs = inputs or []
         self.outputs = outputs or []

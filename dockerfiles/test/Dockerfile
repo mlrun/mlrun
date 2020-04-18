@@ -13,19 +13,27 @@
 # limitations under the License.
 
 FROM python:3.6-slim
-RUN apt-get update && apt-get install -y gcc git-core
+RUN apt-get update && apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    g++ \
+    gnupg2 \
+    make \
+    git-core \
+    software-properties-common
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+RUN apt update && apt-get install -y docker-ce-cli
 RUN python -m pip install --upgrade --no-cache pip
 WORKDIR /mlrun
+
+# deprecate
 COPY *requirements.txt ./
-RUN python -m pip install \
-    -r dask-requirements.txt \
+
+COPY ../../requirements.txt ./
+RUN pip install \
+    -r dev-requirements.txt \
     -r httpd-requirements.txt \
     -r requirements.txt
-COPY . .
-ENV MLRUN_httpdb__dirpath=/mlrun/db
-ENV MLRUN_httpdb__port=8080
-VOLUME /mlrun/db
-CMD gunicorn \
-    --bind=0.0.0.0:$MLRUN_httpdb__port \
-    --worker-class gevent \
-    mlrun.db.httpd:app
+COPY ../../. .

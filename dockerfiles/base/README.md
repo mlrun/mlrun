@@ -2,7 +2,7 @@
 
 base image for file acquisition, compression, and other simple utilities
 
-currently Python 3.8.2
+currently Python 3.8.x
 
 `mlrun 0.4.6`
 `pyarrow 0.16`

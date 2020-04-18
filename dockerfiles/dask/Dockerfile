@@ -15,9 +15,10 @@
 FROM python:3.6
 WORKDIR /mlrun
 
-COPY requirements.txt ./
 COPY dask-requirements.txt ./
+
+COPY ../../requirements.txt ./
 RUN python -m pip install -r requirements.txt -r dask-requirements.txt
 
-COPY . .
+COPY ../../. .
 RUN python setup.py install

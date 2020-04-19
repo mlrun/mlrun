@@ -282,8 +282,11 @@ def build(func_url, name, project, tag, image, source, base_image, command,
                 fp.write(state or 'none')
             full_image = func.full_image_path(image) or ''
             with open('/tmp/image', 'w') as fp:
+                fp.write(image)
+            with open('/tmp/fullimage', 'w') as fp:
                 fp.write(full_image)
-            print('function built, state={} image={}'.format(state, full_image))
+            print('function built, state={} image={}'.format(state, image))
+            print('full image path = ', full_image)
     else:
         print('function does not have a deploy() method')
         exit(1)

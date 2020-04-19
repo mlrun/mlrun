@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import hashlib
+import json
 import os
 from copy import deepcopy
 from sys import stderr
@@ -55,7 +56,7 @@ def calc_hash(func, tag=''):
     func.status = None
     func.metadata.updated = None
 
-    data = func.to_json().encode()
+    data = json.dumps(func.to_dict(), sort_keys=True).encode()
     h = hashlib.sha1()
     h.update(data)
     hashkey = h.hexdigest()
@@ -216,8 +217,14 @@ def apply_kfp(modify, cop, runtime):
     for k, v in cop.pod_annotations.items():
         runtime.metadata.annotations[k] = v
     if cop.container.env:
-        [runtime.spec.env.append(e)
-         for e in api.sanitize_for_serialization(cop.container.env)]
+        env_names = [e['name'] for e in runtime.spec.env]
+        for e in api.sanitize_for_serialization(cop.container.env):
+            name = e['name']
+            if name in env_names:
+                runtime.spec.env[env_names.index(name)] = e
+            else:
+                runtime.spec.env.append(e)
+                env_names.append(name)
         cop.container.env.clear()
 
     if cop.volumes and cop.container.volume_mounts:

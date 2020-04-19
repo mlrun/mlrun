@@ -340,7 +340,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
             name='MLRUN_EXEC_CODE', value=code_env))
     if registry:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name='DEFAULT_DOCKER_REGISTRY', value=code_env))
+            name='DEFAULT_DOCKER_REGISTRY', value=registry))
     return cop
 
 

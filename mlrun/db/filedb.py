@@ -267,7 +267,7 @@ class FileRunDB(RunDBInterface):
         for func, fullname in self._load_list(filepath, mask):
             if match_labels(get_in(func, 'metadata.labels', {}), labels):
                 name, _ = path.splitext(path.basename(fullname))
-                if len(name) > 20:
+                if len(name) > 20:  # hash vs tags
                     name = ''
                 update_in(func, 'metadata.tag', name)
                 results.append(func)

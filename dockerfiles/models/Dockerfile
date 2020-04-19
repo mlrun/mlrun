@@ -112,7 +112,7 @@ RUN mkdir /repos && \
     # git checkout tags/v1.0.2 && \
     mkdir build && \
     cd build && \
-    cmake .. -DUSE_MPI=ON && \
+    cmake .. && \
     make -j$(nproc) && \
     make install && \
     cd ../python-package && \
@@ -123,7 +123,7 @@ RUN cd /repos && \
     cd LightGBM && \
     git checkout v${LGBM_VER} && \
     mkdir build && cd build && \
-    cmake .. -DUSE_MPI=1 && \
+    cmake -DUSE_MPI=1 .. && \
     make -j$(nproc) && \
     make install && \
     cd ../python-package && \

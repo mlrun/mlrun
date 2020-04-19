@@ -117,18 +117,23 @@ RUN conda config --add channels pytorch && \
         pandas \
         pyarrow \
         pytest \
-        pytorch \
-        torchvision \
         scikit-build \
         scikit-learn \
         scikit-optimize \
         scipy \
         seaborn \
-        tensorflow \
+        tensorflow-gpu \
         wrapt
 
 RUN conda install -n base -c rapidsai -c nvidia \
     -c anaconda -c conda-forge -c defaults rapids=0.12
+
+RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
+
+RUN ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
+    HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
+        python -m pip install --no-cache-dir horovod && \
+    ldconfig
 
 RUN conda clean -afqy
 
@@ -142,28 +147,28 @@ RUN python -m pip install --no-cache-dir \
         urllib3==1.24.3 \
         yellowbrick
 
-# xgboost
-RUN mkdir /repos && \
-    cd repos && \
-    git clone --recursive https://github.com/dmlc/xgboost && \
-    cd xgboost && \
-#    git fetch --all --tags --prune && \
-#    git checkout tags/v1.0.2 && \
-    mkdir build && \
-    cd build && \
-    cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON && \
-    make -j$(nproc) && \
-    make install && \
-    cd ../python-package && \
-    python -m pip install --no-cache-dir -e .
+# # deprecate in favour of rapidsai xgboost
+# RUN mkdir /repos && \
+#     cd repos && \
+#     git clone --recursive https://github.com/dmlc/xgboost && \
+#     cd xgboost && \
+# #    git fetch --all --tags --prune && \
+# #    git checkout tags/v1.0.2 && \
+#     mkdir build && \
+#     cd build && \
+#     cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON && \
+#     make -j$(nproc) && \
+#     make install && \
+#     cd ../python-package && \
+#     python -m pip install --no-cache-dir -e .
 
 # lightgbm
-# RUN cd /repos && \
+# RUN mkdir /repos && cd /repos && \
 #     git clone --recursive https://github.com/microsoft/LightGBM && \
 #     cd LightGBM && \
 #     git checkout v2.3.1 && \
 #     mkdir build && cd build && \
-#     cmake .. -DUSE_GPU=1 -DOpenCL_LIBRARY=/usr/local/cuda-10.1/lib64/libOpenCL.so -DOpenCL_INCLUDE_DIR=/usr/local/cuda-10.1/include/ && \
+#     cmake -DUSE_GPU=1 -DOpenCL_LIBRARY=/usr/local/cuda-10.1/lib64/libOpenCL.so -DOpenCL_INCLUDE_DIR=/usr/local/cuda-10.1/include/ .. && \
 #     make -j$(nproc) && \
 #     make install && \
 #     cd ../python-package && \

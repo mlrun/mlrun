@@ -46,13 +46,14 @@ run-httpd:
 .PHONY: docker-db
 docker-httpd:
 	docker build \
-	    -f Dockerfile.httpd \
-	    --tag mlrun/mlrun-httpd \
-	    .
+	    -f dockerfiles/httpd/Dockerfile \
+	    -t mlrun/mlrun-httpd .
 
 .PHONY: circleci
 circleci:
-	docker build -f Dockerfile.test -t mlrun/test .
+	docker build \
+		-f dockerfiles/test/Dockerfile \
+		-t mlrun/test .
 	-docker network create mlrun
 	docker run \
 	    -v /var/run/docker.sock:/var/run/docker.sock \

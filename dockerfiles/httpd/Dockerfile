@@ -11,20 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM python:3.6-slim
+ARG PYTHON_VER=3.6
+
+FROM python:${PYTHON_VER}-slim
+
+LABEL maintainer="yaronh@iguazio.com"
+LABEL org="iguazio.com"
+
+ENV PYTHON_VER=${PYTHON_VER}
+
 RUN apt-get update && apt-get install -y gcc git-core
+
 RUN python -m pip install --upgrade --no-cache pip
+
 WORKDIR /mlrun
 
-# deprecate:
-COPY *requirements.txt ./
+COPY ./dockerfiles/*requirements.txt ./
 
-COPY ../../requirements.txt ./
+COPY ./requirements.txt ./
+
 RUN python -m pip install \
     -r dask-requirements.txt \
     -r httpd-requirements.txt \
     -r requirements.txt
-COPY ../../. .
+
+COPY . .
+
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
 VOLUME /mlrun/db

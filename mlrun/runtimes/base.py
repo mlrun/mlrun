@@ -530,7 +530,7 @@ class BaseRuntime(ModelObj):
             image = self.full_image_path()
 
         if use_db:
-            hashkey = self.save(versioned=True)
+            hashkey = self.save(versioned=True, refresh=True)
             url = 'db://' + self._function_uri(tag=hashkey)
         else:
             url = None
@@ -560,7 +560,7 @@ class BaseRuntime(ModelObj):
         logger.info('function spec saved to path: {}'.format(target))
         return self
 
-    def save(self, tag='', versioned=False):
+    def save(self, tag='', versioned=False, refresh=False):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
@@ -568,6 +568,16 @@ class BaseRuntime(ModelObj):
 
         tag = tag or self.metadata.tag
         hashkey = calc_hash(self, tag=tag)
+
+        if refresh and self._is_remote_api():
+            try:
+                meta = self.metadata
+                db_func = db.get_function(meta.name, meta.project, meta.tag)
+                if db_func and 'status' in db_func:
+                    self.status = db_func['status']
+            except Exception:
+                pass
+
         obj = self.to_dict()
         logger.debug('saving function: {}, tag: {}'.format(
             self.metadata.name, tag

@@ -213,8 +213,6 @@ class HTTPHandler:
 
     def push_to_stream(self, start, request, resp, model):
         self._sample_iter = (self._sample_iter + 1) % self.srvinfo.stream_sample
-        print('stream debug:', self.srvinfo.stream_batch, self._batch_iter, self._sample_iter)
-
         if self.srvinfo.output_stream and self._sample_iter == 0:
             data = {'op': self.kind,
                     'class': self.srvinfo.model_class,
@@ -234,11 +232,9 @@ class HTTPHandler:
                 self._batch_iter = (self._batch_iter + 1) % self.srvinfo.stream_batch
 
                 if self._batch_iter == 0:
-                    self.srvinfo.output_stream.push(self._batch)
-                print(str(self._batch))
+                    self.srvinfo.output_stream.push([self._batch])
             else:
                 self.srvinfo.output_stream.push([data])
-                print('data:', str(data))
 
 
 class PredictHandler(HTTPHandler):

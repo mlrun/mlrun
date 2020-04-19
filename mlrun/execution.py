@@ -387,6 +387,7 @@ class MLClientCtx(object):
         """save run state and add a commit message"""
         if message:
             self._annotations['message'] = message
+        self._last_update = now_date()
         self._update_db(commit=True, message=message)
 
     def set_state(self, state: str = None, error: str = None, commit=True):
@@ -401,6 +402,7 @@ class MLClientCtx(object):
         elif state and state != self._state and self._state != 'error':
             self._state = state
             updates['status.state'] = state
+        self._last_update = now_date()
 
         if self._rundb and commit:
             self._rundb.update_run(updates, self._uid,

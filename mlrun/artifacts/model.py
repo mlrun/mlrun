@@ -27,13 +27,11 @@ class ModelArtifact(Artifact):
                                             'inputs', 'outputs', 'extra_data']
     kind = 'model'
 
-    def __init__(self, key=None, body=None, format=None, framework=None, model_file=None,
-                 algo=None, metrics=None, target_path=None, parameters=None,
+    def __init__(self, key=None, body=None, format=None, model_file=None,
+                 metrics=None, target_path=None, parameters=None,
                  inputs=None, outputs=None, extra_data=None):
 
         super().__init__(key, body, format=format, target_path=target_path)
-        self.framework = framework
-        self.algo = algo
         self.model_file = model_file
         self.parameters = parameters or {}
         self.metrics = metrics or {}

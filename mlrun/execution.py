@@ -365,13 +365,13 @@ class MLClientCtx(object):
         return item
 
     def log_model(self, key, body, tag='', model_dir=None, model_file=None,
-                  artifact_path=None, upload=True, labels=None,
-                  framework=None, algo=None, metrics=None, parameters=None,
-                  inputs=None, outputs=None, extra_data=None, db_prefix=None):
+                  metrics=None, parameters=None, artifact_path=None,
+                  upload=True, labels=None, inputs=None, outputs=None,
+                  extra_data=None, db_prefix=None):
         """log a model artifact and optionally upload it"""
 
-        model = ModelArtifact(key, body, model_file=model_file, framework=framework,
-                              algo=algo, metrics=metrics, parameters=parameters,
+        model = ModelArtifact(key, body, model_file=model_file,
+                              metrics=metrics, parameters=parameters,
                               inputs=inputs, outputs=outputs, extra_data=extra_data)
 
         item = self._artifacts_manager.log_artifact(self, model, local_path=model_dir,

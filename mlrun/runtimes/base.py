@@ -566,25 +566,30 @@ class BaseRuntime(ModelObj):
             logger.error('database connection is not configured')
             return ''
 
-        tag = tag or self.metadata.tag
-        hashkey = calc_hash(self, tag=tag)
-
         if refresh and self._is_remote_api():
             try:
                 meta = self.metadata
                 db_func = db.get_function(meta.name, meta.project, meta.tag)
                 if db_func and 'status' in db_func:
                     self.status = db_func['status']
+                    if self.status.state and self.status.state == 'ready':
+                        self.spec.image = get_in(db_func, 'spec.image', self.spec.image)
             except Exception:
                 pass
+
+        tag = tag or self.metadata.tag
+        hashkey = calc_hash(self, tag=tag)
 
         obj = self.to_dict()
         logger.debug('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))
         if versioned:
+            status = self.status
+            self.status = None
             db.store_function(obj, self.metadata.name,
                               self.metadata.project, hashkey)
+            self.status = status
         db.store_function(obj, self.metadata.name,
                           self.metadata.project, tag)
         return hashkey

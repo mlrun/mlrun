@@ -221,7 +221,6 @@ class HTTPHandler:
                     'model': model.name,
                     'host': self.srvinfo.hostname,
                     'when': str(start),
-                    'sinfo': [self.srvinfo.stream_batch, self._batch_iter],
                     'microsec': (datetime.now() - start).microseconds}
             if getattr(model, 'metrics', None) or self.srvinfo.stream_batch > 1:
                 data['metrics'] = model.metrics
@@ -230,10 +229,10 @@ class HTTPHandler:
                 if self._batch_iter == 0:
                     self._batch = [data.keys()]
                 self._batch.append(data.values())
-                self._batch_iter = self._batch_iter % self.srvinfo.stream_batch
+                self._batch_iter = (self._batch_iter + 1) % self.srvinfo.stream_batch
 
                 if self._batch_iter == 0:
-                    self.srvinfo.output_stream.push(data)
+                    self.srvinfo.output_stream.push(self._batch)
             else:
                 self.srvinfo.output_stream.push([data])
 

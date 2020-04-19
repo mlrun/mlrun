@@ -601,9 +601,9 @@ class BaseRuntime(ModelObj):
                         line = p['name']
                         if 'type' in p:
                             line += '({})'.format(p['type'])
-                        line += ' - ' + p.get('doc', '')
+                        line += '  - ' + p.get('doc', '')
                         if 'default' in p:
-                            line += ', default=' + p['default']
+                            line += ', default={}'.format(p['default'])
                         print('    ' + line)
 
 

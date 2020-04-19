@@ -52,8 +52,7 @@ class Artifact(ModelObj):
         self.license = ''
 
     def before_log(self):
-        if not self.target_path.endswith('/'):
-            self.target_path += '/'
+        pass
 
     @property
     def inline(self):
@@ -108,6 +107,10 @@ class DirArtifact(Artifact):
         'key', 'kind', 'iter', 'tree', 'src_path', 'target_path',
         'description', 'db_key']
     kind = 'dir'
+
+    def before_log(self):
+        if not self.target_path.endswith('/'):
+            self.target_path += '/'
 
     def upload(self, data_stores):
         if not self.src_path:

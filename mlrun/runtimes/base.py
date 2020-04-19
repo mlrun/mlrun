@@ -528,7 +528,7 @@ class BaseRuntime(ModelObj):
             image = self.full_image_path()
 
         if use_db:
-            hashkey = self.save(versioned=False)
+            hashkey = self.save(versioned=True)
             url = 'db://' + self._function_uri(tag=hashkey)
         else:
             url = None

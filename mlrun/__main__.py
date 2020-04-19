@@ -351,7 +351,7 @@ def watch(pod, namespace, timeout):
 @click.option('--selector', '-s', default='', help='label selector')
 @click.option('--namespace', '-n', help='kubernetes namespace')
 @click.option('--uid', help='unique ID')
-@click.option('--project', help='project name')
+@click.option('--project', '-p', help='project name')
 @click.option('--tag', '-t', default='', help='artifact/function tag')
 @click.option('--db', help='db path/url')
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)

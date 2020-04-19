@@ -356,6 +356,10 @@ def deploy_op(name, function, source='', dashboard='',
         cmd += ['-s', source]
     if dashboard:
         cmd += ['-d', dashboard]
+    if tag:
+        cmd += ['--tag', tag]
+    if verbose:
+        cmd += ['--verbose']
     if project:
         cmd += ['-p', project]
     for m, val in models.items():

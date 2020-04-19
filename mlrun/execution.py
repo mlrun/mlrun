@@ -147,6 +147,9 @@ class MLClientCtx(object):
         if host:
             self.set_label('host', host)
 
+        start = get_in(attrs, 'status.start_time')
+        if start:
+            self._start_time = start
         self._state = 'running'
         self._update_db(commit=True)
         return self

@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ARG CUDA_VER=10.1
+
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
 LABEL maintainer="yashab@iguazio.com"
@@ -96,8 +98,7 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
-RUN conda config --add channels pytorch && \
-    conda config --add channels conda-forge && \
+RUN conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
     conda update -n base conda && \
     conda install -n base \
@@ -130,12 +131,10 @@ RUN conda install -n base -c rapidsai -c nvidia \
 
 RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
-RUN ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
+RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
         python -m pip install --no-cache-dir horovod && \
     ldconfig
-
-RUN conda clean -afqy
 
 RUN python -m pip install --no-cache-dir \
         face_recognition \
@@ -147,35 +146,8 @@ RUN python -m pip install --no-cache-dir \
         urllib3==1.24.3 \
         yellowbrick
 
-# # deprecate in favour of rapidsai xgboost
-# RUN mkdir /repos && \
-#     cd repos && \
-#     git clone --recursive https://github.com/dmlc/xgboost && \
-#     cd xgboost && \
-# #    git fetch --all --tags --prune && \
-# #    git checkout tags/v1.0.2 && \
-#     mkdir build && \
-#     cd build && \
-#     cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON && \
-#     make -j$(nproc) && \
-#     make install && \
-#     cd ../python-package && \
-#     python -m pip install --no-cache-dir -e .
-
-# lightgbm
-# RUN mkdir /repos && cd /repos && \
-#     git clone --recursive https://github.com/microsoft/LightGBM && \
-#     cd LightGBM && \
-#     git checkout v2.3.1 && \
-#     mkdir build && cd build && \
-#     cmake -DUSE_GPU=1 -DOpenCL_LIBRARY=/usr/local/cuda-10.1/lib64/libOpenCL.so -DOpenCL_INCLUDE_DIR=/usr/local/cuda-10.1/include/ .. && \
-#     make -j$(nproc) && \
-#     make install && \
-#     cd ../python-package && \
-#     python -m pip install --no-cache-dir -e .
+RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
 RUN conda clean -aqy
 
-RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
-
-RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}    
+RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}

@@ -18,7 +18,7 @@ FROM python:${PYTHON_VER}
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
-ENV PYTHON_VER=${PYTHON_VER}
+ENV PYTHON_VER=$PYTHON_VER
 
 WORKDIR /mlrun
 

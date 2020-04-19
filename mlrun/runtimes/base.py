@@ -501,13 +501,10 @@ class BaseRuntime(ModelObj):
                 environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
         raise RunError('local container registry is not defined')
 
-    def to_step(self, **kw):
-        raise ValueError('.to_step() is deprecated, us .as_step() instead')
-
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = '', image: str = '', use_db=False):
+                workdir: str = '', artifact_path: str = '', image: str = '', use_db=True):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -519,7 +516,10 @@ class BaseRuntime(ModelObj):
         :param selector:   selection criteria for hyper params
         :param inputs:     input objects (dict of key: path)
         :param outputs:    list of outputs which can pass in the workflow
+        :param artifact_path: default artifact output path (replace out_path)
+        :param workdir:    default input artifacts path
         :param image:      container image to use
+        :param use_db      save function spec in the db (vs the workflow file)
 
         :return: KubeFlow containerOp
         """
@@ -537,7 +537,7 @@ class BaseRuntime(ModelObj):
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,
-                        out_path=out_path, in_path=in_path)
+                        out_path=artifact_path, in_path=workdir)
 
     def export(self, target='', format='.yaml', secrets=None, strip=True):
         """save function spec to a local/remote path (default to

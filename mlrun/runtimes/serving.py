@@ -15,13 +15,14 @@
 import json
 import os
 import socket
+from copy import deepcopy
 from io import BytesIO
-from tempfile import mktemp
 from typing import Dict
 from urllib.request import urlopen
 from datetime import datetime
 
-from ..datastore import StoreManager, get_model_file
+from ..artifacts import get_model, ModelArtifact
+from ..datastore import StoreManager
 from ..platforms.iguazio import OutputStream
 
 
@@ -31,10 +32,10 @@ class MLModelServer:
         self.name = name
         self.ready = False
         self.model_dir = model_dir
+        self.model_spec: ModelArtifact = None
         self._params = {}
         self.metrics = {}
         self._stores = StoreManager()
-        self._model_dir_list = None
         if model:
             self.model = model
             self.ready = True
@@ -42,10 +43,13 @@ class MLModelServer:
     def get_param(self, key: str, default=None):
         return self._params.get(key, default)
 
-    def get_model_file(self, suffix=''):
-        name, meta, self._model_dir_list = get_model_file(
-            self.model_dir, suffix, self._stores, self._model_dir_list)
-        return name, meta
+    def get_model(self, suffix=''):
+        model_file, self.model_spec, extra_dataitems = get_model(
+            self.model_dir, suffix, self._stores)
+        if self.model_spec and self.model_spec.parameters:
+            for key, value in self.model_spec.parameters.items():
+                self._params[key] = value
+        return model_file, extra_dataitems
 
     def load(self):
         if not self.ready and not self.model:
@@ -77,11 +81,16 @@ def nuclio_serving_init(context, data):
     models = {name: fhandler(name=name, model_dir=path) for name, path in
               model_paths.items()}
 
-    common_params = os.environ.get(params_prefix)
+    params = os.environ.get(params_prefix)
+    if params:
+        params = json.loads(params)
+
     for name, model in models.items():
-        params = os.environ.get(params_prefix + '_' + name, common_params)
         if params:
-            setattr(model, '_params', json.loads(params))
+            setattr(model, '_params', deepcopy(params))
+        if not model.ready:
+            model.load()
+            model.ready = True
 
     # Verify that models are loaded
     assert len(
@@ -161,6 +170,7 @@ class HTTPHandler:
         model = self.models[name]
         if not model.ready:
             model.load()
+            model.ready = True
         setattr(model, 'context', self.srvinfo.context)
         return model
 

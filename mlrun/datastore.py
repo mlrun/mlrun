@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mimetypes
+
 from base64 import b64encode
 from copy import deepcopy
 from os import path, environ, makedirs, listdir, stat
 from shutil import copyfile
-from tempfile import mktemp
 from urllib.parse import urlparse
 import urllib3
 
@@ -47,33 +46,6 @@ class FileStats:
 def get_object_stat(url, secrets=None):
     stores = StoreManager(secrets)
     return stores.object(url=url).stat()
-
-
-def get_model_file(model_dir, suffix='', stores=None, model_dir_list=None):
-    model_file = ''
-    suffix = suffix or '.pkl'
-    dirmeta = None
-    stores = stores or StoreManager()
-    if model_dir.endswith(suffix):
-        model_file = model_dir
-    else:
-        dirobj = stores.object(model_dir)
-        model_dir_list = model_dir_list or dirobj.listdir()
-        for file in model_dir_list:
-            if file.endswith(suffix):
-                model_file = path.join(model_dir, file)
-                dirmeta = dirobj.meta
-                break
-    if not model_file:
-        raise ValueError('cant resolve model file for {} suffix{}'.format(
-            model_dir, suffix))
-    obj = stores.object(model_file)
-    if obj.kind == 'file':
-        return model_file, obj.meta or dirmeta, model_dir_list
-
-    tmp = mktemp(suffix)
-    obj.download(tmp)
-    return tmp, obj.meta or dirmeta, model_dir_list
 
 
 def parseurl(url):
@@ -135,21 +107,24 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
+    def get_store_artifact(self, url, project=''):
+        schema, endpoint, p = parseurl(url)
+        if not p.path:
+            raise ValueError('store url without a path {}'.format(url))
+        project = endpoint or project or config.default_project
+        tag = p.fragment if p.fragment else ''
+        try:
+            meta = self._get_db().read_artifact(p.path[1:], tag=tag,
+                                                project=project)
+        except Exception as e:
+            raise OSError('artifact {} not found, {}'.format(url, e))
+        return meta, meta.get('target_path', '')
+
     def object(self, key='', url='', project=''):
         meta = artifact_url = None
         if url.startswith(DB_SCHEMA + '://'):
-            schema, endpoint, p = parseurl(url)
-            if not p.path:
-                raise ValueError('store url without a path {}'.format(url))
-            project = endpoint or project or config.default_project
-            tag = p.fragment if p.fragment else ''
-            try:
-                meta = self._get_db().read_artifact(p.path[1:], tag=tag,
-                                                    project=project)
-            except Exception as e:
-                raise OSError('artifact {} not found, {}'.format(url, e))
             artifact_url = url
-            url = meta.get('target_path', '')
+            meta, url = self.get_store_artifact(url, project)
 
         store, subpath = self.get_or_create_store(url)
         return DataItem(key, store, subpath, url,

@@ -22,7 +22,7 @@ from .base import Artifact
 class PlotArtifact(Artifact):
     kind = 'plot'
 
-    def _post_init(self):
+    def before_log(self):
         self.viewer = 'chart'
         import matplotlib
         if not self._body or not isinstance(

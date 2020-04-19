@@ -15,6 +15,7 @@
 import os
 import hashlib
 from ..model import ModelObj
+from ..datastore import StoreManager
 
 calc_hash = True
 
@@ -29,6 +30,7 @@ class Artifact(ModelObj):
     def __init__(self, key=None, body=None, viewer=None, is_inline=False,
                  format=None, size=None, target_path=None):
         self.key = key
+        self.project = ''
         self.db_key = None
         self.size = size
         self.iter = None
@@ -48,9 +50,8 @@ class Artifact(ModelObj):
         self.hash = None
         self._inline = is_inline
         self.license = ''
-        self._post_init()
 
-    def _post_init(self):
+    def before_log(self):
         pass
 
     @property
@@ -74,23 +75,24 @@ class Artifact(ModelObj):
             self._dict_fields + [
                 'updated', 'labels', 'annotations', 'producer', 'sources'])
 
-    def upload(self, data_stores):
+    def upload(self, data_stores: StoreManager):
         src_path = self.src_path
-        store, ipath = data_stores.get_or_create_store(self.target_path)
         body = self.get_body()
         if body:
-            if calc_hash:
-                self.hash = blob_hash(body)
-            self.size = len(body)
-            store.put(ipath, body)
+            self._upload_body(body, data_stores)
         else:
             if src_path and os.path.isfile(src_path):
                 self._upload_file(src_path, data_stores)
 
-    def _upload_file(self, src, data_stores):
-        store, ipath = data_stores.get_or_create_store(self.target_path)
+    def _upload_body(self, body, data_stores: StoreManager, target=None):
+        if calc_hash:
+            self.hash = blob_hash(body)
+        self.size = len(body)
+        data_stores.object('', target or self.target_path).put(body)
+
+    def _upload_file(self, src, data_stores: StoreManager, target=None):
         self._set_meta(src)
-        store.upload(ipath, src)
+        data_stores.object('', target or self.target_path).upload(src)
 
     def _set_meta(self, src):
         if calc_hash:

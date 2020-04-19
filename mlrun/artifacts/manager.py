@@ -116,12 +116,14 @@ class ArtifactManager:
         item.labels = labels or item.labels
         item.producer = producer.get_meta()
         item.iter = producer.iteration
+        item.project = producer.project
 
         if db_prefix is None and producer.kind == 'run':
             db_prefix = producer.name + '_'
         db_key = db_prefix + key if db_prefix else key
         item.db_key = db_key
 
+        item.before_log()
         self.artifacts[key] = item
 
         if upload:

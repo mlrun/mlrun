@@ -598,7 +598,13 @@ class BaseRuntime(ModelObj):
                 params = entry.get('parameters')
                 if params:
                     for p in params:
-                        print('    {}'.format(p))
+                        line = p['name']
+                        if 'type' in p:
+                            line += '({})'.format(p['type'])
+                        line += ' - ' + p.get('doc', '')
+                        if 'default' in p:
+                            line += ', default=' + p['default']
+                        print('    ' + line)
 
 
 def is_local(url):

@@ -52,7 +52,8 @@ class Artifact(ModelObj):
         self.license = ''
 
     def before_log(self):
-        pass
+        if not self.target_path.endswith('/'):
+            self.target_path += '/'
 
     @property
     def inline(self):

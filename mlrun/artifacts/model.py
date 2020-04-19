@@ -44,6 +44,8 @@ class ModelArtifact(Artifact):
     def before_log(self):
         if not self.model_file:
             raise ValueError('model_file attr must be specified')
+        if not self.target_path.endswith('/'):
+            self.target_path += '/'
 
     def upload(self, data_stores):
 

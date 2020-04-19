@@ -100,6 +100,25 @@ class Artifact(ModelObj):
         self.size = os.stat(src).st_size
 
 
+class DirArtifact(Artifact):
+    _dict_fields = [
+        'key', 'kind', 'iter', 'tree', 'src_path', 'target_path',
+        'description', 'db_key']
+    kind = 'dir'
+
+    def upload(self, data_stores):
+        if not self.src_path:
+            raise ValueError('local/source path not specified')
+
+        files = os.listdir(self.src_path)
+        for f in files:
+            file_path = os.path.join(self.src_path, f)
+            if not os.path.isfile(file_path):
+                raise ValueError('file {} not found, cant upload'.format(file_path))
+            target = os.path.join(self.target_path, f)
+            data_stores.object('', target).upload(file_path)
+
+
 class LinkArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
     kind = 'link'

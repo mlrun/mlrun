@@ -330,7 +330,7 @@ class MLClientCtx(object):
 
     def log_artifact(self, item, body=None, target_path='', src_path=None,
                      tag='', viewer=None, local_path=None, artifact_path=None,
-                     upload=True, labels=None, format=None, db_prefix=None, **kwargs):
+                     upload=None, labels=None, format=None, db_prefix=None, **kwargs):
         """log an output artifact and optionally upload it"""
         local_path = src_path or local_path
         item = self._artifacts_manager.log_artifact(self, item, body=body,

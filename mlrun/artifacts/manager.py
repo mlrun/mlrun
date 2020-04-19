@@ -13,18 +13,20 @@
 # limitations under the License.
 
 import pathlib
+from os.path import isdir
 
 from ..datastore import StoreManager
 from ..db import RunDBInterface
 from ..utils import uxjoin, logger
 
-from .base import Artifact, LinkArtifact
+from .base import Artifact, LinkArtifact, DirArtifact
 from .plots import PlotArtifact, ChartArtifact
 from .dataset import TableArtifact, DatasetArtifact
 from .model import ModelArtifact
 
 artifact_types = {
     '': Artifact,
+    'dir': DirArtifact,
     'link': LinkArtifact,
     'plot': PlotArtifact,
     'chart': ChartArtifact,
@@ -84,10 +86,13 @@ class ArtifactManager:
     def log_artifact(
         self, producer, item, body=None, target_path='', tag='',
             viewer='', local_path='', artifact_path=None, format=None,
-            upload=True, labels=None, db_prefix=None):
+            upload=None, labels=None, db_prefix=None):
         if isinstance(item, str):
             key = item
-            item = Artifact(key, body)
+            if local_path and isdir(local_path):
+                item = DirArtifact(key, body)
+            else:
+                item = Artifact(key, body)
         else:
             key = item.key
             target_path = target_path or item.target_path
@@ -126,7 +131,7 @@ class ArtifactManager:
         item.before_log()
         self.artifacts[key] = item
 
-        if upload:
+        if (upload is None and item.kind != 'dir') or upload:
             item.upload(self.data_stores)
 
         self._log_to_db(db_key, producer.project, producer.inputs, item, tag)

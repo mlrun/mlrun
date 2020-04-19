@@ -229,8 +229,8 @@ class HTTPHandler:
 
             if self.srvinfo.stream_batch > 1:
                 if self._batch_iter == 0:
-                    self._batch = [data.keys()]
-                self._batch.append(data.values())
+                    self._batch = [list(data.keys())]
+                self._batch.append(list(data.values()))
                 self._batch_iter = (self._batch_iter + 1) % self.srvinfo.stream_batch
 
                 if self._batch_iter == 0:

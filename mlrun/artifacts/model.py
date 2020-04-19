@@ -23,7 +23,7 @@ model_spec_filename = 'model_spec.yaml'
 
 
 class ModelArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['framework', 'model_file', 'algo', 'metrics', 'parameters',
+    _dict_fields = Artifact._dict_fields + ['model_file', 'metrics', 'parameters',
                                             'inputs', 'outputs', 'extra_data']
     kind = 'model'
 

@@ -161,8 +161,10 @@ class BaseRuntime(ModelObj):
         return False
 
     def _function_uri(self, tag=None):
-        return '{}/{}:{}'.format(self.metadata.project, self.metadata.name,
-                                 tag or self.metadata.tag or 'latest')
+        url = '{}/{}'.format(self.metadata.project, self.metadata.name)
+        if tag or self.metadata.tag:
+            url += ':{}'.format(tag or self.metadata.tag)
+        return url
 
     def _get_db(self):
         if not self._db_conn:
@@ -564,10 +566,10 @@ class BaseRuntime(ModelObj):
             logger.error('database connection is not configured')
             return ''
 
-        tag = tag or self.metadata.tag or 'latest'
+        tag = tag or self.metadata.tag
         hashkey = calc_hash(self, tag=tag)
         obj = self.to_dict()
-        logger.info('saving function: {}, tag: {}'.format(
+        logger.debug('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))
         if versioned:

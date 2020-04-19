@@ -367,7 +367,7 @@ class MLClientCtx(object):
         self._update_db()
         return item
 
-    def log_model(self, key, body, tag='', model_dir=None, model_file=None,
+    def log_model(self, key, body=None, tag='', model_dir=None, model_file=None,
                   metrics=None, parameters=None, artifact_path=None,
                   upload=True, labels=None, inputs=None, outputs=None,
                   extra_data=None, db_prefix=None):

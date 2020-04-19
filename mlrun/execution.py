@@ -17,6 +17,7 @@ from datetime import datetime
 import numpy as np
 import uuid
 
+from mlrun.artifacts import ModelArtifact
 from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import StoreManager
 from .secrets import SecretsStore
@@ -355,6 +356,25 @@ class MLClientCtx(object):
                              format=format, stats=stats, **kwargs)
 
         item = self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
+                                                    artifact_path=artifact_path,
+                                                    tag=tag,
+                                                    upload=upload,
+                                                    db_prefix=db_prefix,
+                                                    labels=labels)
+        self._update_db()
+        return item
+
+    def log_model(self, key, body, tag='', model_dir=None, model_file=None,
+                  artifact_path=None, upload=True, labels=None,
+                  framework=None, algo=None, metrics=None, parameters=None,
+                  inputs=None, outputs=None, extra_data=None, db_prefix=None):
+        """log a model artifact and optionally upload it"""
+
+        model = ModelArtifact(key, body, model_file=model_file, framework=framework,
+                              algo=algo, metrics=metrics, parameters=parameters,
+                              inputs=inputs, outputs=outputs, extra_data=extra_data)
+
+        item = self._artifacts_manager.log_artifact(self, model, local_path=model_dir,
                                                     artifact_path=artifact_path,
                                                     tag=tag,
                                                     upload=upload,

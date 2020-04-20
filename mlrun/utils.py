@@ -354,6 +354,9 @@ def new_pipe_meta(artifact_path=None, *args):
         return task
 
     conf = PipelineConf()
+    ttl = int(config.kfp_ttl)
+    if ttl:
+        conf.set_ttl_seconds_after_finished(ttl)
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)
     for op in args:

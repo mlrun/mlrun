@@ -44,6 +44,7 @@ default_config = {
     'ui_url': '',
     'remote_host': '',
     'version': '',
+    'kfp_ttl': '86400',
     'kfp_image': '',
     'kaniko_version': 'v0.19.0',
     'package_path': 'mlrun',

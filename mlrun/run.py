@@ -534,7 +534,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
 
 def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
                  namespace=None, artifact_path=None, ops=None,
-                 url=None, remote=False):
+                 url=None, remote=False, ttl=None):
     """remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
@@ -548,6 +548,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     :param artifact_path  target location/url for mlrun artifacts
     :param ops        additional operators (.apply() to all pipeline functions)
     :param remote     use mlrun remote API service vs direct KFP APIs
+    :param ttl        pipeline ttl in secs (after that the pods will be removed)
 
     :return kubeflow pipeline id
     """
@@ -570,7 +571,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
             run_result = client.run_pipeline(experiment.id, run, pipeline,
                                              params=arguments)
         else:
-            conf = new_pipe_meta(artifact_path, ops)
+            conf = new_pipe_meta(artifact_path, ttl, ops)
             run_result = client.create_run_from_pipeline_func(
                 pipeline, arguments, run_name=run,
                 experiment_name=experiment, pipeline_conf=conf)

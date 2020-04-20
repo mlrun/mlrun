@@ -560,7 +560,7 @@ class MlrunProject(ModelObj):
                 return True
         return False
 
-    def save_workflow(self, name, target, artifact_path=None):
+    def save_workflow(self, name, target, artifact_path=None, ttl=None):
         """create and save a workflow as a yaml or archive file
 
         :param name:   workflow name
@@ -568,6 +568,7 @@ class MlrunProject(ModelObj):
         :param artifact_path:
                        target path/url for workflow artifacts, the string
                        '{{workflow.uid}}' will be replaced by workflow id
+        :param ttl     pipeline ttl in secs (after that the pods will be removed)
         """
         if not name or name not in self._workflows:
             raise ValueError('workflow {} not found'.format(name))
@@ -576,7 +577,7 @@ class MlrunProject(ModelObj):
         pipeline = _create_pipeline(self, wfpath, self._function_objects,
                                     secrets=self._secrets)
 
-        conf = new_pipe_meta(artifact_path)
+        conf = new_pipe_meta(artifact_path, ttl=ttl)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
 
     def clear_context(self):

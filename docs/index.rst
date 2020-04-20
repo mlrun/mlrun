@@ -10,8 +10,10 @@ mlrun Package Documentation
    :maxdepth: 4
    :caption: Contents:
 
+   external/general
+   external/install
    api
-   mlrun
+   examples
 
 
 Indices and Tables

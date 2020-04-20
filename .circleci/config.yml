@@ -5,3 +5,6 @@ jobs:
     steps:
       - checkout
       - run: make circleci
+      - store_artifacts:
+          path: docs/_build/html
+          destination: docs

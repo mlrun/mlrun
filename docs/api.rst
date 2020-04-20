@@ -1,8 +1,40 @@
-General
-=======
+API
+===
 
-MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically tracking executed code, metadata, inputs, and outputs.
-MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and with `Kubeflow Pipelines <https://github.com/kubeflow/pipelines>`_.
+mlrun Module contents
+---------------
 
-The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` command-line interface (CLI).
+.. automodule:: mlrun
+   :members:
+   :show-inheritance:
 
+mlrun.run module
+----------------
+
+.. automodule:: mlrun.run
+   :members:
+   :show-inheritance:
+
+mlrun.projects module
+---------------------
+
+.. automodule:: mlrun.projects
+   :members:
+   :show-inheritance:
+
+.. autoclass:: MlrunProject
+   :members:
+
+mlrun.config module
+-------------------
+
+.. automodule:: mlrun.config
+   :members:
+   :show-inheritance:
+
+mlrun.model module
+------------------
+
+.. automodule:: mlrun.model
+   :members:
+   :show-inheritance:

@@ -87,10 +87,11 @@ RUN conda config --add channels pytorch && \
         pyarrow \
         pytest \
         scikit-optimize \
-        pytorch \
-        torchvision \
-        cpuonly \
         wrapt
+
+# pytorch caused cuda download, this guarantees cpu version:
+RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
+        -f https://download.pytorch.org/whl/torch_stable.html
 
 # plain vanilla tensorflow isn't compiled optimaly for the architectures
 # we are likely to encounter.  this should become an option:

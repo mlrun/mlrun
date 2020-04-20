@@ -20,7 +20,7 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 
 > **Note:**
 > - By default the MLRun API service will run inside the Jupyter server, set the MLRUN_DBPATH env var in Jupyter to point to an alternative service address.
-> - The artifacts and DB will be stored under **/home/jovyan/data**, use docker -v option to persist the content on the host (e.g. `-v $(SHARED_DIR}:/home/jovyan/data`)
+> - The artifacts and DB will be stored under **/home/jovyan/data**, use docker -v option to persist the content on the host (e.g. `-v ${SHARED_DIR}:/home/jovyan/data`)
 > - Using Docker is limited to local runtimes.
 
 ```
@@ -32,7 +32,7 @@ docker pull quay.io/iguazio/mlrun-ui:latest
 docker pull mlrun/jupy:latest
 
 docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 quay.io/iguazio/mlrun-ui:latest
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data mlrun/jupy:latest
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupy:latest
 ```
 
 When the execution completes &mdash;

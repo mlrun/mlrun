@@ -40,4 +40,7 @@ RUN apt update -qqq \
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
-RUN python -m pip install --ignore-installed --no-cache-dir git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
+RUN python -m pip install --ignore-installed --no-cache-dir \
+        blosc=1.7.0 \
+        
+        git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}

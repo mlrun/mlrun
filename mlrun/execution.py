@@ -17,6 +17,7 @@ from datetime import datetime
 import numpy as np
 import uuid
 
+from mlrun.artifacts import ModelArtifact
 from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import StoreManager
 from .secrets import SecretsStore
@@ -146,6 +147,9 @@ class MLClientCtx(object):
         if host:
             self.set_label('host', host)
 
+        start = get_in(attrs, 'status.start_time')
+        if start:
+            self._start_time = start
         self._state = 'running'
         self._update_db(commit=True)
         return self
@@ -330,20 +334,21 @@ class MLClientCtx(object):
 
     def log_artifact(self, item, body=None, target_path='', src_path=None,
                      tag='', viewer=None, local_path=None, artifact_path=None,
-                     upload=True, labels=None, format=None, db_prefix=None, **kwargs):
+                     upload=None, labels=None, format=None, db_prefix=None, **kwargs):
         """log an output artifact and optionally upload it"""
         local_path = src_path or local_path
-        self._artifacts_manager.log_artifact(self, item, body=body,
-                                             local_path=local_path,
-                                             artifact_path=artifact_path,
-                                             target_path=target_path,
-                                             tag=tag,
-                                             viewer=viewer,
-                                             upload=upload,
-                                             labels=labels,
-                                             db_prefix=db_prefix,
-                                             format=format)
+        item = self._artifacts_manager.log_artifact(self, item, body=body,
+                                                    local_path=local_path,
+                                                    artifact_path=artifact_path,
+                                                    target_path=target_path,
+                                                    tag=tag,
+                                                    viewer=viewer,
+                                                    upload=upload,
+                                                    labels=labels,
+                                                    db_prefix=db_prefix,
+                                                    format=format)
         self._update_db()
+        return item
 
     def log_dataset(self, key, df, tag='', local_path=None,
                     artifact_path=None, upload=True, labels=None,
@@ -353,18 +358,39 @@ class MLClientCtx(object):
         ds = DatasetArtifact(key, df, preview=preview,
                              format=format, stats=stats, **kwargs)
 
-        self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
-                                             artifact_path=artifact_path,
-                                             tag=tag,
-                                             upload=upload,
-                                             db_prefix=db_prefix,
-                                             labels=labels)
+        item = self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
+                                                    artifact_path=artifact_path,
+                                                    tag=tag,
+                                                    upload=upload,
+                                                    db_prefix=db_prefix,
+                                                    labels=labels)
         self._update_db()
+        return item
+
+    def log_model(self, key, body=None, tag='', model_dir=None, model_file=None,
+                  metrics=None, parameters=None, artifact_path=None,
+                  upload=True, labels=None, inputs=None, outputs=None,
+                  extra_data=None, db_prefix=None):
+        """log a model artifact and optionally upload it"""
+
+        model = ModelArtifact(key, body, model_file=model_file,
+                              metrics=metrics, parameters=parameters,
+                              inputs=inputs, outputs=outputs, extra_data=extra_data)
+
+        item = self._artifacts_manager.log_artifact(self, model, local_path=model_dir,
+                                                    artifact_path=artifact_path,
+                                                    tag=tag,
+                                                    upload=upload,
+                                                    db_prefix=db_prefix,
+                                                    labels=labels)
+        self._update_db()
+        return item
 
     def commit(self, message: str = ''):
         """save run state and add a commit message"""
         if message:
             self._annotations['message'] = message
+        self._last_update = now_date()
         self._update_db(commit=True, message=message)
 
     def set_state(self, state: str = None, error: str = None, commit=True):
@@ -379,6 +405,7 @@ class MLClientCtx(object):
         elif state and state != self._state and self._state != 'error':
             self._state = state
             updates['status.state'] = state
+        self._last_update = now_date()
 
         if self._rundb and commit:
             self._rundb.update_run(updates, self._uid,

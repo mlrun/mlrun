@@ -257,6 +257,8 @@ class MyEncoder(json.JSONEncoder):
             return obj.tolist()
         elif isinstance(obj, pathlib.PosixPath):
             return str(obj)
+        elif np.isnan(obj) or np.isinf(obj):
+            return str(obj)
         else:
             return super(MyEncoder, self).default(obj)
 
@@ -342,7 +344,7 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + '</table>\n\n'
 
 
-def new_pipe_meta(artifact_path=None, *args):
+def new_pipe_meta(artifact_path=None, ttl=None, *args):
     from kfp.dsl import PipelineConf
 
     def _set_artifact_path(task):
@@ -352,6 +354,9 @@ def new_pipe_meta(artifact_path=None, *args):
         return task
 
     conf = PipelineConf()
+    ttl = ttl or int(config.kfp_ttl)
+    if ttl:
+        conf.set_ttl_seconds_after_finished(ttl)
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)
     for op in args:

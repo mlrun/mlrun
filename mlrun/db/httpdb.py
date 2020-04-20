@@ -400,13 +400,13 @@ class HTTPRunDB(RunDBInterface):
 
     def submit_pipeline(self, pipeline, arguments=None, experiment=None,
                         run=None, namespace=None, artifact_path=None,
-                        ops=None):
+                        ops=None, ttl=None):
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.mktemp(suffix='.yaml')
-            conf = new_pipe_meta(artifact_path, ops)
+            conf = new_pipe_meta(artifact_path, ttl, ops)
             kfp.compiler.Compiler().compile(pipeline, pipe_file,
                                             type_check=False, pipeline_conf=conf)
 

@@ -407,6 +407,8 @@ def build_status():
     image = get_in(fn, 'spec.build.image', '')
     out = b''
     if not pod:
+        if state == 'ready':
+            image = image or get_in(fn, 'spec.image')
         return Response(out, mimetype='text/plain',
                         headers={"function_status": state,
                                  "function_image": image,

@@ -235,6 +235,7 @@ class FileRunDB(RunDBInterface):
 
     def store_function(self, func, name, project='', tag=''):
         update_in(func, 'metadata.updated', datetime.now(timezone.utc))
+        update_in(func, 'metadata.tag', '')
         data = self._dumps(func)
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or config.default_project, name,
@@ -263,8 +264,12 @@ class FileRunDB(RunDBInterface):
         if name:
             filepath = '{}{}/'.format(filepath, name)
             mask = '*'
-        for func, _ in self._load_list(filepath, mask):
+        for func, fullname in self._load_list(filepath, mask):
             if match_labels(get_in(func, 'metadata.labels', {}), labels):
+                name, _ = path.splitext(path.basename(fullname))
+                if len(name) > 20:  # hash vs tags
+                    name = ''
+                update_in(func, 'metadata.tag', name)
                 results.append(func)
 
         return results

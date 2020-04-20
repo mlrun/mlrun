@@ -161,8 +161,10 @@ class BaseRuntime(ModelObj):
         return False
 
     def _function_uri(self, tag=None):
-        return '{}/{}:{}'.format(self.metadata.project, self.metadata.name,
-                                 tag or self.metadata.tag or 'latest')
+        url = '{}/{}'.format(self.metadata.project, self.metadata.name)
+        if tag or self.metadata.tag:
+            url += ':{}'.format(tag or self.metadata.tag)
+        return url
 
     def _get_db(self):
         if not self._db_conn:
@@ -501,13 +503,10 @@ class BaseRuntime(ModelObj):
                 environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
         raise RunError('local container registry is not defined')
 
-    def to_step(self, **kw):
-        raise ValueError('.to_step() is deprecated, us .as_step() instead')
-
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                in_path: str = '', out_path: str = '', image: str = '', use_db=False):
+                workdir: str = '', artifact_path: str = '', image: str = '', use_db=True):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -519,7 +518,10 @@ class BaseRuntime(ModelObj):
         :param selector:   selection criteria for hyper params
         :param inputs:     input objects (dict of key: path)
         :param outputs:    list of outputs which can pass in the workflow
+        :param artifact_path: default artifact output path (replace out_path)
+        :param workdir:    default input artifacts path
         :param image:      container image to use
+        :param use_db      save function spec in the db (vs the workflow file)
 
         :return: KubeFlow containerOp
         """
@@ -528,7 +530,7 @@ class BaseRuntime(ModelObj):
             image = self.full_image_path()
 
         if use_db:
-            hashkey = self.save(versioned=False)
+            hashkey = self.save(versioned=True, refresh=True)
             url = 'db://' + self._function_uri(tag=hashkey)
         else:
             url = None
@@ -537,7 +539,7 @@ class BaseRuntime(ModelObj):
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,
-                        out_path=out_path, in_path=in_path)
+                        out_path=artifact_path, in_path=workdir)
 
     def export(self, target='', format='.yaml', secrets=None, strip=True):
         """save function spec to a local/remote path (default to
@@ -558,21 +560,36 @@ class BaseRuntime(ModelObj):
         logger.info('function spec saved to path: {}'.format(target))
         return self
 
-    def save(self, tag='', versioned=False):
+    def save(self, tag='', versioned=False, refresh=False):
         db = self._get_db()
         if not db:
             logger.error('database connection is not configured')
             return ''
 
-        tag = tag or self.metadata.tag or 'latest'
+        if refresh and self._is_remote_api():
+            try:
+                meta = self.metadata
+                db_func = db.get_function(meta.name, meta.project, meta.tag)
+                if db_func and 'status' in db_func:
+                    self.status = db_func['status']
+                    if self.status.state and self.status.state == 'ready':
+                        self.spec.image = get_in(db_func, 'spec.image', self.spec.image)
+            except Exception:
+                pass
+
+        tag = tag or self.metadata.tag
         hashkey = calc_hash(self, tag=tag)
+
         obj = self.to_dict()
-        logger.info('saving function: {}, tag: {}'.format(
+        logger.debug('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))
         if versioned:
+            status = self.status
+            self.status = None
             db.store_function(obj, self.metadata.name,
                               self.metadata.project, hashkey)
+            self.status = status
         db.store_function(obj, self.metadata.name,
                           self.metadata.project, tag)
         return hashkey
@@ -596,7 +613,13 @@ class BaseRuntime(ModelObj):
                 params = entry.get('parameters')
                 if params:
                     for p in params:
-                        print('    {}'.format(p))
+                        line = p['name']
+                        if 'type' in p:
+                            line += '({})'.format(p['type'])
+                        line += '  - ' + p.get('doc', '')
+                        if 'default' in p:
+                            line += ', default={}'.format(p['default'])
+                        print('    ' + line)
 
 
 def is_local(url):

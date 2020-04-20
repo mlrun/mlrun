@@ -20,6 +20,7 @@ from .daskjob import DaskCluster, get_dask_resource  # noqa
 from .kubejob import KubejobRuntime  # noqa
 from .sparkjob import SparkRuntime  # noqa
 from .nuclio import nuclio_init_hook
+from .serving import MLModelServer
 
 
 runtime_resources_map = {

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mimetypes
+
 from base64 import b64encode
 from copy import deepcopy
 from os import path, environ, makedirs, listdir, stat
@@ -19,12 +19,14 @@ from shutil import copyfile
 from urllib.parse import urlparse
 import urllib3
 
+from .platforms.iguazio import split_path
 from .config import config
 from .utils import run_keys
 from datetime import datetime
 import time
 import boto3
 import requests
+import v3io.dataplane
 
 V3IO_LOCAL_ROOT = 'v3io'
 DB_SCHEMA = 'store'
@@ -105,21 +107,24 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
+    def get_store_artifact(self, url, project=''):
+        schema, endpoint, p = parseurl(url)
+        if not p.path:
+            raise ValueError('store url without a path {}'.format(url))
+        project = endpoint or project or config.default_project
+        tag = p.fragment if p.fragment else ''
+        try:
+            meta = self._get_db().read_artifact(p.path[1:], tag=tag,
+                                                project=project)
+        except Exception as e:
+            raise OSError('artifact {} not found, {}'.format(url, e))
+        return meta, meta.get('target_path', '')
+
     def object(self, key='', url='', project=''):
         meta = artifact_url = None
         if url.startswith(DB_SCHEMA + '://'):
-            schema, endpoint, p = parseurl(url)
-            if not p.path:
-                raise ValueError('store url without a path {}'.format(url))
-            project = endpoint or project or config.default_project
-            tag = p.fragment if p.fragment else ''
-            try:
-                meta = self._get_db().read_artifact(p.path[1:], tag=tag,
-                                                    project=project)
-            except Exception as e:
-                raise OSError('artifact {} not found, {}'.format(url, e))
             artifact_url = url
-            url = meta.get('target_path', '')
+            meta, url = self.get_store_artifact(url, project)
 
         store, subpath = self.get_or_create_store(url)
         return DataItem(key, store, subpath, url,
@@ -195,6 +200,9 @@ class DataStore:
     def stat(self, key):
         pass
 
+    def listdir(self, key):
+        raise ValueError('data store doesnt support listdir')
+
     def download(self, key, target_path):
         data = self.get(key)
         mode = 'wb'
@@ -256,6 +264,9 @@ class DataItem:
     def stat(self):
         return self._store.stat(self._path)
 
+    def listdir(self):
+        return self._store.listdir(self._path)
+
     def __str__(self):
         return self.url
 
@@ -312,6 +323,9 @@ class FileStore(DataStore):
         s = stat(self._join(key))
         return FileStats(size=s.st_size, modified=s.st_mtime)
 
+    def listdir(self, key):
+        return listdir(key)
+
 
 class S3Store(DataStore):
     def __init__(self, parent: StoreManager, schema, name, endpoint=''):
@@ -346,6 +360,13 @@ class S3Store(DataStore):
         size = obj.content_length
         modified = obj.last_modified
         return FileStats(size, time.mktime(modified.timetuple()))
+
+    def listdir(self, key):
+        if not key.endswith('/'):
+            key += '/'
+        l = len(key)
+        bucket = self.s3.Bucket(self.endpoint)
+        return [obj.key[l:] for obj in bucket.objects.filter(Prefix=key)]
 
 
 def basic_auth_header(user, password):
@@ -424,6 +445,7 @@ class V3ioStore(DataStore):
 
         self.headers = None
         self.auth = None
+        self.token = token
         if token:
             self.headers = {'X-v3io-session-key': token}
         elif username and password:
@@ -458,6 +480,21 @@ class V3ioStore(DataStore):
         modified = time.mktime(datetime.strptime(
             datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple())
         return FileStats(size, modified)
+
+    def listdir(self, key):
+        v3io_client = v3io.dataplane.Client(endpoint=self.endpoint,
+                                            access_key=self.token)
+        container, subpath = split_path(self._join(key))
+        if not subpath.endswith('/'):
+            subpath += '/'
+        l = len(subpath) - 1
+        response = v3io_client.get_container_contents(container=container,
+                                                      path=subpath,
+                                                      get_all_attributes=False,
+                                                      directories_only=False)
+
+        # todo: full = key, size, last_modified
+        return [obj.key[l:] for obj in response.output.contents]
 
 
 def get_range(size, offset):

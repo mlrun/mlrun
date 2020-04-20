@@ -315,13 +315,10 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     if more_args:
         cmd += more_args
 
+    registry = get_default_reg()
     if image and image.startswith('.'):
-        if 'DEFAULT_DOCKER_REGISTRY' in environ:
-            image = '{}/{}'.format(
-                environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
-        elif 'IGZ_NAMESPACE_DOMAIN' in environ:
-            image = 'docker-registry.{}:80/{}'.format(
-                environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:])
+        if registry:
+            image = '{}/{}'.format(registry, image[1:])
         else:
             raise ValueError('local image registry env not found')
 
@@ -341,11 +338,15 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     if code_env:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='MLRUN_EXEC_CODE', value=code_env))
+    if registry:
+        cop.container.add_env_variable(k8s_client.V1EnvVar(
+            name='DEFAULT_DOCKER_REGISTRY', value=registry))
     return cop
 
 
 def deploy_op(name, function, source='', dashboard='',
-              project='', models: dict = None, tag='', verbose=False):
+              project='', models: dict = None, env: dict = None,
+              tag='', verbose=False):
     from kfp import dsl
 
     models = {} if models is None else models
@@ -355,11 +356,17 @@ def deploy_op(name, function, source='', dashboard='',
         cmd += ['-s', source]
     if dashboard:
         cmd += ['-d', dashboard]
+    if tag:
+        cmd += ['--tag', tag]
+    if verbose:
+        cmd += ['--verbose']
     if project:
         cmd += ['-p', project]
     for m, val in models.items():
         cmd += ['-m', '{}={}'.format(m, val)]
-
+    if env:
+        for key, val in env.items():
+            cmd += ['--env', '{}={}'.format(key, val)]
     cop = dsl.ContainerOp(
         name=name,
         image=config.kfp_image,
@@ -441,3 +448,12 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
             name='V3IO_ACCESS_KEY', value=environ.get('V3IO_ACCESS_KEY')))
 
     return cop
+
+
+def get_default_reg():
+    if 'DEFAULT_DOCKER_REGISTRY' in environ:
+        return environ.get('DEFAULT_DOCKER_REGISTRY')
+    if 'IGZ_NAMESPACE_DOMAIN' in environ:
+        return 'docker-registry.{}:80'.format(
+            environ.get('IGZ_NAMESPACE_DOMAIN'))
+    return ''

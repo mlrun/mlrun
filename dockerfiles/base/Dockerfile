@@ -41,6 +41,11 @@ RUN apt update -qqq \
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN python -m pip install --ignore-installed --no-cache-dir \
-        blosc=1.7.0 \
-        
+        blosc==1.7.0 \
+        cloudpickle==1.1.1 \
+        dask==2.12.0 \
+        distributed==2.14.0 \
+        lz4==2.2.1 \
+        msgpack==1.0.0 \
+        tornado==6.0.4 \
         git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}

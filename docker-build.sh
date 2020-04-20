@@ -18,6 +18,7 @@ do
         --build-arg MLRUN_TAG=$MLRUN_COMMIT \
         --build-arg REPO=$REPO \
         --build-arg PREFIX=$PREFIX \
+        --build-arg NEW_TAG=$NEW_TAG \
         --build-arg PYTHON_VER=$PYTHON_VER_ML \
         -t $REPO/$PREFIX-$IMAGE:$NEW_TAG .
 
@@ -31,6 +32,7 @@ do
         --build-arg MLRUN_TAG=$MLRUN_COMMIT \
         --build-arg REPO=$REPO \
         --build-arg PYTHON_VER=$PYTHON_VER_CORE \
+        --build-arg NEW_TAG=$NEW_TAG \
         -t $REPO/$IMAGE:$NEW_TAG .
 
     docker push $REPO/$IMAGE:$NEW_TAG

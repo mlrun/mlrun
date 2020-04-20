@@ -32,7 +32,6 @@ def _schedule(task: Task, delay_seconds):
     while True:
         start = monotonic()
         try:
-            logger.info('running periodic task')
             try:
                 task.run()
             except Exception as err:

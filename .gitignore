@@ -18,3 +18,5 @@ mlrun.egg-info/
 model.txt
 result*.html
 tests/test_results/
+.idea/
+

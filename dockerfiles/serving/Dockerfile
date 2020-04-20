@@ -14,7 +14,8 @@
 ARG MLRUN_TAG=development
 ARG REPO=mlrun
 ARG PREFIX=ml
+ARG NEW_TAG
 
-FROM ${REPO}/${PREFIX}-base:test
+FROM ${REPO}/${PREFIX}-base:${NEW_TAG}
 
 RUN python3 -m pip install --no-cache-dir -U kfserving

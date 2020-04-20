@@ -35,6 +35,7 @@ class MLModelServer:
         self.model_spec: ModelArtifact = None
         self._params = {}
         self.metrics = {}
+        self.labels = {}
         self._stores = StoreManager()
         if model:
             self.model = model
@@ -212,6 +213,17 @@ class HTTPHandler:
         return request
 
     def push_to_stream(self, start, request, resp, model):
+
+        def base_data():
+            data = {'op': self.kind,
+                    'class': self.srvinfo.model_class,
+                    'worker': self.srvinfo.worker,
+                    'model': model.name,
+                    'host': self.srvinfo.hostname}
+            if getattr(model, 'labels', None):
+                data['labels'] = model.labels
+            return data
+
         self._sample_iter = (self._sample_iter + 1) % self.srvinfo.stream_sample
         if self.srvinfo.output_stream and self._sample_iter == 0:
             microsec = (datetime.now() - start).microseconds
@@ -223,23 +235,16 @@ class HTTPHandler:
                 self._batch_iter = (self._batch_iter + 1) % self.srvinfo.stream_batch
 
                 if self._batch_iter == 0:
-                    data = {'op': self.kind,
-                            'class': self.srvinfo.model_class,
-                            'worker': self.srvinfo.worker,
-                            'model': model.name,
-                            'host': self.srvinfo.hostname,
-                            'headers': ['request', 'resp', 'when', 'microsec', 'metrics'],
-                            'values': self._batch}
+                    data = base_data()
+                    data['headers'] = ['request', 'resp', 'when', 'microsec', 'metrics']
+                    data['values'] = self._batch
                     self.srvinfo.output_stream.push([data])
             else:
-                data = {'op': self.kind,
-                        'class': self.srvinfo.model_class,
-                        'worker': self.srvinfo.worker,
-                        'request': request, 'resp': resp,
-                        'model': model.name,
-                        'host': self.srvinfo.hostname,
-                        'when': str(start),
-                        'microsec': microsec}
+                data = base_data()
+                data['request'] = request
+                data['resp'] = resp
+                data['when'] = str(start)
+                data['microsec'] = microsec
                 if getattr(model, 'metrics', None):
                     data['metrics'] = model.metrics
                 self.srvinfo.output_stream.push([data])

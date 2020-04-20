@@ -214,26 +214,34 @@ class HTTPHandler:
     def push_to_stream(self, start, request, resp, model):
         self._sample_iter = (self._sample_iter + 1) % self.srvinfo.stream_sample
         if self.srvinfo.output_stream and self._sample_iter == 0:
-            data = {'op': self.kind,
-                    'class': self.srvinfo.model_class,
-                    'worker': self.srvinfo.worker,
-                    'request': request, 'resp': resp,
-                    'model': model.name,
-                    'host': self.srvinfo.hostname,
-                    'when': str(start),
-                    'microsec': (datetime.now() - start).microseconds}
-            if getattr(model, 'metrics', None) or self.srvinfo.stream_batch > 1:
-                data['metrics'] = model.metrics
+            microsec = (datetime.now() - start).microseconds
 
             if self.srvinfo.stream_batch > 1:
                 if self._batch_iter == 0:
-                    self._batch = [list(data.keys())]
-                self._batch.append(list(data.values()))
+                    self._batch = []
+                self._batch.append([request, resp, str(start), microsec, model.metrics])
                 self._batch_iter = (self._batch_iter + 1) % self.srvinfo.stream_batch
 
                 if self._batch_iter == 0:
-                    self.srvinfo.output_stream.push([self._batch])
+                    data = {'op': self.kind,
+                            'class': self.srvinfo.model_class,
+                            'worker': self.srvinfo.worker,
+                            'model': model.name,
+                            'host': self.srvinfo.hostname,
+                            'headers': ['request', 'resp', 'when', 'microsec', 'metrics'],
+                            'values': self._batch}
+                    self.srvinfo.output_stream.push([data])
             else:
+                data = {'op': self.kind,
+                        'class': self.srvinfo.model_class,
+                        'worker': self.srvinfo.worker,
+                        'request': request, 'resp': resp,
+                        'model': model.name,
+                        'host': self.srvinfo.hostname,
+                        'when': str(start),
+                        'microsec': microsec}
+                if getattr(model, 'metrics', None):
+                    data['metrics'] = model.metrics
                 self.srvinfo.output_stream.push([data])
 
 

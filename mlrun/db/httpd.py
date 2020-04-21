@@ -37,7 +37,7 @@ from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.filedb import FileRunDB
 from mlrun.db.sqldb import SQLDB, to_dict as db2dict, table2cls
 from mlrun.k8s_utils import K8sHelper
-from mlrun.run import get_object, import_function, new_function
+from mlrun.run import get_object, import_function, new_function, list_piplines
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
 from mlrun.utils import get_in, logger, now_date, parse_function_uri, update_in
@@ -446,7 +446,7 @@ def get_obj_path(schema, path, user=''):
     if schema:
         return schema + '://' + path
     elif path.startswith('/User/'):
-        user = environ.get('V3IO_USERNAME', user or 'admin')
+        user = user or environ.get('V3IO_USERNAME', 'admin')
         return 'v3io:///users/' + user + path[5:]
     elif config.httpdb.data_volume and \
             path.startswith(config.httpdb.data_volume):
@@ -871,6 +871,23 @@ def list_schedules():
         ok=True,
         schedules=list(_db.list_schedules())
     )
+
+
+# curl http://localhost:8080/workflows?full=no
+@app.route('/api/workflows', methods=['GET'])
+@catch_err
+def list_workflows():
+    experiment_id = request.args.get('experiment_id')
+    sort_by = request.args.getlist('sort_by', '')
+    page_token = request.args.get('page_token', '')
+    full = strtobool(request.args.get('full', 'off'))
+    page_size = int(request.args.get('page_size', '10'))
+
+    total_size, next_page_token, runs = list_piplines(
+        full=full, page_token=page_token, page_size=page_size, 
+        sort_by=sort_by, experiment_id=experiment_id
+    )
+    return jsonify(ok=True, runs=runs, total_size=total_size, next_page_token=next_page_token)
 
 
 @app.route('/api/<project>/tag/<name>', methods=['POST'])

@@ -597,9 +597,9 @@ def list_piplines(full=False, page_token='', page_size=10,
     """Get or wait for Pipeline status, wait time in sec"""
     namespace = namespace or mlconf.namespace
     client = Client(namespace=namespace)
-    print(dict(page_token=page_token, page_size=page_size,
+    logger.info(str(dict(page_token=page_token, page_size=page_size,
                sort_by=sort_by, experiment_id=experiment_id,
-               namespace=namespace))
+               namespace=namespace)))
     resp = client.list_runs(page_token=page_token, page_size=page_size,
                             sort_by=sort_by, experiment_id=experiment_id,
                             namespace=namespace)

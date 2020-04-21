@@ -884,6 +884,10 @@ def list_workflows():
     full = strtobool(request.args.get('full', '0'))
     page_size = int(request.args.get('page_size', '10'))
 
+    logger.info('web : ' + str(dict(full=full, page_token=page_token, page_size=page_size,
+               sort_by=sort_by, experiment_id=experiment_id,
+               namespace=namespace)))
+
     total_size, next_page_token, runs = list_piplines(
         full=full, page_token=page_token, page_size=page_size,
         sort_by=sort_by, experiment_id=experiment_id, namespace=namespace

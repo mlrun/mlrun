@@ -3,19 +3,18 @@
 an image optimize for analyszing data and training models on gpu's
 
 based on:
-* the nvidia's cuda 10.1 and cudnn 7
-* the latest anaconda python distribution
+* nvidia's cuda 10.1 and cudnn 7
+* anaconda's latest python distribution
 
 includes:
+* **[openmpi](https://www.open-mpi.org/software/ompi/v4.0/)**
 * **[xgboost](https://xgboost.readthedocs.io/en/latest/#)**
 * **[rapids.ai](https://rapids.ai/)**
 * **[tensorflow](https://www.tensorflow.org/)**
 * **[pytorch](https://pytorch.org/)**
 * **[dask](https://ml.dask.org/)**
+* **[horovod](https://github.com/horovod/horovod)**
 * **[mlrun](https://github.com/mlrun/mlrun.git)**
-
-use the **[mlrun/ml-horovod-gpu](https://hub.docker.com/r/mlrun/ml-horovod-gpu)** for distributed training using the horovod mpi service
-
 
 ```
 (base) root@9029d15c9936:/examples# conda list -n base

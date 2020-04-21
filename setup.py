@@ -41,9 +41,9 @@ with open('README.md') as fp:
     long_desc = fp.read()
 
 install_requires = list(load_deps('requirements.txt'))
-tests_require = list(load_deps('dev-requirements.txt'))
-httpd_deps = list(load_deps('httpd-requirements.txt'))
-dask_deps = list(load_deps('dask-requirements.txt'))
+tests_require = list(load_deps('dockerfiles/dev-requirements.txt'))
+httpd_deps = list(load_deps('dockerfiles/httpd-requirements.txt'))
+dask_deps = list(load_deps('dockerfiles/dask-requirements.txt'))
 
 
 setup(

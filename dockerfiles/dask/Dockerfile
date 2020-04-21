@@ -11,12 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ARG PYTHON_VER=3.6
 
-FROM python:3.6
+FROM python:${PYTHON_VER}
+
+LABEL maintainer="yaronh@iguazio.com"
+LABEL org="iguazio.com"
+
+ENV PYTHON_VER=$PYTHON_VER
+
 WORKDIR /mlrun
 
-COPY requirements.txt ./
-COPY dask-requirements.txt ./
+COPY ./dockerfiles/dask-requirements.txt ./
+
+COPY ./requirements.txt ./
+
 RUN python -m pip install -r requirements.txt -r dask-requirements.txt
 
 COPY . .

@@ -1,3 +1,4 @@
+
 # Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,4 +22,3 @@ RUN python -m pip install -r requirements.txt
 
 COPY . .
 RUN python setup.py install
-

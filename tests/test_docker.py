@@ -39,7 +39,7 @@ def test_docker():
     tag = f'mlrun/test-{uuid4().hex}'
     cid = None
 
-    cmd = ['docker', 'build', '-f', 'Dockerfile.httpd', '-t', tag, '.']
+    cmd = ['docker', 'build', '-f', 'dockerfiles/httpd/Dockerfile', '-t', tag, '.']
     run(cmd, cwd=prj_dir, check=True)
     with clean_docker('rmi', tag):
         port = 8080

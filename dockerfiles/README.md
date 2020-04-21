@@ -1,43 +1,32 @@
 # dockerfiles and build script
 
+## build
+to build run this script from the root directory of the mlrun repository:<br>
 
-to build run **`docker-build REPO PREFIX MLRUN_TAG NEW_TAG`** where:
+    ./docker-build REPO PREFIX MLRUN_TAG NEW_TAG PYTHON_VER_ML PYTHON_VER_CORE
+
+where:<br>
 * `REPO` is your docker hub account (like `mlrun`)
-* `PREFIX` is some prefix common to all the images created here (like `ml`)
+* `PREFIX` is some prefix common to the machine-learning/AI images created here (like `ml`)
 * `MLRUN_TAG` is a specific mlrun commit or tag _(prefix only tags with a `v`, like `v0.4.5`)_
-* `NEW_TAG` in addition to MLRUN_TAG, a second tag is created with this name (like `latest` or `0.4.5`)
+* `NEW_TAG` this is the tag created and pushed (like `latest` or `0.4.5`)
+* `PYTHON_VER_ML` is the version for the ml-xxxx series. 
+* `PYTHON_VER_CORE` is the python version for `httpd`, `dask` and `test`
 
-the script generates 2 sets of 4 images:
-* one set with the current commit number
-* one set with another user-defined name, say `latest`, or `issues-015`...
+for example,
+  `./docker-build.sh mlrun ml v0.4.6 0.4.6 3.8 3.6`
+this will generate the following images:
+  * `mlrun/ml-base:0.4.6`       (python 3.8)
+  * `mlrun/ml-models:0.4.6`     (python 3.8)
+  * `mlrun/ml-models-gpu:0.4.6` (python 3.8) 
+  * `mlrun/ml-serving:0.4.6`    (python 3.8)
+  * `mlrun/mlrun-api:0.4.6`     (python 3.6)
+  * `mlrun/dask:0.4.6`          (python 3.6)
+  * `mlrun/mlrun:0.4.6`         (python 3.6)
 
-if your docker hub user is **`mlrun`** and the prefix is **`ml`** the 4 images will
-be named:
-  * **`mlrun/ml-base`**
-    - base image for file transfers and other simple functions / jobs
-    - includes `mlrun` and `kfp`
-    - base image for all other images here
-    - (WIP) this is a bloated image that should be minimal, remove conda and revert to minimal python with arrow
-  * **`mlrun/ml-models`**
-    - an almost complete set of AI tools, based on intel's python conda distribution
-    - tensorflow > 2
-    - xgboost, lightgbm
-    - daal4py
-    - other popular ml/ai packages
-  * **`mlrun/ml-dask`**
-    - can be used to launch 'dask' runtime jobs
-    - adds a **`dask`** layer to **`ml-models`** 
-    - complete distributed/kubernetes functionality
-  * **`mlrun/ml-serving`**
-    - derived from the base image, provides only predict/serving functionality
-    - (WIP) what is minimal set of packages for this to predict/serve models
+## notable changes
+* `ml-models` and `ml-models-gpu` both contain OpenMPI and Horovod
+* `ml-hvd` and `ml-hvd-gpu` will be deprecated once testing is complete
 
-WIP:
-* **`horovod-cpu`** and **`horovod-gpu`**
-* openBLAS version of **`ml-models`** (no MKL)
-* NVIDIA optimized base images
-* ONNX serving...
-
-
-To run an image locally and explore its contents:  **`docker run -it REPO/PREFIX-ml:0.4.5 /bin/bash`**<br>
-or to load python (or run a script): **`docker run -it REPO/PREFIX-ml:0.4.5 python`**.  
+To run an image locally and explore its contents:  **`docker run -it mlrun/XXXXXX:0.4.6 /bin/bash`**<br>
+or to load python (or run a script): **`docker run -it mlrun/XXXXXX:0.4.5 python`**.  

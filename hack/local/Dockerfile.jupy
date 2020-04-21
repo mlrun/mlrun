@@ -1,11 +1,20 @@
 FROM jupyter/scipy-notebook
-RUN pip install mlrun[dask] flask croniter
+RUN python -m pip install \
+    croniter \
+#    dask-xgboost \
+#    dask[complete] \
+#    distributed \
+    flask \
+    mlrun 
+#    xgboost
 
 USER jovyan
 COPY ./README.md /home/jovyan/
 COPY ./examples /home/jovyan/examples/
-RUN git clone https://github.com/mlrun/demos.git /home/jovyan/demos
-RUN git clone https://github.com/mlrun/functions.git /home/jovyan/functions
+RUN git clone https://github.com/yjb-ds/demos.git /home/jovyan/demos
+RUN git clone https://github.com/yjb-ds/functions.git /home/jovyan/functions
+#RUN git clone https://github.com/yjb-ds/demo-xgb-project.git /home/jovyan/demo-xgb-project
+#RUN git clone https://github.com/yjb-ds/demo-sklearn-project.git /home/jovyan/demo-sklearn-project
 
 USER root
 

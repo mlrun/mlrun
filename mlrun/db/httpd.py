@@ -878,6 +878,7 @@ def list_schedules():
 @catch_err
 def list_workflows():
     experiment_id = request.args.get('experiment_id')
+    namespace = request.args.get('namespace')
     sort_by = request.args.get('sort_by', '')
     page_token = request.args.get('page_token', '')
     full = strtobool(request.args.get('full', '0'))
@@ -885,7 +886,7 @@ def list_workflows():
 
     total_size, next_page_token, runs = list_piplines(
         full=full, page_token=page_token, page_size=page_size,
-        sort_by=sort_by, experiment_id=experiment_id
+        sort_by=sort_by, experiment_id=experiment_id, namespace=namespace
     )
     return jsonify(ok=True, runs=runs, total_size=total_size, next_page_token=next_page_token)
 

@@ -595,12 +595,16 @@ def get_pipline(run_id, wait=0, namespace=None):
 def list_piplines(full=False, page_token='', page_size=10,
                   sort_by='', experiment_id=None, namespace=None):
     """Get or wait for Pipeline status, wait time in sec"""
-
-    client = Client(namespace=namespace or mlconf.namespace)
+    namespace = namespace or mlconf.namespace
+    client = Client(namespace=namespace)
+    print(dict(page_token=page_token, page_size=page_size,
+               sort_by=sort_by, experiment_id=experiment_id,
+               namespace=namespace))
     resp = client.list_runs(page_token=page_token, page_size=page_size,
-                            sort_by=sort_by, experiment_id=experiment_id)
+                            sort_by=sort_by, experiment_id=experiment_id,
+                            namespace=namespace)
     runs = resp.runs
-    if not full:
+    if not full and runs:
         runs = []
         for run in resp.runs:
             runs.append({k: str(v) for k, v in run.to_dict().items() if

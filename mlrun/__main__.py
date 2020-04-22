@@ -473,7 +473,7 @@ def logs(uid, project, offset, db, watch):
 @click.argument('context', type=str, required=False)
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
-@click.option('--run', '-r', help='run workflow name ot .py file')
+@click.option('--run', '-r', help='run workflow name of .py file')
 @click.option('--arguments', '-a', help='Kubeflow pipeline arguments dict')
 @click.option('--artifact-path', '-p', help='output artifacts path')
 @click.option('--param', '-x', default='', multiple=True,
@@ -495,6 +495,8 @@ def project(context, name, url, run, arguments, artifact_path,
     print('Loading project {}{} into {}:\n'.format(
         proj.name, ' from ' + url if url else '', context))
 
+    if artifact_path and '://' not in artifact_path:
+        artifact_path = path.abspath(artifact_path)
     if param:
         proj.params = fill_params(param, proj.params)
     if secrets:

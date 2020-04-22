@@ -26,7 +26,8 @@ import yaml
 from tabulate import tabulate
 
 
-from mlrun import load_project
+from .projects import load_project
+from .secrets import SecretsStore
 from . import get_version
 from .config import config as mlconf
 from .builder import upload_tarball
@@ -469,12 +470,15 @@ def logs(uid, project, offset, db, watch):
 
 
 @main.command()
-@click.argument('context', type=str)
+@click.argument('context', type=str, required=False)
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
-@click.option('--run', '-r', help='run workflow name ot .py file')
-@click.option('--arguments', '-a', help='arguments dict')
+@click.option('--run', '-r', help='run workflow name of .py file')
+@click.option('--arguments', '-a', help='Kubeflow pipeline arguments dict')
 @click.option('--artifact-path', '-p', help='output artifacts path')
+@click.option('--param', '-x', default='', multiple=True,
+              help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'")
+@click.option('--secrets', '-s', multiple=True, help='secrets file=<filename> or env=ENV_KEY1,..')
 @click.option('--namespace', help='k8s namespace')
 @click.option('--db', help='api and db service path/url')
 @click.option('--init-git', is_flag=True, help='for new projects init git context')
@@ -482,7 +486,7 @@ def logs(uid, project, offset, db, watch):
 @click.option('--sync', is_flag=True, help='sync functions into db')
 @click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
 def project(context, name, url, run, arguments, artifact_path,
-            namespace, db, init_git, clone, sync, dirty):
+            param, secrets, namespace, db, init_git, clone, sync, dirty):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
@@ -490,6 +494,14 @@ def project(context, name, url, run, arguments, artifact_path,
     proj = load_project(context, url, name, init_git=init_git, clone=clone)
     print('Loading project {}{} into {}:\n'.format(
         proj.name, ' from ' + url if url else '', context))
+
+    if artifact_path and '://' not in artifact_path:
+        artifact_path = path.abspath(artifact_path)
+    if param:
+        proj.params = fill_params(param, proj.params)
+    if secrets:
+        secrets = line2keylist(secrets, 'kind', 'source')
+        proj._secrets = SecretsStore.from_list(secrets)
     print(proj.to_yaml())
 
     if run:
@@ -498,7 +510,7 @@ def project(context, name, url, run, arguments, artifact_path,
             workflow_path = run
             run = None
 
-        args=None
+        args = None
         if arguments:
             try:
                 args = literal_eval(arguments)
@@ -555,8 +567,8 @@ def show_config():
     print(mlconf.dump_yaml())
 
 
-def fill_params(params):
-    params_dict = {}
+def fill_params(params, params_dict=None):
+    params_dict = params_dict or {}
     for param in params:
         i = param.find('=')
         if i == -1:

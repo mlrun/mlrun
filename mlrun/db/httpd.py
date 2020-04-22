@@ -32,12 +32,12 @@ from kfp import Client as kfclient
 
 from mlrun.builder import build_runtime
 from mlrun.config import config
-from mlrun.datastore import get_object_stat
+from mlrun.datastore import get_object_stat, StoreManager
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.filedb import FileRunDB
 from mlrun.db.sqldb import SQLDB, to_dict as db2dict, table2cls
 from mlrun.k8s_utils import K8sHelper
-from mlrun.run import get_object, import_function, new_function, list_piplines
+from mlrun.run import import_function, new_function, list_piplines
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
 from mlrun.utils import get_in, logger, now_date, parse_function_uri, update_in
@@ -462,27 +462,33 @@ def get_obj_path(schema, path, user=''):
 @catch_err
 def get_files():
     schema = request.args.get('schema', '')
-    path = request.args.get('path', '')
+    objpath = request.args.get('path', '')
     user = request.args.get('user', '')
     size = int(request.args.get('size', '0'))
     offset = int(request.args.get('offset', '0'))
 
-    _, filename = path.split(path)
+    _, filename = objpath.split(objpath)
 
-    path = get_obj_path(schema, path, user=user)
-    if not path:
-        return json_error(HTTPStatus.NOT_FOUND, path=path,
+    objpath = get_obj_path(schema, objpath, user=user)
+    if not objpath:
+        return json_error(HTTPStatus.NOT_FOUND, path=objpath,
                           err='illegal path prefix or schema')
 
     secrets = get_secrets(request)
     try:
-        body = get_object(path, secrets, size, offset)
-    except FileNotFoundError as e:
-        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
-    if body is None:
-        return json_error(HTTPStatus.NOT_FOUND, path=path)
+        stores = StoreManager(secrets)
+        obj = stores.object(url=objpath)
+        if objpath.endswith('/'):
+            listdir = obj.listdir()
+            return jsonify(ok=True, listdir=listdir)
 
-    ctype, _ = mimetypes.guess_type(path)
+        body = obj.get(size, offset)
+    except FileNotFoundError as e:
+        return json_error(HTTPStatus.NOT_FOUND, path=objpath, err=str(e))
+    if body is None:
+        return json_error(HTTPStatus.NOT_FOUND, path=objpath)
+
+    ctype, _ = mimetypes.guess_type(objpath)
     if not ctype:
         ctype = 'application/octet-stream'
 

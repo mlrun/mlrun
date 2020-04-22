@@ -140,6 +140,7 @@ class DataItem:
         self._path = subpath
         self._meta = meta
         self._artifact_url = artifact_url
+        self._local_path = ''
 
     @property
     def kind(self):
@@ -176,14 +177,17 @@ class DataItem:
         return self._store.listdir(self._path)
 
     def local(self):
-        filepath = self._path
-        if self.kind != 'file':
-            dot = filepath.rfind('.')
-            filepath = mktemp() if dot == -1 else \
-                mktemp(filepath[dot:])
-            logger.info('downloading {} to local tmp'.format(self.url))
-            self.download(filepath)
-        return filepath
+        if self.kind == 'file':
+            return self._path
+        if self._local_path:
+            return self._local_path
+
+        dot = self._path.rfind('.')
+        self._local_path = mktemp() if dot == -1 else \
+            mktemp(self._path[dot:])
+        logger.info('downloading {} to local tmp'.format(self.url))
+        self.download(self._local_path)
+        return self._local_path
 
     def as_df(self, columns=None, df_module=None, format='', **kwargs):
         return self._store.as_df(self._path, columns=columns,

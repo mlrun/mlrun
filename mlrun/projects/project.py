@@ -28,7 +28,7 @@ from os import path, remove
 from ..datastore import StoreManager
 from ..config import config
 from ..run import (import_function, code_to_function, new_function,
-                   download_object, run_pipeline)
+                   download_object, run_pipeline, get_object)
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
@@ -78,8 +78,11 @@ def load_project(context, url=None, name=None, secrets=None,
 
     secrets = secrets or {}
     repo = None
+    project = None
     if url:
-        if url.startswith('git://'):
+        if url.endswith('.yaml'):
+            project = _load_project_file(url, name, secrets)
+        elif url.startswith('git://'):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith('.tar.gz'):
             clone_tgz(url, context, secrets)
@@ -97,7 +100,8 @@ def load_project(context, url=None, name=None, secrets=None,
             if init_git:
                 repo = Repo.init(context)
 
-    project = _load_project_dir(context, name, subpath)
+    if not project:
+        project = _load_project_dir(context, name, subpath)
     project.source = url
     project.repo = repo
     if repo:
@@ -128,6 +132,14 @@ def _load_project_dir(context, name='', subpath=''):
     project.context = context
     project.name = name or project.name
     project.subpath = subpath
+    return project
+
+
+def _load_project_file(url, name='', secrets=None):
+    obj = get_object(url, secrets)
+    struct = yaml.load(obj, Loader=yaml.FullLoader)
+    struct['name'] = name or struct.get('name', '')
+    project = MlrunProject.from_dict(struct)
     return project
 
 
@@ -254,15 +266,22 @@ class MlrunProject(ModelObj):
                 raise ValueError('workflow must be a dict')
             name = w.get('name', '')
             # todo: support steps dsl as code alternative
-            if not name or 'path' not in w:
-                raise ValueError('workflow "name" and "code" must be specified')
+            if not name:
+                raise ValueError('workflow "name" must be specified')
+            if 'path' not in w and 'code' not in w:
+                raise ValueError('workflow source "path" or "code" must be specified')
             wfdict[name] = w
 
         self._workflows = wfdict
 
     def set_workflow(self, name, path, embed=False):
         """add or update a workflow, specify a name and the code path"""
-        self._workflows[name] = {'name': name, 'path': path}
+        if embed:
+            with open(path, 'r') as fp:
+                txt = fp.read()
+            self._workflows[name] = {'name': name, 'code': txt}
+        else:
+            self._workflows[name] = {'name': name, 'path': path}
 
     @property
     def artifacts(self) -> list:
@@ -327,7 +346,10 @@ class MlrunProject(ModelObj):
 
         :returns: project object
         """
-        project = _load_project_dir(self.context, self.name, self.subpath)
+        if self.context:
+            project = _load_project_dir(self.context, self.name, self.subpath)
+        else:
+            project = _load_project_file(self.origin_url, self.name, self._secrets)
         project.source = self.source
         project.repo = self.repo
         project.branch = self.branch
@@ -542,17 +564,31 @@ class MlrunProject(ModelObj):
 
         if not name and not workflow_path:
             raise ValueError('workflow name or path not specified')
+
+        code = None
         if not workflow_path:
             if name not in self._workflows:
                 raise ValueError('workflow {} not found'.format(name))
-            workflow_path = self._workflows.get(name)['path']
-            workflow_path = path.join(self.context, workflow_path)
+            workflow_path, code = self._get_wf_file(name)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
         run = _run_pipeline(self, name, workflow_path, self._function_objects,
                             secrets=self._secrets, arguments=arguments,
                             artifact_path=artifact_path, namespace=namespace)
+        if code:
+            remove(workflow_path)
         return run
+
+    def _get_wf_file(self, name):
+        wf = self._workflows.get(name)
+        code = wf.get('code')
+        if code:
+            workflow_path = mktemp('.py')
+            with open(workflow_path, 'w') as wf:
+                wf.write(code)
+        else:
+            workflow_path = path.join(self.context, wf.get('path'))
+        return workflow_path, code
 
     def _need_repo(self):
         for f in self._function_objects.values():
@@ -573,12 +609,14 @@ class MlrunProject(ModelObj):
         if not name or name not in self._workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        wfpath = path.join(self.context, self._workflows.get(name)['path'])
-        pipeline = _create_pipeline(self, wfpath, self._function_objects,
+        workflow_path, code = self._get_wf_file(name)
+        pipeline = _create_pipeline(self, workflow_path, self._function_objects,
                                     secrets=self._secrets)
 
         conf = new_pipe_meta(artifact_path, ttl=ttl)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
+        if code:
+            remove(workflow_path)
 
     def clear_context(self):
         """delete all files and clear the context dir"""

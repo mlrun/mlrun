@@ -64,7 +64,7 @@ class ModelArtifact(Artifact):
             self._upload_file(src_model_path, data_stores, target=target_model_path)
 
         spec_path = path.join(self.target_path, model_spec_filename)
-        data_stores.object('', spec_path).put(body)
+        data_stores.object(url=spec_path).put(body)
 
         for key, local_path in self.extra_data.items():
             if not (local_path.startswith('/') or '://' in local_path):
@@ -72,14 +72,14 @@ class ModelArtifact(Artifact):
                 if not path.isfile(src_model_path):
                     raise ValueError('extra data file {} not found'.format(src_path))
                 target = path.join(self.target_path, local_path)
-                data_stores.object('', target).upload(src_path)
+                data_stores.object(url=target).upload(src_path)
 
 
 def get_model(model_dir, suffix='', stores: StoreManager = None):
     """return model file, model spec object, and list of extra data items"""
     model_file = ''
     model_spec = None
-    extra_dataitems = {}
+    extra_dataitems = []
     suffix = suffix or '.pkl'
     stores = stores or StoreManager()
 
@@ -99,7 +99,7 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     elif model_dir.endswith(suffix):
         model_file = model_dir
     else:
-        dirobj = stores.object(model_dir)
+        dirobj = stores.object(url=model_dir)
         model_dir_list = dirobj.listdir()
         if model_spec_filename in model_dir_list:
             model_spec = _load_model_spec(path.join(model_dir, model_spec_filename), stores)
@@ -116,7 +116,7 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
         raise ValueError('cant resolve model file for {} suffix{}'.format(
             model_dir, suffix))
 
-    obj = stores.object('', model_file)
+    obj = stores.object(url=model_file)
     if obj.kind == 'file':
         return model_file, model_spec, extra_dataitems
 
@@ -126,7 +126,7 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
 
 
 def _load_model_spec(specpath, stores: StoreManager):
-    data = stores.object('', specpath).get()
+    data = stores.object(url=specpath).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 
@@ -140,9 +140,7 @@ def _get_file_path(base_path: str, name: str, isdir=False):
 
 
 def _get_extra(stores, target, extra_data, is_dir=False):
-    extra_dataitems = {}
+    extra_dataitems = []
     for k, v in extra_data.items():
-        dataitem = stores.object(k, _get_file_path(target, v, isdir=is_dir))
-        extra_dataitems[k] = dataitem
-
+        extra_dataitems.append(stores.object(k, _get_file_path(target, v, isdir=is_dir)))
     return extra_dataitems

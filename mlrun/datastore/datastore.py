@@ -103,7 +103,7 @@ class StoreManager:
             raise OSError('artifact {} not found, {}'.format(url, e))
         return meta, meta.get('target_path', '')
 
-    def object(self, key='', url='', project=''):
+    def object(self, url, key='', project=''):
         meta = artifact_url = None
         if url.startswith(DB_SCHEMA + '://'):
             artifact_url = url

@@ -143,6 +143,10 @@ class DataItem:
         self._local_path = ''
 
     @property
+    def key(self):
+        return self._key
+
+    @property
     def kind(self):
         return self._store.kind
 

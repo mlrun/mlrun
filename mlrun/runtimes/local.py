@@ -216,15 +216,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
             args_list.append(copy(params[key]))
         elif args[key].name in inputs:
             obj = context.get_input(key, inputs[key])
-            if type(args[key].default) is str:
-                filepath = obj.url
-                if obj.kind != 'file':
-                    dot = filepath.rfind('.')
-                    filepath = mktemp() if dot == -1 else \
-                        mktemp(filepath[dot:])
-                    logger.info('downloading {} to local tmp'.format(obj.url))
-                    obj.download(filepath)
-                args_list.append(filepath)
+            if type(args[key].default) is str or args['key'].annotation == str:
+                args_list.append(obj.local())
             else:
                 args_list.append(context.get_input(key, inputs[key]))
         elif args[key].default is not inspect.Parameter.empty:

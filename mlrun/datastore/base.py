@@ -13,9 +13,14 @@
 # limitations under the License.
 
 from base64 import b64encode
+from os import remove
+from tempfile import mktemp
+
 import requests
 import urllib3
+import pandas as pd
 
+from mlrun.utils import logger
 
 verify_ssl = False
 if not verify_ssl:
@@ -95,8 +100,27 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def to_df(self):
-        pass
+    def as_df(self, key, columns=None, df_module=None, format='', **kwargs):
+        df_module = df_module or pd
+        if key.endswith(".csv") or format == 'csv':
+            if columns:
+                kwargs['usecols'] = columns
+            reader = df_module.read_csv
+        elif key.endswith(".parquet") or key.endswith(".pq") or format == 'parquet':
+            if columns:
+                kwargs['columns'] = columns
+            reader = df_module.read_parquet
+        else:
+            raise Exception(f"file type unhandled {key}")
+
+        if self.kind == 'file':
+            return reader(self._join(key), **kwargs)
+
+        tmp = mktemp()
+        self.download(self._join(key), tmp)
+        df = reader(tmp, **kwargs)
+        remove(tmp)
+        return df
 
     def to_dict(self):
         return {
@@ -108,7 +132,8 @@ class DataStore:
 
 
 class DataItem:
-    def __init__(self, key, store, subpath, url='', meta=None, artifact_url=None):
+    def __init__(self, key: str, store: DataStore, subpath: str,
+                 url: str = '', meta=None, artifact_url=None):
         self._store = store
         self._key = key
         self._url = url
@@ -149,6 +174,20 @@ class DataItem:
 
     def listdir(self):
         return self._store.listdir(self._path)
+
+    def local(self):
+        filepath = self._path
+        if self.kind != 'file':
+            dot = filepath.rfind('.')
+            filepath = mktemp() if dot == -1 else \
+                mktemp(filepath[dot:])
+            logger.info('downloading {} to local tmp'.format(self.url))
+            self.download(filepath)
+        return filepath
+
+    def as_df(self, columns=None, df_module=None, format='', **kwargs):
+        return self._store.as_df(self._path, columns=columns,
+                                 df_module=df_module, format=format, **kwargs)
 
     def __str__(self):
         return self.url

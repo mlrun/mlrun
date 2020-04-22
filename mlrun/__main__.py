@@ -494,12 +494,13 @@ def project(context, name, url, run, arguments, artifact_path,
     proj = load_project(context, url, name, init_git=init_git, clone=clone)
     print('Loading project {}{} into {}:\n'.format(
         proj.name, ' from ' + url if url else '', context))
-    print(proj.to_yaml())
+
     if param:
         proj.params = fill_params(param, proj.params)
     if secrets:
         secrets = line2keylist(secrets, 'kind', 'source')
         proj._secrets = SecretsStore.from_list(secrets)
+    print(proj.to_yaml())
 
     if run:
         workflow_path = None

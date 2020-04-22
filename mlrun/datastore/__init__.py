@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .datastore import StoreManager, DB_SCHEMA, uri_to_ipython, get_object_stat
+from .base import DataItem

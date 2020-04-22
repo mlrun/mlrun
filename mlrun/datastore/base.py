@@ -95,6 +95,9 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
+    def to_df(self):
+        pass
+
     def to_dict(self):
         return {
                 'name': self.name,

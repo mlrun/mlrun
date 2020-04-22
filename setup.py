@@ -57,7 +57,8 @@ setup(
     license='MIT',
     url='https://github.com/mlrun/mlrun',
     packages=['mlrun', 'mlrun.runtimes', 'mlrun.db', 'mlrun.mlutils',
-              'mlrun.platforms', 'mlrun.projects', 'mlrun.artifacts'],
+              'mlrun.platforms', 'mlrun.projects', 'mlrun.artifacts',
+              'mlrun.datastore'],
     install_requires=install_requires,
     extra_requires={
         'httpd': httpd_deps,

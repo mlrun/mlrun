@@ -136,7 +136,10 @@ def _load_project_dir(context, name='', subpath=''):
 
 
 def _load_project_file(url, name='', secrets=None):
-    obj = get_object(url, secrets)
+    try:
+        obj = get_object(url, secrets)
+    except FileNotFoundError as e:
+        raise FileNotFoundError('cant find project file at {}, {}'.format(url, e))
     struct = yaml.load(obj, Loader=yaml.FullLoader)
     struct['name'] = name or struct.get('name', '')
     project = MlrunProject.from_dict(struct)
@@ -274,14 +277,18 @@ class MlrunProject(ModelObj):
 
         self._workflows = wfdict
 
-    def set_workflow(self, name, path, embed=False):
+    def set_workflow(self, name, workflow_path: str, embed=False):
         """add or update a workflow, specify a name and the code path"""
+        if not workflow_path:
+            raise ValueError('valid workflow_path must be specified')
         if embed:
-            with open(path, 'r') as fp:
+            if self.context and not workflow_path.startswith('/'):
+                workflow_path = path.join(self.context, workflow_path)
+            with open(workflow_path, 'r') as fp:
                 txt = fp.read()
             self._workflows[name] = {'name': name, 'code': txt}
         else:
-            self._workflows[name] = {'name': name, 'path': path}
+            self._workflows[name] = {'name': name, 'path': workflow_path}
 
     @property
     def artifacts(self) -> list:

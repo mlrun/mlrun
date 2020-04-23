@@ -72,9 +72,7 @@ RUN mkdir -p /var/run/sshd && \
     # Allow OpenSSH to talk to containers without asking for confirmation
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
-    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config && \
-    svn checkout https://github.com/horovod/horovod/trunk/examples && \
-    rm -rf /examples/.svn
+    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \

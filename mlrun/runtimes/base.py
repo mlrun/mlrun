@@ -239,11 +239,10 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
+        runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 '{{run.uid}}', meta.uid)
-        elif config.artifact_path:
-            runspec.spec.output_path = path.join(config.artifact_path, meta.uid)
         if is_local(runspec.spec.output_path):
             logger.warning('artifact path is not defined or is local,'
                            ' artifacts will not be visible in the UI')

@@ -553,6 +553,10 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     :return kubeflow pipeline id
     """
 
+    artifact_path = artifact_path or mlconf.artifact_path
+    if artifact_path and '{{run.uid}}' in artifact_path:
+        artifact_path.replace('{{run.uid}}', '{{workflow.uid}}')
+
     namespace = namespace or mlconf.namespace
     arguments = arguments or {}
     if remote or url:

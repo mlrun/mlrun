@@ -270,7 +270,7 @@ class MLClientCtx(object):
             url = key
         if self.in_path and not (url.startswith('/') or '://' in url):
             url = uxjoin(self._in_path, url)
-        obj = self._data_stores.object(key, url, project=self._project)
+        obj = self._data_stores.object(url, key, project=self._project)
         self._inputs[key] = obj
         return obj
 
@@ -332,8 +332,8 @@ class MLClientCtx(object):
         if self._rundb:
             self._rundb.store_metric(keyvals, timestamp, labels)
 
-    def log_artifact(self, item, body=None, target_path='', src_path=None,
-                     tag='', viewer=None, local_path=None, artifact_path=None,
+    def log_artifact(self, item, body=None, local_path=None, artifact_path=None,
+                     tag='', viewer=None, target_path='', src_path=None,
                      upload=None, labels=None, format=None, db_prefix=None, **kwargs):
         """log an output artifact and optionally upload it"""
         local_path = src_path or local_path
@@ -352,7 +352,8 @@ class MLClientCtx(object):
 
     def log_dataset(self, key, df, tag='', local_path=None,
                     artifact_path=None, upload=True, labels=None,
-                    format='', preview=None, stats=False, db_prefix=None, **kwargs):
+                    format='', preview=None, stats=False, db_prefix=None,
+                    target_path='', **kwargs):
         """log a dataset artifact and optionally upload it"""
 
         ds = DatasetArtifact(key, df, preview=preview,
@@ -360,6 +361,7 @@ class MLClientCtx(object):
 
         item = self._artifacts_manager.log_artifact(self, ds, local_path=local_path,
                                                     artifact_path=artifact_path,
+                                                    target_path=target_path,
                                                     tag=tag,
                                                     upload=upload,
                                                     db_prefix=db_prefix,

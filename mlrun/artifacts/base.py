@@ -90,11 +90,11 @@ class Artifact(ModelObj):
         if calc_hash:
             self.hash = blob_hash(body)
         self.size = len(body)
-        data_stores.object('', target or self.target_path).put(body)
+        data_stores.object(url=target or self.target_path).put(body)
 
     def _upload_file(self, src, data_stores: StoreManager, target=None):
         self._set_meta(src)
-        data_stores.object('', target or self.target_path).upload(src)
+        data_stores.object(url=target or self.target_path).upload(src)
 
     def _set_meta(self, src):
         if calc_hash:
@@ -122,7 +122,7 @@ class DirArtifact(Artifact):
             if not os.path.isfile(file_path):
                 raise ValueError('file {} not found, cant upload'.format(file_path))
             target = os.path.join(self.target_path, f)
-            data_stores.object('', target).upload(file_path)
+            data_stores.object(url=target).upload(file_path)
 
 
 class LinkArtifact(Artifact):

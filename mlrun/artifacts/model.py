@@ -64,7 +64,7 @@ class ModelArtifact(Artifact):
             self._upload_file(src_model_path, data_stores, target=target_model_path)
 
         spec_path = path.join(self.target_path, model_spec_filename)
-        data_stores.object(url=spec_path).put(body)
+        data_stores.object(url=spec_path).put(self.to_yaml())
 
         for key, local_path in self.extra_data.items():
             if not (local_path.startswith('/') or '://' in local_path):

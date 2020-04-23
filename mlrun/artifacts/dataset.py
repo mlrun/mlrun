@@ -110,7 +110,7 @@ class DatasetArtifact(Artifact):
         suffix = pathlib.Path(self.target_path).suffix
         if not self.format:
             if suffix and suffix in ['.csv', '.parquet', '.pq']:
-                self.format = 'csv' if suffix=='.csv' else 'parquet'
+                self.format = 'csv' if suffix == '.csv' else 'parquet'
             else:
                 self.format = 'csv' if self.length < max_csv else 'parquet'
 
@@ -140,6 +140,7 @@ class DatasetArtifact(Artifact):
             saving_func(target, **self._kw)
             if to_upload:
                 self._upload_file(target, data_stores)
+                self._set_meta(target)
                 os.remove(target)
             else:
                 self._set_meta(target)

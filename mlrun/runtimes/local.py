@@ -216,7 +216,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
             args_list.append(copy(params[key]))
         elif args[key].name in inputs:
             obj = context.get_input(key, inputs[key])
-            if type(args[key].default) is str or args['key'].annotation == str:
+            if type(args[key].default) is str or args[key].annotation == str:
                 args_list.append(obj.local())
             else:
                 args_list.append(context.get_input(key, inputs[key]))

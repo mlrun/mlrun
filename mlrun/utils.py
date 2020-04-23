@@ -366,7 +366,8 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 
 
 def tag_image(base: str):
-    if config.version and (base == 'mlrun/mlrun' or (
+    ver = config.images_tag or config.version
+    if ver and (base == 'mlrun/mlrun' or (
             base.startswith('mlrun/ml-') and ':' not in base)):
-        base += ':' + config.version
+        base += ':' + ver
     return base

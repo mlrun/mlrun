@@ -63,8 +63,11 @@ circleci:
 	    -v $(PWD)/docs/_build:/mlrun/docs/_build \
 	    mlrun/test make html-docs
 
+docs-requirements:
+	cp requirements.txt docs/requirements.txt
+	echo numpydoc >> docs/requirements.txt
 
 .PHONY: html-docs
-html-docs:
+html-docs: docs-requirement
 	rm -f docs/external/*.md
 	cd docs && make html

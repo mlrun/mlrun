@@ -52,7 +52,6 @@ class ModelArtifact(Artifact):
                 return path.join(self.src_path, filename)
             return filename
 
-
         target_model_path = path.join(self.target_path, self.model_file)
         body = self.get_body()
         if body:
@@ -69,7 +68,7 @@ class ModelArtifact(Artifact):
         for key, local_path in self.extra_data.items():
             if not (local_path.startswith('/') or '://' in local_path):
                 src_path = get_src_path(self.model_file)
-                if not path.isfile(src_model_path):
+                if not path.isfile(src_path):
                     raise ValueError('extra data file {} not found'.format(src_path))
                 target = path.join(self.target_path, local_path)
                 data_stores.object(url=target).upload(src_path)

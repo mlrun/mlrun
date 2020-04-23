@@ -68,6 +68,6 @@ docs-requirements:
 	echo numpydoc >> docs/requirements.txt
 
 .PHONY: html-docs
-html-docs: docs-requirement
+html-docs: docs-requirements
 	rm -f docs/external/*.md
 	cd docs && make html

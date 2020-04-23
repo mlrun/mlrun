@@ -142,5 +142,5 @@ def _get_file_path(base_path: str, name: str, isdir=False):
 def _get_extra(stores, target, extra_data, is_dir=False):
     extra_dataitems = []
     for k, v in extra_data.items():
-        extra_dataitems.append(stores.object(k, _get_file_path(target, v, isdir=is_dir)))
+        extra_dataitems.append(stores.object(url=_get_file_path(target, v, isdir=is_dir), key=k))
     return extra_dataitems

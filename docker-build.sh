@@ -10,22 +10,23 @@ export MLRUN_COMMIT=${args[2]}
 export NEW_TAG=${args[3]}
 export PYTHON_VER_ML=${args[4]}
 export PYTHON_VER_CORE=${args[5]}
+export SOURCE=${args[6]}
 
-for IMAGE in 'base' 'models' 'models-gpu' 'serving'
-do
-    docker build \
-        -f ./dockerfiles/$IMAGE/Dockerfile \
-        --build-arg MLRUN_TAG=$MLRUN_COMMIT \
-        --build-arg REPO=$REPO \
-        --build-arg PREFIX=$PREFIX \
-        --build-arg NEW_TAG=$NEW_TAG \
-        --build-arg PYTHON_VER=$PYTHON_VER_ML \
-        -t $REPO/$PREFIX-$IMAGE:$NEW_TAG .
+# for IMAGE in 'base' 'models' 'models-gpu' 'serving'
+# do
+#     docker build \
+#         -f ./dockerfiles/$IMAGE/Dockerfile \
+#         --build-arg MLRUN_TAG=$MLRUN_COMMIT \
+#         --build-arg REPO=$REPO \
+#         --build-arg PREFIX=$PREFIX \
+#         --build-arg NEW_TAG=$NEW_TAG \
+#         --build-arg PYTHON_VER=$PYTHON_VER_ML \
+#         -t $REPO/$PREFIX-$IMAGE:$NEW_TAG .
 
-    docker push $REPO/$PREFIX-$IMAGE:$NEW_TAG
-done
+#     docker push $REPO/$PREFIX-$IMAGE:$NEW_TAG
+# done
 
-for IMAGE in 'dask' 'httpd' 'test'
+for IMAGE in 'mlrun-api'  #'dask' 'mlrun-api' 'test'
 do
     docker build \
         -f ./dockerfiles/$IMAGE/Dockerfile \
@@ -37,3 +38,10 @@ do
 
     docker push $REPO/$IMAGE:$NEW_TAG
 done
+
+docker build \
+        -f ./Dockerfile \
+        --build-arg PYTHON_VER=$PYTHON_VER_CORE
+        -t $REPO/mlrun:$NEW_TAG .
+
+docker push $REPO/mlrun:$NEW_TAG

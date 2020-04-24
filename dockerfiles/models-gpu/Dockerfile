@@ -22,6 +22,7 @@ ARG OMPI=4.0.3
 ARG REPO=mlrun
 
 ARG MLRUN_TAG=development
+LABEL MLRUN_TAG=$MLRUN_TAG
 ENV MLRUN_TAG=${MLRUN_TAG}
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
@@ -148,10 +149,12 @@ RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
 RUN conda clean -aqy
 
-RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
+RUN git clone https://github.com/${REPO}/mlrun.git /mlrun-git && \
+    cd /mlrun-git && \
+    git checkout ${MLRUN_TAG} && \
+    python -m pip install -e .
 
-# remove dask verify version mismatch warnings
-RUN python -m pip install --no-cache-dir \
+RUN python -m pip install --ignore-installed --no-cache-dir \
     blosc==1.7.0 \
     cloudpickle==1.1.1 \
     dask==2.12.0 \
@@ -159,3 +162,4 @@ RUN python -m pip install --no-cache-dir \
     lz4==2.2.1 \
     msgpack==1.0.0 \
     tornado==6.0.4
+    

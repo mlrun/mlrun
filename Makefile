@@ -46,7 +46,7 @@ run-httpd:
 .PHONY: docker-db
 docker-httpd:
 	docker build \
-	    -f dockerfiles/httpd/Dockerfile \
+	    -f dockerfiles/mlrun-api/Dockerfile \
 	    -t mlrun/mlrun-httpd .
 
 .PHONY: circleci

@@ -30,9 +30,6 @@ from ..lists import ArtifactList, FunctionList, RunList
 from ..utils import get_in, update_in, logger
 from .base import RunDBError, RunDBInterface
 
-from threading import RLock
-
-sql_lock = RLock()
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
@@ -588,22 +585,18 @@ class SQLDB(RunDBInterface):
 
     def _get_artifact(self, uid, project, key):
         try:
-            sql_lock.acquire()
             resp = self._query(
                 Artifact, uid=uid, project=project, key=key).one_or_none()
             return resp
         finally:
-            sql_lock.release()
             pass
 
     def _get_run(self, uid, project, iteration):
         try:
-            sql_lock.acquire()
             resp = self._query(
                 Run, uid=uid, project=project, iteration=iteration).one_or_none()
             return resp
         finally:
-            sql_lock.release()
             pass
 
     def _delete_empty_labels(self, cls):
@@ -612,7 +605,6 @@ class SQLDB(RunDBInterface):
 
     def _upsert(self, obj, ignore=False):
         try:
-            sql_lock.acquire()
             self.session.add(obj)
             self.session.commit()
         except SQLAlchemyError as err:
@@ -620,9 +612,7 @@ class SQLDB(RunDBInterface):
             cls = obj.__class__.__name__
             logger.warning(f'conflict adding {cls}, {err}')
             if not ignore:
-                sql_lock.release()
                 raise RunDBError(f'duplicate {cls} - {err}') from err
-        sql_lock.release()
 
     def _find_runs(self, uid, project, labels, state):
         labels = label_set(labels)

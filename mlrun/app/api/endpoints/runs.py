@@ -29,7 +29,7 @@ def store_run(
 
     logger.debug(data)
     get_db_instance().store_run(db_session, data, uid, project, iter=iter)
-    logger.info('store run: {}'.format(data))
+    logger.info("store run: {}".format(data))
     return {}
 
 
@@ -48,7 +48,7 @@ def update_run(
 
     logger.debug(data)
     get_db_instance().update_run(db_session, data, uid, project, iter=iter)
-    logger.info('update run: {}'.format(data))
+    logger.info("update run: {}".format(data))
     return {}
 
 
@@ -85,8 +85,8 @@ def list_runs(
         labels: List[str] = Query([]),
         state: str = None,
         last: int = 0,
-        sort: str = 'on',
-        iter: str = 'on',
+        sort: str = "on",
+        iter: str = "on",
         db_session: Session = Depends(deps.get_db_session)):
     sort = strtobool(sort)
     iter = strtobool(iter)

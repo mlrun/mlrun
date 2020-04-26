@@ -20,7 +20,7 @@ def store_function(
         request: Request,
         project: str,
         name: str,
-        tag: str = '',
+        tag: str = "",
         db_session: Session = Depends(deps.get_db_session)):
     try:
         data = asyncio.run(request.json())
@@ -29,7 +29,7 @@ def store_function(
 
     logger.debug(data)
     logger.info(
-        'store function: project=%s, name=%s, tag=%s', project, name, tag)
+        "store function: project=%s, name=%s, tag=%s", project, name, tag)
     get_db_instance().store_function(db_session, data, name, project, tag=tag)
     return {}
 
@@ -39,7 +39,7 @@ def store_function(
 def get_function(
         project: str,
         name: str,
-        tag: str = '',
+        tag: str = "",
         db_session: Session = Depends(deps.get_db_session)):
     func = get_db_instance().get_function(db_session, name, project, tag)
     return {

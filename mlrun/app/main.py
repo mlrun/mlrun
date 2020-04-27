@@ -13,7 +13,10 @@ from mlrun.k8s_utils import K8sHelper
 from mlrun.scheduler import Scheduler
 from mlrun.utils import logger
 
-app = FastAPI()
+app = FastAPI(title="MLRun",
+              description="Machine Learning automation and tracking",
+              version=config.version,
+              debug=config.httpdb.debug)
 
 app.include_router(api_router, prefix="/api")
 

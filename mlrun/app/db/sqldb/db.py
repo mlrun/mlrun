@@ -372,7 +372,7 @@ class SQLDB(DBInterface):
         # FIXME
         query = (
             self._query(session, Function.uid).filter(Function.project == project, Function.name == name)
-            .order_by(Function.updated.desc())
+                .order_by(Function.updated.desc())
         ).limit(1)
         out = query.one_or_none()
         if out:

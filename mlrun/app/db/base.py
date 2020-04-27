@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
 import warnings
+from abc import ABC, abstractmethod
 
 
 class DBError(Exception):
@@ -70,7 +70,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, session, name="", project="", tag="", labels=None,
+            self, session, name="", project="", tag="", labels=None,
             since=None, until=None):
         pass
 

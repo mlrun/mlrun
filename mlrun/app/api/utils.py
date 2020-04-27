@@ -9,6 +9,7 @@ from mlrun.app.main import db
 from mlrun.app.main import logs_dir
 from mlrun.app.main import scheduler
 from mlrun.config import config
+from mlrun.db.sqldb import SQLDB
 from mlrun.run import import_function, new_function
 from mlrun.utils import get_in, logger, parse_function_uri
 
@@ -84,7 +85,7 @@ def submit(db_session, data):
                     if val:
                         setattr(fn.spec, attr, val)
 
-        # FIXME: discuss with yaronh
+        _db = SQLDB(db.dsn, db_session, db.get_projects_cache())
         fn.set_db_connection(_db, True)
         logger.info("func:\n{}".format(fn.to_yaml()))
         # fn.spec.rundb = "http://mlrun-api:8080"

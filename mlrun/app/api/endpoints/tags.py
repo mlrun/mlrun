@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from mlrun.app.api import deps
 from mlrun.app.api.utils import json_error
 from mlrun.app.main import db
-from mlrun.db.sqldb import to_dict as db2dict, table2cls
+from mlrun.app.db.sqldb.helpers import to_dict as db2dict, table2cls
 
 router = APIRouter()
 

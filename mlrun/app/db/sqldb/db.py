@@ -19,9 +19,14 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 class SQLDB(DBInterface):
-    def __init__(self, dsn):
+    def __init__(self, dsn, projects=None):
         self.dsn = dsn
-        self._projects = set()  # project cache
+
+        # FIXME: this is a huge hack - the cache is currently not a real cache but a replica of the DB - if the code
+        # can not find a project in the cache it will just try to create it instead of trying to get it from the db
+        # first. in some cases we need several instances of this class (see mlrun.db.sqldb) therefore they all need to
+        # have the same cache, receiving the cache here (set in python passed by reference) to enable that
+        self._projects = projects or set()  # project cache
 
     def initialize(self, session):
         self._initialize_cache(session)
@@ -29,6 +34,9 @@ class SQLDB(DBInterface):
     def _initialize_cache(self, session):
         for project in self.list_projects(session):
             self._projects.add(project.name)
+
+    def get_projects_cache(self):
+        return self._projects
 
     def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project

@@ -13,6 +13,7 @@ from mlrun.app.main import db
 from mlrun.app.main import k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
+from mlrun.db.sqldb import SQLDB
 from mlrun.run import new_function
 from mlrun.runtimes import runtime_resources_map
 from mlrun.utils import get_in, logger, parse_function_uri, update_in
@@ -85,7 +86,7 @@ def build_function(
     try:
         fn = new_function(runtime=function)
 
-        # FIXME: discuss with yaronh
+        _db = SQLDB(db.dsn, db_session, db.get_projects_cache())
         fn.set_db_connection(_db)
         fn.save(versioned=False)
 
@@ -136,12 +137,12 @@ def start_function(
     if "start" not in resource:
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason="runtime error: "start" not supported by this runtime",
+            reason="runtime error: 'start' not supported by this runtime",
         )
 
     try:
 
-        # FIXME: discuss with yaronh
+        _db = SQLDB(db.dsn, db_session, db.get_projects_cache())
         fn.set_db_connection(_db)
         #  resp = resource["start"](fn)  # TODO: handle resp?
         resource["start"](fn)
@@ -183,7 +184,7 @@ def function_status(
     if "status" not in resource:
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason="runtime error: "status" not supported by this runtime",
+            reason="runtime error: 'status' not supported by this runtime",
         )
 
     try:

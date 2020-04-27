@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from mlrun.app.api.endpoints import artifacts, files, functions, logs, pipelines, projects, runs, schedules, submit
+from mlrun.app.api.endpoints import artifacts, files, functions, logs, pipelines, projects, runs, schedules, submit, \
+    workflows
 
 api_router = APIRouter()
 api_router.include_router(artifacts.router, tags=["artifacts"])
@@ -12,3 +13,4 @@ api_router.include_router(projects.router, tags=["projects"])
 api_router.include_router(runs.router, tags=["runs"])
 api_router.include_router(schedules.router, tags=["schedules"])
 api_router.include_router(submit.router, tags=["submit"])
+api_router.include_router(workflows.router, tags=["workflows"])

@@ -141,6 +141,8 @@ class MpiRuntime(KubejobRuntime):
                     self.get_pods(meta.name, meta.namespace))
                 logger.warning(txt)
                 runobj.status.status_text = txt
+                if self.kfp:
+                    execution.set_state('error', txt)
 
         return None
 

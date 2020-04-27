@@ -404,7 +404,7 @@ def parse_command(runtime, url):
 def code_to_function(name: str = '', project: str = '', tag: str = '',
                      filename: str = '', handler='', runtime='', kind='',
                      image=None, code_output='', embed_code=True,
-                     with_doc=False):
+                     with_doc=True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code

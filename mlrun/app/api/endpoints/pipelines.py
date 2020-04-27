@@ -5,11 +5,9 @@ from datetime import datetime
 from http import HTTPStatus
 from os import remove
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Request, Query
 from kfp import Client as kfclient
-from sqlalchemy.orm import Session
 
-from mlrun.app.api import deps
 from mlrun.app.api.utils import json_error
 from mlrun.config import config
 from mlrun.utils import logger

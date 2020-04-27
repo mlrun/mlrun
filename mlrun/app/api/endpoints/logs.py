@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
 from mlrun.app.api.utils import json_error, log_path
-from mlrun.app.db.session import get_db_instance
+from mlrun.app.main import db
 from mlrun.app.main import k8s
 from mlrun.utils import get_in, now_date, update_in
 
@@ -48,7 +48,7 @@ def get_log(
             out = fp.read(size)
         status = ""
     else:
-        data = get_db_instance().read_run(db_session, uid, project)
+        data = db.read_run(db_session, uid, project)
         if not data:
             return json_error(HTTPStatus.NOT_FOUND,
                               project=project, uid=uid)
@@ -72,15 +72,15 @@ def get_log(
                             update_in(data, "status.state", "error")
                             update_in(
                                 data, "status.error", "error, check logs")
-                            get_db_instance().store_run(db_session, data, uid, project)
+                            db.store_run(db_session, data, uid, project)
                         if new_status == "succeeded":
                             update_in(data, "status.state", "completed")
-                            get_db_instance().store_run(db_session, data, uid, project)
+                            db.store_run(db_session, data, uid, project)
                 status = new_status
             elif status == "running":
                 update_in(data, "status.state", "error")
                 update_in(
                     data, "status.error", "pod not found, maybe terminated")
-                get_db_instance().store_run(db_session, data, uid, project)
+                db.store_run(db_session, data, uid, project)
                 status = "failed"
     return Response(content=out, media_type="text/plain", headers={"pod_status": status})

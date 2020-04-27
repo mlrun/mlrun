@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
 from mlrun.app.api.utils import json_error
-from mlrun.app.db.session import get_db_instance
+from mlrun.app.main import db
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -30,7 +30,7 @@ def store_artifact(
         return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    get_db_instance().store_artifact(db_session, key, data, uid, iter=iter, tag=tag, project=project)
+    db.store_artifact(db_session, key, data, uid, iter=iter, tag=tag, project=project)
     return {}
 
 
@@ -39,7 +39,7 @@ def store_artifact(
 def list_artifact_tags(
         project: str,
         db_session: Session = Depends(deps.get_db_session)):
-    tags = get_db_instance().list_artifact_tags(db_session, project)
+    tags = db.list_artifact_tags(db_session, project)
     return {
         "project": project,
         "tags": tags,
@@ -53,7 +53,7 @@ def read_artifact(
         tag: str = "latest",
         iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    data = get_db_instance().read_artifact(db_session, tag=tag, iter=iter, project=project)
+    data = db.read_artifact(db_session, tag=tag, iter=iter, project=project)
     return {
         "data": data,
     }
@@ -67,7 +67,7 @@ def del_artifact(
         key: str,
         tag: str = "",
         db_session: Session = Depends(deps.get_db_session)):
-    get_db_instance().del_artifact(db_session, key, tag, project)
+    db.del_artifact(db_session, key, tag, project)
     return {}
 
 
@@ -79,7 +79,7 @@ def list_artifacts(
         tag: str = None,
         labels: List[str] = Query([]),
         db_session: Session = Depends(deps.get_db_session)):
-    artifacts = get_db_instance().list_artifacts(db_session, name, project, tag, labels)
+    artifacts = db.list_artifacts(db_session, name, project, tag, labels)
     return {
         "artifacts": artifacts,
     }
@@ -93,5 +93,5 @@ def del_artifacts(
         tag: str = "",
         labels: List[str] = Query([]),
         db_session: Session = Depends(deps.get_db_session)):
-    get_db_instance().del_artifacts(db_session, name, project, tag, labels)
+    db.del_artifacts(db_session, name, project, tag, labels)
     return {}

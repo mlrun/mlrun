@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
 from mlrun.app.api.utils import json_error
-from mlrun.app.db.session import get_db_instance
+from mlrun.app.main import db
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -28,7 +28,7 @@ def store_run(
         return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    get_db_instance().store_run(db_session, data, uid, project, iter=iter)
+    db.store_run(db_session, data, uid, project, iter=iter)
     logger.info("store run: {}".format(data))
     return {}
 
@@ -47,7 +47,7 @@ def update_run(
         return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    get_db_instance().update_run(db_session, data, uid, project, iter=iter)
+    db.update_run(db_session, data, uid, project, iter=iter)
     logger.info("update run: {}".format(data))
     return {}
 
@@ -59,7 +59,7 @@ def read_run(
         uid: str,
         iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    data = get_db_instance().read_run(db_session, uid, project, iter=iter)
+    data = db.read_run(db_session, uid, project, iter=iter)
     return {
         "data": data,
     }
@@ -72,7 +72,7 @@ def del_run(
         uid: str,
         tag: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    get_db_instance().del_run(db_session, uid, project, iter=iter)
+    db.del_run(db_session, uid, project, iter=iter)
     return {}
 
 
@@ -90,7 +90,7 @@ def list_runs(
         db_session: Session = Depends(deps.get_db_session)):
     sort = strtobool(sort)
     iter = strtobool(iter)
-    runs = get_db_instance().list_runs(
+    runs = db.list_runs(
         db_session,
         name=name,
         uid=uid,
@@ -113,7 +113,7 @@ def del_runs(
         name: str = None,
         labels: List[str] = Query([]),
         state: str = None,
-        days_age: int = 0,
+        days_ago: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    get_db_instance().del_runs(db_session, name, project, labels, state, days_ago)
+    db.del_runs(db_session, name, project, labels, state, days_ago)
     return {}

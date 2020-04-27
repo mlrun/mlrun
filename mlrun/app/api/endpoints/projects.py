@@ -1,16 +1,14 @@
 from distutils.util import strtobool
 from operator import attrgetter
-from typing import List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from mlrun.app import schemas
 from mlrun.app.api import deps
 from mlrun.app.api.utils import json_error
-from mlrun.app.db.session import get_db_instance
-from mlrun.app.db.sqldb import to_dict as db2dict
-from mlrun.config import config
+from mlrun.app.db.sqldb.helpers import to_dict as db2dict
+from mlrun.app.main import db
 
 router = APIRouter()
 
@@ -20,7 +18,7 @@ router = APIRouter()
 def add_project(
         project: schemas.ProjectCreate,
         db_session: Session = Depends(deps.get_db_session)):
-    project_id = get_db_instance().add_project(db_session, project.dict())
+    project_id = db.add_project(db_session, project.dict())
     return {
         "id": project_id,
         "name": project.name,
@@ -33,7 +31,7 @@ def update_project(
         project: schemas.ProjectUpdate,
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
-    get_db_instance().update_project(db_session, name, project.dict())
+    db.update_project(db_session, name, project.dict())
     return {}
 
 
@@ -42,7 +40,7 @@ def update_project(
 def get_project(
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
-    project = get_db_instance().get_project(db_session, name)
+    project = db.get_project(db_session, name)
     if not project:
         return json_error(error=f'project {name!r} not found')
 
@@ -59,7 +57,7 @@ def list_projects(
     full = strtobool(full)
     fn = db2dict if full else attrgetter("name")
     projects = []
-    for p in get_db_instance().list_projects(db_session):
+    for p in db.list_projects(db_session):
         if isinstance(p, dict):
             if full:
                 projects.append(p)

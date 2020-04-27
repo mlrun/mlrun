@@ -13,24 +13,24 @@ def table2cls(name):
 
 def label_set(labels):
     if isinstance(labels, str):
-        labels = labels.split(',')
+        labels = labels.split(",")
 
     return set(labels or [])
 
 
 def run_start_time(run):
-    ts = get_in(run, 'status.start_time', '')
+    ts = get_in(run, "status.start_time", "")
     if not ts:
         return None
     return parser.parse(ts)
 
 
 def run_labels(run) -> dict:
-    return get_in(run, 'metadata.labels', {})
+    return get_in(run, "metadata.labels", {})
 
 
 def run_state(run):
-    return get_in(run, 'status.state', '')
+    return get_in(run, "status.state", "")
 
 
 def update_labels(obj, labels: dict):
@@ -59,6 +59,6 @@ def to_dict(obj):
 
 
 def is_field(name):
-    if name[0] == '_':
+    if name[0] == "_":
         return False
-    return name not in ('metadata', 'Tag', 'Label')
+    return name not in ("metadata", "Tag", "Label")

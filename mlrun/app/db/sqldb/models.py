@@ -25,7 +25,7 @@ from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
+run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 class HasStruct:
@@ -40,31 +40,31 @@ class HasStruct:
 
 def make_label(table):
     class Label(Base):
-        __tablename__ = f'{table}_labels'
+        __tablename__ = f"{table}_labels"
         __table_args__ = (
-            UniqueConstraint('name', 'parent', name=f'_{table}_labels_uc'),
+            UniqueConstraint("name", "parent", name=f"_{table}_labels_uc"),
         )
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
         value = Column(String)
-        parent = Column(Integer, ForeignKey(f'{table}.id'))
+        parent = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Label
 
 
 def make_tag(table):
     class Tag(Base):
-        __tablename__ = f'{table}_tags'
+        __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint(
-                'project', 'name', 'obj_id', name=f'_{table}_tags_uc'),
+                "project", "name", "obj_id", name=f"_{table}_tags_uc"),
         )
 
         id = Column(Integer, primary_key=True)
         project = Column(String)
         name = Column(String)
-        obj_id = Column(Integer, ForeignKey(f'{table}.id'))
+        obj_id = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Tag
 
@@ -75,9 +75,9 @@ with warnings.catch_warnings():
 
 
     class Artifact(Base, HasStruct):
-        __tablename__ = 'artifacts'
+        __tablename__ = "artifacts"
         __table_args__ = (
-            UniqueConstraint('uid', 'project', 'key', name='_artifacts_uc'),
+            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
         )
 
         Label = make_label(__tablename__)
@@ -93,9 +93,9 @@ with warnings.catch_warnings():
 
 
     class Function(Base, HasStruct):
-        __tablename__ = 'functions'
+        __tablename__ = "functions"
         __table_args__ = (
-            UniqueConstraint('name', 'project', 'uid', name='_functions_uc'),
+            UniqueConstraint("name", "project", "uid", name="_functions_uc"),
         )
 
         Label = make_label(__tablename__)
@@ -111,7 +111,7 @@ with warnings.catch_warnings():
 
 
     class Log(Base):
-        __tablename__ = 'logs'
+        __tablename__ = "logs"
 
         id = Column(Integer, primary_key=True)
         uid = Column(String)
@@ -120,9 +120,9 @@ with warnings.catch_warnings():
 
 
     class Run(Base, HasStruct):
-        __tablename__ = 'runs'
+        __tablename__ = "runs"
         __table_args__ = (
-            UniqueConstraint('uid', 'project', 'iteration', name='_runs_uc'),
+            UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
         )
 
         Label = make_label(__tablename__)
@@ -139,7 +139,7 @@ with warnings.catch_warnings():
 
 
     class Schedule(Base, HasStruct):
-        __tablename__ = 'schedules'
+        __tablename__ = "schedules"
 
         id = Column(Integer, primary_key=True)
         body = Column(BLOB)
@@ -147,16 +147,16 @@ with warnings.catch_warnings():
 
     # Define "many to many" users/projects
     project_users = Table(
-        'project_users', Base.metadata,
-        Column('project_id', Integer, ForeignKey('projects.id')),
-        Column('user_id', Integer, ForeignKey('users.id')),
+        "project_users", Base.metadata,
+        Column("project_id", Integer, ForeignKey("projects.id")),
+        Column("user_id", Integer, ForeignKey("users.id")),
     )
 
 
     class User(Base):
-        __tablename__ = 'users'
+        __tablename__ = "users"
         __table_args__ = (
-            UniqueConstraint('name', name='_users_uc'),
+            UniqueConstraint("name", name="_users_uc"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -164,10 +164,10 @@ with warnings.catch_warnings():
 
 
     class Project(Base):
-        __tablename__ = 'projects'
+        __tablename__ = "projects"
         # For now since we use project name a lot
         __table_args__ = (
-            UniqueConstraint('name', name='_projects_uc'),
+            UniqueConstraint("name", name="_projects_uc"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -175,7 +175,7 @@ with warnings.catch_warnings():
         description = Column(String)
         owner = Column(String)
         source = Column(String)
-        _spec = Column('spec', BLOB)
+        _spec = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
         state = Column(String)
         users = relationship(User, secondary=project_users)
@@ -190,6 +190,6 @@ with warnings.catch_warnings():
             self._spec = pickle.dumps(value)
 
 # Must be after all table definitions
-_tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, 'Tag')]
+_tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]
 _table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}
 SessionLocal = None

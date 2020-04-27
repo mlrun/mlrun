@@ -27,9 +27,9 @@ def tag_objects(
     for typ, query in data.items():
         cls = table2cls(typ)
         if cls is None:
-            err = f'unknown type - {typ}'
+            err = f"unknown type - {typ}"
             return json_error(HTTPStatus.BAD_REQUEST, reason=err)
-        # {'name': 'bugs'} -> [Function.name=='bugs']
+        # {"name": "bugs"} -> [Function.name=="bugs"]
         db_query = [
             getattr(cls, key) == value for key, value in query.items()
         ]

@@ -78,9 +78,9 @@ def build_function(
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
-    logger.info('build_function:\n{}'.format(data))
-    function = data.get('function')
-    with_mlrun = strtobool(data.get('with_mlrun', 'on'))
+    logger.info("build_function:\n{}".format(data))
+    function = data.get("function")
+    with_mlrun = strtobool(data.get("with_mlrun", "on"))
 
     try:
         fn = new_function(runtime=function)
@@ -91,12 +91,12 @@ def build_function(
 
         ready = build_runtime(fn, with_mlrun)
         fn.save(versioned=False)
-        logger.info('Fn:\n %s', fn.to_yaml())
+        logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: {}'.format(err),
+            reason="runtime error: {}".format(err),
         )
     return {
         "data": fn.to_dict(),
@@ -115,12 +115,12 @@ def start_function(
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
-    logger.info('start_function:\n{}'.format(data))
-    url = data.get('functionUrl')
+    logger.info("start_function:\n{}".format(data))
+    url = data.get("functionUrl")
     if not url:
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: functionUrl not specified',
+            reason="runtime error: functionUrl not specified",
         )
 
     project, name, tag = parse_function_uri(url)
@@ -128,30 +128,30 @@ def start_function(
     if not runtime:
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: function {} not found'.format(url),
+            reason="runtime error: function {} not found".format(url),
         )
 
     fn = new_function(runtime=runtime)
     resource = runtime_resources_map.get(fn.kind)
-    if 'start' not in resource:
+    if "start" not in resource:
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: "start" not supported by this runtime',
+            reason="runtime error: "start" not supported by this runtime",
         )
 
     try:
 
         # FIXME: discuss with yaronh
         fn.set_db_connection(_db)
-        #  resp = resource['start'](fn)  # TODO: handle resp?
-        resource['start'](fn)
+        #  resp = resource["start"](fn)  # TODO: handle resp?
+        resource["start"](fn)
         fn.save(versioned=False)
-        logger.info('Fn:\n %s', fn.to_yaml())
+        logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: {}'.format(err),
+            reason="runtime error: {}".format(err),
         )
 
     return {
@@ -170,30 +170,30 @@ def function_status(
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
-    logger.info('function_status:\n{}'.format(data))
-    selector = data.get('selector')
-    kind = data.get('kind')
+    logger.info("function_status:\n{}".format(data))
+    selector = data.get("selector")
+    kind = data.get("kind")
     if not selector or not kind:
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: selector or runtime kind not specified',
+            reason="runtime error: selector or runtime kind not specified",
         )
 
     resource = runtime_resources_map.get(kind)
-    if 'status' not in resource:
+    if "status" not in resource:
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: "status" not supported by this runtime',
+            reason="runtime error: "status" not supported by this runtime",
         )
 
     try:
-        resp = resource['status'](selector)
-        logger.info('status: %s', resp)
+        resp = resource["status"](selector)
+        logger.info("status: %s", resp)
     except Exception as err:
         logger.error(traceback.format_exc())
         return json_error(
             HTTPStatus.BAD_REQUEST,
-            reason='runtime error: {}'.format(err),
+            reason="runtime error: {}".format(err),
         )
     return {
         "data": resp,
@@ -216,38 +216,38 @@ def build_status(
         return json_error(HTTPStatus.NOT_FOUND, name=name,
                           project=project, tag=tag)
 
-    state = get_in(fn, 'status.state', '')
-    pod = get_in(fn, 'status.build_pod', '')
-    image = get_in(fn, 'spec.build.image', '')
-    out = b''
+    state = get_in(fn, "status.state", "")
+    pod = get_in(fn, "status.build_pod", "")
+    image = get_in(fn, "spec.build.image", "")
+    out = b""
     if not pod:
-        if state == 'ready':
-            image = image or get_in(fn, 'spec.image')
+        if state == "ready":
+            image = image or get_in(fn, "spec.image")
         return Response(content=out,
                         media_type="text/plain",
                         headers={"function_status": state,
                                  "function_image": image,
                                  "builder_pod": pod})
 
-    logger.info('get pod {} status'.format(pod))
+    logger.info("get pod {} status".format(pod))
     state = k8s.get_pod_status(pod)
-    logger.info('pod state={}'.format(state))
+    logger.info("pod state={}".format(state))
 
-    if state == 'succeeded':
-        logger.info('build completed successfully')
-        state = 'ready'
-    if state in ['failed', 'error']:
-        logger.error('build {}, watch the build pod logs: {}'.format(
+    if state == "succeeded":
+        logger.info("build completed successfully")
+        state = "ready"
+    if state in ["failed", "error"]:
+        logger.error("build {}, watch the build pod logs: {}".format(
             state, pod))
 
-    if logs and state != 'pending':
+    if logs and state != "pending":
         resp = k8s.logs(pod)
         if resp:
             out = resp.encode()[offset:]
 
-    update_in(fn, 'status.state', state)
-    if state == 'ready':
-        update_in(fn, 'spec.image', image)
+    update_in(fn, "status.state", state)
+    if state == "ready":
+        update_in(fn, "spec.image", image)
 
     db.store_function(db_session, fn, name, project, tag)
 

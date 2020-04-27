@@ -15,7 +15,7 @@ from mlrun.utils import get_in, update_in, logger
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
+run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 class SQLDB(DBInterface):
@@ -30,7 +30,7 @@ class SQLDB(DBInterface):
         for project in self.list_projects(session):
             self._projects.add(project.name)
 
-    def store_log(self, session, uid, project='', body=b'', append=False):
+    def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project
         self._create_project_if_not_exists(session, project)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
@@ -43,15 +43,15 @@ class SQLDB(DBInterface):
                 log.body = body
         self._upsert(session, log)
 
-    def get_log(self, session, uid, project='', offset=0, size=0):
+    def get_log(self, session, uid, project="", offset=0, size=0):
         project = project or config.default_project
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             return None, None
         end = None if size == 0 else offset + size
-        return '', log.body[offset:end]
+        return "", log.body[offset:end]
 
-    def store_run(self, session, struct, uid, project='', iter=0):
+    def store_run(self, session, struct, uid, project="", iter=0):
         project = project or config.default_project
         self._create_project_if_not_exists(session, project)
         run = self._get_run(session, uid, project, iter)
@@ -68,11 +68,11 @@ class SQLDB(DBInterface):
         run.struct = struct
         self._upsert(session, run, ignore=True)
 
-    def update_run(self, session, updates: dict, uid, project='', iter=0):
+    def update_run(self, session, updates: dict, uid, project="", iter=0):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise DBError(f'run {uid}:{project} not found')
+            raise DBError(f"run {uid}:{project} not found")
         struct = run.struct
         for key, val in updates.items():
             update_in(struct, key, val)
@@ -95,7 +95,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise DBError(f'Run {uid}:{project} not found')
+            raise DBError(f"Run {uid}:{project} not found")
         return run.struct
 
     def list_runs(
@@ -131,22 +131,22 @@ class SQLDB(DBInterface):
         if days_ago:
             since = datetime.now() - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
-        for run in query:  # Can't use query.delete with join
+        for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
 
     def store_artifact(
-            self, session, key, artifact, uid, iter=None, tag='', project=''):
+            self, session, key, artifact, uid, iter=None, tag="", project=""):
         project = project or config.default_project
         self._create_project_if_not_exists(session, project)
         artifact = artifact.copy()
-        updated = artifact.get('updated')
+        updated = artifact.get("updated")
         if not updated:
-            updated = artifact['updated'] = datetime.now(timezone.utc)
+            updated = artifact["updated"] = datetime.now(timezone.utc)
         if iter:
-            key = '{}-{}'.format(iter, key)
+            key = "{}-{}".format(iter, key)
         art = self._get_artifact(session, uid, project, key)
-        labels = artifact.get('labels', {})
+        labels = artifact.get("labels", {})
         if not art:
             art = Artifact(
                 key=key,
@@ -159,11 +159,11 @@ class SQLDB(DBInterface):
         if tag:
             self.tag_objects(session, [art], project, tag)
 
-    def read_artifact(self, session, key, tag='', iter=None, project=''):
+    def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
         uid = self._resolve_tag(session, Artifact, project, tag)
         if iter:
-            key = '{}-{}'.format(iter, key)
+            key = "{}-{}".format(iter, key)
 
         query = self._query(
             session, Artifact, key=key, project=project)
@@ -178,14 +178,14 @@ class SQLDB(DBInterface):
 
         art = query.one_or_none()
         if not art:
-            raise DBError(f'Artifact {key}:{tag}:{project} not found')
+            raise DBError(f"Artifact {key}:{tag}:{project} not found")
         return art.struct
 
     def list_artifacts(
             self, session, name=None, project=None, tag=None, labels=None,
             since=None, until=None):
         project = project or config.default_project
-        uid = 'latest'
+        uid = "latest"
         if tag:
             uid = self._resolve_tag(session, Artifact, project, tag)
 
@@ -195,32 +195,32 @@ class SQLDB(DBInterface):
         )
         return arts
 
-    def del_artifact(self, session, key, tag='', project=''):
+    def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
         kw = {
-            'key': key,
-            'project': project,
+            "key": key,
+            "project": project,
         }
         if tag:
-            kw['tag'] = tag
+            kw["tag"] = tag
 
         self._delete(session, Artifact, **kw)
 
     def del_artifacts(
-            self, session, name='', project='', tag='', labels=None):
+            self, session, name="", project="", tag="", labels=None):
         project = project or config.default_project
         for obj in self._find_artifacts(session, project, tag, labels, None, None):
             session.delete(obj)
         session.commit()
 
-    def store_function(self, session, func, name, project='', tag=''):
+    def store_function(self, session, func, name, project="", tag=""):
         project = project or config.default_project
         self._create_project_if_not_exists(session, project)
-        tag = tag or get_in(func, 'metadata.tag') or 'latest'
+        tag = tag or get_in(func, "metadata.tag") or "latest"
 
         # uid = self._resolve_tag(Function, project, tag)
         updated = datetime.now(timezone.utc)
-        update_in(func, 'metadata.updated', updated)
+        update_in(func, "metadata.updated", updated)
         #        fn = self._get_function(name, project, uid)
         fn = self._get_function(session, name, project, tag)
         if not fn:
@@ -230,21 +230,21 @@ class SQLDB(DBInterface):
                 uid=tag,
             )
         fn.updated = updated
-        labels = get_in(func, 'metadata.labels', {})
+        labels = get_in(func, "metadata.labels", {})
         update_labels(fn, labels)
         fn.struct = func
         self._upsert(session, fn)
 
-    def get_function(self, session, name, project='', tag=''):
+    def get_function(self, session, name, project="", tag=""):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
-        tag = tag or 'latest'
+        tag = tag or "latest"
         # if tag:
-        #     if tag == 'latest':
+        #     if tag == "latest":
         #         uid = self._function_latest_uid(session, project, name)
         #         if not uid:
         #             raise DBError(
-        #                 f'no latest version for function {project}:{name}')
+        #                 f"no latest version for function {project}:{name}")
         #     else:
         #         uid = self._resolve_tag(Function, project, tag)
         query = query.filter(Function.uid == tag)
@@ -318,11 +318,11 @@ class SQLDB(DBInterface):
 
     def add_project(self, session, project: dict):
         project = project.copy()
-        name = project.get('name')
+        name = project.get("name")
         if not name:
-            raise ValueError('project missing name')
+            raise ValueError("project missing name")
 
-        user_names = project.pop('users', [])
+        user_names = project.pop("users", [])
         prj = Project(**project)
         users = []  # self._find_or_create_users(session, user_names)
         prj.users.extend(users)
@@ -333,13 +333,13 @@ class SQLDB(DBInterface):
     def update_project(self, session, name, data: dict):
         prj = self.get_project(session, name)
         if not prj:
-            raise DBError(f'unknown project - {name}')
+            raise DBError(f"unknown project - {name}")
 
         data = data.copy()
-        user_names = data.pop('users', [])
+        user_names = data.pop("users", [])
         for key, value in data.items():
             if not hasattr(prj, key):
-                raise DBError(f'unknown project attribute - {key}')
+                raise DBError(f"unknown project attribute - {key}")
             setattr(prj, key, value)
 
         users = []  # self._find_or_create_users(session, user_names)
@@ -349,7 +349,7 @@ class SQLDB(DBInterface):
 
     def get_project(self, session, name=None, project_id=None):
         if not (project_id or name):
-            raise ValueError('need at least one of project_id or name')
+            raise ValueError("need at least one of project_id or name")
 
         if project_id:
             return self._query(session, Project).get(project_id)
@@ -380,7 +380,7 @@ class SQLDB(DBInterface):
 
     def _create_project_if_not_exists(self, session, name):
         if name not in self._projects:
-            self.add_project(session, {'name': name})
+            self.add_project(session, {"name": name})
 
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
@@ -394,7 +394,7 @@ class SQLDB(DBInterface):
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                raise DBError(f'add user: {err}') from err
+                raise DBError(f"add user: {err}") from err
         return users
 
     def _get_function(self, session, name, project, tag):
@@ -429,9 +429,9 @@ class SQLDB(DBInterface):
         except SQLAlchemyError as err:
             session.rollback()
             cls = obj.__class__.__name__
-            logger.warning(f'conflict adding {cls}, {err}')
+            logger.warning(f"conflict adding {cls}, {err}")
             if not ignore:
-                raise DBError(f'duplicate {cls} - {err}') from err
+                raise DBError(f"duplicate {cls} - {err}") from err
 
     def _find_runs(self, session, uid, project, labels, state):
         labels = label_set(labels)
@@ -447,8 +447,8 @@ class SQLDB(DBInterface):
             func.max(Artifact.updated),
         ).group_by(
             Artifact.project,
-            Artifact.key.label('key'),
-        ).subquery('max_key')
+            Artifact.key.label("key"),
+        ).subquery("max_key")
 
         # Join curreny query with sub query on (project, key, uid)
         return query.join(
@@ -463,8 +463,8 @@ class SQLDB(DBInterface):
     def _find_artifacts(self, session, project, uid, labels, since, until):
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
-        if uid != '*':
-            if uid == 'latest':
+        if uid != "*":
+            if uid == "latest":
                 query = self._latest_uid_filter(session, query)
             else:
                 query = query.filter(Artifact.uid == uid)
@@ -505,12 +505,12 @@ class SQLDB(DBInterface):
 
         preds = []
         for lbl in labels:
-            if '=' in lbl:
-                name, value = [v.strip() for v in lbl.split('=', 1)]
+            if "=" in lbl:
+                name, value = [v.strip() for v in lbl.split("=", 1)]
                 cond = and_(cls.Label.name == name, cls.Label.value == value)
                 preds.append(cond)
             else:
                 preds.append(cls.Label.name == lbl.strip())
 
-        subq = session.query(cls.Label).filter(*preds).subquery('labels')
+        subq = session.query(cls.Label).filter(*preds).subquery("labels")
         return query.join(subq)

@@ -23,13 +23,13 @@ def get_files(
     objpath = get_obj_path(schema, objpath, user=user)
     if not objpath:
         return json_error(HTTPStatus.NOT_FOUND, path=objpath,
-                          err='illegal path prefix or schema')
+                          err="illegal path prefix or schema")
 
     secrets = get_secrets(request)
     try:
         stores = StoreManager(secrets)
         obj = stores.object(url=objpath)
-        if objpath.endswith('/'):
+        if objpath.endswith("/"):
             listdir = obj.listdir()
             return {
                 "listdir": listdir,
@@ -43,7 +43,7 @@ def get_files(
 
     ctype, _ = mimetypes.guess_type(objpath)
     if not ctype:
-        ctype = 'application/octet-stream'
+        ctype = "application/octet-stream"
     return Response(content=body, media_type=ctype, headers={"x-suggested-filename": filename})
 
 
@@ -59,7 +59,7 @@ def get_filestat(
     path = get_obj_path(schema, path, user=user)
     if not path:
         return json_error(HTTPStatus.NOT_FOUND, path=path,
-                          err='illegal path prefix or schema')
+                          err="illegal path prefix or schema")
     secrets = get_secrets(request)
     try:
         stat = get_object_stat(path, secrets)
@@ -68,7 +68,7 @@ def get_filestat(
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:
-        ctype = 'application/octet-stream'
+        ctype = "application/octet-stream"
 
     return {
         "size": stat.size,

@@ -42,7 +42,7 @@ def get_project(
         db_session: Session = Depends(deps.get_db_session)):
     project = db.get_project(db_session, name)
     if not project:
-        return json_error(error=f'project {name!r} not found')
+        return json_error(error=f"project {name!r} not found")
 
     project.users = [u.name for u in project.users]
 
@@ -62,7 +62,7 @@ def list_projects(
             if full:
                 projects.append(p)
             else:
-                projects.append(p.get('name'))
+                projects.append(p.get("name"))
         else:
             projects.append(fn(p))
 

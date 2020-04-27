@@ -5,7 +5,7 @@ from mlrun.config import config
 
 
 def get_db_session() -> Generator:
-    if config.httpdb.db_type == 'sqldb':
+    if config.httpdb.db_type == "sqldb":
         try:
             db_session = SessionLocal()
             yield db_session

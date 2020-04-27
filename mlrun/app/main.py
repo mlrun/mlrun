@@ -15,7 +15,7 @@ from mlrun.utils import logger
 
 app = FastAPI()
 
-app.include_router(api_router, prefix='/api')
+app.include_router(api_router, prefix="/api")
 
 scheduler: Scheduler = None
 k8s: K8sHelper = None
@@ -27,7 +27,7 @@ db = None
 async def startup_event():
     global logs_dir, k8s, scheduler
 
-    logger.info('configuration dump\n%s', config.dump_yaml())
+    logger.info("configuration dump\n%s", config.dump_yaml())
 
     _initialize_db()
 
@@ -50,8 +50,8 @@ def _reschedule_tasks():
     try:
         db_session = SessionLocal()
         for data in db.list_schedules(db_session):
-            if 'schedule' not in data:
-                logger.warning('bad scheduler data - %s', data)
+            if "schedule" not in data:
+                logger.warning("bad scheduler data - %s", data)
                 continue
             submit(db_session, data)
     finally:
@@ -61,8 +61,8 @@ def _reschedule_tasks():
 def _initialize_db():
     global db
 
-    if config.httpdb.db_type == 'sqldb':
-        logger.info('using SQLDB')
+    if config.httpdb.db_type == "sqldb":
+        logger.info("using SQLDB")
         db = SQLDB(config.httpdb.dsn)
         try:
             db_session = SessionLocal()
@@ -70,6 +70,6 @@ def _initialize_db():
         finally:
             db_session.close()
     else:
-        logger.info('using FileRunDB')
+        logger.info("using FileRunDB")
         db = FileDB(config.httpdb.dirpath)
         db.initialize(None)

@@ -25,5 +25,5 @@ def submit_job(
     except ValueError:
         return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
-    logger.info('submit_job: {}'.format(data))
+    logger.info("submit_job: {}".format(data))
     return submit(db_session, data)

@@ -23,7 +23,7 @@ def submit_pipeline(
         namespace: str = config.namespace,
         experiment_name: str = Query("Default", alias="experiment"),
         run_name: str = Query("", alias="run")):
-    run_name = run_name or experiment_name + ' ' + datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+    run_name = run_name or experiment_name + " " + datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
     arguments = {}
     arguments_data = request.headers.get("pipeline-arguments")
@@ -32,22 +32,22 @@ def submit_pipeline(
         logger.info("pipeline arguments {}".format(arguments_data))
 
     ctype = request.headers.get("content-type", "")
-    if '/yaml' in ctype:
-        ctype = '.yaml'
-    elif ' /zip' in ctype:
-        ctype = '.zip'
+    if "/yaml" in ctype:
+        ctype = ".yaml"
+    elif " /zip" in ctype:
+        ctype = ".zip"
     else:
         return json_error(HTTPStatus.BAD_REQUEST,
-                          reason='unsupported pipeline type {}'.format(ctype))
+                          reason="unsupported pipeline type {}".format(ctype))
 
-    logger.info('writing file {}'.format(ctype))
+    logger.info("writing file {}".format(ctype))
     data = asyncio.run(request.json())
     if data:
-        return json_error(HTTPStatus.BAD_REQUEST, reason='post data is empty')
+        return json_error(HTTPStatus.BAD_REQUEST, reason="post data is empty")
 
     print(str(data))
     pipe_tmp = tempfile.mktemp(suffix=ctype)
-    with open(pipe_tmp, 'wb') as fp:
+    with open(pipe_tmp, "wb") as fp:
         fp.write(data)
 
     try:
@@ -58,7 +58,7 @@ def submit_pipeline(
     except Exception as e:
         remove(pipe_tmp)
         return json_error(HTTPStatus.BAD_REQUEST,
-                          reason='kfp err: {}'.format(e))
+                          reason="kfp err: {}".format(e))
 
     remove(pipe_tmp)
     return {

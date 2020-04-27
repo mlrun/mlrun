@@ -15,20 +15,6 @@ from mlrun.config import config
 router = APIRouter()
 
 
-# curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
-@router.get("/funcs")
-def list_functions(
-        project: str = config.default_project,
-        name: str = None,
-        tag: str = None,
-        labels: List[str] = Query([]),
-        db_session: Session = Depends(deps.get_db_session)):
-    funcs = get_db_instance().list_functions(db_session, name, project, tag, labels)
-    return {
-        "funcs": list(funcs),
-    }
-
-
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
 @router.post("/project")
 def add_project(

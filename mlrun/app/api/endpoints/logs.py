@@ -16,7 +16,7 @@ router = APIRouter()
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @router.post("/log/{project}/{uid}")
-def store_function(
+def store_log(
         request: Request,
         project: str,
         uid: str,
@@ -33,7 +33,7 @@ def store_function(
 
 # curl http://localhost:8080/log/prj/7
 @router.get("/log/{project}/{uid}")
-def get_function(
+def get_log(
         project: str,
         uid: str,
         size: int = -1,

@@ -24,8 +24,7 @@ def submit_pipeline(
         request: Request,
         namespace: str = config.namespace,
         experiment_name: str = Query("Default", alias="experiment"),
-        run_name: str = Query("", alias="run"),
-        db_session: Session = Depends(deps.get_db_session)):
+        run_name: str = Query("", alias="run")):
     run_name = run_name or experiment_name + ' ' + datetime.now().strftime('%Y-%m-%d %H-%M-%S')
 
     arguments = {}

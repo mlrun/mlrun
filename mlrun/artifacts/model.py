@@ -69,6 +69,7 @@ class ModelArtifact(Artifact):
             if isinstance(item, bytes):
                 target = path.join(self.target_path, key)
                 data_stores.object(url=target).put(item)
+                self.extra_data[key] = target
 
             elif not (item.startswith('/') or '://' in item):
                 src_path = get_src_path(item)

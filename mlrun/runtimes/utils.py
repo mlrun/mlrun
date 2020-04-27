@@ -217,7 +217,8 @@ def apply_kfp(modify, cop, runtime):
     for k, v in cop.pod_annotations.items():
         runtime.metadata.annotations[k] = v
     if cop.container.env:
-        env_names = [e['name'] for e in runtime.spec.env]
+        env_names = [e.name if hasattr(e, 'name') else e['name']
+                     for e in runtime.spec.env]
         for e in api.sanitize_for_serialization(cop.container.env):
             name = e['name']
             if name in env_names:

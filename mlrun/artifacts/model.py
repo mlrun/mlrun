@@ -65,12 +65,16 @@ class ModelArtifact(Artifact):
         spec_path = path.join(self.target_path, model_spec_filename)
         data_stores.object(url=spec_path).put(self.to_yaml())
 
-        for key, local_path in self.extra_data.items():
-            if not (local_path.startswith('/') or '://' in local_path):
-                src_path = get_src_path(self.model_file)
+        for key, item in self.extra_data.items():
+            if isinstance(item, bytes):
+                target = path.join(self.target_path, key)
+                data_stores.object(url=target).put(item)
+
+            elif not (item.startswith('/') or '://' in item):
+                src_path = get_src_path(item)
                 if not path.isfile(src_path):
                     raise ValueError('extra data file {} not found'.format(src_path))
-                target = path.join(self.target_path, local_path)
+                target = path.join(self.target_path, item)
                 data_stores.object(url=target).upload(src_path)
 
 

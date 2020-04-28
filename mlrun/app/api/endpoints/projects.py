@@ -31,12 +31,12 @@ def update_project(
         project: schemas.ProjectUpdate,
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
-    get_db().update_project(db_session, name, project.dict())
+    get_db().update_project(db_session, name, project.dict(exclude_unset=True))
     return {}
 
 
 # curl http://localhost:8080/project/<name>
-@router.get("/project/{name}", response_model=schemas.Project)
+@router.get("/project/{name}", response_model=schemas.ProjectOut)
 def get_project(
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
@@ -46,13 +46,15 @@ def get_project(
 
     project.users = [u.name for u in project.users]
 
-    return project
+    return {
+        "project": project,
+    }
 
 
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects")
 def list_projects(
-        full: str = "on",
+        full: str = "no",
         db_session: Session = Depends(deps.get_db_session)):
     full = strtobool(full)
     fn = db2dict if full else attrgetter("name")

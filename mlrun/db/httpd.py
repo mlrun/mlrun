@@ -35,7 +35,8 @@ from mlrun.config import config
 from mlrun.datastore import get_object_stat, StoreManager
 from mlrun.db import RunDBError, RunDBInterface, periodic
 from mlrun.db.filedb import FileRunDB
-from mlrun.db.sqldb import SQLDB, to_dict as db2dict, table2cls
+from mlrun.db.sqldb import SQLDB
+from mlrun.app.db.sqldb.helpers import to_dict as db2dict, table2cls
 from mlrun.k8s_utils import K8sHelper
 from mlrun.run import import_function, new_function, list_piplines
 from mlrun.runtimes import runtime_resources_map
@@ -980,11 +981,11 @@ def init_app():
     periodic.schedule(task, 60)
 
     _scheduler = Scheduler()
-    for data in _db.list_schedules():
-        if 'schedule' not in data:
-            logger.warning('bad scheduler data - %s', data)
-            continue
-        _submit(data)
+    # for data in _db.list_schedules():
+    #     if 'schedule' not in data:
+    #         logger.warning('bad scheduler data - %s', data)
+    #         continue
+    #     _submit(data)
 
 
 # Don't remove this function, it's an entry point in setup.py

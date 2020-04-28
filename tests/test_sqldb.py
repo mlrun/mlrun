@@ -36,7 +36,7 @@ SessionLocal: Callable
 @pytest.fixture
 def db():
     global SessionLocal
-    engine = create_engine(config.httpdb.dsn)
+    engine = create_engine("sqlite:///:memory:?check_same_thread=false")
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine)
     db = SQLDB(config.httpdb.dsn)

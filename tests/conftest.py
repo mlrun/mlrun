@@ -36,7 +36,6 @@ root_path = str(Path(here).parent)
 examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
-environ['MLRUN_httpdb__dsn'] = "sqlite:///:memory:?check_same_thread=false"
 
 from mlrun.app.db.sqldb.db import run_time_fmt
 

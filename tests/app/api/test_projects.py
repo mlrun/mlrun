@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 
-def test_create_item(
+def test_project(
         client: TestClient, db: Session
 ) -> None:
     name1 = f'prj-{uuid4().hex}'

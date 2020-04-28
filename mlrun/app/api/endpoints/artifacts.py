@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
-from mlrun.app.api.utils import json_error
+from mlrun.app.api.utils import log_and_raise
 from mlrun.app.main import db
 from mlrun.config import config
 from mlrun.utils import logger
@@ -24,10 +24,11 @@ def store_artifact(
         tag: str = "",
         iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     db.store_artifact(db_session, key, data, uid, iter=iter, tag=tag, project=project)

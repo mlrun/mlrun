@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.app import schemas
 from mlrun.app.api import deps
-from mlrun.app.api.utils import json_error
+from mlrun.app.api.utils import log_and_raise
 from mlrun.app.db.sqldb.helpers import to_dict as db2dict
 from mlrun.app.main import db
 
@@ -42,7 +42,7 @@ def get_project(
         db_session: Session = Depends(deps.get_db_session)):
     project = db.get_project(db_session, name)
     if not project:
-        return json_error(error=f"project {name!r} not found")
+        log_and_raise(error=f"project {name!r} not found")
 
     project.users = [u.name for u in project.users]
 

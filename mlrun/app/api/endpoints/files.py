@@ -3,7 +3,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Query, Request, Response
 
-from mlrun.app.api.utils import json_error, get_obj_path, get_secrets
+from mlrun.app.api.utils import log_and_raise, get_obj_path, get_secrets
 from mlrun.datastore import get_object_stat, StoreManager
 
 router = APIRouter()
@@ -22,10 +22,10 @@ def get_files(
 
     objpath = get_obj_path(schema, objpath, user=user)
     if not objpath:
-        return json_error(HTTPStatus.NOT_FOUND, path=objpath,
-                          err="illegal path prefix or schema")
+        log_and_raise(HTTPStatus.NOT_FOUND, path=objpath, err="illegal path prefix or schema")
 
     secrets = get_secrets(request)
+    body = None
     try:
         stores = StoreManager(secrets)
         obj = stores.object(url=objpath)
@@ -37,9 +37,9 @@ def get_files(
 
         body = obj.get(size, offset)
     except FileNotFoundError as e:
-        return json_error(HTTPStatus.NOT_FOUND, path=objpath, err=str(e))
+        log_and_raise(HTTPStatus.NOT_FOUND, path=objpath, err=str(e))
     if body is None:
-        return json_error(HTTPStatus.NOT_FOUND, path=objpath)
+        log_and_raise(HTTPStatus.NOT_FOUND, path=objpath)
 
     ctype, _ = mimetypes.guess_type(objpath)
     if not ctype:
@@ -58,13 +58,13 @@ def get_filestat(
 
     path = get_obj_path(schema, path, user=user)
     if not path:
-        return json_error(HTTPStatus.NOT_FOUND, path=path,
-                          err="illegal path prefix or schema")
+        log_and_raise(HTTPStatus.NOT_FOUND, path=path, err="illegal path prefix or schema")
     secrets = get_secrets(request)
+    stat = None
     try:
         stat = get_object_stat(path, secrets)
     except FileNotFoundError as e:
-        return json_error(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+        log_and_raise(HTTPStatus.NOT_FOUND, path=path, err=str(e))
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:

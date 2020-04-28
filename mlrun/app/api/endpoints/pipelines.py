@@ -8,7 +8,7 @@ from os import remove
 from fastapi import APIRouter, Request, Query
 from kfp import Client as kfclient
 
-from mlrun.app.api.utils import json_error
+from mlrun.app.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -37,13 +37,12 @@ def submit_pipeline(
     elif " /zip" in ctype:
         ctype = ".zip"
     else:
-        return json_error(HTTPStatus.BAD_REQUEST,
-                          reason="unsupported pipeline type {}".format(ctype))
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="unsupported pipeline type {}".format(ctype))
 
     logger.info("writing file {}".format(ctype))
     data = asyncio.run(request.json())
     if data:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="post data is empty")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="post data is empty")
 
     print(str(data))
     pipe_tmp = tempfile.mktemp(suffix=ctype)
@@ -57,8 +56,7 @@ def submit_pipeline(
                                        params=arguments)
     except Exception as e:
         remove(pipe_tmp)
-        return json_error(HTTPStatus.BAD_REQUEST,
-                          reason="kfp err: {}".format(e))
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="kfp err: {}".format(e))
 
     remove(pipe_tmp)
     return {

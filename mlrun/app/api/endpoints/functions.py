@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request, Query, Response
 from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
-from mlrun.app.api.utils import json_error
+from mlrun.app.api.utils import log_and_raise
 from mlrun.app.main import db
 from mlrun.app.main import k8s
 from mlrun.builder import build_runtime
@@ -29,10 +29,11 @@ def store_function(
         name: str,
         tag: str = "",
         db_session: Session = Depends(deps.get_db_session)):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     logger.info(
@@ -74,15 +75,18 @@ def list_functions(
 def build_function(
         request: Request,
         db_session: Session = Depends(deps.get_db_session)):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.info("build_function:\n{}".format(data))
     function = data.get("function")
     with_mlrun = strtobool(data.get("with_mlrun", "on"))
 
+    fn = None
+    ready = None
     try:
         fn = new_function(runtime=function)
 
@@ -95,10 +99,7 @@ def build_function(
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: {}".format(err),
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
     return {
         "data": fn.to_dict(),
         "ready": ready,
@@ -111,34 +112,26 @@ def build_function(
 def start_function(
         request: Request,
         db_session: Session = Depends(deps.get_db_session)):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.info("start_function:\n{}".format(data))
     url = data.get("functionUrl")
     if not url:
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: functionUrl not specified",
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: functionUrl not specified")
 
     project, name, tag = parse_function_uri(url)
     runtime = db.get_function(db_session, name, project, tag)
     if not runtime:
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: function {} not found".format(url),
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
 
     fn = new_function(runtime=runtime)
     resource = runtime_resources_map.get(fn.kind)
     if "start" not in resource:
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: 'start' not supported by this runtime",
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: 'start' not supported by this runtime")
 
     try:
 
@@ -150,10 +143,7 @@ def start_function(
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: {}".format(err),
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
 
     return {
         "data": fn.to_dict(),
@@ -164,38 +154,30 @@ def start_function(
 @router.post("/status/function")
 @router.post("/status/function/")
 def function_status(
-        request: Request,
-        db_session: Session = Depends(deps.get_db_session)):
+        request: Request):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.info("function_status:\n{}".format(data))
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: selector or runtime kind not specified",
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: selector or runtime kind not specified")
 
     resource = runtime_resources_map.get(kind)
     if "status" not in resource:
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: 'status' not supported by this runtime",
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: 'status' not supported by this runtime")
 
+    resp = None
     try:
         resp = resource["status"](selector)
         logger.info("status: %s", resp)
     except Exception as err:
         logger.error(traceback.format_exc())
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: {}".format(err),
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
     return {
         "data": resp,
     }
@@ -214,8 +196,7 @@ def build_status(
     logs = strtobool(logs)
     fn = db.get_function(db_session, name, project, tag)
     if not fn:
-        return json_error(HTTPStatus.NOT_FOUND, name=name,
-                          project=project, tag=tag)
+        log_and_raise(HTTPStatus.NOT_FOUND, name=name, project=project, tag=tag)
 
     state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")

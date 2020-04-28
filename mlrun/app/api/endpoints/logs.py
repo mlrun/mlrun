@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
-from mlrun.app.api.utils import json_error, log_path
+from mlrun.app.api.utils import log_and_raise, log_path
 from mlrun.app.main import db
 from mlrun.app.main import k8s
 from mlrun.utils import get_in, now_date, update_in
@@ -50,8 +50,7 @@ def get_log(
     else:
         data = db.read_run(db_session, uid, project)
         if not data:
-            return json_error(HTTPStatus.NOT_FOUND,
-                              project=project, uid=uid)
+            log_and_raise(HTTPStatus.NOT_FOUND, project=project, uid=uid)
 
         status = get_in(data, "status.state", "")
         if k8s:

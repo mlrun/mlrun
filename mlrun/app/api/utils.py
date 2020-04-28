@@ -14,7 +14,7 @@ from mlrun.run import import_function, new_function
 from mlrun.utils import get_in, logger, parse_function_uri
 
 
-def json_error(status=HTTPStatus.BAD_REQUEST, **kw):
+def log_and_raise(status=HTTPStatus.BAD_REQUEST, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
 
@@ -52,14 +52,12 @@ def submit(db_session, data):
     if not url and task:
         url = get_in(task, "spec.function")
     if not (function or url) or not task:
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="bad JSON, need to include function/url and task objects",
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON, need to include function/url and task objects")
 
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
     # remote/container runtime)
 
+    resp = None
     try:
         if function and not url:
             fn = new_function(runtime=function)
@@ -70,11 +68,7 @@ def submit(db_session, data):
                 project, name, tag = parse_function_uri(url)
                 runtime = db.get_function(db_session, name, project, tag)
                 if not runtime:
-                    return json_error(
-                        HTTPStatus.BAD_REQUEST,
-                        reason="runtime error: function {} not found".format(
-                            url),
-                    )
+                    log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
                 fn = new_function(runtime=runtime)
 
             if function:
@@ -101,10 +95,7 @@ def submit(db_session, data):
         logger.info("resp: %s", resp.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        return json_error(
-            HTTPStatus.BAD_REQUEST,
-            reason="runtime error: {}".format(err),
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
 
     if not isinstance(resp, dict):
         resp = resp.to_dict()

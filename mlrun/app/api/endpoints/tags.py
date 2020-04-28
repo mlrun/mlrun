@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
-from mlrun.app.api.utils import json_error
+from mlrun.app.api.utils import log_and_raise
 from mlrun.app.main import db
 from mlrun.app.db.sqldb.helpers import to_dict as db2dict, table2cls
 
@@ -18,17 +18,18 @@ def tag_objects(
         project: str,
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     objs = []
     for typ, query in data.items():
         cls = table2cls(typ)
         if cls is None:
             err = f"unknown type - {typ}"
-            return json_error(HTTPStatus.BAD_REQUEST, reason=err)
+            log_and_raise(HTTPStatus.BAD_REQUEST, reason=err)
         # {"name": "bugs"} -> [Function.name=="bugs"]
         db_query = [
             getattr(cls, key) == value for key, value in query.items()

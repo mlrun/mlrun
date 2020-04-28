@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
-from mlrun.app.api.utils import json_error
+from mlrun.app.api.utils import log_and_raise
 from mlrun.app.main import db
 from mlrun.utils import logger
 
@@ -22,10 +22,11 @@ def store_run(
         uid: str,
         iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     db.store_run(db_session, data, uid, project, iter=iter)
@@ -41,10 +42,11 @@ def update_run(
         uid: str,
         iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
+    data = None
     try:
         data = asyncio.run(request.json())
     except ValueError:
-        return json_error(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     db.update_run(db_session, data, uid, project, iter=iter)

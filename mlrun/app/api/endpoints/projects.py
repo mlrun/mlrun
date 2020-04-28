@@ -8,7 +8,7 @@ from mlrun.app import schemas
 from mlrun.app.api import deps
 from mlrun.app.api.utils import log_and_raise
 from mlrun.app.db.sqldb.helpers import to_dict as db2dict
-from mlrun.app.main import db
+from mlrun.app.singletons import get_db
 
 router = APIRouter()
 
@@ -18,7 +18,7 @@ router = APIRouter()
 def add_project(
         project: schemas.ProjectCreate,
         db_session: Session = Depends(deps.get_db_session)):
-    project_id = db.add_project(db_session, project.dict())
+    project_id = get_db().add_project(db_session, project.dict())
     return {
         "id": project_id,
         "name": project.name,
@@ -31,7 +31,7 @@ def update_project(
         project: schemas.ProjectUpdate,
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
-    db.update_project(db_session, name, project.dict())
+    get_db().update_project(db_session, name, project.dict())
     return {}
 
 
@@ -40,7 +40,7 @@ def update_project(
 def get_project(
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
-    project = db.get_project(db_session, name)
+    project = get_db().get_project(db_session, name)
     if not project:
         log_and_raise(error=f"project {name!r} not found")
 
@@ -57,7 +57,7 @@ def list_projects(
     full = strtobool(full)
     fn = db2dict if full else attrgetter("name")
     projects = []
-    for p in db.list_projects(db_session):
+    for p in get_db().list_projects(db_session):
         if isinstance(p, dict):
             if full:
                 projects.append(p)

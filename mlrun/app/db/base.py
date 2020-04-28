@@ -103,6 +103,14 @@ class DBInterface(ABC):
     def list_functions(self, session, name, project="", tag="", labels=None):
         pass
 
+    @abstractmethod
+    def store_schedule(self, session, data):
+        pass
+
+    @abstractmethod
+    def list_schedules(self, session):
+        pass
+
     def list_projects(self, session):
         return []
 

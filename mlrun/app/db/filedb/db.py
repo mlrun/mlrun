@@ -62,6 +62,12 @@ class FileDB(DBInterface):
     def list_functions(self, session, name, project="", tag="", labels=None):
         self.db.list_functions(name, project, tag, labels)
 
+    def store_schedule(self, session, data):
+        self.db.store_schedule(data)
+
+    def list_schedules(self, session):
+        self.db.list_schedules()
+
     def list_projects(self, session):
         self.db.list_projects()
 

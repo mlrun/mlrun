@@ -4,12 +4,13 @@ from os import environ
 from pathlib import Path
 
 from fastapi import HTTPException
+from fastapi import Request
+from sqlalchemy.orm import Session
 
-from mlrun.app.main import db
-from mlrun.app.main import logs_dir
-from mlrun.app.main import scheduler
+from mlrun.app.db.sqldb.db import SQLDB
+from mlrun.app.singletons import get_db, get_logs_dir, get_scheduler
 from mlrun.config import config
-from mlrun.db.sqldb import SQLDB
+from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
 from mlrun.utils import get_in, logger, parse_function_uri
 
@@ -20,7 +21,7 @@ def log_and_raise(status=HTTPStatus.BAD_REQUEST, **kw):
 
 
 def log_path(project, uid) -> Path:
-    return logs_dir / project / uid
+    return get_logs_dir() / project / uid
 
 
 def get_obj_path(schema, path, user=""):
@@ -38,14 +39,23 @@ def get_obj_path(schema, path, user=""):
     return None
 
 
-def get_secrets(_request):
+def get_secrets(_request: Request):
     access_key = _request.headers.get("X-V3io-Session-Key")
     return {
         "V3IO_ACCESS_KEY": access_key,
     }
 
 
-def submit(db_session, data):
+def get_run_db_instance(db_session: Session):
+    db = get_db()
+    if isinstance(db, SQLDB):
+        run_db = SQLRunDB(db.dsn, db_session, db.get_projects_cache())
+    else:
+        run_db = db.db
+    return run_db
+
+
+def submit(db_session: Session, data):
     task = data.get("task")
     function = data.get("function")
     url = data.get("functionUrl")
@@ -66,7 +76,7 @@ def submit(db_session, data):
                 fn = import_function(url=url)
             else:
                 project, name, tag = parse_function_uri(url)
-                runtime = db.get_function(db_session, name, project, tag)
+                runtime = get_db().get_function(db_session, name, project, tag)
                 if not runtime:
                     log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
                 fn = new_function(runtime=runtime)
@@ -79,15 +89,15 @@ def submit(db_session, data):
                     if val:
                         setattr(fn.spec, attr, val)
 
-        _db = SQLDB(db.dsn, db_session, db.get_projects_cache())
-        fn.set_db_connection(_db, True)
+        run_db = get_run_db_instance(db_session)
+        fn.set_db_connection(run_db, True)
         logger.info("func:\n{}".format(fn.to_yaml()))
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
             args = (task,)
-            job_id = scheduler.add(schedule, fn, args)
-            db.store_schedule(db_session, data)
+            job_id = get_scheduler().add(schedule, fn, args)
+            get_db().store_schedule(db_session, data)
             resp = {"schedule": schedule, "id": job_id}
         else:
             resp = fn.run(task, watch=False)

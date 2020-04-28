@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
 import warnings
+from abc import ABC, abstractmethod
 
 
 class RunDBError(Exception):
@@ -71,7 +71,7 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, name='', project='', tag='', labels=None,
+            self, name='', project='', tag='', labels=None,
             since=None, until=None):
         pass
 
@@ -102,6 +102,14 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_functions(self, name, project='', tag='', labels=None):
+        pass
+
+    @abstractmethod
+    def store_schedule(self, data):
+        pass
+
+    @abstractmethod
+    def list_schedules(self):
         pass
 
     def list_projects(self):

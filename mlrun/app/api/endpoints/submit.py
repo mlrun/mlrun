@@ -5,8 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
-from mlrun.app.api.utils import log_and_raise
-from mlrun.app.api.utils import submit
+from mlrun.app.api.utils import log_and_raise, submit
 from mlrun.utils import logger
 
 router = APIRouter()

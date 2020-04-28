@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
 from mlrun.app.api.utils import log_and_raise
-from mlrun.app.main import db
+from mlrun.app.singletons import get_db
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -29,7 +29,7 @@ def store_run(
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    db.store_run(db_session, data, uid, project, iter=iter)
+    get_db().store_run(db_session, data, uid, project, iter=iter)
     logger.info("store run: {}".format(data))
     return {}
 
@@ -49,7 +49,7 @@ def update_run(
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    db.update_run(db_session, data, uid, project, iter=iter)
+    get_db().update_run(db_session, data, uid, project, iter=iter)
     logger.info("update run: {}".format(data))
     return {}
 
@@ -61,7 +61,7 @@ def read_run(
         uid: str,
         iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    data = db.read_run(db_session, uid, project, iter=iter)
+    data = get_db().read_run(db_session, uid, project, iter=iter)
     return {
         "data": data,
     }
@@ -74,7 +74,7 @@ def del_run(
         uid: str,
         tag: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    db.del_run(db_session, uid, project, iter=iter)
+    get_db().del_run(db_session, uid, project, iter=iter)
     return {}
 
 
@@ -92,7 +92,7 @@ def list_runs(
         db_session: Session = Depends(deps.get_db_session)):
     sort = strtobool(sort)
     iter = strtobool(iter)
-    runs = db.list_runs(
+    runs = get_db().list_runs(
         db_session,
         name=name,
         uid=uid,
@@ -117,5 +117,5 @@ def del_runs(
         state: str = None,
         days_ago: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    db.del_runs(db_session, name, project, labels, state, days_ago)
+    get_db().del_runs(db_session, name, project, labels, state, days_ago)
     return {}

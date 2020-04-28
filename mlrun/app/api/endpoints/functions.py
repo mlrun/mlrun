@@ -8,12 +8,10 @@ from fastapi import APIRouter, Depends, Request, Query, Response
 from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
-from mlrun.app.api.utils import log_and_raise
-from mlrun.app.main import db
-from mlrun.app.main import k8s
+from mlrun.app.api.utils import log_and_raise, get_run_db_instance
+from mlrun.app.singletons import get_db, get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
-from mlrun.db.sqldb import SQLDB
 from mlrun.run import new_function
 from mlrun.runtimes import runtime_resources_map
 from mlrun.utils import get_in, logger, parse_function_uri, update_in
@@ -38,7 +36,7 @@ def store_function(
     logger.debug(data)
     logger.info(
         "store function: project=%s, name=%s, tag=%s", project, name, tag)
-    db.store_function(db_session, data, name, project, tag=tag)
+    get_db().store_function(db_session, data, name, project, tag=tag)
     return {}
 
 
@@ -49,7 +47,7 @@ def get_function(
         name: str,
         tag: str = "",
         db_session: Session = Depends(deps.get_db_session)):
-    func = db.get_function(db_session, name, project, tag)
+    func = get_db().get_function(db_session, name, project, tag)
     return {
         "func": func,
     }
@@ -63,7 +61,7 @@ def list_functions(
         tag: str = None,
         labels: List[str] = Query([]),
         db_session: Session = Depends(deps.get_db_session)):
-    funcs = db.list_functions(db_session, name, project, tag, labels)
+    funcs = get_db().list_functions(db_session, name, project, tag, labels)
     return {
         "funcs": list(funcs),
     }
@@ -90,8 +88,8 @@ def build_function(
     try:
         fn = new_function(runtime=function)
 
-        _db = SQLDB(db.dsn, db_session, db.get_projects_cache())
-        fn.set_db_connection(_db)
+        run_db = get_run_db_instance(db_session)
+        fn.set_db_connection(run_db)
         fn.save(versioned=False)
 
         ready = build_runtime(fn, with_mlrun)
@@ -124,7 +122,7 @@ def start_function(
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: functionUrl not specified")
 
     project, name, tag = parse_function_uri(url)
-    runtime = db.get_function(db_session, name, project, tag)
+    runtime = get_db().get_function(db_session, name, project, tag)
     if not runtime:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
 
@@ -135,8 +133,8 @@ def start_function(
 
     try:
 
-        _db = SQLDB(db.dsn, db_session, db.get_projects_cache())
-        fn.set_db_connection(_db)
+        run_db = get_run_db_instance(db_session)
+        fn.set_db_connection(run_db)
         #  resp = resource["start"](fn)  # TODO: handle resp?
         resource["start"](fn)
         fn.save(versioned=False)
@@ -194,7 +192,7 @@ def build_status(
         logs: str = "on",
         db_session: Session = Depends(deps.get_db_session)):
     logs = strtobool(logs)
-    fn = db.get_function(db_session, name, project, tag)
+    fn = get_db().get_function(db_session, name, project, tag)
     if not fn:
         log_and_raise(HTTPStatus.NOT_FOUND, name=name, project=project, tag=tag)
 
@@ -212,7 +210,7 @@ def build_status(
                                  "builder_pod": pod})
 
     logger.info("get pod {} status".format(pod))
-    state = k8s.get_pod_status(pod)
+    state = get_k8s().get_pod_status(pod)
     logger.info("pod state={}".format(state))
 
     if state == "succeeded":
@@ -223,7 +221,7 @@ def build_status(
             state, pod))
 
     if logs and state != "pending":
-        resp = k8s.logs(pod)
+        resp = get_k8s().logs(pod)
         if resp:
             out = resp.encode()[offset:]
 
@@ -231,7 +229,7 @@ def build_status(
     if state == "ready":
         update_in(fn, "spec.image", image)
 
-    db.store_function(db_session, fn, name, project, tag)
+    get_db().store_function(db_session, fn, name, project, tag)
 
     return Response(content=out,
                     media_type="text/plain",

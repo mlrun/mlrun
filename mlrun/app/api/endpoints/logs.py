@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
 from mlrun.app.api.utils import log_and_raise, log_path
-from mlrun.app.main import db
-from mlrun.app.main import k8s
+from mlrun.app.singletons import get_db, get_k8s
 from mlrun.utils import get_in, now_date, update_in
 
 router = APIRouter()
@@ -48,20 +47,20 @@ def get_log(
             out = fp.read(size)
         status = ""
     else:
-        data = db.read_run(db_session, uid, project)
+        data = get_db().read_run(db_session, uid, project)
         if not data:
             log_and_raise(HTTPStatus.NOT_FOUND, project=project, uid=uid)
 
         status = get_in(data, "status.state", "")
-        if k8s:
-            pods = k8s.get_logger_pods(uid)
+        if get_k8s():
+            pods = get_k8s().get_logger_pods(uid)
             if pods:
                 pod, new_status = list(pods.items())[0]
                 new_status = new_status.lower()
 
                 # TODO: handle in cron/tracking
                 if new_status != "pending":
-                    resp = k8s.logs(pod)
+                    resp = get_k8s().logs(pod)
                     if resp:
                         out = resp.encode()[offset:]
                     if status == "running":
@@ -71,15 +70,15 @@ def get_log(
                             update_in(data, "status.state", "error")
                             update_in(
                                 data, "status.error", "error, check logs")
-                            db.store_run(db_session, data, uid, project)
+                            get_db().store_run(db_session, data, uid, project)
                         if new_status == "succeeded":
                             update_in(data, "status.state", "completed")
-                            db.store_run(db_session, data, uid, project)
+                            get_db().store_run(db_session, data, uid, project)
                 status = new_status
             elif status == "running":
                 update_in(data, "status.state", "error")
                 update_in(
                     data, "status.error", "pod not found, maybe terminated")
-                db.store_run(db_session, data, uid, project)
+                get_db().store_run(db_session, data, uid, project)
                 status = "failed"
     return Response(content=out, media_type="text/plain", headers={"pod_status": status})

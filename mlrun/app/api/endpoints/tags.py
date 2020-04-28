@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from mlrun.app.api import deps
 from mlrun.app.api.utils import log_and_raise
-from mlrun.app.main import db
 from mlrun.app.db.sqldb.helpers import to_dict as db2dict, table2cls
+from mlrun.app.singletons import get_db
 
 router = APIRouter()
 
@@ -37,7 +37,7 @@ def tag_objects(
         # TODO: Change _query to query?
         # TODO: Not happy about exposing db internals to API
         objs.extend(db_session.query(cls).filter(*db_query))
-    db.tag_objects(db_session, objs, project, name)
+    get_db().tag_objects(db_session, objs, project, name)
     return {
         "project": project,
         "name": name,
@@ -50,7 +50,7 @@ def del_tag(
         project: str,
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
-    count = db.del_tag(db_session, project, name)
+    count = get_db().del_tag(db_session, project, name)
     return {
         "project": project,
         "name": name,
@@ -62,7 +62,7 @@ def del_tag(
 def list_tags(
         project: str,
         db_session: Session = Depends(deps.get_db_session)):
-    tags = db.list_tags(db_session, project)
+    tags = get_db().list_tags(db_session, project)
     return {
         "project": project,
         "tags": tags,
@@ -74,7 +74,7 @@ def get_tagged(
         project: str,
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
-    objs = db.find_tagged(db_session, project, name)
+    objs = get_db().find_tagged(db_session, project, name)
     return {
         "project": project,
         "tag": name,

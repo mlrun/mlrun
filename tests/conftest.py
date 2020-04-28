@@ -36,8 +36,9 @@ root_path = str(Path(here).parent)
 examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
+environ['MLRUN_httpdb__dsn'] = "sqlite:///:memory:?check_same_thread=false"
 
-from mlrun.db import sqldb
+from mlrun.app.db.sqldb.db import run_time_fmt
 
 
 def check_docker():
@@ -88,7 +89,7 @@ def wait_for_server(url, timeout_sec):
 
 
 def run_now():
-    return datetime.now().strftime(sqldb.run_time_fmt)
+    return datetime.now().strftime(run_time_fmt)
 
 
 def new_run(state, labels, uid=None, **kw):

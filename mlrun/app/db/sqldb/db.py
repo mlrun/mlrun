@@ -4,7 +4,6 @@ from sqlalchemy import (
     and_, func
 )
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.declarative import declarative_base
 
 from mlrun.app.db.base import DBError, DBInterface
 from mlrun.app.db.sqldb.helpers import label_set, run_start_time, run_labels, run_state, update_labels
@@ -13,7 +12,6 @@ from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.utils import get_in, update_in, logger
 
-Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 

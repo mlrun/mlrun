@@ -1,10 +1,8 @@
 from dateutil import parser
-from sqlalchemy.ext.declarative import declarative_base
 
+from mlrun.app.db.sqldb.models import Base
 from mlrun.app.db.sqldb.models import _table2cls
 from mlrun.utils import get_in
-
-Base = declarative_base()
 
 
 def table2cls(name):

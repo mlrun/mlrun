@@ -39,7 +39,9 @@ ENV PORT=${MLRUN_httpdb__port}
 
 ENV MODULE_NAME=mlrun.app.main
 
-COPY ./prestart.sh /app
+ENV PRE_START_PATH=/app/docker-prestart.sh
+
+COPY ./docker-prestart.sh /app
 
 COPY ./mlrun /app/mlrun
 

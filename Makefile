@@ -39,9 +39,10 @@ test: clean
 	    -rf \
 	    tests
 
-.PHONY: run-httpd
-run-httpd:
-	python -m mlrun db
+.PHONY: run-app
+run-app:
+	./scripts/app/local-prestart.sh
+	uvicorn mlrun.app.main:app --reload
 
 .PHONY: docker-db
 docker-httpd:

@@ -3,7 +3,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from .user import User
+from mlrun.app.schemas.user import User
 
 
 # Shared properties

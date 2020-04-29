@@ -1,3 +1,4 @@
+import os
 from typing import Generator
 
 import pytest
@@ -12,6 +13,9 @@ from mlrun.app.initial_data import main
 def db() -> Generator:
     main()
     yield SessionLocal()
+
+    # TODO: should be dynamic based on configuration
+    os.remove("/tmp/mlrun.db")
 
 
 @pytest.fixture(scope="module")

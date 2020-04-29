@@ -31,8 +31,6 @@ RUN pip install --no-cache-dir \
     -r app-requirements.txt \
     -r requirements.txt
 
-ENV MODULE_NAME=mlrun.app.main
-
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 
 ENV MLRUN_httpdb__port=8080

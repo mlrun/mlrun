@@ -35,6 +35,8 @@ ENV MLRUN_httpdb__dirpath=/mlrun/db
 
 ENV MLRUN_httpdb__port=8080
 
+ENV PORT=${MLRUN_httpdb__port}
+
 COPY ./mlrun /app
 
 VOLUME /mlrun/db

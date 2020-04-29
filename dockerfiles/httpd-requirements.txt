@@ -1,6 +1,0 @@
-Flask>=1.1.1
-croniter==0.3.31
-gevent==1.4.0
-gunicorn==19.9.0
-fastapi==0.54.1
-uvicorn==0.11.3

@@ -392,7 +392,13 @@ class SQLDB(DBInterface):
 
     def _create_project_if_not_exists(self, session, name):
         if name not in self._projects:
-            self.add_project(session, {"name": name})
+
+            # fill cache from DB
+            projects = self.list_projects(session)
+            for project in projects:
+                self._projects.add(project.name)
+            if name not in self._projects:
+                self.add_project(session, {"name": name})
 
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))

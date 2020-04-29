@@ -243,6 +243,14 @@ def test_cache_projects(db: SQLDB, db_session: Session):
         db._create_project_if_not_exists(db_session, name + '-new')
     mock.assert_called_once()
 
+    project_2_name = "project-2"
+    db.add_project(db_session, {'name': project_2_name})
+    db._projects = set()
+    mock = Mock()
+    with patch(db, add_project=mock):
+        db._create_project_if_not_exists(db_session, name)
+    mock.assert_not_called()
+
 # def test_function_latest(db: SQLDB, db_session: Session):
 #     fn1, t1 = {'x': 1}, 'u83'
 #     fn2, t2 = {'x': 2}, 'u23'

@@ -293,6 +293,7 @@ class SQLDB(DBInterface):
         for obj in objs:
             tag = obj.Tag(project=project, name=name, obj_id=obj.id)
             session.add(tag)
+        session.commit()
 
     def del_tag(self, session, project: str, name: str):
         """Remove tag (project, name) from all objects"""
@@ -301,6 +302,7 @@ class SQLDB(DBInterface):
             for obj in self._query(session, cls.Tag, project=project, name=name):
                 session.delete(obj)
                 count += 1
+        session.commit()
         return count
 
     def find_tagged(self, session, project: str, name: str):
@@ -308,11 +310,15 @@ class SQLDB(DBInterface):
 
         If not tag found, will return an empty str.
         """
-        objs = []
+        db_objects = []
         for cls in _tagged:
             for tag in self._query(session, cls.Tag, project=project, name=name):
-                objs.append(self._query(session, cls).get(tag.obj_id))
-        return objs
+                db_objects.append(self._query(session, cls).get(tag.obj_id))
+
+        # TODO: this shouldn't return the db objects as is, sometimes they might be encoded with pickle, should
+        #  something like:
+        # objects = [db_object.struct if hasattr(db_object, "struct") else db_object for db_object in db_objects]
+        return db_objects
 
     def list_tags(self, session, project: str):
         """Return all tags for a project"""

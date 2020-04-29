@@ -58,4 +58,4 @@ def to_dict(obj):
 def is_field(name):
     if name[0] == "_":
         return False
-    return name not in ("metadata", "Tag", "Label")
+    return name not in ("metadata", "Tag", "Label", "body")

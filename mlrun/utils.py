@@ -376,8 +376,10 @@ def tag_image(base: str):
     return base
 
 
-def get_artifact_target(item: dict):
+def get_artifact_target(item: dict, project=None):
     kind = item.get('kind')
     if kind in ['dataset', 'model'] and item.get('db_key'):
-        return '{}://{}/{}:{}'.format(DB_SCHEMA, item.get('project'), item.get('db_key'), item.get('tree'))
+        return '{}://{}/{}#{}'.format(DB_SCHEMA,
+                                      project or item.get('project'),
+                                      item.get('db_key'), item.get('tree'))
     return item.get('target_path')

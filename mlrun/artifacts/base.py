@@ -68,10 +68,10 @@ class Artifact(ModelObj):
     def get_body(self):
         return self._body
 
-    def get_store_url(self, with_tag=True):
-        url = '{}://{}/{}'.format(DB_SCHEMA, self.project, self.db_key)
+    def get_store_url(self, with_tag=True, project=None):
+        url = '{}://{}/{}'.format(DB_SCHEMA, project or self.project, self.db_key)
         if with_tag:
-            url += ':' + self.tree
+            url += '#' + self.tree
 
     def base_dict(self):
         return super().to_dict()
@@ -79,7 +79,7 @@ class Artifact(ModelObj):
     def to_dict(self, fields=None):
         return super().to_dict(
             self._dict_fields + [
-                'updated', 'labels', 'annotations', 'producer', 'sources'])
+                'updated', 'labels', 'annotations', 'producer', 'sources', 'project'])
 
     def upload(self, data_stores: StoreManager):
         src_path = self.src_path

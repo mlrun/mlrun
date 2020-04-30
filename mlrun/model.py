@@ -324,7 +324,7 @@ class RunObject(RunTemplate):
             return self.status.results.get(key)
         artifact = self.artifact(key)
         if artifact:
-            return get_artifact_target(artifact)
+            return get_artifact_target(artifact, self.metadata.project)
         return None
 
     @property
@@ -334,7 +334,8 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                outputs[a['key']] = get_artifact_target(a)
+                outputs[a['key']] = get_artifact_target(
+                    a, self.metadata.project)
         return outputs
 
     def artifact(self, key):

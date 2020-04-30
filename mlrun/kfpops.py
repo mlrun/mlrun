@@ -43,7 +43,10 @@ def write_kfpmeta(struct):
 
     struct = deepcopy(struct)
     output_artifacts, out_dict = get_kfp_outputs(
-        struct['status'].get(run_keys.artifacts, []), struct['metadata'].get('labels', {}))
+        struct['status'].get(run_keys.artifacts, []),
+        struct['metadata'].get('labels', {}),
+        struct['metadata'].get('project', config.default_project)
+    )
 
     for key in struct['spec'].get(run_keys.outputs, []):
         val = 'None'
@@ -76,14 +79,14 @@ def write_kfpmeta(struct):
         json.dump(metadata, f)
 
 
-def get_kfp_outputs(artifacts, labels):
+def get_kfp_outputs(artifacts, labels, project):
     outputs = []
     out_dict = {}
     for output in artifacts:
         key = output["key"]
         target = output.get('target_path', '')
         target = output.get('inline', target)
-        out_dict[key] = get_artifact_target(output)
+        out_dict[key] = get_artifact_target(output, project=project)
 
         if target.startswith('v3io:///'):
             target = target.replace('v3io:///', 'http://v3io-webapi:8081/')

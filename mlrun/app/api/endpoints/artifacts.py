@@ -51,10 +51,11 @@ def list_artifact_tags(
 @router.get("/projects/{project}/artifact/{key:path}")
 def read_artifact(
         project: str,
+        key: str,
         tag: str = "latest",
         iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
-    data = get_db().read_artifact(db_session, tag=tag, iter=iter, project=project)
+    data = get_db().read_artifact(db_session, key, tag=tag, iter=iter, project=project)
     return {
         "data": data,
     }

@@ -49,6 +49,7 @@ def submit_pipeline(
     with open(pipe_tmp, "wb") as fp:
         fp.write(data)
 
+    run_info = None
     try:
         client = kfclient(namespace=namespace)
         experiment = client.create_experiment(name=experiment_name)

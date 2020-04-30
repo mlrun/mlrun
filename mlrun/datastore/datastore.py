@@ -98,7 +98,7 @@ class StoreManager:
             meta = self._get_db().read_artifact(p.path[1:], tag=tag,
                                                 project=project)
             if meta:
-                meta = mlrun.artifact.dict_to_artifact(meta)
+                meta = mlrun.artifacts.dict_to_artifact(meta)
         except Exception as e:
             raise OSError('artifact {} not found, {}'.format(url, e))
         return meta, meta.get('target_path', '')

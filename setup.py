@@ -42,7 +42,7 @@ with open('README.md') as fp:
 
 install_requires = list(load_deps('requirements.txt'))
 tests_require = list(load_deps('dockerfiles/dev-requirements.txt'))
-httpd_deps = list(load_deps('dockerfiles/httpd-requirements.txt'))
+app_deps = list(load_deps('dockerfiles/app-requirements.txt'))
 dask_deps = list(load_deps('dockerfiles/dask-requirements.txt'))
 
 
@@ -61,7 +61,7 @@ setup(
               'mlrun.datastore'],
     install_requires=install_requires,
     extra_requires={
-        'httpd': httpd_deps,
+        'app': app_deps,
         'dask': dask_deps,
     },
     classifiers=[

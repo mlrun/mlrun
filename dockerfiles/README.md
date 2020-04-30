@@ -11,7 +11,7 @@ where:<br>
 * `MLRUN_TAG` is a specific mlrun commit or tag _(prefix only tags with a `v`, like `v0.4.5`)_
 * `NEW_TAG` this is the tag created and pushed (like `latest` or `0.4.5`)
 * `PYTHON_VER_ML` is the version for the ml-xxxx series. 
-* `PYTHON_VER_CORE` is the python version for `httpd`, `dask` and `test`
+* `PYTHON_VER_CORE` is the python version for `app`, `dask` and `test`
 
 for example,
   `./docker-build.sh mlrun ml v0.4.6 0.4.6 3.8 3.6`

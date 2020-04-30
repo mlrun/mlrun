@@ -433,10 +433,14 @@ def db(port, dirpath):
     env = environ.copy()
     if port is not None:
         env['MLRUN_httpdb__port'] = str(port)
+        env['APP_PORT'] = str(port)
     if dirpath is not None:
         env['MLRUN_httpdb__dirpath'] = dirpath
 
-    cmd = [executable, '-m', 'mlrun.db.httpd']
+    cmd = [
+        "make",
+        "run-app",
+    ]
     child = Popen(cmd, env=env)
     returncode = child.wait()
     if returncode != 0:

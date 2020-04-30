@@ -47,11 +47,11 @@ run-app:
 	./scripts/app/local-prestart.sh
 	uvicorn mlrun.app.main:app --reload --port $(APP_PORT)
 
-.PHONY: docker-db
-docker-httpd:
+.PHONY: docker-app
+docker-app:
 	docker build \
-	    -f dockerfiles/httpd/Dockerfile \
-	    -t mlrun/mlrun-httpd .
+	    -f dockerfiles/app/Dockerfile \
+	    -t mlrun/mlrun-app .
 
 .PHONY: circleci
 circleci:

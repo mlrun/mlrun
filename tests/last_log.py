@@ -24,7 +24,7 @@ def mtime(path: Path):
 
 if __name__ == '__main__':
     test_dir = sorted(Path('/tmp').glob('mlrun-test*'), key=mtime)[-1]
-    log_file = test_dir / 'httpd.log'
+    log_file = test_dir / 'app.log'
     with log_file.open() as fp:
         print(fp.read())
     print(f'\n\n{test_dir}')

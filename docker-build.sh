@@ -25,7 +25,7 @@ do
     docker push $REPO/$PREFIX-$IMAGE:$NEW_TAG
 done
 
-for IMAGE in 'dask' 'httpd' 'test'
+for IMAGE in 'dask' 'app' 'test'
 do
     docker build \
         -f ./dockerfiles/$IMAGE/Dockerfile \

@@ -19,7 +19,7 @@ WORKDIR /mlrun
 COPY *requirements.txt ./
 RUN python -m pip install \
     -r dev-requirements.txt \
-    -r httpd-requirements.txt \
+    -r app-requirements.txt \
     -r requirements.txt
 COPY . .
 ENV PYTHONPATH=/mlrun

@@ -17,7 +17,7 @@ from copy import deepcopy
 from os import environ
 
 from .db import get_or_set_dburl
-from .utils import run_keys, dict_to_yaml, logger, gen_md_table
+from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
 
 KFPMETA_DIR = environ.get('KFPMETA_OUT_DIR', '/')
@@ -83,7 +83,7 @@ def get_kfp_outputs(artifacts, labels):
         key = output["key"]
         target = output.get('target_path', '')
         target = output.get('inline', target)
-        out_dict[key] = target
+        out_dict[key] = get_artifact_target(output)
 
         if target.startswith('v3io:///'):
             target = target.replace('v3io:///', 'http://v3io-webapi:8081/')

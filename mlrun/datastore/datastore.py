@@ -15,15 +15,12 @@
 from urllib.parse import urlparse
 
 from ..config import config
-from ..utils import run_keys
+from ..utils import run_keys, DB_SCHEMA
 
 from .base import DataItem, HttpStore
 from .s3 import S3Store
 from .filestore import FileStore
 from .v3io import V3ioStore
-
-
-DB_SCHEMA = 'store'
 
 
 def get_object_stat(url, secrets=None):

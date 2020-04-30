@@ -16,8 +16,9 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import StoreManager, DB_SCHEMA
+from ..datastore import StoreManager
 from .base import Artifact
+from ..utils import DB_SCHEMA
 
 model_spec_filename = 'model_spec.yaml'
 

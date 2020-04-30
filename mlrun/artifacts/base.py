@@ -15,7 +15,8 @@
 import os
 import hashlib
 from ..model import ModelObj
-from ..datastore import StoreManager, DB_SCHEMA
+from ..datastore import StoreManager
+from ..utils import DB_SCHEMA
 
 calc_hash = True
 
@@ -67,8 +68,11 @@ class Artifact(ModelObj):
     def get_body(self):
         return self._body
 
-    def get_store_url(self):
-        return '{}://{}/{}'.format(DB_SCHEMA, self.project, self.db_key)
+    def get_store_url(self, with_tag=True):
+        url = '{}://{}/{}'.format(DB_SCHEMA, self.project, self.db_key)
+        if with_tag:
+            url += ':' + self.tree
+
     def base_dict(self):
         return super().to_dict()
 

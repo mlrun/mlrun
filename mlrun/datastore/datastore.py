@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from urllib.parse import urlparse
+import mlrun
 
 from ..config import config
 from ..utils import run_keys, DB_SCHEMA
@@ -96,6 +97,8 @@ class StoreManager:
         try:
             meta = self._get_db().read_artifact(p.path[1:], tag=tag,
                                                 project=project)
+            if meta:
+                meta = mlrun.artifact.dict_to_artifact(meta)
         except Exception as e:
             raise OSError('artifact {} not found, {}'.format(url, e))
         return meta, meta.get('target_path', '')

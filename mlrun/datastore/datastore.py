@@ -97,6 +97,13 @@ class StoreManager:
         try:
             meta = self._get_db().read_artifact(p.path[1:], tag=tag,
                                                 project=project)
+            if meta.get('kind', '') == 'link':
+                # todo: support other link types (not just iter, move this to the db/api layer
+                meta = self._get_db().read_artifact(p.path[1:],
+                                                    tag=tag,
+                                                    iter=meta.get('link_iteration', 0),
+                                                    project=project)
+
             meta = mlrun.artifacts.dict_to_artifact(meta)
         except Exception as e:
             raise OSError('artifact {} not found, {}'.format(url, e))

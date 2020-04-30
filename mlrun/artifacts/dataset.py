@@ -68,11 +68,11 @@ supported_formats = ['csv', 'parquet', 'pq', 'tsdb', 'kv']
 
 class DatasetArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + [
-        'schema', 'header', 'length', 'preview', 'stats']
+        'schema', 'header', 'length', 'preview', 'stats', 'analysis']
     kind = 'dataset'
 
     def __init__(self, key=None, df=None, preview=None, format='',
-                 stats=None, target_path=None, **kwargs):
+                 stats=None, target_path=None, analysis=None, **kwargs):
 
         format = format.lower()
         super().__init__(key, None, format=format, target_path=target_path)
@@ -84,6 +84,7 @@ class DatasetArtifact(Artifact):
             format = 'parquet'
         self.format = format
         self.stats = None
+        self.analysis = analysis or {}
 
         if df is not None:
             self.header = df.columns.values.tolist()

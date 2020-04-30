@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import inspect
 import os
 import hashlib
 from ..model import ModelObj
@@ -82,11 +82,18 @@ class Artifact(ModelObj):
                 'updated', 'labels', 'annotations', 'producer', 'sources', 'project'])
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None):
-        return super().from_dict(
-            cls, struct, fields=cls._dict_fields + ['updated', 'labels',
-                                                    'annotations', 'producer',
-                                                    'sources', 'project'])
+    def from_dict(cls, struct=None):
+        struct = {} if struct is None else struct
+        fields = cls._dict_fields + [
+                'updated', 'labels', 'annotations', 'producer', 'sources', 'project']
+        if not fields:
+            fields = list(inspect.signature(cls.__init__).parameters.keys())
+        new_obj = cls()
+        if struct:
+            for key, val in struct.items():
+                if key in fields:
+                    setattr(new_obj, key, val)
+        return new_obj
 
     def upload(self, data_stores: StoreManager):
         src_path = self.src_path

@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .datastore import StoreManager, DB_SCHEMA, uri_to_ipython, get_object_stat
+from .datastore import StoreManager, uri_to_ipython, get_object_stat
 from .base import DataItem

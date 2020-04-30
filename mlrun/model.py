@@ -17,7 +17,7 @@ from copy import deepcopy
 from os import environ
 
 from .db import get_run_db
-from .utils import dict_to_yaml, get_in, dict_to_json
+from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
 from .config import config
 
 
@@ -58,9 +58,9 @@ class ModelObj:
         return struct
 
     @classmethod
-    def from_dict(cls, struct=None):
+    def from_dict(cls, struct=None, fields=None):
         struct = {} if struct is None else struct
-        fields = cls._dict_fields
+        fields = fields or cls._dict_fields
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
@@ -324,7 +324,7 @@ class RunObject(RunTemplate):
             return self.status.results.get(key)
         artifact = self.artifact(key)
         if artifact:
-            return artifact.get('target_path')
+            return get_artifact_target(artifact, self.metadata.project)
         return None
 
     @property
@@ -334,7 +334,8 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                outputs[a['key']] = a['target_path']
+                outputs[a['key']] = get_artifact_target(
+                    a, self.metadata.project)
         return outputs
 
     def artifact(self, key):

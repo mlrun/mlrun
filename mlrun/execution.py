@@ -353,10 +353,10 @@ class MLClientCtx(object):
     def log_dataset(self, key, df, tag='', local_path=None,
                     artifact_path=None, upload=True, labels=None,
                     format='', preview=None, stats=False, db_prefix=None,
-                    target_path='', **kwargs):
+                    target_path='', analysis=None, **kwargs):
         """log a dataset artifact and optionally upload it"""
 
-        ds = DatasetArtifact(key, df, preview=preview,
+        ds = DatasetArtifact(key, df, preview=preview, analysis=analysis,
                              format=format, stats=stats, **kwargs)
 
         item = self._artifacts_manager.log_artifact(self, ds, local_path=local_path,

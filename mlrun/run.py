@@ -647,6 +647,12 @@ def get_object(url, secrets=None, size=None, offset=0, db=None):
     return stores.object(url=url).get(size, offset)
 
 
+def get_dataitem(url, secrets=None, db=None):
+    db = db or get_run_db().connect()
+    stores = StoreManager(secrets, db=db)
+    return stores.object(url=url)
+
+
 def download_object(url, target, secrets=None):
     stores = StoreManager(secrets, db=get_run_db().connect())
     stores.object(url=url).download(target_path=target)

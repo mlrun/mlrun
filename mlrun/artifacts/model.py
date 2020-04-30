@@ -16,8 +16,9 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import StoreManager, DB_SCHEMA
+from ..datastore import StoreManager
 from .base import Artifact
+from ..utils import DB_SCHEMA
 
 model_spec_filename = 'model_spec.yaml'
 
@@ -88,10 +89,9 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     stores = stores or StoreManager()
 
     if model_dir.startswith(DB_SCHEMA + '://'):
-        spec, target = stores.get_store_artifact(model_dir)
-        if spec.get('kind', '') != 'model':
+        model_spec, target = stores.get_store_artifact(model_dir)
+        if not model_spec or model_spec.kind != 'model':
             raise ValueError('store artifact ({}) is not model kind'.format(model_dir))
-        model_spec = ModelArtifact.from_dict(spec)
         model_file = _get_file_path(target, model_spec.model_file)
         extra_dataitems = _get_extra(stores, target, model_spec.extra_data)
 

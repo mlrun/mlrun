@@ -28,7 +28,10 @@ from .config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
+
 hub_prefix = 'hub://'
+DB_SCHEMA = 'store'
+
 
 def create_logger(stream=None):
     level = logging.INFO
@@ -371,3 +374,12 @@ def tag_image(base: str):
             base.startswith('mlrun/ml-') and ':' not in base)):
         base += ':' + ver
     return base
+
+
+def get_artifact_target(item: dict, project=None):
+    kind = item.get('kind')
+    if kind in ['dataset', 'model'] and item.get('db_key'):
+        return '{}://{}/{}#{}'.format(DB_SCHEMA,
+                                      project or item.get('project'),
+                                      item.get('db_key'), item.get('tree'))
+    return item.get('target_path')

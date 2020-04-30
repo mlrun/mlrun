@@ -13,17 +13,15 @@
 # limitations under the License.
 
 from urllib.parse import urlparse
+import mlrun
 
 from ..config import config
-from ..utils import run_keys
+from ..utils import run_keys, DB_SCHEMA
 
 from .base import DataItem, HttpStore
 from .s3 import S3Store
 from .filestore import FileStore
 from .v3io import V3ioStore
-
-
-DB_SCHEMA = 'store'
 
 
 def get_object_stat(url, secrets=None):
@@ -99,9 +97,17 @@ class StoreManager:
         try:
             meta = self._get_db().read_artifact(p.path[1:], tag=tag,
                                                 project=project)
+            if meta.get('kind', '') == 'link':
+                # todo: support other link types (not just iter, move this to the db/api layer
+                meta = self._get_db().read_artifact(p.path[1:],
+                                                    tag=tag,
+                                                    iter=meta.get('link_iteration', 0),
+                                                    project=project)
+
+            meta = mlrun.artifacts.dict_to_artifact(meta)
         except Exception as e:
             raise OSError('artifact {} not found, {}'.format(url, e))
-        return meta, meta.get('target_path', '')
+        return meta, meta.target_path
 
     def object(self, url, key='', project=''):
         meta = artifact_url = None

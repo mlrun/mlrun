@@ -81,6 +81,13 @@ class Artifact(ModelObj):
             self._dict_fields + [
                 'updated', 'labels', 'annotations', 'producer', 'sources', 'project'])
 
+    @classmethod
+    def from_dict(cls, struct=None, fields=None):
+        return super().from_dict(
+            cls, struct, fields=cls._dict_fields + ['updated', 'labels',
+                                                    'annotations', 'producer',
+                                                    'sources', 'project'])
+
     def upload(self, data_stores: StoreManager):
         src_path = self.src_path
         body = self.get_body()

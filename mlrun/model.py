@@ -58,9 +58,9 @@ class ModelObj:
         return struct
 
     @classmethod
-    def from_dict(cls, struct=None):
+    def from_dict(cls, struct=None, fields=None):
         struct = {} if struct is None else struct
-        fields = cls._dict_fields
+        fields = fields or cls._dict_fields
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()

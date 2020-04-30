@@ -88,7 +88,7 @@ def docker_fixture():
         env_config = {} if env_config is None else env_config
         cmd = [
             'docker', 'build',
-            '-f', 'dockerfiles/httpd/Dockerfile',
+            '-f', 'dockerfiles/mlrun-api/Dockerfile',
             '--tag', docker_tag,
             '.',
         ]

@@ -20,7 +20,8 @@ ARG OMPI=4.0.3
 ARG REPO=mlrun
 
 ARG MLRUN_TAG=development
-ENV MLRUN_TAG=$MLRUN_TAG
+LABEL MLRUN_TAG=$MLRUN_TAG
+ENV MLRUN_TAG=${MLRUN_TAG}
 
 ARG TF_VER=2.1.0
 ARG XGB_VER=1.0.2
@@ -53,10 +54,7 @@ RUN mkdir -p /var/run/sshd && \
     # Allow OpenSSH to talk to containers without asking for confirmation
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
-    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config && \
-    # install horovod examples
-    svn checkout https://github.com/horovod/horovod/trunk/examples && \
-    rm -rf /examples/.svn
+    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -137,7 +135,10 @@ RUN conda clean -ayq
 
 RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
-RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
+RUN git clone https://github.com/${REPO}/mlrun.git /mlrun-git && \
+    cd /mlrun-git && \
+    git checkout ${MLRUN_TAG} && \
+    python -m pip install -e .
 
 # remove dask verify version mismatch warnings
 RUN python -m pip install --no-cache-dir \

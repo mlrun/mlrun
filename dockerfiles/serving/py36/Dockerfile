@@ -16,6 +16,6 @@ ARG REPO=mlrun
 ARG PREFIX=ml
 ARG NEW_TAG
 
-FROM ${REPO}/${PREFIX}-base:${NEW_TAG}
+FROM ${REPO}/${PREFIX}-base:${NEW_TAG}-py36
 
 RUN python3 -m pip install --no-cache-dir -U kfserving v3io

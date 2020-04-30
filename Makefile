@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+APP_PORT_DEFAULT := 8080
+APP_PORT := $(if $(APP_PORT),$(APP_PORT),$(APP_PORT_DEFAULT))
+
 .PHONY: all
 all:
 	$(error please pick a target)
@@ -42,7 +45,7 @@ test: clean
 .PHONY: run-app
 run-app:
 	./scripts/app/local-prestart.sh
-	uvicorn mlrun.app.main:app --reload
+	uvicorn mlrun.app.main:app --reload --port $(APP_PORT)
 
 .PHONY: docker-db
 docker-httpd:

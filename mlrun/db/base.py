@@ -104,14 +104,6 @@ class RunDBInterface(ABC):
     def list_functions(self, name, project='', tag='', labels=None):
         pass
 
-    @abstractmethod
-    def store_schedule(self, data):
-        pass
-
-    @abstractmethod
-    def list_schedules(self):
-        pass
-
     def list_projects(self):
         return []
 

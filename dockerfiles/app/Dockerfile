@@ -41,7 +41,7 @@ ENV MODULE_NAME=mlrun.app.main
 
 ENV PRE_START_PATH=/app/docker-prestart.sh
 
-COPY ./docker-prestart.sh /app
+COPY ./scripts/app/docker-prestart.sh /app
 
 COPY ./mlrun /app/mlrun
 

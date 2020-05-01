@@ -271,9 +271,6 @@ def dict_to_json(struct):
 
 
 def uxjoin(base, local_path, iter=None, is_dir=False):
-    if base and not base.endswith('/'):
-        base += '/'
-
     if local_path.startswith('/'):
         local_path = local_path[1:]
     if is_dir and not local_path.endswith('/'):
@@ -281,7 +278,13 @@ def uxjoin(base, local_path, iter=None, is_dir=False):
 
     if iter:
         head, tail = path.split(local_path)
-        local_path = '{}/{}/{}'.format(head, iter, tail)
+        if head:
+            local_path = '{}/{}/{}'.format(head, iter, tail)
+        else:
+            local_path = '{}/{}'.format(iter, tail)
+
+    if base and not base.endswith('/'):
+        base += '/'
     return '{}{}'.format(base or '', local_path)
 
 

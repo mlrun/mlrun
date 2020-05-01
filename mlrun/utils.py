@@ -270,16 +270,19 @@ def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
 
 
-def uxjoin(base, path, iter=None):
-    if base:
-        if not base.endswith('/'):
-            base += '/'
-        if iter:
-            base += '{}/'.format(iter)
-        if path.startswith('/'):
-            path = path[1:]
-        return '{}{}'.format(base, path)
-    return path
+def uxjoin(base, local_path, iter=None, is_dir=False):
+    if base and not base.endswith('/'):
+        base += '/'
+
+    if local_path.startswith('/'):
+        local_path = local_path[1:]
+    if is_dir and not local_path.endswith('/'):
+        local_path += '/'
+
+    if iter:
+        head, tail = path.split(local_path)
+        local_path = '{}/{}/{}'.format(head, iter, tail)
+    return '{}{}'.format(base or '', local_path)
 
 
 def parse_function_uri(uri):

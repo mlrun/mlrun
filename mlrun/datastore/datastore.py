@@ -14,6 +14,7 @@
 
 from urllib.parse import urlparse
 import mlrun
+from ..db import get_run_db
 
 from ..config import config
 from ..utils import run_keys, DB_SCHEMA
@@ -63,9 +64,9 @@ class StoreManager:
         self._db = db
 
     def _get_db(self):
-        if self._db:
-            return self._db
-        raise ValueError('run db is not set')
+        if not self._db:
+            self._db = get_run_db().connect(self._secrets)
+        return self._db
 
     def from_dict(self, struct: dict):
         stor_list = struct.get(run_keys.data_stores)

@@ -45,7 +45,7 @@ def get_dask_resource():
 class DaskSpec(KubeResourceSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,
-                 build=None, entry_points=None, description=None,
+                 build=None, default_handler=None, entry_points=None, description=None,
                  replicas=None, image_pull_policy=None, service_account=None,
                  image_pull_secret=None, extra_pip=None, remote=None,
                  service_type=None, nthreads=None, kfp_image=None,
@@ -55,7 +55,7 @@ class DaskSpec(KubeResourceSpec):
         super().__init__(command=command, args=args, image=image,
                          mode=mode, volumes=volumes, volume_mounts=volume_mounts,
                          env=env, resources=resources, replicas=replicas, image_pull_policy=image_pull_policy,
-                         service_account=service_account, build=build,
+                         service_account=service_account, build=build, default_handler=default_handler,
                          entry_points=entry_points, description=description,
                          image_pull_secret=image_pull_secret)
         self.args = args

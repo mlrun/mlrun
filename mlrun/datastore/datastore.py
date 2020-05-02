@@ -53,6 +53,8 @@ def schema_to_store(schema):
 
 def uri_to_ipython(link):
     schema, endpoint, p = parseurl(link)
+    if schema == DB_SCHEMA:
+        return ''
     return schema_to_store(schema).uri_to_ipython(endpoint, p.path)
 
 

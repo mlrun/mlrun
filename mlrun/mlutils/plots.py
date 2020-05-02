@@ -75,7 +75,7 @@ def plot_roc(
         plt.plot(fpr, tpr, label=f"positive class")
 
     fname = f"{plots_dir}/{key}.html"
-    context.log_artifact(PlotArtifact(key, body=plt.gcf()), local_path=fname)
+    return context.log_artifact(PlotArtifact(key, body=plt.gcf()), local_path=fname)
 
 
 def plot_importance(
@@ -114,4 +114,4 @@ def plot_importance(
 
     # feature importances are also saved as a csv table (generally small):
     fname = key + "-tbl.csv"
-    context.log_artifact(TableArtifact(key + "-tbl", df=feature_imp), local_path=fname)
+    return context.log_artifact(TableArtifact(key + "-tbl", df=feature_imp), local_path=fname)

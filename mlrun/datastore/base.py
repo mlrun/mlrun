@@ -156,7 +156,7 @@ class DataItem:
 
     @property
     def artifact_url(self):
-        return self._artifact_url
+        return self._artifact_url or self._url
 
     @property
     def url(self):

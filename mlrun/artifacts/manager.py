@@ -103,8 +103,10 @@ class ArtifactManager:
             viewer = 'web-app'
         item.format = format or item.format
         item.src_path = src_path
-        if item.src_path and '://' in item.src_path:
-            raise ValueError('source path cannot be a remote URL')
+        if src_path and ('://' in src_path or src_path.startswith('/')):
+            raise ValueError('local/source path must be a relative path, '
+                             'cannot be remote or absolute path, '
+                             'use target_path for absolute paths')
 
         if target_path:
             if not (target_path.startswith('/') or '://' in target_path):
@@ -113,7 +115,10 @@ class ArtifactManager:
             artifact_path = artifact_path or self.out_path
             target_path = uxjoin(
                 artifact_path, src_path or filename(key, item.format),
-                producer.iteration)
+                producer.iteration, item.is_dir)
+
+        if item.is_dir and not target_path.endswith('/'):
+            target_path += '/'
 
         item.target_path = target_path
         item.viewer = viewer or item.viewer

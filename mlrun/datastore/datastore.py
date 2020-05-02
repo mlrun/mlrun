@@ -63,9 +63,9 @@ class StoreManager:
         self._db = db
 
     def _get_db(self):
-        if self._db:
-            return self._db
-        raise ValueError('run db is not set')
+        if not self._db:
+            self._db = mlrun.get_run_db().connect(self._secrets)
+        return self._db
 
     def from_dict(self, struct: dict):
         stor_list = struct.get(run_keys.data_stores)

@@ -56,6 +56,10 @@ class Artifact(ModelObj):
         pass
 
     @property
+    def is_dir(self):
+        return False
+
+    @property
     def inline(self):
         if self._inline:
             return self.get_body()
@@ -118,9 +122,9 @@ class DirArtifact(Artifact):
         'description', 'db_key']
     kind = 'dir'
 
-    def before_log(self):
-        if not self.target_path.endswith('/'):
-            self.target_path += '/'
+    @property
+    def is_dir(self):
+        return True
 
     def upload(self, data_stores):
         if not self.src_path:

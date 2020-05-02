@@ -334,7 +334,7 @@ class MLClientCtx(object):
 
     def log_artifact(self, item, body=None, local_path=None, artifact_path=None,
                      tag='', viewer=None, target_path='', src_path=None,
-                     upload=None, labels=None, format=None, db_prefix=None, **kwargs):
+                     upload=None, labels=None, format=None, db_key=None, **kwargs):
         """log an output artifact and optionally upload it"""
         local_path = src_path or local_path
         item = self._artifacts_manager.log_artifact(self, item, body=body,
@@ -345,14 +345,14 @@ class MLClientCtx(object):
                                                     viewer=viewer,
                                                     upload=upload,
                                                     labels=labels,
-                                                    db_prefix=db_prefix,
+                                                    db_key=db_key,
                                                     format=format)
         self._update_db()
         return item
 
     def log_dataset(self, key, df, tag='', local_path=None,
                     artifact_path=None, upload=True, labels=None,
-                    format='', preview=None, stats=False, db_prefix=None,
+                    format='', preview=None, stats=False, db_key=None,
                     target_path='', analysis=None, **kwargs):
         """log a dataset artifact and optionally upload it"""
 
@@ -364,7 +364,7 @@ class MLClientCtx(object):
                                                     target_path=target_path,
                                                     tag=tag,
                                                     upload=upload,
-                                                    db_prefix=db_prefix,
+                                                    db_key=db_key,
                                                     labels=labels)
         self._update_db()
         return item
@@ -372,7 +372,7 @@ class MLClientCtx(object):
     def log_model(self, key, body=None, tag='', model_dir=None, model_file=None,
                   metrics=None, parameters=None, artifact_path=None,
                   upload=True, labels=None, inputs=None, outputs=None,
-                  extra_data=None, db_prefix=None):
+                  extra_data=None, db_key=None):
         """log a model artifact and optionally upload it"""
 
         model = ModelArtifact(key, body, model_file=model_file,
@@ -383,7 +383,7 @@ class MLClientCtx(object):
                                                     artifact_path=artifact_path,
                                                     tag=tag,
                                                     upload=upload,
-                                                    db_prefix=db_prefix,
+                                                    db_key=db_key,
                                                     labels=labels)
         self._update_db()
         return item

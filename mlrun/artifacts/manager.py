@@ -86,7 +86,7 @@ class ArtifactManager:
     def log_artifact(
         self, producer, item, body=None, target_path='', tag='',
             viewer='', local_path='', artifact_path=None, format=None,
-            upload=None, labels=None, db_prefix=None):
+            upload=None, labels=None, db_key=None):
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
@@ -128,10 +128,13 @@ class ArtifactManager:
         item.iter = producer.iteration
         item.project = producer.project
 
-        if db_prefix is None and producer.kind == 'run':
-            db_prefix = producer.name + '_'
-        db_key = db_prefix + key if db_prefix else key
-        item.db_key = db_key
+        if db_key is None:
+            # set the default artifact db key
+            if producer.kind == 'run':
+                db_key = producer.name + '_' + key
+            else:
+                db_key = key
+        item.db_key = db_key if db_key else ''
 
         item.before_log()
         self.artifacts[key] = item
@@ -139,10 +142,11 @@ class ArtifactManager:
         if (upload is None and item.kind != 'dir') or upload:
             item.upload(self.data_stores)
 
-        self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
+        if db_key:
+            self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or '?'
         logger.info('log artifact {} at {}, size: {}, db: {}'.format(
-            key, item.target_path, size, 'Y' if self.artifact_db else 'N'
+            key, item.target_path, size, 'Y' if (self.artifact_db and db_key) else 'N'
         ))
         return item
 

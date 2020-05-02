@@ -443,7 +443,7 @@ class MLClientCtx(object):
                  'parameters': self._parameters,
                  'outputs': self._outputs,
                  run_keys.output_path: self._out_path,
-                 run_keys.inputs: {k: v.url for k, v in self._inputs.items()},
+                 run_keys.inputs: {k: v.artifact_url for k, v in self._inputs.items()},
                  },
             'status':
                 {'state': self._state,

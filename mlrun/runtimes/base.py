@@ -525,8 +525,8 @@ class BaseRuntime(ModelObj):
         :return: KubeFlow containerOp
         """
 
-        if self.spec.image and not image:
-            image = self.full_image_path()
+        # if self.spec.image and not image:
+        #     image = self.full_image_path()
 
         if use_db:
             hashkey = self.save(versioned=True, refresh=True)

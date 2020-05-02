@@ -28,7 +28,10 @@ from .config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
+
 hub_prefix = 'hub://'
+DB_SCHEMA = 'store'
+
 
 def create_logger(stream=None):
     level = logging.INFO
@@ -267,16 +270,22 @@ def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
 
 
-def uxjoin(base, path, iter=None):
-    if base:
-        if not base.endswith('/'):
-            base += '/'
-        if iter:
-            base += '{}/'.format(iter)
-        if path.startswith('/'):
-            path = path[1:]
-        return '{}{}'.format(base, path)
-    return path
+def uxjoin(base, local_path, iter=None, is_dir=False):
+    if local_path.startswith('/'):
+        local_path = local_path[1:]
+    if is_dir and not local_path.endswith('/'):
+        local_path += '/'
+
+    if iter:
+        head, tail = path.split(local_path)
+        if head:
+            local_path = '{}/{}/{}'.format(head, iter, tail)
+        else:
+            local_path = '{}/{}'.format(iter, tail)
+
+    if base and not base.endswith('/'):
+        base += '/'
+    return '{}{}'.format(base or '', local_path)
 
 
 def parse_function_uri(uri):
@@ -371,3 +380,12 @@ def tag_image(base: str):
             base.startswith('mlrun/ml-') and ':' not in base)):
         base += ':' + ver
     return base
+
+
+def get_artifact_target(item: dict, project=None):
+    kind = item.get('kind')
+    if kind in ['dataset', 'model'] and item.get('db_key'):
+        return '{}://{}/{}#{}'.format(DB_SCHEMA,
+                                      project or item.get('project'),
+                                      item.get('db_key'), item.get('tree'))
+    return item.get('target_path')

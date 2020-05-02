@@ -16,8 +16,9 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import StoreManager, DB_SCHEMA
+from ..datastore import StoreManager
 from .base import Artifact
+from ..utils import DB_SCHEMA
 
 model_spec_filename = 'model_spec.yaml'
 
@@ -39,11 +40,13 @@ class ModelArtifact(Artifact):
         self.outputs = outputs or []
         self.extra_data = extra_data or {}
 
+    @property
+    def is_dir(self):
+        return True
+
     def before_log(self):
         if not self.model_file:
             raise ValueError('model_file attr must be specified')
-        if not self.target_path.endswith('/'):
-            self.target_path += '/'
 
     def upload(self, data_stores):
 
@@ -65,12 +68,17 @@ class ModelArtifact(Artifact):
         spec_path = path.join(self.target_path, model_spec_filename)
         data_stores.object(url=spec_path).put(self.to_yaml())
 
-        for key, local_path in self.extra_data.items():
-            if not (local_path.startswith('/') or '://' in local_path):
-                src_path = get_src_path(self.model_file)
+        for key, item in self.extra_data.items():
+            if isinstance(item, bytes):
+                target = path.join(self.target_path, key)
+                data_stores.object(url=target).put(item)
+                self.extra_data[key] = target
+
+            elif not (item.startswith('/') or '://' in item):
+                src_path = get_src_path(item)
                 if not path.isfile(src_path):
                     raise ValueError('extra data file {} not found'.format(src_path))
-                target = path.join(self.target_path, local_path)
+                target = path.join(self.target_path, item)
                 data_stores.object(url=target).upload(src_path)
 
 
@@ -83,10 +91,9 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     stores = stores or StoreManager()
 
     if model_dir.startswith(DB_SCHEMA + '://'):
-        spec, target = stores.get_store_artifact(model_dir)
-        if spec.get('kind', '') != 'model':
+        model_spec, target = stores.get_store_artifact(model_dir)
+        if not model_spec or model_spec.kind != 'model':
             raise ValueError('store artifact ({}) is not model kind'.format(model_dir))
-        model_spec = ModelArtifact.from_dict(spec)
         model_file = _get_file_path(target, model_spec.model_file)
         extra_dataitems = _get_extra(stores, target, model_spec.extra_data)
 

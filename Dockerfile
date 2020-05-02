@@ -12,8 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ARG PYTHON_VER=3.6
 
-FROM python:3.6
+FROM python:${PYTHON_VER}
+
 WORKDIR /mlrun
 
 RUN pip install --upgrade pip

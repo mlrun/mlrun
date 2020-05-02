@@ -23,6 +23,7 @@ LABEL org="iguazio.com"
 ARG REPO=mlrun
 
 ARG MLRUN_TAG=development
+LABEL MLRUN_TAG=$MLRUN_TAG
 ENV MLRUN_TAG=${MLRUN_TAG}
 
 RUN apt update -qqq \
@@ -40,12 +41,16 @@ RUN apt update -qqq \
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
+RUN git clone https://github.com/${REPO}/mlrun.git /mlrun-git && \
+    cd /mlrun-git && \
+    git checkout ${MLRUN_TAG} && \
+    python -m pip install -e .
+
 RUN python -m pip install --ignore-installed --no-cache-dir \
-        blosc==1.7.0 \
-        cloudpickle==1.1.1 \
-        dask==2.12.0 \
-        distributed==2.14.0 \
-        lz4==2.2.1 \
-        msgpack==1.0.0 \
-        tornado==6.0.4 \
-        git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
+    blosc==1.7.0 \
+    cloudpickle==1.1.1 \
+    dask==2.12.0 \
+    distributed==2.14.0 \
+    lz4==2.2.1 \
+    msgpack==1.0.0 \
+    tornado==6.0.4

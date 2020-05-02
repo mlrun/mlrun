@@ -55,7 +55,7 @@ default_config = {
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'ERROR',
-    'submit_timeout': '120',
+    'submit_timeout': '180',
     'artifact_path': '',
     'httpdb': {
         'port': 8080,

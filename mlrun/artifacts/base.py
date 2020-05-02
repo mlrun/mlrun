@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import inspect
 import os
 import hashlib
 from ..model import ModelObj
-from ..datastore import StoreManager, DB_SCHEMA
+from ..datastore import StoreManager
+from ..utils import DB_SCHEMA
 
 calc_hash = True
 
@@ -55,6 +56,10 @@ class Artifact(ModelObj):
         pass
 
     @property
+    def is_dir(self):
+        return False
+
+    @property
     def inline(self):
         if self._inline:
             return self.get_body()
@@ -67,15 +72,24 @@ class Artifact(ModelObj):
     def get_body(self):
         return self._body
 
-    def get_store_url(self):
-        return '{}://{}/{}'.format(DB_SCHEMA, self.project, self.db_key)
+    def get_store_url(self, with_tag=True, project=None):
+        url = '{}://{}/{}'.format(DB_SCHEMA, project or self.project, self.db_key)
+        if with_tag:
+            url += '#' + self.tree
+
     def base_dict(self):
         return super().to_dict()
 
     def to_dict(self, fields=None):
         return super().to_dict(
             self._dict_fields + [
-                'updated', 'labels', 'annotations', 'producer', 'sources'])
+                'updated', 'labels', 'annotations', 'producer', 'sources', 'project'])
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None):
+        fields = fields or cls._dict_fields + [
+                'updated', 'labels', 'annotations', 'producer', 'sources', 'project']
+        return super().from_dict(struct, fields=fields)
 
     def upload(self, data_stores: StoreManager):
         src_path = self.src_path
@@ -108,9 +122,9 @@ class DirArtifact(Artifact):
         'description', 'db_key']
     kind = 'dir'
 
-    def before_log(self):
-        if not self.target_path.endswith('/'):
-            self.target_path += '/'
+    @property
+    def is_dir(self):
+        return True
 
     def upload(self, data_stores):
         if not self.src_path:

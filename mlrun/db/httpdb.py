@@ -27,7 +27,7 @@ from .base import RunDBError, RunDBInterface
 from ..lists import RunList, ArtifactList
 from ..config import config
 
-default_project = 'default'  # TODO: Name?
+default_project = config.default_project
 
 _artifact_keys = [
     'format',

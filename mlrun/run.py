@@ -404,7 +404,7 @@ def parse_command(runtime, url):
 def code_to_function(name: str = '', project: str = '', tag: str = '',
                      filename: str = '', handler='', runtime='', kind='',
                      image=None, code_output='', embed_code=True,
-                     with_doc=False):
+                     with_doc=True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
@@ -645,6 +645,12 @@ def get_object(url, secrets=None, size=None, offset=0, db=None):
     db = db or get_run_db().connect()
     stores = StoreManager(secrets, db=db)
     return stores.object(url=url).get(size, offset)
+
+
+def get_dataitem(url, secrets=None, db=None):
+    db = db or get_run_db().connect()
+    stores = StoreManager(secrets, db=db)
+    return stores.object(url=url)
 
 
 def download_object(url, target, secrets=None):

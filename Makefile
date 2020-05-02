@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-APP_PORT_DEFAULT := 8080
-APP_PORT := $(if $(APP_PORT),$(APP_PORT),$(APP_PORT_DEFAULT))
+API_PORT_DEFAULT := 8080
+API_PORT := $(if $(API_PORT),$(API_PORT),$(API_PORT_DEFAULT))
 
 .PHONY: all
 all:
@@ -42,16 +42,16 @@ test: clean
 	    -rf \
 	    tests
 
-.PHONY: run-app
-run-app:
-	./scripts/app/local-prestart.sh
-	uvicorn mlrun.app.main:app --reload --port $(APP_PORT)
+.PHONY: run-api
+run-api:
+	./scripts/api/local-prestart.sh
+	uvicorn mlrun.api.main:app --reload --port $(API_PORT)
 
-.PHONY: docker-app
-docker-app:
+.PHONY: docker-api
+docker-api:
 	docker build \
-	    -f dockerfiles/app/Dockerfile \
-	    -t mlrun/mlrun-app .
+	    -f dockerfiles/api/Dockerfile \
+	    -t mlrun/api .
 
 .PHONY: circleci
 circleci:

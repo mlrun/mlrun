@@ -31,7 +31,7 @@ from conftest import wait_for_server, in_docker
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
 
-docker_tag = 'mlrun/test-app'
+docker_tag = 'mlrun/test-api'
 
 
 def free_port():
@@ -51,13 +51,13 @@ def start_server(db_path, log_file, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['APP_PORT'] = str(port)
+    env['API_PORT'] = str(port)
     env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}?check_same_thread=false'
     env.update(env_config or {})
 
     cmd = [
         "make",
-        "run-app",
+        "run-api",
     ]
     proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
     url = f'http://localhost:{port}'
@@ -89,7 +89,7 @@ def docker_fixture():
         env_config = {} if env_config is None else env_config
         cmd = [
             'docker', 'build',
-            '-f', 'dockerfiles/app/Dockerfile',
+            '-f', 'dockerfiles/api/Dockerfile',
             '--tag', docker_tag,
             '.',
         ]
@@ -116,7 +116,7 @@ def docker_fixture():
             url = f'http://{host}:8080'
         else:
             url = f'http://localhost:{port}'
-        print(f'app url: {url}')
+        print(f'api url: {url}')
         check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()

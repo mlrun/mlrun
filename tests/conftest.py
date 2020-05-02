@@ -37,7 +37,7 @@ examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
 
-from mlrun.app.db.sqldb.db import run_time_fmt
+from mlrun.api.db.sqldb.db import run_time_fmt
 
 
 def check_docker():

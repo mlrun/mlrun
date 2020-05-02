@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.app.db.sqldb.db import SQLDB as SQLAPIDB
-from mlrun.app.db.sqldb.session import SessionLocal
+from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
+from mlrun.api.db.sqldb.session import SessionLocal
 
 from .base import RunDBInterface
 
 
-# This class is a proxy for the real implementation that sits under mlrun.app.db.sqldb
+# This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
 # require a RunDB to manage their state, when a user run them locally this db will either be the
 # local filedb or the remote httpdb (we decided that we don't want to support SQLDB as an optional RunDB).

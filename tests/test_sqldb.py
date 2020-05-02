@@ -26,8 +26,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker
 
-from mlrun.app.db.sqldb.db import SQLDB
-from mlrun.app.db.sqldb.models import _tagged, Base
+from mlrun.api.db.sqldb.db import SQLDB
+from mlrun.api.db.sqldb.models import _tagged, Base
 from mlrun.config import config
 
 SessionLocal: Callable

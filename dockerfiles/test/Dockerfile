@@ -46,7 +46,7 @@ COPY ./requirements.txt ./
 
 RUN pip install \
     -r dev-requirements.txt \
-    -r app-requirements.txt \
+    -r api-requirements.txt \
     -r requirements.txt
 
 COPY . .

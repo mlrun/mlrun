@@ -104,6 +104,7 @@ class ArtifactManager:
         item.format = format or item.format
         item.src_path = src_path
         if src_path and ('://' in src_path or src_path.startswith('/')):
+            print(f"HEDI - local_path {local_path} - item.src_path {item.src_path}")
             raise ValueError('local/source path must be a relative path, '
                              'cannot be remote or absolute path, '
                              'use target_path for absolute paths')

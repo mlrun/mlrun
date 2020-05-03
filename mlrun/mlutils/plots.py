@@ -1,7 +1,7 @@
 from sklearn import metrics
 import matplotlib.pyplot as plt
 import seaborn as sns
-from mlrun.artifacts import PlotArtifact, TableArtifact
+from ..artifacts import PlotArtifact, TableArtifact
 import pandas as pd
 
 
@@ -30,7 +30,7 @@ def plot_roc(
     title: str = "roc curve",
     legend_loc: str = "best",
 ):
-    """plot roc curves
+    """plot roc curves (this version to deprecate or refactor as per models.eval_class_model)
 
     TODO:  add averaging method (as string) that was used to create probs, 
     display in legend
@@ -75,7 +75,7 @@ def plot_roc(
         plt.plot(fpr, tpr, label=f"positive class")
 
     fname = f"{plots_dir}/{key}.html"
-    return context.log_artifact(PlotArtifact(key, body=plt.gcf()), local_path=fname)
+    context.log_artifact(PlotArtifact(key, body=plt.gcf()), local_path=fname)
 
 
 def plot_importance(
@@ -114,4 +114,4 @@ def plot_importance(
 
     # feature importances are also saved as a csv table (generally small):
     fname = key + "-tbl.csv"
-    return context.log_artifact(TableArtifact(key + "-tbl", df=feature_imp), local_path=fname)
+    context.log_artifact(TableArtifact(key + "-tbl", df=feature_imp), local_path=fname)

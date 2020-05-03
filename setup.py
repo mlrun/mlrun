@@ -58,7 +58,7 @@ setup(
     url='https://github.com/mlrun/mlrun',
     packages=['mlrun', 'mlrun.runtimes', 'mlrun.db', 'mlrun.mlutils',
               'mlrun.platforms', 'mlrun.projects', 'mlrun.artifacts',
-              'mlrun.datastore'],
+              'mlrun.datastore', 'mlrun.api'],
     install_requires=install_requires,
     extra_requires={
         'api': api_deps,

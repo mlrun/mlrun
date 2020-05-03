@@ -152,7 +152,8 @@ def eval_class_model(
         avg_prec["micro"] = metrics.average_precision_score(ytest_b, yprob, average="micro")
         ap_micro = avg_prec["micro"]
         model_metrics.update({'precision-micro-avg-classes': ap_micro})
-
+        
+        gcf_clear(plt)
         colors = cycle(['navy', 'turquoise', 'darkorange', 'cornflowerblue', 'teal'])
         plt.figure(figsize=(7, 8))
         f_scores = np.linspace(0.2, 0.8, num=4)
@@ -214,6 +215,7 @@ def eval_class_model(
         roc_auc["macro"] = metrics.auc(fpr["macro"], tpr["macro"])
 
         # Plot all ROC curves
+        gcf_clear(plt)
         plt.figure()
         plt.plot(fpr["micro"], tpr["micro"],
                  label='micro-average ROC curve (area = {0:0.2f})'

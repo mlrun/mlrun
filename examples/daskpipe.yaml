@@ -1,0 +1,126 @@
+"apiVersion": |-
+  argoproj.io/v1alpha1
+"kind": |-
+  Workflow
+"metadata":
+  "annotations":
+    "pipelines.kubeflow.org/pipeline_spec": |-
+      {"inputs": [{"default": "1", "name": "x", "optional": true}, {"default": "10", "name": "y", "optional": true}], "name": "dask_pipeline"}
+  "generateName": |-
+    dask-pipeline-
+"spec":
+  "arguments":
+    "parameters":
+    - "name": |-
+        x
+      "value": |-
+        1
+    - "name": |-
+        y
+      "value": |-
+        10
+  "entrypoint": |-
+    dask-pipeline
+  "serviceAccountName": |-
+    pipeline-runner
+  "templates":
+  - "dag":
+      "tasks":
+      - "arguments":
+          "parameters":
+          - "name": |-
+              x
+            "value": |-
+              {{inputs.parameters.x}}
+          - "name": |-
+              y
+            "value": |-
+              {{inputs.parameters.y}}
+        "name": |-
+          mydask-hndlr
+        "template": |-
+          mydask-hndlr
+    "inputs":
+      "parameters":
+      - "name": |-
+          x
+      - "name": |-
+          y
+    "name": |-
+      dask-pipeline
+  - "container":
+      "command":
+      - |-
+        python
+      - |-
+        -m
+      - |-
+        mlrun
+      - |-
+        run
+      - |-
+        --kfp
+      - |-
+        --from-env
+      - |-
+        --workflow
+      - |-
+        {{workflow.uid}}
+      - |-
+        --name
+      - |-
+        mydask-hndlr
+      - |-
+        -f
+      - |-
+        db:///mydask:733e86459a67a931085a88e24cf9a55cbcbbaf2a
+      - |-
+        -p
+      - |-
+        x={{inputs.parameters.x}}
+      - |-
+        -p
+      - |-
+        y={{inputs.parameters.y}}
+      - |-
+        --label
+      - |-
+        v3io_user=admin
+      - |-
+        --label
+      - |-
+        owner=admin
+      - |-
+        --handler
+      - |-
+        hndlr
+      - ""
+      "env":
+      - "name": |-
+          MLRUN_DBPATH
+        "value": |-
+          http://mlrun-api:8080
+      - "name": |-
+          DEFAULT_DOCKER_REGISTRY
+        "value": |-
+          docker-registry.default-tenant.app.yjb-mlrun-dav.iguazio-cd1.com:80
+      "image": |-
+        mlrun/dask:0.4.7
+    "inputs":
+      "parameters":
+      - "name": |-
+          x
+      - "name": |-
+          y
+    "name": |-
+      mydask-hndlr
+    "outputs":
+      "artifacts":
+      - "name": |-
+          mlpipeline-ui-metadata
+        "path": |-
+          /mlpipeline-ui-metadata.json
+      - "name": |-
+          mlpipeline-metrics
+        "path": |-
+          /mlpipeline-metrics.json

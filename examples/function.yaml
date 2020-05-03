@@ -1,0 +1,37 @@
+kind: job
+metadata:
+  name: file-utils
+  tag: ''
+  hash: 58010fff895465b8dc5b1df6c15969707e6ae2fe
+  project: ''
+  labels:
+    author: me
+  categories:
+  - fileutils
+spec:
+  command: ''
+  args: []
+  image: mlrun/mlrun
+  env: []
+  default_handler: open_archive
+  entry_points:
+    open_archive:
+      name: open_archive
+      doc: Open a file/object archive into a target directory
+      parameters:
+      - name: context
+      - name: target_dir
+        type: str
+        doc: target directory
+        default: content
+      - name: archive_url
+        type: str
+        doc: source archive path/url
+      outputs:
+      - doc: content dir
+      lineno: 6
+  description: this function opens a zip archive into a local/mounted folder
+  build:
+    functionSourceCode: IyBHZW5lcmF0ZWQgYnkgbnVjbGlvLmV4cG9ydC5OdWNsaW9FeHBvcnRlciBvbiAyMDIwLTA1LTAzIDE4OjEyCgppbXBvcnQgb3MKaW1wb3J0IHppcGZpbGUKCmRlZiBvcGVuX2FyY2hpdmUoY29udGV4dCwgCiAgICAgICAgICAgICAgICAgdGFyZ2V0X2Rpcjogc3RyID0gJ2NvbnRlbnQnLAogICAgICAgICAgICAgICAgIGFyY2hpdmVfdXJsOiBzdHIgPSAnJyk6CiAgICAiIiJPcGVuIGEgZmlsZS9vYmplY3QgYXJjaGl2ZSBpbnRvIGEgdGFyZ2V0IGRpcmVjdG9yeQogICAgCiAgICA6cGFyYW0gdGFyZ2V0X2RpcjogICB0YXJnZXQgZGlyZWN0b3J5CiAgICA6cGFyYW0gYXJjaGl2ZV91cmw6ICBzb3VyY2UgYXJjaGl2ZSBwYXRoL3VybAogICAgCiAgICA6cmV0dXJuczogY29udGVudCBkaXIKICAgICIiIgogICAgICAgIAogICAgb3MubWFrZWRpcnModGFyZ2V0X2RpciwgZXhpc3Rfb2s9VHJ1ZSkKICAgIGNvbnRleHQubG9nZ2VyLmluZm8oJ1ZlcmlmaWVkIGRpcmVjdG9yaWVzJykKICAgIAogICAgY29udGV4dC5sb2dnZXIuaW5mbygnRXh0cmFjdGluZyB6aXAnKQogICAgemlwX3JlZiA9IHppcGZpbGUuWmlwRmlsZShhcmNoaXZlX3VybCwgJ3InKQogICAgemlwX3JlZi5leHRyYWN0YWxsKHRhcmdldF9kaXIpCiAgICB6aXBfcmVmLmNsb3NlKCkKICAgIAogICAgY29udGV4dC5sb2dnZXIuaW5mbyhmJ2V4dHJhY3RlZCBhcmNoaXZlIHRvIHt0YXJnZXRfZGlyfScpCiAgICBjb250ZXh0LmxvZ19hcnRpZmFjdCgnY29udGVudCcsIGxvY2FsX3BhdGg9dGFyZ2V0X2RpcikKCg==
+    commands: []
+    code_origin: https://github.com/yjb-ds/mlrun.git#4cbcfa78ee6ec0cf3fe55b1881f50d5e79f96490:file_utils.ipynb

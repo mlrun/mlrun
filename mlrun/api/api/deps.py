@@ -4,9 +4,9 @@ from typing import Generator
 
 from fastapi import Request
 
+from mlrun.api.api.utils import log_and_raise
+from mlrun.api.db.sqldb.session import SessionLocal
 from mlrun.config import config
-from .utils import log_and_raise
-from ..db.sqldb.session import SessionLocal
 
 
 def get_db_session() -> Generator:

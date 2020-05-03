@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
-from .sqldb.models import Base
-from .sqldb.session import engine
+from mlrun.api.db.sqldb.models import Base
+from mlrun.api.db.sqldb.session import engine
 
 
 def init_db(db: Session) -> None:

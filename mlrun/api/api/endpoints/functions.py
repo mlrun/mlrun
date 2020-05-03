@@ -7,9 +7,9 @@ from typing import List
 from fastapi import APIRouter, Depends, Request, Query, Response
 from sqlalchemy.orm import Session
 
-from .. import deps
-from ..utils import log_and_raise, get_run_db_instance
-from ...singletons import get_db, get_k8s
+from mlrun.api.api import deps
+from mlrun.api.api.utils import log_and_raise, get_run_db_instance
+from mlrun.api.singletons import get_db, get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function

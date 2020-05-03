@@ -4,10 +4,10 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from .. import deps
-from ..utils import log_and_raise
-from ...db.sqldb.helpers import to_dict as db2dict, table2cls
-from ...singletons import get_db
+from mlrun.api.api import deps
+from mlrun.api.api.utils import log_and_raise
+from mlrun.api.db.sqldb.helpers import to_dict as db2dict, table2cls
+from mlrun.api.singletons import get_db
 
 router = APIRouter()
 

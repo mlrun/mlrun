@@ -7,12 +7,12 @@ from fastapi import HTTPException
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+from mlrun.api.db.sqldb.db import SQLDB
+from mlrun.api.singletons import get_db, get_logs_dir, get_scheduler
 from mlrun.config import config
+from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
 from mlrun.utils import get_in, logger, parse_function_uri
-from ..db.sqldb.db import SQLDB
-from ..singletons import get_db, get_logs_dir, get_scheduler
-from ...db.sqldb import SQLDB as SQLRunDB
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST, **kw):

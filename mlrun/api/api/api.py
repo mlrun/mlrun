@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
-from . import deps
-from .endpoints import artifacts, files, functions, healthz, logs, pipelines, projects, runs, schedules, \
+from mlrun.api.api import deps
+from mlrun.api.api.endpoints import artifacts, files, functions, healthz, logs, pipelines, projects, runs, schedules, \
     submit, tags, workflows
 
 api_router = APIRouter()

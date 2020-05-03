@@ -4,8 +4,8 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from .. import deps
-from ..utils import log_and_raise, submit
+from mlrun.api.api import deps
+from mlrun.api.api.utils import log_and_raise, submit
 from mlrun.utils import logger
 
 router = APIRouter()

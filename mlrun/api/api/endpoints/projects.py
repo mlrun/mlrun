@@ -4,11 +4,11 @@ from operator import attrgetter
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ... import schemas
-from .. import deps
-from ..utils import log_and_raise
-from ...db.sqldb.helpers import to_dict as db2dict
-from ...singletons import get_db
+from mlrun.api import schemas
+from mlrun.api.api import deps
+from mlrun.api.api.utils import log_and_raise
+from mlrun.api.db.sqldb.helpers import to_dict as db2dict
+from mlrun.api.singletons import get_db
 
 router = APIRouter()
 

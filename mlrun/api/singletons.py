@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from mlrun.api.db.base import DBInterface
-from mlrun.api.db.filedb.db import FileDB
-from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import SessionLocal
 from mlrun.config import config
 from mlrun.k8s_utils import K8sHelper
 from mlrun.scheduler import Scheduler
 from mlrun.utils import logger
+from .db.base import DBInterface
+from .db.filedb.db import FileDB
+from .db.sqldb.db import SQLDB
+from .db.sqldb.session import SessionLocal
 
 # TODO: something nicer
 scheduler: Scheduler = None

@@ -8,7 +8,7 @@ from os import remove
 from fastapi import APIRouter, Request, Query
 from kfp import Client as kfclient
 
-from mlrun.api.api.utils import log_and_raise
+from ..utils import log_and_raise
 from mlrun.config import config
 from mlrun.utils import logger
 

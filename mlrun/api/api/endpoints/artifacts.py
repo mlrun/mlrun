@@ -5,9 +5,9 @@ from typing import List
 from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.orm import Session
 
-from mlrun.api.api import deps
-from mlrun.api.api.utils import log_and_raise
-from mlrun.api.singletons import get_db
+from ..api import deps
+from ..utils import log_and_raise
+from ...singletons import get_db
 from mlrun.config import config
 from mlrun.utils import logger
 

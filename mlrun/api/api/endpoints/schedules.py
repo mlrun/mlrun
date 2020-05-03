@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from mlrun.api.api import deps
-from mlrun.api.singletons import get_db
+from .. import deps
+from ...singletons import get_db
 
 router = APIRouter()
 

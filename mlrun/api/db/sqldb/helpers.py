@@ -1,7 +1,7 @@
 from dateutil import parser
 
-from mlrun.api.db.sqldb.models import Base, _table2cls
 from mlrun.utils import get_in
+from .models import Base, _table2cls
 
 
 def table2cls(name):

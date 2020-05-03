@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
-from mlrun.api.db.sqldb.session import SessionLocal
-
 from .base import RunDBInterface
+from ..api.db.sqldb.db import SQLDB as SQLAPIDB
+from ..api.db.sqldb.session import SessionLocal
 
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb

@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 
-from mlrun.api.api.api import api_router
-from mlrun.api.api.utils import submit
-from mlrun.api.db.sqldb.session import SessionLocal
-from mlrun.api.singletons import initialize_singletons, get_db
 from mlrun.config import config
 from mlrun.db import periodic
 from mlrun.utils import logger
+from .api.api import api_router
+from .api.utils import submit
+from .db.sqldb.session import SessionLocal
+from .singletons import initialize_singletons, get_db
 
 app = FastAPI(title="MLRun",
               description="Machine Learning automation and tracking",

@@ -1,5 +1,5 @@
-from mlrun.api.db.base import DBInterface
-from mlrun.db.filedb import FileRunDB
+from ..base import DBInterface
+from ....db.filedb import FileRunDB
 
 
 class FileDB(DBInterface):

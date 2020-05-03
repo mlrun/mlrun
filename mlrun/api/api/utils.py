@@ -52,6 +52,7 @@ def get_run_db_instance(db_session: Session):
         run_db = SQLRunDB(db.dsn, db_session, db.get_projects_cache())
     else:
         run_db = db.db
+    run_db.connect()
     return run_db
 
 

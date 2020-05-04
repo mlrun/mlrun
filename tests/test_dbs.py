@@ -17,7 +17,7 @@ from tempfile import mkdtemp
 
 import pytest
 
-from conftest import new_run, run_now
+from conftest import new_run, run_now, init_sqldb
 from mlrun.db import SQLDB, FileRunDB, RunDBError, sqldb
 from mlrun.db.base import RunDBInterface
 
@@ -34,7 +34,9 @@ def db(request):
     print(f'db fixture: path={path!r}')
     if request.param == 'sql':
         db_file = f'{path}/mlrun.db'
-        db = SQLDB(f'sqlite:///{db_file}?check_same_thread=false')
+        dsn = f'sqlite:///{db_file}?check_same_thread=false'
+        SessionLocal = init_sqldb(dsn)
+        db = SQLDB(dsn, session=SessionLocal())
     elif request.param == 'file':
         db = FileRunDB(path)
     else:

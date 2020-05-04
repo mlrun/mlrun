@@ -21,14 +21,11 @@ from typing import Generator
 from unittest.mock import Mock
 
 import pytest
-from conftest import new_run
-from sqlalchemy import create_engine
+from conftest import new_run, init_sqldb
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import sessionmaker
 
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import _tagged, Base
-from mlrun.config import config
+from mlrun.api.db.sqldb.models import _tagged
 
 SessionLocal: Callable
 
@@ -36,12 +33,11 @@ SessionLocal: Callable
 @pytest.fixture
 def db():
     global SessionLocal
-    engine = create_engine("sqlite:///:memory:?check_same_thread=false")
-    Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine)
-    db = SQLDB(config.httpdb.dsn)
+    dsn = "sqlite:///:memory:?check_same_thread=false"
     try:
+        SessionLocal = init_sqldb(dsn)
         db_session = SessionLocal()
+        db = SQLDB(dsn)
         db.initialize(db_session)
     finally:
         db_session.close()

@@ -21,6 +21,11 @@ from sys import platform
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from mlrun.api.db.sqldb.models import Base
+
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
 is_ci = 'CI' in environ
@@ -105,3 +110,9 @@ def new_run(state, labels, uid=None, **kw):
         obj['metadata']['uid'] = uid
     obj.update(kw)
     return obj
+
+
+def init_sqldb(dsn):
+    engine = create_engine(dsn)
+    Base.metadata.create_all(bind=engine)
+    return sessionmaker(bind=engine)

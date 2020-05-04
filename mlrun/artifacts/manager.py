@@ -114,7 +114,7 @@ class ArtifactManager:
         else:
             artifact_path = artifact_path or self.out_path
             target_path = uxjoin(
-                artifact_path, src_path or filename(key, item.format),
+                artifact_path, src_path, filename(key, item.format),
                 producer.iteration, item.is_dir)
 
         if item.is_dir and not target_path.endswith('/'):

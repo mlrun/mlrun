@@ -86,7 +86,7 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     """return model file, model spec object, and list of extra data items"""
     model_file = ''
     model_spec = None
-    extra_dataitems = []
+    extra_dataitems = {}
     suffix = suffix or '.pkl'
     stores = stores or StoreManager()
 
@@ -146,7 +146,7 @@ def _get_file_path(base_path: str, name: str, isdir=False):
 
 
 def _get_extra(stores, target, extra_data, is_dir=False):
-    extra_dataitems = []
+    extra_dataitems = {}
     for k, v in extra_data.items():
-        extra_dataitems.append(stores.object(url=_get_file_path(target, v, isdir=is_dir), key=k))
+        extra_dataitems[k] = stores.object(url=_get_file_path(target, v, isdir=is_dir), key=k)
     return extra_dataitems

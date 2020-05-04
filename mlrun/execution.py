@@ -16,13 +16,14 @@ from copy import deepcopy
 from datetime import datetime
 import numpy as np
 import uuid
+import os
 
 from mlrun.artifacts import ModelArtifact
 from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import uxjoin, run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str
+from .utils import run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str
 
 
 class MLCtxValueError(Exception):
@@ -269,7 +270,7 @@ class MLClientCtx(object):
         if not url:
             url = key
         if self.in_path and not (url.startswith('/') or '://' in url):
-            url = uxjoin(self._in_path, url)
+            url = os.path.join(self._in_path, url)
         obj = self._data_stores.object(url, key, project=self._project)
         self._inputs[key] = obj
         return obj

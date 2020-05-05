@@ -48,6 +48,10 @@ class ModelArtifact(Artifact):
         if not self.model_file:
             raise ValueError('model_file attr must be specified')
 
+        for key, item in self.extra_data.items():
+            if hasattr(item, 'target_path'):
+                self.extra_data[key] = item.target_path
+
     def upload(self, data_stores):
 
         def get_src_path(filename):
@@ -69,9 +73,7 @@ class ModelArtifact(Artifact):
         data_stores.object(url=spec_path).put(self.to_yaml())
 
         for key, item in self.extra_data.items():
-            if hasattr(item, 'target_path'):
-                item = item.target_path
-                
+
             if isinstance(item, bytes):
                 target = path.join(self.target_path, key)
                 data_stores.object(url=target).put(item)

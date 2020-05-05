@@ -69,6 +69,9 @@ class ModelArtifact(Artifact):
         data_stores.object(url=spec_path).put(self.to_yaml())
 
         for key, item in self.extra_data.items():
+            if hasattr(item, 'target_path'):
+                item = item.target_path
+                
             if isinstance(item, bytes):
                 target = path.join(self.target_path, key)
                 data_stores.object(url=target).put(item)

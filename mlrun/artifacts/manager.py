@@ -104,18 +104,17 @@ class ArtifactManager:
         item.format = format or item.format
         item.src_path = src_path
         if src_path and ('://' in src_path or src_path.startswith('/')):
-            print(f"HEDI - local_path {local_path} - item.src_path {item.src_path}")
-            raise ValueError('local/source path must be a relative path, '
+            raise ValueError('local/source path ({}) must be a relative path, '
                              'cannot be remote or absolute path, '
-                             'use target_path for absolute paths')
+                             'use target_path for absolute paths'.format(src_path))
 
         if target_path:
             if not (target_path.startswith('/') or '://' in target_path):
-                raise ValueError('target_path param cannot be relative')
+                raise ValueError('target_path ({}) param cannot be relative'.format(target_path))
         else:
             artifact_path = artifact_path or self.out_path
             target_path = uxjoin(
-                artifact_path, src_path or filename(key, item.format),
+                artifact_path, src_path, filename(key, item.format),
                 producer.iteration, item.is_dir)
 
         if item.is_dir and not target_path.endswith('/'):

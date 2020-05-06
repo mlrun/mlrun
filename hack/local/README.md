@@ -75,7 +75,16 @@ You can do this by running the following command:
 kubectl create -n <namespace> secret docker-registry my-docker --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>
 ```
 
-Copy the [**mlrun-local.yaml**](mlrun-local.yaml) file to your cluster, edit it as needed, and run the following command from the directory that contains the file:
+Copy the [**mlrun-local.yaml**](mlrun-local.yaml) file to your cluster, edit the registry and other attributes as needed, for example:
+
+```yaml
+    - name: DEFAULT_DOCKER_REGISTRY
+      value: "https://index.docker.io/v1/"
+    - name: DEFAULT_DOCKER_SECRET
+      value: my-docker
+``` 
+
+and run the following command from the directory that contains the file:
 ```sh
 kubectl apply -n <namespace> -f mlrun-local.yaml
 ```

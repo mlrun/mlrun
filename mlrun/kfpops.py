@@ -344,6 +344,12 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     if registry:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='DEFAULT_DOCKER_REGISTRY', value=registry))
+    cop.container.add_env_variable(
+        k8s_client.V1EnvVar(
+            'MLRUN_NAMESPACE',
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(
+                    field_path='metadata.namespace'))))
     return cop
 
 
@@ -449,7 +455,13 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
     if 'V3IO_ACCESS_KEY' in environ and is_v3io:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='V3IO_ACCESS_KEY', value=environ.get('V3IO_ACCESS_KEY')))
-
+    
+    cop.container.add_env_variable(
+        k8s_client.V1EnvVar(
+            'MLRUN_NAMESPACE',
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(
+                    field_path='metadata.namespace'))))
     return cop
 
 

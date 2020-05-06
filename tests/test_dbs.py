@@ -35,8 +35,8 @@ def db(request):
     if request.param == 'sql':
         db_file = f'{path}/mlrun.db'
         dsn = f'sqlite:///{db_file}?check_same_thread=false'
-        SessionLocal = init_sqldb(dsn)
-        db = SQLDB(dsn, session=SessionLocal())
+        session_maker = init_sqldb(dsn)
+        db = SQLDB(dsn, session=session_maker())
     elif request.param == 'file':
         db = FileRunDB(path)
     else:

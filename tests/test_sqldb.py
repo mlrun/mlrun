@@ -27,16 +27,16 @@ from sqlalchemy.orm import Session
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import _tagged
 
-SessionLocal: Callable
+session_maker: Callable
 
 
 @pytest.fixture
 def db():
-    global SessionLocal
+    global session_maker
     dsn = "sqlite:///:memory:?check_same_thread=false"
     try:
-        SessionLocal = init_sqldb(dsn)
-        db_session = SessionLocal()
+        session_maker = init_sqldb(dsn)
+        db_session = session_maker()
         db = SQLDB(dsn)
         db.initialize(db_session)
     finally:
@@ -47,7 +47,7 @@ def db():
 @pytest.fixture()
 def db_session() -> Generator:
     try:
-        db_session = SessionLocal()
+        db_session = session_maker()
         yield db_session
     finally:
         db_session.close()

@@ -10,7 +10,7 @@ from mlrun.api.main import app
 from mlrun.utils import logger
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def db() -> Generator:
     db_file = NamedTemporaryFile(suffix="-mlrun.db")
     logger.info(f"Created temp db file: {db_file.name}")
@@ -21,7 +21,7 @@ def db() -> Generator:
     db_file.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def client() -> Generator:
     with TestClient(app) as c:
         yield c

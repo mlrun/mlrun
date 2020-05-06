@@ -35,6 +35,7 @@ def _init_engine(dsn=None):
     global engine
     dsn = dsn or config.httpdb.dsn
     engine = create_engine(dsn)
+    _init_session_maker()
 
 
 def _init_session_maker():

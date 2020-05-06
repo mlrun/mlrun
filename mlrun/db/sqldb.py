@@ -14,7 +14,7 @@
 
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
-from mlrun.api.db.sqldb.session import SessionLocal
+from mlrun.api.db.sqldb.session import create_session
 from .base import RunDBInterface, RunDBError
 
 
@@ -35,7 +35,7 @@ class SQLDB(RunDBInterface):
 
     def connect(self, secrets=None):
         if not self.session:
-            self.session = SessionLocal()
+            self.session = create_session()
         self.db = SQLAPIDB(self.dsn, self.projects)
 
     def store_log(self, uid, project='', body=b'', append=False):

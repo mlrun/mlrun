@@ -3,7 +3,7 @@ from pathlib import Path
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.filedb.db import FileDB
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import SessionLocal
+from mlrun.api.db.sqldb.session import create_session
 from mlrun.config import config
 from mlrun.k8s_utils import K8sHelper
 from mlrun.scheduler import Scheduler
@@ -48,7 +48,7 @@ def _initialize_db():
         db = SQLDB(config.httpdb.dsn)
         db_session = None
         try:
-            db_session = SessionLocal()
+            db_session = create_session()
             db.initialize(db_session)
         finally:
             db_session.close()

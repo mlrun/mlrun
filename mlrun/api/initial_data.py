@@ -1,14 +1,14 @@
 import logging
 
 from mlrun.api.db.init_db import init_db
-from mlrun.api.db.sqldb.session import SessionLocal
+from mlrun.api.db.sqldb.session import create_session
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def init() -> None:
-    db = SessionLocal()
+    db = create_session()
     init_db(db)
 
 

@@ -5,14 +5,14 @@ from typing import Generator
 from fastapi import Request
 
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.db.sqldb.session import SessionLocal
+from mlrun.api.db.sqldb.session import create_session
 from mlrun.config import config
 
 
 def get_db_session() -> Generator:
     if config.httpdb.db_type == "sqldb":
         try:
-            db_session = SessionLocal()
+            db_session = create_session()
             yield db_session
         finally:
             db_session.close()

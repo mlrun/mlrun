@@ -8,7 +8,7 @@ from mlrun.run import new_function
 
 
 def test_tag(
-        client: TestClient, db: Session
+        db: Session, client: TestClient
 ) -> None:
     prj = 'prj7'
     fn_name = 'fn_{}'.format

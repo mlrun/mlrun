@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from mlrun.api.api.api import api_router
 from mlrun.api.api.utils import submit
-from mlrun.api.db.sqldb.session import SessionLocal
+from mlrun.api.db.sqldb.session import create_session
 from mlrun.api.singletons import initialize_singletons, get_db
 from mlrun.config import config
 from mlrun.db import periodic
@@ -31,7 +31,7 @@ async def startup_event():
 def _reschedule_tasks():
     db_session = None
     try:
-        db_session = SessionLocal()
+        db_session = create_session()
         for data in get_db().list_schedules(db_session):
             if "schedule" not in data:
                 logger.warning("bad scheduler data - %s", data)

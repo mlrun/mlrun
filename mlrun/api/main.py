@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from mlrun.api.api.api import api_router
 from mlrun.api.api.utils import submit
-from mlrun.api.db.sqldb.session import create_session
+from mlrun.api.db.session import create_session, close_session
 from mlrun.api.singletons import initialize_singletons, get_db
 from mlrun.config import config
 from mlrun.db import periodic
@@ -38,4 +38,4 @@ def _reschedule_tasks():
                 continue
             submit(db_session, data)
     finally:
-        db_session.close()
+        close_session(db_session)

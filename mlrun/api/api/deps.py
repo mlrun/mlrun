@@ -1,23 +1,21 @@
 from base64 import b64decode
 from http import HTTPStatus
 from typing import Generator
+from sqlalchemy.orm import Session
 
 from fastapi import Request
 
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.db.sqldb.session import create_session
+from mlrun.api.db.session import create_session, close_session
 from mlrun.config import config
 
 
-def get_db_session() -> Generator:
-    if config.httpdb.db_type == "sqldb":
-        try:
-            db_session = create_session()
-            yield db_session
-        finally:
-            db_session.close()
-    else:
-        yield None
+def get_db_session() -> Generator[Session, None, None]:
+    try:
+        db_session = create_session()
+        yield db_session
+    finally:
+        close_session(db_session)
 
 
 class AuthVerifier:

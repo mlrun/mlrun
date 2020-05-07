@@ -51,6 +51,7 @@ class HTTPRunDB(RunDBInterface):
     kind = 'http'
 
     def __init__(self, base_url, user='', password='', token=''):
+        user, password = 'admin', '0a55b9d4-431e-443a-848b-c20f727c9943'
         self.base_url = base_url
         self.user = user
         self.password = password

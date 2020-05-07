@@ -211,6 +211,9 @@ def build(func_url, name, project, tag, image, source, base_image, command,
           secret_name, archive, silent, with_mlrun, db, runtime, kfp, skip):
     """Build a container image from code and requirements."""
 
+    if db:
+        mlconf.dbpath = db
+
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -268,13 +271,14 @@ def build(func_url, name, project, tag, image, source, base_image, command,
         b.source = target
 
     if hasattr(func, 'deploy'):
+        print(func.to_yaml())
         logger.info('remote deployment started')
-        try:
-            func.deploy(with_mlrun=with_mlrun, watch=not silent,
-                        is_kfp=kfp, skip_deployed=skip)
-        except Exception as err:
-            print('deploy error, {}'.format(err))
-            exit(1)
+        # try:
+        func.deploy(with_mlrun=with_mlrun, watch=not silent,
+                    is_kfp=kfp, skip_deployed=skip)
+        # except Exception as err:
+        #     print('deploy error, {}'.format(err))
+        #     exit(1)
 
         if kfp:
             state = func.status.state

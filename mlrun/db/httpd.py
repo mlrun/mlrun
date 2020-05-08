@@ -262,7 +262,7 @@ def submit_pipeline():
 
     remove(pipe_tmp)
     return jsonify(ok=True, id=run_info.id,
-                   name=run_info.run_info.name)
+                   name=run_info.name)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function

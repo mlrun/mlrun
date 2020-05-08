@@ -182,8 +182,8 @@ def function_status(
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/status
-@router.post("/build/status")
-@router.post("/build/status/")
+@router.get("/build/status")
+@router.get("/build/status/")
 def build_status(
         name: str = "",
         project: str = "",

@@ -75,7 +75,8 @@ class V3ioStore(DataStore):
 
     def listdir(self, key):
         v3io_client = v3io.dataplane.Client(endpoint=self.endpoint,
-                                            access_key=self.token)
+                                            access_key=self.token,
+                                            transport_kind='requests')
         container, subpath = split_path(self._join(key))
         if not subpath.endswith('/'):
             subpath += '/'

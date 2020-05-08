@@ -261,7 +261,7 @@ def submit_pipeline():
                           reason='kfp err: {}'.format(e))
 
     remove(pipe_tmp)
-    return jsonify(ok=True, id=run_info.run_id,
+    return jsonify(ok=True, id=run_info.id,
                    name=run_info.run_info.name)
 
 

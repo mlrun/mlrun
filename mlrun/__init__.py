@@ -18,7 +18,7 @@ MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and 
 The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` command-line interface (CLI).
 """
 
-__version__ = '0.4.7'
+__version__ = '0.4.8'
 
 from .run import (get_or_create_ctx, new_function, code_to_function,
                   import_function, run_pipeline, run_local, get_object)

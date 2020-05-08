@@ -165,7 +165,6 @@ class MlrunProject(ModelObj):
         self._secrets = SecretsStore()
         self.params = params or {}
         self.conda = conda or {}
-        self.remote = False
         self._mountdir = None
         self._artifact_mngr = None
 
@@ -728,6 +727,10 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
     if hasattr(mod, 'init_functions'):
         getattr(mod, 'init_functions')(functions, project, secrets)
 
+    # verify all functions are in this project
+    for f in functions.values():
+        f.metadata.project = project.name
+
     if not hasattr(mod, 'kfpipeline'):
         raise ValueError('pipeline function (kfpipeline) not found')
 
@@ -737,13 +740,11 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
 
 def _run_pipeline(project, name, pipeline, functions, secrets=None,
                   arguments=None, artifact_path=None, namespace=None):
-    remote = project.remote
     kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifact_path=artifact_path,
-                      remote=remote)
+                      namespace=namespace, artifact_path=artifact_path)
     return id
 
 

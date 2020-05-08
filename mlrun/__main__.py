@@ -474,7 +474,7 @@ def logs(uid, project, offset, db, watch):
 
 
 @main.command()
-@click.argument('context', type=str, required=False)
+@click.argument('context', default='', type=str, required=False)
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
 @click.option('--run', '-r', help='run workflow name of .py file')

@@ -534,7 +534,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
 
 def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
                  namespace=None, artifact_path=None, ops=None,
-                 url=None, remote=False, ttl=None):
+                 url=None, ttl=None):
     """remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
@@ -547,7 +547,6 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     :param url        optional, url to mlrun API service
     :param artifact_path  target location/url for mlrun artifacts
     :param ops        additional operators (.apply() to all pipeline functions)
-    :param remote     use mlrun remote API service vs direct KFP APIs
     :param ttl        pipeline ttl in secs (after that the pods will be removed)
 
     :return kubeflow pipeline id
@@ -559,6 +558,14 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
 
     namespace = namespace or mlconf.namespace
     arguments = arguments or {}
+    import kubernetes as k8s
+    remote = True
+    try:
+        k8s.config.load_incluster_config()
+        remote = False
+    except:
+        pass
+
     if remote or url:
         mldb = get_run_db(url).connect()
         if mldb.kind != 'http':

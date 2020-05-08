@@ -43,4 +43,4 @@ ENV MLRUN_httpdb__port=8080
 COPY . .
 VOLUME /mlrun/db
 
-CMD ["/mlrun/docker-start.sh"]
+CMD ["/mlrun/scripts/api/docker-start.sh"]

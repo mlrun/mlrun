@@ -801,7 +801,7 @@ def clone_git(url, context, secrets, clone):
     if urlobj.port:
         host += ':{}'.format(urlobj.port)
 
-    token = urlobj.username or secrets.get('git_token') \
+    token = urlobj.username or secrets.get('GITHUB_TOKEN') \
             or secrets.get('git_user')
     password = urlobj.password or secrets.get('git_password') \
                or 'x-oauth-basic'

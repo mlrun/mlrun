@@ -42,12 +42,16 @@ def write_kfpmeta(struct):
         json.dump(metrics, f)
 
     struct = deepcopy(struct)
+    uid = struct['metadata'].get('uid')
+    project = struct['metadata'].get('project', config.default_project)
     output_artifacts, out_dict = get_kfp_outputs(
         struct['status'].get(run_keys.artifacts, []),
         struct['metadata'].get('labels', {}),
-        struct['metadata'].get('project', config.default_project)
+        project
     )
 
+    with open('/tmp/run_id', 'w') as fp:
+        fp.write('{}/{}'.format(project, uid))
     for key in struct['spec'].get(run_keys.outputs, []):
         val = 'None'
         if key in out_dict:
@@ -269,6 +273,8 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
 
     if hyperparams or param_file:
         outputs.append('iteration_results')
+    if 'run_id' not in outputs:
+        outputs.append('run_id')
 
     params = params or {}
     hyperparams = hyperparams or {}
@@ -285,7 +291,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     if func_url:
         cmd += ['-f', func_url]
     for s in secrets:
-        cmd += ['-s', '{}'.format(s)]
+        cmd += ['-s', '{}={}'.format(s['kind'], s['source'])]
     for p, val in params.items():
         cmd += ['-p', '{}={}'.format(p, val)]
     for x, val in hyperparams.items():

@@ -600,8 +600,8 @@ class MlrunProject(ModelObj):
         return run
 
     def _get_wf_cfg(self, name, arguments=None):
-        wf = self._workflows.get(name)
-        code = wf.get('code')
+        workflow = self._workflows.get(name)
+        code = workflow.get('code')
         if code:
             workflow_path = mktemp('.py')
             with open(workflow_path, 'w') as wf:
@@ -609,7 +609,7 @@ class MlrunProject(ModelObj):
         else:
             workflow_path = path.join(self.context, wf.get('path'))
 
-        wf_args = wf.get('args', {})
+        wf_args = workflow.get('args', {})
         if arguments:
             for k, v in arguments.items():
                 wf_args[k] = v

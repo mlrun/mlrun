@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import traceback
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path
@@ -538,6 +539,7 @@ def project(context, name, url, run, arguments, artifact_path,
                            artifact_path=artifact_path, namespace=namespace,
                            sync=sync, dirty=dirty)
         except Exception as e:
+            print(traceback.format_exc())
             message = 'failed to run pipeline, {}'.format(e)
             had_error = True
             print(message)
@@ -550,7 +552,7 @@ def project(context, name, url, run, arguments, artifact_path,
                     message += ', <div title="{} project"><a href="{}/projects/{}/jobs"' +\
                                ' target="_blank" >check progress</a></div>'.format(
                                    proj.name, mlconf.ui_url, proj.name)
-            pr_comment(git_repo, git_issue, message)
+            pr_comment(git_repo, git_issue, message, token=proj.get_secret('GITHUB_TOKEN'))
 
         if had_error:
             exit(1)

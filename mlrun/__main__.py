@@ -37,7 +37,7 @@ from .model import RunTemplate
 from .run import new_function, import_function_to_dict, import_function, get_object
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
-                    parse_function_uri, dict_to_yaml)
+                    parse_function_uri, dict_to_yaml, pr_comment)
 
 
 @click.group()
@@ -489,8 +489,11 @@ def logs(uid, project, offset, db, watch):
 @click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
 @click.option('--sync', is_flag=True, help='sync functions into db')
 @click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
+@click.option('--git-repo', help='git repo (org/repo) for git comments')
+@click.option('--get-issue', type=int, default=None, help='git issue number for git comments')
 def project(context, name, url, run, arguments, artifact_path,
-            param, secrets, namespace, db, init_git, clone, sync, dirty):
+            param, secrets, namespace, db, init_git, clone, sync,
+            dirty, git_repo, git_issue):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
@@ -503,6 +506,10 @@ def project(context, name, url, run, arguments, artifact_path,
         artifact_path = path.abspath(artifact_path)
     if param:
         proj.params = fill_params(param, proj.params)
+    if git_repo:
+        proj.params['git_repo'] = git_repo
+    if git_issue:
+        proj.params['git_issue'] = git_issue
     if secrets:
         secrets = line2keylist(secrets, 'kind', 'source')
         proj._secrets = SecretsStore.from_list(secrets)
@@ -524,10 +531,29 @@ def project(context, name, url, run, arguments, artifact_path,
                 exit(1)
 
         print('running workflow {} file: {}'.format(run, workflow_path))
-        run = proj.run(run, workflow_path, arguments=args,
-                       artifact_path=artifact_path, namespace=namespace,
-                       sync=sync, dirty=dirty)
+        message = run = ''
+        had_error = False
+        try:
+            run = proj.run(run, workflow_path, arguments=args,
+                           artifact_path=artifact_path, namespace=namespace,
+                           sync=sync, dirty=dirty)
+        except Exception as e:
+            message = 'failed to run pipeline, {}'.format(e)
+            had_error = True
+            print(message)
         print('run id: {}'.format(run))
+
+        if git_repo and git_issue:
+            if not had_error:
+                message = 'Pipeline started id={}'.format(run)
+                if mlconf.ui_url:
+                    message += ', <div title="{} project"><a href="{}/projects/{}/jobs"' +\
+                               ' target="_blank" >check progress</a></div>'.format(
+                                   proj.name, mlconf.ui_url, proj.name)
+            pr_comment(git_repo, git_issue, message)
+
+        if had_error:
+            exit(1)
 
     elif sync:
         print('saving project functions to db ..')

@@ -22,6 +22,7 @@ from .config import config
 JUPYTER_SERVER_ROOT = environ.get('HOME', '/User')
 supported_viewers = ['.htm', '.html', '.json', '.yaml', '.txt', '.log', '.jpg', '.png', '.csv', '.py']
 
+
 def html_dict(title, data, open=False, show_nil=False):
     if not data:
         return ''
@@ -298,7 +299,11 @@ tblframe = """
 
 
 def get_tblframe(df, display, classes=None):
-    table = tblframe.format(df.to_html(escape=False, index=False, notebook=True, classes=classes))
+    table_html = df.to_html(escape=False, index=False, notebook=True, classes=classes)
+    if not display:
+        return table_html
+
+    table = tblframe.format(table_html)
     rnd = 'result' + str(uuid.uuid4())[:8]
     html = style + jscripts + table.replace('="result', '="' + rnd)
     return ipython_display(html, display)

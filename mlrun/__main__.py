@@ -550,8 +550,8 @@ def project(context, name, url, run, arguments, artifact_path,
                 message = 'Pipeline started id={}'.format(run)
                 if mlconf.ui_url:
                     temp = '<div><a href="{}/projects/{}/jobs" target=' +\
-                           ' "_blank">check progress</a></div>'
-                    message += temp.format(proj.name, mlconf.ui_url, proj.name)
+                           ' "_blank">check progress here</a></div>'
+                    message += temp.format(mlconf.ui_url, proj.name)
             pr_comment(git_repo, git_issue, message, token=proj.get_secret('GITHUB_TOKEN'))
 
         if had_error:

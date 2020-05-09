@@ -107,7 +107,6 @@ class HTTPRunDB(RunDBInterface):
 
         return resp
 
-
     def _path_of(self, prefix, project, uid):
         project = project or default_project
         return f'{prefix}/{project}/{uid}'

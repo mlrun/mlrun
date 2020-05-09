@@ -533,8 +533,16 @@ class MlrunProject(ModelObj):
 
         :returns: project object
         """
-        self._secrets = SecretsStore.add_source(kind, source, prefix)
+        self._secrets.add_source(kind, source, prefix)
         return self
+
+    def get_secret(self, key: str):
+        """get a key based secret e.g. DB password from the context
+        secrets can be specified when invoking a run through files, env, ..
+        """
+        if self._secrets:
+            return self._secrets.get(key)
+        return None
 
     def run(self, name=None, workflow_path=None, arguments=None,
             artifact_path=None, namespace=None, sync=False, dirty=False):
@@ -734,7 +742,6 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
 
     setattr(mod, 'funcs', functions)
     setattr(mod, 'this_project', project)
-    setattr(mod, 'project_secrets', secrets)
 
     if hasattr(mod, 'init_functions'):
         getattr(mod, 'init_functions')(functions, project, secrets)

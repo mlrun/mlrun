@@ -953,7 +953,13 @@ def get_tagged(project, name):
 
 @app.route('/api/healthz', methods=['GET'])
 def health():
-    return jsonify(ok=True, version=config.version)
+    return jsonify(ok=True,
+                   version=config.version,
+                   namespace=config.namespace,
+                   docker_registry=environ['DEFAULT_DOCKER_REGISTRY'],
+                   remote_host=config.remote_host,
+                   ui_url=config.ui_url,
+                   )
 
 
 @app.before_first_request

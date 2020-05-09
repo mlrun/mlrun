@@ -607,7 +607,7 @@ class MlrunProject(ModelObj):
             with open(workflow_path, 'w') as wf:
                 wf.write(code)
         else:
-            workflow_path = path.join(self.context, wf.get('path'))
+            workflow_path = path.join(self.context, workflow.get('path'))
 
         wf_args = workflow.get('args', {})
         if arguments:

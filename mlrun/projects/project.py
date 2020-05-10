@@ -150,7 +150,8 @@ class MlrunProject(ModelObj):
     kind = 'project'
 
     def __init__(self, name=None, description=None, params=None,
-                 functions=None, workflows=None, artifacts=None, conda=None):
+                 functions=None, workflows=None, artifacts=None,
+                 artifact_path=None, conda=None):
 
         self._initialized = False
         self.name = name
@@ -167,6 +168,7 @@ class MlrunProject(ModelObj):
         self.conda = conda or {}
         self._mountdir = None
         self._artifact_mngr = None
+        self.artifact_path = artifact_path
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -339,6 +341,7 @@ class MlrunProject(ModelObj):
                      artifact_path=None, format=None, upload=True,
                      labels=None, target_path=None):
         am = self._get_artifact_mngr()
+        artifact_path = artifact_path or self.artifact_path
         producer = ArtifactProducer('project', self.name, self.name,
                                     tag=self._get_hexsha() or 'latest')
         item = am.log_artifact(producer, item, body, tag=tag,
@@ -592,6 +595,7 @@ class MlrunProject(ModelObj):
             workflow_path, code, arguments = self._get_wf_cfg(name, arguments)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
+        artifact_path = artifact_path or self.artifact_path
         run = _run_pipeline(self, name, workflow_path, self._function_objects,
                             secrets=self._secrets, arguments=arguments,
                             artifact_path=artifact_path, namespace=namespace)
@@ -639,6 +643,7 @@ class MlrunProject(ModelObj):
         pipeline = _create_pipeline(self, workflow_path, self._function_objects,
                                     secrets=self._secrets)
 
+        artifact_path = artifact_path or self.artifact_path
         conf = new_pipe_meta(artifact_path, ttl=ttl)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         if code:

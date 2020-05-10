@@ -13,34 +13,38 @@
 # limitations under the License.
 ARG PYTHON_VER=3.8
 
-FROM python:${PYTHON_VER}-slim
+FROM tiangolo/uvicorn-gunicorn-fastapi:python${PYTHON_VER}-slim
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
 ENV PYTHON_VER=${PYTHON_VER}
 
-RUN apt-get update && apt-get install -y \
-  gcc \
-  git-core \
-  vim
+RUN apt-get update && apt-get install -y gcc git-core
 
-RUN python -m pip install --upgrade --no-cache pip
+COPY ./dockerfiles/*requirements.txt /app/
 
-WORKDIR /mlrun
+COPY ./requirements.txt /app/
 
-COPY ./dockerfiles/*requirements.txt ./
-
-COPY ./requirements.txt ./
-
-RUN python -m pip install \
+RUN pip install --no-cache-dir \
     -r dask-requirements.txt \
     -r api-requirements.txt \
     -r requirements.txt
 
 ENV MLRUN_httpdb__dirpath=/mlrun/db
-ENV MLRUN_httpdb__port=8080
-COPY . .
-VOLUME /mlrun/db
 
-CMD ["/mlrun/scripts/api/docker-start.sh"]
+ENV MLRUN_httpdb__port=8080
+
+ENV PORT=${MLRUN_httpdb__port}
+
+ENV MODULE_NAME=mlrun.api.main
+
+ENV PRE_START_PATH=/app/docker-prestart.sh
+
+ENV MAX_WORKERS=1
+
+COPY ./scripts/api/docker-prestart.sh /app
+
+COPY ./mlrun /app/mlrun
+
+VOLUME /mlrun/db

@@ -28,6 +28,14 @@ def get_or_set_dburl(default=''):
     return config.dbpath
 
 
+def get_httpdb_kwargs():
+    return {
+        'user': config.httpdb.user,
+        'password': config.httpdb.password,
+        'token': config.httpdb.token,
+    }
+
+
 def get_run_db(url=''):
     """Returns the runtime database"""
     if not url:
@@ -35,11 +43,13 @@ def get_run_db(url=''):
 
     p = urlparse(url)
     scheme = p.scheme.lower()
+    kwargs = {}
     if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
         cls = FileRunDB
     elif scheme in ('http', 'https'):
         cls = HTTPRunDB
+        kwargs = get_httpdb_kwargs()
     else:
         cls = SQLDB
 
-    return cls(url)
+    return cls(url, **kwargs)

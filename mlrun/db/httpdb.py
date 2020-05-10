@@ -444,7 +444,7 @@ class HTTPRunDB(RunDBInterface):
             raise ValueError('bad submit pipeline response, {}'.format(resp.text))
 
         resp = resp.json()
-        logger.info('submitted pipeline {} id={id}'.format(resp['name'], resp['id']))
+        logger.info('submitted pipeline {} id={}'.format(resp['name'], resp['id']))
         return resp['id']
 
 

@@ -40,8 +40,8 @@ def submit_pipeline(
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="unsupported pipeline type {}".format(ctype))
 
     logger.info("writing file {}".format(ctype))
-    data = asyncio.run(request.json())
-    if data:
+    data = asyncio.run(request.body())
+    if not data:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="post data is empty")
 
     print(str(data))
@@ -49,18 +49,18 @@ def submit_pipeline(
     with open(pipe_tmp, "wb") as fp:
         fp.write(data)
 
-    run_info = None
+    run = None
     try:
         client = kfclient(namespace=namespace)
         experiment = client.create_experiment(name=experiment_name)
-        run_info = client.run_pipeline(experiment.id, run_name, pipe_tmp,
-                                       params=arguments)
+        run = client.run_pipeline(experiment.id, run_name, pipe_tmp,
+                                  params=arguments)
     except Exception as e:
         remove(pipe_tmp)
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="kfp err: {}".format(e))
 
     remove(pipe_tmp)
     return {
-        "id": run_info.run_id,
-        "name": run_info.run_info.name,
+        "id": run.id,
+        "name": run.name,
     }

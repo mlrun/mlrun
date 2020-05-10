@@ -50,8 +50,7 @@ def write_kfpmeta(struct):
         project
     )
 
-    with open('/tmp/run_id', 'w') as fp:
-        fp.write('{}/{}'.format(project, uid))
+    results['run_id'] = results.get('run_id', '{}/{}'.format(project, uid))
     for key in struct['spec'].get(run_keys.outputs, []):
         val = 'None'
         if key in out_dict:

@@ -324,6 +324,13 @@ def runs_to_html(df, display=True, classes=None, short=False):
         x, 'target_path'))
     df['results'] = df['results'].apply(dict_html)
     df['start'] = df['start'].apply(time_str)
+    if config.ui_url:
+        df['uid'] = df.apply(lambda x: uid_template.format(
+            x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]), axis=1)
+    else:
+        df['uid'] = df['uid'].apply(
+            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+
     if short:
         df.drop('project', axis=1, inplace=True)
         df.drop('iter', axis=1, inplace=True)
@@ -334,13 +341,6 @@ def runs_to_html(df, display=True, classes=None, short=False):
         df['labels'] = df['labels'].apply(dict_html)
         df['inputs'] = df['inputs'].apply(inputs_html)
         df['parameters'] = df['parameters'].apply(dict_html)
-
-    if config.ui_url:
-        df['uid'] = df.apply(lambda x: uid_template.format(
-            x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]), axis=1)
-    else:
-        df['uid'] = df['uid'].apply(
-            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
 
     def expand_error(x):
         if x['state'] == 'error':

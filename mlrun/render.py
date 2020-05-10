@@ -312,7 +312,7 @@ def get_tblframe(df, display, classes=None):
 uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/{}/info" target="_blank" >...{}</a></div>'
 
 
-def runs_to_html(df, display=True, classes=None):
+def runs_to_html(df, display=True, classes=None, short=False):
 
     def time_str(x):
         try:
@@ -320,13 +320,20 @@ def runs_to_html(df, display=True, classes=None):
         except ValueError:
             return ''
 
-    df['inputs'] = df['inputs'].apply(inputs_html)
     df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(
         x, 'target_path'))
-    df['labels'] = df['labels'].apply(dict_html)
-    df['parameters'] = df['parameters'].apply(dict_html)
     df['results'] = df['results'].apply(dict_html)
     df['start'] = df['start'].apply(time_str)
+    if short:
+        df.drop('project', axis=1, inplace=True)
+        df.drop('iter', axis=1, inplace=True)
+        df.drop('labels', axis=1, inplace=True)
+        df.drop('inputs', axis=1, inplace=True)
+        df.drop('parameters', axis=1, inplace=True)
+    else:
+        df['labels'] = df['labels'].apply(dict_html)
+        df['inputs'] = df['inputs'].apply(inputs_html)
+        df['parameters'] = df['parameters'].apply(dict_html)
 
     if config.ui_url:
         df['uid'] = df.apply(lambda x: uid_template.format(

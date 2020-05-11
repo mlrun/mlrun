@@ -113,14 +113,23 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         mlconf.dbpath = db
 
     if func_url:
-        if func_url.startswith('db://'):
-            func_url = func_url[5:]
-            project, name, tag = parse_function_uri(func_url)
-            mldb = get_run_db(mlconf.dbpath).connect()
-            runtime = mldb.get_function(name, project, tag)
-        else:
-            func_url = 'function.yaml' if func_url == '.' else func_url
-            runtime = import_function_to_dict(func_url, {})
+        try:
+            if func_url.startswith('db://'):
+                func_url = func_url[5:]
+                project, name, tag = parse_function_uri(func_url)
+                mldb = get_run_db(mlconf.dbpath).connect()
+                runtime = mldb.get_function(name, project, tag)
+            else:
+                func_url = 'function.yaml' if func_url == '.' else func_url
+                runtime = import_function_to_dict(func_url, {})
+        except Exception as e:
+            print('function {} not found, {}'.format(func_url, e))
+            exit(1)
+
+        if not runtime:
+            print('function {} not found or is null'.format(func_url))
+            exit(1)
+
         kind = get_in(runtime, 'kind', '')
         if kind not in ['', 'local', 'dask'] and url:
             if path.isfile(url) and url.endswith('.py'):

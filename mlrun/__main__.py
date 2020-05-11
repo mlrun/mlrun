@@ -211,6 +211,9 @@ def build(func_url, name, project, tag, image, source, base_image, command,
           secret_name, archive, silent, with_mlrun, db, runtime, kfp, skip):
     """Build a container image from code and requirements."""
 
+    if db:
+        mlconf.dbpath = db
+
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
@@ -222,10 +225,10 @@ def build(func_url, name, project, tag, image, source, base_image, command,
         func = new_function(runtime=runtime)
     elif func_url.startswith('db://'):
         func_url = func_url[5:]
-        func = import_function(func_url, db=db)
+        func = import_function(func_url)
     elif func_url:
         func_url = 'function.yaml' if func_url == '.' else func_url
-        func = import_function(func_url, db=db)
+        func = import_function(func_url)
     else:
         print('please specify the function path or url')
         exit(1)
@@ -276,9 +279,9 @@ def build(func_url, name, project, tag, image, source, base_image, command,
             print('deploy error, {}'.format(err))
             exit(1)
 
+        state = func.status.state
+        image = func.spec.image
         if kfp:
-            state = func.status.state
-            image = func.spec.image
             with open('/tmp/state', 'w') as fp:
                 fp.write(state or 'none')
             full_image = func.full_image_path(image) or ''
@@ -286,8 +289,9 @@ def build(func_url, name, project, tag, image, source, base_image, command,
                 fp.write(image)
             with open('/tmp/fullimage', 'w') as fp:
                 fp.write(full_image)
-            print('function built, state={} image={}'.format(state, image))
             print('full image path = ', full_image)
+
+        print('function built, state={} image={}'.format(state, image))
     else:
         print('function does not have a deploy() method')
         exit(1)

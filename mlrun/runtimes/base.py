@@ -266,6 +266,10 @@ class BaseRuntime(ModelObj):
             if 'owner' not in meta.labels:
                 meta.labels['owner'] = environ.get(
                         'V3IO_USERNAME', getpass.getuser())
+            if runspec.spec.output_path:
+                runspec.spec.output_path = runspec.spec.output_path.replace(
+                    '{{run.user}}', meta.labels['owner'])
+
             if db and self.kind != 'handler':
                 hashkey = calc_hash(self)
                 struct = self.to_dict()

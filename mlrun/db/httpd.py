@@ -959,6 +959,7 @@ def health():
                    docker_registry=environ.get('DEFAULT_DOCKER_REGISTRY', ''),
                    remote_host=config.remote_host,
                    ui_url=config.ui_url,
+                   artifact_path=config.artifact_path,
                    )
 
 

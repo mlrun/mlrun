@@ -20,6 +20,7 @@ from subprocess import run
 
 import pytest
 import yaml
+import re
 
 here = Path(__file__).absolute().parent
 tests_dir = here.parent
@@ -31,15 +32,30 @@ with (here / 'Dockerfile.test-nb').open() as fp:
 docker_tag = 'mlrun/test-notebook'
 
 
-def iter_notebooks():
-    cfg_file = here / 'notebooks.yml'
-    with cfg_file.open() as fp:
-        configs = yaml.safe_load(fp)
+def iterate_notebooks():
+    config_file_path = here / 'test-notebooks.yml'
+    with config_file_path.open() as fp:
+        config = yaml.safe_load(fp)
 
-    for config in configs:
-        if 'env' not in config:
-            config['env'] = {}
-        yield pytest.param(config, id=config['nb'])
+    general_env = config['env']
+
+    for notebook_test_config in config['notebook_tests']:
+
+        # fill env keys that reference the general env
+        test_env = {}
+        for key, value in notebook_test_config.get('env', {}).items():
+            match = re.match(r'^\$\{(?P<env_var>.*)\}$', value)
+            if match is not None:
+                env_var = match.group('env_var')
+                env_var_value = general_env.get(env_var)
+                if env_var_value is None:
+                    raise ValueError(f'Env var {env_var} references general env, but it does not exist there')
+                test_env[key] = env_var_value
+            else:
+                test_env[key] = value
+        notebook_test_config['env'] = test_env
+
+        yield pytest.param(notebook_test_config, id=notebook_test_config['notebook_name'])
 
 
 def args_from_env(env):
@@ -61,7 +77,7 @@ def args_from_env(env):
 @pytest.mark.skip("This is a manual test, remove me to run it")
 @pytest.mark.parametrize('notebook', iter_notebooks())
 def test_notebook(notebook):
-    path = f'./examples/{notebook["nb"]}'
+    path = f'./examples/{notebook["notebook_name"]}'
     args, args_cmd = args_from_env(notebook['env'])
     deps = []
     for dep in notebook.get('pip', []):

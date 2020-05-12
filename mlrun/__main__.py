@@ -557,6 +557,8 @@ def project(context, name, url, run, arguments, artifact_path,
         if git_repo and git_issue:
             if not had_error:
                 message = 'Pipeline started id={}'.format(run)
+                if proj.params and 'commit' in proj.params:
+                    message += ', commit={}'.format(proj.params['commit'])
                 if mlconf.ui_url:
                     temp = '<div><a href="{}/projects/{}/jobs" target=' +\
                            ' "_blank">click here to check progress</a></div>'

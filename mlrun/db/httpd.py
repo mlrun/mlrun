@@ -261,8 +261,8 @@ def submit_pipeline():
                           reason='kfp err: {}'.format(e))
 
     remove(pipe_tmp)
-    return jsonify(ok=True, id=run_info.run_id,
-                   name=run_info.run_info.name)
+    return jsonify(ok=True, id=run_info.id,
+                   name=run_info.name)
 
 
 # curl -d@/path/to/job.json http://localhost:8080/build/function
@@ -953,7 +953,14 @@ def get_tagged(project, name):
 
 @app.route('/api/healthz', methods=['GET'])
 def health():
-    return jsonify(ok=True, version=config.version)
+    return jsonify(ok=True,
+                   version=config.version,
+                   namespace=config.namespace,
+                   docker_registry=environ.get('DEFAULT_DOCKER_REGISTRY', ''),
+                   remote_host=config.remote_host,
+                   ui_url=config.ui_url,
+                   artifact_path=config.artifact_path,
+                   )
 
 
 @app.before_first_request

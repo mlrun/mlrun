@@ -94,10 +94,21 @@ class StoreManager:
         schema, endpoint, p = parseurl(url)
         if not p.path:
             raise ValueError('store url without a path {}'.format(url))
+        key = p.path[1:]
         project = endpoint or project or config.default_project
         tag = p.fragment if p.fragment else ''
+        iteration = None
+        if '/' in key:
+            idx = key.rfind('/')
+            try:
+                iteration = int(key[idx+1:])
+            except ValueError:
+                raise ValueError('illegal store path {}, iteration must be integer value'.format(url))
+            key = key[:idx]
+
         try:
-            meta = self._get_db().read_artifact(p.path[1:], tag=tag,
+            meta = self._get_db().read_artifact(key, tag=tag,
+                                                iter=iteration,
                                                 project=project)
             if meta.get('kind', '') == 'link':
                 # todo: support other link types (not just iter, move this to the db/api layer

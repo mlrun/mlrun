@@ -36,6 +36,14 @@ class V3ioStore(DataStore):
         password = self._secret('V3IO_PASSWORD') or environ.get('V3IO_PASSWORD')
 
         self.headers = None
+        self.secure = self.kind == 'v3ios'
+        if self.endpoint.startswith('https://'):
+            self.endpoint = self.endpoint[len('https://'):]
+            self.secure = True
+        elif self.endpoint.startswith('http://'):
+            self.endpoint = self.endpoint[len('http://'):]
+            self.secure = False
+
         self.auth = None
         self.token = token
         if token:
@@ -49,7 +57,7 @@ class V3ioStore(DataStore):
 
     @property
     def url(self):
-        schema = 'http' if self.kind == 'v3io' else 'https'
+        schema = 'https' if self.secure else 'http'
         return '{}://{}'.format(schema, self.endpoint)
 
     def upload(self, key, src_path):
@@ -74,8 +82,9 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(endpoint=self.endpoint,
-                                            access_key=self.token)
+        v3io_client = v3io.dataplane.Client(endpoint=self.url,
+                                            access_key=self.token,
+                                            transport_kind='requests')
         container, subpath = split_path(self._join(key))
         if not subpath.endswith('/'):
             subpath += '/'

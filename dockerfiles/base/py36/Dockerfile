@@ -1,4 +1,4 @@
-ARG PYTHON_VER=3.8
+ARG PYTHON_VER=3.6
 
 FROM python:${PYTHON_VER}-slim-buster
 
@@ -10,7 +10,6 @@ LABEL org="iguazio.com"
 ARG REPO=mlrun
 
 ARG MLRUN_TAG=development
-LABEL MLRUN_TAG=$MLRUN_TAG
 ENV MLRUN_TAG=${MLRUN_TAG}
 
 RUN apt update -qqq \
@@ -30,7 +29,7 @@ ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
 
-RUN python -m pip install --ignore-installed --no-cache-dir \
+RUN python -m pip install --no-cache-dir \
     blosc==1.7.0 \
     cloudpickle==1.1.1 \
     dask==2.12.0 \

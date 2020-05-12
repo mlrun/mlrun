@@ -133,7 +133,7 @@ def get_kfp_outputs(artifacts, labels, project):
 def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
              image: str = '', runobj=None, command: str = '',
              secrets: list = None, params: dict = None, job_image=None,
-             hyperparams: dict = None, param_file: str = '',
+             hyperparams: dict = None, param_file: str = '', labels: dict = None,
              selector: str = '', inputs: dict = None, outputs: list = None,
              in_path: str = '', out_path: str = '', rundb: str = '',
              mode: str = '', handler: str = '', more_args: list = None):
@@ -159,7 +159,8 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
                         executed for every parameter combination (GridSearch)
     :param param_file:  a csv file with parameter combinations, first row hold
                         the parameter names, following rows hold param values
-    :param selector  selection criteria for hyperparams e.g. "max.accuracy"
+    :param selector: selection criteria for hyperparams e.g. "max.accuracy"
+    :param labels:   labels to tag the job/run with ({key:val, ..})
     :param inputs:   dictionary of input objects + optional paths (if path is
                      omitted the path will be the in_path/key.
     :param outputs:  dictionary of input objects + optional paths (if path is
@@ -217,7 +218,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     hyperparams = {} if hyperparams is None else hyperparams
     inputs = {} if inputs is None else inputs
     outputs = [] if outputs is None else outputs
-    labels = {}
+    labels = {} if labels is None else labels
 
     rundb = rundb or get_or_set_dburl()
     cmd = [
@@ -261,7 +262,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         out_path = out_path or runobj.spec.output_path
         secrets = secrets or runobj.spec.secret_sources
         project = project or runobj.metadata.project
-        labels = runobj.metadata.labels or {}
+        labels = runobj.metadata.labels or labels
 
     if not name:
         if not function_name:

@@ -509,7 +509,8 @@ class BaseRuntime(ModelObj):
     def as_step(self, runspec: RunObject = None, handler=None, name: str = '',
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
-                workdir: str = '', artifact_path: str = '', image: str = '', use_db=True):
+                workdir: str = '', artifact_path: str = '', image: str = '',
+                labels: dict = None, use_db=True):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -524,7 +525,8 @@ class BaseRuntime(ModelObj):
         :param artifact_path: default artifact output path (replace out_path)
         :param workdir:    default input artifacts path
         :param image:      container image to use
-        :param use_db      save function spec in the db (vs the workflow file)
+        :param labels:     labels to tag the job/run with ({key:val, ..})
+        :param use_db:     save function spec in the db (vs the workflow file)
 
         :return: KubeFlow containerOp
         """
@@ -542,7 +544,7 @@ class BaseRuntime(ModelObj):
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,
-                        out_path=artifact_path, in_path=workdir)
+                        labels=labels, out_path=artifact_path, in_path=workdir)
 
     def export(self, target='', format='.yaml', secrets=None, strip=True):
         """save function spec to a local/remote path (default to

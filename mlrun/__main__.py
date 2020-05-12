@@ -524,6 +524,8 @@ def project(context, name, url, run, arguments, artifact_path,
         secrets = line2keylist(secrets, 'kind', 'source')
         proj._secrets = SecretsStore.from_list(secrets)
     print(proj.to_yaml())
+    if git_repo and 'GITHUB_TOKEN' in environ:
+        proj.with_secrets('inline', {'GITHUB_TOKEN': environ.get('GITHUB_TOKEN')})
 
     if run:
         workflow_path = None

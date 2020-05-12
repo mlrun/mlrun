@@ -737,13 +737,11 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
 
 def _run_pipeline(project, name, pipeline, functions, secrets=None,
                   arguments=None, artifact_path=None, namespace=None):
-    remote = project.remote
     kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifact_path=artifact_path,
-                      remote=remote)
+                      namespace=namespace, artifact_path=artifact_path)
     return id
 
 

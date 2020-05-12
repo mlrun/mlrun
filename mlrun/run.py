@@ -18,17 +18,19 @@ from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
-from tempfile import mktemp
 from pathlib import Path
+from tempfile import mktemp
 
 import yaml
 from kfp import Client
 from nuclio import build_file
 
+from .config import config as mlconf
 from .datastore import StoreManager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
+from .k8s_utils import get_k8s_helper
 from .model import RunObject, BaseMetadata
 from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
@@ -37,7 +39,6 @@ from .runtimes.base import FunctionEntrypoint
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (get_in, logger, parse_function_uri, update_in,
                     new_pipe_meta, extend_hub_uri)
-from .config import config as mlconf
 
 
 def run_local(task=None, command='', name: str = '', args: list = None,
@@ -534,7 +535,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
 
 def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
                  namespace=None, artifact_path=None, ops=None,
-                 url=None, remote=False, ttl=None):
+                 url=None, ttl=None):
     """remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
@@ -547,11 +548,12 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     :param url        optional, url to mlrun API service
     :param artifact_path  target location/url for mlrun artifacts
     :param ops        additional operators (.apply() to all pipeline functions)
-    :param remote     use mlrun remote API service vs direct KFP APIs
     :param ttl        pipeline ttl in secs (after that the pods will be removed)
 
     :return kubeflow pipeline id
     """
+
+    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
 
     artifact_path = artifact_path or mlconf.artifact_path
     if artifact_path and '{{run.uid}}' in artifact_path:

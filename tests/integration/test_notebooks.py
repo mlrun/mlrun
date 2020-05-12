@@ -43,11 +43,13 @@ def iter_notebooks():
 
 
 def args_from_env(env):
-    env = ChainMap(env, environ)
+    external_env = {}
+    for env_var_key in environ:
+        if env_var_key.startswith('MLRUN_'):
+            external_env[env_var_key] = environ[env_var_key]
+    env = ChainMap(env, external_env)
     args, cmd = [], []
     for name in env:
-        if not name.startswith('MLRUN_') and not name.startswith('V3IO_'):
-            continue
         value = env[name]
         args.append(f'ARG {name}')
         cmd.extend(['--build-arg', f'{name}={value}'])
@@ -63,7 +65,7 @@ def test_notebook(notebook):
     args, args_cmd = args_from_env(notebook['env'])
     deps = []
     for dep in notebook.get('pip', []):
-        deps.append(f'RUN python -m pip install {dep}')
+        deps.append(f'RUN python -m pip install --upgrade {dep}')
     pip = '\n'.join(deps)
 
     code = dockerfile_template.format(notebook=path, args=args, pip=pip)

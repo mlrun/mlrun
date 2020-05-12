@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import re
 from collections import ChainMap
 from os import environ
 from pathlib import Path
@@ -20,7 +21,6 @@ from subprocess import run
 
 import pytest
 import yaml
-import re
 
 here = Path(__file__).absolute().parent
 tests_dir = here.parent
@@ -75,7 +75,7 @@ def args_from_env(env):
 
 
 @pytest.mark.skip("This is a manual test, remove me to run it")
-@pytest.mark.parametrize('notebook', iter_notebooks())
+@pytest.mark.parametrize('notebook', iterate_notebooks())
 def test_notebook(notebook):
     path = f'./examples/{notebook["notebook_name"]}'
     args, args_cmd = args_from_env(notebook['env'])
@@ -89,9 +89,9 @@ def test_notebook(notebook):
         out.write(code)
 
     cmd = [
-        'docker', 'build',
-        '--file', str(tmp_dockerfile),
-        '--tag', docker_tag,
-    ] + args_cmd + ['.']
+              'docker', 'build',
+              '--file', str(tmp_dockerfile),
+              '--tag', docker_tag,
+          ] + args_cmd + ['.']
     out = run(cmd, cwd=root)
     assert out.returncode == 0, 'cannot build'

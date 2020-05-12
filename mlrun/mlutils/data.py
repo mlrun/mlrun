@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from ..datastore import DataItem
+from mlrun.datastore import DataItem
 
 
 def get_sample(src: DataItem, sample: int, label: str, reader=None):
@@ -58,16 +58,7 @@ def get_splits(
     :param label_names:         label names
     :param random_state:   (1) random number seed
     """
-    if isinstance(raw, np.ndarray):
-        if labels.ndim == 1:
-            labels = labels.reshape(-1, 1)
-        xy = np.concatenate([raw, labels], axis=1)
-    else:
-        if isinstance(labels, pd.Series):
-            labels = pd.DataFrame(data=labels, columns=label_names)
-        xy = pd.concat([raw, labels], axis=1)
-
-    x, xte, y, yte = train_test_split(xy, labels, test_size=test_size,
+    x, xte, y, yte = train_test_split(raw, labels, test_size=test_size,
                                       random_state=random_state)
     if n_ways == 2:
         return (x, y), (xte, yte), None, None
@@ -85,7 +76,7 @@ def get_splits(
         raise Exception("n_ways must be in the range [2,4]")
 
 
-def save_test_set(
+def save_heldout(
     context,
     data: dict,
     header: list,
@@ -105,8 +96,6 @@ def save_test_set(
     :param index:      preserve index column
     :param debug:      (False)
     """
-    import pandas as pd
-
     if all(x in data.keys() for x in ["xtest", "ytest"]):
         test_set = pd.concat(
             [pd.DataFrame(data=data["xtest"], columns=header),

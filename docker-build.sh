@@ -4,12 +4,12 @@ set -e
 
 args=("$@")
 
-export REPO=mlrun
-export PREFIX=ml
-export MLRUN_COMMIT=development
-export NEW_TAG=0.4.7
-export PYTHON_VER_ML=3.7
-export PYTHON_VER_CORE=3.6
+export REPO=${args[0]}
+export PREFIX=${args[1]}
+export MLRUN_COMMIT=${args[2]}
+export NEW_TAG=${args[3]}
+export PYTHON_VER_ML=${args[4]}
+export PYTHON_VER_CORE=${args[5]}
 
 # export DOCKER_BUILDKIT=1
 
@@ -37,9 +37,9 @@ do
         --build-arg PREFIX=$PREFIX \
         --build-arg NEW_TAG=$NEW_TAG \
         --build-arg PYTHON_VER=$PYTHON_VER_CORE \
-        -t yjbds/$PREFIX-$IMAGE:$NEW_TAG-py"${PYTHON_VER_CORE//.}" .
+        -t $REPO/$PREFIX-$IMAGE:$NEW_TAG-py"${PYTHON_VER_CORE//.}" .
 
-    docker push yjbds/$PREFIX-$IMAGE:$NEW_TAG-py"${PYTHON_VER_CORE//.}"
+    docker push $REPO/$PREFIX-$IMAGE:$NEW_TAG-py"${PYTHON_VER_CORE//.}"
 done
 
 for IMAGE in 'dask' 'mlrun-api' 'test'

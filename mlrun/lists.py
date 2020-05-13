@@ -57,8 +57,8 @@ class RunList(list):
 
         return df
 
-    def show(self, display=True, classes=None):
-        html = runs_to_html(self.to_df(), display, classes=classes)
+    def show(self, display=True, classes=None, short=False):
+        html = runs_to_html(self.to_df(), display, classes=classes, short=short)
         if not display:
             return html
 

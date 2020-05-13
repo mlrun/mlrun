@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import traceback
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path
@@ -37,7 +38,7 @@ from .model import RunTemplate
 from .run import new_function, import_function_to_dict, import_function, get_object
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
-                    parse_function_uri, dict_to_yaml)
+                    parse_function_uri, dict_to_yaml, pr_comment)
 
 
 @click.group()
@@ -112,14 +113,23 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         mlconf.dbpath = db
 
     if func_url:
-        if func_url.startswith('db://'):
-            func_url = func_url[5:]
-            project, name, tag = parse_function_uri(func_url)
-            mldb = get_run_db(mlconf.dbpath).connect()
-            runtime = mldb.get_function(name, project, tag)
-        else:
-            func_url = 'function.yaml' if func_url == '.' else func_url
-            runtime = import_function_to_dict(func_url, {})
+        try:
+            if func_url.startswith('db://'):
+                func_url = func_url[5:]
+                project, name, tag = parse_function_uri(func_url)
+                mldb = get_run_db(mlconf.dbpath).connect()
+                runtime = mldb.get_function(name, project, tag)
+            else:
+                func_url = 'function.yaml' if func_url == '.' else func_url
+                runtime = import_function_to_dict(func_url, {})
+        except Exception as e:
+            print('function {} not found, {}'.format(func_url, e))
+            exit(1)
+
+        if not runtime:
+            print('function {} not found or is null'.format(func_url))
+            exit(1)
+
         kind = get_in(runtime, 'kind', '')
         if kind not in ['', 'local', 'dask'] and url:
             if path.isfile(url) and url.endswith('.py'):
@@ -301,8 +311,8 @@ def build(func_url, name, project, tag, image, source, base_image, command,
 @click.argument("spec", type=str, required=False)
 @click.option('--source', '-s', default='', help='location/url of the source')
 @click.option('--dashboard', '-d', default='', help='nuclio dashboard url')
-@click.option('--project', '-p', default='', help='container registry secret name')
-@click.option('--model', '-m', multiple=True, help='input artifact')
+@click.option('--project', '-p', default='', help='project name')
+@click.option('--model', '-m', multiple=True, help='model name and path (name=path)')
 @click.option('--kind', '-k', default=None, help='runtime sub kind')
 @click.option('--tag', default='', help='version tag')
 @click.option('--env', '-e', multiple=True, help='environment variables')
@@ -478,7 +488,7 @@ def logs(uid, project, offset, db, watch):
 
 
 @main.command()
-@click.argument('context', type=str, required=False)
+@click.argument('context', default='', type=str, required=False)
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
 @click.option('--run', '-r', help='run workflow name of .py file')
@@ -493,8 +503,11 @@ def logs(uid, project, offset, db, watch):
 @click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
 @click.option('--sync', is_flag=True, help='sync functions into db')
 @click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
+@click.option('--git-repo', help='git repo (org/repo) for git comments')
+@click.option('--git-issue', type=int, default=None, help='git issue number for git comments')
 def project(context, name, url, run, arguments, artifact_path,
-            param, secrets, namespace, db, init_git, clone, sync, dirty):
+            param, secrets, namespace, db, init_git, clone, sync,
+            dirty, git_repo, git_issue):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
@@ -507,6 +520,10 @@ def project(context, name, url, run, arguments, artifact_path,
         artifact_path = path.abspath(artifact_path)
     if param:
         proj.params = fill_params(param, proj.params)
+    if git_repo:
+        proj.params['git_repo'] = git_repo
+    if git_issue:
+        proj.params['git_issue'] = git_issue
     if secrets:
         secrets = line2keylist(secrets, 'kind', 'source')
         proj._secrets = SecretsStore.from_list(secrets)
@@ -528,10 +545,32 @@ def project(context, name, url, run, arguments, artifact_path,
                 exit(1)
 
         print('running workflow {} file: {}'.format(run, workflow_path))
-        run = proj.run(run, workflow_path, arguments=args,
-                       artifact_path=artifact_path, namespace=namespace,
-                       sync=sync, dirty=dirty)
+        message = run = ''
+        had_error = False
+        try:
+            run = proj.run(run, workflow_path, arguments=args,
+                           artifact_path=artifact_path, namespace=namespace,
+                           sync=sync, dirty=dirty)
+        except Exception as e:
+            print(traceback.format_exc())
+            message = 'failed to run pipeline, {}'.format(e)
+            had_error = True
+            print(message)
         print('run id: {}'.format(run))
+
+        if git_repo and git_issue:
+            if not had_error:
+                message = 'Pipeline started id={}'.format(run)
+                if proj.params and 'commit' in proj.params:
+                    message += ', commit={}'.format(proj.params['commit'])
+                if mlconf.ui_url:
+                    temp = '<div><a href="{}/projects/{}/jobs" target=' +\
+                           ' "_blank">click here to check progress</a></div>'
+                    message += temp.format(mlconf.ui_url, proj.name)
+            pr_comment(git_repo, git_issue, message, token=proj.get_secret('GITHUB_TOKEN'))
+
+        if had_error:
+            exit(1)
 
     elif sync:
         print('saving project functions to db ..')

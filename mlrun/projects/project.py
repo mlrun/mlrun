@@ -150,7 +150,8 @@ class MlrunProject(ModelObj):
     kind = 'project'
 
     def __init__(self, name=None, description=None, params=None,
-                 functions=None, workflows=None, artifacts=None, conda=None):
+                 functions=None, workflows=None, artifacts=None,
+                 artifact_path=None, conda=None):
 
         self._initialized = False
         self.name = name
@@ -165,9 +166,9 @@ class MlrunProject(ModelObj):
         self._secrets = SecretsStore()
         self.params = params or {}
         self.conda = conda or {}
-        self.remote = False
         self._mountdir = None
         self._artifact_mngr = None
+        self.artifact_path = artifact_path
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -277,7 +278,7 @@ class MlrunProject(ModelObj):
 
         self._workflows = wfdict
 
-    def set_workflow(self, name, workflow_path: str, embed=False):
+    def set_workflow(self, name, workflow_path: str, embed=False, **args):
         """add or update a workflow, specify a name and the code path"""
         if not workflow_path:
             raise ValueError('valid workflow_path must be specified')
@@ -286,9 +287,12 @@ class MlrunProject(ModelObj):
                 workflow_path = path.join(self.context, workflow_path)
             with open(workflow_path, 'r') as fp:
                 txt = fp.read()
-            self._workflows[name] = {'name': name, 'code': txt}
+            workflow = {'name': name, 'code': txt}
         else:
-            self._workflows[name] = {'name': name, 'path': workflow_path}
+            workflow = {'name': name, 'path': workflow_path}
+        if args:
+            workflow['args'] = args
+        self._workflows[name] = workflow
 
     @property
     def artifacts(self) -> list:
@@ -337,6 +341,7 @@ class MlrunProject(ModelObj):
                      artifact_path=None, format=None, upload=True,
                      labels=None, target_path=None):
         am = self._get_artifact_mngr()
+        artifact_path = artifact_path or self.artifact_path
         producer = ArtifactProducer('project', self.name, self.name,
                                     tag=self._get_hexsha() or 'latest')
         item = am.log_artifact(producer, item, body, tag=tag,
@@ -531,8 +536,16 @@ class MlrunProject(ModelObj):
 
         :returns: project object
         """
-        self._secrets = SecretsStore.add_source(kind, source, prefix)
+        self._secrets.add_source(kind, source, prefix)
         return self
+
+    def get_secret(self, key: str):
+        """get a key based secret e.g. DB password from the context
+        secrets can be specified when invoking a run through files, env, ..
+        """
+        if self._secrets:
+            return self._secrets.get(key)
+        return None
 
     def run(self, name=None, workflow_path=None, arguments=None,
             artifact_path=None, namespace=None, sync=False, dirty=False):
@@ -570,15 +583,19 @@ class MlrunProject(ModelObj):
             raise ValueError('no functions in the project')
 
         if not name and not workflow_path:
-            raise ValueError('workflow name or path not specified')
+            if self._workflows:
+                name = list(self._workflows.keys())[0]
+            else:
+                raise ValueError('workflow name or path must be specified')
 
         code = None
         if not workflow_path:
             if name not in self._workflows:
                 raise ValueError('workflow {} not found'.format(name))
-            workflow_path, code = self._get_wf_file(name)
+            workflow_path, code, arguments = self._get_wf_cfg(name, arguments)
 
         name = '{}-{}'.format(self.name, name) if name else self.name
+        artifact_path = artifact_path or self.artifact_path
         run = _run_pipeline(self, name, workflow_path, self._function_objects,
                             secrets=self._secrets, arguments=arguments,
                             artifact_path=artifact_path, namespace=namespace)
@@ -586,16 +603,24 @@ class MlrunProject(ModelObj):
             remove(workflow_path)
         return run
 
-    def _get_wf_file(self, name):
-        wf = self._workflows.get(name)
-        code = wf.get('code')
+    def _get_wf_cfg(self, name, arguments=None):
+        workflow = self._workflows.get(name)
+        code = workflow.get('code')
         if code:
             workflow_path = mktemp('.py')
             with open(workflow_path, 'w') as wf:
                 wf.write(code)
         else:
-            workflow_path = path.join(self.context, wf.get('path'))
-        return workflow_path, code
+            workflow_path = workflow.get('path', '')
+            if self.context and not workflow_path.startswith('/'):
+                workflow_path = path.join(self.context, workflow_path)
+
+        wf_args = workflow.get('args', {})
+        if arguments:
+            for k, v in arguments.items():
+                wf_args[k] = v
+
+        return workflow_path, code, wf_args
 
     def _need_repo(self):
         for f in self._function_objects.values():
@@ -616,10 +641,11 @@ class MlrunProject(ModelObj):
         if not name or name not in self._workflows:
             raise ValueError('workflow {} not found'.format(name))
 
-        workflow_path, code = self._get_wf_file(name)
+        workflow_path, code, _ = self._get_wf_file(name)
         pipeline = _create_pipeline(self, workflow_path, self._function_objects,
                                     secrets=self._secrets)
 
+        artifact_path = artifact_path or self.artifact_path
         conf = new_pipe_meta(artifact_path, ttl=ttl)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         if code:
@@ -723,10 +749,13 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
 
     setattr(mod, 'funcs', functions)
     setattr(mod, 'this_project', project)
-    setattr(mod, 'project_secrets', secrets)
 
     if hasattr(mod, 'init_functions'):
         getattr(mod, 'init_functions')(functions, project, secrets)
+
+    # verify all functions are in this project
+    for f in functions.values():
+        f.metadata.project = project.name
 
     if not hasattr(mod, 'kfpipeline'):
         raise ValueError('pipeline function (kfpipeline) not found')
@@ -737,13 +766,11 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
 
 def _run_pipeline(project, name, pipeline, functions, secrets=None,
                   arguments=None, artifact_path=None, namespace=None):
-    remote = project.remote
     kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
     id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifact_path=artifact_path,
-                      remote=remote)
+                      namespace=namespace, artifact_path=artifact_path)
     return id
 
 
@@ -781,7 +808,7 @@ def clone_git(url, context, secrets, clone):
     if urlobj.port:
         host += ':{}'.format(urlobj.port)
 
-    token = urlobj.username or secrets.get('git_token') \
+    token = urlobj.username or secrets.get('GITHUB_TOKEN') \
             or secrets.get('git_user')
     password = urlobj.password or secrets.get('git_password') \
                or 'x-oauth-basic'

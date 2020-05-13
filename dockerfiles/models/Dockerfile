@@ -135,10 +135,7 @@ RUN conda clean -ayq
 
 RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
-RUN git clone https://github.com/${REPO}/mlrun.git /mlrun-git && \
-    cd /mlrun-git && \
-    git checkout ${MLRUN_TAG} && \
-    python -m pip install -e .
+RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
 
 # remove dask verify version mismatch warnings
 RUN python -m pip install --no-cache-dir \

@@ -15,7 +15,7 @@
 import json
 import tempfile
 import time
-from os import path, remove
+from os import path, remove, environ
 
 import kfp
 import requests
@@ -107,7 +107,6 @@ class HTTPRunDB(RunDBInterface):
 
         return resp
 
-
     def _path_of(self, prefix, project, uid):
         project = project or default_project
         return f'{prefix}/{project}/{uid}'
@@ -115,10 +114,22 @@ class HTTPRunDB(RunDBInterface):
     def connect(self, secrets=None):
         resp = self.api_call('GET', 'healthz', timeout=5)
         try:
-            self.server_version = resp.json()['version']
+            server_cfg = resp.json()
+            self.server_version = server_cfg['version']
             if self.server_version != config.version:
                 logger.warning('warning!, server ({}) and client ({}) ver dont match'
                                .format(self.server_version, config.version))
+            if 'namespace' in server_cfg and server_cfg['namespace'] != config.namespace:
+                logger.warning('warning!, server ({}) and client ({}) namespace dont match'
+                               .format(server_cfg['namespace'], config.namespace))
+
+            # get defaults from remote server
+            config.remote_host = config.remote_host or server_cfg.get('remote_host')
+            config.ui_url = config.ui_url or server_cfg.get('ui_url')
+            config.artifact_path = config.artifact_path or server_cfg.get('artifact_path')
+            if 'docker_registry' in server_cfg and 'DEFAULT_DOCKER_REGISTRY' not in environ:
+                environ['DEFAULT_DOCKER_REGISTRY'] = server_cfg['docker_registry']
+
         except Exception:
             pass
         return self

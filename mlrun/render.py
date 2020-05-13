@@ -22,6 +22,7 @@ from .config import config
 JUPYTER_SERVER_ROOT = environ.get('HOME', '/User')
 supported_viewers = ['.htm', '.html', '.json', '.yaml', '.txt', '.log', '.jpg', '.png', '.csv', '.py']
 
+
 def html_dict(title, data, open=False, show_nil=False):
     if not data:
         return ''
@@ -298,7 +299,11 @@ tblframe = """
 
 
 def get_tblframe(df, display, classes=None):
-    table = tblframe.format(df.to_html(escape=False, index=False, notebook=True, classes=classes))
+    table_html = df.to_html(escape=False, index=False, notebook=display, classes=classes)
+    if not display:
+        return table_html
+
+    table = tblframe.format(table_html)
     rnd = 'result' + str(uuid.uuid4())[:8]
     html = style + jscripts + table.replace('="result', '="' + rnd)
     return ipython_display(html, display)
@@ -307,7 +312,7 @@ def get_tblframe(df, display, classes=None):
 uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/{}/info" target="_blank" >...{}</a></div>'
 
 
-def runs_to_html(df, display=True, classes=None):
+def runs_to_html(df, display=True, classes=None, short=False):
 
     def time_str(x):
         try:
@@ -315,20 +320,27 @@ def runs_to_html(df, display=True, classes=None):
         except ValueError:
             return ''
 
-    df['inputs'] = df['inputs'].apply(inputs_html)
     df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(
         x, 'target_path'))
-    df['labels'] = df['labels'].apply(dict_html)
-    df['parameters'] = df['parameters'].apply(dict_html)
     df['results'] = df['results'].apply(dict_html)
     df['start'] = df['start'].apply(time_str)
-
     if config.ui_url:
         df['uid'] = df.apply(lambda x: uid_template.format(
             x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]), axis=1)
     else:
         df['uid'] = df['uid'].apply(
             lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+
+    if short:
+        df.drop('project', axis=1, inplace=True)
+        df.drop('iter', axis=1, inplace=True)
+        df.drop('labels', axis=1, inplace=True)
+        df.drop('inputs', axis=1, inplace=True)
+        df.drop('parameters', axis=1, inplace=True)
+    else:
+        df['labels'] = df['labels'].apply(dict_html)
+        df['inputs'] = df['inputs'].apply(inputs_html)
+        df['parameters'] = df['parameters'].apply(dict_html)
 
     def expand_error(x):
         if x['state'] == 'error':

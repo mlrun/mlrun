@@ -42,7 +42,7 @@ do
     docker push $REPO/$PREFIX-$IMAGE:$NEW_TAG-py"${PYTHON_VER_CORE//.}"
 done
 
-for IMAGE in 'dask' 'mlrun-api' 'test'
+for IMAGE in 'mlrun-api' 'test'
 do
     docker build \ 
         -f ./dockerfiles/$IMAGE/Dockerfile \

@@ -30,13 +30,22 @@ ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
 
-RUN python -m pip install --ignore-installed --no-cache-dir \
-    blosc==1.7.0 \
-    cloudpickle==1.1.1 \
-    dask==2.12.0 \
-    distributed==2.14.0 \
-    lz4==2.2.1 \
-    msgpack==1.0.0 \
-    tornado==6.0.4
-
 RUN python -m pip install urllib3==1.25.8  kubernetes==10.0.1
+
+RUN python -m pip install scikit-learn
+
+RUN python -m pip install \
+    dask-kubernetes \
+    dask-ml \
+    dask-xgboost \
+    dask[complete] \
+    distributed
+
+# RUN python -m pip install --no-cache-dir \
+#         blosc==1.7.0 \
+#         cloudpickle==1.1.1 \
+#         dask==2.12.0 \
+#         distributed==2.14.0 \
+#         lz4==2.2.1 \
+#         msgpack==1.0.0 \
+#         tornado==6.0.4    

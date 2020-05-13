@@ -43,7 +43,6 @@ with open('README.md') as fp:
 install_requires = list(load_deps('requirements.txt'))
 tests_require = list(load_deps('dockerfiles/dev-requirements.txt'))
 httpd_deps = list(load_deps('dockerfiles/httpd-requirements.txt'))
-dask_deps = list(load_deps('dockerfiles/dask-requirements.txt'))
 
 
 setup(
@@ -62,7 +61,6 @@ setup(
     install_requires=install_requires,
     extra_requires={
         'httpd': httpd_deps,
-        'dask': dask_deps,
     },
     classifiers=[
         'Development Status :: 4 - Beta',

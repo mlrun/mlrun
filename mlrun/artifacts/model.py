@@ -147,7 +147,7 @@ def _get_file_path(base_path: str, name: str, isdir=False):
         return name
     if not isdir:
         base_path = path.dirname(base_path)
-    return path.join(base_path, name)
+    return path.join(base_path, name).replace('\\', '/')
 
 
 def _get_extra(stores, target, extra_data, is_dir=False):

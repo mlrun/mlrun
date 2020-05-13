@@ -17,10 +17,11 @@ import logging
 import re
 import pathlib
 from datetime import datetime, timezone
-from os import path
+from os import path, environ
 from sys import stdout
 
 import numpy as np
+import requests
 import yaml
 from yaml.representer import RepresenterError
 
@@ -385,3 +386,17 @@ def get_artifact_target(item: dict, project=None):
                                       project or item.get('project'),
                                       item.get('db_key'), item.get('tree'))
     return item.get('target_path')
+
+
+def pr_comment(repo: str, issue: int,
+               message: str, token=None):
+    token = token or environ.get('GITHUB_TOKEN')
+    headers = {'Accept': 'application/vnd.github.v3+json',
+               'Authorization': f'token {token}'}
+    url = f'https://api.github.com/repos/{repo}/issues/{issue}/comments'
+
+    resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
+    if not resp.ok:
+        errmsg = f'bad pr comment resp!!\n{resp.text}'
+        raise IOError(errmsg)
+    return resp.json()['id']

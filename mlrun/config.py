@@ -39,24 +39,24 @@ _none_type = type(None)
 
 
 default_config = {
-    'namespace': 'default-tenant',
-    'dbpath': '',
-    'ui_url': '',
+    'namespace': 'default-tenant',   # default kubernetes namespace
+    'dbpath': '',                    # db/api url
+    'ui_url': '',                    # remote/external mlrun UI url (for hyperlinks)
     'remote_host': '',
-    'version': '',
-    'images_tag': '',
-    'kfp_ttl': '86400',
-    'kfp_image': '',
-    'kaniko_version': 'v0.19.0',
-    'package_path': 'mlrun',
+    'version': '',                   # will be set to current version
+    'images_tag': '',                # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
+    'kfp_ttl': '86400',              # KFP ttl in sec, after that completed PODs will be deleted
+    'kfp_image': '',                 # image to use for KFP runner (defaults to mlrun/mlrun)
+    'kaniko_version': 'v0.19.0',     # kaniko builder version
+    'package_path': 'mlrun',         # mlrun pip package
     'default_image': 'python:3.6-jessie',
-    'default_project': 'default',
-    'default_archive': '',
+    'default_project': 'default',    # default project name
+    'default_archive': '',           # default remote archive URL (for build tar.gz)
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'ERROR',
-    'submit_timeout': '180',
-    'artifact_path': '',
+    'submit_timeout': '180',         # timeout when submitting a new k8s resource
+    'artifact_path': '',             # default artifacts path/url
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
@@ -188,8 +188,18 @@ def read_env(env=None, prefix=env_prefix):
         config['dbpath'] = 'http://' + urlparse(svc).netloc
 
     uisvc = env.get('MLRUN_UI_SERVICE_HOST')
+    igz_domain = env.get('IGZ_NAMESPACE_DOMAIN')
+
+    # workaround to try and detect IGZ domain in 2.8
+    if not igz_domain and 'DEFAULT_DOCKER_REGISTRY' in env:
+        registry = env['DEFAULT_DOCKER_REGISTRY']
+        if registry.startswith('docker-registry.default-tenant'):
+            igz_domain = registry[len('docker-registry.'):]
+            if ':' in igz_domain:
+                igz_domain = igz_domain[:igz_domain.rfind(':')]
+            env['IGZ_NAMESPACE_DOMAIN'] = igz_domain
+
     if uisvc and not config.get('ui_url'):
-        igz_domain = env.get('IGZ_NAMESPACE_DOMAIN')
         if igz_domain:
             config['ui_url'] = 'https://mlrun-ui.{}'.format(igz_domain)
 

@@ -561,6 +561,14 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
 
     namespace = namespace or mlconf.namespace
     arguments = arguments or {}
+    import kubernetes as k8s
+    remote = True
+    try:
+        k8s.config.load_incluster_config()
+        remote = False
+    except:
+        pass
+
     if remote or url:
         mldb = get_run_db(url).connect()
         if mldb.kind != 'http':

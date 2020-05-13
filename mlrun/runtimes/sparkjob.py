@@ -165,7 +165,7 @@ class SparkRuntime(KubejobRuntime):
 
         if state == "FAILED":
             logger.error('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
-            execution.set_state('error', 'SparkJob {} finished with state {}'.format(meta.name, status))
+            execution.set_state('error', 'SparkJob {} finished with state {}'.format(meta.name, state or 'unknown'))
 
         if resp:
             logger.info('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
@@ -185,7 +185,7 @@ class SparkRuntime(KubejobRuntime):
                     logger.info('use .watch({}) to see logs'.format(meta.name))
             else:
                 logger.error('SparkJob status unknown or failed, check pods: {}'.format(self.get_pods(meta.name, meta.namespace)))
-                execution.set_state('error', 'SparkJob {} finished with state {}'.format(meta.name, status))
+                execution.set_state('error', 'SparkJob {} finished with unknown state'.format(meta.name))
 
         return None
 

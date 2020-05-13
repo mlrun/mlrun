@@ -1,3 +1,4 @@
+import uvicorn
 from fastapi import FastAPI
 
 from mlrun.api.api.api import api_router
@@ -7,6 +8,7 @@ from mlrun.api.singletons import initialize_singletons, get_db
 from mlrun.config import config
 from mlrun.db import periodic
 from mlrun.utils import logger
+from mlrun.api.initial_data import init_data
 
 app = FastAPI(title="MLRun",
               description="Machine Learning automation and tracking",
@@ -39,3 +41,17 @@ def _reschedule_tasks():
             submit(db_session, data)
     finally:
         close_session(db_session)
+
+
+def main():
+    init_data()
+    uvicorn.run(
+        'mlrun.api.main:app',
+        host='0.0.0.0',
+        port=config.httpdb.port,
+        debug=config.httpdb.debug,
+    )
+
+
+if __name__ == '__main__':
+    main()

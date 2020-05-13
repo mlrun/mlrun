@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-API_PORT_DEFAULT := 8080
-API_PORT := $(if $(API_PORT),$(API_PORT),$(API_PORT_DEFAULT))
-
 .PHONY: all
 all:
 	$(error please pick a target)
@@ -34,18 +31,12 @@ clean:
 	rm -rf mlrun.egg-info
 	find . -name '*.pyc' -exec rm {} \;
 
-
 .PHONY: test
 test: clean
 	python -m pytest -v \
 	    --disable-warnings \
 	    -rf \
 	    tests
-
-.PHONY: run-api
-run-api:
-	./scripts/api/local-prestart.sh
-	uvicorn mlrun.api.main:app --reload --port $(API_PORT)
 
 .PHONY: docker-api
 docker-api:

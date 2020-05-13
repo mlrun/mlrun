@@ -34,6 +34,7 @@ spec:
           value: admin
         ports:
         - containerPort: 8080
+        command: ["python", "-m", "mlrun", "db"]
         args: []
 # UNCOMMENT TO ADD V3IO VOLUME + SET ACCESS KEY
 #        volumeMounts:

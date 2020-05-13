@@ -56,8 +56,8 @@ def start_server(db_path, log_file, env_config: dict):
     env.update(env_config or {})
 
     cmd = [
-        "make",
-        "run-api",
+        executable,
+        '-m', 'mlrun.api.main',
     ]
     proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
     url = f'http://localhost:{port}'

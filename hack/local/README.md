@@ -28,7 +28,7 @@ MLRUN_IP=localhost
 SHARED_DIR=/home/me/data
 # On Windows, use host.docker.internal for MLRUN_IP
 
-docker pull quay.io/mlrun/mlrun-ui:latest
+docker pull quay.io/iguazio/mlrun-ui:latest
 docker pull mlrun/jupy:latest
 
 docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 quay.io/iguazio/mlrun-ui:latest

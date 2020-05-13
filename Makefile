@@ -38,6 +38,10 @@ test: clean
 	    -rf \
 	    tests
 
+.PHONY: run-api
+run-api:
+	python -m mlrun db
+
 .PHONY: docker-api
 docker-api:
 	docker build \

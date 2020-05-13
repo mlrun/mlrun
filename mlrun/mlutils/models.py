@@ -5,7 +5,7 @@ from cloudpickle import dumps, dump
 import json
 from itertools import cycle
 
-from mlrun.artifacts import PlotArtifact
+from ..artifacts import PlotArtifact
 from .plots import (gcf_clear,
                     learning_curves,
                     feature_importances,

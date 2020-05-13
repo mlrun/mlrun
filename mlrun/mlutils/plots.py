@@ -2,7 +2,7 @@ from sklearn import metrics
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from mlrun.artifacts import PlotArtifact, TableArtifact
+from ..artifacts import PlotArtifact, TableArtifact
 import pandas as pd
 
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from mlrun.datastore import DataItem
+from ..datastore import DataItem
 
 
 def get_sample(src: DataItem, sample: int, label: str, reader=None):

@@ -11,7 +11,8 @@ from .plots import (gcf_clear,
                     precision_recall_multi,
                     roc_multi,
                     roc_bin,
-                    precision_recall_bin)
+                    precision_recall_bin,
+                    plot_roc)
 
 from .data import (get_sample,
                    get_splits,

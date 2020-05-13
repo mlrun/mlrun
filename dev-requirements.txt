@@ -1,13 +1,10 @@
 distributed>=2.3.0
 kfp>=0.1.29
-matplotlib>=3.0.0
 msgpack<1.0.0
 numpydoc==0.9.1
 pytest==5.3.1
 recommonmark==0.6.0
-scikit-learn==0.21.3
-seaborn>=0.10
 sphinx==2.2.2
 sphinx_rtd_theme==0.4.3
 twine==3.1.1
-xgboost==0.90
+xgboost

@@ -7,8 +7,7 @@ ARG OMPI=4.0.3
 ARG REPO=mlrun
 
 ARG MLRUN_TAG=development
-LABEL MLRUN_TAG=$MLRUN_TAG
-ENV MLRUN_TAG=${MLRUN_TAG}
+ENV MLRUN_TAG=$MLRUN_TAG
 
 ARG TF_VER=2.1.0
 ARG XGB_VER=1.0.2
@@ -41,7 +40,10 @@ RUN mkdir -p /var/run/sshd && \
     # Allow OpenSSH to talk to containers without asking for confirmation
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
-    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
+    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config && \
+    # install horovod examples
+    svn checkout https://github.com/horovod/horovod/trunk/examples && \
+    rm -rf /examples/.svn
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -62,7 +64,7 @@ RUN conda config --add channels bokeh && \
     conda config --add channels pytorch && \
     conda config --add channels conda-forge && \
     conda config --add channels anaconda && \
-    conda install -y \
+    conda install -y python=3.6 \
     bokeh \
     dask-kubernetes \
     dask-ml \
@@ -81,7 +83,9 @@ RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
 
 # plain vanilla tensorflow isn't compiled optimaly for the architectures
 # we are likely to encounter.  this should become an option:
-RUN python -m pip install -U intel-tensorflow
+#RUN python -m pip install -U intel-tensorflow==1.14 keras pillow requests
+
+RUN conda install -n base -c anaconda tensorflow=1.14 keras
 
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install --no-cache-dir horovod
@@ -96,8 +100,8 @@ RUN mkdir /repos && \
     cd repos && \
     git clone --recursive https://github.com/dmlc/xgboost && \
     cd xgboost && \
-    # git fetch --all --tags --prune && \
-    # git checkout tags/v1.0.2 && \
+    git fetch --all --tags --prune && \
+    git checkout tags/v${XGB_VER} && \
     mkdir build && \
     cd build && \
     cmake .. && \
@@ -121,23 +125,21 @@ RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
 RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
 
-
 # remove dask verify version mismatch warnings
 RUN python -m pip install --no-cache-dir \
     blosc==1.7.0 \
-    cloudpickle==1.3.0 \
-    dask==2.11.0 \
-    distributed==2.11.0 \
+    cloudpickle==1.1.1 \
+    dask==2.12.0 \
+    distributed==2.14.0 \
     lz4==2.2.1 \
     msgpack==1.0.0 \
     tornado==6.0.4 \
-    # v3io pins 
-    urllib3==1.25.8 \
+    urllib3==1.25.8  \
     kubernetes==10.0.1 \
     scikit-plot
 
 RUN conda install -c plotly plotly-orca plotly=4.7.0
 
-RUN conda clean -ayq
+RUN conda clean -ayq   
 
 RUN python -m pip install lifelines scikit-plot

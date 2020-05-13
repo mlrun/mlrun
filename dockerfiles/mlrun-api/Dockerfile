@@ -34,7 +34,6 @@ COPY ./dockerfiles/*requirements.txt ./
 COPY ./requirements.txt ./
 
 RUN python -m pip install \
-    -r dask-requirements.txt \
     -r api-requirements.txt \
     -r requirements.txt
 

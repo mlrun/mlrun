@@ -31,6 +31,7 @@ clean:
 	rm -rf mlrun.egg-info
 	find . -name '*.pyc' -exec rm {} \;
 
+
 .PHONY: test
 test: clean
 	python -m pytest -v \

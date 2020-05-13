@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG PYTHON_VER=3.8
+ARG PYTHON_VER=3.7
 
 FROM python:${PYTHON_VER}-slim
 
@@ -34,7 +34,6 @@ COPY ./dockerfiles/*requirements.txt ./
 COPY ./requirements.txt ./
 
 RUN python -m pip install \
-    -r dask-requirements.txt \
     -r api-requirements.txt \
     -r requirements.txt
 
@@ -43,4 +42,4 @@ ENV MLRUN_httpdb__port=8080
 COPY . .
 VOLUME /mlrun/db
 
-CMD ["python -m mlrun db"]
+CMD ["python",  "-m",  "mlrun",  "db"]

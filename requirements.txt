@@ -1,5 +1,4 @@
 # If you change this file, run "make docs-requirements"
-
 GitPython>=2.1.0
 aiohttp>=3.5.0
 boto3>=1.9
@@ -14,3 +13,6 @@ requests>=2.20.1
 sqlalchemy>=1.3.0
 tabulate>=0.8.0, <=0.8.3
 v3io>=0.3.3
+matplotlib
+scikit-learn
+seaborn

@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from mlrun.api.db.sqldb.session import create_session, _init_engine
-from mlrun.api.initial_data import main as init_data
+from mlrun.api.initial_data import init_data
 from mlrun.api.main import app
 from mlrun.utils import logger
 

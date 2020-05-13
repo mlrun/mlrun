@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/api:latest
+        image: mlrun/mlrun-api:latest
         imagePullPolicy: Always
         env:
         - name: MLRUN_NAMESPACE
@@ -38,6 +38,7 @@ spec:
           value: admin
         ports:
         - containerPort: 8080
+        command: ["python", "-m", "mlrun", "db"]
         args: []
 # UNCOMMENT TO ADD V3IO VOLUME + SET ACCESS KEY
 #        volumeMounts:
@@ -85,7 +86,7 @@ spec:
     spec:
       containers:
       - name: mlrun-ui
-        image:  quay.io/mlrun/ui:latest
+        image:  quay.io/iguazio/mlrun-ui:latest
         imagePullPolicy: Always
         env:
         - name: MLRUN_API_PROXY_URL

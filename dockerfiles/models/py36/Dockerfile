@@ -143,5 +143,3 @@ RUN conda install -c plotly plotly-orca plotly=4.7.0
 RUN conda clean -ayq   
 
 RUN python -m pip install lifelines scikit-plot
-
-RUN python -m pip install git+https://github.com/${REPO}/mlutils.git@development

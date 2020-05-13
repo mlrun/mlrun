@@ -39,11 +39,12 @@ RUN python -m pip install \
         dask[complete] \
         distributed
 
-# RUN python -m pip install --no-cache-dir \
-#         blosc==1.7.0 \
-#         cloudpickle==1.1.1 \
-#         dask==2.12.0 \
-#         distributed==2.14.0 \
-#         lz4==2.2.1 \
-#         msgpack==1.0.0 \
-#         tornado==6.0.4
+RUN python -m pip install --no-cache-dir \
+        blosc==1.7.0 \
+        cloudpickle==1.1.1 \
+        dask==2.12.0 \
+        distributed==2.14.0 \
+        lz4==2.2.1 \
+        msgpack==1.0.0 \
+        tornado==6.0.4 \
+        numpy==1.18.1

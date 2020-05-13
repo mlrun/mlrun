@@ -51,7 +51,6 @@ def start_server(db_path, log_file, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['API_PORT'] = str(port)
     env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}?check_same_thread=false'
     env.update(env_config or {})
 
@@ -89,7 +88,7 @@ def docker_fixture():
         env_config = {} if env_config is None else env_config
         cmd = [
             'docker', 'build',
-            '-f', 'dockerfiles/api/Dockerfile',
+            '-f', 'dockerfiles/mlrun-api/Dockerfile',
             '--tag', docker_tag,
             '.',
         ]
@@ -129,7 +128,7 @@ def docker_fixture():
     return create, cleanup
 
 
-if 'APP_DOCKER_RUN' in environ:
+if 'API_DOCKER_RUN' in environ:
     docker_fixture = noop_docker_fixture  # noqa
 
 
@@ -141,7 +140,7 @@ def server_fixture():
         root = mkdtemp(prefix='mlrun-test-')
         print(f'root={root!r}')
         db_path = f'{root}/mlrun.sqlite3?check_same_thread=false'
-        log_fp = open(f'{root}/app.log', 'w+')
+        log_fp = open(f'{root}/api.log', 'w+')
         proc, url = start_server(db_path, log_fp, env)
         conn = HTTPRunDB(url)
         conn.connect()

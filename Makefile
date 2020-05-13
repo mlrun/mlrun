@@ -41,8 +41,8 @@ test: clean
 .PHONY: docker-api
 docker-api:
 	docker build \
-	    -f dockerfiles/api/Dockerfile \
-	    -t mlrun/api .
+	    -f dockerfiles/mlrun-api/Dockerfile \
+	    -t mlrun/mlrun-api .
 
 .PHONY: circleci
 circleci:

@@ -3,8 +3,8 @@ if [ $# -eq 0 ]
     echo "No argument (ver tag) supplied"
 fi
 
-sudo docker build . -f ./dockerfiles/api/Dockerfile -t mlrun/api:$1
-sudo docker push mlrun/api:$1
+sudo docker build . -f ./dockerfiles/mlrun-api/Dockerfile -t mlrun/mlrun-api:$1
+sudo docker push mlrun/mlrun-api:$1
 
 sudo docker build . -t ./mlrun/mlrun:$1
 sudo docker push mlrun/mlrun:$1

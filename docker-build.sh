@@ -26,7 +26,7 @@ do
     docker push $REPO/$PREFIX-$IMAGE:$NEW_TAG
 done
 
-for IMAGE in 'dask' 'api' 'test'
+for IMAGE in 'dask' 'mlrun-api' 'test'
 do
     docker build \
         -f ./dockerfiles/$IMAGE/Dockerfile \

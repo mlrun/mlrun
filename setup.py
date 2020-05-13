@@ -42,7 +42,7 @@ with open('README.md') as fp:
 
 install_requires = list(load_deps('requirements.txt'))
 tests_require = list(load_deps('dockerfiles/dev-requirements.txt'))
-httpd_deps = list(load_deps('dockerfiles/httpd-requirements.txt'))
+api_deps = list(load_deps('dockerfiles/api-requirements.txt'))
 
 
 setup(
@@ -57,10 +57,11 @@ setup(
     url='https://github.com/mlrun/mlrun',
     packages=['mlrun', 'mlrun.runtimes', 'mlrun.db', 'mlrun.mlutils',
               'mlrun.platforms', 'mlrun.projects', 'mlrun.artifacts',
-              'mlrun.datastore'],
+              'mlrun.datastore', 'mlrun.api', 'mlrun.api.api', 'mlrun.api.api.endpoints', 'mlrun.api.db',
+              'mlrun.api.db.sqldb', 'mlrun.api.db.filedb', 'mlrun.api.schemas'],
     install_requires=install_requires,
     extra_requires={
-        'httpd': httpd_deps,
+        'api': api_deps,
     },
     classifiers=[
         'Development Status :: 4 - Beta',

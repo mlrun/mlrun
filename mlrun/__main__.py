@@ -450,7 +450,7 @@ def db(port, dirpath):
     if dirpath is not None:
         env['MLRUN_httpdb__dirpath'] = dirpath
 
-    cmd = [executable, '-m', 'mlrun.db.httpd']
+    cmd = [executable, '-m', 'mlrun.api.main']
     child = Popen(cmd, env=env)
     returncode = child.wait()
     if returncode != 0:

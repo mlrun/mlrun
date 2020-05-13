@@ -309,6 +309,8 @@ class FileRunDB(RunDBInterface):
             with p.open() as fp:
                 yield self._loads(fp.read())
 
+        return []
+
     _encodings = {
         '.yaml': ('to_yaml', dict_to_yaml),
         '.json': ('to_json', dict_to_json),

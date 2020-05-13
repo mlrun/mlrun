@@ -202,8 +202,8 @@ class HTTPRunDB(RunDBInterface):
         error = f'del run {project}/{uid}'
         self.api_call('DELETE', path, error, params=params)
 
-    def list_runs(self, name='', uid=None, project='', labels=None,
-                  state='', sort=True, last=0, iter=False):
+    def list_runs(self, name=None, uid=None, project=None, labels=None,
+                  state=None, sort=True, last=0, iter=False):
 
         project = project or default_project
         params = {
@@ -219,7 +219,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', 'runs', error, params=params)
         return RunList(resp.json()['runs'])
 
-    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+    def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
         project = project or default_project
         params = {
             'name': name,
@@ -231,7 +231,7 @@ class HTTPRunDB(RunDBInterface):
         error = 'del runs'
         self.api_call('DELETE', 'runs', error, params=params)
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=''):
         path = self._path_of('artifact', project, uid) + '/' + key
         params = {
             'tag': tag,
@@ -245,7 +245,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             'POST', path, error, params=params, body=body)
 
-    def read_artifact(self, key, tag='', iter=None, project=''):
+    def read_artifact(self, key, tag=None, iter=None, project=''):
         project = project or default_project
         tag = tag or 'latest'
         path = 'projects/{}/artifact/{}?tag={}'.format(project, key, tag)
@@ -254,7 +254,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', path, error, params=params)
         return resp.json()['data']
 
-    def del_artifact(self, key, tag='', project=''):
+    def del_artifact(self, key, tag=None, project=''):
         path = self._path_of('artifact', project, key)  # TODO: uid?
         params = {
             'key': key,
@@ -263,7 +263,7 @@ class HTTPRunDB(RunDBInterface):
         error = f'del artifact {project}/{key}'
         self.api_call('DELETE', path, error, params=params)
 
-    def list_artifacts(self, name='', project='', tag='', labels=None,
+    def list_artifacts(self, name=None, project=None, tag=None, labels=None,
                        since=None, until=None):
         project = project or default_project
         params = {
@@ -279,7 +279,7 @@ class HTTPRunDB(RunDBInterface):
         return values
 
     def del_artifacts(
-            self, name='', project='', tag='', labels=None, days_ago=0):
+            self, name=None, project=None, tag=None, labels=None, days_ago=0):
         project = project or default_project
         params = {
             'name': name,
@@ -291,7 +291,7 @@ class HTTPRunDB(RunDBInterface):
         error = 'del artifacts'
         self.api_call('DELETE', 'artifacts', error, params=params)
 
-    def store_function(self, func, name, project='', tag=''):
+    def store_function(self, func, name, project='', tag=None):
         params = {'tag': tag}
         project = project or default_project
         path = self._path_of('func', project, name)
@@ -300,7 +300,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             'POST', path, error, params=params, body=json.dumps(func))
 
-    def get_function(self, name, project='', tag=''):
+    def get_function(self, name, project='', tag=None):
         params = {'tag': tag}
         project = project or default_project
         path = self._path_of('func', project, name)
@@ -308,7 +308,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', path, error, params=params)
         return resp.json()['func']
 
-    def list_functions(self, name, project='', tag='', labels=None):
+    def list_functions(self, name=None, project=None, tag=None, labels=None):
         params = {
             'project': project or default_project,
             'name': name,

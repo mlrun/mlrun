@@ -39,15 +39,15 @@ test: clean
 	    -rf \
 	    tests
 
-.PHONY: run-httpd
-run-httpd:
+.PHONY: run-api
+run-api:
 	python -m mlrun db
 
-.PHONY: docker-db
-docker-httpd:
+.PHONY: docker-api
+docker-api:
 	docker build \
 	    -f dockerfiles/mlrun-api/Dockerfile \
-	    -t mlrun/mlrun-httpd .
+	    -t mlrun/mlrun-api .
 
 .PHONY: circleci
 circleci:

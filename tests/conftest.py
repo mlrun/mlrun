@@ -21,6 +21,9 @@ from sys import platform
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
 is_ci = 'CI' in environ
@@ -37,7 +40,8 @@ examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
 
-from mlrun.db import sqldb
+from mlrun.api.db.sqldb.models import Base
+from mlrun.api.db.sqldb.db import run_time_fmt
 
 
 def check_docker():
@@ -88,7 +92,7 @@ def wait_for_server(url, timeout_sec):
 
 
 def run_now():
-    return datetime.now().strftime(sqldb.run_time_fmt)
+    return datetime.now().strftime(run_time_fmt)
 
 
 def new_run(state, labels, uid=None, **kw):
@@ -105,3 +109,9 @@ def new_run(state, labels, uid=None, **kw):
         obj['metadata']['uid'] = uid
     obj.update(kw)
     return obj
+
+
+def init_sqldb(dsn):
+    engine = create_engine(dsn)
+    Base.metadata.create_all(bind=engine)
+    return sessionmaker(bind=engine)

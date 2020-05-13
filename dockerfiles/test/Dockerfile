@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG PYTHON_VER=3.6
+ARG PYTHON_VER=3.7
 
 FROM python:${PYTHON_VER}-slim
 
@@ -46,7 +46,7 @@ COPY ./requirements.txt ./
 
 RUN pip install \
     -r dev-requirements.txt \
-    -r httpd-requirements.txt \
+    -r api-requirements.txt \
     -r requirements.txt
 
 COPY . .

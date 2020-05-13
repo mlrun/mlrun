@@ -31,7 +31,7 @@ from conftest import wait_for_server, in_docker
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')
 
-docker_tag = 'mlrun/test-httpd-gunicorn'
+docker_tag = 'mlrun/test-api'
 
 
 def free_port():
@@ -44,7 +44,7 @@ def check_server_up(url):
     health_url = f'{url}/api/healthz'
     timeout = 30
     if not wait_for_server(health_url, timeout):
-        raise RuntimeError('server did not start after {timeout}sec')
+        raise RuntimeError(f'server did not start after {timeout} sec')
 
 
 def start_server(db_path, log_file, env_config: dict):
@@ -56,7 +56,7 @@ def start_server(db_path, log_file, env_config: dict):
 
     cmd = [
         executable,
-        '-m', 'mlrun.db.httpd',
+        '-m', 'mlrun.api.main',
     ]
     proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
     url = f'http://localhost:{port}'
@@ -115,7 +115,7 @@ def docker_fixture():
             url = f'http://{host}:8080'
         else:
             url = f'http://localhost:{port}'
-        print(f'httpd url: {url}')
+        print(f'api url: {url}')
         check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
@@ -128,7 +128,7 @@ def docker_fixture():
     return create, cleanup
 
 
-if 'HTTPD_DOCKER_RUN' in environ:
+if 'API_DOCKER_RUN' in environ:
     docker_fixture = noop_docker_fixture  # noqa
 
 
@@ -140,7 +140,7 @@ def server_fixture():
         root = mkdtemp(prefix='mlrun-test-')
         print(f'root={root!r}')
         db_path = f'{root}/mlrun.sqlite3?check_same_thread=false'
-        log_fp = open(f'{root}/httpd.log', 'w+')
+        log_fp = open(f'{root}/api.log', 'w+')
         proc, url = start_server(db_path, log_fp, env)
         conn = HTTPRunDB(url)
         conn.connect()
@@ -315,5 +315,5 @@ def test_list_functions(create_server):
         db.store_function(func, name, proj, tag=tag)
     db.store_function({}, 'f2', 'p7', tag=uuid4().hex)
 
-    out = db.list_functions('', proj)
+    out = db.list_functions(project=proj)
     assert len(out) == count, 'bad list'

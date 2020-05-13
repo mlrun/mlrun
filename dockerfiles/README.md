@@ -14,19 +14,21 @@ where:<br>
 * `PYTHON_VER_CORE` is the python version for `mlrun-api`, `dask` and `test`
 
 for example,
-  `./docker-build.sh mlrun ml v0.4.6 0.4.6 3.8 3.6`
+  `./docker-build.sh mlrun ml v0.4.7 0.4.6 3.7 3.6`
 this will generate the following images:
-  * `mlrun/ml-base:0.4.6`       (python 3.8)
-  * `mlrun/ml-models:0.4.6`     (python 3.8)
-  * `mlrun/ml-models-gpu:0.4.6` (python 3.8) 
-  * `mlrun/ml-serving:0.4.6`    (python 3.8)
-  * `mlrun/mlrun-api:0.4.6`     (python 3.6)
-  * `mlrun/dask:0.4.6`          (python 3.6)
-  * `mlrun/mlrun:0.4.6`         (python 3.6)
+  * `mlrun/ml-base:0.4.7`       (python 3.7)
+  * `mlrun/ml-models:0.4.7`     (python 3.7)
+  * `mlrun/ml-models-gpu:0.4.7` (python 3.7) 
+  * `mlrun/mlrun-api:0.4.7`     (python 3.7)
+  * `mlrun/mlrun:0.4.7`         (python 3.7)
+
+For compatability with some packages requiring py36, there is also an `ml-xxx` series of
+images tagged `0.4.7-py36`
 
 ## notable changes
-* `ml-models` and `ml-models-gpu` both contain OpenMPI and Horovod
-* `ml-hvd` and `ml-hvd-gpu` will be deprecated once testing is complete
+* `mlrun/dask` has been deprecated, used `mlrun/ml-base` or `mlrun/ml-models` instead
+* `ml-models` and `ml-models-gpu` both contain OpenMPI and Horovod (and Dask)
+* `plotly` has been added to `ml-models` and `ml-models-gpu`, see **[plotly python](https://plotly.com/python/)** for details
 
-To run an image locally and explore its contents:  **`docker run -it mlrun/XXXXXX:0.4.6 /bin/bash`**<br>
-or to load python (or run a script): **`docker run -it mlrun/XXXXXX:0.4.5 python`**.  
+To run an image locally and explore its contents:  **`docker run -it mlrun/XXXXXX:0.4.7 /bin/bash`**<br>
+or to load python (or run a script): **`docker run -it mlrun/XXXXXX:0.4.7 python`**.  

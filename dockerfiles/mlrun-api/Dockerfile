@@ -31,7 +31,6 @@ COPY ./dockerfiles/*requirements.txt ./
 COPY ./requirements.txt ./
 
 RUN python -m pip install \
-    -r dask-requirements.txt \
     -r httpd-requirements.txt \
     -r requirements.txt
 

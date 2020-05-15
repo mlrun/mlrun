@@ -7,11 +7,11 @@ ENV PYTHON_VER=$PYTHON_VER
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
-ARG REPO=mlrun
+ARG MLRUN_GITHUB_REPO=mlrun
 
-ARG MLRUN_TAG=development
-LABEL MLRUN_TAG=$MLRUN_TAG
-ENV MLRUN_TAG=${MLRUN_TAG}
+ARG MLRUN_PACKAGE_TAG=development
+LABEL MLRUN_TAG=$MLRUN_PACKAGE_TAG
+ENV MLRUN_TAG=${MLRUN_PACKAGE_TAG}
 
 RUN apt update -qqq \
     && apt -y upgrade \
@@ -28,7 +28,7 @@ RUN apt update -qqq \
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
-RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
+RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
 RUN python -m pip install urllib3==1.25.8  kubernetes==10.0.1
 

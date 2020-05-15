@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG REPO=mlrun
-ARG PREFIX=ml
-ARG NEW_TAG
+ARG MLRUN_DOCKER_REPO=mlrun
+ARG MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=ml-
+ARG MLRUN_DOCKER_TAG
 
-FROM ${REPO}/${PREFIX}-base:${NEW_TAG}
+FROM ${MLRUN_DOCKER_REPO}/${MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX}base:${MLRUN_DOCKER_TAG}
 
 RUN python3 -m pip install --no-cache-dir -U kfserving

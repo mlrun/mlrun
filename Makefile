@@ -24,7 +24,7 @@ MLRUN_API_PYTHON_VERSION := $(if $(MLRUN_API_PYTHON_VERSION),$(MLRUN_API_PYTHON_
 
 
 
-MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(MLRUN_DOCKER_REGISTRY)$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
+MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(MLRUN_LEGACY_ML_PYTHON_VERSION)
 
 .PHONY: all
@@ -59,7 +59,7 @@ push-docker-images: docker-images
 
 .PHONY: print-docker-images
 print-docker-images:
-	for image in $(IMAGES_TO_PUSH); do \
+	@for image in $(IMAGES_TO_PUSH); do \
 		echo $$image ; \
 	done
 

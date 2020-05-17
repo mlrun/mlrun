@@ -51,7 +51,8 @@ docker-images: $(DOCKER_IMAGES_RULES)
 
 .PHONY: push-docker-images
 push-docker-images: docker-images
-	for image in $(IMAGES_TO_PUSH); do \
+	@for image in $(IMAGES_TO_PUSH); do \
+		echo "Pushing $$image" ; \
 		docker push $$image ; \
 	done
 	@echo Done.

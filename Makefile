@@ -27,12 +27,11 @@ MLRUN_API_PYTHON_VERSION := $(if $(MLRUN_API_PYTHON_VERSION),$(MLRUN_API_PYTHON_
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(MLRUN_LEGACY_ML_PYTHON_VERSION)
 
-.PHONY: all
+
 all:
 	$(error please pick a target)
 
 
-.PHONY: build
 build: docker-images package-wheel
 	@echo Done.
 
@@ -44,12 +43,10 @@ DOCKER_IMAGES_RULES = \
 	models-gpu \
 	mlrun
 
-.PHONY: docker-images
 docker-images: $(DOCKER_IMAGES_RULES)
 	@echo Done.
 
 
-.PHONY: push-docker-images
 push-docker-images: docker-images
 	@for image in $(IMAGES_TO_PUSH); do \
 		echo "Pushing $$image" ; \
@@ -58,7 +55,6 @@ push-docker-images: docker-images
 	@echo Done.
 
 
-.PHONY: print-docker-images
 print-docker-images:
 	@for image in $(IMAGES_TO_PUSH); do \
 		echo $$image ; \
@@ -68,7 +64,6 @@ print-docker-images:
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)
 MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-.PHONY: base
 base:
 	docker build \
 	    --file dockerfiles/base/Dockerfile \
@@ -91,7 +86,6 @@ IMAGES_TO_PUSH += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)
 MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-.PHONY: models
 models:
 	docker build \
 	    --file dockerfiles/models/Dockerfile \
@@ -112,7 +106,6 @@ IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)
 MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-.PHONY: models-gpu
 models-gpu:
 	docker build \
 	    --file dockerfiles/models-gpu/Dockerfile \
@@ -132,7 +125,6 @@ IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
 
-.PHONY: mlrun
 mlrun:
 	docker build \
 	    --file ./Dockerfile \
@@ -144,7 +136,6 @@ IMAGES_TO_PUSH += $(MLRUN_IMAGE_NAME)
 
 MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
 
-.PHONY: serving
 serving:
 	docker build \
 	    --file dockerfiles/serving/Dockerfile \
@@ -156,7 +147,6 @@ serving:
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TAG)
 
-.PHONY: api
 api:
 	docker build \
 	    --file dockerfiles/mlrun-api/Dockerfile \
@@ -168,7 +158,6 @@ IMAGES_TO_PUSH += $(MLRUN_API_IMAGE_NAME)
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 
-.PHONY: build-test
 build-test:
 	docker build \
         --file dockerfiles/test/Dockerfile \
@@ -176,17 +165,14 @@ build-test:
         --tag $(MLRUN_TEST_IMAGE_NAME) .
 
 
-.PHONY: package-wheel
 package-wheel: clean
 	python setup.py bdist_wheel
 
 
-.PHONY: publish-package
 publish-package: package-wheel
 	python -m twine upload dist/mlrun-*.whl
 
 
-.PHONY: clean
 clean:
 	rm -rf build
 	rm -rf dist
@@ -194,7 +180,6 @@ clean:
 	find . -name '*.pyc' -exec rm {} \;
 
 
-.PHONY: test-dockerized
 test-dockerized: build-test
 	-docker network create mlrun
 	docker run \
@@ -203,7 +188,6 @@ test-dockerized: build-test
 	    $(MLRUN_TEST_IMAGE_NAME) make test
 
 
-.PHONY: test
 test: clean
 	python -m pytest -v \
 	    --disable-warnings \
@@ -211,25 +195,26 @@ test: clean
 	    tests
 
 
-.PHONY: run-api-undockerized
 run-api-local:
 	python -m mlrun db
 
 
-.PHONY: circleci
 circleci: test-dockerized
 	docker run \
 	    -v $(PWD)/docs/_build:/mlrun/docs/_build \
 	    mlrun/test make html-docs
 
 
-.PHONY: docs-requirements
 docs-requirements:
 	cp requirements.txt docs/requirements.txt
 	echo numpydoc >> docs/requirements.txt
 
 
-.PHONY: html-docs
 html-docs: docs-requirements
 	rm -f docs/external/*.md
 	cd docs && make html
+
+
+.PHONY: all, help ,build, docker-images, push-docker-images, print-docker-images, base, models, models-gpu, mlrun, \
+serving, api, build-test, package-wheel, publish-package, clean, test-dockerized, test, run-api-undockerized, \
+circleci, docs-requirements, html-docs

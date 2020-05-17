@@ -4,10 +4,9 @@ LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
 ARG OMPI=4.0.3
-ARG REPO=mlrun
+ARG MLRUN_GITHUB_REPO=mlrun
 
-ARG MLRUN_TAG=development
-ENV MLRUN_TAG=$MLRUN_TAG
+ARG MLRUN_PACKAGE_TAG=development
 
 ARG TF_VER=2.1.0
 ARG XGB_VER=1.0.2
@@ -123,7 +122,7 @@ RUN cd /repos && \
 
 RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
-RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
+RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
 # remove dask verify version mismatch warnings
 RUN python -m pip install --no-cache-dir \

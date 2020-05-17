@@ -11,14 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG PYTHON_VER=3.7
+ARG MLRUN_PYTHON_VERSION=3.7
 
-FROM python:${PYTHON_VER}-slim
+FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
-
-ENV PYTHON_VER=${PYTHON_VER}
 
 RUN apt-get update && apt-get install -y \
   gcc \

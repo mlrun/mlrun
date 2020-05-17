@@ -1,8 +1,6 @@
-ARG PYTHON_VER=3.8
+ARG MLRUN_PYTHON_VERSION=3.7
 
-FROM python:${PYTHON_VER}-slim-buster
-
-ENV PYTHON_VER=$PYTHON_VER
+FROM python:${MLRUN_PYTHON_VERSION}-slim-buster
 
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"

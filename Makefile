@@ -70,18 +70,18 @@ MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_I
 
 base: ## Build base and legacy-base docker images
 	docker build \
-	    --file dockerfiles/base/Dockerfile \
-        --build-arg PYTHON_VER=$(MLRUN_ML_PYTHON_VERSION) \
-        --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
-        --build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
-	    --tag $(MLRUN_BASE_IMAGE_NAME) .
+		--file dockerfiles/base/Dockerfile \
+		--build-arg PYTHON_VER=$(MLRUN_ML_PYTHON_VERSION) \
+		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
 	docker build \
-	    --file dockerfiles/base/Dockerfile \
-        --build-arg PYTHON_VER=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
-        --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
-        --build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
-	    --tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
+		--file dockerfiles/base/Dockerfile \
+		--build-arg PYTHON_VER=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
+		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
 IMAGES_TO_PUSH += $(MLRUN_BASE_IMAGE_NAME)
 IMAGES_TO_PUSH += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
@@ -92,16 +92,16 @@ MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER
 
 models: ## Build models and legacy-models docker images
 	docker build \
-	    --file dockerfiles/models/Dockerfile \
-        --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
-        --build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
-	    --tag $(MLRUN_MODELS_IMAGE_NAME) .
+		--file dockerfiles/models/Dockerfile \
+		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--tag $(MLRUN_MODELS_IMAGE_NAME) .
 
 	docker build \
-	    --file dockerfiles/models/Dockerfile \
-        --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
-        --build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
-	    --tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
+		--file dockerfiles/models/Dockerfile \
+		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
 IMAGES_TO_PUSH += $(MLRUN_MODELS_IMAGE_NAME)
 IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
@@ -112,16 +112,16 @@ MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DO
 
 models-gpu: ## Build models-gpu and legacy-models-gpu docker images
 	docker build \
-	    --file dockerfiles/models-gpu/Dockerfile \
-        --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
-        --build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
-	    --tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
+		--file dockerfiles/models-gpu/Dockerfile \
+		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
 
 	docker build \
-	    --file dockerfiles/models-gpu/Dockerfile \
-        --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
-        --build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
-	    --tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
+		--file dockerfiles/models-gpu/Dockerfile \
+		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 
 IMAGES_TO_PUSH += $(MLRUN_MODELS_GPU_IMAGE_NAME)
 IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
@@ -131,9 +131,9 @@ MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
 
 mlrun: ## Build mlrun docker image
 	docker build \
-	    --file ./Dockerfile \
-        --build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
-	    --tag $(MLRUN_IMAGE_NAME) .
+		--file ./Dockerfile \
+		--build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
+		--tag $(MLRUN_IMAGE_NAME) .
 
 IMAGES_TO_PUSH += $(MLRUN_IMAGE_NAME)
 
@@ -142,20 +142,20 @@ MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE
 
 serving: ## Build serving docker image
 	docker build \
-	    --file dockerfiles/serving/Dockerfile \
-	    --build-arg MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
-	    --build-arg MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
-	    --build-arg MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX) \
-	    --tag $(MLRUN_SERVING_IMAGE_NAME) .
+		--file dockerfiles/serving/Dockerfile \
+		--build-arg MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
+		--build-arg MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
+		--build-arg MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX) \
+		--tag $(MLRUN_SERVING_IMAGE_NAME) .
 
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TAG)
 
 api: ## Build mlrun-api docker image
 	docker build \
-	    --file dockerfiles/mlrun-api/Dockerfile \
-        --build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
-	    --tag $(MLRUN_API_IMAGE_NAME) .
+		--file dockerfiles/mlrun-api/Dockerfile \
+		--build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
+		--tag $(MLRUN_API_IMAGE_NAME) .
 
 IMAGES_TO_PUSH += $(MLRUN_API_IMAGE_NAME)
 
@@ -164,9 +164,9 @@ MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 
 build-test: ## Build test docker image
 	docker build \
-        --file dockerfiles/test/Dockerfile \
-        --build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
-        --tag $(MLRUN_TEST_IMAGE_NAME) .
+		--file dockerfiles/test/Dockerfile \
+		--build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
+		--tag $(MLRUN_TEST_IMAGE_NAME) .
 
 
 package-wheel: clean ## Build python package wheel
@@ -187,16 +187,16 @@ clean: ## Clean python package build artifacts
 test-dockerized: build-test ## Run mlrun tests in docker container
 	-docker network create mlrun
 	docker run \
-	    -v /var/run/docker.sock:/var/run/docker.sock \
-	    --network mlrun \
-	    $(MLRUN_TEST_IMAGE_NAME) make test
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		--network mlrun \
+		$(MLRUN_TEST_IMAGE_NAME) make test
 
 
 test: clean ## Run mlrun tests
 	python -m pytest -v \
-	    --disable-warnings \
-	    -rf \
-	    tests
+		--disable-warnings \
+		-rf \
+		tests
 
 
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
@@ -205,8 +205,8 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 circleci: test-dockerized
 	docker run \
-	    -v $(PWD)/docs/_build:/mlrun/docs/_build \
-	    mlrun/test make html-docs
+		-v $(PWD)/docs/_build:/mlrun/docs/_build \
+		mlrun/test make html-docs
 
 
 docs-requirements: ## Build docs requirements

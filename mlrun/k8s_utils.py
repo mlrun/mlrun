@@ -25,36 +25,55 @@ from .config import config as mlconfig
 _k8s = None
 
 
-def get_k8s_helper(namespace=None):
+def get_k8s_helper(namespace=None, init=True):
     global _k8s
     if not _k8s:
-        _k8s = K8sHelper(namespace)
+        _k8s = K8sHelper(namespace, init=init)
     return _k8s
 
 
 class K8sHelper:
-    def __init__(self, namespace=None, config_file=None):
+    def __init__(self, namespace=None, config_file=None, init=True):
         self.namespace = namespace or mlconfig.namespace
-        self._init_k8s_config(config_file)
+        self.config_file = config_file
+        if init:
+            self._init_k8s_config()
         self.v1api = client.CoreV1Api()
         self.crdapi = client.CustomObjectsApi()
 
     def ns(self, namespace=None):
         return namespace or self.namespace
 
-    def _init_k8s_config(self, config_file):
+    def _init_k8s_config(self, log=True):
         try:
             config.load_incluster_config()
-            logger.info('using in-cluster config.')
+            if log:
+                logger.info('using in-cluster config.')
         except Exception:
             try:
-                config.load_kube_config(config_file)
-                logger.info('using local kubernetes config.')
+                config.load_kube_config(self.config_file)
+                if log:
+                    logger.info('using local kubernetes config.')
             except Exception:
                 raise RuntimeError(
                     'cannot find local kubernetes config file,'
                     ' place it in ~/.kube/config or specify it in '
                     'KUBECONFIG env var')
+
+    def is_running_inside_kubernetes_cluster(self):
+        in_cluster = False
+        try:
+            config.load_incluster_config()
+            in_cluster = True
+        except:
+            pass
+
+        # this will load the "right" k8s config if there's one (might not be the incluster one)
+        try:
+            self._init_k8s_config(log=False)
+        except:
+            pass
+        return in_cluster
 
     def list_pods(self, namespace=None, selector='', states=None):
         try:

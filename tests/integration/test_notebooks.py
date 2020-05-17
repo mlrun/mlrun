@@ -32,7 +32,16 @@ with (here / 'Dockerfile.test-nb').open() as fp:
 docker_tag = 'mlrun/test-notebook'
 
 
+def mlrun_api_configured():
+    config_file_path = here / 'test-notebooks.yml'
+    with config_file_path.open() as fp:
+        config = yaml.safe_load(fp)
+    return config['env'].get('MLRUN_DBPATH') is not None
+
+
 def iterate_notebooks():
+    if not mlrun_api_configured():
+        return []
     config_file_path = here / 'test-notebooks.yml'
     with config_file_path.open() as fp:
         config = yaml.safe_load(fp)
@@ -74,7 +83,9 @@ def args_from_env(env):
     return args, cmd
 
 
-@pytest.mark.skip("This is a manual test, remove me to run it")
+@pytest.mark.skipif(not mlrun_api_configured(),
+                    reason='This is an integration test, add the needed environment variables in test-notebooks.yml '
+                           'to run it')
 @pytest.mark.parametrize('notebook', iterate_notebooks())
 def test_notebook(notebook):
     path = f'./examples/{notebook["notebook_name"]}'

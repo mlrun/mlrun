@@ -3,7 +3,7 @@
 ## build
 to build run this command from the root directory of the mlrun repository:<br>
 
-    MLRUN_DOCKER_TAG=X MLRUN_DOCKER_REPO=X MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=X MLRUN_PACKAGE_TAG=X MLRUN_GITHUB_REPO=X MLRUN_ML_PYTHON_VERSION=X MLRUN_API_PYTHON_VERSION=X make push-docker-images
+    MLRUN_DOCKER_TAG=X MLRUN_DOCKER_REPO=X MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=X MLRUN_PACKAGE_TAG=X MLRUN_GITHUB_REPO=X MLRUN_PYTHON_VERSION=X make push-docker-images
 
 where:<br>
 * `MLRUN_DOCKER_TAG` this is the tag created and pushed (like `latest` or `0.4.5`, defaults to `latest`)
@@ -11,11 +11,10 @@ where:<br>
 * `MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX` is some prefix common to the machine-learning/AI images created here (defaults to `ml-`)
 * `MLRUN_PACKAGE_TAG` is the tag of mlrun package installed in the images _(prefix only tags with a `v`, like `v0.4.5`, defaults to `development`)_
 * `MLRUN_GITHUB_REPO` is the github repo from which we `pip install` mlrun (defaults to `mlrun`)
-* `MLRUN_ML_PYTHON_VERSION` is the version for the ml-xxxx series (defaults to `3.8`). 
-* `MLRUN_API_PYTHON_VERSION` is the python version for `mlrun-api` (defaults to `3.7`).
+* `MLRUN_PYTHON_VERSION` is the python version used (defaults to `3.7`). 
 
 for example,
-  `MLRUN_DOCKER_TAG=0.4.6 MLRUN_DOCKER_REPO=mlrun MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=ml- MLRUN_PACKAGE_TAG=v0.4.7 MLRUN_GITHUB_REPO=mlrun MLRUN_ML_PYTHON_VERSION=3.7 MLRUN_API_PYTHON_VERSION=3.6 make docker-images`
+  `MLRUN_DOCKER_TAG=0.4.6 MLRUN_DOCKER_REPO=mlrun MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=ml- MLRUN_PACKAGE_TAG=v0.4.7 MLRUN_GITHUB_REPO=mlrun MLRUN_PYTHON_VERSION=3.7 make docker-images`
 this will generate the following images:
   * `mlrun/ml-base:0.4.6`       (python 3.7)
   * `mlrun/ml-models:0.4.6`     (python 3.7)

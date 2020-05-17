@@ -18,9 +18,8 @@ MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to somethin
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PACKAGE_TAG ?= development
 MLRUN_GITHUB_REPO ?= mlrun
-MLRUN_ML_PYTHON_VERSION ?= 3.8
+MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
-MLRUN_API_PYTHON_VERSION ?= 3.7
 
 
 
@@ -71,7 +70,7 @@ MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_I
 base: ## Build base and legacy-base docker images
 	docker build \
 		--file dockerfiles/base/Dockerfile \
-		--build-arg PYTHON_VER=$(MLRUN_ML_PYTHON_VERSION) \
+		--build-arg PYTHON_VER=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
@@ -132,7 +131,7 @@ MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
 mlrun: ## Build mlrun docker image
 	docker build \
 		--file ./Dockerfile \
-		--build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
+		--build-arg PYTHON_VER=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_IMAGE_NAME) .
 
 IMAGES_TO_PUSH += $(MLRUN_IMAGE_NAME)
@@ -154,7 +153,7 @@ MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TA
 api: ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
-		--build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
+		--build-arg PYTHON_VER=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_API_IMAGE_NAME) .
 
 IMAGES_TO_PUSH += $(MLRUN_API_IMAGE_NAME)
@@ -165,7 +164,7 @@ MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 build-test: ## Build test docker image
 	docker build \
 		--file dockerfiles/test/Dockerfile \
-		--build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
+		--build-arg PYTHON_VER=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_TEST_IMAGE_NAME) .
 
 

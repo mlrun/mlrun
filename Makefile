@@ -28,11 +28,15 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
 
 
+help: ## Display available commands
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+
 all:
 	$(error please pick a target)
 
 
-build: docker-images package-wheel
+build: docker-images package-wheel ## Build all artifacts
 	@echo Done.
 
 
@@ -43,11 +47,11 @@ DOCKER_IMAGES_RULES = \
 	models-gpu \
 	mlrun
 
-docker-images: $(DOCKER_IMAGES_RULES)
+docker-images: $(DOCKER_IMAGES_RULES) ## Build all docker images
 	@echo Done.
 
 
-push-docker-images: docker-images
+push-docker-images: docker-images ## Push all docker images
 	@for image in $(IMAGES_TO_PUSH); do \
 		echo "Pushing $$image" ; \
 		docker push $$image ; \
@@ -55,7 +59,7 @@ push-docker-images: docker-images
 	@echo Done.
 
 
-print-docker-images:
+print-docker-images: ## Print all docker images
 	@for image in $(IMAGES_TO_PUSH); do \
 		echo $$image ; \
 	done
@@ -64,7 +68,7 @@ print-docker-images:
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)
 MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-base:
+base: ## Build base and legacy-base docker images
 	docker build \
 	    --file dockerfiles/base/Dockerfile \
         --build-arg PYTHON_VER=$(MLRUN_ML_PYTHON_VERSION) \
@@ -86,7 +90,7 @@ IMAGES_TO_PUSH += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)
 MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-models:
+models: ## Build models and legacy-models docker images
 	docker build \
 	    --file dockerfiles/models/Dockerfile \
         --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -106,7 +110,7 @@ IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)
 MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-models-gpu:
+models-gpu: ## Build models-gpu and legacy-models-gpu docker images
 	docker build \
 	    --file dockerfiles/models-gpu/Dockerfile \
         --build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -125,7 +129,7 @@ IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
 
-mlrun:
+mlrun: ## Build mlrun docker image
 	docker build \
 	    --file ./Dockerfile \
         --build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
@@ -136,7 +140,7 @@ IMAGES_TO_PUSH += $(MLRUN_IMAGE_NAME)
 
 MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
 
-serving:
+serving: ## Build serving docker image
 	docker build \
 	    --file dockerfiles/serving/Dockerfile \
 	    --build-arg MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
@@ -147,7 +151,7 @@ serving:
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TAG)
 
-api:
+api: ## Build mlrun-api docker image
 	docker build \
 	    --file dockerfiles/mlrun-api/Dockerfile \
         --build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
@@ -158,29 +162,29 @@ IMAGES_TO_PUSH += $(MLRUN_API_IMAGE_NAME)
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 
-build-test:
+build-test: ## Build test docker image
 	docker build \
         --file dockerfiles/test/Dockerfile \
         --build-arg PYTHON_VER=$(MLRUN_API_PYTHON_VERSION) \
         --tag $(MLRUN_TEST_IMAGE_NAME) .
 
 
-package-wheel: clean
+package-wheel: clean ## Build python package wheel
 	python setup.py bdist_wheel
 
 
-publish-package: package-wheel
+publish-package: package-wheel ## Publish python package wheel
 	python -m twine upload dist/mlrun-*.whl
 
 
-clean:
+clean: ## Clean python package build artifacts
 	rm -rf build
 	rm -rf dist
 	rm -rf mlrun.egg-info
 	find . -name '*.pyc' -exec rm {} \;
 
 
-test-dockerized: build-test
+test-dockerized: build-test ## Run mlrun tests in docker container
 	-docker network create mlrun
 	docker run \
 	    -v /var/run/docker.sock:/var/run/docker.sock \
@@ -188,14 +192,14 @@ test-dockerized: build-test
 	    $(MLRUN_TEST_IMAGE_NAME) make test
 
 
-test: clean
+test: clean ## Run mlrun tests
 	python -m pytest -v \
 	    --disable-warnings \
 	    -rf \
 	    tests
 
 
-run-api-local:
+run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
 
 
@@ -205,12 +209,12 @@ circleci: test-dockerized
 	    mlrun/test make html-docs
 
 
-docs-requirements:
+docs-requirements: ## Build docs requirements
 	cp requirements.txt docs/requirements.txt
 	echo numpydoc >> docs/requirements.txt
 
 
-html-docs: docs-requirements
+html-docs: docs-requirements ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 

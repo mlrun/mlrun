@@ -18,17 +18,19 @@ from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
-from tempfile import mktemp
 from pathlib import Path
+from tempfile import mktemp
 
 import yaml
 from kfp import Client
 from nuclio import build_file
 
+from .config import config as mlconf
 from .datastore import StoreManager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
+from .k8s_utils import get_k8s_helper
 from .model import RunObject, BaseMetadata
 from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
@@ -37,7 +39,6 @@ from .runtimes.base import FunctionEntrypoint
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (get_in, logger, parse_function_uri, update_in,
                     new_pipe_meta, extend_hub_uri)
-from .config import config as mlconf
 
 
 def run_local(task=None, command='', name: str = '', args: list = None,
@@ -552,19 +553,14 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     :return kubeflow pipeline id
     """
 
+    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+
     artifact_path = artifact_path or mlconf.artifact_path
     if artifact_path and '{{run.uid}}' in artifact_path:
         artifact_path.replace('{{run.uid}}', '{{workflow.uid}}')
 
     namespace = namespace or mlconf.namespace
     arguments = arguments or {}
-    import kubernetes as k8s
-    remote = True
-    try:
-        k8s.config.load_incluster_config()
-        remote = False
-    except:
-        pass
 
     if remote or url:
         mldb = get_run_db(url).connect()

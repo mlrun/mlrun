@@ -83,7 +83,7 @@ class HTTPRunDB(RunDBInterface):
             self.session.mount('https://', http_adapter)
 
         try:
-            resp = self.session.request(method, url, timeout=timeout, **kw)
+            resp = self.session.request(method, url, timeout=timeout, verify=False, **kw)
         except requests.RequestException as err:
             error = error or '{} {}, error: {}'.format(method, url, err)
             raise RunDBError(error) from err

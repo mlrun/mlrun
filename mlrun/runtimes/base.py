@@ -390,6 +390,8 @@ class BaseRuntime(ModelObj):
         extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
         if self.spec.rundb:
             extra_env['MLRUN_DBPATH'] = self.spec.rundb or config.dbpath
+        if self.spec.pythonpath:
+            extra_env['PYTHONPATH'] = self.spec.pythonpath
         args = []
         command = self.spec.command
         code = self.spec.build.functionSourceCode \

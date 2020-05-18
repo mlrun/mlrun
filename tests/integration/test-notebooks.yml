@@ -5,6 +5,9 @@ env:
   # path in which artifacts will be stored - must start with "/User". e.g. /User/test-artifacts
   MLRUN_ARTIFACT_PATH:
 
+  # IP of the app node in which dask scheduler is running. e.g. 3.20.113.215
+  MLRUN_REMOTE_HOST:
+
   # user used to pass the mlrun-api ingress auth - e.g. iguazio
   MLRUN_httpdb__user:
 
@@ -47,3 +50,14 @@ notebook_tests:
     V3IO_ACCESS_KEY: ${V3IO_ACCESS_KEY}
 
     JUPYTER_NOTEBOOK_FILE_NAME: 'mlrun_jobs.ipynb'
+- notebook_name: mlrun_dask.ipynb
+  env:
+    MLRUN_DBPATH: ${MLRUN_DBPATH}
+    MLRUN_ARTIFACT_PATH: ${MLRUN_ARTIFACT_PATH}
+    MLRUN_REMOTE_HOST: ${MLRUN_REMOTE_HOST}
+    MLRUN_httpdb__user: ${MLRUN_httpdb__user}
+    MLRUN_httpdb__password: ${MLRUN_httpdb__password}
+    V3IO_USERNAME: ${V3IO_USERNAME}
+    V3IO_ACCESS_KEY: ${V3IO_ACCESS_KEY}
+
+    JUPYTER_NOTEBOOK_FILE_NAME: 'mlrun_dask.ipynb'

@@ -8,10 +8,6 @@ ARG MLRUN_GITHUB_REPO=mlrun
 
 ARG MLRUN_PACKAGE_TAG=development
 
-ARG TF_VER=2.1.0
-ARG XGB_VER=1.0.2
-ARG LGBM_VER=2.3.1
-
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -yq \
@@ -59,22 +55,7 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-RUN conda config --add channels bokeh && \
-    conda config --add channels pytorch && \
-    conda config --add channels conda-forge && \
-    conda config --add channels anaconda && \
-    conda install -y python=3.6 \
-    bokeh \
-    dask-kubernetes \
-    dask-ml \
-    dask-xgboost \
-    dask[complete] \
-    distributed \
-    fsspec \
-    pyarrow \
-    pytest \
-    scikit-optimize \
-    wrapt
+RUN conda install -y -c plotly plotly-orca python=3.6
 
 # pytorch caused cuda download, this guarantees cpu version:
 RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
@@ -89,56 +70,35 @@ RUN conda install -n base -c anaconda tensorflow=1.14 keras
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install --no-cache-dir horovod
 
-RUN python -m pip install -U --no-cache-dir \
-    git+https://github.com/scikit-multiflow/scikit-multiflow.git \
-    gnureadline \
-    pyod
-
-# xgboost
-RUN mkdir /repos && \
-    cd repos && \
-    git clone --recursive https://github.com/dmlc/xgboost && \
-    cd xgboost && \
-    git fetch --all --tags --prune && \
-    git checkout tags/v${XGB_VER} && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make -j$(nproc) && \
-    make install && \
-    cd ../python-package && \
-    python -m pip install --no-cache-dir -e .
-
-RUN cd /repos && \
-    git clone --recursive https://github.com/microsoft/LightGBM && \
-    cd LightGBM && \
-    git checkout v${LGBM_VER} && \
-    mkdir build && cd build && \
-    cmake -DUSE_MPI=1 .. && \
-    make -j$(nproc) && \
-    make install && \
-    cd ../python-package && \
-    python -m pip install --no-cache-dir -e .
-
-RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
-
-RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
-
-# remove dask verify version mismatch warnings
 RUN python -m pip install --no-cache-dir \
     blosc==1.7.0 \
+    bokeh \
     cloudpickle==1.1.1 \
-    dask==2.12.0 \
+    dask-kubernetes \
+    dask-ml \
+    dask-xgboost \
+    dask[complete]==2.12.0 \
     distributed==2.14.0 \
+    fsspec \
+    git+https://github.com/scikit-multiflow/scikit-multiflow.git \
+    gnureadline \
+    kubernetes==10.0.1 \
+    lifelines \
+    lightgbm \
     lz4==2.2.1 \
     msgpack==1.0.0 \
+    numpy==1.18.1 \
+    plotly=4.7.0 \
+    pyarrow \
+    pyod \
+    pytest \
+    scikit-learn \
+    scikit-optimize \
+    scikit-plot \
     tornado==6.0.4 \
     urllib3==1.25.8  \
-    kubernetes==10.0.1 \
-    scikit-plot
+    wrapt \
+    xgboost
 
-RUN conda install -c plotly plotly-orca plotly=4.7.0
-
-RUN conda clean -ayq   
-
-RUN python -m pip install lifelines scikit-plot
+RUN python -m pip install --no-cache-dir \
+    git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}

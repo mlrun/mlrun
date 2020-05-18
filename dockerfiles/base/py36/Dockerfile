@@ -24,24 +24,23 @@ RUN apt update -qqq \
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
-RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
-
-RUN python -m pip install urllib3==1.25.8  kubernetes==10.0.1
-
-RUN python -m pip install scikit-learn
-
-RUN python -m pip install \
-        dask-kubernetes dask-ml \
-        dask-xgboost \
-        dask[complete] \
-        distributed
-
 RUN python -m pip install --no-cache-dir \
         blosc==1.7.0 \
         cloudpickle==1.1.1 \
-        dask==2.12.0 \
-        distributed==2.14.0 \
+        dask-kubernetes \
+        dask-ml \
+        dask-xgboost \
+        dask[complete]==2.12 \
+        distributed==2.14 \
+        kubernetes==10.0.1 \
         lz4==2.2.1 \
         msgpack==1.0.0 \
+        numpy==1.18.1 \
+        scikit-learn \
+        scikit-plot \
         tornado==6.0.4 \
-        numpy==1.18.1
+        urllib3==1.25.8
+
+RUN python -m pip install --no-cache-dir \
+    git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+

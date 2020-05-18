@@ -104,11 +104,6 @@ RUN conda config --add channels conda-forge && \
         cmake \
         cudatoolkit=10.1 \
         cython \
-        dask-kubernetes \
-        dask-ml \
-        dask-xgboost \
-        dask[complete] \
-        distributed \
         fsspec \
         matplotlib \
         numba \
@@ -134,33 +129,32 @@ RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
         python -m pip install --no-cache-dir horovod && \
     ldconfig
 
-RUN python -m pip install --no-cache-dir \
-        face_recognition \
-        git+https://github.com/scikit-multiflow/scikit-multiflow \
-        gnureadline \
-        imutils \
-        opencv-contrib-python \
-        pyod \
-        urllib3==1.24.3 \
-        yellowbrick
-
-RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
-
 RUN conda clean -aqy
 
-RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
-
-RUN python -m pip install --ignore-installed --no-cache-dir \
+# do the dask package pinning with pip / faster
+RUN python -m pip install --no-cache-dir \
     blosc==1.7.0 \
-    cloudpickle==1.1.1 \
-    dask==2.12.0 \
-    distributed==2.14.0 \
+    cloudpickle==1.1.1 \    
+    dask-kubernetes \
+    dask-ml \
+    dask-xgboost \
+    dask[complete]==2.12 \
+    distributed==2.14 \
+    face_recognition \
+    git+https://github.com/scikit-multiflow/scikit-multiflow \
+    gnureadline \
+    imutils \
+    kubernetes==10.0.1 \
+    lifelines \
     lz4==2.2.1 \
     msgpack==1.0.0 \
-    tornado==6.0.4
+    opencv-contrib-python \
+    pyod \
+    scikit-optimize \
+    scikit-plot \
+    tornado==6.0.4 \
+    urllib3==1.25.8 
 
-RUN python -m pip install urllib3==1.25.8 kubernetes==10.0.1
+RUN python -m pip install --no-cache-dir \
+    git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
-RUN python -m pip install lifelines scikit-plot
-
-RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlutils.git@development

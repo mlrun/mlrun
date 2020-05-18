@@ -19,11 +19,10 @@ LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
 ARG OMPI=4.0.3
-ARG REPO=mlrun
+ARG MLRUN_GITHUB_REPO=mlrun
 
-ARG MLRUN_TAG=development
-LABEL MLRUN_TAG=$MLRUN_TAG
-ENV MLRUN_TAG=${MLRUN_TAG}
+ARG MLRUN_PACKAGE_TAG=development
+LABEL MLRUN_PACKAGE_TAG=$MLRUN_PACKAGE_TAG
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
@@ -149,7 +148,7 @@ RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
 RUN conda clean -aqy
 
-RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
+RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
 RUN python -m pip install --ignore-installed --no-cache-dir \
     blosc==1.7.0 \
@@ -164,4 +163,4 @@ RUN python -m pip install urllib3==1.25.8 kubernetes==10.0.1
 
 RUN python -m pip install lifelines scikit-plot
 
-RUN python -m pip install git+https://github.com/${REPO}/mlutils.git@development 
+RUN python -m pip install git+https://github.com/${MLRUN_GITHUB_REPO}/mlutils.git@development

@@ -166,7 +166,8 @@ class OutputStream:
             path=self._stream_path,
             shard_count=shards,
             raise_for_status=v3io.dataplane.RaiseForStatus.never)
-        response.raise_for_status([409, 204])
+        if not (response.status_code == 400 and 'ResourceInUse' in str(response.body)):
+            response.raise_for_status([409, 204])
 
     def push(self, data):
         if not isinstance(data, list):

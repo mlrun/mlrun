@@ -84,6 +84,9 @@ class LocalRuntime(BaseRuntime):
             environ['MLRUN_DBPATH'] = self.spec.rundb
 
         handler = runobj.spec.handler
+        logger.info('starting local run: {} # {}'.format(
+            self.spec.command, handler or 'main'))
+
         if handler:
             if self.spec.pythonpath:
                 set_paths(self.spec.pythonpath)

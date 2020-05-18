@@ -145,7 +145,7 @@ class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  selector=None, handler=None, inputs=None, outputs=None,
                  input_path=None, output_path=None, function=None,
-                 secret_sources=None, data_stores=None):
+                 secret_sources=None, data_stores=None, verbose=None):
 
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
@@ -159,6 +159,7 @@ class RunSpec(ModelObj):
         self.function = function
         self._secret_sources = secret_sources or []
         self._data_stores = data_stores
+        self.verbose = verbose
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=['handler'])

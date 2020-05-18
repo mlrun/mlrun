@@ -136,7 +136,8 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
              hyperparams: dict = None, param_file: str = '', labels: dict = None,
              selector: str = '', inputs: dict = None, outputs: list = None,
              in_path: str = '', out_path: str = '', rundb: str = '',
-             mode: str = '', handler: str = '', more_args: list = None):
+             mode: str = '', handler: str = '', more_args: list = None,
+             verbose=None):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
     when using kubeflow pipelines, each step is wrapped in an mlrun_op
@@ -171,6 +172,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     :param mode:     run mode, e.g. 'noctx' for pushing params as args
     :param handler   code entry-point/hanfler name
     :param job_image name of the image user for the job
+    :param verbose:  add verbose prints/logs
 
     :return: KFP step operation
 
@@ -263,6 +265,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         secrets = secrets or runobj.spec.secret_sources
         project = project or runobj.metadata.project
         labels = runobj.metadata.labels or labels
+        verbose = verbose or runobj.spec.verbose
 
     if not name:
         if not function_name:
@@ -321,6 +324,8 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         cmd += ['--image', job_image]
     if mode:
         cmd += ['--mode', mode]
+    if verbose:
+        cmd += ['--verbose']
     if more_args:
         cmd += more_args
 

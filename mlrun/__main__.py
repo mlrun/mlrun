@@ -78,11 +78,12 @@ def main():
 @click.option('--workdir', default='', help='run working directory')
 @click.option('--label', multiple=True, help="run labels (key=val)")
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
+@click.option('--verbose', is_flag=True, help='verbose log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
         selector, func_url, task, handler, mode, schedule, from_env, dump,
-        image, workdir, label, watch, run_args):
+        image, workdir, label, watch, verbose, run_args):
     """Execute a task and inject parameters."""
 
     out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
@@ -177,7 +178,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
 
-    if kfp:
+    if kfp or runobj.spec.verbose or verbose:
         print('MLRun version: {}'.format(get_version()))
         print('Runtime:')
         pprint(runtime)

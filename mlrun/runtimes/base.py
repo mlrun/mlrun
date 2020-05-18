@@ -177,7 +177,7 @@ class BaseRuntime(ModelObj):
     def run(self, runspec: RunObject = None, handler=None, name: str = '',
             project: str = '', params: dict = None, inputs: dict = None,
             out_path: str = '', workdir: str = '', artifact_path: str = '',
-            watch: bool = True, schedule: str = ''):
+            watch: bool = True, schedule: str = '', verbose=None):
         """Run a local or remote task.
 
         :param runspec:       run template object or dict (see RunTemplate)
@@ -191,6 +191,7 @@ class BaseRuntime(ModelObj):
         :param workdir:       default input artifacts path
         :param watch:         watch/follow run log
         :param schedule:      cron string for scheduled jobs
+        :param verbose:       add verbose prints/logs
 
         :return: run context object (dict) with run metadata, results and
             status
@@ -222,6 +223,7 @@ class BaseRuntime(ModelObj):
                                    or self.metadata.project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.verbose = verbose or runspec.spec.verbose
         runspec.spec.output_path = out_path or artifact_path \
                                    or runspec.spec.output_path
         runspec.spec.input_path = workdir or runspec.spec.input_path \
@@ -510,7 +512,7 @@ class BaseRuntime(ModelObj):
                 project: str = '', params: dict = None, hyperparams=None,
                 selector='', inputs: dict = None, outputs: dict = None,
                 workdir: str = '', artifact_path: str = '', image: str = '',
-                labels: dict = None, use_db=True):
+                labels: dict = None, use_db=True, verbose=None):
         """Run a local or remote task.
 
         :param runspec:    run template object or dict (see RunTemplate)
@@ -527,6 +529,7 @@ class BaseRuntime(ModelObj):
         :param image:      container image to use
         :param labels:     labels to tag the job/run with ({key:val, ..})
         :param use_db:     save function spec in the db (vs the workflow file)
+        :param verbose:    add verbose prints/logs
 
         :return: KubeFlow containerOp
         """
@@ -544,7 +547,8 @@ class BaseRuntime(ModelObj):
                         runobj=runspec, handler=handler, params=params,
                         hyperparams=hyperparams, selector=selector,
                         inputs=inputs, outputs=outputs, job_image=image,
-                        labels=labels, out_path=artifact_path, in_path=workdir)
+                        labels=labels, out_path=artifact_path,
+                        in_path=workdir, verbose=verbose)
 
     def export(self, target='', format='.yaml', secrets=None, strip=True):
         """save function spec to a local/remote path (default to

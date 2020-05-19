@@ -32,4 +32,4 @@ RUN python -m pip install \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
 RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@05657d9907779de0d823b9f0d7466a17c6490460
+    git+https://github.com/mlrun/mlutils.git@9182bf7d0e20ca6c48d9662bf8776efae2b4f1b7

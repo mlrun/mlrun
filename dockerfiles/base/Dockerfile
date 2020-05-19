@@ -37,3 +37,4 @@ RUN python -m pip install \
 
 RUN python -m pip install \
     git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}
+

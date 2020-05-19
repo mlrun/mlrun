@@ -26,24 +26,12 @@ RUN apt update -qqq \
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
-ENV SSL_CERT_DIR /etc/ssl/certs
+COPY ./dockerfiles/base/requirements.txt ./
 
-RUN python -m pip install --no-cache-dir \
-    blosc==1.7.0 \
-    cloudpickle==1.1.1 \
-    dask-kubernetes \
-    dask-ml \
-    dask-xgboost \
-    dask[complete]==2.12 \
-    distributed==2.14 \
-    kubernetes==10.0.1 \
-    lz4==2.2.1 \
-    msgpack==1.0.0 \
-    numpy==1.18.1 \
-    scikit-learn \
-    scikit-plot \
-    tornado==6.0.4 \
-    urllib3==1.25.8
+RUN python -m pip install -r requirements.txt
 
 RUN python -m pip install \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+
+RUN python -m pip install \
+    git+https://github.com/mlrun/mlutils.git@a1f1abcb009131a4c35d42b94451a53c7ce2ee45

@@ -122,28 +122,16 @@ RUN conda clean -aqy
 
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-    python -m pip install --no-cache-dir horovod && \
+    python -m pip install horovod && \
     ldconfig
 
 # remove dask verify version mismatch warnings
-RUN python -m pip install --no-cache-dir \
-    blosc==1.7.0 \
-    cloudpickle==1.1.1 \
-    dask-kubernetes \
-    dask-ml \
-    dask-xgboost \
-    dask[complete]==2.12 \
-    distributed==2.14 \
-    face_recognition \
-    git+https://github.com/scikit-multiflow/scikit-multiflow \
-    gnureadline \
-    imutils \
-    kubernetes==10.0.1 \
-    lz4==2.2.1 \
-    msgpack==1.0.0 \
-    opencv-contrib-python \
-    pyod \
-    tornado==6.0.4 
+COPY ./dockerfiles/models-gpu/requirements.txt ./
 
-RUN python -m pip install --no-cache-dir \
+RUN python -m pip install -r requirements.txt
+
+RUN python -m pip install \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+
+RUN python -m pip install \
+    git+https://github.com/mlrun/mlutils.git@a1f1abcb009131a4c35d42b94451a53c7ce2ee45

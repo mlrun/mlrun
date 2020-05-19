@@ -105,6 +105,7 @@ RUN conda config --add channels conda-forge && \
         cudatoolkit=10.1 \
         cython \
         fsspec \
+        lifelines \
         matplotlib \
         numba \
         numpy \
@@ -114,6 +115,7 @@ RUN conda config --add channels conda-forge && \
         scikit-build \
         scikit-learn \
         scikit-optimize \
+        scikit-plot \
         scipy \
         seaborn \
         tensorflow-gpu \
@@ -126,35 +128,18 @@ RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-        python -m pip install --no-cache-dir horovod && \
+        python -m pip install horovod && \
     ldconfig
 
 RUN conda clean -aqy
 
 # do the dask package pinning with pip / faster
-RUN python -m pip install --no-cache-dir \
-    blosc==1.7.0 \
-    cloudpickle==1.1.1 \    
-    dask-kubernetes \
-    dask-ml \
-    dask-xgboost \
-    dask[complete]==2.12 \
-    distributed==2.14 \
-    face_recognition \
-    git+https://github.com/scikit-multiflow/scikit-multiflow \
-    gnureadline \
-    imutils \
-    kubernetes==10.0.1 \
-    lifelines \
-    lz4==2.2.1 \
-    msgpack==1.0.0 \
-    opencv-contrib-python \
-    pyod \
-    scikit-optimize \
-    scikit-plot \
-    tornado==6.0.4 \
-    urllib3==1.25.8 
+COPY ./dockerfiles/models-gpu/requirements.txt ./
 
-RUN python -m pip install --no-cache-dir \
+RUN python -m pip install -r requirements.txt
+
+RUN python -m pip install \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
+RUN python -m pip install \
+    git+https://github.com/mlrun/mlutils.git@a1f1abcb009131a4c35d42b94451a53c7ce2ee45

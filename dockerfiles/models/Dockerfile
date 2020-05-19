@@ -66,38 +66,16 @@ RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
 RUN python -m pip install -U intel-tensorflow
 
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-    python -m pip install --no-cache-dir horovod
+    python -m pip install horovod
 
 # dask, sklearn, etc...
-RUN python -m pip install --no-cache-dir \
-    blosc==1.7.0 \
-    bokeh \
-    cloudpickle==1.1.1 \
-    dask-kubernetes \
-    dask-ml \
-    dask-xgboost \
-    dask[complete]==2.12 \
-    distributed==2.14 \
-    fsspec \
-    git+https://github.com/scikit-multiflow/scikit-multiflow.git \
-    gnureadline \
-    kubernetes==10.0.1 \
-    lifelines \
-    lightgbm \
-    lz4==2.2.1 \
-    msgpack==1.0.0 \
-    numpy==1.18.1 \
-    plotly=4.7.0 \
-    pyarrow \
-    pyod \
-    pytest \
-    scikit-learn \
-    scikit-optimize \
-    scikit-plot \
-    tornado==6.0.4 \
-    urllib3==1.25.8  \
-    wrapt \
-    xgboost
 
-RUN python -m pip install --no-cache-dir \
+COPY ./dockerfiles/models/requirements.txt ./
+
+RUN python -m pip install -r requirements.txt
+
+RUN python -m pip install \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+
+RUN python -m pip install \
+    git+https://github.com/mlrun/mlutils.git@a1f1abcb009131a4c35d42b94451a53c7ce2ee45

@@ -13,5 +13,5 @@ scikit-learn>=0.23
 scikit-plot>=0.3.7
 tornado==6.0.4
 urllib3==1.25.8
-vaex
+vaex>=2.6
 xgboost>=1.1

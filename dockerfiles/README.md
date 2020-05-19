@@ -9,9 +9,11 @@ where:<br>
 * `MLRUN_DOCKER_TAG` this is the tag created and pushed (like `latest` or `0.4.5`, defaults to `latest`)
 * `MLRUN_DOCKER_REPO` is your docker hub account (defaults to `mlrun`)
 * `MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX` is some prefix common to the machine-learning/AI images created here (defaults to `ml-`)
-* `MLRUN_PACKAGE_TAG` is the tag of mlrun package installed in the images _(prefix only tags with a `v`, like `v0.4.5`, defaults to `development`)_
+* `MLRUN_PACKAGE_TAG` is the tag of mlrun package installed in the images _(defaults to `development`, prefix tags with a `v`, like `v0.4.5`, or use the commit id SHA)_
 * `MLRUN_GITHUB_REPO` is the github repo from which we `pip install` mlrun (defaults to `mlrun`)
-* `MLRUN_PYTHON_VERSION` is the python version used (defaults to `3.7`). 
+* `MLRUN_PYTHON_VERSION` is the python version used (defaults to `3.7`).
+* `MLRUN_MLUTILS_GITHUB_TAG` is the tag of the mlutils package install in the images (seel `MLRUN_PACKAGE_TAG`)
+
 
 for example,
   `MLRUN_DOCKER_TAG=0.4.6 MLRUN_DOCKER_REPO=mlrun MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=ml- MLRUN_PACKAGE_TAG=v0.4.7 MLRUN_GITHUB_REPO=mlrun MLRUN_PYTHON_VERSION=3.7 make docker-images`

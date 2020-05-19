@@ -20,7 +20,7 @@ MLRUN_PACKAGE_TAG ?= development
 MLRUN_GITHUB_REPO ?= mlrun
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
-
+MLRUN_MLUTILS_GITHUB_TAG ?= development
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -73,6 +73,7 @@ base: ## Build base and legacy-base docker images
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_MLUTILS_GITHUB_TAG=${MLRUN_MLUTILS_GITHUB_TAG} \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
@@ -80,6 +81,7 @@ base: ## Build base and legacy-base docker images
 		--file dockerfiles/base/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
@@ -94,12 +96,14 @@ models: ## Build models and legacy-models docker images
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME) .
 
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
@@ -114,12 +118,14 @@ models-gpu: ## Build models-gpu and legacy-models-gpu docker images
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
 
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
+		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 

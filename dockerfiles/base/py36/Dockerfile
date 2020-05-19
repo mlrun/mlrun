@@ -8,6 +8,7 @@ LABEL org="iguazio.com"
 ARG MLRUN_GITHUB_REPO=mlrun
 
 ARG MLRUN_PACKAGE_TAG=development
+ARG MLRUN_MLUTILS_GITHUB_TAG=development
 
 RUN apt update -qqq \
     && apt -y upgrade \
@@ -32,4 +33,4 @@ RUN python -m pip install \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
 RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@9182bf7d0e20ca6c48d9662bf8776efae2b4f1b7
+    git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

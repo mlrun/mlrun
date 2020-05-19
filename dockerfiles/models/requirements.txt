@@ -27,3 +27,4 @@ urllib3==1.25.8
 vaex>=2.6
 wrapt>=1.12.1
 xgboost>=1.1
+yellowbrick>=1.1

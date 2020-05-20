@@ -153,8 +153,10 @@ def create_server(request):
     else:
         create, cleanup = docker_fixture()
 
-    yield create
-    cleanup()
+    try:
+        yield create
+    finally:
+        cleanup()
 
 
 def test_log(create_server):

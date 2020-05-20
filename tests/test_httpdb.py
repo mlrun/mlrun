@@ -190,15 +190,15 @@ def test_run(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid = 'p18', '3i920'
-    run = RunObject().to_dict()
-    run['metadata'].update({
+    run_instance = RunObject().to_dict()
+    run_instance['metadata'].update({
         'algorithm': 'svm',
         'C': 3,
     })
-    db.store_run(run, uid, prj)
+    db.store_run(run_instance, uid, prj)
 
     data = db.read_run(uid, prj)
-    assert data == run, 'read_run'
+    assert data == run_instance, 'read_run'
 
     new_c = 4
     updates = {'metadata.C': new_c}
@@ -220,8 +220,8 @@ def test_runs(create_server):
     prj = 'p180'
     for i in range(count):
         uid = f'uid_{i}'
-        run = RunObject().to_dict()
-        db.store_run(run, uid, prj)
+        run_instance = RunObject().to_dict()
+        db.store_run(run_instance, uid, prj)
 
     runs = db.list_runs(project=prj)
     assert len(runs) == count, 'bad number of runs'

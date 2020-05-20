@@ -66,10 +66,10 @@ def start_server(db_path, log_file, env_config: dict):
 
 
 def docker_fixture():
-    cid = None
+    container_id, workdir = None, mkdtemp(prefix='mlrun-test-', dir='/tmp')
 
     def create(env_config=None):
-        nonlocal cid
+        nonlocal container_id
 
         env_config = {} if env_config is None else env_config
         cmd = [
@@ -78,29 +78,30 @@ def docker_fixture():
             '--tag', docker_tag,
             '.',
         ]
-        out = run(cmd)
-        assert out.returncode == 0, 'cannot build docker'
+        run(cmd, check=True)
 
-        run(['docker', 'network', 'create', 'mlrun'])
-        port = free_port()
         cmd = [
             'docker', 'run',
             '--detach',
-            '--publish', f'{port}:8080',
-            '--network', 'mlrun',
-            '--volume', '/tmp:/tmp',  # For debugging
+            '--publish', '8080',
+
+            # For debugging
+            '--volume', f'{workdir}:/tmp',
         ]
         for key, value in env_config.items():
             cmd.extend(['--env', f'{key}={value}'])
         cmd.append(docker_tag)
-        out = run(cmd, stdout=PIPE)
-        assert out.returncode == 0, 'cannot run docker'
-        cid = out.stdout.decode('utf-8').strip()
+        out = run(cmd, stdout=PIPE, check=True)
+        container_id = out.stdout.decode('utf-8').strip()
         if in_docker:
-            host = cid[:12]
-            url = f'http://{host}:8080'
+            host = f'{container_id[:12]}:8080'
         else:
-            url = f'http://localhost:{port}'
+
+            # retrieve container bind port + host
+            out = run(['docker', 'port', container_id, '8080'], stdout=PIPE, check=True)
+            host = out.stdout.decode('utf-8').strip()
+
+        url = f'http://{host}'
         print(f'api url: {url}')
         check_server_up(url)
         conn = HTTPRunDB(url)
@@ -108,8 +109,10 @@ def docker_fixture():
         return Server(url, conn)
 
     def cleanup():
-        return
-        run(['docker', 'rm', '--force', cid])
+        print(f'cleaning up container {container_id}')
+        run(['docker', 'rm', '--force', container_id], stdout=DEVNULL)
+        print(f'cleaning up workdir {workdir}')
+        rmtree(workdir)
 
     return create, cleanup
 

@@ -350,6 +350,8 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
     print('function deployed, address={}'.format(addr))
     with open('/tmp/output', 'w') as fp:
         fp.write(addr)
+    with open('/tmp/name', 'w') as fp:
+        fp.write(f.status.nuclio_name)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))

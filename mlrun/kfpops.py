@@ -391,7 +391,8 @@ def deploy_op(name, function, source='', dashboard='',
         name=name,
         image=config.kfp_image,
         command=cmd,
-        file_outputs={'endpoint': '/tmp/output'},
+        file_outputs={'endpoint': '/tmp/output',
+                      'name': '/tmp/name'},
     )
     return cop
 

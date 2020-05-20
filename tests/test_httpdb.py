@@ -65,20 +65,6 @@ def start_server(db_path, log_file, env_config: dict):
     return proc, url
 
 
-# Used when running container in the background, see below
-def noo_docker_fixture():
-    def create(env=None):
-        url = 'http://localhost:8080'
-        conn = HTTPRunDB(url)
-        conn.connect()
-        return Server(url, conn)
-
-    def cleanup():
-        pass
-
-    return create, cleanup
-
-
 def docker_fixture():
     cid = None
 
@@ -126,10 +112,6 @@ def docker_fixture():
         run(['docker', 'rm', '--force', cid])
 
     return create, cleanup
-
-
-if 'API_DOCKER_RUN' in environ:
-    docker_fixture = noop_docker_fixture  # noqa
 
 
 def server_fixture():

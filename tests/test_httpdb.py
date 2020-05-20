@@ -20,6 +20,8 @@ from subprocess import Popen, run, PIPE
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
+from shutil import rmtree
+from typing import IO
 
 import pytest
 
@@ -28,8 +30,8 @@ from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
 from conftest import wait_for_server, in_docker
 
-root = Path(__file__).absolute().parent.parent
-Server = namedtuple('Server', 'url conn')
+project_dir_path = Path(__file__).absolute().parent.parent
+Server = namedtuple('Server', 'url conn workdir')
 
 docker_tag = 'mlrun/test-api'
 
@@ -47,18 +49,19 @@ def check_server_up(url):
         raise RuntimeError(f'server did not start after {timeout} sec')
 
 
-def start_server(db_path, log_file, env_config: dict):
+def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}?check_same_thread=false'
+    env['MLRUN_httpdb__dsn'] = f'sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false'
+    env['MLRUN_httpdb__logs_path'] = f'{workdir}/logs'
     env.update(env_config or {})
-
     cmd = [
         executable,
         '-m', 'mlrun.api.main',
     ]
-    proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
+
+    proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
     url = f'http://localhost:{port}'
     check_server_up(url)
 
@@ -106,7 +109,7 @@ def docker_fixture():
         check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
-        return Server(url, conn)
+        return Server(url, conn, workdir)
 
     def cleanup():
         print(f'cleaning up container {container_id}')
@@ -118,24 +121,22 @@ def docker_fixture():
 
 
 def server_fixture():
-    proc, log_fp = None, None
+    proc: Popen[str] = None
+    workdir: Path = None
 
     def create(env=None):
-        nonlocal proc, log_fp
-        root = mkdtemp(prefix='mlrun-test-')
-        print(f'root={root!r}')
-        db_path = f'{root}/mlrun.sqlite3?check_same_thread=false'
-        log_fp = open(f'{root}/api.log', 'w+')
-        proc, url = start_server(db_path, log_fp, env)
+        nonlocal proc, workdir
+        workdir = mkdtemp(prefix='mlrun-test-')
+        proc, url = start_server(workdir, env)
         conn = HTTPRunDB(url)
         conn.connect()
-        return Server(url, conn)
+        return Server(url, conn, workdir)
 
     def cleanup():
         if proc:
-            proc.kill()
-        if log_fp:
-            log_fp.close()
+            proc.terminate()
+        if workdir:
+            rmtree(workdir)
 
     return create, cleanup
 
@@ -146,7 +147,7 @@ servers = [
 ]
 
 
-@pytest.fixture(scope='module', params=servers)
+@pytest.fixture(scope='function', params=servers)
 def create_server(request):
     if request.param == 'server':
         create, cleanup = server_fixture()
@@ -160,11 +161,7 @@ def create_server(request):
 
 
 def test_log(create_server):
-    logs_path = mkdtemp()
-    env = {
-        'MLRUN_httpdb__logs_path': logs_path,
-    }
-    server: Server = create_server(env)
+    server: Server = create_server()
     db = server.conn
     prj, uid, body = 'p19', '3920', b'log data'
     db.store_log(uid, prj, body)

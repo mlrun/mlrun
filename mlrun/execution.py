@@ -18,7 +18,7 @@ import numpy as np
 import uuid
 import os
 
-from mlrun.runtimes.utils import results_to_iter
+import mlrun
 from mlrun.artifacts import ModelArtifact
 
 from .artifacts import ArtifactManager, DatasetArtifact
@@ -98,7 +98,7 @@ class MLClientCtx(object):
 
     def _update_with_child(self, best_run=0):
         results = [c.to_dict() for c in self._child]
-        summary = results_to_iter(results, None, self)
+        summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
         task = results[best_run - 1] if best_run else None
         self.log_iteration_results(best_run, summary, task)
 

@@ -145,11 +145,13 @@ class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  selector=None, handler=None, inputs=None, outputs=None,
                  input_path=None, output_path=None, function=None,
-                 secret_sources=None, data_stores=None, verbose=None):
+                 secret_sources=None, data_stores=None,
+                 hyper_type=None, verbose=None):
 
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
+        self.hyper_type = hyper_type
         self.selector = selector
         self.handler = handler
         self._inputs = inputs

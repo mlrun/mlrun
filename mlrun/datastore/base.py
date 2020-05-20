@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from base64 import b64encode
-from os import remove
+from os import remove, path
 from tempfile import mktemp
 
 import requests
@@ -110,6 +110,9 @@ class DataStore:
             if columns:
                 kwargs['columns'] = columns
             reader = df_module.read_parquet
+        elif key.endswith(".json") or format == 'json':
+            reader = df_module.read_json
+
         else:
             raise Exception(f"file type unhandled {key}")
 
@@ -145,6 +148,11 @@ class DataItem:
     @property
     def key(self):
         return self._key
+
+    @property
+    def suffix(self):
+        _, file_ext = path.splitext(self._path)
+        return file_ext
 
     @property
     def kind(self):

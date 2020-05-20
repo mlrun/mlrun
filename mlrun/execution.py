@@ -96,6 +96,9 @@ class MLClientCtx(object):
         self._child.append(ctx)
         return ctx
 
+    def get_dataitem(self, url):
+        return self._data_stores.object(url=url)
+
     def _update_with_child(self, best_run=0):
         results = [c.to_dict() for c in self._child]
         summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
@@ -104,7 +107,7 @@ class MLClientCtx(object):
 
     def set_logger_stream(self, stream):
         handlers = self._logger.handlers
-        if len(handlers)>0:
+        if len(handlers) > 0:
             handlers[0].stream = stream
 
     def _init_dbs(self, rundb):

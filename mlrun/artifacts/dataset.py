@@ -87,13 +87,13 @@ class DatasetArtifact(Artifact):
         self.analysis = analysis or {}
 
         if df is not None:
-            self.header = df.columns.values.tolist()
             self.length = df.shape[0]
             preview = preview or preview_lines
             shortdf = df
             if self.length > preview:
                 shortdf = df.head(preview)
-            self.preview = shortdf.values.tolist()
+            self.header = shortdf.reset_index().columns.values.tolist()
+            self.preview = shortdf.reset_index().values.tolist()
             self.schema = build_table_schema(df)
             if stats or self.length < max_csv:
                 self.stats = get_stats(df)

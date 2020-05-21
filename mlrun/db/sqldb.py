@@ -37,6 +37,7 @@ class SQLDB(RunDBInterface):
         if not self.session:
             self.session = create_session()
         self.db = SQLAPIDB(self.dsn, self.projects)
+        return self
 
     def store_log(self, uid, project='', body=b'', append=False):
         return self._transform_db_error(self.db.store_log, self.session, uid, project, body, append)

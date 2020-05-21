@@ -315,5 +315,7 @@ def test_list_functions(create_server):
         db.store_function(func, name, proj, tag=tag)
     db.store_function({}, 'f2', 'p7', tag=uuid4().hex)
 
-    out = db.list_functions(project=proj)
-    assert len(out) == count, 'bad list'
+    functions = db.list_functions(project=proj)
+    for function in functions:
+        assert function['metadata']['tag'] is not None
+    assert len(functions) == count, 'bad list'

@@ -120,7 +120,7 @@ class RandomGenerator(TaskGenerator):
             param_dict = newrun.spec.parameters or {}
             params = {k: random.sample(v, 1)[0] for k, v in self.hyperparams.items()}
             for key, values in params.items():
-                param_dict[key] = values[i]
+                param_dict[key] = values
             newrun.spec.parameters = param_dict
             newrun.metadata.iteration = i + 1
             i += 1

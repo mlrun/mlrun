@@ -193,6 +193,7 @@ clean: ## Clean python package build artifacts
 test-dockerized: build-test ## Run mlrun tests in docker container
 	docker run -ti \
 		--rm \
+		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME) make test

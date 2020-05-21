@@ -94,6 +94,8 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     extra_dataitems = {}
     suffix = suffix or '.pkl'
     stores = stores or StoreManager()
+    if hasattr(model_dir, 'artifact_url'):
+        model_dir = model_dir.artifact_url
 
     if model_dir.startswith(DB_SCHEMA + '://'):
         model_spec, target = stores.get_store_artifact(model_dir)

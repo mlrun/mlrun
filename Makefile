@@ -191,7 +191,8 @@ clean: ## Clean python package build artifacts
 
 
 test-dockerized: build-test ## Run mlrun tests in docker container
-	docker run -ti \
+	docker run \
+		-ti \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \
@@ -212,6 +213,7 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 circleci: test-dockerized
 	docker run \
+		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \
 		$(MLRUN_TEST_IMAGE_NAME) \
 		make html-docs

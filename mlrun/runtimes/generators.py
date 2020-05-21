@@ -30,12 +30,13 @@ default_max_evals = 10
 def get_generator(spec, execution):
     hyper_type = spec.hyper_type
     hyperparams = spec.hyperparams
+    if not spec.param_file and not hyperparams:
+        return None
+
     if hyper_type and hyper_type not in hyper_types:
         raise ValueError('unsupported hyperparams type ({})'.format(
             hyper_type))
 
-    if not spec.param_file and not hyperparams:
-        raise ValueError('hyperparams or param_file must be specified')
     if spec.param_file and hyperparams:
         raise ValueError('hyperparams and param_file cannot be used together')
 

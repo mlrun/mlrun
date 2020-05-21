@@ -102,13 +102,10 @@ def docker_fixture():
         cmd.append(docker_tag)
         out = run(cmd, stdout=PIPE, check=True)
         container_id = out.stdout.decode('utf-8').strip()
-        if in_docker:
-            host = f'{container_id[:12]}:8080'
-        else:
 
-            # retrieve container bind port + host
-            out = run(['docker', 'port', container_id, '8080'], stdout=PIPE, check=True)
-            host = out.stdout.decode('utf-8').strip()
+        # retrieve container bind port + host
+        out = run(['docker', 'port', container_id, '8080'], stdout=PIPE, check=True)
+        host = out.stdout.decode('utf-8').strip()
 
         url = f'http://{host}'
         print(f'api url: {url}')

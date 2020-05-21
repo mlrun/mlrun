@@ -25,7 +25,7 @@ from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str
+from .utils import run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str, update_in
 
 
 class MLCtxValueError(Exception):
@@ -84,15 +84,17 @@ class MLClientCtx(object):
         self._iteration_results = None
         self._child = []
 
-    def get_child(self, params=None):
+    def get_child(self, **params):
         if self.iteration != 0:
             raise ValueError('cannot create child from a child iteration!')
-        ctx = deepcopy(self)
+        ctx = deepcopy(self.to_dict())
         if params:
             for key, val in params.items():
-                ctx._parameters[key] = val
+                update_in(ctx, ['spec', 'parameters', key], val)
 
-        ctx._iteration = len(self._child) + 1
+        update_in(ctx, ['metadata', 'iteration'], len(self._child) + 1)
+        ctx = MLClientCtx.from_dict(ctx, self._rundb, self._autocommit,
+                                    log_stream=self._logger)
         self._child.append(ctx)
         return ctx
 

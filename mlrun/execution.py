@@ -93,6 +93,7 @@ class MLClientCtx(object):
                 update_in(ctx, ['spec', 'parameters', key], val)
 
         update_in(ctx, ['metadata', 'iteration'], len(self._child) + 1)
+        ctx['status'] = {}
         ctx = MLClientCtx.from_dict(ctx, self._rundb, self._autocommit,
                                     log_stream=self._logger)
         self._child.append(ctx)

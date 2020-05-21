@@ -94,13 +94,11 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     extra_dataitems = {}
     suffix = suffix or '.pkl'
     stores = stores or StoreManager()
-    is_dataitem = hasattr(model_dir, 'url')
+    if hasattr(model_dir, 'artifact_url'):
+        model_dir = model_dir.artifact_url
 
-    if is_dataitem or model_dir.startswith(DB_SCHEMA + '://'):
-        if is_dataitem:
-            model_spec, target = model_dir.meta, model_dir.url
-        else:
-            model_spec, target = stores.get_store_artifact(model_dir)
+    if model_dir.startswith(DB_SCHEMA + '://'):
+        model_spec, target = stores.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != 'model':
             raise ValueError('store artifact ({}) is not model kind'.format(model_dir))
         model_file = _get_file_path(target, model_spec.model_file)

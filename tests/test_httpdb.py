@@ -118,10 +118,12 @@ def docker_fixture():
         return Server(url, conn, workdir)
 
     def cleanup():
-        print(f'cleaning up container {container_id}')
-        run(['docker', 'rm', '--force', container_id], stdout=DEVNULL)
-        print(f'cleaning up workdir {workdir}')
-        rmtree(workdir)
+        if container_id:
+            print(f'cleaning up container {container_id}')
+            run(['docker', 'rm', '--force', container_id], stdout=DEVNULL)
+        if workdir:
+            print(f'cleaning up workdir {workdir}')
+            rmtree(workdir)
 
     return create, cleanup
 

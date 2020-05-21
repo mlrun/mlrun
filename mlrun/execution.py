@@ -83,6 +83,7 @@ class MLClientCtx(object):
         self._last_update = now_date()
         self._iteration_results = None
         self._child = []
+        self._updated_child = False
 
     def get_child(self, **params):
         if self.iteration != 0:
@@ -102,11 +103,17 @@ class MLClientCtx(object):
     def get_dataitem(self, url):
         return self._data_stores.object(url=url)
 
-    def _update_with_child(self, best_run=0):
-        results = [c.to_dict() for c in self._child]
+    def commit_child(self, best_run=0):
+        results = []
+        if not self._child or best_run > len(self._child):
+            raise ValueError('cannot commit without child or if best_run > len(child)')
+        for c in self._child:
+            c.commit()
+            results.append(c.to_dict())
         summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
         task = results[best_run - 1] if best_run else None
         self.log_iteration_results(best_run, summary, task)
+        self._updated_child = True
 
     def set_logger_stream(self, stream):
         handlers = self._logger.handlers
@@ -420,6 +427,8 @@ class MLClientCtx(object):
         """save run state and add a commit message"""
         if message:
             self._annotations['message'] = message
+        if self._child and not self._updated_child:
+            self.commit_child()
         self._last_update = now_date()
         self._update_db(commit=True, message=message)
 

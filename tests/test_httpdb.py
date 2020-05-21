@@ -84,7 +84,7 @@ def docker_fixture():
             '--tag', docker_tag,
             '.',
         ]
-        run(cmd, check=True, cwd=project_dir_path)
+        run(cmd, check=True, stdout=PIPE, cwd=project_dir_path)
         workdir = create_workdir(root_dir='/tmp')
 
         cmd = [
@@ -116,10 +116,8 @@ def docker_fixture():
 
     def cleanup():
         if container_id:
-            print(f'cleaning up container {container_id}')
             run(['docker', 'rm', '--force', container_id], stdout=DEVNULL)
         if workdir:
-            print(f'cleaning up workdir {workdir}')
             rmtree(workdir)
 
     return create, cleanup

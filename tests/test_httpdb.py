@@ -16,12 +16,11 @@ from collections import namedtuple
 from os import environ
 from pathlib import Path
 from socket import socket
-from subprocess import Popen, run, PIPE
+from subprocess import Popen, run, PIPE, DEVNULL
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
 from shutil import rmtree
-from typing import IO
 
 import pytest
 
@@ -49,12 +48,16 @@ def check_server_up(url):
         raise RuntimeError(f'server did not start after {timeout} sec')
 
 
+def create_workdir(root_dir='/tmp'):
+    return mkdtemp(prefix='mlrun-test-', dir=root_dir)
+
+
 def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
     env['MLRUN_httpdb__dsn'] = f'sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false'
-    env['MLRUN_httpdb__logs_path'] = f'{workdir}/logs'
+    env['MLRUN_httpdb__logs_path'] = workdir
     env.update(env_config or {})
     cmd = [
         executable,
@@ -69,10 +72,10 @@ def start_server(workdir, env_config: dict):
 
 
 def docker_fixture():
-    container_id, workdir = None, mkdtemp(prefix='mlrun-test-', dir='/tmp')
+    container_id, workdir = None, None
 
     def create(env_config=None):
-        nonlocal container_id
+        nonlocal container_id, workdir
 
         env_config = {} if env_config is None else env_config
         cmd = [
@@ -81,7 +84,8 @@ def docker_fixture():
             '--tag', docker_tag,
             '.',
         ]
-        run(cmd, check=True)
+        run(cmd, check=True, cwd=project_dir_path)
+        workdir = create_workdir(root_dir='/tmp')
 
         cmd = [
             'docker', 'run',
@@ -91,6 +95,8 @@ def docker_fixture():
             # For debugging
             '--volume', f'{workdir}:/tmp',
         ]
+
+        env_config.setdefault('MLRUN_httpdb__logs_path', '/tmp')
         for key, value in env_config.items():
             cmd.extend(['--env', f'{key}={value}'])
         cmd.append(docker_tag)
@@ -121,12 +127,12 @@ def docker_fixture():
 
 
 def server_fixture():
-    proc: Popen[str] = None
-    workdir: Path = None
+    proc = None
+    workdir = None
 
     def create(env=None):
         nonlocal proc, workdir
-        workdir = mkdtemp(prefix='mlrun-test-')
+        workdir = create_workdir()
         proc, url = start_server(workdir, env)
         conn = HTTPRunDB(url)
         conn.connect()

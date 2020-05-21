@@ -12,101 +12,58 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-from copy import deepcopy
+import abc
 
-from .utils import AsyncLogWriter, RunError
-from ..config import config
-from ..model import RunObject
-from .kubejob import KubejobRuntime
-from ..utils import update_in, logger, get_in
-from ..execution import MLClientCtx
+from mlrun.runtimes.utils import AsyncLogWriter, RunError
+from mlrun.config import config
+from mlrun.model import RunObject
+from mlrun.runtimes.kubejob import KubejobRuntime
+from mlrun.utils import logger, get_in
+from mlrun.execution import MLClientCtx
 
 from kubernetes import client
 
 
-_mpijob_template = {
- 'apiVersion': 'kubeflow.org/v1alpha1',
- 'kind': 'MPIJob',
- 'metadata': {
-     'name': '',
-     'namespace': 'default-tenant'
- },
- 'spec': {
-     'replicas': 1,
-     'template': {
-         'metadata': {},
-         'spec': {
-             'containers': [{
-                 'image': 'mlrun/mpijob',
-                 'name': 'base',
-                 'command': [],
-                 'env': [],
-                 'volumeMounts': [],
-                 'securityContext': {
-                     'capabilities': {'add': ['IPC_LOCK']}},
-                 'resources': {
-                     'limits': {}}}],
-             'volumes': []
-         }}}}
-
-mpi_group = 'kubeflow.org'
-mpi_version = 'v1alpha1'
-mpi_plural = 'mpijobs'
-
-
-def _update_container(struct, key, value):
-    struct['spec']['template']['spec']['containers'][0][key] = value
-
-
-class MpiRuntime(KubejobRuntime):
+class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = 'mpijob'
     _is_nested = False
+
+    # should return the mpijob CRD information -> (group, version, plural)
+    @abc.abstractmethod
+    def _get_crd_info(self) -> tuple:
+        pass
+
+    @abc.abstractmethod
+    def _generate_mpi_job(self, runobj: RunObject) -> dict:
+        pass
+
+    @abc.abstractmethod
+    def _get_job_launcher_status(self, resp: list) -> str:
+        pass
+
+    @abc.abstractmethod
+    def _generate_pods_selector(self, name: str, launcher: bool) -> str:
+        pass
+
+    def _pretty_print_jobs(self, items: list):
+        pass
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
-        job = deepcopy(_mpijob_template)
+
+        job = self._generate_mpi_job(runobj)
+
         meta = self._get_meta(runobj, True)
 
-        pod_labels = deepcopy(meta.labels)
-        pod_labels['mlrun/job'] = meta.name
-        update_in(job, 'metadata', meta.to_dict())
-        update_in(job, 'spec.template.metadata.labels', pod_labels)
-        update_in(job, 'spec.replicas', self.spec.replicas or 1)
-        if self.spec.image:
-            _update_container(job, 'image', self.full_image_path())
-        update_in(job, 'spec.template.spec.volumes', self.spec.volumes)
-        _update_container(job, 'volumeMounts', self.spec.volume_mounts)
-
-        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
-        if self.spec.rundb:
-            extra_env['MLRUN_DBPATH'] = self.spec.rundb
-        extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
-        _update_container(job, 'env', extra_env + self.spec.env)
-        if self.spec.image_pull_policy:
-            _update_container(
-                job, 'imagePullPolicy', self.spec.image_pull_policy)
-        if self.spec.resources:
-            _update_container(job, 'resources', self.spec.resources)
-        if self.spec.workdir:
-            _update_container(job, 'workingDir', self.spec.workdir)
-
-        if self.spec.image_pull_secret:
-            update_in(job, 'spec.template.spec.imagePullSecrets',
-                      [{'name': self.spec.image_pull_secret}])
-
-        if self.spec.command:
-            _update_container(
-                job, 'command',
-                ['mpirun', 'python', self.spec.command] + self.spec.args)
-
         resp = self._submit_mpijob(job, meta.namespace)
+
         state = None
         timeout = int(config.submit_timeout) or 120
         for _ in range(timeout):
             resp = self.get_job(meta.name, meta.namespace)
-            state = get_in(resp, 'status.launcherStatus')
+            state = self._get_job_launcher_status(resp)
             if resp and state:
                 break
             time.sleep(1)
@@ -116,8 +73,8 @@ class MpiRuntime(KubejobRuntime):
                 meta.name, state or 'unknown'))
             if state:
                 state = state.lower()
-                launcher, status = self._get_launcher(meta.name,
-                                                      meta.namespace)
+                launcher, _ = self._get_launcher(meta.name,
+                                                 meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state('running' if state == 'active' else state)
                 if self.kfp:
@@ -147,6 +104,8 @@ class MpiRuntime(KubejobRuntime):
         return None
 
     def _submit_mpijob(self, job, namespace=None):
+        mpi_group, mpi_version, mpi_plural = self._get_crd_info()
+
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
         try:
@@ -161,10 +120,11 @@ class MpiRuntime(KubejobRuntime):
             raise RunError("Exception when creating MPIJob: %s" % e)
 
     def delete_job(self, name, namespace=None):
+        mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
         try:
-            # delete the mpi job\
+            # delete the mpi job
             body = client.V1DeleteOptions()
             resp = k8s.crdapi.delete_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name, body)
@@ -174,6 +134,7 @@ class MpiRuntime(KubejobRuntime):
             print("Exception when deleting MPIJob: %s" % e)
 
     def list_jobs(self, namespace=None, selector='', show=True):
+        mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
         try:
@@ -187,18 +148,11 @@ class MpiRuntime(KubejobRuntime):
         if resp:
             items = resp.get('items', [])
             if show and items:
-                print('{:10} {:20} {:21} {}'.format(
-                    'status', 'name', 'start', 'end'))
-                for i in items:
-                    print('{:10} {:20} {:21} {}'.format(
-                        get_in(i, 'status.launcherStatus', ''),
-                        get_in(i, 'metadata.name', ''),
-                        get_in(i, 'status.startTime', ''),
-                        get_in(i, 'status.completionTime', ''),
-                    ))
+                self._pretty_print_jobs(items)
         return items
 
     def get_job(self, name, namespace=None):
+        mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
         try:
@@ -211,11 +165,9 @@ class MpiRuntime(KubejobRuntime):
     def get_pods(self, name=None, namespace=None, launcher=False):
         k8s = self._get_k8s()
         namespace = k8s.ns(namespace)
-        selector = 'mlrun/class=mpijob'
-        if name:
-            selector += ',mpi_job_name={}'.format(name)
-        if launcher:
-            selector += ',mpi_role_type=launcher'
+
+        selector = self._generate_pods_selector(name, launcher)
+
         pods = k8s.list_pods(selector=selector, namespace=namespace)
         if pods:
             return {p.metadata.name: p.status.phase for p in pods}

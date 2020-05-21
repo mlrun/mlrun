@@ -15,7 +15,8 @@
 from .base import RunError, BaseRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .function import RemoteRuntime, new_model_server  # noqa
-from .mpijob import MpiRuntime  # noqa
+from .mpijob.v1alpha1 import MpiRuntimeV1Alpha1  # noqa
+from .mpijob.v1 import MpiRuntimeV1 # noqa
 from .daskjob import DaskCluster, get_dask_resource  # noqa
 from .kubejob import KubejobRuntime  # noqa
 from .sparkjob import SparkRuntime  # noqa
@@ -32,5 +33,6 @@ runtime_dict = {'remote': RemoteRuntime,
                 'nuclio': RemoteRuntime,
                 'dask': DaskCluster,
                 'job': KubejobRuntime,
-                'mpijob': MpiRuntime,
+                'mpijob': MpiRuntimeV1Alpha1,  # legacy
+                'mpijob_v1': MpiRuntimeV1,
                 'spark': SparkRuntime}

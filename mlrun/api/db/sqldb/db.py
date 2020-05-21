@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
@@ -240,6 +241,8 @@ class SQLDB(DBInterface):
         update_labels(fn, labels)
         fn.struct = func
         self._upsert(session, fn)
+        if tag:
+            self.tag_objects(session, [fn], project, tag)
 
     def get_function(self, session, name, project="", tag=""):
         project = project or config.default_project
@@ -266,11 +269,27 @@ class SQLDB(DBInterface):
         #     uid = self._resolve_tag(Function, project, uid)
 
         funcs = FunctionList()
-        funcs.extend(
-            obj.struct
-            for obj in self._find_functions(session, name, project, uid, labels)
-        )
+        for obj in self._find_functions(session, name, project, uid, labels):
+            function_dict = obj.struct
+            if not tag:
+                function_tags = self._list_function_tags(session, project, obj.id)
+                for function_tag in function_tags:
+                    function_dict_copy = deepcopy(function_dict)
+
+                    # HACK - assuming tags are less than 20 chars, so above that it is a hash
+                    if len(function_tag) > 20:
+                        function_tag = ''
+                    function_dict_copy['metadata']['tag'] = function_tag
+                    funcs.append(function_dict_copy)
+            else:
+                function_dict['metadata']['tag'] = tag
+                funcs.append(function_dict)
         return funcs
+
+    def _list_function_tags(self, session, project, func_id):
+        query = session.query(Function.Tag.name).filter(
+            Function.Tag.project == project, Function.Tag.obj_id == func_id).distinct()
+        return [row[0] for row in query]
 
     def list_artifact_tags(self, session, project):
         query = session.query(Artifact.Tag.name).filter(

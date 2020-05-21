@@ -213,7 +213,8 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 circleci: test-dockerized
 	docker run \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \
-		mlrun/test make html-docs
+		$(MLRUN_TEST_IMAGE_NAME) \
+		make html-docs
 
 
 docs-requirements: ## Build docs requirements

@@ -11,7 +11,7 @@ from mlrun.api.db.sqldb.helpers import label_set, run_start_time, run_labels, ru
 from mlrun.api.db.sqldb.models import Artifact, Function, Log, Run, Schedule, User, Project, _tagged
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
-from mlrun.utils import get_in, update_in, logger
+from mlrun.utils import get_in, update_in, logger, fill_function_hash
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -224,7 +224,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         self._create_project_if_not_exists(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
-        hash_key = self._fill_function_hash(function, tag)
+        hash_key = fill_function_hash(function, tag)
 
         # clear tag from object in case another function will "take" that tag
         update_in(function, "metadata.tag", "")

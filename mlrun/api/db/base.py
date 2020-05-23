@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import warnings
-import hashlib
-import json
 from abc import ABC, abstractmethod
 
 
@@ -118,24 +116,3 @@ class DBInterface(ABC):
 
     def list_artifact_tags(self, session, project):
         return []
-
-    @staticmethod
-    def _fill_function_hash(function_dict, tag=''):
-
-        # remove tag, hash, date from calculation
-        function_dict.setdefault('metadata', {})
-        tag = tag or function_dict['metadata'].get('tag')
-        status = function_dict.setdefault('status', {})
-        function_dict['metadata']['tag'] = ''
-        function_dict['metadata']['hash'] = ''
-        function_dict['status'] = None
-        function_dict['metadata']['updated'] = None
-
-        data = json.dumps(function_dict, sort_keys=True).encode()
-        h = hashlib.sha1()
-        h.update(data)
-        hashkey = h.hexdigest()
-        function_dict['metadata']['tag'] = tag
-        function_dict['metadata']['hash'] = hashkey
-        function_dict['status'] = status
-        return hashkey

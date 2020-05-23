@@ -280,9 +280,13 @@ class FileRunDB(RunDBInterface):
             f'reading functions in {project} name/mask: {name} tag: {tag} ...')
         filepath = path.join(self.dirpath, '{}/{}/'.format(
             functions_dir, project or config.default_project))
+
+        # function name -> tag name -> function dict
         functions_with_tag_filename = {}
+        # function name -> hash key -> function dict
         functions_with_hash_key_filename = {}
-        function_with_tag_hash_keys = set()
+        # function name -> hash keys set
+        function_with_tag_hash_keys = {}
         if isinstance(labels, str):
             labels = labels.split(',')
         mask = '**/*'
@@ -292,26 +296,28 @@ class FileRunDB(RunDBInterface):
         for func, fullname in self._load_list(filepath, mask):
             if match_labels(get_in(func, 'metadata.labels', {}), labels):
                 file_name, _ = path.splitext(path.basename(fullname))
+                function_name = path.basename(path.dirname(fullname))
                 target_dict = functions_with_tag_filename
 
-                # Heuristic - if tag length if bigger than 20 it's probably a hash key
                 tag_name = file_name
+                # Heuristic - if tag length if bigger than 20 it's probably a hash key
                 if len(tag_name) > 20:  # hash vs tags
                     tag_name = ''
                     target_dict = functions_with_hash_key_filename
                 else:
-                    function_with_tag_hash_keys.add(func['metadata']['hash'])
+                    function_with_tag_hash_keys.setdefault(function_name, set()).add(func['metadata']['hash'])
                 update_in(func, 'metadata.tag', tag_name)
-                target_dict[file_name] = func
+                target_dict.setdefault(function_name, {})[file_name] = func
 
-        # clean duplicated function e.g. function was saved in a hash key filename and tag filename
-        function_hash_keys_to_remove = []
-        for function_hash_key, function_dict in functions_with_hash_key_filename.items():
-            if function_hash_key in function_with_tag_hash_keys:
-                function_hash_keys_to_remove.append(function_hash_key)
+        # clean duplicated function e.g. function that was saved both in a hash key filename and tag filename
+        for function_name, hash_keys_to_function_dict_map in functions_with_hash_key_filename.items():
+            function_hash_keys_to_remove = []
+            for function_hash_key, function_dict in hash_keys_to_function_dict_map.items():
+                if function_hash_key in function_with_tag_hash_keys.get(function_name, set()):
+                    function_hash_keys_to_remove.append(function_hash_key)
 
-        for function_hash_key in function_hash_keys_to_remove:
-            del functions_with_hash_key_filename[function_hash_key]
+            for function_hash_key in function_hash_keys_to_remove:
+                del hash_keys_to_function_dict_map[function_hash_key]
 
         results = list(functions_with_hash_key_filename.values()) + list(functions_with_tag_filename.values())
 

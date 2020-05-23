@@ -255,6 +255,7 @@ class SQLDB(DBInterface):
         fn.struct = function
         self._upsert(session, fn)
         self.tag_objects_v2(session, [fn], project, tag)
+        return hash_key
 
     def get_function(self, session, name, project="", tag="", hash_key=""):
         project = project or config.default_project

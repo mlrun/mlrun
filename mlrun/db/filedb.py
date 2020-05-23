@@ -25,7 +25,7 @@ from ..datastore import StoreManager
 from ..lists import ArtifactList, RunList
 from ..utils import (
     dict_to_json, dict_to_yaml, get_in, logger, match_labels, match_value,
-    update_in
+    update_in, fill_function_hash
 )
 from .base import RunDBError, RunDBInterface
 
@@ -233,23 +233,46 @@ class FileRunDB(RunDBInterface):
 
                 self._safe_del(p)
 
-    def store_function(self, func, name, project='', tag='', versioned=False):
-        update_in(func, 'metadata.updated', datetime.now(timezone.utc))
-        update_in(func, 'metadata.tag', '')
-        data = self._dumps(func)
-        filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
-            functions_dir, project or config.default_project, name,
-            tag or 'latest')) + self.format
+    def store_function(self, function, name, project='', tag='', versioned=False):
+        tag = tag or get_in(function, 'metadata.tag') or 'latest'
+        hash_key = fill_function_hash(function, tag)
+        update_in(function, 'metadata.updated', datetime.now(timezone.utc))
+        update_in(function, 'metadata.tag', '')
+        data = self._dumps(function)
+        filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(functions_dir,
+                                                                project or config.default_project,
+                                                                name,
+                                                                tag)) + self.format
         self._datastore.put(filepath, data)
+        if versioned:
+
+            # the "hash_key" version should not include the status
+            function['status'] = None
+
+            # versioned means we want this function to be queryable by its hash key so save another file that the
+            # hash key is the file name
+            filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(functions_dir,
+                                                                    project or config.default_project,
+                                                                    name,
+                                                                    hash_key)) + self.format
+            data = self._dumps(function)
+            self._datastore.put(filepath, data)
+        return hash_key
 
     def get_function(self, name, project='', tag='', hash_key=''):
+        tag = tag or 'latest'
+        file_name = hash_key or tag
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or config.default_project, name,
-            tag or 'latest')) + self.format
+            file_name)) + self.format
         if not pathlib.Path(filepath).is_file():
             return None
         data = self._datastore.get(filepath)
-        return self._loads(data)
+        parsed_data = self._loads(data)
+
+        # tag should be filled only when queried by tag
+        parsed_data['metadata']['tag'] = '' if hash_key else tag
+        return parsed_data
 
     def list_functions(self, name, project='', tag='', labels=None):
         labels = labels or []
@@ -257,7 +280,9 @@ class FileRunDB(RunDBInterface):
             f'reading functions in {project} name/mask: {name} tag: {tag} ...')
         filepath = path.join(self.dirpath, '{}/{}/'.format(
             functions_dir, project or config.default_project))
-        results = []
+        functions_with_tag_filename = {}
+        functions_with_hash_key_filename = {}
+        function_with_tag_hash_keys = set()
         if isinstance(labels, str):
             labels = labels.split(',')
         mask = '**/*'
@@ -266,11 +291,29 @@ class FileRunDB(RunDBInterface):
             mask = '*'
         for func, fullname in self._load_list(filepath, mask):
             if match_labels(get_in(func, 'metadata.labels', {}), labels):
-                name, _ = path.splitext(path.basename(fullname))
-                if len(name) > 20:  # hash vs tags
-                    name = ''
-                update_in(func, 'metadata.tag', name)
-                results.append(func)
+                file_name, _ = path.splitext(path.basename(fullname))
+                target_dict = functions_with_tag_filename
+
+                # Heuristic - if tag length if bigger than 20 it's probably a hash key
+                tag_name = file_name
+                if len(tag_name) > 20:  # hash vs tags
+                    tag_name = ''
+                    target_dict = functions_with_hash_key_filename
+                else:
+                    function_with_tag_hash_keys.add(func['metadata']['hash'])
+                update_in(func, 'metadata.tag', tag_name)
+                target_dict[file_name] = func
+
+        # clean duplicated function e.g. function was saved in a hash key filename and tag filename
+        function_hash_keys_to_remove = []
+        for function_hash_key, function_dict in functions_with_hash_key_filename.items():
+            if function_hash_key in function_with_tag_hash_keys:
+                function_hash_keys_to_remove.append(function_hash_key)
+
+        for function_hash_key in function_hash_keys_to_remove:
+            del functions_with_hash_key_filename[function_hash_key]
+
+        results = list(functions_with_hash_key_filename.values()) + list(functions_with_tag_filename.values())
 
         return results
 

@@ -39,6 +39,7 @@ root_path = str(Path(here).parent)
 examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
+environ['MLRUN_httpdb__dirpath'] = rundb_path
 
 from mlrun.api.db.sqldb.models import Base
 from mlrun.api.db.sqldb.db import run_time_fmt

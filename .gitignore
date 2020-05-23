@@ -20,4 +20,4 @@ model.txt
 result*.html
 tests/test_results/
 .idea/
-
+venv

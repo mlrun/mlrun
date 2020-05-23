@@ -16,10 +16,11 @@ from collections import namedtuple
 from os import environ
 from pathlib import Path
 from socket import socket
-from subprocess import Popen, run, PIPE
+from subprocess import Popen, run, PIPE, DEVNULL
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
+from shutil import rmtree
 
 import pytest
 
@@ -28,8 +29,8 @@ from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
 from conftest import wait_for_server, in_docker
 
-root = Path(__file__).absolute().parent.parent
-Server = namedtuple('Server', 'url conn')
+project_dir_path = Path(__file__).absolute().parent.parent
+Server = namedtuple('Server', 'url conn workdir')
 
 docker_tag = 'mlrun/test-api'
 
@@ -47,43 +48,34 @@ def check_server_up(url):
         raise RuntimeError(f'server did not start after {timeout} sec')
 
 
-def start_server(db_path, log_file, env_config: dict):
+def create_workdir(root_dir='/tmp'):
+    return mkdtemp(prefix='mlrun-test-', dir=root_dir)
+
+
+def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['MLRUN_httpdb__dsn'] = f'sqlite:///{db_path}?check_same_thread=false'
+    env['MLRUN_httpdb__dsn'] = f'sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false'
+    env['MLRUN_httpdb__logs_path'] = workdir
     env.update(env_config or {})
-
     cmd = [
         executable,
         '-m', 'mlrun.api.main',
     ]
-    proc = Popen(cmd, env=env, stdout=log_file, stderr=log_file, cwd=root)
+
+    proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
     url = f'http://localhost:{port}'
     check_server_up(url)
 
     return proc, url
 
 
-# Used when running container in the background, see below
-def noo_docker_fixture():
-    def create(env=None):
-        url = 'http://localhost:8080'
-        conn = HTTPRunDB(url)
-        conn.connect()
-        return Server(url, conn)
-
-    def cleanup():
-        pass
-
-    return create, cleanup
-
-
 def docker_fixture():
-    cid = None
+    container_id, workdir = None, None
 
     def create(env_config=None):
-        nonlocal cid
+        nonlocal container_id, workdir
 
         env_config = {} if env_config is None else env_config
         cmd = [
@@ -92,65 +84,62 @@ def docker_fixture():
             '--tag', docker_tag,
             '.',
         ]
-        out = run(cmd)
-        assert out.returncode == 0, 'cannot build docker'
+        run(cmd, check=True, stdout=PIPE, cwd=project_dir_path)
+        workdir = create_workdir(root_dir='/tmp')
 
-        run(['docker', 'network', 'create', 'mlrun'])
-        port = free_port()
         cmd = [
             'docker', 'run',
             '--detach',
-            '--publish', f'{port}:8080',
-            '--network', 'mlrun',
-            '--volume', '/tmp:/tmp',  # For debugging
+            '--publish', '8080',
+
+            # For debugging
+            '--volume', f'{workdir}:/tmp',
         ]
+
+        env_config.setdefault('MLRUN_httpdb__logs_path', '/tmp')
         for key, value in env_config.items():
             cmd.extend(['--env', f'{key}={value}'])
         cmd.append(docker_tag)
-        out = run(cmd, stdout=PIPE)
-        assert out.returncode == 0, 'cannot run docker'
-        cid = out.stdout.decode('utf-8').strip()
-        if in_docker:
-            host = cid[:12]
-            url = f'http://{host}:8080'
-        else:
-            url = f'http://localhost:{port}'
+        out = run(cmd, stdout=PIPE, check=True)
+        container_id = out.stdout.decode('utf-8').strip()
+
+        # retrieve container bind port + host
+        out = run(['docker', 'port', container_id, '8080'], stdout=PIPE, check=True)
+        host = out.stdout.decode('utf-8').strip()
+
+        url = f'http://{host}'
         print(f'api url: {url}')
         check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
-        return Server(url, conn)
+        return Server(url, conn, workdir)
 
     def cleanup():
-        return
-        run(['docker', 'rm', '--force', cid])
+        if container_id:
+            run(['docker', 'rm', '--force', container_id], stdout=DEVNULL)
+        if workdir:
+            rmtree(workdir)
 
     return create, cleanup
 
 
-if 'API_DOCKER_RUN' in environ:
-    docker_fixture = noop_docker_fixture  # noqa
-
-
 def server_fixture():
-    proc, log_fp = None, None
+    proc = None
+    workdir = None
 
     def create(env=None):
-        nonlocal proc, log_fp
-        root = mkdtemp(prefix='mlrun-test-')
-        print(f'root={root!r}')
-        db_path = f'{root}/mlrun.sqlite3?check_same_thread=false'
-        log_fp = open(f'{root}/api.log', 'w+')
-        proc, url = start_server(db_path, log_fp, env)
+        nonlocal proc, workdir
+        workdir = create_workdir()
+        proc, url = start_server(workdir, env)
         conn = HTTPRunDB(url)
         conn.connect()
-        return Server(url, conn)
+        return Server(url, conn, workdir)
 
     def cleanup():
         if proc:
-            proc.kill()
-        if log_fp:
-            log_fp.close()
+            proc.terminate()
+        if workdir:
+            rmtree(workdir)
 
     return create, cleanup
 
@@ -161,23 +150,21 @@ servers = [
 ]
 
 
-@pytest.fixture(scope='module', params=servers)
+@pytest.fixture(scope='function', params=servers)
 def create_server(request):
     if request.param == 'server':
         create, cleanup = server_fixture()
     else:
         create, cleanup = docker_fixture()
 
-    yield create
-    cleanup()
+    try:
+        yield create
+    finally:
+        cleanup()
 
 
 def test_log(create_server):
-    logs_path = mkdtemp()
-    env = {
-        'MLRUN_httpdb__logs_path': logs_path,
-    }
-    server: Server = create_server(env)
+    server: Server = create_server()
     db = server.conn
     prj, uid, body = 'p19', '3920', b'log data'
     db.store_log(uid, prj, body)
@@ -190,15 +177,15 @@ def test_run(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid = 'p18', '3i920'
-    run = RunObject().to_dict()
-    run['metadata'].update({
+    run_as_dict = RunObject().to_dict()
+    run_as_dict['metadata'].update({
         'algorithm': 'svm',
         'C': 3,
     })
-    db.store_run(run, uid, prj)
+    db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)
-    assert data == run, 'read_run'
+    assert data == run_as_dict, 'read_run'
 
     new_c = 4
     updates = {'metadata.C': new_c}
@@ -218,10 +205,10 @@ def test_runs(create_server):
     count = 7
 
     prj = 'p180'
+    run_as_dict = RunObject().to_dict()
     for i in range(count):
         uid = f'uid_{i}'
-        run = RunObject().to_dict()
-        db.store_run(run, uid, prj)
+        db.store_run(run_as_dict, uid, prj)
 
     runs = db.list_runs(project=prj)
     assert len(runs) == count, 'bad number of runs'

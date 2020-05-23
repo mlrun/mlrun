@@ -273,8 +273,8 @@ class SQLDB(DBInterface):
         if obj:
             function = obj.struct
 
-            # If not queried by tag do not add status
-            if not tag:
+            # If queried by hash key remove status
+            if hash_key:
                 function['status'] = None
 
             # If connected to a tag add it to metadata

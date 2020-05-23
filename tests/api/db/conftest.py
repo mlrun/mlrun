@@ -1,6 +1,7 @@
 from typing import Generator
 
 import pytest
+import shutil
 
 from mlrun.api.db.filedb.db import FileDB
 from mlrun.api.db.session import create_session, close_session
@@ -11,7 +12,7 @@ from mlrun.config import config
 
 dbs = [
     'sqldb',
-    # 'filedb',
+    'filedb',
 ]
 
 
@@ -37,6 +38,7 @@ def db(request) -> Generator:
             db.initialize(db_session)
             yield db
         finally:
+            shutil.rmtree(config.httpdb.dirpath, ignore_errors=True, onerror=None)
             close_session(db_session)
     else:
         raise Exception('Unknown db type')

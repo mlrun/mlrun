@@ -87,8 +87,8 @@ class SQLDB(RunDBInterface):
             self, name='', project='', tag='', labels=None):
         return self._transform_db_error(self.db.del_artifacts, self.session, name, project, tag, labels)
 
-    def store_function(self, func, name, project='', tag='', versioned=False):
-        return self._transform_db_error(self.db.store_function, self.session, func, name, project, tag, versioned)
+    def store_function(self, function, name, project='', tag='', versioned=False):
+        return self._transform_db_error(self.db.store_function, self.session, function, name, project, tag, versioned)
 
     def get_function(self, name, project='', tag='', hash_key=''):
         return self._transform_db_error(self.db.get_function, self.session, name, project, tag, hash_key)

@@ -94,7 +94,7 @@ class DBInterface(ABC):
         warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
-    def store_function(self, session, func, name, project="", tag="", versioned=False):
+    def store_function(self, session, function, name, project="", tag="", versioned=False):
         pass
 
     @abstractmethod

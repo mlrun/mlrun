@@ -319,7 +319,10 @@ class FileRunDB(RunDBInterface):
             for function_hash_key in function_hash_keys_to_remove:
                 del hash_keys_to_function_dict_map[function_hash_key]
 
-        results = list(functions_with_hash_key_filename.values()) + list(functions_with_tag_filename.values())
+        results = []
+        for functions_map in [functions_with_hash_key_filename, functions_with_tag_filename]:
+            for function_name, filename_to_function_map in functions_map.items():
+                results.extend(filename_to_function_map.values())
 
         return results
 

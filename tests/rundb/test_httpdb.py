@@ -286,8 +286,9 @@ def test_set_get_function(create_server):
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
 
-    # db methods enriches metadata
+    # db methods enriches metadata and status
     del db_func['metadata']
+    del db_func['status']
     assert db_func == func, 'wrong func'
 
 

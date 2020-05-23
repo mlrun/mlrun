@@ -24,7 +24,7 @@ import nuclio
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
 from ..platforms.iguazio import mount_v3io
-from .base import RunError
+from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in, tag_image
 from ..lists import RunList
@@ -129,6 +129,14 @@ class NuclioSpec(KubeResourceSpec):
         return vols
 
 
+class NuclioStatus(FunctionStatus):
+    def __init__(self, state=None, nuclio_name=None, address=None):
+        super().__init__(state)
+
+        self.nuclio_name = nuclio_name
+        self.address = address
+
+
 class RemoteRuntime(KubeResource):
     kind = 'remote'
 
@@ -139,6 +147,14 @@ class RemoteRuntime(KubeResource):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', NuclioSpec)
+
+    @property
+    def status(self) -> NuclioStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(status, 'status', NuclioStatus)
 
     def set_config(self, key, value):
         self.spec.config[key] = value
@@ -264,6 +280,11 @@ class RemoteRuntime(KubeResource):
                 tag=tag, verbose=self.verbose, create_new=True)
 
         self.spec.command = 'http://{}'.format(addr)
+        self.status.nuclio_name = name
+        if addr:
+            self.status.state = 'ready'
+            self.status.address = addr
+            self.save()
         return self.spec.command
 
     def deploy_step(self, dashboard='', project='', models=None, env=None,

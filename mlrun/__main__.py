@@ -66,6 +66,7 @@ def main():
               help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
 @click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
 @click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
+@click.option('--tuning-strategy', default='', help='hyperparam tuning strategy list | grid | random')
 @click.option('--func-url', '-f', default='', help='path/url of function yaml or function '
                                                    'yaml or db://<project>/<name>[:tag]')
 @click.option('--task', default='', help='path/url to task yaml')
@@ -82,8 +83,8 @@ def main():
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
 def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         name, workflow, project, db, runtime, kfp, hyperparam, param_file,
-        selector, func_url, task, handler, mode, schedule, from_env, dump,
-        image, workdir, label, watch, verbose, run_args):
+        selector, tuning_strategy, func_url, task, handler, mode, schedule,
+        from_env, dump, image, workdir, label, watch, verbose, run_args):
     """Execute a task and inject parameters."""
 
     out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
@@ -170,6 +171,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, param, 'parameters', fill_params(param))
     set_item(runobj.spec, hyperparam, 'hyperparams', fill_params(hyperparam))
     set_item(runobj.spec, param_file, 'param_file')
+    set_item(runobj.spec, tuning_strategy, 'tuning_strategy')
     set_item(runobj.spec, selector, 'selector')
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
@@ -350,6 +352,8 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
     print('function deployed, address={}'.format(addr))
     with open('/tmp/output', 'w') as fp:
         fp.write(addr)
+    with open('/tmp/name', 'w') as fp:
+        fp.write(f.status.nuclio_name)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))

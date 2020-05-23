@@ -145,11 +145,13 @@ class RunSpec(ModelObj):
     def __init__(self, parameters=None, hyperparams=None, param_file=None,
                  selector=None, handler=None, inputs=None, outputs=None,
                  input_path=None, output_path=None, function=None,
-                 secret_sources=None, data_stores=None, verbose=None):
+                 secret_sources=None, data_stores=None,
+                 tuning_strategy=None, verbose=None):
 
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
         self.param_file = param_file
+        self.tuning_strategy = tuning_strategy
         self.selector = selector
         self.handler = handler
         self._inputs = inputs
@@ -264,14 +266,16 @@ class RunTemplate(ModelObj):
         self.spec.inputs[key] = path
         return self
 
-    def with_hyper_params(self, hyperparams, selector=None):
+    def with_hyper_params(self, hyperparams, selector=None, strategy=None):
         self.spec.hyperparams = hyperparams
         self.spec.selector = selector
+        self.spec.tuning_strategy = strategy
         return self
 
-    def with_param_file(self, param_file, selector=None):
+    def with_param_file(self, param_file, selector=None, strategy=None):
         self.spec.param_file = param_file
         self.spec.selector = selector
+        self.spec.tuning_strategy = strategy
         return self
 
     def with_secrets(self, kind, source):
@@ -386,7 +390,7 @@ class RunObject(RunTemplate):
 
 def NewTask(name=None, project=None, handler=None,
             params=None, hyper_params=None, param_file=None, selector=None,
-            inputs=None, outputs=None,
+            tuning_strategy=None, inputs=None, outputs=None,
             in_path=None, out_path=None, artifact_path=None,
             secrets=None, base=None):
     """Create new task"""
@@ -401,6 +405,7 @@ def NewTask(name=None, project=None, handler=None,
     run.spec.parameters = params or run.spec.parameters
     run.spec.hyperparams = hyper_params or run.spec.hyperparams
     run.spec.param_file = param_file or run.spec.param_file
+    run.spec.tuning_strategy = tuning_strategy or run.spec.tuning_strategy
     run.spec.selector = selector or run.spec.selector
     run.spec.inputs = inputs or run.spec.inputs
     run.spec.outputs = outputs or run.spec.outputs or []

@@ -291,8 +291,8 @@ class HTTPRunDB(RunDBInterface):
         error = 'del artifacts'
         self.api_call('DELETE', 'artifacts', error, params=params)
 
-    def store_function(self, func, name, project='', tag=None):
-        params = {'tag': tag}
+    def store_function(self, func, name, project='', tag=None, versioned=False):
+        params = {'tag': tag, 'versioned': versioned}
         project = project or default_project
         path = self._path_of('func', project, name)
 
@@ -300,8 +300,8 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             'POST', path, error, params=params, body=json.dumps(func))
 
-    def get_function(self, name, project='', tag=None):
-        params = {'tag': tag}
+    def get_function(self, name, project='', tag=None, hash_key=''):
+        params = {'tag': tag, 'hash_key': hash_key}
         project = project or default_project
         path = self._path_of('func', project, name)
         error = f'get function {project}/{name}'

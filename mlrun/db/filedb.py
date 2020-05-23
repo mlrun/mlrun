@@ -233,7 +233,7 @@ class FileRunDB(RunDBInterface):
 
                 self._safe_del(p)
 
-    def store_function(self, func, name, project='', tag=''):
+    def store_function(self, func, name, project='', tag='', versioned=False):
         update_in(func, 'metadata.updated', datetime.now(timezone.utc))
         update_in(func, 'metadata.tag', '')
         data = self._dumps(func)
@@ -242,7 +242,7 @@ class FileRunDB(RunDBInterface):
             tag or 'latest')) + self.format
         self._datastore.put(filepath, data)
 
-    def get_function(self, name, project='', tag=''):
+    def get_function(self, name, project='', tag='', hash_key=''):
         filepath = path.join(self.dirpath, '{}/{}/{}/{}'.format(
             functions_dir, project or config.default_project, name,
             tag or 'latest')) + self.format

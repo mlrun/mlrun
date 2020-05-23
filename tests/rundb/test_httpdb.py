@@ -288,7 +288,6 @@ def test_set_get_function(create_server):
 
     # db methods enriches metadata
     del db_func['metadata']
-    del func['metadata']
     assert db_func == func, 'wrong func'
 
 

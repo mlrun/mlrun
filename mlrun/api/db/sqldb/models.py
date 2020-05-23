@@ -69,8 +69,8 @@ def make_tag(table):
     return Tag
 
 
-# don't want to refactor everything in one PR so splitting this function to 2 versions - eventually only this one
-# should be used
+# TODO: don't want to refactor everything in one PR so splitting this function to 2 versions - eventually only this one
+#  should be used
 def make_tag_v2(table):
     class Tag(Base):
         __tablename__ = f"{table}_tags"

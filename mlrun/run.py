@@ -33,7 +33,7 @@ from .funcdoc import find_handlers
 from .k8s_utils import get_k8s_helper
 from .model import RunObject, BaseMetadata
 from .runtimes import (
-    HandlerRuntime, LocalRuntime, RemoteRuntime, runtime_dict
+    HandlerRuntime, LocalRuntime, RemoteRuntime, supported_runtimes, get_runtime
 )
 from .runtimes.base import FunctionEntrypoint
 from .runtimes.utils import add_code_metadata, global_context
@@ -340,12 +340,12 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     else:
         if kind in ['', 'local'] and command:
             runner = LocalRuntime.from_dict(runtime)
-        elif kind in runtime_dict:
-            runner = runtime_dict[kind].from_dict(runtime)
+        elif kind in supported_runtimes:
+            runner = get_runtime(kind).from_dict(runtime)
         else:
             raise Exception('unsupported runtime ({}) or missing command, '.format(kind)
                             + 'supported runtimes: {}'.format(
-                              ','.join(list(runtime_dict.keys()) + ['local'])))
+                              ','.join(supported_runtimes + ['local'])))
 
     if not name:
         # todo: regex check for valid name
@@ -491,8 +491,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             raise ValueError('code_output path or embed_code=False should be'
                              ' specified for local runtime')
         r = LocalRuntime()
-    elif kind in runtime_dict:
-        r = runtime_dict[kind]()
+    elif kind in supported_runtimes:
+        r = get_runtime(kind)()
     else:
         raise ValueError('unsupported runtime ({})'.format(kind))
 

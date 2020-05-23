@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import shlex
-
 from copy import deepcopy
 
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.model import RunObject
 from mlrun.utils import update_in, get_in
+
+from kubernetes import client
 
 _mpijob_pod_template = {
     'spec': {
@@ -70,8 +71,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
         return mpi_group, mpi_version, mpi_plural
 
-    def _generate_mpi_job(self, runobj: RunObject) -> dict:
-        meta = self._get_meta(runobj, True)
+    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> dict:
         pod_labels = deepcopy(meta.labels)
         pod_labels['mlrun/job'] = meta.name
 
@@ -128,7 +128,15 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         return job
 
     def _get_job_launcher_status(self, resp: list) -> str:
-        return get_in(resp, 'status.replicaStatuses.Launcher')
+        launcher_status = get_in(resp, 'status.replicaStatuses.Launcher')
+        if launcher_status is None:
+            return ''
+
+        for status in ['active', 'failed', 'succeeded']:
+            if launcher_status.get(status, 0) == 1:
+                return status
+
+        return ''
 
     def _pretty_print_jobs(self, items: list):
         print('{:10} {:20} {:21} {}'.format(

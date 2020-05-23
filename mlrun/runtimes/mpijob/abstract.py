@@ -14,12 +14,12 @@
 import time
 import abc
 
-from mlrun.runtimes.utils import AsyncLogWriter, RunError
+from mlrun.execution import MLClientCtx
 from mlrun.config import config
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
+from mlrun.runtimes.utils import AsyncLogWriter, RunError
 from mlrun.utils import logger, get_in
-from mlrun.execution import MLClientCtx
 
 from kubernetes import client
 
@@ -34,7 +34,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _generate_mpi_job(self, runobj: RunObject) -> dict:
+    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> dict:
         pass
 
     @abc.abstractmethod
@@ -53,9 +53,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         if runobj.metadata.iteration:
             self.store_run(runobj)
 
-        job = self._generate_mpi_job(runobj)
-
         meta = self._get_meta(runobj, True)
+
+        job = self._generate_mpi_job(runobj, meta)
 
         resp = self._submit_mpijob(job, meta.namespace)
 

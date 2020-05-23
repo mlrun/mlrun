@@ -17,6 +17,7 @@ from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.model import RunObject
 from mlrun.utils import update_in, get_in
 
+from kubernetes import client
 
 _mpijob_template = {
  'apiVersion': 'kubeflow.org/v1alpha1',
@@ -57,9 +58,8 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
         return mpi_group, mpi_version, mpi_plural
 
-    def _generate_mpi_job(self, runobj: RunObject) -> dict:
+    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> dict:
         job = deepcopy(_mpijob_template)
-        meta = self._get_meta(runobj, True)
 
         pod_labels = deepcopy(meta.labels)
         pod_labels['mlrun/job'] = meta.name

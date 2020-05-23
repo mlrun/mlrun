@@ -26,7 +26,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server, in_docker
+from tests.conftest import wait_for_server, in_docker
 
 root = Path(__file__).absolute().parent.parent
 Server = namedtuple('Server', 'url conn')

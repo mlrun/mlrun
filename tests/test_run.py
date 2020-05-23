@@ -14,7 +14,7 @@
 
 import pytest
 import pandas as pd
-from conftest import (
+from tests.conftest import (
     examples_path, has_secrets, here, out_path, tag_test, verify_state
 )
 from mlrun import NewTask, get_run_db, new_function

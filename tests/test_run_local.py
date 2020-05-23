@@ -15,7 +15,7 @@ from os import path
 
 import pytest
 
-from conftest import (
+from tests.conftest import (
     examples_path, has_secrets, here, out_path, tag_test, verify_state
 )
 from mlrun import NewTask, run_local, code_to_function

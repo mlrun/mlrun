@@ -19,7 +19,7 @@ from uuid import uuid4
 
 import pytest
 
-from conftest import here, in_docker, wait_for_server
+from tests.conftest import here, in_docker, wait_for_server
 
 prj_dir = here.parent
 is_ci = 'CI' in environ

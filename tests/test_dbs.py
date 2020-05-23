@@ -17,7 +17,7 @@ from tempfile import mkdtemp
 
 import pytest
 
-from conftest import new_run, run_now, init_sqldb
+from tests.conftest import new_run, run_now, init_sqldb
 from mlrun.db import SQLDB, FileRunDB, RunDBError, sqldb
 from mlrun.db.base import RunDBInterface
 

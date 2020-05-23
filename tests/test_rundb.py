@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import mlrun
-from conftest import rundb_path, results
+from tests.conftest import rundb_path, results
 
 
 def get_db():

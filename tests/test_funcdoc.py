@@ -18,7 +18,7 @@ from textwrap import dedent
 import pytest
 import yaml
 
-from conftest import here
+from tests.conftest import here
 from mlrun import funcdoc
 
 

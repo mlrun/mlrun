@@ -289,7 +289,9 @@ def uxjoin(base, local_path, key='', iter=None, is_dir=False):
 
 
 def parse_function_uri(uri):
-    project = tag = ''
+    project = ''
+    tag = ''
+    hash_key = ''
     if '/' in uri:
         loc = uri.find('/')
         project = uri[:loc]
@@ -298,7 +300,11 @@ def parse_function_uri(uri):
         loc = uri.find(':')
         tag = uri[loc + 1:]
         uri = uri[:loc]
-    return project, uri, tag
+    if '@' in uri:
+        loc = uri.find('@')
+        hash_key = uri[loc + 1:]
+        uri = uri[:loc]
+    return project, uri, tag, hash_key
 
 
 def extend_hub_uri(uri):

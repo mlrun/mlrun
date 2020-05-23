@@ -160,10 +160,12 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
-    def _function_uri(self, tag=None):
+    def _function_uri(self, tag=None, hash_key=None):
         url = '{}/{}'.format(self.metadata.project, self.metadata.name)
         if tag or self.metadata.tag:
             url += ':{}'.format(tag or self.metadata.tag)
+        elif hash_key:
+            url += '@{}'.format(hash_key)
         return url
 
     def _get_db(self):
@@ -537,8 +539,8 @@ class BaseRuntime(ModelObj):
         #     image = self.full_image_path()
 
         if use_db:
-            hashkey = self.save(versioned=True, refresh=True)
-            url = 'db://' + self._function_uri(tag=hashkey)
+            hash_key = self.save(versioned=True, refresh=True)
+            url = 'db://' + self._function_uri(hash_key=hash_key)
         else:
             url = None
 

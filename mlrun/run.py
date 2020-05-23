@@ -247,9 +247,9 @@ def import_function(url='', secrets=None, db=''):
     """
     if url.startswith('db://'):
         url = url[5:]
-        project, name, tag = parse_function_uri(url)
+        project, name, tag, hash_key = parse_function_uri(url)
         db = get_run_db(db or get_or_set_dburl()).connect(secrets)
-        runtime = db.get_function(name, project, tag)
+        runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:
             raise KeyError('function {}:{} not found in the DB'.format(
                 name, tag

@@ -220,75 +220,99 @@ class SQLDB(DBInterface):
             session.delete(obj)
         session.commit()
 
-    def store_function(self, session, func, name, project="", tag=""):
+    def store_function(self, session, function, name, project="", tag="", versioned=False):
         project = project or config.default_project
         self._create_project_if_not_exists(session, project)
-        tag = tag or get_in(func, "metadata.tag") or "latest"
+        tag = tag or get_in(function, "metadata.tag") or "latest"
+        hash_key = self._fill_function_hash(function, tag)
 
-        # uid = self._resolve_tag(Function, project, tag)
+        # clear tag from object in case another function will "take" that tag
+        update_in(function, "metadata.tag", "")
+
+        # versioned means whether we want to version this function object so that it will queryable by its hash key
+        # to enable that we set the uid to the hash key so it will have a unique record (Unique constraint of function
+        # is the set (project, name, uid))
+        # when it's not enabled it means we want to have one unique function object for the set (project, name, tag)
+        # that will be reused on every store function (cause we don't want to version each version e.g. create a new
+        # record) so we set the uid to be unversioned-{tag}
+        if versioned:
+            uid = hash_key
+        else:
+            uid = f'unversioned-{tag}'
+
         updated = datetime.now(timezone.utc)
-        update_in(func, "metadata.updated", updated)
-        #        fn = self._get_function(name, project, uid)
-        fn = self._get_function(session, name, project, tag)
+        update_in(function, "metadata.updated", updated)
+        fn = self._get_function(session, name, project, uid)
         if not fn:
             fn = Function(
                 name=name,
                 project=project,
-                uid=tag,
+                uid=uid,
             )
         fn.updated = updated
-        labels = get_in(func, "metadata.labels", {})
+        labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
-        fn.struct = func
+        fn.struct = function
         self._upsert(session, fn)
-        if tag:
-            self.tag_objects(session, [fn], project, tag)
+        self.tag_objects_v2(session, [fn], project, tag)
 
-    def get_function(self, session, name, project="", tag=""):
+    def get_function(self, session, name, project="", tag="", hash_key=""):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
-        tag = tag or "latest"
-        # if tag:
-        #     if tag == "latest":
-        #         uid = self._function_latest_uid(session, project, name)
-        #         if not uid:
-        #             raise DBError(
-        #                 f"no latest version for function {project}:{name}")
-        #     else:
-        #         uid = self._resolve_tag(Function, project, tag)
-        query = query.filter(Function.uid == tag)
+        computed_tag = tag or "latest"
+        tag_function_uid = None
+        if not tag and hash_key:
+            uid = hash_key
+        else:
+            tag_function_uid = self._resolve_tag_function_uid(session, Function, project, name, computed_tag)
+            uid = tag_function_uid
+        if uid:
+            query = query.filter(Function.uid == uid)
         obj = query.one_or_none()
         if obj:
-            return obj.struct
+            function = obj.struct
+
+            # If not queried by tag do not add status
+            if not tag:
+                function['status'] = None
+
+            # If connected to a tag add it to metadata
+            if tag_function_uid:
+                function['metadata']['tag'] = computed_tag
+            return function
 
     def list_functions(
             self, session, name, project=None, tag=None, labels=None):
         project = project or config.default_project
-        uid = tag
-        # if uid:
-        #     uid = self._resolve_tag(Function, project, uid)
-
+        uid = None
+        if tag:
+            uid = self._resolve_tag_function_uid(session, Function, project, name, tag)
         funcs = FunctionList()
         for obj in self._find_functions(session, name, project, uid, labels):
             function_dict = obj.struct
             if not tag:
                 function_tags = self._list_function_tags(session, project, obj.id)
-                for function_tag in function_tags:
-                    function_dict_copy = deepcopy(function_dict)
+                if len(function_tags) == 0:
 
-                    # HACK - assuming tags are less than 20 chars, so above that it is a hash
-                    if len(function_tag) > 20:
-                        function_tag = ''
-                    function_dict_copy['metadata']['tag'] = function_tag
-                    funcs.append(function_dict_copy)
+                    # function status should be added only to tagged functions
+                    function_dict['status'] = None
+                    funcs.append(function_dict)
+                elif len(function_tags) == 1:
+                    function_dict['metadata']['tag'] = function_tags[0]
+                    funcs.append(function_dict)
+                else:
+                    for function_tag in function_tags:
+                        function_dict_copy = deepcopy(function_dict)
+                        function_dict_copy['metadata']['tag'] = function_tag
+                        funcs.append(function_dict_copy)
             else:
                 function_dict['metadata']['tag'] = tag
                 funcs.append(function_dict)
         return funcs
 
-    def _list_function_tags(self, session, project, func_id):
+    def _list_function_tags(self, session, project, function_id):
         query = session.query(Function.Tag.name).filter(
-            Function.Tag.project == project, Function.Tag.obj_id == func_id).distinct()
+            Function.Tag.project == project, Function.Tag.obj_id == function_id).distinct()
         return [row[0] for row in query]
 
     def list_artifact_tags(self, session, project):
@@ -311,6 +335,20 @@ class SQLDB(DBInterface):
         """
         for obj in objs:
             tag = obj.Tag(project=project, name=name, obj_id=obj.id)
+            session.add(tag)
+        session.commit()
+
+    def tag_objects_v2(self, session, objs, project: str, name: str):
+        """Tag objects with (project, name) tag.
+
+        If force==True will update tag
+        """
+        for obj in objs:
+            query = self._query(session, obj.Tag, name=name, project=project, obj_name=obj.name)
+            tag = query.one_or_none()
+            if not tag:
+                tag = obj.Tag(project=project, name=name, obj_name=obj.name)
+            tag.obj_id = obj.id
             session.add(tag)
         session.commit()
 
@@ -395,6 +433,11 @@ class SQLDB(DBInterface):
             return self._query(session, cls).get(tag.obj_id).uid
         return name  # Not found, return original uid
 
+    def _resolve_tag_function_uid(self, session, cls, project, obj_name, tag_name):
+        for tag in self._query(session, cls.Tag, project=project, obj_name=obj_name, name=tag_name):
+            return self._query(session, cls).get(tag.obj_id).uid
+        return None
+
     def _query(self, session, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
@@ -434,8 +477,7 @@ class SQLDB(DBInterface):
                 raise DBError(f"add user: {err}") from err
         return users
 
-    def _get_function(self, session, name, project, tag):
-        uid = self._resolve_tag(session, Function, project, tag)
+    def _get_function(self, session, name, project, uid):
         query = self._query(session, Function, name=name, project=project, uid=uid)
         return query.one_or_none()
 

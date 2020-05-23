@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import warnings
+import hashlib
+import json
 from abc import ABC, abstractmethod
 
 
@@ -92,11 +94,11 @@ class DBInterface(ABC):
         warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
-    def store_function(self, session, func, name, project="", tag=""):
+    def store_function(self, session, func, name, project="", tag="", versioned=False):
         pass
 
     @abstractmethod
-    def get_function(self, session, name, project="", tag=""):
+    def get_function(self, session, name, project="", tag="", hash_key=""):
         pass
 
     @abstractmethod
@@ -116,3 +118,24 @@ class DBInterface(ABC):
 
     def list_artifact_tags(self, session, project):
         return []
+
+    @staticmethod
+    def _fill_function_hash(function_dict, tag=''):
+
+        # remove tag, hash, date from calculation
+        function_dict.setdefault('metadata', {})
+        tag = tag or function_dict['metadata'].get('tag')
+        status = function_dict.setdefault('status', {})
+        function_dict['metadata']['tag'] = ''
+        function_dict['metadata']['hash'] = ''
+        function_dict['status'] = None
+        function_dict['metadata']['updated'] = None
+
+        data = json.dumps(function_dict, sort_keys=True).encode()
+        h = hashlib.sha1()
+        h.update(data)
+        hashkey = h.hexdigest()
+        function_dict['metadata']['tag'] = tag
+        function_dict['metadata']['hash'] = hashkey
+        function_dict['status'] = status
+        return hashkey

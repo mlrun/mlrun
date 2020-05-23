@@ -32,11 +32,10 @@ def test_save_get_function(db: FileRunDB):
     func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
     db.store_function(func, name, proj)
     db_func = db.get_function(name, proj)
-    updated = db_func['metadata']['updated'].replace(tzinfo=timezone.utc)
-    db_func['metadata']['updated'] = updated
 
-    # enriched by get_function
-    func['metadata']['tag'] = 'latest'
+    # db methods enriches metadata
+    del db_func['metadata']
+    del func['metadata']
     assert db_func == func, 'wrong func'
 
 

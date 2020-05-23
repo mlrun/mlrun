@@ -50,12 +50,10 @@ def test_save_get_function(db: RunDBInterface):
     func, name, proj, tag = {'x': 1, 'y': 2}, 'f1', 'p2', 't3u'
     db.store_function(func, name, proj, tag)
     db_func = db.get_function(name, proj, tag)
-    updated = db_func['metadata']['updated']
-    if isinstance(db, FileRunDB):
-        db_func['metadata']['updated'] = updated.replace(tzinfo=timezone.utc)
 
-    # enriched by get_function
-    func['metadata']['tag'] = tag
+    # db methods enriches metadata
+    del db_func['metadata']
+    del func['metadata']
     assert func == db_func, 'wrong func'
 
 

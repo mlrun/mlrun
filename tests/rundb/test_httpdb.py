@@ -29,7 +29,7 @@ from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
 from tests.conftest import wait_for_server, in_docker
 
-project_dir_path = Path(__file__).absolute().parent.parent
+project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple('Server', 'url conn workdir')
 
 docker_tag = 'mlrun/test-api'
@@ -285,7 +285,10 @@ def test_set_get_function(create_server):
     tag = uuid4().hex
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
+
+    # db methods enriches metadata
     del db_func['metadata']
+    del func['metadata']
     assert db_func == func, 'wrong func'
 
 

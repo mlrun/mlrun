@@ -408,6 +408,11 @@ class MlrunProject(ModelObj):
             name, f = _init_function_from_dict(func, self)
         elif hasattr(func, 'to_dict'):
             name, f = _init_function_from_obj(func, self, name=name)
+            if image:
+                f.spec.image = image
+            if with_repo:
+                f.spec.build.source = './'
+
             if not name:
                 raise ValueError('function name must be specified')
         else:
@@ -690,6 +695,8 @@ def _init_function_from_dict(f, project):
     elif url.endswith('.yaml') or url.startswith('db://') \
             or url.startswith('hub://'):
         func = import_function(url)
+        if image:
+            func.spec.image = image
     elif url.endswith('.ipynb'):
         func = code_to_function(name, filename=url, image=image, kind=kind)
     elif url.endswith('.py'):
@@ -723,7 +730,6 @@ def _init_function_from_obj(func, project, name=None):
         func.metadata.project = project.name
     if project.tag:
         func.metadata.tag = project.tag
-
     return name or func.metadata.name, func
 
 

@@ -76,8 +76,8 @@ def submit(db_session: Session, data):
             if "://" in url:
                 fn = import_function(url=url)
             else:
-                project, name, tag = parse_function_uri(url)
-                runtime = get_db().get_function(db_session, name, project, tag)
+                project, name, tag, hash_key = parse_function_uri(url)
+                runtime = get_db().get_function(db_session, name, project, tag, hash_key)
                 if not runtime:
                     log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
                 fn = new_function(runtime=runtime)

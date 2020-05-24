@@ -27,9 +27,9 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from conftest import wait_for_server, in_docker
+from tests.conftest import wait_for_server, in_docker
 
-project_dir_path = Path(__file__).absolute().parent.parent
+project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple('Server', 'url conn workdir')
 
 docker_tag = 'mlrun/test-api'
@@ -285,7 +285,10 @@ def test_set_get_function(create_server):
     tag = uuid4().hex
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
+
+    # db methods enriches metadata and status
     del db_func['metadata']
+    del db_func['status']
     assert db_func == func, 'wrong func'
 
 
@@ -302,5 +305,7 @@ def test_list_functions(create_server):
         db.store_function(func, name, proj, tag=tag)
     db.store_function({}, 'f2', 'p7', tag=uuid4().hex)
 
-    out = db.list_functions(project=proj)
-    assert len(out) == count, 'bad list'
+    functions = db.list_functions(project=proj)
+    for function in functions:
+        assert function['metadata']['tag'] is not None
+    assert len(functions) == count, 'bad list'

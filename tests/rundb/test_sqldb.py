@@ -21,7 +21,7 @@ from typing import Generator
 from unittest.mock import Mock
 
 import pytest
-from conftest import new_run, init_sqldb
+from tests.conftest import new_run, init_sqldb
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.sqldb.db import SQLDB

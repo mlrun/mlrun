@@ -19,7 +19,7 @@ import pandas as pd
 
 import yaml
 
-from conftest import out_path
+from tests.conftest import out_path
 from mlrun.artifacts import ChartArtifact, TableArtifact
 from mlrun import NewTask, new_function
 

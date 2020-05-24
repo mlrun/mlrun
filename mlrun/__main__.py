@@ -118,9 +118,9 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
         try:
             if func_url.startswith('db://'):
                 func_url = func_url[5:]
-                project, name, tag = parse_function_uri(func_url)
+                project, name, tag, hash_key = parse_function_uri(func_url)
                 mldb = get_run_db(mlconf.dbpath).connect()
-                runtime = mldb.get_function(name, project, tag)
+                runtime = mldb.get_function(name, project, tag, hash_key)
             else:
                 func_url = 'function.yaml' if func_url == '.' else func_url
                 runtime = import_function_to_dict(func_url, {})

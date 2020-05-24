@@ -26,6 +26,7 @@ def store_function(
         project: str,
         name: str,
         tag: str = "",
+        versioned: bool = False,
         db_session: Session = Depends(deps.get_db_session)):
     data = None
     try:
@@ -36,7 +37,7 @@ def store_function(
     logger.debug(data)
     logger.info(
         "store function: project=%s, name=%s, tag=%s", project, name, tag)
-    get_db().store_function(db_session, data, name, project, tag=tag)
+    get_db().store_function(db_session, data, name, project, tag=tag, versioned=versioned)
     return {}
 
 
@@ -46,8 +47,9 @@ def get_function(
         project: str,
         name: str,
         tag: str = "",
+        hash_key="",
         db_session: Session = Depends(deps.get_db_session)):
-    func = get_db().get_function(db_session, name, project, tag)
+    func = get_db().get_function(db_session, name, project, tag, hash_key)
     return {
         "func": func,
     }
@@ -121,8 +123,8 @@ def start_function(
     if not url:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: functionUrl not specified")
 
-    project, name, tag = parse_function_uri(url)
-    runtime = get_db().get_function(db_session, name, project, tag)
+    project, name, tag, hash_key = parse_function_uri(url)
+    runtime = get_db().get_function(db_session, name, project, tag, hash_key)
     if not runtime:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
 

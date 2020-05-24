@@ -15,7 +15,7 @@
 import pytest
 from os import path
 
-from conftest import (
+from tests.conftest import (
     examples_path, results
 )
 from mlrun import code_to_function, new_model_server

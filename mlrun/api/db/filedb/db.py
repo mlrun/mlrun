@@ -55,11 +55,11 @@ class FileDB(DBInterface):
             self, session, name="", project="", tag="", labels=None):
         return self._transform_run_db_error(self.db.del_artifacts, name, project, tag, labels)
 
-    def store_function(self, session, func, name, project="", tag=""):
-        return self._transform_run_db_error(self.db.store_function, func, name, project, tag)
+    def store_function(self, session, function, name, project="", tag="", versioned=False):
+        return self._transform_run_db_error(self.db.store_function, function, name, project, tag, versioned)
 
-    def get_function(self, session, name, project="", tag=""):
-        return self._transform_run_db_error(self.db.get_function, name, project, tag)
+    def get_function(self, session, name, project="", tag="", hash_key=""):
+        return self._transform_run_db_error(self.db.get_function, name, project, tag, hash_key)
 
     def list_functions(self, session, name, project="", tag="", labels=None):
         return self._transform_run_db_error(self.db.list_functions, name, project, tag, labels)

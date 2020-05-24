@@ -1,12 +1,10 @@
 # Job Submission and Tracking  <!-- omit in toc -->
 
 - [Projects](#projects)
-- [Logging and Using Experiment Tracking](#logging-and-using-experiment-tracking)
-  - [Overview](#overview)
-  - [Best Practices](#best-practices)
+- [Experiment Tracking](#experiment-tracking)
 - [Tasks](#tasks)
-- [Jobs](#jobs)
 - [Functions](#functions)
+- [Jobs](#jobs)
 - [Pipelines](#pipelines)
 
 ## Projects
@@ -39,12 +37,11 @@ You can use an existing project as a baseline by calling the `load_project` func
 project = load_project('/projects/other_project/conf', name='my_project')
 ```
 
-##  Logging and Using Experiment Tracking
-### Overview
+##  Experiment Tracking
 Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find 3 main sections within the your project:
-1. Functions: The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the **MLRun Functions Marketplace**
-2. Jobs: Allows you to review anything you executed, and review the execution outcome
-3. Artifacts: Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs
+1. **Functions**: The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions)
+2. **Jobs**: Allows you to review anything you executed, and review the execution outcome
+3. **Artifacts**: Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs
 
 You can compare different experiments and review these results. When using experiment tracking you don't have to worry about saving your work as you try out different models and various configurations, you can always compare your different results and choose the best strategy based on your current and past experiments.
 
@@ -52,9 +49,31 @@ Experiments are also a great way to collaborate. Your colleagues can review the 
 
 Finally, experiments are useful to show your work to any reviewer. This is useful to allow other people to review your work, and ensure you have not missed anything and that your models were built based on solid methods as well as verifying you have considered other options in your work. In some cases this would be a model governance organization whose job is to verify your work. In other instances, it may just be your peer who reviews your work as part of a collaboration effort.
 
-### Best Practices
-
 ## Tasks
+
+A task can be created from a template, and can run over different runtimes or functions. Therefore, you can define a task once and reuse it in different scenarios. For instance, you can define a task with some parameters and inputs datasets, and call a local function, or use the same task to call a distributed job.
+
+For example:
+
+```python
+run = run_local(task,
+                command='training.py')
+```
+
+Tasks also support the `.with_hyper_param` method, which iterates over different parameter values in a single command For instance, the following command calls `training.py` with a task that iterates through different values for `p2`:
+
+``` python
+run = run_local(task.with_hyper_params({'p2': [5, 2, 3]}, 'min.loss'),
+                command='training.py')
+```
+
+## Functions
+
+A function is a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment). A function can run one or more runs or tasks
+
+Functions can be created from an existing template, for instance, check out the [MLRun Functions Marketplace](https://github.com/mlrun/functions). This marketplace is a centralized location for open-source contributions of function components that are commonly used in machine-learning development.
+
+Functions are stored in the project and are versioned. Therefore, you can always view previous code and go back to previous functions if needed.
 
 ## Jobs
 
@@ -67,14 +86,6 @@ You can view the artifacts produced by each job, for example, view the datasets 
 
 <br><br>
 <img src="_static/images/project-jobs-train-artifacts-test_set.png" alt="project-jobs-train-artifacts-test_set" width="800"/>
-
-## Functions
-
-A function is a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment). A function can run one or more runs or tasks
-
-Functions can be created from an existing template, for instance, check out the [MLRun Functions Marketplace](https://github.com/mlrun/functions). This marketplace is a centralized location for open-source contributions of function components that are commonly used in machine-learning development.
-
-Functions are stored in the project and are versioned. Therefore, you can always view previous code and go back to previous functions if needed.
 
 ## Pipelines
 

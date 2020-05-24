@@ -1,5 +1,5 @@
-Demonstrate Local Or Remote Functions And Full Pipelines
-========================================================
+End-to-end Pipelines
+====================
 
 --------------
 

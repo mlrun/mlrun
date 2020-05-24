@@ -66,9 +66,8 @@ print-docker-images: ## Print all docker images
 
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)
-MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-base: ## Build base and legacy-base docker images
+base: ## Build base docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -77,6 +76,12 @@ base: ## Build base and legacy-base docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
+IMAGES_TO_PUSH += $(MLRUN_BASE_IMAGE_NAME)
+
+
+MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+
+base-legacy: ## Build base legacy docker image
 	docker build \
 		--file dockerfiles/base/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
@@ -85,14 +90,12 @@ base: ## Build base and legacy-base docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_BASE_IMAGE_NAME)
 IMAGES_TO_PUSH += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
 
 
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)
-MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-models: ## Build models and legacy-models docker images
+models: ## Build models docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -100,6 +103,12 @@ models: ## Build models and legacy-models docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME) .
 
+IMAGES_TO_PUSH += $(MLRUN_MODELS_IMAGE_NAME)
+
+
+MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+
+models-legacy: ## Build models legacy docker image
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -107,14 +116,12 @@ models: ## Build models and legacy-models docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_MODELS_IMAGE_NAME)
 IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
 
 
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)
-MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 
-models-gpu: ## Build models-gpu and legacy-models-gpu docker images
+models-gpu: ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -122,6 +129,12 @@ models-gpu: ## Build models-gpu and legacy-models-gpu docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
 
+IMAGES_TO_PUSH += $(MLRUN_MODELS_GPU_IMAGE_NAME)
+
+
+MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+
+models-gpu-legacy: ## Build models-gpu legacy docker image
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -129,7 +142,6 @@ models-gpu: ## Build models-gpu and legacy-models-gpu docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_MODELS_GPU_IMAGE_NAME)
 IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 
 

@@ -6,14 +6,27 @@
 mlrun Package Documentation
 ============================
 
+Introduction
+============
+
+MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically tracking executed code, metadata, inputs, and outputs.
+MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and with `Kubeflow Pipelines <https://github.com/kubeflow/pipelines>`_.
+
+MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``), and a graphical user interface (the MLRun dashboard).
+
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 1
    :caption: Contents:
 
-   external/general
-   external/install
-   api
+   quick-start
+   general
+   install
+   end-to-end-pipeline
+   data-management-and-versioning
+   job-submission-and-tracking
+   model-management-and-serving
    examples
+   api
 
 
 Indices and Tables

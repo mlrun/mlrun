@@ -1,162 +1,25 @@
 <a id="top"></a>
-# MLRun
-
-[![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
-[![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
-
-MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically tracking executed code, metadata, inputs, and outputs.
-MLRun integrates with the [Nuclio](https://nuclio.io/) serverless project and with [Kubeflow Pipelines](https://github.com/kubeflow/pipelines).
-
-MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), and a graphical user interface (the MLRun dashboard).
-
-#### In This Document
-- [General Concept and Motivation](#concepts-n-motivation)
-- [Installation](#installation)
-- [Examples and Tutorial Notebooks](#examples-n-tutorial-notebooks)
-- [Quick-Start Tutorial &mdash; Architecture and Usage Guidelines](#qs-tutorial)
-
-<a id="concepts-n-motivation"></a>
-## General Concept and Motivation
-- [The Challenge](#the-challenge)
-- [The MLRun Vision](#the-vision)
-
-<a id="the-challenge"></a>
-### The Challenge
-
-As an ML developer or data scientist, you typically want to write code in your preferred local development environment (IDE) or web notebook, and then run the same code on a larger cluster using scale-out containers or functions.
-When you determine that the code is ready, you or someone else need to transfer the code to an automated ML workflow (for example, using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)).
-This pipeline should be secure and include capabilities such as logging and monitoring, as well as allow adjustments to relevant components and easy redeployment.
-
-However, the implementation is challenging: various environments (**"runtimes"**) use different configurations, parameters, and data sources.
-In addition, multiple frameworks and platforms are used to focus on different stages of the development life cycle.
-This leads to constant development and DevOps/MLOps work.
-
-Furthermore, as your project scales, you need greater computation power or GPUs, and you need to access large-scale data sets.
-This cannot work on laptops.
-You need a way to seamlessly run your code on a remote cluster and automatically scale it out.
-
-<a id="the-vision"></a>
-### The MLRun Vision
-
-When ML running experiments, you should ideally be able to record and version your code, configuration, outputs, and associated inputs (lineage), so you can easily reproduce and explain your results.
-The fact that you probably need to use different types of storage (such as files and AWS S3 buckets) and various databases, further complicates the implementation.
-
-Wouldn't it be great if you could write the code once, using your preferred development environment and simple "local" semantics, and then run it as-is on different platforms?
-Imagine a layer that automates the build process, execution, data movement, scaling, versioning, parameterization, outputs tracking, and more.
-A world of easily developed, published, or consumed data or ML "functions" that can be used to form complex and large-scale ML pipelines.
-
-In addition, imagine a marketplace of ML functions that includes both open-source templates and your internally developed functions, to support code reuse across projects and companies and thus further accelerate your work.
-
-<b>This is the goal of MLRun.</b>
-
-> **Note:** The code is in early development stages and is provided as a reference.
-> The hope is to foster wide industry collaboration and make all the resources pluggable, so that developers can code to a single API and use various open-source projects or commercial products.
-
-[Back to top](#top)
-
-<a id="installation"></a>
-## Installation
-
-Run the following command from your Python development environment (such as Jupyter Notebook) to install the MLRun package (`mlrun`), which includes a Python API library and the `mlrun` command-line interface (CLI):
-```python
-pip install mlrun
-```
-
-MLRun requires separate containers for the API and the dashboard (UI).
-You can also select to use the pre-baked JupyterLab image.
-
-To install and run MLRun locally using Docker or Kubernetes, see the instructions in [**hack/local/README.md**](hack/local/README.md).
-
-<a id="installation-iguazio-platform"></a>
-### Installation on the Iguazio Data Science Platform
-
-To install MLRun on an instance of the [Iguazio Data Science Platform](https://www.iguazio.com) (**"the platform"**) &mdash;
-
-1. Create a copy of the [**hack/mlrun-all.yaml**](hack/mlrun-all.yaml) configuration file; you can also rename your copy.
-    You can fetch the file from GitHub by running the following from a command line; to install a specific version of MLRun, replace `master` with the relevant version tag:
-    ```sh
-    curl -O https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrun-all.yaml
-    ```
-    <!-- [c-mlrun-versions] TODO: When there are MLRun version tags, instruct
-      to replace `master` with the version tag for the MLRun version supported
-      for the current platform version. -->
-
-2. Edit the configuration file to match your environment and desired configuration.
-    The following is required:
-
-    - Replace all `<...>` placeholders in the file.
-        Be sure to replace `<access key>` with a valid platform access key and `<default Docker registry URL>` with the URL of the default Docker Registry service of your platform cluster.
-
-        > **Note:** In platform cloud deployments, the URL of the default Docker Registry service is `docker-registry.default-tenant.<cluster DNS>:80`.
-        > Note the port number (80), which indicates a local on-cluster registry (unlike the default Docker port number).
-    - Uncomment the `volumes` and the`mlrun-api` container's `volumeMounts` configurations to add a volume for persisting data in the platform's data store (using the `v3io` data mount).
-    - Ensure that the value of the `V3IO_USERNAME` environment variable (`env`) and the `volumes.subPath` field are set to the name of a platform user with MLRun admin privileges (default: "admin").
-
-3. When you're ready, install MLRun by running the following from a platform command-line shell; replace `<namespace>` with your cluster's Kubernetes namespace, and `<configuration file>` with the path to your edited configuration file:
-    ```sh
-    kubectl apply -n <namespace> -f <configuration file>
-    ```
-
-[Back to top](#top)
-
-<a id="examples-n-tutorial-notebooks"></a>
-## Examples and Tutorial Notebooks
-
-MLRun has many code examples and tutorial Jupyter notebooks with embedded documentation, ranging from examples of basic tasks to full end-to-end use-case applications, including the following; note that some of the examples are found in other mlrun GitHub repositories:
-
-- Learn MLRun basics &mdash; [**examples/mlrun_basics.ipynb**](examples/mlrun_basics.ipynb)
-- Convert local runs to Kubernetes jobs and create automated pipelines in a single notebook &mdash; [**examples/mlrun_jobs.ipynb**](examples/mlrun_jobs.ipynb)
-- End-to-end ML pipeline&mdash; [**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe), including:
-  - Data ingestion and analysis 
-  - Model training
-  - Verification
-  - Model deployment
-- MLRun with scale-out runtimes &mdash;
-  - Distributed TensorFlow with Horovod and MPIJob &mdash; [**horovod-project.ipynb**](https://github.com/mlrun/demos/blob/master/horovod-pipe/horovod-project.ipynb)
-  - Serverless model serving with Nuclio &mdash; [**examples/xgb_serving.ipynb**](examples/xgb_serving.ipynb)
-  - Dask &mdash; [**examples/mlrun_dask.ipynb**](examples/mlrun_dask.ipynb)
-  - Spark &mdash; [**examples/mlrun_sparkk8s.ipynb**](examples/mlrun_sparkk8s.ipynb)
-- MLRun project and Git lifecycle &mdash;
-  - Load a project from a remote Git location and run pipelines &mdash; [**examples/load-project.ipynb**](examples/load-project.ipynb)
-  - Create a new project, functions, and pipelines, and upload to Git &mdash; [**examples/new-project.ipynb**](examples/new-project.ipynb)
-- Import and export functions using files or Git &mdash; [**examples/mlrun_export_import.ipynb**](examples/mlrun_export_import.ipynb)
-- Query the MLRun DB &mdash; [**examples/mlrun_db.ipynb**](examples/mlrun_db.ipynb)
-
-<a id="additional-examples"></a>
-### Additional Examples
-
-- Deep-learning pipeline (full end-to-end application), including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [mlrun/demo-image-classification](https://github.com/mlrun/demo-image-classification) repo
-- Additional end-to-end use-case applications &mdash; [mlrun/demos](https://github.com/mlrun/demos) repo
-- MLRun functions Library &mdash; [mlrun/functions](https://github.com/mlrun/functions) repo 
-
-[Back to top](#top)
-
-<a id="qs-tutorial"></a>
-## Quick-Start Tutorial &mdash; Architecture and Usage Guidelines
-<!-- TODO: Move this to a separate docs/quick-start.md file, add an opening
-  paragraph, update the heading levels, add a `top` anchor, and remove the
-  "Back to quick-start TOC" links (leaving only the "Back to top" links). -->
+# Quick-Start <!-- omit in toc -->
 
 - [Basic Components](#basic-components)
-- [Managed and Portable Execution ](#managed-and-portable-execution)
-- [Automated Code Deployment and Containerization](#auto-parameterization-artifact-tracking-n-logging)
+- [Managed and Portable Execution](#managed-and-portable-execution)
+- [Automated Parameterization, Artifact Tracking, and Logging](#automated-parameterization-artifact-tracking-and-logging)
+  - [Example](#example)
 - [Using Hyperparameters for Job Scaling](#using-hyperparameters-for-job-scaling)
-- [Automated Code Deployment and Containerization](#auto-code-deployment-n-containerization)
-- [Build and run function from a remote IDE using the CLI](examples/remote.md)
-- [Running an ML Workflow with Kubeflow Pipelines](#run-ml-workflow-w-kubeflow-pipelines)
-- [Viewing Run Data and Performing Database Operations](#db-operations)
-  - [The MLRun Dashboard](#mlrun-ui)
-  - [MLRun Database Methods](#mlrun-db-methods)
-- [Additional Information and Examples](#additional-info-n-examples)
-  - [Replacing Runtime Context Parameters from the CLI](#replace-runtime-context-param-from-cli)
+- [Automated Code Deployment and Containerization](#automated-code-deployment-and-containerization)
+- [Running an ML Workflow with Kubeflow Pipelines](#running-an-ml-workflow-with-kubeflow-pipelines)
+- [Viewing Run Data and Performing Database Operations](#viewing-run-data-and-performing-database-operations)
+  - [The MLRun Dashboard](#the-mlrun-dashboard)
+  - [MLRun Database Methods](#mlrun-database-methods)
+- [Additional Information and Examples](#additional-information-and-examples)
+  - [Replacing Runtime Context Parameters from the CLI](#replacing-runtime-context-parameters-from-the-cli)
   - [Remote Execution](#remote-execution)
-- [Running an MLRun Service](#run-mlrun-service)
-  - [Using the MLRun CLI](#run-mlrun-service-cli)
+    - [Nuclio Example](#nuclio-example)
+- [Running an MLRun Service](#running-an-mlrun-service)
+  - [Using the MLRun CLI to Run an MLRun Service](#using-the-mlrun-cli-to-run-an-mlrun-service)
 
 <a id="basic-components"></a>
-### Basic Components
+## Basic Components
 
 MLRun has the following main components, which are usually grouped into **"projects"**:
 
@@ -170,7 +33,7 @@ MLRun has the following main components, which are usually grouped into **"proje
 - <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using Kubeflow Pipelines.
 
 <a id="managed-and-portable-execution"></a>
-### Managed and Portable Execution
+## Managed and Portable Execution
 
 <a id="def-runtime"></a>MLRun supports various types of **"runtimes"** &mdash; computation frameworks such as local, Kubernetes job, Dask, Nuclio, Spark, or MPI job (Horovod).
 Runtimes may support parallelism and clustering to distribute the work among multiple workers (processes/containers).
@@ -204,16 +67,16 @@ Functions (function objects) can be created by using any of the following method
 You can use the `save` function method to save a function object in the MLRun database, or the `export` method to save a YAML function-configuration function to your preferred local or remote location.
 For function-method details and examples, see the embedded documentation/help text.
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="auto-parameterization-artifact-tracking-n-logging"></a>
-### Automated Parameterization, Artifact Tracking, and Logging
+## Automated Parameterization, Artifact Tracking, and Logging
 
 After running a job, you need to be able to track it, including viewing the run parameters, inputs, and outputs.
 To support this, MLRun introduces a concept of a runtime **"context"**: the code can be set up to get parameters and inputs from the context, as well as log run outputs, artifacts, tags, and time-series metrics in the context.
 
 <a id="auto-parameterization-artifact-tracking-n-logging-example"></a>
-#### Example
+### Example
 
 The following code example from the [**train-xgboost.ipynb**](https://github.com/mlrun/demo-xgb-project/blob/master/notebooks/train-xgboost.ipynb) notebook of the MLRun XGBoost demo (**demo-xgboost**) defines two functions:
 the `iris_generator` function loads the Iris data set and saves it to the function's context object; the `xgb_train` function uses XGBoost to train an ML model on a data set and saves the log results in the function's context:
@@ -346,10 +209,10 @@ Alternatively, you can invoke the application by using the `mlrun` CLI; edit the
 mlrun run --name train -p p2=5 -i infile.txt=s3://my-bucket/infile.txt -s file=secrets.txt training.py
 ```
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="using-hyperparameters-for-job-scaling"></a>
-### Using Hyperparameters for Job Scaling
+## Using Hyperparameters for Job Scaling
 
 Data science involves long computation times and data-intensive tasks.
 To ensure efficiency and scalability, you need to implement parallelism whenever possible.
@@ -396,10 +259,10 @@ The following code from the example [**mlrun_basics.ipynb**](examples/mlrun_basi
 > **Note:** Parameter lists can be used in various ways.
 > For example, you can pass multiple parameter files and use multiple workers to process the files simultaneously instead of one at a time.
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="auto-code-deployment-n-containerization"></a>
-### Automated Code Deployment and Containerization
+## Automated Code Deployment and Containerization
 
 MLRun adopts Nuclio serverless technologies for automatically packaging code and building containers.
 This enables you to provide code with some package requirements and let MLRun build and deploy your software.
@@ -449,7 +312,7 @@ fn.build(image='mlrun/nuctest:latest')
 [Back to top](#top)
 
 <a id="run-ml-workflow-w-kubeflow-pipelines"></a>
-### Running an ML Workflow with Kubeflow Pipelines
+## Running an ML Workflow with Kubeflow Pipelines
 
 ML pipeline execution with MLRun is similar to CLI execution.
 A pipeline is created by running an MLRun workflow.
@@ -516,10 +379,10 @@ def kfpipeline():
     deploy = funcs["serving"].deploy_step(models={f"{DATASET}_v1": train.outputs['model']})
 ```
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="db-operations"></a>
-### Viewing Run Data and Performing Database Operations
+## Viewing Run Data and Performing Database Operations
 
 When you configure an MLRun database, the results, parameters, and input and output artifacts of each run are recorded in the database.
 You can view the results and perform operations on the database by using either of the following methods:
@@ -527,19 +390,19 @@ You can view the results and perform operations on the database by using either 
 - Using [the MLRun dashboard](#mlrun-ui)
 - Using [DB methods](#mlrun-db-methods) from your code
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="mlrun-ui"></a>
-#### The MLRun Dashboard
+### The MLRun Dashboard
 
 The MLRun dashboard is a graphical user interface (GUI) for working with MLRun and viewing run data.
 
-<br><p align="center"><img src="docs/_static/images/mlrunui.png" width="800"/></p><br>
+<br><p align="center"><img src="_static/images/mlrunui.png" width="800"/></p><br>
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="mlrun-db-methods"></a>
-#### MLRun Database Methods
+### MLRun Database Methods
 
 You can use the `get_run_db` DB method to get an MLRun DB object for a configured MLRun database or API service.
 Then, use the DB object's `connect` method to connect to the database or API service, and use additional methods to perform different operations, such as listing run artifacts or deleting completed runs.
@@ -565,10 +428,10 @@ db.list_artifacts('ch', tag='*').show()
 db.del_runs(state='completed')
 ```
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="additional-info-n-examples"></a>
-### Additional Information and Examples
+## Additional Information and Examples
 
 - [Replacing Runtime Context Parameters from the CLI](#replace-runtime-context-param-from-cli)
 - [Remote Execution](#remote-execution)
@@ -576,7 +439,7 @@ db.del_runs(state='completed')
 - [Running the MLRun Database/API Service](#run-mlrun-db-service)
 
 <a id="replace-runtime-context-param-from-cli"></a>
-#### Replacing Runtime Context Parameters from the CLI
+### Replacing Runtime Context Parameters from the CLI
 
 You can use the MLRun CLI (`mlrun`) to run MLRun functions or code and change the parameter values.
 
@@ -591,12 +454,12 @@ When running this sample command, the CLI executes the code in the **training.py
 - The credentials for the S3 download are retrieved from a **secrets.txt** file in the current directory.
 
 <a id="remote-execution"></a>
-#### Remote Execution
+### Remote Execution
 
 You can also run the same MLRun code that you ran locally as a remote HTTP endpoint.
 
 <a id="remote-execution-nuclio-example"></a>
-##### Nuclio Example
+#### Nuclio Example
 
 For example, you can wrap the XGBoost training code from the previous tutorial examples within a serverless [Nuclio](https://nuclio.io) handler function, and execute the code remotely using a similar CLI command to the one that you used locally.
 
@@ -623,10 +486,10 @@ For example, run the following command and replace `<function endpoint>` with yo
 mlrun run -p p1=5 -s file=secrets.txt -i infile.txt=s3://mybucket/infile.txt http://<function-endpoint>
 ```
 
-[Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
+[Back to top](#top)
 
 <a id="run-mlrun-service"></a>
-### Running an MLRun Service
+## Running an MLRun Service
 
 An MLRun service is a web service that manages an MLRun database for tracking and logging MLRun run information, and exposes an HTTP API for working with the database and performing MLRun operations.
 
@@ -637,7 +500,7 @@ You can create and run an MLRun service by using either of the following methods
 > **Note:** For both methods, you can optionally configure the service port and/or directory path by setting the `MLRUN_httpdb__port` and `MLRUN_httpdb__dirpath` environment variables instead of the respective run parameters or CLI options.
 
 <a id="run-mlrun-service-cli"></a>
-#### Using the MLRun CLI to Run an MLRun Service
+### Using the MLRun CLI to Run an MLRun Service
 
 Use the `db` command of the MLRun CLI (`mlrun`) to create and run an instance of the MLRun service from the command line:
 ```sh
@@ -650,4 +513,3 @@ Options:
   -p, --port INTEGER  HTTP port for serving the API
   -d, --dirpath TEXT  Path to the MLRun service directory
 ```
-

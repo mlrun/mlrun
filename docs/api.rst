@@ -2,7 +2,7 @@ API
 ===
 
 mlrun Module contents
----------------
+---------------------
 
 .. automodule:: mlrun
    :members:

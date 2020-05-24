@@ -121,10 +121,10 @@ def copy_doc(src, dest, title=''):
 
 def setup(app):
     project_root = path.dirname(path.dirname(path.abspath(__file__)))
-    copy_doc(
-        f'{project_root}/README.md', 'external/general.md', 'Introduction')
-    copy_doc(
-        f'{project_root}/hack/local/README.md', 'external/install.md')
+#    copy_doc(
+#        f'{project_root}/README.md', 'external/general.md', 'Introduction')
+#    copy_doc(
+#        f'{project_root}/hack/local/README.md', 'external/install.md')
     check_call([
         'jupyter', 'nbconvert',
         '--output', f'{project_root}/docs/external/basics.html',

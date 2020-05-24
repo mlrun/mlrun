@@ -66,6 +66,7 @@ print-docker-images: ## Print all docker images
 
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME)
 
 base: ## Build base docker image
 	docker build \
@@ -76,10 +77,9 @@ base: ## Build base docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
-DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME)
-
 
 MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
 
 base-legacy: ## Build base legacy docker image
 	docker build \
@@ -90,10 +90,9 @@ base-legacy: ## Build base legacy docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
-DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
-
 
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME)
 
 models: ## Build models docker image
 	docker build \
@@ -103,10 +102,9 @@ models: ## Build models docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME) .
 
-DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME)
-
 
 MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
 
 models-legacy: ## Build models legacy docker image
 	docker build \
@@ -116,10 +114,9 @@ models-legacy: ## Build models legacy docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
-DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
-
 
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME)
 
 models-gpu: ## Build models-gpu docker image
 	docker build \
@@ -129,10 +126,9 @@ models-gpu: ## Build models-gpu docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
 
-DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME)
-
 
 MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 
 models-gpu-legacy: ## Build models-gpu legacy docker image
 	docker build \
@@ -142,18 +138,15 @@ models-gpu-legacy: ## Build models-gpu legacy docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 
-DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
-
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME)
 
 mlrun: ## Build mlrun docker image
 	docker build \
 		--file ./Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_IMAGE_NAME) .
-
-DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME)
 
 
 MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
@@ -168,14 +161,13 @@ serving: ## Build serving docker image
 
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME)
 
 api: ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_API_IMAGE_NAME) .
-
-DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME)
 
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)

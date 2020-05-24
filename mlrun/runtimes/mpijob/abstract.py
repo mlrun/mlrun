@@ -13,6 +13,7 @@
 # limitations under the License.
 import time
 import abc
+import typing
 
 from mlrun.execution import MLClientCtx
 from mlrun.config import config
@@ -30,11 +31,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     # should return the mpijob CRD information -> (group, version, plural)
     @abc.abstractmethod
-    def _get_crd_info(self) -> tuple:
+    def _get_crd_info(self) -> typing.Tuple[str, str, str]:
         pass
 
     @abc.abstractmethod
-    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> dict:
+    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> typing.Dict:
         pass
 
     @abc.abstractmethod
@@ -45,8 +46,16 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def _generate_pods_selector(self, name: str, launcher: bool) -> str:
         pass
 
-    def _pretty_print_jobs(self, items: list):
-        pass
+    def _pretty_print_jobs(self, items: typing.List):
+        print('{:10} {:20} {:21} {}'.format(
+            'status', 'name', 'start', 'end'))
+        for i in items:
+            print('{:10} {:20} {:21} {}'.format(
+                self._get_job_launcher_status(i),
+                get_in(i, 'metadata.name', ''),
+                get_in(i, 'status.startTime', ''),
+                get_in(i, 'status.completionTime', ''),
+            ))
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
 

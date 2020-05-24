@@ -24,29 +24,47 @@ from .nuclio import nuclio_init_hook
 from .serving import MLModelServer
 from mlrun.k8s_utils import get_k8s_helper
 
+
+class RuntimeKinds(object):
+    remote = 'remote'
+    nuclio = 'nuclio'
+    dask = 'dask'
+    job = 'job'
+    spark = 'spark'
+    mpijob = 'mpijob'
+
+    @staticmethod
+    def get_all():
+        return [RuntimeKinds.remote,
+                RuntimeKinds.nuclio,
+                RuntimeKinds.dask,
+                RuntimeKinds.job,
+                RuntimeKinds.spark,
+                RuntimeKinds.mpijob]
+
+
 runtime_resources_map = {
-    'dask': get_dask_resource()
+    RuntimeKinds.dask: get_dask_resource()
 }
 
-supported_runtimes = ['remote', 'nuclio', 'dask', 'job', 'spark', 'mpijob']
+
+def get_runtime_class(kind: str):
+    if kind == RuntimeKinds.mpijob:
+        return _resolve_mpi_runtime()
+
+    kind_runtime_map = {
+        RuntimeKinds.remote: RemoteRuntime,
+        RuntimeKinds.nuclio: RemoteRuntime,
+        RuntimeKinds.dask: DaskCluster,
+        RuntimeKinds.job: KubejobRuntime,
+        RuntimeKinds.spark: SparkRuntime
+    }
+
+    return kind_runtime_map[kind]
 
 
-def get_runtime(kind: str):
-    if kind == 'mpijob':
-        return infer_mpi_runtime()
-
-    runtime_dict = {'remote': RemoteRuntime,
-                    'nuclio': RemoteRuntime,
-                    'dask': DaskCluster,
-                    'job': KubejobRuntime,
-                    'spark': SparkRuntime}
-
-
-    return runtime_dict[kind]
-
-
-# infer mpijob runtime according to the mpi-operator's supported crd-version
-def infer_mpi_runtime():
+# resolve mpijob runtime according to the mpi-operator's supported crd-version
+def _resolve_mpi_runtime():
     k8s_helper = get_k8s_helper()
     namespace = k8s_helper.ns()
 
@@ -54,7 +72,7 @@ def infer_mpi_runtime():
     mpi_job_crd_version = 'v1alpha1'
 
     # get mpi-operator pod
-    res = k8s_helper.list_pods(namespace=namespace, selector='release=mpi-operator')
+    res = k8s_helper.list_pods(namespace=namespace, selector='component=mpi-operator')
     if len(res) > 0:
         mpi_operator_pod = res[0]
         mpi_job_crd_version = mpi_operator_pod.metadata.labels.get('crd-version', mpi_job_crd_version)

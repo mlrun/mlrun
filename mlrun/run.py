@@ -33,7 +33,7 @@ from .funcdoc import find_handlers
 from .k8s_utils import get_k8s_helper
 from .model import RunObject, BaseMetadata
 from .runtimes import (
-    HandlerRuntime, LocalRuntime, RemoteRuntime, supported_runtimes, get_runtime
+    HandlerRuntime, LocalRuntime, RemoteRuntime, RuntimeKinds, get_runtime_class
 )
 from .runtimes.base import FunctionEntrypoint
 from .runtimes.utils import add_code_metadata, global_context
@@ -340,16 +340,16 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     else:
         if kind in ['', 'local'] and command:
             runner = LocalRuntime.from_dict(runtime)
-        elif kind in supported_runtimes:
-            runner = get_runtime(kind).from_dict(runtime)
+        elif kind in RuntimeKinds.get_all():
+            runner = get_runtime_class(kind).from_dict(runtime)
         else:
             raise Exception('unsupported runtime ({}) or missing command, '.format(kind)
                             + 'supported runtimes: {}'.format(
-                              ','.join(supported_runtimes + ['local'])))
+                              ','.join(RuntimeKinds.get_all() + ['local'])))
 
     if not name:
         # todo: regex check for valid name
-        if command and kind not in ['remote']:
+        if command and kind not in [RuntimeKinds.remote]:
             name, _ = path.splitext(path.basename(command))
         else:
             name = 'mlrun-' + uuid.uuid4().hex[0:6]
@@ -378,12 +378,12 @@ def process_runtime(command, runtime, kind):
         kind = kind or runtime.get('kind', '')
         command = command or get_in(runtime, 'spec.command', '')
     if '://' in command and command.startswith('http'):
-        kind = kind or 'remote'
+        kind = kind or RuntimeKinds.remote
     if not runtime:
         runtime = {}
     update_in(runtime, 'spec.command', command)
     runtime['kind'] = kind
-    if kind != 'remote':
+    if kind != RuntimeKinds.remote:
         parse_command(runtime, command)
     else:
         update_in(runtime, 'spec.function_kind', 'mlrun')
@@ -491,8 +491,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             raise ValueError('code_output path or embed_code=False should be'
                              ' specified for local runtime')
         r = LocalRuntime()
-    elif kind in supported_runtimes:
-        r = get_runtime(kind)()
+    elif kind in RuntimeKinds.get_all():
+        r = get_runtime_class(kind)()
     else:
         raise ValueError('unsupported runtime ({})'.format(kind))
 

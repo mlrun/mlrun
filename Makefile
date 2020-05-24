@@ -77,6 +77,9 @@ base: ## Build base docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
+push-base: base ## Push base docker image
+	docker push $(MLRUN_BASE_IMAGE_NAME)
+
 
 MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
 DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
@@ -90,6 +93,9 @@ base-legacy: ## Build base legacy docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
+push-base-legacy: base-legacy ## Push base legacy docker image
+	docker push $(MLRUN_LEGACY_BASE_IMAGE_NAME)
+
 
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)
 DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME)
@@ -101,6 +107,9 @@ models: ## Build models docker image
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME) .
+
+push-models: models ## Push models docker image
+	docker push $(MLRUN_MODELS_IMAGE_NAME)
 
 
 MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
@@ -114,6 +123,9 @@ models-legacy: ## Build models legacy docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
+push-models-legacy: models-legacy ## Push models legacy docker image
+	docker push $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
+
 
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)
 DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME)
@@ -125,6 +137,9 @@ models-gpu: ## Build models-gpu docker image
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
+
+push-models-gpu: models-gpu ## Push models gpu docker image
+	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME)
 
 
 MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
@@ -138,6 +153,9 @@ models-gpu-legacy: ## Build models-gpu legacy docker image
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 
+push-models-gpu-legacy: models-gpu-legacy ## Push models gpu legacy docker image
+	docker push $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
+
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME)
@@ -147,6 +165,9 @@ mlrun: ## Build mlrun docker image
 		--file ./Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_IMAGE_NAME) .
+
+push-mlrun: mlrun ## Push mlrun docker image
+	docker push $(MLRUN_IMAGE_NAME)
 
 
 MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
@@ -159,6 +180,9 @@ serving: ## Build serving docker image
 		--build-arg MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX) \
 		--tag $(MLRUN_SERVING_IMAGE_NAME) .
 
+push-serving: serving ## Push serving docker image
+	docker push $(MLRUN_SERVING_IMAGE_NAME)
+
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TAG)
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME)
@@ -169,6 +193,9 @@ api: ## Build mlrun-api docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_API_IMAGE_NAME) .
 
+push-api: api ## Push api docker image
+	docker push $(MLRUN_API_IMAGE_NAME)
+
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 
@@ -177,6 +204,9 @@ build-test: ## Build test docker image
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_TEST_IMAGE_NAME) .
+
+push-test: test ## Push test docker image
+	docker push $(MLRUN_TEST_IMAGE_NAME)
 
 
 package-wheel: clean ## Build python package wheel

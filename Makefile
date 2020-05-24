@@ -205,7 +205,7 @@ build-test: ## Build test docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_TEST_IMAGE_NAME) .
 
-push-test: test ## Push test docker image
+push-test: build-test ## Push test docker image
 	docker push $(MLRUN_TEST_IMAGE_NAME)
 
 

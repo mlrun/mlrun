@@ -40,7 +40,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         'metadata': {}
     }
 
-    def _generate_mpi_job(self, launcher_pod_template, worker_pod_template):
+    def _generate_mpi_job_template(self, launcher_pod_template, worker_pod_template):
         return {
             'apiVersion': 'kubeflow.org/v1',
             'kind': 'MPIJob',
@@ -122,7 +122,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         self._enrich_launcher_configurations(launcher_pod_template)
 
         # generate mpi job using both pod templates
-        job = self._generate_mpi_job(launcher_pod_template, worker_pod_template)
+        job = self._generate_mpi_job_template(launcher_pod_template, worker_pod_template)
 
         # update the replicas only for workers
         update_in(job, 'spec.mpiReplicaSpecs.Worker.replicas', self.spec.replicas or 1)

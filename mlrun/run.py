@@ -590,7 +590,7 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     return id
 
 
-def get_pipeline(run_id, wait=0, namespace=None):
+def get_pipeline(run_id, wait=None, namespace=None):
     """Get or wait for Pipeline status, wait time in sec"""
 
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
@@ -599,7 +599,20 @@ def get_pipeline(run_id, wait=0, namespace=None):
         if mldb.kind != 'http':
             raise ValueError('get pipeline require access to remote api-service'
                              ', please set the dbpath url')
-        resp = mldb.get_pipeline(run_id, wait=wait, namespace=namespace)
+
+        if wait:
+            status = 'Running:'
+            start_time = datetime.now()
+            while status is None or status.lower() not in ['succeeded', 'failed', 'skipped', 'error']:
+                resp = mldb.get_pipeline(run_id, namespace=namespace)
+                status = resp['_run']['_status']
+                elapsed_time = (datetime.now() - start_time).seconds
+                logger.info('Waiting for the job to complete, id: {}'.format(run_id))
+                if elapsed_time > wait:
+                    raise TimeoutError('timed out waiting for run to finish')
+                time.sleep(5)
+        else:
+            resp = mldb.get_pipeline(run_id, namespace=namespace)
 
     else:
         client = Client(namespace=namespace or mlconf.namespace)

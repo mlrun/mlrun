@@ -458,20 +458,16 @@ class HTTPRunDB(RunDBInterface):
         logger.info('submitted pipeline {} id={}'.format(resp['name'], resp['id']))
         return resp['id']
 
-    def get_pipeline(self, run_id: str = None, wait: int = 0, namespace: str = None):
-
-        if run_id is None:
-            raise ValueError('get pipelines request requires specific run id')
+    def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
 
         try:
-            query = 'wait={}'.format(wait)
+            query = ''
             if namespace:
-                query = '{},namespace={}'.format(query, namespace)
-            resp = self.api_call('GET', 'pipelines/{}?{}'.format(run_id, query), timeout=wait)
+                query = 'namespace={}'.format(namespace)
+            resp = self.api_call('GET', 'pipelines/{}?{}'.format(run_id, query), timeout=timeout)
         except OSError as err:
             logger.error('error cannot get pipeline: {}'.format(err))
-            raise OSError(
-                'error: cannot cannot get pipeline, {}'.format(err))
+            raise OSError('error: cannot get pipeline, {}'.format(err))
 
         if not resp.ok:
             logger.error('bad resp!!\n{}'.format(resp.text))

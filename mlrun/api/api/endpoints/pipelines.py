@@ -70,15 +70,11 @@ def submit_pipeline(
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
 def get_pipeline(run_id,
-                 namespace: str = Query(config.namespace),
-                 wait: int = Query(None)):
+                 namespace: str = Query(config.namespace)):
 
     client = kfclient(namespace=namespace)
     try:
-        if wait:
-            run = client.wait_for_run_completion(run_id, wait)
-        else:
-            run = client.get_run(run_id)
+        run = client.get_run(run_id)
     except Exception as e:
         log_and_raise(HTTPStatus.INTERNAL_SERVER_ERROR, reason="get kfp error: {}".format(e))
 

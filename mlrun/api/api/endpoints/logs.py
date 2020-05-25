@@ -1,8 +1,8 @@
-import asyncio
 from distutils.util import strtobool
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
@@ -15,18 +15,14 @@ router = APIRouter()
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @router.post("/log/{project}/{uid}")
-def store_log(
+async def store_log(
         request: Request,
         project: str,
         uid: str,
         append: str = "on"):
     append = strtobool(append)
-    log_file = log_path(project, uid)
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    body = asyncio.run(request.body())  # TODO: Check size
-    mode = "ab" if append else "wb"
-    with log_file.open(mode) as fp:
-        fp.write(body)
+    body = await request.body()
+    await run_in_threadpool(_write_to_log_file, project, uid, append, body)
     return {}
 
 
@@ -82,3 +78,11 @@ def get_log(
                 get_db().store_run(db_session, data, uid, project)
                 status = "failed"
     return Response(content=out, media_type="text/plain", headers={"pod_status": status})
+
+
+def _write_to_log_file(project, uid, append, body):
+    log_file = log_path(project, uid)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    mode = "ab" if append else "wb"
+    with log_file.open(mode) as fp:
+        fp.write(body)

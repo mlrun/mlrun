@@ -1,7 +1,7 @@
-import asyncio
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
@@ -13,31 +13,18 @@ router = APIRouter()
 
 
 @router.post("/{project}/tag/{name}")
-def tag_objects(
+async def tag_objects(
         request: Request,
         project: str,
         name: str,
         db_session: Session = Depends(deps.get_db_session)):
     data = None
     try:
-        data = asyncio.run(request.json())
+        data = await request.json()
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
-    objs = []
-    for typ, query in data.items():
-        cls = table2cls(typ)
-        if cls is None:
-            err = f"unknown type - {typ}"
-            log_and_raise(HTTPStatus.BAD_REQUEST, reason=err)
-        # {"name": "bugs"} -> [Function.name=="bugs"]
-        db_query = [
-            getattr(cls, key) == value for key, value in query.items()
-        ]
-        # TODO: Change _query to query?
-        # TODO: Not happy about exposing db internals to API
-        objs.extend(db_session.query(cls).filter(*db_query))
-    get_db().tag_objects(db_session, objs, project, name)
+    objs = await run_in_threadpool(_tag_objects, db_session, data, project, name)
     return {
         "project": project,
         "name": name,
@@ -80,3 +67,21 @@ def get_tagged(
         "tag": name,
         "objects": [db2dict(obj) for obj in objs],
     }
+
+
+def _tag_objects(db_session, data, project, name):
+    objs = []
+    for typ, query in data.items():
+        cls = table2cls(typ)
+        if cls is None:
+            err = f"unknown type - {typ}"
+            log_and_raise(HTTPStatus.BAD_REQUEST, reason=err)
+        # {"name": "bugs"} -> [Function.name=="bugs"]
+        db_query = [
+            getattr(cls, key) == value for key, value in query.items()
+        ]
+        # TODO: Change _query to query?
+        # TODO: Not happy about exposing db internals to API
+        objs.extend(db_session.query(cls).filter(*db_query))
+    get_db().tag_objects(db_session, objs, project, name)
+    return objs

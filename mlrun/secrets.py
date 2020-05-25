@@ -13,8 +13,14 @@
 # limitations under the License.
 
 from ast import literal_eval
-from .utils import list2dict, run_keys
 from os import environ
+import pickle
+
+from cryptography.fernet import Fernet
+
+from .utils import list2dict
+
+_env_enc_key = 'MLRUN_SECRETS_KEY'
 
 
 class SecretsStore:
@@ -26,7 +32,8 @@ class SecretsStore:
         store = cls()
         if src_list and isinstance(src_list, list):
             for src in src_list:
-                store.add_source(src['kind'], src.get('source'), src.get('prefix', ''))
+                store.add_source(
+                    src['kind'], src.get('source'), src.get('prefix', ''))
         return store
 
     def to_dict(self, struct):
@@ -63,3 +70,43 @@ class SecretsStore:
     def to_serial(self):
         # todo: use encryption
         return [{'kind': 'inline', 'source': self._secrets.copy()}]
+
+
+def new_key():
+    """Return a new encryption key"""
+    return Fernet.generate_key()
+
+
+def _enc(value, key):
+    enc = Fernet(key)
+    data = enc.encrypt(pickle.dumps(value))
+    return data.decode('utf-8')
+
+
+def encrypt_dict(d: dict, key=None):
+    """Encrypt values in a dictionary"""
+    enc_key = _resolve_key(key)
+    return {key: _enc(val, enc_key) for key, val in d.items()}
+
+
+def _dec(value, key):
+    if isinstance(value, str):
+        value = value.encode('utf-8')
+    dec = Fernet(key)
+    return pickle.loads(dec.decrypt(value))
+
+
+def decrypt_dict(d: dict, key=None):
+    """Decrypt values in a dictionary"""
+    enc_key = _resolve_key(key)
+    return {key: _dec(val, enc_key) for key, val in d.items()}
+
+
+def _resolve_key(key):
+    if key:
+        return key
+
+    key = environ.get(_env_enc_key)
+    if not key:
+        raise ValueError(f'key is None and {_env_enc_key} not set')
+    return key.encode('utf-8')

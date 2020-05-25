@@ -22,23 +22,27 @@ from os import environ, path
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
+
 import click
 import yaml
 from tabulate import tabulate
 
-
-from .projects import load_project
-from .secrets import SecretsStore
 from . import get_version
-from .config import config as mlconf
 from .builder import upload_tarball
+from .config import config as mlconf
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
-from .run import new_function, import_function_to_dict, import_function, get_object
+from .projects import load_project
+from .run import (
+    get_object, import_function, import_function_to_dict, new_function
+)
 from .runtimes import RemoteRuntime, RunError
-from .utils import (list2dict, logger, run_keys, update_in, get_in,
-                    parse_function_uri, dict_to_yaml, pr_comment)
+from .secrets import SecretsStore, decrypt_dict, encrypt_dict, new_key
+from .utils import (
+    dict_to_yaml, get_in, list2dict, logger, parse_function_uri, pr_comment,
+    run_keys, update_in
+)
 
 
 @click.group()
@@ -613,6 +617,54 @@ def clean(api, namespace, pending, running):
 def show_config():
     """Show configuration & exit"""
     print(mlconf.dump_yaml())
+
+
+@main.group()
+def secrets():
+    pass
+
+
+@secrets.command()
+def keygen():
+    """Generate a new encryption key"""
+    print(new_key().decode('utf-8'))
+
+
+@secrets.command()
+@click.argument('infile', type=click.File('r'))
+@click.argument('outfile', type=click.File('w'))
+@click.option('--format', default='yaml', type=click.Choice(['yaml', 'json']))
+@click.option('--key', help='encryption key')
+def encrypt(infile, outfile, format, key):
+    """Encrypt a configuration file"""
+    _secrets(encrypt_dict, key, infile, outfile, format)
+
+
+@secrets.command()
+@click.argument('infile', type=click.File('r'))
+@click.argument('outfile', type=click.File('w'))
+@click.option('--format', default='yaml', type=click.Choice(['yaml', 'json']))
+@click.option('--key', help='encryption key')
+def decrypt(infile, outfile, format, key):
+    """Decrypt a configuration file"""
+    _secrets(decrypt_dict, key, infile, outfile, format)
+
+
+def _secrets(op, key, infile, outfile, format):
+    if format == 'yaml':
+        data = yaml.safe_load(infile)
+    else:
+        data = json.load(infile)
+
+    if not isinstance(data, dict):
+        raise TypeError(f'data must be a dict (got {type(data)})')
+
+    out = op(data, key)
+
+    if format == 'yaml':
+        yaml.dump(out, outfile, default_flow_style=False)
+    else:
+        json.dump(out, outfile, indent=4)
 
 
 def fill_params(params, params_dict=None):

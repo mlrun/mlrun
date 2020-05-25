@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 import json
 import socket
 import uuid
 from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
+from datetime import datetime
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
@@ -588,14 +590,24 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     return id
 
 
-def get_pipline(run_id, wait=0, namespace=None):
+def get_pipeline(run_id, wait=0, namespace=None):
     """Get or wait for Pipeline status, wait time in sec"""
 
-    client = Client(namespace=namespace or mlconf.namespace)
-    if wait:
-        resp = client.wait_for_run_completion(run_id, wait)
+    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+    if remote:
+        mldb = get_run_db().connect()
+        if mldb.kind != 'http':
+            raise ValueError('get pipeline require access to remote api-service'
+                             ', please set the dbpath url')
+        resp = mldb.get_pipeline(run_id, wait=wait, namespace=namespace)
+
     else:
-        resp = client.get_run(run_id)
+        client = Client(namespace=namespace or mlconf.namespace)
+        if wait:
+            resp = client.wait_for_run_completion(run_id, wait)
+        else:
+            resp = client.get_run(run_id)
+
     return resp
 
 

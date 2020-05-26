@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from mlrun import config as mlconfig
 from .base import RunError, BaseRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .function import RemoteRuntime, new_model_server  # noqa
@@ -64,21 +65,32 @@ def get_runtime_class(kind: str):
 
 
 # resolve mpijob runtime according to the mpi-operator's supported crd-version
+# if specified on mlrun config set it likewise,
+# if not specified, try resolving it according to the mpi-operator, otherwise default to `v1alpha1`
 def _resolve_mpi_runtime():
-    k8s_helper = get_k8s_helper()
-    namespace = k8s_helper.ns()
 
-    # default to v1alpha1 for backwards compatibility
-    mpi_job_crd_version = 'v1alpha1'
+    # try get from config
+    mpijob_crd_version = ''
+    try:
+        mpijob_crd_version = mlconfig.mpijob_crd_version
+    except:
+        pass
 
-    # get mpi-operator pod
-    res = k8s_helper.list_pods(namespace=namespace, selector='component=mpi-operator')
-    if len(res) > 0:
-        mpi_operator_pod = res[0]
-        mpi_job_crd_version = mpi_operator_pod.metadata.labels.get('crd-version', mpi_job_crd_version)
+    if mpijob_crd_version == '':
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.ns()
+
+        # default to v1alpha1 for backwards compatibility
+        mpijob_crd_version = 'v1alpha1'
+
+        # try resolving according to mpi-operator that's running
+        res = k8s_helper.list_pods(namespace=namespace, selector='component=mpi-operator')
+        if len(res) > 0:
+            mpi_operator_pod = res[0]
+            mpijob_crd_version = mpi_operator_pod.metadata.labels.get('crd-version', mpijob_crd_version)
 
     crd_version_to_runtime = {
         'v1alpha1': MpiRuntimeV1Alpha1,
         'v1': MpiRuntimeV1
     }
-    return crd_version_to_runtime[mpi_job_crd_version]
+    return crd_version_to_runtime[mpijob_crd_version]

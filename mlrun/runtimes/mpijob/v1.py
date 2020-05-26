@@ -15,6 +15,7 @@ import shlex
 from copy import deepcopy
 import typing
 
+from mlrun.execution import MLClientCtx
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.model import RunObject
 from mlrun.utils import update_in, get_in
@@ -49,6 +50,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
                 'namespace': 'default-tenant'
             },
             'spec': {
+                'slotsPerWorker': 1,
                 'mpiReplicaSpecs': {
                     'Launcher': {
                         'template': launcher_pod_template
@@ -82,7 +84,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         if self.spec.resources:
             self._update_container(worker_pod_template, 'resources', self.spec.resources)
 
-    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> dict:
+    def _generate_mpi_job(self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta) -> dict:
         pod_labels = deepcopy(meta.labels)
         pod_labels['mlrun/job'] = meta.name
 
@@ -126,6 +128,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
         # update the replicas only for workers
         update_in(job, 'spec.mpiReplicaSpecs.Worker.replicas', self.spec.replicas or 1)
+
+        if execution.get_param('slots_per_worker'):
+            update_in(job, 'spec.slotsPerWorker', execution.get_param('slots_per_worker'))
 
         update_in(job, 'metadata', meta.to_dict())
 

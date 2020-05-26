@@ -14,6 +14,7 @@
 from copy import deepcopy
 import typing
 
+from mlrun.execution import MLClientCtx
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.model import RunObject
 from mlrun.utils import update_in, get_in
@@ -57,7 +58,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
         return mpi_group, mpi_version, mpi_plural
 
-    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> typing.Dict:
+    def _generate_mpi_job(self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta) -> typing.Dict:
         job = deepcopy(self._mpijob_template)
 
         pod_labels = deepcopy(meta.labels)

@@ -35,7 +35,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _generate_mpi_job(self, runobj: RunObject, meta: client.V1ObjectMeta) -> typing.Dict:
+    def _generate_mpi_job(self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta) -> typing.Dict:
         pass
 
     @abc.abstractmethod
@@ -64,7 +64,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         meta = self._get_meta(runobj, True)
 
-        job = self._generate_mpi_job(runobj, meta)
+        job = self._generate_mpi_job(runobj, execution, meta)
 
         resp = self._submit_mpijob(job, meta.namespace)
 

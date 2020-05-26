@@ -374,22 +374,16 @@ the notebook is in the same git dir it will always be dirty)
         artifact_path=artifact_path, 
         dirty=True)
 
-
-
-.. raw:: html
-
-    Experiment link <a href="https://dashboard.default-tenant.app.yjb-mlrun-hope.iguazio-cd1.com/pipelines/#/experiments/details/0cf2e8d1-d553-4c77-afff-1f60ba115c37" target="_blank" >here</a>
-
-
-
-.. raw:: html
-
-    Run link <a href="https://dashboard.default-tenant.app.yjb-mlrun-hope.iguazio-cd1.com/pipelines/#/runs/details/64d6f1e7-a582-4180-bba6-52c4a860d46b" target="_blank" >here</a>
-
+This would output:
 
 .. parsed-literal::
 
     [mlrun] 2020-05-20 11:55:22,685 Pipeline run id=64d6f1e7-a582-4180-bba6-52c4a860d46b, check UI or DB for progress
+
+Visually, the workflow would look as follows:
+
+.. image:: _static/images/end-to-end-pipeline-tutorial-workflow.png
+   :alt: Pipeline workflow
 
 
 Track pipeline results

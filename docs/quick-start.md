@@ -1,5 +1,4 @@
-<a id="top"></a>
-# Quick-Start <!-- omit in toc -->
+# Quick-Start <a id="top"/></a> <!-- omit in toc -->
 
 - [Installation](#installation)
 - [MLRun Setup](#mlrun-setup)
@@ -11,14 +10,13 @@
 - [Pipelines](#pipelines)
 - [Functions marketplace](#functions-marketplace)
 
-
 <a id="installation"></a>
 ## Installation
 
 MLRun requires separate containers for the API and the dashboard (UI).
 
 To install and run MLRun locally using Docker
-```
+``` bash
 MLRUN_IP=localhost
 SHARED_DIR=/home/me/data
 # On Windows, use host.docker.internal for MLRUN_IP
@@ -36,13 +34,15 @@ Using Docker only supports local runs. To fully leverage MLRun capabilities with
 ## MLRun Setup
 
 Run the following command from your Python development environment (such as Jupyter Notebook) to install the MLRun package (`mlrun`), which includes a Python API library and the `mlrun` command-line interface (CLI):
-```python
+```bash
 pip install mlrun
 ```
 
 Set-up an artifacts path and the MLRun Database path
 
-``` python
+
+```python
+from os import path
 from mlrun import mlconf
 
 # Target location for storing pipeline artifacts
@@ -51,7 +51,11 @@ artifact_path = path.abspath('jobs')
 mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
 
 print(f'Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}')
-``` 
+```
+
+    Artifacts path: /User/mlrun/jobs
+    MLRun DB path: http://10.193.140.11:8080
+
 
 <a id="projects"></a>
 ## Projects
@@ -61,8 +65,8 @@ Projects are visible in the MLRun dashboard only after they're saved to the MLRu
 
 For example, use the following code to create a project named **my-project** and stores the project definition in a subfolder named `conf`:
 
+
 ```python
-from os import path
 from mlrun import new_project
 
 project_name = 'my-project'
@@ -71,6 +75,9 @@ project = new_project(project_name, project_path, init_git=True)
 
 print(f'Project path: {project_path}\nProject name: {project_name}')
 ```
+
+    Project path: /User/mlrun/conf
+    Project name: my-project
 
 
 <a id="experiment-tracking"></a>
@@ -100,9 +107,10 @@ We would like to do 2 things:
 1. Have MLRun handle the data read
 2. Log this data to the MLRun database
 
-For this purpose, we'll add a context parameter which will be used to log our artifacts. Our code will now look as follows:
+For this purpose, we'll add a `context` parameter which will be used to log our artifacts. Our code will now look as follows:
 
-``` python
+
+```python
 def get_data(context, source_url, format='csv'):
 
     df = source_url.as_df()
@@ -116,9 +124,17 @@ def get_data(context, source_url, format='csv'):
 <a id="run-local-code"></a>
 ## Run Local Code
 
-Next you can call this function locally, using the `run_local` method
+As input, we will provide a CSV file from S3:
 
-``` python
+
+```python
+# Set the source-data URL
+source_url = 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'
+```
+
+Next you can call this function locally, using the `run_local` method. This is a wrapper that will store the execution results in the MLRun database.
+
+```python
 from mlrun import run_local
 get_data_run = run_local(name='get_data',
                          handler=get_data,
@@ -126,8 +142,27 @@ get_data_run = run_local(name='get_data',
                          project=project_name, artifact_path=artifact_path)
 ```
 
+This will produce a simlar output: 
+
+    [mlrun] 2020-05-26 19:19:47,286 starting run get_data uid=ccadebc11f024aa88d63965fdc223c5f  -> http://10.193.140.11:8080
+    [mlrun] 2020-05-26 19:19:47,963 log artifact source_data at /User/mlrun/jobs/data/source_data.csv, size: 2776, db: Y
+
+    [mlrun] 2020-05-26 19:19:47,987 run executed, status=completed
+
+If you run the function in a Jupyter notebook, the output cell for your function execution will contain a table with run information &mdash; including the state of the execution, all inputs and parameters, and the execution results and artifacts.
+Click on the `source_data` artifact in the **artifacts** column to see a short summary of the data set, as illustrated in the following image:
+<br><br>
+![MLRun quick start get data output](_static/images/mlrun-quick-start-get-data-output.png)
+
 <a id="experiment-tracking-ui"></a>
 ## Experiment Tracking UI
+
+<br><br>
+<img src="_static/images/mlrun-quick-start-get-data-output-ui-artifacts.png" alt="ui-artifacts" width="800"/>
+
+
+<br><br>
+<img src="_static/images/mlrun-quick-start-get-data-output-ui-statistics.png" alt="ui-statistics" width="800"/>
 
 <a id="running-functions-on-different-runtimes"></a>
 ## Running functions on different runtimes
@@ -137,3 +172,16 @@ get_data_run = run_local(name='get_data',
 
 <a id="functions-marketplace"></a>
 ## Functions marketplace
+
+Before implementing your own functions, you should first take a look at the [**MLRun functions marketplace** GitHub repository](https://github.com/mlrun/functions/). The marketplace is a centralized location for open-source contributions of function components that are commonly used in machine-learning development.
+
+For example, the [`describe` function](https://github.com/mlrun/functions/blob/master/describe/describe.ipynb) visualizes the data by creating a histogram, imbalance and correlation matrix plots. 
+
+Use the `set_function` MLRun project method, which adds or updates a function object in a project, to load the `describe` marketplace function into a new `describe` project function.
+
+
+```python
+project.set_function('hub://describe', 'describe')
+```
+
+You can then run the function as part of your project, just as any other function that you have written yourself.

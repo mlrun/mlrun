@@ -1,9 +1,9 @@
-import asyncio
 from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List
 
 from fastapi import APIRouter, Depends, Request, Query
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
@@ -16,7 +16,7 @@ router = APIRouter()
 
 # curl -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @router.post("/run/{project}/{uid}")
-def store_run(
+async def store_run(
         request: Request,
         project: str,
         uid: str,
@@ -24,19 +24,19 @@ def store_run(
         db_session: Session = Depends(deps.get_db_session)):
     data = None
     try:
-        data = asyncio.run(request.json())
+        data = await request.json()
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    get_db().store_run(db_session, data, uid, project, iter=iter)
+    await run_in_threadpool(get_db().store_run, db_session, data, uid, project, iter=iter)
     logger.info("store run: {}".format(data))
     return {}
 
 
 # curl -X PATCH -d @/path/to/run.json http://localhost:8080/run/p1/3?commit=yes
 @router.patch("/run/{project}/{uid}")
-def update_run(
+async def update_run(
         request: Request,
         project: str,
         uid: str,
@@ -44,12 +44,12 @@ def update_run(
         db_session: Session = Depends(deps.get_db_session)):
     data = None
     try:
-        data = asyncio.run(request.json())
+        data = await request.json()
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    get_db().update_run(db_session, data, uid, project, iter=iter)
+    await run_in_threadpool(get_db().update_run, db_session, data, uid, project, iter=iter)
     logger.info("update run: {}".format(data))
     return {}
 
@@ -84,7 +84,7 @@ def list_runs(
         project: str = None,
         name: str = None,
         uid: str = None,
-        labels: List[str] = Query([]),
+        labels: List[str] = Query([], alias='label'),
         state: str = None,
         last: int = 0,
         sort: str = "on",
@@ -113,7 +113,7 @@ def list_runs(
 def del_runs(
         project: str = None,
         name: str = None,
-        labels: List[str] = Query([]),
+        labels: List[str] = Query([], alias='label'),
         state: str = None,
         days_ago: int = 0,
         db_session: Session = Depends(deps.get_db_session)):

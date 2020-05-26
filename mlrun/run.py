@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+import typing
 import json
 import socket
 import uuid
@@ -27,6 +28,7 @@ import yaml
 from kfp import Client
 from nuclio import build_file
 
+from .utils import retry_until_successful
 from .config import config as mlconf
 from .datastore import StoreManager
 from .db import get_or_set_dburl, get_run_db
@@ -590,8 +592,50 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     return id
 
 
+def wait_for_run_completion(run_id,
+                            namespace=None,
+                            timeout=0,
+                            expected_statuses: typing.List[str]=None):
+    """Wait for Pipeline status, timeout in sec"""
+    logger.debug("waiting for run completion", extra={"timeout": timeout})
+    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+    if remote:
+        mldb = get_run_db().connect()
+
+        def get_pipeline_if_completed(run_id, namespace=namespace):
+            resp = mldb.get_pipeline(run_id, namespace=namespace)
+            if resp['_run']['_status'] not in ['succeeded', 'failed', 'skipped', 'error']:
+                raise RuntimeError('pipeline has not completed yet')
+
+            return resp
+
+        if mldb.kind != 'http':
+            raise ValueError('get pipeline require access to remote api-service'
+                             ', please set the dbpath url')
+
+        resp = retry_until_successful(5,
+                                      timeout,
+                                      logger,
+                                      False,
+                                      get_pipeline_if_completed,
+                                      run_id,
+                                      namespace=namespace)
+    else:
+        client = Client(namespace=namespace or mlconf.namespace)
+        resp = client.wait_for_run_completion(run_id, timeout)
+
+    status = resp['_run']['_status']
+    if status not in expected_statuses:
+        raise RuntimeError('failed to wait for run completion.'
+                           ' reason: status {} not in expected statuses'.format(status))
+
+    return resp
+
+
 def get_pipeline(run_id, wait=0, namespace=None):
     """Get or wait for Pipeline status, wait time in sec"""
+    if wait:
+        return wait_for_run_completion(run_id, namespace=namespace, timeout=wait)
 
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     if remote:
@@ -600,26 +644,11 @@ def get_pipeline(run_id, wait=0, namespace=None):
             raise ValueError('get pipeline require access to remote api-service'
                              ', please set the dbpath url')
 
-        if wait:
-            status = 'Running:'
-            start_time = datetime.now()
-            while status is None or status.lower() not in ['succeeded', 'failed', 'skipped', 'error']:
-                resp = mldb.get_pipeline(run_id, namespace=namespace)
-                status = resp['_run']['_status']
-                elapsed_time = (datetime.now() - start_time).seconds
-                logger.info('Waiting for the job to complete, id: {}'.format(run_id))
-                if elapsed_time > wait:
-                    raise TimeoutError('timed out waiting for run to finish')
-                time.sleep(5)
-        else:
-            resp = mldb.get_pipeline(run_id, namespace=namespace)
+        resp = mldb.get_pipeline(run_id, namespace=namespace)
 
     else:
         client = Client(namespace=namespace or mlconf.namespace)
-        if wait:
-            resp = client.wait_for_run_completion(run_id, wait)
-        else:
-            resp = client.get_run(run_id)
+        resp = client.get_run(run_id)
 
     return resp
 

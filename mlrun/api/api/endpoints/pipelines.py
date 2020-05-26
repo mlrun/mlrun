@@ -37,6 +37,21 @@ async def submit_pipeline(
     }
 
 
+# curl http://localhost:8080/pipelines/:id
+@router.get("/pipelines/{run_id}")
+@router.get("/pipelines/{run_id}/")
+def get_pipeline(run_id,
+                 namespace: str = Query(config.namespace)):
+
+    client = kfclient(namespace=namespace)
+    try:
+        run = client.get_run(run_id)
+    except Exception as e:
+        log_and_raise(HTTPStatus.INTERNAL_SERVER_ERROR, reason="get kfp error: {}".format(e))
+
+    return run
+
+
 def _submit_pipeline(request, data, namespace, experiment_name, run_name):
     arguments = {}
     arguments_data = request.headers.get("pipeline-arguments")

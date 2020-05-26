@@ -1,8 +1,8 @@
-import asyncio
 from http import HTTPStatus
 from typing import List
 
 from fastapi import APIRouter, Depends, Request, Query
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
@@ -16,7 +16,7 @@ router = APIRouter()
 
 # curl -d@/path/to/artifcat http://localhost:8080/artifact/p1/7&key=k
 @router.post("/artifact/{project}/{uid}/{key:path}")
-def store_artifact(
+async def store_artifact(
         request: Request,
         project: str,
         uid: str,
@@ -26,12 +26,12 @@ def store_artifact(
         db_session: Session = Depends(deps.get_db_session)):
     data = None
     try:
-        data = asyncio.run(request.json())
+        data = await request.json()
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    get_db().store_artifact(db_session, key, data, uid, iter=iter, tag=tag, project=project)
+    await run_in_threadpool(get_db().store_artifact, db_session, key, data, uid, iter=iter, tag=tag, project=project)
     return {}
 
 
@@ -79,7 +79,7 @@ def list_artifacts(
         project: str = config.default_project,
         name: str = None,
         tag: str = None,
-        labels: List[str] = Query([]),
+        labels: List[str] = Query([], alias='label'),
         db_session: Session = Depends(deps.get_db_session)):
     artifacts = get_db().list_artifacts(db_session, name, project, tag, labels)
     return {
@@ -93,7 +93,7 @@ def del_artifacts(
         project: str = "",
         name: str = "",
         tag: str = "",
-        labels: List[str] = Query([]),
+        labels: List[str] = Query([], alias='label'),
         db_session: Session = Depends(deps.get_db_session)):
     get_db().del_artifacts(db_session, name, project, tag, labels)
     return {}

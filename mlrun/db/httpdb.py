@@ -458,6 +458,23 @@ class HTTPRunDB(RunDBInterface):
         logger.info('submitted pipeline {} id={}'.format(resp['name'], resp['id']))
         return resp['id']
 
+    def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
+
+        try:
+            query = ''
+            if namespace:
+                query = 'namespace={}'.format(namespace)
+            resp = self.api_call('GET', 'pipelines/{}?{}'.format(run_id, query), timeout=timeout)
+        except OSError as err:
+            logger.error('error cannot get pipeline: {}'.format(err))
+            raise OSError('error: cannot get pipeline, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad get pipeline response, {}'.format(resp.text))
+
+        return resp.json()
+
 
 def _as_json(obj):
     fn = getattr(obj, 'to_json', None)

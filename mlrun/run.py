@@ -605,7 +605,7 @@ def wait_for_run_completion(run_id,
                             timeout=0,
                             expected_statuses: typing.List[str]=None):
     """Wait for Pipeline status, timeout in sec"""
-    logger.debug("waiting for run completion", extra={"timeout": timeout})
+    logger.debug("waiting for run completion. timeout {}".format(timeout))
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     if remote:
         mldb = get_run_db().connect()
@@ -617,7 +617,7 @@ def wait_for_run_completion(run_id,
                                       RunStatuses.failed,
                                       RunStatuses.skipped,
                                       RunStatuses.error]:
-                raise RuntimeError('pipeline has not completed yet')
+                raise RuntimeError('pipeline run has not completed yet')
 
             return resp
 

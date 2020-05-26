@@ -16,7 +16,7 @@ from pprint import pprint
 
 import pytest
 
-from conftest import rundb_path, tag_test, verify_state
+from tests.conftest import rundb_path, tag_test, verify_state
 from mlrun import NewTask, new_function
 
 has_dask = False

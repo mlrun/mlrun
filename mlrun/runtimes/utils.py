@@ -151,7 +151,7 @@ def results_to_iter(results, runspec, execution):
                 failed += 1
                 err = get_in(task, ['status', 'error'], '')
                 logger.error('error in task  {}:{} - {}'.format(
-                    runspec.metadata.uid, id, err))
+                    execution.uid, id, err))
             elif state != 'completed':
                 running += 1
 
@@ -168,6 +168,9 @@ def results_to_iter(results, runspec, execution):
         df = pd.io.json.json_normalize(iter).sort_values('iter')
     header = df.columns.values.tolist()
     summary = [header] + df.values.tolist()
+    if not runspec:
+        return summary
+
     item, id = selector(results, runspec.spec.selector)
     task = results[item] if id and results else None
     execution.log_iteration_results(id, summary, task)

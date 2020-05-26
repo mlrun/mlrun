@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import json
 import logging
-import re
 import pathlib
+import re
 from datetime import datetime, timezone
 from os import path, environ
 from sys import stdout
@@ -56,6 +57,7 @@ missing = object()
 is_ipython = False
 try:
     import IPython
+
     ipy = IPython.get_ipython()
     if ipy:
         is_ipython = True
@@ -65,6 +67,7 @@ except ImportError:
 if is_ipython:
     # bypass Jupyter asyncio bug
     import nest_asyncio
+
     nest_asyncio.apply()
 
 
@@ -286,16 +289,22 @@ def uxjoin(base, local_path, key='', iter=None, is_dir=False):
 
 
 def parse_function_uri(uri):
-    project = tag = ''
+    project = ''
+    tag = ''
+    hash_key = ''
     if '/' in uri:
         loc = uri.find('/')
         project = uri[:loc]
-        uri = uri[loc+1:]
+        uri = uri[loc + 1:]
     if ':' in uri:
         loc = uri.find(':')
-        tag = uri[loc+1:]
+        tag = uri[loc + 1:]
         uri = uri[:loc]
-    return project, uri, tag
+    if '@' in uri:
+        loc = uri.find('@')
+        hash_key = uri[loc + 1:]
+        uri = uri[:loc]
+    return project, uri, tag, hash_key
 
 
 def extend_hub_uri(uri):
@@ -305,7 +314,7 @@ def extend_hub_uri(uri):
     tag = 'master'
     if ':' in name:
         loc = name.find(':')
-        tag = name[loc+1:]
+        tag = name[loc + 1:]
         name = name[:loc]
     return config.hub_url.format(name=name, tag=tag)
 
@@ -400,3 +409,24 @@ def pr_comment(repo: str, issue: int,
         errmsg = f'bad pr comment resp!!\n{resp.text}'
         raise IOError(errmsg)
     return resp.json()['id']
+
+
+def fill_function_hash(function_dict, tag=''):
+
+    # remove tag, hash, date from calculation
+    function_dict.setdefault('metadata', {})
+    tag = tag or function_dict['metadata'].get('tag')
+    status = function_dict.setdefault('status', {})
+    function_dict['metadata']['tag'] = ''
+    function_dict['metadata']['hash'] = ''
+    function_dict['status'] = None
+    function_dict['metadata']['updated'] = None
+
+    data = json.dumps(function_dict, sort_keys=True).encode()
+    h = hashlib.sha1()
+    h.update(data)
+    hashkey = h.hexdigest()
+    function_dict['metadata']['tag'] = tag
+    function_dict['metadata']['hash'] = hashkey
+    function_dict['status'] = status
+    return hashkey

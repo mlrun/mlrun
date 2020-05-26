@@ -1,7 +1,7 @@
-import asyncio
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
@@ -16,14 +16,15 @@ router = APIRouter()
 @router.post("/submit/")
 @router.post("/submit_job")
 @router.post("/submit_job/")
-def submit_job(
+async def submit_job(
         request: Request,
         db_session: Session = Depends(deps.get_db_session)):
     data = None
     try:
-        data = asyncio.run(request.json())
+        data = await request.json()
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.info("submit_job: {}".format(data))
-    return submit(db_session, data)
+    response = await run_in_threadpool(submit, db_session, data)
+    return response

@@ -18,12 +18,14 @@ import numpy as np
 import uuid
 import os
 
+import mlrun
 from mlrun.artifacts import ModelArtifact
+
 from .artifacts import ArtifactManager, DatasetArtifact
 from .datastore import StoreManager
 from .secrets import SecretsStore
 from .db import get_run_db
-from .utils import run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str
+from .utils import run_keys, get_in, dict_to_yaml, logger, dict_to_json, now_date, to_date_str, update_in
 
 
 class MLCtxValueError(Exception):
@@ -80,10 +82,42 @@ class MLClientCtx(object):
         self._start_time = now_date()
         self._last_update = now_date()
         self._iteration_results = None
+        self._child = []
+        self._updated_child = False
+
+    def get_child(self, **params):
+        if self.iteration != 0:
+            raise ValueError('cannot create child from a child iteration!')
+        ctx = deepcopy(self.to_dict())
+        if params:
+            for key, val in params.items():
+                update_in(ctx, ['spec', 'parameters', key], val)
+
+        update_in(ctx, ['metadata', 'iteration'], len(self._child) + 1)
+        ctx['status'] = {}
+        ctx = MLClientCtx.from_dict(ctx, self._rundb, self._autocommit,
+                                    log_stream=self._logger)
+        self._child.append(ctx)
+        return ctx
+
+    def get_dataitem(self, url):
+        return self._data_stores.object(url=url)
+
+    def commit_child(self, best_run=0):
+        results = []
+        if not self._child or best_run > len(self._child):
+            raise ValueError('cannot commit without child or if best_run > len(child)')
+        for c in self._child:
+            c.commit()
+            results.append(c.to_dict())
+        summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
+        task = results[best_run - 1] if best_run else None
+        self.log_iteration_results(best_run, summary, task)
+        self._updated_child = True
 
     def set_logger_stream(self, stream):
         handlers = self._logger.handlers
-        if len(handlers)>0:
+        if len(handlers) > 0:
             handlers[0].stream = stream
 
     def _init_dbs(self, rundb):
@@ -393,6 +427,8 @@ class MLClientCtx(object):
         """save run state and add a commit message"""
         if message:
             self._annotations['message'] = message
+        if self._child and not self._updated_child:
+            self.commit_child()
         self._last_update = now_date()
         self._update_db(commit=True, message=message)
 

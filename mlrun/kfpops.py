@@ -137,7 +137,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
              selector: str = '', inputs: dict = None, outputs: list = None,
              in_path: str = '', out_path: str = '', rundb: str = '',
              mode: str = '', handler: str = '', more_args: list = None,
-             verbose=None):
+             tuning_strategy=None, verbose=None):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
     when using kubeflow pipelines, each step is wrapped in an mlrun_op
@@ -161,6 +161,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     :param param_file:  a csv file with parameter combinations, first row hold
                         the parameter names, following rows hold param values
     :param selector: selection criteria for hyperparams e.g. "max.accuracy"
+    :param tuning_strategy: selection strategy for hyperparams e.g. list, grid, random
     :param labels:   labels to tag the job/run with ({key:val, ..})
     :param inputs:   dictionary of input objects + optional paths (if path is
                      omitted the path will be the in_path/key.
@@ -257,6 +258,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         params = params or runobj.spec.parameters
         hyperparams = hyperparams or runobj.spec.hyperparams
         param_file = param_file or runobj.spec.param_file
+        tuning_strategy = tuning_strategy or runobj.spec.tuning_strategy
         selector = selector or runobj.spec.selector
         inputs = inputs or runobj.spec.inputs
         outputs = outputs or runobj.spec.outputs
@@ -318,6 +320,8 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         cmd += ['--out-path', out_path]
     if param_file:
         cmd += ['--param-file', param_file]
+    if tuning_strategy:
+        cmd += ['--tuning-strategy', tuning_strategy]
     if selector:
         cmd += ['--selector', selector]
     if job_image:
@@ -391,7 +395,8 @@ def deploy_op(name, function, source='', dashboard='',
         name=name,
         image=config.kfp_image,
         command=cmd,
-        file_outputs={'endpoint': '/tmp/output'},
+        file_outputs={'endpoint': '/tmp/output',
+                      'name': '/tmp/name'},
     )
     return cop
 

@@ -17,7 +17,7 @@ from tempfile import mkdtemp
 
 import pytest
 
-from conftest import new_run, run_now, init_sqldb
+from tests.conftest import new_run, run_now, init_sqldb
 from mlrun.db import SQLDB, FileRunDB, RunDBError, sqldb
 from mlrun.db.base import RunDBInterface
 
@@ -50,9 +50,10 @@ def test_save_get_function(db: RunDBInterface):
     func, name, proj, tag = {'x': 1, 'y': 2}, 'f1', 'p2', 't3u'
     db.store_function(func, name, proj, tag)
     db_func = db.get_function(name, proj, tag)
-    updated = db_func['metadata']['updated']
-    if isinstance(db, FileRunDB):
-        db_func['metadata']['updated'] = updated.replace(tzinfo=timezone.utc)
+
+    # db methods enriches metadata
+    del db_func['metadata']
+    del func['metadata']
     assert func == db_func, 'wrong func'
 
 

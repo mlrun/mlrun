@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 import json
 import socket
 import uuid
 from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
+from datetime import datetime
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
@@ -247,9 +249,9 @@ def import_function(url='', secrets=None, db=''):
     """
     if url.startswith('db://'):
         url = url[5:]
-        project, name, tag = parse_function_uri(url)
+        project, name, tag, hash_key = parse_function_uri(url)
         db = get_run_db(db or get_or_set_dburl()).connect(secrets)
-        runtime = db.get_function(name, project, tag)
+        runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:
             raise KeyError('function {}:{} not found in the DB'.format(
                 name, tag
@@ -588,14 +590,37 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     return id
 
 
-def get_pipline(run_id, wait=0, namespace=None):
+def get_pipeline(run_id, wait=0, namespace=None):
     """Get or wait for Pipeline status, wait time in sec"""
 
-    client = Client(namespace=namespace or mlconf.namespace)
-    if wait:
-        resp = client.wait_for_run_completion(run_id, wait)
+    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+    if remote:
+        mldb = get_run_db().connect()
+        if mldb.kind != 'http':
+            raise ValueError('get pipeline require access to remote api-service'
+                             ', please set the dbpath url')
+
+        if wait:
+            status = 'Running:'
+            start_time = datetime.now()
+            while status is None or status.lower() not in ['succeeded', 'failed', 'skipped', 'error']:
+                resp = mldb.get_pipeline(run_id, namespace=namespace)
+                status = resp['_run']['_status']
+                elapsed_time = (datetime.now() - start_time).seconds
+                logger.info('Waiting for the job to complete, id: {}'.format(run_id))
+                if elapsed_time > wait:
+                    raise TimeoutError('timed out waiting for run to finish')
+                time.sleep(5)
+        else:
+            resp = mldb.get_pipeline(run_id, namespace=namespace)
+
     else:
-        resp = client.get_run(run_id)
+        client = Client(namespace=namespace or mlconf.namespace)
+        if wait:
+            resp = client.wait_for_run_completion(run_id, wait)
+        else:
+            resp = client.get_run(run_id)
+
     return resp
 
 

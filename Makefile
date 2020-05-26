@@ -40,35 +40,36 @@ build: docker-images package-wheel ## Build all artifacts
 	@echo Done.
 
 
-DOCKER_IMAGES_RULES = \
+DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
 	base \
+	base-legacy \
 	models \
+	models-legacy \
 	models-gpu \
+	models-gpu-legacy \
 	mlrun
 
-docker-images: $(DOCKER_IMAGES_RULES) ## Build all docker images
+docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
 	@echo Done.
 
 
 push-docker-images: docker-images ## Push all docker images
-	@for image in $(IMAGES_TO_PUSH); do \
-		echo "Pushing $$image" ; \
-		docker push $$image ; \
-	done
+	@echo "Pushing images concurrently $(DEFAULT_IMAGES)"
+	@echo $(DEFAULT_IMAGES) | xargs -n 1 -P 5 docker push
 	@echo Done.
 
 
 print-docker-images: ## Print all docker images
-	@for image in $(IMAGES_TO_PUSH); do \
+	@for image in $(DEFAULT_IMAGES); do \
 		echo $$image ; \
 	done
 
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)
-MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME)
 
-base: ## Build base and legacy-base docker images
+base: ## Build base docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -77,6 +78,14 @@ base: ## Build base and legacy-base docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
+push-base: base ## Push base docker image
+	docker push $(MLRUN_BASE_IMAGE_NAME)
+
+
+MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
+
+base-legacy: ## Build base legacy docker image
 	docker build \
 		--file dockerfiles/base/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
@@ -85,14 +94,14 @@ base: ## Build base and legacy-base docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_BASE_IMAGE_NAME)
-IMAGES_TO_PUSH += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
+push-base-legacy: base-legacy ## Push base legacy docker image
+	docker push $(MLRUN_LEGACY_BASE_IMAGE_NAME)
 
 
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)
-MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME)
 
-models: ## Build models and legacy-models docker images
+models: ## Build models docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -100,6 +109,14 @@ models: ## Build models and legacy-models docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME) .
 
+push-models: models ## Push models docker image
+	docker push $(MLRUN_MODELS_IMAGE_NAME)
+
+
+MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
+
+models-legacy: ## Build models legacy docker image
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -107,14 +124,14 @@ models: ## Build models and legacy-models docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_MODELS_IMAGE_NAME)
-IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
+push-models-legacy: models-legacy ## Push models legacy docker image
+	docker push $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
 
 
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)
-MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME)
 
-models-gpu: ## Build models-gpu and legacy-models-gpu docker images
+models-gpu: ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -122,6 +139,14 @@ models-gpu: ## Build models-gpu and legacy-models-gpu docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
 
+push-models-gpu: models-gpu ## Push models gpu docker image
+	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME)
+
+
+MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu:$(MLRUN_DOCKER_TAG)$(MLRUN_LEGACY_DOCKER_TAG_SUFFIX)
+DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
+
+models-gpu-legacy: ## Build models-gpu legacy docker image
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
@@ -129,11 +154,12 @@ models-gpu: ## Build models-gpu and legacy-models-gpu docker images
 		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_MODELS_GPU_IMAGE_NAME)
-IMAGES_TO_PUSH += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
+push-models-gpu-legacy: models-gpu-legacy ## Push models gpu legacy docker image
+	docker push $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME)
 
 mlrun: ## Build mlrun docker image
 	docker build \
@@ -141,7 +167,8 @@ mlrun: ## Build mlrun docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_IMAGE_NAME)
+push-mlrun: mlrun ## Push mlrun docker image
+	docker push $(MLRUN_IMAGE_NAME)
 
 
 MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
@@ -154,8 +181,12 @@ serving: ## Build serving docker image
 		--build-arg MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX) \
 		--tag $(MLRUN_SERVING_IMAGE_NAME) .
 
+push-serving: serving ## Push serving docker image
+	docker push $(MLRUN_SERVING_IMAGE_NAME)
+
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TAG)
+DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME)
 
 api: ## Build mlrun-api docker image
 	docker build \
@@ -163,7 +194,8 @@ api: ## Build mlrun-api docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_API_IMAGE_NAME) .
 
-IMAGES_TO_PUSH += $(MLRUN_API_IMAGE_NAME)
+push-api: api ## Push api docker image
+	docker push $(MLRUN_API_IMAGE_NAME)
 
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
@@ -173,6 +205,9 @@ build-test: ## Build test docker image
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_TEST_IMAGE_NAME) .
+
+push-test: build-test ## Push test docker image
+	docker push $(MLRUN_TEST_IMAGE_NAME)
 
 
 package-wheel: clean ## Build python package wheel
@@ -191,10 +226,12 @@ clean: ## Clean python package build artifacts
 
 
 test-dockerized: build-test ## Run mlrun tests in docker container
-	-docker network create mlrun
 	docker run \
+		-ti \
+		--rm \
+		--network='host' \
+		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		--network mlrun \
 		$(MLRUN_TEST_IMAGE_NAME) make test
 
 
@@ -211,8 +248,10 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 circleci: test-dockerized
 	docker run \
+		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \
-		mlrun/test make html-docs
+		$(MLRUN_TEST_IMAGE_NAME) \
+		make html-docs
 
 
 docs-requirements: ## Build docs requirements

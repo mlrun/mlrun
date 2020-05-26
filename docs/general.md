@@ -2,6 +2,7 @@
 # General Concept and Motivation <!-- omit in toc -->
 - [The Challenge](#the-challenge)
 - [The MLRun Vision](#the-mlrun-vision)
+- [Basic Components](#basic-components)
 
 ## The Challenge
 
@@ -33,5 +34,20 @@ In addition, imagine a marketplace of ML functions that includes both open-sourc
 > **Note:** The code is in early development stages and is provided as a reference.
 > The hope is to foster wide industry collaboration and make all the resources pluggable, so that developers can code to a single API and use various open-source projects or commercial products.
 
+[Back to top](#top)
+
+<a id="basic-components"></a>
+## Basic Components
+
+MLRun has the following main components, which are usually grouped into **"projects"**:
+
+- <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment).
+    A function can run one or more runs or tasks, it can be created from templates, and it can be stored in a versioned database.
+- <a id="def-task"></a>**Task** &mdash; defines the parameters, inputs, and outputs of a logical job or task to execute.
+    A task can be created from a template, and can run over different runtimes or functions.
+- <a id="def-run"></a>**Run** &mdash; contains information about an executed task.
+  The run object is created as a result of running a task on a function, and it has all the attributes of a task (such as run parameters and relevant inputs and outputs) with the addition of the execution status and results (including links to output artifacts).
+- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as files, objects, data sets, and models) that are produced or consumed by functions, runs, and workflows.
+- <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using Kubeflow Pipelines.
 
 [Back to top](#top)

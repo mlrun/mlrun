@@ -22,7 +22,7 @@ For example, use the following code to create a project named **my-project** and
 from os import path
 from mlrun import new_project
 
-project_name = 'my_project'
+project_name = 'my-project'
 project_path = path.abspath('conf')
 project = new_project(project_name, project_path, init_git=True)
 

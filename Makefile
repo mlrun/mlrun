@@ -43,8 +43,11 @@ build: docker-images package-wheel ## Build all artifacts
 DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
 	base \
+	base-legacy \
 	models \
+	models-legacy \
 	models-gpu \
+	models-gpu-legacy \
 	mlrun
 
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
@@ -52,10 +55,8 @@ docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
 
 
 push-docker-images: docker-images ## Push all docker images
-	@for image in $(DEFAULT_IMAGES); do \
-		echo "Pushing $$image" ; \
-		docker push $$image ; \
-	done
+	@echo "Pushing images concurrently $(DEFAULT_IMAGES)"
+	@echo $(DEFAULT_IMAGES) | xargs -n 1 -P 5 docker push
 	@echo Done.
 
 

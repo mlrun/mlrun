@@ -161,13 +161,7 @@ class HTTPHandler:
         self.context = server.context
         return self
 
-    def get_model(self, name: str):
-        if name not in self.models:
-            return self.context.Response(
-                body=f'Model with name {name} does not exist, please try to list the models',
-                content_type='text/plain',
-                status_code=404)
-
+    def get_model_class(self, name: str):
         model = self.models[name]
         if not model.ready:
             model.load()
@@ -254,7 +248,13 @@ class PredictHandler(HTTPHandler):
     kind = 'predict'
 
     def post(self, context, name: str, event):
-        model = self.get_model(name)
+        if name not in self.models:
+            return context.Response(
+                body=f'Model with name {name} does not exist, please try to list the models',
+                content_type='text/plain',
+                status_code=404)
+
+        model = self.get_model_class(name)
         context.logger.debug('event: {}'.format(type(event.body)))
         start = datetime.now()
         body = self.parse_event(event)
@@ -273,7 +273,13 @@ class ExplainHandler(HTTPHandler):
     kind = 'explain'
 
     def post(self, context, name: str, event):
-        model = self.get_model(name)
+        if name not in self.models:
+            return context.Response(
+                body=f'Model with name {name} does not exist, please try to list the models',
+                content_type='text/plain',
+                status_code=404)
+
+        model = self.get_model_class(name)
         try:
             body = json.loads(event.body)
         except json.decoder.JSONDecodeError as e:

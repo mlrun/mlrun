@@ -69,6 +69,25 @@ def make_tag(table):
     return Tag
 
 
+# TODO: don't want to refactor everything in one PR so splitting this function to 2 versions - eventually only this one
+#  should be used
+def make_tag_v2(table):
+    class Tag(Base):
+        __tablename__ = f"{table}_tags"
+        __table_args__ = (
+            UniqueConstraint(
+                "project", "name", "obj_name", name=f"_{table}_tags_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String)
+        name = Column(String)
+        obj_id = Column(Integer, ForeignKey(f"{table}.id"))
+        obj_name = Column(Integer, ForeignKey(f"{table}.name"))
+
+    return Tag
+
+
 # quell SQLAlchemy warnings on duplicate class name (Label)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -99,7 +118,7 @@ with warnings.catch_warnings():
         )
 
         Label = make_label(__tablename__)
-        Tag = make_tag(__tablename__)
+        Tag = make_tag_v2(__tablename__)
 
         id = Column(Integer, primary_key=True)
         name = Column(String)

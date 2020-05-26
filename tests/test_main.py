@@ -14,7 +14,7 @@
 
 from sys import executable, stderr
 from subprocess import run, PIPE
-from conftest import rundb_path, out_path, tag_test, here, examples_path, root_path
+from tests.conftest import rundb_path, out_path, tag_test, here, examples_path, root_path
 
 
 def exec_main(op, args):

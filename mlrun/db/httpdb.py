@@ -291,17 +291,17 @@ class HTTPRunDB(RunDBInterface):
         error = 'del artifacts'
         self.api_call('DELETE', 'artifacts', error, params=params)
 
-    def store_function(self, func, name, project='', tag=None):
-        params = {'tag': tag}
+    def store_function(self, function, name, project='', tag=None, versioned=False):
+        params = {'tag': tag, 'versioned': versioned}
         project = project or default_project
         path = self._path_of('func', project, name)
 
         error = f'store function {project}/{name}'
         self.api_call(
-            'POST', path, error, params=params, body=json.dumps(func))
+            'POST', path, error, params=params, body=json.dumps(function))
 
-    def get_function(self, name, project='', tag=None):
-        params = {'tag': tag}
+    def get_function(self, name, project='', tag=None, hash_key=''):
+        params = {'tag': tag, 'hash_key': hash_key}
         project = project or default_project
         path = self._path_of('func', project, name)
         error = f'get function {project}/{name}'
@@ -457,6 +457,23 @@ class HTTPRunDB(RunDBInterface):
         resp = resp.json()
         logger.info('submitted pipeline {} id={}'.format(resp['name'], resp['id']))
         return resp['id']
+
+    def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
+
+        try:
+            query = ''
+            if namespace:
+                query = 'namespace={}'.format(namespace)
+            resp = self.api_call('GET', 'pipelines/{}?{}'.format(run_id, query), timeout=timeout)
+        except OSError as err:
+            logger.error('error cannot get pipeline: {}'.format(err))
+            raise OSError('error: cannot get pipeline, {}'.format(err))
+
+        if not resp.ok:
+            logger.error('bad resp!!\n{}'.format(resp.text))
+            raise ValueError('bad get pipeline response, {}'.format(resp.text))
+
+        return resp.json()
 
 
 def _as_json(obj):

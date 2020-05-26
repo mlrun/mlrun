@@ -1,10 +1,12 @@
-from mlrun.api.db.sqldb.session import create_session as sqldb_create_session
 from sqlalchemy.orm import Session
+
+from mlrun.api.db.sqldb.session import create_session as sqldb_create_session
 from mlrun.config import config
 
 
-def create_session() -> Session:
-    if config.httpdb.db_type == "sqldb":
+def create_session(db_type=None) -> Session:
+    db_type = db_type or config.httpdb.db_type
+    if db_type == "sqldb":
         return sqldb_create_session()
     else:
         return None

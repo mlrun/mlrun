@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import examples_path
+from tests.conftest import examples_path
 
 
 example_files = [

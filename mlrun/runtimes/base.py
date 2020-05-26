@@ -160,10 +160,12 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
-    def _function_uri(self, tag=None):
+    def _function_uri(self, tag=None, hash_key=None):
         url = '{}/{}'.format(self.metadata.project, self.metadata.name)
         if tag or self.metadata.tag:
             url += ':{}'.format(tag or self.metadata.tag)
+        elif hash_key:
+            url += '@{}'.format(hash_key)
         return url
 
     def _get_db(self):
@@ -273,12 +275,9 @@ class BaseRuntime(ModelObj):
                     '{{run.user}}', meta.labels['owner'])
 
             if db and self.kind != 'handler':
-                hashkey = calc_hash(self)
                 struct = self.to_dict()
-                update_in(struct, 'metadata.tag', '')
-                db.store_function(struct, self.metadata.name,
-                                  self.metadata.project, hashkey)
-                runspec.spec.function = self._function_uri(hashkey)
+                hash_key = db.store_function(struct, self.metadata.name, self.metadata.project, versioned=True)
+                runspec.spec.function = self._function_uri(hash_key=hash_key)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
@@ -540,8 +539,8 @@ class BaseRuntime(ModelObj):
         #     image = self.full_image_path()
 
         if use_db:
-            hashkey = self.save(versioned=True, refresh=True)
-            url = 'db://' + self._function_uri(tag=hashkey)
+            hash_key = self.save(versioned=True, refresh=True)
+            url = 'db://' + self._function_uri(hash_key=hash_key)
         else:
             url = None
 
@@ -589,21 +588,13 @@ class BaseRuntime(ModelObj):
                 pass
 
         tag = tag or self.metadata.tag
-        hashkey = calc_hash(self, tag=tag)
 
         obj = self.to_dict()
         logger.debug('saving function: {}, tag: {}'.format(
             self.metadata.name, tag
         ))
-        if versioned:
-            status = self.status
-            self.status = None
-            db.store_function(obj, self.metadata.name,
-                              self.metadata.project, hashkey)
-            self.status = status
-        db.store_function(obj, self.metadata.name,
-                          self.metadata.project, tag)
-        return hashkey
+        hash_key = db.store_function(obj, self.metadata.name, self.metadata.project, tag, versioned)
+        return hash_key
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)

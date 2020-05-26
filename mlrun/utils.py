@@ -470,4 +470,4 @@ def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, f
     if logger is not None:
         logger.warning('operation did not complete on time. last exception: {}'.format(last_exception))
 
-    raise Exception('failed to execute command by the given deadline')
+    raise Exception('failed to execute command by the given deadline. last exception: {}'.format(last_exception))

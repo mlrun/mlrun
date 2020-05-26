@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-mlrun Package Documentation
+MLRun Package Documentation
 ============================
 
 Introduction
@@ -22,7 +22,7 @@ MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``
    general
    install
    end-to-end-pipeline
-   data-management-and-versioning
+   projects
    job-submission-and-tracking
    model-management-and-serving
    examples

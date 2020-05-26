@@ -4,8 +4,6 @@ This guide outlines the steps for installing and running MLRun locally.
 
 > **Note:** Replace the `<namespace>` placeholder in all the commands in this guide with your cluster's Kubernetes namespace.
 
-#### In This Document
-
 - [Run MLRun on a Local Docker Registry](#run-mlrun-on-a-local-docker-registry)
 - [Install MLRun on a Kubernetes Cluster](#install-mlrun-on-a-kubernetes-cluster)
   - [Install Shared Volume Storage (an NFS Server Provisioner)](#install-shared-volume-storage-an-nfs-server-provisioner)
@@ -37,7 +35,7 @@ docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/h
 
 When the execution completes &mdash;
 
-- Open Jupyter Notebook on port 8888 and run the code in the [**examples/mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
+- Open Jupyter Notebook on port 8888 and run the code in the [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 - Use the MLRun dashboard on port 4000.
 
 <a id="k8s-cluster"></a>
@@ -93,7 +91,7 @@ To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](htt
 <a id="k8s-install-start-working"></a>
 ### Start Working
 
-- Open Jupyter Notebook on NodePort `30040` and run the code in the [**examples/mlrun_basics.ipynb**](/examples/mlrun_basics.ipynb) notebook.
+- Open Jupyter Notebook on NodePort `30040` and run the code in the [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 - Use the dashboard at NodePort `30068`.
 
 > **Note:**

@@ -1,18 +1,14 @@
-End-to-end Pipelines
-====================
-
---------------
+End-to-end Pipeline Tutorial
+============================
 
 Creating a local function, running predefined functions, creating and
 running a full ML pipeline with local and library functions.
 
-**notebook how-to’s**
-^^^^^^^^^^^^^^^^^^^^^
-
+In this tutorial you will learn how to:
 -  Create and test a simple function
 -  Examine data using serverless (containarized) ``describe`` function
 -  Create an automated ML pipeline from various library functions
--  Running and tracking the pipeline results and artifacts
+-  Run and track the pipeline results and artifacts
 
 .. raw:: html
 
@@ -24,7 +20,7 @@ running a full ML pipeline with local and library functions.
 Create and Test a Local Function (Iris Data Generator)
 ------------------------------------------------------
 
-Import nuclio SDK and magics, do not remove the cell and comment !!!
+Import nuclio SDK and magics
 
 .. code:: ipython3
 
@@ -42,12 +38,6 @@ Specify function dependencies and configuration
 .. code:: ipython3
 
     %nuclio config spec.build.baseImage = "mlrun/mlrun"
-
-
-.. parsed-literal::
-
-    %nuclio: setting spec.build.baseImage to 'mlrun/mlrun'
-
 
 Function code
 ^^^^^^^^^^^^^
@@ -75,7 +65,7 @@ Generate the iris dataset and log the dataframe (as csv or parquet file)
 
 
 The following end-code annotation tells ``nuclio`` to stop parsing the
-notebook from this cell. **Please do not remove this cell**:
+notebook from this cell:
 
 .. code:: ipython3
 
@@ -108,7 +98,8 @@ git tracking on that
     project_dir = './project'
     skproj = new_project(project_name, project_dir, init_git=True)
 
- ### Run the data generator function locally
+Run the data generator function locally
+---------------------------------------
 
 The functions above can be tested locally. Parameters, inputs, and
 outputs can be specified in the API or the ``Task`` object. when using
@@ -125,6 +116,7 @@ parameters/hyper-parameters, etc… For more details, see the
     gen = run_local(name='iris_gen', handler=iris_generator, 
                     project=project_name, artifact_path=path.join(artifact_path, 'data')) 
 
+The output would be similar to text below:
 
 .. parsed-literal::
 
@@ -133,201 +125,8 @@ parameters/hyper-parameters, etc… For more details, see the
     [mlrun] 2020-05-20 11:54:57,268 log artifact iris_dataset at /User/artifacts/data/iris_dataset.csv, size: 2776, db: Y
     
 
-
-
-.. raw:: html
-
-    <style> 
-    .dictlist {
-      background-color: #b3edff; 
-      text-align: center; 
-      margin: 4px; 
-      border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
-    .artifact {
-      cursor: pointer; 
-      background-color: #ffe6cc; 
-      text-align: left; 
-      margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
-    }
-    div.block.hidden {
-      display: none;
-    }
-    .clickable {
-      cursor: pointer;
-    }
-    .ellipsis {
-      display: inline-block;
-      max-width: 60px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .master-wrapper {
-      display: flex;
-      flex-flow: row nowrap;
-      justify-content: flex-start;
-      align-items: stretch;
-    }
-    .master-tbl {
-      flex: 3
-    }
-    .master-wrapper > div {
-      margin: 4px;
-      padding: 10px;
-    }
-    iframe.fileview {
-      border: 0 none;
-      height: 100%;
-      width: 100%;
-      white-space: pre-wrap;
-    }
-    .pane-header-title {
-      width: 80%;
-      font-weight: 500;
-    }
-    .pane-header {
-      line-height: 1;
-      background-color: #ffe6cc;
-      padding: 3px;
-    }
-    .pane-header .close {
-      font-size: 20px;
-      font-weight: 700;
-      float: right;
-      margin-top: -5px;
-    }
-    .master-wrapper .right-pane {
-      border: 1px inset silver;
-      width: 40%;
-      min-height: 300px;
-      flex: 3
-      min-width: 500px;
-    }
-    .master-wrapper * {
-      box-sizing: border-box;
-    }
-    </style><script>
-    function copyToClipboard(fld) {
-        if (document.queryCommandSupported && document.queryCommandSupported('copy')) {
-            var textarea = document.createElement('textarea');
-            textarea.textContent = fld.innerHTML;
-            textarea.style.position = 'fixed';
-            document.body.appendChild(textarea);
-            textarea.select();
-    
-            try {
-                return document.execCommand('copy'); // Security exception may be thrown by some browsers.
-            } catch (ex) {
-    
-            } finally {
-                document.body.removeChild(textarea);
-            }
-        }
-    }
-    function expandPanel(el) {
-      const panelName = "#" + el.getAttribute('paneName');
-      console.log(el.title);
-    
-      document.querySelector(panelName + "-title").innerHTML = el.title
-      iframe = document.querySelector(panelName + "-body");
-    
-      const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
-        #csv { margin-bottom: 15px; }
-        #csv table { border-collapse: collapse;}
-        #csv table td { padding: 4px 8px; border: 1px solid silver;} </style>`;
-    
-      function csvToHtmlTable(str) {
-        return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
-          .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
-      }
-    
-      function reqListener () {
-        if (el.title.endsWith(".csv")) {
-          iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
-        } else {
-          iframe.setAttribute("srcdoc", this.responseText);
-        }  
-        console.log(this.responseText);
-      }
-    
-      const oReq = new XMLHttpRequest();
-      oReq.addEventListener("load", reqListener);
-      oReq.open("GET", el.title);
-      oReq.send();
-    
-    
-      //iframe.src = el.title;
-      const resultPane = document.querySelector(panelName + "-pane");
-      if (resultPane.classList.contains("hidden")) {
-        resultPane.classList.remove("hidden");
-      }
-    }
-    function closePanel(el) {
-      const panelName = "#" + el.getAttribute('paneName')
-      const resultPane = document.querySelector(panelName + "-pane");
-      if (!resultPane.classList.contains("hidden")) {
-        resultPane.classList.add("hidden");
-      }
-    }
-    
-    </script>
-    <div class="master-wrapper">
-      <div class="block master-tbl"><div>
-    <style scoped>
-        .dataframe tbody tr th:only-of-type {
-            vertical-align: middle;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    
-        .dataframe thead th {
-            text-align: right;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr style="text-align: right;">
-          <th>project</th>
-          <th>uid</th>
-          <th>iter</th>
-          <th>start</th>
-          <th>state</th>
-          <th>name</th>
-          <th>labels</th>
-          <th>inputs</th>
-          <th>parameters</th>
-          <th>results</th>
-          <th>artifacts</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>sk-project</td>
-          <td><div title="95d9058eac2d48bdb54352e78ff57bcd"><a href="https://mlrun-ui.default-tenant.app.yjb-mlrun-hope.iguazio-cd1.com/projects/sk-project/jobs/95d9058eac2d48bdb54352e78ff57bcd/info" target="_blank" >...8ff57bcd</a></div></td>
-          <td>0</td>
-          <td>May 20 11:54:56</td>
-          <td>completed</td>
-          <td>iris_gen</td>
-          <td><div class="dictlist">v3io_user=admin</div><div class="dictlist">kind=handler</div><div class="dictlist">owner=admin</div><div class="dictlist">host=jupyter-67c88b95d4-crdhq</div></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td><div class="artifact" onclick="expandPanel(this)" paneName="result022d42b0" title="/files/artifacts/data/iris_dataset.csv">iris_dataset</div></td>
-        </tr>
-      </tbody>
-    </table>
-    </div></div>
-      <div id="result022d42b0-pane" class="right-pane block hidden">
-        <div class="pane-header">
-          <span id="result022d42b0-title" class="pane-header-title">Title</span>
-          <span onclick="closePanel(this)" paneName="result022d42b0" class="close clickable">&times;</span>
-        </div>
-        <iframe class="fileview" id="result022d42b0-body"></iframe>
-      </div>
-    </div>
-
+.. image:: _static/images/end-to-end-pipline-tutorial-run-local.png
+   :alt: run-local output
 
 
 .. parsed-literal::
@@ -347,13 +146,6 @@ Convert our local code to a distributed serverless function object
 
 
 
-
-.. parsed-literal::
-
-    <mlrun.runtimes.kubejob.KubejobRuntime at 0x7fc34f6f61d0>
-
-
-
 Load and run a library function (visualize dataset features and stats)
 ----------------------------------------------------------------------
 
@@ -364,14 +156,6 @@ points to ``mlrun/functions`` git
 .. code:: ipython3
 
     skproj.set_function('hub://describe', 'describe')
-
-
-
-
-.. parsed-literal::
-
-    <mlrun.runtimes.kubejob.KubejobRuntime at 0x7fc2f3956ac8>
-
 
 
 .. code:: ipython3
@@ -423,200 +207,8 @@ parameters.
     [mlrun] 2020-05-20 11:55:16,837 run executed, status=completed
     final state: succeeded
 
-
-
-.. raw:: html
-
-    <style> 
-    .dictlist {
-      background-color: #b3edff; 
-      text-align: center; 
-      margin: 4px; 
-      border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
-    .artifact {
-      cursor: pointer; 
-      background-color: #ffe6cc; 
-      text-align: left; 
-      margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
-    }
-    div.block.hidden {
-      display: none;
-    }
-    .clickable {
-      cursor: pointer;
-    }
-    .ellipsis {
-      display: inline-block;
-      max-width: 60px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .master-wrapper {
-      display: flex;
-      flex-flow: row nowrap;
-      justify-content: flex-start;
-      align-items: stretch;
-    }
-    .master-tbl {
-      flex: 3
-    }
-    .master-wrapper > div {
-      margin: 4px;
-      padding: 10px;
-    }
-    iframe.fileview {
-      border: 0 none;
-      height: 100%;
-      width: 100%;
-      white-space: pre-wrap;
-    }
-    .pane-header-title {
-      width: 80%;
-      font-weight: 500;
-    }
-    .pane-header {
-      line-height: 1;
-      background-color: #ffe6cc;
-      padding: 3px;
-    }
-    .pane-header .close {
-      font-size: 20px;
-      font-weight: 700;
-      float: right;
-      margin-top: -5px;
-    }
-    .master-wrapper .right-pane {
-      border: 1px inset silver;
-      width: 40%;
-      min-height: 300px;
-      flex: 3
-      min-width: 500px;
-    }
-    .master-wrapper * {
-      box-sizing: border-box;
-    }
-    </style><script>
-    function copyToClipboard(fld) {
-        if (document.queryCommandSupported && document.queryCommandSupported('copy')) {
-            var textarea = document.createElement('textarea');
-            textarea.textContent = fld.innerHTML;
-            textarea.style.position = 'fixed';
-            document.body.appendChild(textarea);
-            textarea.select();
-    
-            try {
-                return document.execCommand('copy'); // Security exception may be thrown by some browsers.
-            } catch (ex) {
-    
-            } finally {
-                document.body.removeChild(textarea);
-            }
-        }
-    }
-    function expandPanel(el) {
-      const panelName = "#" + el.getAttribute('paneName');
-      console.log(el.title);
-    
-      document.querySelector(panelName + "-title").innerHTML = el.title
-      iframe = document.querySelector(panelName + "-body");
-    
-      const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
-        #csv { margin-bottom: 15px; }
-        #csv table { border-collapse: collapse;}
-        #csv table td { padding: 4px 8px; border: 1px solid silver;} </style>`;
-    
-      function csvToHtmlTable(str) {
-        return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
-          .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
-      }
-    
-      function reqListener () {
-        if (el.title.endsWith(".csv")) {
-          iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
-        } else {
-          iframe.setAttribute("srcdoc", this.responseText);
-        }  
-        console.log(this.responseText);
-      }
-    
-      const oReq = new XMLHttpRequest();
-      oReq.addEventListener("load", reqListener);
-      oReq.open("GET", el.title);
-      oReq.send();
-    
-    
-      //iframe.src = el.title;
-      const resultPane = document.querySelector(panelName + "-pane");
-      if (resultPane.classList.contains("hidden")) {
-        resultPane.classList.remove("hidden");
-      }
-    }
-    function closePanel(el) {
-      const panelName = "#" + el.getAttribute('paneName')
-      const resultPane = document.querySelector(panelName + "-pane");
-      if (!resultPane.classList.contains("hidden")) {
-        resultPane.classList.add("hidden");
-      }
-    }
-    
-    </script>
-    <div class="master-wrapper">
-      <div class="block master-tbl"><div>
-    <style scoped>
-        .dataframe tbody tr th:only-of-type {
-            vertical-align: middle;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    
-        .dataframe thead th {
-            text-align: right;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr style="text-align: right;">
-          <th>project</th>
-          <th>uid</th>
-          <th>iter</th>
-          <th>start</th>
-          <th>state</th>
-          <th>name</th>
-          <th>labels</th>
-          <th>inputs</th>
-          <th>parameters</th>
-          <th>results</th>
-          <th>artifacts</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>sk-project</td>
-          <td><div title="9fc84dd77c4142af995c33244ef870b6"><a href="https://mlrun-ui.default-tenant.app.yjb-mlrun-hope.iguazio-cd1.com/projects/sk-project/jobs/9fc84dd77c4142af995c33244ef870b6/info" target="_blank" >...4ef870b6</a></div></td>
-          <td>0</td>
-          <td>May 20 11:55:13</td>
-          <td>completed</td>
-          <td>describe-summarize</td>
-          <td><div class="dictlist">host=describe-summarize-x6r9q</div><div class="dictlist">kind=job</div><div class="dictlist">owner=admin</div><div class="dictlist">v3io_user=admin</div></td>
-          <td><div title="store://sk-project/iris_gen_iris_dataset#95d9058eac2d48bdb54352e78ff57bcd">table</div></td>
-          <td><div class="dictlist">label_column=label</div></td>
-          <td><div class="dictlist">scale_pos_weight=1.00</div></td>
-          <td><div class="artifact" onclick="expandPanel(this)" paneName="resultd0de5a37" title="/files/artifacts/plots/hist.html">histograms</div><div class="artifact" onclick="expandPanel(this)" paneName="resultd0de5a37" title="/files/artifacts/plots/imbalance.html">imbalance</div><div class="artifact" onclick="expandPanel(this)" paneName="resultd0de5a37" title="/files/artifacts/plots/corr.html">correlation</div></td>
-        </tr>
-      </tbody>
-    </table>
-    </div></div>
-      <div id="resultd0de5a37-pane" class="right-pane block hidden">
-        <div class="pane-header">
-          <span id="resultd0de5a37-title" class="pane-header-title">Title</span>
-          <span onclick="closePanel(this)" paneName="resultd0de5a37" class="close clickable">&times;</span>
-        </div>
-        <iframe class="fileview" id="resultd0de5a37-body"></iframe>
-      </div>
-    </div>
+.. image:: _static/images/end-to-end-pipline-tutorial-run.png
+   :alt: run output
 
 
 
@@ -625,13 +217,6 @@ parameters.
     to track results use .show() or .logs() or in CLI: 
     !mlrun get run 9fc84dd77c4142af995c33244ef870b6 --project sk-project , !mlrun logs 9fc84dd77c4142af995c33244ef870b6 --project sk-project
     [mlrun] 2020-05-20 11:55:21,550 run executed, status=completed
-
-
-
-
-.. parsed-literal::
-
-    <mlrun.model.RunObject at 0x7fc2f7707438>
 
 
 
@@ -651,14 +236,6 @@ Real-time model server, and Model REST API Tester
     skproj.set_function('hub://model_server', 'serving')
     skproj.set_function('hub://model_server_tester', 'live_tester')
     #print(skproj.to_yaml())
-
-
-
-
-.. parsed-literal::
-
-    <mlrun.runtimes.kubejob.KubejobRuntime at 0x7fc2f38bc358>
-
 
 
 Define and save a pipeline
@@ -774,7 +351,10 @@ to commit all changes to a Git repo.
 
     skproj.save()
 
- ## Run a pipeline workflow use the ``run`` method to execute a
+Run a pipeline workflow
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the ``run`` method to execute a
 workflow, you can provide alternative arguments and specify the default
 target for workflow artifacts. The workflow ID is returned and can be
 used to track the progress or you can use the hyperlinks
@@ -821,227 +401,8 @@ Track pipeline results
     db = get_run_db().connect()
     db.list_runs(project=skproj.name, labels=f'workflow={run_id}').show()
 
-
-
-.. raw:: html
-
-    <style> 
-    .dictlist {
-      background-color: #b3edff; 
-      text-align: center; 
-      margin: 4px; 
-      border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
-    .artifact {
-      cursor: pointer; 
-      background-color: #ffe6cc; 
-      text-align: left; 
-      margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
-    }
-    div.block.hidden {
-      display: none;
-    }
-    .clickable {
-      cursor: pointer;
-    }
-    .ellipsis {
-      display: inline-block;
-      max-width: 60px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .master-wrapper {
-      display: flex;
-      flex-flow: row nowrap;
-      justify-content: flex-start;
-      align-items: stretch;
-    }
-    .master-tbl {
-      flex: 3
-    }
-    .master-wrapper > div {
-      margin: 4px;
-      padding: 10px;
-    }
-    iframe.fileview {
-      border: 0 none;
-      height: 100%;
-      width: 100%;
-      white-space: pre-wrap;
-    }
-    .pane-header-title {
-      width: 80%;
-      font-weight: 500;
-    }
-    .pane-header {
-      line-height: 1;
-      background-color: #ffe6cc;
-      padding: 3px;
-    }
-    .pane-header .close {
-      font-size: 20px;
-      font-weight: 700;
-      float: right;
-      margin-top: -5px;
-    }
-    .master-wrapper .right-pane {
-      border: 1px inset silver;
-      width: 40%;
-      min-height: 300px;
-      flex: 3
-      min-width: 500px;
-    }
-    .master-wrapper * {
-      box-sizing: border-box;
-    }
-    </style><script>
-    function copyToClipboard(fld) {
-        if (document.queryCommandSupported && document.queryCommandSupported('copy')) {
-            var textarea = document.createElement('textarea');
-            textarea.textContent = fld.innerHTML;
-            textarea.style.position = 'fixed';
-            document.body.appendChild(textarea);
-            textarea.select();
-    
-            try {
-                return document.execCommand('copy'); // Security exception may be thrown by some browsers.
-            } catch (ex) {
-    
-            } finally {
-                document.body.removeChild(textarea);
-            }
-        }
-    }
-    function expandPanel(el) {
-      const panelName = "#" + el.getAttribute('paneName');
-      console.log(el.title);
-    
-      document.querySelector(panelName + "-title").innerHTML = el.title
-      iframe = document.querySelector(panelName + "-body");
-    
-      const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
-        #csv { margin-bottom: 15px; }
-        #csv table { border-collapse: collapse;}
-        #csv table td { padding: 4px 8px; border: 1px solid silver;} </style>`;
-    
-      function csvToHtmlTable(str) {
-        return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
-          .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
-      }
-    
-      function reqListener () {
-        if (el.title.endsWith(".csv")) {
-          iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
-        } else {
-          iframe.setAttribute("srcdoc", this.responseText);
-        }  
-        console.log(this.responseText);
-      }
-    
-      const oReq = new XMLHttpRequest();
-      oReq.addEventListener("load", reqListener);
-      oReq.open("GET", el.title);
-      oReq.send();
-    
-    
-      //iframe.src = el.title;
-      const resultPane = document.querySelector(panelName + "-pane");
-      if (resultPane.classList.contains("hidden")) {
-        resultPane.classList.remove("hidden");
-      }
-    }
-    function closePanel(el) {
-      const panelName = "#" + el.getAttribute('paneName')
-      const resultPane = document.querySelector(panelName + "-pane");
-      if (!resultPane.classList.contains("hidden")) {
-        resultPane.classList.add("hidden");
-      }
-    }
-    
-    </script>
-    <div class="master-wrapper">
-      <div class="block master-tbl"><div>
-    <style scoped>
-        .dataframe tbody tr th:only-of-type {
-            vertical-align: middle;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    
-        .dataframe thead th {
-            text-align: right;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr style="text-align: right;">
-          <th>project</th>
-          <th>uid</th>
-          <th>iter</th>
-          <th>start</th>
-          <th>state</th>
-          <th>name</th>
-          <th>labels</th>
-          <th>inputs</th>
-          <th>parameters</th>
-          <th>results</th>
-          <th>artifacts</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>sk-project</td>
-          <td><div title="1f4a3e85b6f14d2387c6c4f7671c5df2"><a href="https://mlrun-ui.default-tenant.app.yh48.iguazio-cd2.com/projects/sk-project/jobs/1f4a3e85b6f14d2387c6c4f7671c5df2/info" target="_blank" >...671c5df2</a></div></td>
-          <td>0</td>
-          <td>Apr 10 20:51:29</td>
-          <td>running</td>
-          <td>train-skrf</td>
-          <td><div class="dictlist">kind=job</div><div class="dictlist">owner=admin</div><div class="dictlist">v3io_user=admin</div><div class="dictlist">workflow=cfce7566-0446-400c-bb88-8688d7776c91</div></td>
-          <td><div title="/User/ml/demos/sklearn-pipe/pipe/cfce7566-0446-400c-bb88-8688d7776c91/iris_dataset.parquet">dataset</div></td>
-          <td><div class="dictlist">label_column=label</div><div class="dictlist">sample=-1</div><div class="dictlist">test_size=0.1</div></td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>sk-project</td>
-          <td><div title="037fbb4babe54eb284f22901ce1fa27f"><a href="https://mlrun-ui.default-tenant.app.yh48.iguazio-cd2.com/projects/sk-project/jobs/037fbb4babe54eb284f22901ce1fa27f/info" target="_blank" >...ce1fa27f</a></div></td>
-          <td>0</td>
-          <td>Apr 10 20:51:29</td>
-          <td>running</td>
-          <td>summary</td>
-          <td><div class="dictlist">kind=job</div><div class="dictlist">owner=admin</div><div class="dictlist">v3io_user=admin</div><div class="dictlist">workflow=cfce7566-0446-400c-bb88-8688d7776c91</div></td>
-          <td><div title="/User/ml/demos/sklearn-pipe/pipe/cfce7566-0446-400c-bb88-8688d7776c91/iris_dataset.parquet">table</div></td>
-          <td><div class="dictlist">label_column=label</div></td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>sk-project</td>
-          <td><div title="b013bb2a7ff34dd788bead224e574ffd"><a href="https://mlrun-ui.default-tenant.app.yh48.iguazio-cd2.com/projects/sk-project/jobs/b013bb2a7ff34dd788bead224e574ffd/info" target="_blank" >...4e574ffd</a></div></td>
-          <td>0</td>
-          <td>Apr 10 20:51:20</td>
-          <td>completed</td>
-          <td>get-data</td>
-          <td><div class="dictlist">host=get-data-mkrmx</div><div class="dictlist">kind=job</div><div class="dictlist">owner=admin</div><div class="dictlist">v3io_user=admin</div><div class="dictlist">workflow=cfce7566-0446-400c-bb88-8688d7776c91</div></td>
-          <td></td>
-          <td><div class="dictlist">format=pq</div></td>
-          <td></td>
-          <td><div title="/User/ml/demos/sklearn-pipe/pipe/cfce7566-0446-400c-bb88-8688d7776c91/iris_dataset.parquet">iris_dataset</div></td>
-        </tr>
-      </tbody>
-    </table>
-    </div></div>
-      <div id="result1dd81966-pane" class="right-pane block hidden">
-        <div class="pane-header">
-          <span id="result1dd81966-title" class="pane-header-title">Title</span>
-          <span onclick="closePanel(this)" paneName="result1dd81966" class="close clickable">&times;</span>
-        </div>
-        <iframe class="fileview" id="result1dd81966-body"></iframe>
-      </div>
-    </div>
-
+.. image:: _static/images/end-to-end-pipline-tutorial-pipeline-results.png
+   :alt: Pipeline results
 
 
 `back to top <#top>`__

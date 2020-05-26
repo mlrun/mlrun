@@ -112,6 +112,9 @@ class Config:
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
 
+    def try_get(self, attr, default=None):
+        return self._cfg.get(attr, default)
+
     @staticmethod
     def reload():
         _populate()
@@ -182,6 +185,11 @@ def read_env(env=None, prefix=env_prefix):
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
+
+    # check for mpijob crd version
+    mpijob_crd_version = env.get('MLRUN_MPIJOB_CRD_VERSION')
+    if mpijob_crd_version and not config.get('mpijob_crd_version'):
+        config['mpijob_crd_version'] = mpijob_crd_version
 
     # check for mlrun-api or db kubernetes service
     svc = env.get('MLRUN_API_PORT')

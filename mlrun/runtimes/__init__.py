@@ -69,14 +69,10 @@ def get_runtime_class(kind: str):
 # if not specified, try resolving it according to the mpi-operator, otherwise default to `v1alpha1`
 def _resolve_mpi_runtime():
 
-    # try get from config
-    mpijob_crd_version = ''
-    try:
-        mpijob_crd_version = mlconfig.mpijob_crd_version
-    except:
-        pass
+    # try get mpijob crd version from config
+    mpijob_crd_version = mlconfig.config.try_get('mpijob_crd_version')
 
-    if mpijob_crd_version == '':
+    if not mpijob_crd_version:
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.ns()
 

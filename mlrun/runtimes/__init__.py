@@ -16,8 +16,7 @@ from mlrun.config import config
 from .base import RunError, BaseRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .function import RemoteRuntime, new_model_server  # noqa
-from .mpijob import MpiRuntimeV1Alpha1  # noqa
-from .mpijob import MpiRuntimeV1  # noqa
+from .mpijob import MpiRuntimeV1Alpha1, MpiRuntimeV1, MPIJobCRDVersions  # noqa
 from .daskjob import DaskCluster, get_dask_resource  # noqa
 from .kubejob import KubejobRuntime  # noqa
 from .sparkjob import SparkRuntime  # noqa
@@ -42,20 +41,6 @@ class RuntimeKinds(object):
                 RuntimeKinds.job,
                 RuntimeKinds.spark,
                 RuntimeKinds.mpijob]
-
-
-class MPIJobCRDVersions(object):
-    v1 = 'v1'
-    v1alpha1 = 'v1alpha1'
-
-    @staticmethod
-    def all():
-        return [MPIJobCRDVersions.v1,
-                MPIJobCRDVersions.v1alpha1]
-
-    @staticmethod
-    def default():
-        return MPIJobCRDVersions.v1alpha1
 
 
 runtime_resources_map = {

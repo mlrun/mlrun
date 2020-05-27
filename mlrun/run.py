@@ -342,12 +342,12 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     else:
         if kind in ['', 'local'] and command:
             runner = LocalRuntime.from_dict(runtime)
-        elif kind in RuntimeKinds.get_all():
+        elif kind in RuntimeKinds.all():
             runner = get_runtime_class(kind).from_dict(runtime)
         else:
             raise Exception('unsupported runtime ({}) or missing command, '.format(kind)
                             + 'supported runtimes: {}'.format(
-                              ','.join(RuntimeKinds.get_all() + ['local'])))
+                              ','.join(RuntimeKinds.all() + ['local'])))
 
     if not name:
         # todo: regex check for valid name
@@ -493,7 +493,7 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             raise ValueError('code_output path or embed_code=False should be'
                              ' specified for local runtime')
         r = LocalRuntime()
-    elif kind in RuntimeKinds.get_all():
+    elif kind in RuntimeKinds.all():
         r = get_runtime_class(kind)()
     else:
         raise ValueError('unsupported runtime ({})'.format(kind))

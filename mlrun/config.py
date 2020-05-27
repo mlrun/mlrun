@@ -52,7 +52,7 @@ default_config = {
     'default_image': 'python:3.6-jessie',
     'default_project': 'default',    # default project name
     'default_archive': '',           # default remote archive URL (for build tar.gz)
-    'mpijob_crd_version': '',        # mpijob crd version (e.g.: "v1alpha1")
+    'mpijob_crd_version': '',        # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'ERROR',
@@ -111,9 +111,6 @@ class Config:
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
-
-    def try_get(self, attr, default=None):
-        return self._cfg.get(attr, default)
 
     @staticmethod
     def reload():
@@ -185,11 +182,6 @@ def read_env(env=None, prefix=env_prefix):
             name, *path = path
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
-
-    # check for mpijob crd version
-    mpijob_crd_version = env.get('MLRUN_MPIJOB_CRD_VERSION')
-    if mpijob_crd_version and not config.get('mpijob_crd_version'):
-        config['mpijob_crd_version'] = mpijob_crd_version
 
     # check for mlrun-api or db kubernetes service
     svc = env.get('MLRUN_API_PORT')

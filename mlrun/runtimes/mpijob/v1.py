@@ -16,6 +16,7 @@ from copy import deepcopy
 import typing
 
 from mlrun.execution import MLClientCtx
+from mlrun.runtimes import MPIJobCRDVersions
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.model import RunObject
 from mlrun.utils import update_in, get_in
@@ -66,7 +67,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
     def _get_crd_info(self) -> typing.Tuple[str, str, str]:
         mpi_group = 'kubeflow.org'
-        mpi_version = 'v1'
+        mpi_version = MPIJobCRDVersions.v1
         mpi_plural = 'mpijobs'
 
         return mpi_group, mpi_version, mpi_plural

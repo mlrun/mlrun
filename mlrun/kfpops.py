@@ -366,7 +366,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
                 field_ref=k8s_client.V1ObjectFieldSelector(
                     field_path='metadata.namespace'))))
 
-    if config.try_get('mpijob_crd_version'):
+    if config.mpijob_crd_version:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version))
 

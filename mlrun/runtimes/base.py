@@ -12,25 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import uuid
-from ast import literal_eval
 import getpass
+import uuid
+from abc import ABC, abstractmethod
+from ast import literal_eval
 from copy import deepcopy
-from os import environ, path
+from os import environ
+from typing import Dict
 
+from .generators import get_generator
+from .utils import calc_hash, RunError, results_to_iter
+from ..config import config
 from ..datastore import StoreManager
-from ..kfpops import write_kfpmeta, mlrun_op
 from ..db import get_run_db, get_or_set_dburl, RunDBError
+from ..execution import MLClientCtx
+from ..k8s_utils import get_k8s_helper
+from ..kfpops import write_kfpmeta, mlrun_op
+from ..lists import RunList
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image, dict_to_yaml, dict_to_json
-from .utils import calc_hash, RunError, results_to_iter
-from ..execution import MLClientCtx
-from ..lists import RunList
-from .generators import get_generator
-from ..k8s_utils import get_k8s_helper
-from ..config import config
 
 
 class FunctionStatus(ModelObj):
@@ -628,3 +630,16 @@ def is_local(url):
     if not url:
         return True
     return '://' not in url and not url.startswith('/')
+
+
+class BaseRuntimeHandler(ABC):
+
+    @staticmethod
+    @abstractmethod
+    def list_resources(namespace: str = None, label_selector: str = None) -> Dict:
+        raise NotImplementedError()
+
+    @staticmethod
+    @abstractmethod
+    def delete_resources(namespace: str = None, label_selector: str = None, running: bool = False):
+        raise NotImplementedError()

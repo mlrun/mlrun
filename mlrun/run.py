@@ -682,7 +682,7 @@ def wait_for_pipeline_completion(run_id,
 
 
 def get_pipeline(run_id, namespace=None):
-    """Get or wait for Pipeline status, wait time in sec"""
+    """Get Pipeline status"""
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     if remote:

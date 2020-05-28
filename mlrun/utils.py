@@ -433,7 +433,7 @@ def fill_function_hash(function_dict, tag=''):
     return hashkey
 
 
-def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, _function: function, *args, **kwargs):
+def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs):
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)

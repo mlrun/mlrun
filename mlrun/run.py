@@ -645,6 +645,10 @@ def wait_for_pipeline_completion(run_id,
             resp = mldb.get_pipeline(run_id, namespace=namespace)
             status = resp['_run']['_status']
             if status.lower() not in RunStatuses.stable_statuses():
+
+                # TODO: think of nicer liveness indication and make it re-usable
+                # log '.' each retry as a liveness indication
+                logger.debug('.')
                 raise RuntimeError('pipeline run has not completed yet')
 
             return resp

@@ -19,7 +19,7 @@ from .function import RemoteRuntime, new_model_server  # noqa
 from .mpijob import MpiRuntimeV1Alpha1, MpiRuntimeV1, MPIJobCRDVersions  # noqa
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .kubejob import KubejobRuntime  # noqa
-from .sparkjob import SparkRuntime  # noqa
+from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 from .nuclio import nuclio_init_hook
 from .serving import MLModelServer
 from mlrun.k8s_utils import get_k8s_helper
@@ -51,6 +51,7 @@ runtime_resources_map = {
 def get_runtime_handler_class(kind: str) -> BaseRuntimeHandler:
     kind_runtime_handler_map = {
         RuntimeKinds.dask: DaskRuntimeHandler,
+        RuntimeKinds.spark: SparkRuntimeHandler,
     }
 
     return kind_runtime_handler_map[kind]

@@ -433,15 +433,15 @@ def fill_function_hash(function_dict, tag=''):
     return hashkey
 
 
-def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, function, *args, **kwargs):
+def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, _function: function, *args, **kwargs):
     """
-    Runs function with given *args and **kwargs using deferToThread.
+    Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
     :param interval: int/float that will be used as interval
     :param timeout: pass None if timeout is not wanted, number of seconds if it is
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
-    :param function: function to run
+    :param _function: function to run
     :param args: functions args
     :param kwargs: functions kwargs
     :return: function result
@@ -452,22 +452,25 @@ def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, f
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
         try:
-            result = function(*args, **kwargs)
+            result = _function(*args, **kwargs)
             return result
 
         except Exception as exc:
             last_exception = exc
 
-            if logger is not None and verbose:
-                logger.debug('operation not yet successful. exc: {}'.format(exc))
-
             # If next interval is within allowed time period - wait on interval, abort otherwise
             if timeout is None or time.time() + interval < start_time + timeout:
+                if logger is not None and verbose:
+                    logger.debug(f"Operation not yet successful, Retrying in {interval} seconds. exc: {exc}")
+
                 time.sleep(interval)
             else:
                 break
 
     if logger is not None:
-        logger.warning('operation did not complete on time. last exception: {}'.format(last_exception))
+        logger.warning(f"Operation did not complete on time. last exception: {last_exception}")
 
-    raise Exception('failed to execute command by the given deadline. last exception: {}'.format(last_exception))
+    raise Exception(f"failed to execute command by the given deadline."
+                    f" last_exception: {last_exception},"
+                    f" function_name: {_function.__name__},"
+                    f" timeout: {timeout}")

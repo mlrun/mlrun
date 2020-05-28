@@ -36,9 +36,7 @@ def get_dask_resource():
     return {
         'scope': 'function',
         'start': deploy_function,
-        'list': list_objects,
         'status': get_obj_status,
-        'clean': clean_objects,
     }
 
 
@@ -375,8 +373,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def list_resources(namespace: str = None, label_selector: str = None) -> Dict:
-        k8s = get_k8s_helper()
-        namespace = k8s.resolve_namespace(namespace)
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace(namespace)
 
         default_label_selector = 'dask.org/component=scheduler'
         if label_selector:
@@ -384,24 +382,17 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         else:
             label_selector = default_label_selector
 
-        pods = k8s.list_pods(namespace, selector=label_selector)
-        pods_resources = []
-        for pod in pods:
-            status = pod.status.phase.lower()
-            pods_resources.append(
-                {
-                    'name': pod.metadata.name,
-                    'labels': pod.metadata.labels,
-                    'status': status,
-                })
-        return {
-            'pods': pods_resources,
-        }
+        pods = k8s_helper.list_pods(namespace, selector=label_selector)
+        pod_resources = BaseRuntimeHandler.build_pod_resources(pods)
+
+        response = BaseRuntimeHandler.build_list_resources_response(pod_resources)
+
+        return response
 
     @staticmethod
     def delete_resources(namespace: str = None, label_selector: str = None, running: bool = False):
-        k8s = get_k8s_helper()
-        namespace = k8s.resolve_namespace(namespace)
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace(namespace)
 
         default_label_selector = 'dask.org/component=scheduler'
         if label_selector is not None:
@@ -409,7 +400,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         else:
             label_selector = default_label_selector
 
-        pods = k8s.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
+        pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         service_names = []
         for pod in pods.items:
             status = pod.status.phase.lower()
@@ -418,18 +409,18 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
                 if comp == 'scheduler':
                     service_names.append(pod.metadata.labels.get('dask.org/cluster-name'))
                 try:
-                    k8s.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
+                    k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
                     logger.info(f"Deleted pod: {pod.metadata.name}")
                 except ApiException as e:
                     # ignore error if pod is already removed
                     if e.status != 404:
                         raise
 
-        services = k8s.v1api.list_namespaced_service(namespace, label_selector=label_selector)
+        services = k8s_helper.v1api.list_namespaced_service(namespace, label_selector=label_selector)
         for service in services.items:
             try:
                 if running or service.metadata.name in service_names:
-                    k8s.v1api.delete_namespaced_service(service.metadata.name, namespace)
+                    k8s_helper.v1api.delete_namespaced_service(service.metadata.name, namespace)
                     logger.info(f"Deleted service: {service.metadata.name}")
             except ApiException as e:
                 # ignore error if service is already removed

@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from ast import literal_eval
 from copy import deepcopy
 from os import environ
-from typing import Dict
+from typing import Dict, List
 
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
@@ -643,3 +643,40 @@ class BaseRuntimeHandler(ABC):
     @abstractmethod
     def delete_resources(namespace: str = None, label_selector: str = None, running: bool = False):
         raise NotImplementedError()
+
+    @staticmethod
+    def build_pod_resources(pods):
+        pod_resources = []
+        for pod in pods:
+            status = pod.status.phase.lower()
+            pod_resources.append(
+                {
+                    'name': pod.metadata.name,
+                    'labels': pod.metadata.labels,
+                    'status': status,
+                })
+        return pod_resources
+
+    @staticmethod
+    def build_crd_resources(custom_objects):
+        crd_resources = []
+        for custom_object in custom_objects.items:
+            status = custom_object.status.phase.lower()
+            crd_resources.append(
+                {
+                    'name': custom_object.metadata.name,
+                    'labels': custom_object.metadata.labels,
+                    'status': status,
+                })
+        return crd_resources
+
+    @staticmethod
+    def build_list_resources_response(pod_resources: List = None, crd_resources: List = None):
+        if crd_resources is None:
+            crd_resources = []
+        if pod_resources is None:
+            pod_resources = []
+        return {
+            'crd_resources': crd_resources,
+            'pod_resources': pod_resources,
+        }

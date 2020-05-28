@@ -11,24 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-from pprint import pprint
-import yaml
 import time
 from copy import deepcopy
+from typing import Dict
+
+from kubernetes import client
+from kubernetes.client.rest import ApiException
+
+from mlrun.k8s_utils import get_k8s_helper
+from mlrun.runtimes.base import BaseRuntimeHandler
+from mlrun.config import config
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
-
-from ..model import ModelObj
-from ..utils import logger, get_in
-from ..model import RunObject
-from ..utils import dict_to_yaml, update_in, logger, get_in
-from ..platforms.iguazio import mount_v3io, mount_v3iod
 from ..execution import MLClientCtx
-
-
-from kubernetes import client
+from ..model import RunObject
+from ..platforms.iguazio import mount_v3io, mount_v3iod
+from ..utils import update_in, logger, get_in
 
 igz_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
                      '/igz/java/libs/v3io-spark2-streaming_2.11-{0}.jar',
@@ -258,3 +257,56 @@ class SparkRuntime(KubejobRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', SparkJobSpec)
+
+
+class SparkRuntimeHandler(BaseRuntimeHandler):
+
+    @staticmethod
+    def list_resources(namespace: str = None, label_selector: str = None) -> Dict:
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace(namespace)
+        default_label_selector = 'mlrun/class=spark'
+        if label_selector:
+            label_selector = ','.join([default_label_selector, label_selector])
+        else:
+            label_selector = default_label_selector
+
+        pods = k8s_helper.list_pods(namespace, selector=label_selector)
+        pod_resources = BaseRuntimeHandler.build_pod_resources(pods)
+
+        spark_jobs = k8s_helper.crdapi.list_namespaced_custom_object(SparkRuntime.group,
+                                                                     SparkRuntime.version,
+                                                                     namespace,
+                                                                     SparkRuntime.plural)
+        crd_resources = BaseRuntimeHandler.build_crd_resources(spark_jobs)
+
+        response = BaseRuntimeHandler.build_list_resources_response(pod_resources, crd_resources)
+
+        return response
+
+    @staticmethod
+    def delete_resources(namespace: str = None, label_selector: str = None, running: bool = False):
+        k8s_helper = get_k8s_helper()
+        namespace = namespace or config.namespace
+
+        spark_jobs = k8s_helper.crdapi.list_namespaced_custom_object(SparkRuntime.group,
+                                                                     SparkRuntime.version,
+                                                                     namespace,
+                                                                     SparkRuntime.plural)
+
+        for spark_job in spark_jobs.items:
+            state = spark_job.status.applicationState.state
+            if running or state != 'RUNNING':
+                name = spark_job.metadata.name
+                try:
+                    k8s_helper.crdapi.delete_namespaced_custom_object(SparkRuntime.group,
+                                                                      SparkRuntime.version,
+                                                                      namespace,
+                                                                      SparkRuntime.plural,
+                                                                      name,
+                                                                      client.V1DeleteOptions())
+                    logger.info(f"Deleted spark job: {name}")
+                except ApiException as e:
+                    # ignore error if spark job is already removed
+                    if e.status != 404:
+                        raise

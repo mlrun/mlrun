@@ -21,7 +21,8 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 __version__ = '0.4.8'
 
 from .run import (get_or_create_ctx, new_function, code_to_function,
-                  import_function, run_pipeline, run_local, get_object)
+                  import_function, run_pipeline, run_local, get_object,
+                  get_pipeline, wait_for_pipeline_completion)
 from .db import get_run_db
 from .model import RunTemplate, NewTask, RunObject
 from .config import config as mlconf

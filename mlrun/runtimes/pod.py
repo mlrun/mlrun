@@ -150,7 +150,7 @@ class KubeResource(BaseRuntime):
         update_in(self.spec.resources, 'requests', requests)
 
     def _get_meta(self, runobj, unique=False):
-        namespace = self._get_k8s().ns()
+        namespace = self._get_k8s().resolve_namespace()
         uid = runobj.metadata.uid
         labels = {'mlrun/class': self.kind, 'mlrun/uid': uid}
         new_meta = client.V1ObjectMeta(namespace=namespace,

@@ -81,7 +81,7 @@ def _resolve_mpi_runtime():
 
     if not mpijob_crd_version:
         k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.ns()
+        namespace = k8s_helper.resolve_namespace()
 
         # set default mpijob crd version
         mpijob_crd_version = MPIJobCRDVersions.default()

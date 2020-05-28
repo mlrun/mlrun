@@ -376,7 +376,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def list_resources(namespace: str = None, label_selector: str = None) -> Dict:
         k8s = get_k8s_helper()
-        namespace = namespace or config.namespace
+        namespace = k8s.resolve_namespace(namespace)
 
         default_label_selector = 'dask.org/component=scheduler'
         if label_selector:
@@ -401,7 +401,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def delete_resources(namespace: str = None, label_selector: str = None, running: bool = False):
         k8s = get_k8s_helper()
-        namespace = namespace or config.namespace
+        namespace = k8s.resolve_namespace(namespace)
 
         default_label_selector = 'dask.org/component=scheduler'
         if label_selector is not None:

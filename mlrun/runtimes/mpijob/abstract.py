@@ -130,7 +130,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
 
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
                 mpi_group, mpi_version, namespace=namespace,
@@ -145,7 +145,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def delete_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             # delete the mpi job
             body = client.V1DeleteOptions()
@@ -159,7 +159,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def list_jobs(self, namespace=None, selector='', show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.list_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural,
@@ -177,7 +177,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def get_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name)
@@ -187,7 +187,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def get_pods(self, name=None, namespace=None, launcher=False):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
 
         selector = self._generate_pods_selector(name, launcher)
 

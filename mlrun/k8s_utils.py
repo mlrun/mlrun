@@ -41,7 +41,7 @@ class K8sHelper:
         self.v1api = client.CoreV1Api()
         self.crdapi = client.CustomObjectsApi()
 
-    def ns(self, namespace=None):
+    def resolve_namespace(self, namespace=None):
         return namespace or self.namespace
 
     def _init_k8s_config(self, log=True):
@@ -78,7 +78,7 @@ class K8sHelper:
     def list_pods(self, namespace=None, selector='', states=None):
         try:
             resp = self.v1api.list_namespaced_pod(
-                self.ns(namespace), watch=False, label_selector=selector)
+                self.resolve_namespace(namespace), watch=False, label_selector=selector)
         except ApiException as e:
             logger.error('failed to list pods: {}'.format(e))
             raise e
@@ -100,7 +100,7 @@ class K8sHelper:
     def create_pod(self, pod):
         if 'pod' in dir(pod):
             pod = pod.pod
-        pod.metadata.namespace = self.ns(pod.metadata.namespace)
+        pod.metadata.namespace = self.resolve_namespace(pod.metadata.namespace)
         try:
             resp = self.v1api.create_namespaced_pod(
                 pod.metadata.namespace, pod)
@@ -116,7 +116,7 @@ class K8sHelper:
         try:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
-                self.ns(namespace),
+                self.resolve_namespace(namespace),
                 grace_period_seconds=0,
                 propagation_policy='Background')
             return api_response
@@ -129,7 +129,7 @@ class K8sHelper:
     def get_pod(self, name, namespace=None):
         try:
             api_response = self.v1api.read_namespaced_pod(
-                name=name, namespace=self.ns(namespace))
+                name=name, namespace=self.resolve_namespace(namespace))
             return api_response
         except ApiException as e:
             if e.status != 404:
@@ -143,7 +143,7 @@ class K8sHelper:
     def logs(self, name, namespace=None):
         try:
             resp = self.v1api.read_namespaced_pod_log(
-                name=name, namespace=self.ns(namespace))
+                name=name, namespace=self.resolve_namespace(namespace))
         except ApiException as e:
             logger.error('failed to get pod logs: {}'.format(e))
             raise e
@@ -158,7 +158,7 @@ class K8sHelper:
         return self.watch(pod_name, namespace, timeout)
 
     def watch(self, pod_name, namespace=None, timeout=600, writer=None):
-        namespace = self.ns(namespace)
+        namespace = self.resolve_namespace(namespace)
         start_time = datetime.now()
         while True:
             try:
@@ -204,7 +204,7 @@ class K8sHelper:
 
     def create_cfgmap(self, name, data, namespace='', labels=None):
         body = client.api_client.V1ConfigMap()
-        namespace = self.ns(namespace)
+        namespace = self.resolve_namespace(namespace)
         body.data = data
         if name.endswith('*'):
             body.metadata = client.V1ObjectMeta(generate_name=name[:-1],
@@ -227,7 +227,7 @@ class K8sHelper:
         try:
             api_response = self.v1api.delete_namespaced_config_map(
                 name,
-                self.ns(namespace),
+                self.resolve_namespace(namespace),
                 grace_period_seconds=0,
                 propagation_policy='Background')
 
@@ -241,7 +241,7 @@ class K8sHelper:
     def list_cfgmap(self, namespace=None, selector=''):
         try:
             resp = self.v1api.list_namespaced_config_map(
-                self.ns(namespace), watch=False, label_selector=selector)
+                self.resolve_namespace(namespace), watch=False, label_selector=selector)
         except ApiException as e:
             logger.error('failed to list ConfigMaps: {}'.format(e))
             raise e
@@ -252,7 +252,7 @@ class K8sHelper:
         return items
 
     def get_logger_pods(self, uid, namespace=''):
-        namespace = self.ns(namespace)
+        namespace = self.resolve_namespace(namespace)
         selector = 'mlrun/class,mlrun/uid={}'.format(uid)
         pods = self.list_pods(selector=selector, namespace=namespace)
         if not pods:

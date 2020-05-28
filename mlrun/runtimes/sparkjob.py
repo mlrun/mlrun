@@ -191,7 +191,7 @@ class SparkRuntime(KubejobRuntime):
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
                 SparkRuntime.group, SparkRuntime.version, namespace=namespace,
@@ -206,7 +206,7 @@ class SparkRuntime(KubejobRuntime):
 
     def get_job(self, name, namespace=None):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
                 SparkRuntime.group, SparkRuntime.version, namespace, SparkRuntime.plural, name)
@@ -233,7 +233,7 @@ class SparkRuntime(KubejobRuntime):
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         selector = 'mlrun/class=spark'
         if name:
             selector += ',sparkoperator.k8s.io/app-name={}'.format(name)

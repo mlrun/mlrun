@@ -7,8 +7,8 @@
 - [Run Local Code](#run-local-code)
 - [Experiment Tracking UI](#experiment-tracking-ui)
 - [Running functions on different runtimes](#running-functions-on-different-runtimes)
-- [Pipelines](#pipelines)
 - [Functions marketplace](#functions-marketplace)
+- [Pipelines](#pipelines)
 
 <a id="installation"></a>
 ## Installation
@@ -79,7 +79,6 @@ print(f'Project path: {project_path}\nProject name: {project_name}')
     Project path: /User/mlrun/conf
     Project name: my-project
 
-
 <a id="experiment-tracking"></a>
 ## Experiment Tracking
 
@@ -132,7 +131,7 @@ As input, we will provide a CSV file from S3:
 source_url = 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'
 ```
 
-Next you can call this function locally, using the `run_local` method. This is a wrapper that will store the execution results in the MLRun database.
+Next call this function locally, using the `run_local` method. This is a wrapper that will store the execution results in the MLRun database.
 
 ```python
 from mlrun import run_local
@@ -149,26 +148,28 @@ This will produce a simlar output:
 
     [mlrun] 2020-05-26 19:19:47,987 run executed, status=completed
 
+<a id="experiment-tracking-ui"></a>
+## Experiment Tracking UI
+
+go to the UI and see the details of this job. Specifically, for the artifact you will see a preview of the DataFrame data:
+
+<br>
+<img src="_static/images/mlrun-quick-start-get-data-output-ui-artifacts.png" alt="ui-artifacts" width="800"/>
+
+As well as statistics:
+
+<br>
+<img src="_static/images/mlrun-quick-start-get-data-output-ui-statistics.png" alt="ui-statistics" width="800"/>
+
 If you run the function in a Jupyter notebook, the output cell for your function execution will contain a table with run information &mdash; including the state of the execution, all inputs and parameters, and the execution results and artifacts.
 Click on the `source_data` artifact in the **artifacts** column to see a short summary of the data set, as illustrated in the following image:
 <br><br>
 ![MLRun quick start get data output](_static/images/mlrun-quick-start-get-data-output.png)
 
-<a id="experiment-tracking-ui"></a>
-## Experiment Tracking UI
 
-<br><br>
-<img src="_static/images/mlrun-quick-start-get-data-output-ui-artifacts.png" alt="ui-artifacts" width="800"/>
-
-
-<br><br>
-<img src="_static/images/mlrun-quick-start-get-data-output-ui-statistics.png" alt="ui-statistics" width="800"/>
 
 <a id="running-functions-on-different-runtimes"></a>
 ## Running functions on different runtimes
-
-<a id="pipelines"></a>
-## Pipelines
 
 <a id="functions-marketplace"></a>
 ## Functions marketplace
@@ -185,3 +186,7 @@ project.set_function('hub://describe', 'describe')
 ```
 
 You can then run the function as part of your project, just as any other function that you have written yourself.
+
+<a id="pipelines"></a>
+## Pipelines
+

@@ -46,6 +46,8 @@ def get_pipeline(run_id,
     client = kfclient(namespace=namespace)
     try:
         run = client.get_run(run_id)
+        if run:
+            run = run.to_dict()
     except Exception as e:
         log_and_raise(HTTPStatus.INTERNAL_SERVER_ERROR, reason="get kfp error: {}".format(e))
 

@@ -7,16 +7,31 @@ from mlrun.runtimes import get_runtime_handler
 router = APIRouter()
 
 
+@router.get("/runtimes")
+def list_runtimes(
+        label_selector: str = None):
+    runtimes = []
+    for kind in RuntimeKinds.runtime_with_handlers():
+        runtime_handler = get_runtime_handler(kind)
+        resources = runtime_handler.list_resources(label_selector)
+        runtimes.append({
+            'kind': kind,
+            'resources': resources,
+        })
+    return runtimes
+
+
 @router.get("/runtimes/{kind}")
 def get_runtime(
         kind: str,
         label_selector: str = None):
-    if kind not in RuntimeKinds.all():
+    if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(status.HTTP_400_BAD_REQUEST, kind=kind, err='Invalid runtime kind')
     runtime_handler = get_runtime_handler(kind)
     resources = runtime_handler.list_resources(label_selector)
     return {
-        'resources': resources
+        'kind': kind,
+        'resources': resources,
     }
 
 
@@ -25,7 +40,7 @@ def delete_runtime(
         kind: str,
         label_selector: str = None,
         running: bool = False):
-    if kind not in RuntimeKinds.all():
+    if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(status.HTTP_400_BAD_REQUEST, kind=kind, err='Invalid runtime kind')
     runtime_handler = get_runtime_handler(kind)
     runtime_handler.delete_resources(label_selector, running)

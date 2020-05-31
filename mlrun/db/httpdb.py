@@ -319,6 +319,12 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', 'funcs', error, params=params)
         return resp.json()['funcs']
 
+    def list_runtimes(self, label_selector: str = None):
+        params = {'label_selector': label_selector}
+        error = 'list runtimes'
+        resp = self.api_call('GET', 'runtimes', error, params=params)
+        return resp.json()
+
     def get_runtime(self, kind: str, label_selector: str = None):
         params = {'label_selector': label_selector}
         path = f'runtimes/{kind}'
@@ -330,7 +336,7 @@ class HTTPRunDB(RunDBInterface):
         params = {'label_selector': label_selector, 'running': running}
         path = f'runtimes/{kind}'
         error = f'delete runtime {kind}'
-        resp = self.api_call('DELETE', path, error, params=params)
+        self.api_call('DELETE', path, error, params=params)
 
     def remote_builder(self, func, with_mlrun):
         try:

@@ -36,12 +36,23 @@ class RuntimeKinds(object):
 
     @staticmethod
     def all():
-        return [RuntimeKinds.remote,
-                RuntimeKinds.nuclio,
-                RuntimeKinds.dask,
-                RuntimeKinds.job,
-                RuntimeKinds.spark,
-                RuntimeKinds.mpijob]
+        return [
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.dask,
+            RuntimeKinds.job,
+            RuntimeKinds.spark,
+            RuntimeKinds.mpijob,
+        ]
+
+    @staticmethod
+    def runtime_with_handlers():
+        return [
+            RuntimeKinds.dask,
+            RuntimeKinds.job,
+            RuntimeKinds.spark,
+            RuntimeKinds.mpijob,
+        ]
 
 
 runtime_resources_map = {

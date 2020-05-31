@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Response
 
 from mlrun.runtimes import get_runtime_handler
 
@@ -17,7 +17,7 @@ def get_runtime(
     }
 
 
-@router.delete("/runtimes/{kind}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/runtimes/{kind}")
 def delete_runtime(
         kind: str,
         namespace: str = None,
@@ -25,3 +25,4 @@ def delete_runtime(
         running: bool = False):
     runtime_handler = get_runtime_handler(kind)
     runtime_handler.delete_resources(namespace, label_selector, running)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

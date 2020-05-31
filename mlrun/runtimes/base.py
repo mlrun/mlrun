@@ -704,12 +704,18 @@ class BaseRuntimeHandler:
         crd_group, crd_version, crd_plural = self._get_crd_info()
         crd_resources = None
         if crd_group and crd_version and crd_plural:
-            crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(crd_group,
-                                                                          crd_version,
-                                                                          namespace,
-                                                                          crd_plural,
-                                                                          label_selector=label_selector)
-            crd_resources = self._build_crd_resources(crd_objects)
+            try:
+                crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(crd_group,
+                                                                              crd_version,
+                                                                              namespace,
+                                                                              crd_plural,
+                                                                              label_selector=label_selector)
+            except ApiException as e:
+                # ignore error if crd is not defined
+                if e.status != 404:
+                    raise
+            else:
+                crd_resources = self._build_crd_resources(crd_objects)
         return crd_resources
 
     def _resolve_label_selector(self, label_selector: str = None) -> str:
@@ -741,28 +747,33 @@ class BaseRuntimeHandler:
     def _delete_crd_resources(self, namespace: str, label_selector: str = None, force: bool = False):
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
-        crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(crd_group,
-                                                                      crd_version,
-                                                                      namespace,
-                                                                      crd_plural,
-                                                                      label_selector=label_selector)
-
-        for crd_object in crd_objects['items']:
-            in_transient_state = self._is_crd_object_in_transient_state(crd_object)
-            if not in_transient_state or (force and in_transient_state):
-                name = crd_object['metadata']['name']
-                try:
-                    k8s_helper.crdapi.delete_namespaced_custom_object(crd_group,
-                                                                      crd_version,
-                                                                      namespace,
-                                                                      crd_plural,
-                                                                      name,
-                                                                      client.V1DeleteOptions())
-                    logger.info(f"Deleted crd object: {name}, {namespace}, {crd_plural}")
-                except ApiException as e:
-                    # ignore error if crd object is already removed
-                    if e.status != 404:
-                        raise
+        try:
+            crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(crd_group,
+                                                                          crd_version,
+                                                                          namespace,
+                                                                          crd_plural,
+                                                                          label_selector=label_selector)
+        except ApiException as e:
+            # ignore error if crd is not defined
+            if e.status != 404:
+                raise
+        else:
+            for crd_object in crd_objects['items']:
+                in_transient_state = self._is_crd_object_in_transient_state(crd_object)
+                if not in_transient_state or (force and in_transient_state):
+                    name = crd_object['metadata']['name']
+                    try:
+                        k8s_helper.crdapi.delete_namespaced_custom_object(crd_group,
+                                                                          crd_version,
+                                                                          namespace,
+                                                                          crd_plural,
+                                                                          name,
+                                                                          client.V1DeleteOptions())
+                        logger.info(f"Deleted crd object: {name}, {namespace}, {crd_plural}")
+                    except ApiException as e:
+                        # ignore error if crd object is already removed
+                        if e.status != 404:
+                            raise
 
     @staticmethod
     def _build_pod_resources(pods) -> List:

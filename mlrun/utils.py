@@ -225,6 +225,10 @@ def dict_to_list(struct: dict):
     return ['{}={}'.format(k, v) for k, v in struct.items()]
 
 
+def dict_to_str(struct: dict):
+    return ','.join(dict_to_list(struct))
+
+
 def numpy_representer_seq(dumper, data):
     return dumper.represent_list(data.tolist())
 

@@ -643,7 +643,7 @@ def wait_for_pipeline_completion(run_id,
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
-            status = resp['_run']['_status']
+            status = resp['run']['status']
             if status.lower() not in RunStatuses.stable_statuses():
 
                 # TODO: think of nicer liveness indication and make it re-usable

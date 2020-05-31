@@ -508,13 +508,13 @@ def logs(uid, project, offset, db, watch):
 @click.option('--init-git', is_flag=True, help='for new projects init git context')
 @click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
 @click.option('--sync', is_flag=True, help='sync functions into db')
-@click.option('--wait', is_flag=True, help='wait for pipeline completion (with -r flag)')
+@click.option('--watch', '-w', is_flag=True, help='wait for pipeline completion (with -r flag)')
 @click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
 @click.option('--git-repo', help='git repo (org/repo) for git comments')
 @click.option('--git-issue', type=int, default=None, help='git issue number for git comments')
 def project(context, name, url, run, arguments, artifact_path,
             param, secrets, namespace, db, init_git, clone, sync,
-            wait, dirty, git_repo, git_issue):
+            watch, dirty, git_repo, git_issue):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
@@ -580,7 +580,7 @@ def project(context, name, url, run, arguments, artifact_path,
         if had_error:
             exit(1)
 
-        if wait:
+        if watch:
             report = 'html' if gitops else 'text'
             status, had_errors, text = proj.get_run_status(run, report=report)
             print(text)

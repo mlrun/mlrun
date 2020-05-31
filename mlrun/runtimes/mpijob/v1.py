@@ -170,5 +170,9 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _is_crd_object_in_transient_state(crd_object) -> bool:
-        # FIXME: this is not correct, check what's mpi job states
+        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
+        # whether it's a transient state by checking if it's not a stable state
+        for replica_type, replica_status in crd_object.get('status', {}).items():
+            if replica_status.get('active', 0) != 0:
+                return True
         return False

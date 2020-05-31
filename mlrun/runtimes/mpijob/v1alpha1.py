@@ -123,5 +123,10 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _is_crd_object_in_transient_state(crd_object) -> bool:
-        # FIXME: this is not correct, check what's mpi job states
-        return False
+        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
+        # whether it's a transient state by checking if it's not a stable state
+        return crd_object.get('status', {}).get('launcherStatus', '') not in ['Succeeded', 'Failed']
+
+    @staticmethod
+    def _get_crd_object_status(crd_object) -> str:
+        return crd_object.get('status', {}).get('launcherStatus', '')

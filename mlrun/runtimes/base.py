@@ -676,14 +676,13 @@ class BaseRuntimeHandler:
         """
         Override this if the runtime has CRD resources. this should return the CRD info:
         crd group, crd version, crd plural
-        Note that _is_crd_object_in_transient_state should be overridden as well to enable CRD objects deletion
         """
         return '', '', ''
 
     @staticmethod
     def _is_crd_object_in_transient_state(crd_object) -> bool:
         """
-        Override this to enable CRD objects deletion
+        Override this if the runtime has CRD resources.
         this should return a bool determining whether the CRD object is in transient state
         """
         return False
@@ -775,12 +774,11 @@ class BaseRuntimeHandler:
     def _build_crd_resources(custom_objects) -> List:
         crd_resources = []
         for custom_object in custom_objects['items']:
-            status = custom_object['status']['phase'].lower()
             crd_resources.append(
                 {
                     'name': custom_object['metadata']['name'],
                     'labels': custom_object['metadata']['labels'],
-                    'status': status,
+                    'status': custom_object['status'],
                 })
         return crd_resources
 

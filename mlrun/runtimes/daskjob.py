@@ -21,7 +21,7 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
 from .kubejob import KubejobRuntime
 from .local import load_module, exec_from_params
-from .pod import KubeResourceSpec
+from .pod import KubeResourceSpec, PodPhases
 from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
 from ..config import config
 from ..execution import MLClientCtx
@@ -374,24 +374,20 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     def _get_pod_default_label_selector() -> str:
         return 'dask.org/component=scheduler'
 
-    def _delete_pod_resources(self, namespace: str, label_selector: str = None, running: bool = False):
+    def _delete_resources(self, namespace: str, label_selector: str = None, running: bool = False):
+        """
+        Handling services deletion
+        """
         k8s_helper = get_k8s_helper()
         label_selector = self._resolve_pod_label_selector(label_selector)
         pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         service_names = []
         for pod in pods.items:
-            status = pod.status.phase.lower()
-            if running or status != 'running':
+            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
+            if not in_transient_phase or (running and in_transient_phase):
                 comp = pod.metadata.labels.get('dask.org/component')
                 if comp == 'scheduler':
                     service_names.append(pod.metadata.labels.get('dask.org/cluster-name'))
-                try:
-                    k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-                    logger.info(f"Deleted pod: {pod.metadata.name}")
-                except ApiException as e:
-                    # ignore error if pod is already removed
-                    if e.status != 404:
-                        raise
 
         services = k8s_helper.v1api.list_namespaced_service(namespace, label_selector=label_selector)
         for service in services.items:

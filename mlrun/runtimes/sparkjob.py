@@ -269,4 +269,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _is_crd_object_in_transient_state(crd_object) -> bool:
-        return crd_object.status.applicationState.state == 'RUNNING'
+        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
+        # whether it's a transient state by checking if it's not a stable state
+        return crd_object.status.applicationState.state not in ['COMPLETED', 'FAILED']

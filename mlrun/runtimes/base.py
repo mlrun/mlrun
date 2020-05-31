@@ -35,6 +35,7 @@ from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image, dict_to_yaml, dict_to_json
+from .pod import PodPhases
 
 
 class FunctionStatus(ModelObj):
@@ -634,7 +635,7 @@ def is_local(url):
     return '://' not in url and not url.startswith('/')
 
 
-class BaseRuntimeHandler():
+class BaseRuntimeHandler:
 
     def list_resources(self, namespace: str = None, label_selector: str = None) -> Dict:
         k8s_helper = get_k8s_helper()
@@ -647,11 +648,19 @@ class BaseRuntimeHandler():
     def delete_resources(self, namespace: str = None, label_selector: str = None, running: bool = False):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace(namespace)
+        self._delete_resources(namespace, label_selector, running)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             self._delete_crd_resources(namespace, label_selector, running)
         else:
             self._delete_pod_resources(namespace, label_selector, running)
+
+    def _delete_resources(self, namespace: str, label_selector: str = None, running: bool = False):
+        """
+        Override this to handle deletion of resources other then pods or CRDs (which are handled by the base class)
+        Note that this is happening before the deletion of the CRDs or the pods
+        """
+        pass
 
     @staticmethod
     def _get_pod_default_label_selector() -> str:
@@ -711,8 +720,10 @@ class BaseRuntimeHandler():
         label_selector = self._resolve_pod_label_selector(label_selector)
         pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         for pod in pods.items:
-            status = pod.status.phase.lower()
-            if running or status != 'running':
+            # it is less likely that there will be new stable states, or the existing ones will change so better to
+            # resolve whether it's a transient state by checking if it's not a stable state
+            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
+            if not in_transient_phase or (running and in_transient_phase):
                 try:
                     k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
                     logger.info(f"Deleted pod: {pod.metadata.name}")

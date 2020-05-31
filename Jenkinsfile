@@ -1,5 +1,5 @@
 label = "${UUID.randomUUID().toString()}"
-git_project = "bitmesh"
+git_project = "mlrun"
 git_project_user = "mlrun"
 git_project_upstream_user = "mlrun"
 git_deploy_user = "iguazio-prod-git-user"

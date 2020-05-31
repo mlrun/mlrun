@@ -388,7 +388,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
                 {
                     'name': service.metadata.name,
                     'labels': service.metadata.labels,
-                    'status': service.to_dict()['status'],
                 })
         response['service_resources'] = service_resources
         return response

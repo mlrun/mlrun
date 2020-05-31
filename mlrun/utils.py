@@ -25,6 +25,7 @@ from sys import stdout
 import numpy as np
 import requests
 import yaml
+from tabulate import tabulate
 from yaml.representer import RepresenterError
 
 from .config import config
@@ -223,6 +224,10 @@ def dict_to_list(struct: dict):
     if not struct:
         return []
     return ['{}={}'.format(k, v) for k, v in struct.items()]
+
+
+def dict_to_str(struct: dict, sep=','):
+    return sep.join(dict_to_list(struct))
 
 
 def numpy_representer_seq(dumper, data):
@@ -474,3 +479,116 @@ def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, _
                     f" last_exception: {last_exception},"
                     f" function_name: {_function.__name__},"
                     f" timeout: {timeout}")
+
+
+class RunNotifications:
+    def __init__(self, with_ipython=True, with_slack=False):
+        self._hooks = []
+        self._html = ''
+        self.with_ipython = with_ipython
+        if with_slack and 'SLACK_WEBHOOK' in environ:
+            self.slack()
+
+    def push(self, message, runs):
+        for h in self._hooks:
+            try:
+                h(message, runs)
+            except Exception as e:
+                logger.warning(f'failed to push notification, {e}')
+        if self.with_ipython and is_ipython:
+            import IPython
+            IPython.display.display(IPython.display.HTML(
+                self._get_html(message, runs)))
+
+    def _get_html(self, message, runs):
+        if self._html:
+            return self._html
+
+        html = '<h2>Run Results</h2>' + message
+        html += '<br>click the hyper links below to see detailed results<br>'
+        html += runs.show(display=False, short=True)
+        self._html = html
+        return html
+
+    def print(self):
+        def _print(message, runs):
+            table = []
+            for r in runs:
+                state = r['status'].get('state', '')
+                if state == 'error':
+                    result = r['status'].get('error', '')
+                else:
+                    result = dict_to_str(r['status'].get('results', {}))
+
+                table.append([state,
+                              r['metadata']['name'],
+                              '..' + r['metadata']['uid'][-6:],
+                              result])
+            print(message + '\n' + tabulate(
+                table, headers=['status', 'name', 'uid', 'results']))
+
+        self._hooks.append(_print)
+        return self
+
+    def slack(self, webhook=''):
+        emoji = {'completed': ':smiley:',
+                 'running': ':man-running:',
+                 'error': ':x:'}
+
+        template = '{}/projects/{}/jobs/{}/info'
+
+        webhook = webhook or environ.get('SLACK_WEBHOOK')
+        if not webhook:
+            raise ValueError('Slack webhook is not set')
+
+        def row(text):
+            return {'type': 'mrkdwn', 'text': text}
+
+        def _slack(message, runs):
+            fields = [row('*Runs*'), row('*Results*')]
+            for r in runs:
+                meta = r['metadata']
+                if config.ui_url:
+                    url = template.format(config.ui_url, meta.get('project'), meta.get('uid'))
+                    line = f'<{url}|*{meta.get("name")}*>'
+                else:
+                    line = meta.get("name")
+                state = r['status'].get('state', '')
+                line = f'{emoji.get(state, ":question:")}  {line}'
+
+                fields.append(row(line))
+                if state == 'error':
+                    result = '*{}*'.format(r['status'].get('error', ''))
+                else:
+                    result = dict_to_str(r['status'].get('results', {}), ', ')
+                fields.append(row(result or 'None'))
+
+            data = {
+                'blocks': [
+                    {"type": "section",
+                     "text": {"type": "mrkdwn", "text": message}
+                     }
+                ]
+            }
+
+            for i in range(0, len(fields), 8):
+                data['blocks'].append({"type": "section",
+                                       "fields": fields[i:i + 8]})
+            response = requests.post(webhook, data=json.dumps(
+                data), headers={'Content-Type': 'application/json'})
+            response.raise_for_status()
+
+        self._hooks.append(_slack)
+        return self
+
+    def git_comment(self, git_repo=None, git_issue=None, token=None):
+        def _comment(message, runs):
+            pr_comment(git_repo or self._get_param('git_repo'),
+                       git_issue or self._get_param('git_issue'),
+                       self._get_html(message, runs),
+                       token=token)
+
+        self._hooks.append(_comment)
+        return self
+
+

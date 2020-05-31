@@ -35,10 +35,11 @@ from .builder import upload_tarball
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
-from .run import new_function, import_function_to_dict, import_function, get_object
+from .run import (new_function, import_function_to_dict, import_function,
+                  get_object)
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
-                    parse_function_uri, dict_to_yaml, pr_comment)
+                    parse_function_uri, dict_to_yaml, pr_comment, RunNotifications)
 
 
 @click.group()
@@ -380,6 +381,10 @@ def watch(pod, namespace, timeout):
 @click.argument('extra_args', nargs=-1, type=click.UNPROCESSED)
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     """List/get one or more object per kind/class."""
+
+    if db:
+        mlconf.dbpath = db
+
     if kind.startswith('po'):
         k8s = K8sHelper(namespace)
         if name:
@@ -399,13 +404,13 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                     start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
     elif kind.startswith('run'):
-        mldb = get_run_db(db or mlconf.dbpath).connect()
+        mldb = get_run_db().connect()
         if name:
             run = mldb.read_run(name, project=project)
             print(dict_to_yaml(run))
             return
 
-        runs = mldb.list_runs(uid=uid, project=project)
+        runs = mldb.list_runs(uid=uid, project=project, labels=selector)
         df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']]
         #df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
         df['start'] = df['start'].apply(time_str)
@@ -414,21 +419,21 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(tabulate(df, headers='keys'))
 
     elif kind.startswith('art'):
-        mldb = get_run_db(db or mlconf.dbpath).connect()
-        artifacts = mldb.list_artifacts(name, project=project, tag=tag)
+        mldb = get_run_db().connect()
+        artifacts = mldb.list_artifacts(name, project=project, tag=tag, labels=selector)
         df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
         df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
         df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
         print(tabulate(df, headers='keys'))
 
     elif kind.startswith('func'):
-        mldb = get_run_db(db or mlconf.dbpath).connect()
+        mldb = get_run_db().connect()
         if name:
             f = mldb.get_function(name, project=project, tag=tag)
             print(dict_to_yaml(f))
             return
 
-        functions = mldb.list_functions(name, project=project)
+        functions = mldb.list_functions(name, project=project, labels=selector)
         lines = []
         headers = ['kind', 'state', 'name:tag', 'hash']
         for f in functions:
@@ -503,12 +508,13 @@ def logs(uid, project, offset, db, watch):
 @click.option('--init-git', is_flag=True, help='for new projects init git context')
 @click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
 @click.option('--sync', is_flag=True, help='sync functions into db')
+@click.option('--watch', '-w', is_flag=True, help='wait for pipeline completion (with -r flag)')
 @click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
 @click.option('--git-repo', help='git repo (org/repo) for git comments')
 @click.option('--git-issue', type=int, default=None, help='git issue number for git comments')
 def project(context, name, url, run, arguments, artifact_path,
             param, secrets, namespace, db, init_git, clone, sync,
-            dirty, git_repo, git_issue):
+            watch, dirty, git_repo, git_issue):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
@@ -559,7 +565,8 @@ def project(context, name, url, run, arguments, artifact_path,
             print(message)
         print('run id: {}'.format(run))
 
-        if git_repo and git_issue:
+        gitops = git_repo and git_issue
+        if gitops:
             if not had_error:
                 message = 'Pipeline started id={}'.format(run)
                 if proj.params and 'commit' in proj.params:
@@ -572,6 +579,12 @@ def project(context, name, url, run, arguments, artifact_path,
 
         if had_error:
             exit(1)
+
+        if watch:
+            n = RunNotifications(with_slack=True).print()
+            if gitops:
+                n.git_comment(git_repo, git_issue, token=proj.get_secret('GITHUB_TOKEN'))
+            proj.get_run_status(run, notifiers=n)
 
     elif sync:
         print('saving project functions to db ..')

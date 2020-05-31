@@ -14,6 +14,8 @@
 
 import shutil
 
+from tabulate import tabulate
+
 from ..db import get_run_db
 from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
 from ..secrets import SecretsStore
@@ -28,12 +30,12 @@ from os import path, remove
 from ..datastore import StoreManager
 from ..config import config
 from ..run import (import_function, code_to_function, new_function,
-                   download_object, run_pipeline, get_object)
+                   download_object, run_pipeline, get_object, wait_for_pipeline_completion)
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
 
-from ..utils import update_in, new_pipe_meta, logger
+from ..utils import update_in, new_pipe_meta, logger, dict_to_str, is_ipython, RunNotifications
 from ..runtimes.utils import add_code_metadata
 
 
@@ -552,6 +554,12 @@ class MlrunProject(ModelObj):
             return self._secrets.get(key)
         return None
 
+    def get_param(self, key: str, default=None):
+        """get project param by key"""
+        if self.params:
+            return self.params.get(key)
+        return None
+
     def run(self, name=None, workflow_path=None, arguments=None,
             artifact_path=None, namespace=None, sync=False, dirty=False):
         """run a workflow using kubeflow pipelines
@@ -655,6 +663,36 @@ class MlrunProject(ModelObj):
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         if code:
             remove(workflow_path)
+
+    def get_run_status(self, workflow_id, timeout=60 * 60,
+                       expected_statuses=None,
+                       notifiers: RunNotifications = None):
+        status = ''
+        if timeout:
+            logger.info('waiting for pipeline run completion')
+            run_info = wait_for_pipeline_completion(
+                workflow_id, timeout=timeout,
+                expected_statuses=expected_statuses)
+            if run_info:
+                status = run_info['run'].get('status')
+
+        mldb = get_run_db().connect(self._secrets)
+        runs = mldb.list_runs(project=self.name, labels=f'workflow={workflow_id}')
+
+        had_errors = 0
+        for r in runs:
+            if r['status'].get('state', '') == 'error':
+                had_errors += 1
+
+        text = f'Workflow {workflow_id} finished'
+        if had_errors:
+            text += f' with {had_errors} errors'
+        if status:
+            text += f', status={status}'
+
+        if notifiers:
+            notifiers.push(text, runs)
+        return status, had_errors, text
 
     def clear_context(self):
         """delete all files and clear the context dir"""

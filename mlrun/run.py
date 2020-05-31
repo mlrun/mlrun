@@ -643,7 +643,7 @@ def wait_for_pipeline_completion(run_id,
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
-            status = resp['_run']['_status']
+            status = resp['run']['status']
             if status.lower() not in RunStatuses.stable_statuses():
 
                 # TODO: think of nicer liveness indication and make it re-usable
@@ -667,8 +667,10 @@ def wait_for_pipeline_completion(run_id,
     else:
         client = Client(namespace=namespace)
         resp = client.wait_for_run_completion(run_id, timeout)
+        if resp:
+            resp = resp.to_dict()
 
-    status = resp['_run']['_status']
+    status = resp['run']['status'] if resp else 'unknown'
     if expected_statuses:
         if status not in expected_statuses:
             raise RuntimeError(f"run status {status} not in expected statuses")
@@ -696,6 +698,8 @@ def get_pipeline(run_id, namespace=None):
     else:
         client = Client(namespace=namespace)
         resp = client.get_run(run_id)
+        if resp:
+            resp = resp.to_dict()
 
     return resp
 

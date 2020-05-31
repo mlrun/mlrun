@@ -392,7 +392,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         response['service_resources'] = service_resources
         return response
 
-    def _delete_resources(self, namespace: str, label_selector: str = None, running: bool = False):
+    def _delete_resources(self, namespace: str, label_selector: str = None, force: bool = False):
         """
         Handling services deletion
         """
@@ -401,7 +401,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_names = []
         for pod in pods.items:
             in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
-            if not in_transient_phase or (running and in_transient_phase):
+            if not in_transient_phase or (force and in_transient_phase):
                 comp = pod.metadata.labels.get('dask.org/component')
                 if comp == 'scheduler':
                     service_names.append(pod.metadata.labels.get('dask.org/cluster-name'))
@@ -409,7 +409,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         services = k8s_helper.v1api.list_namespaced_service(namespace, label_selector=label_selector)
         for service in services.items:
             try:
-                if running or service.metadata.name in service_names:
+                if force or service.metadata.name in service_names:
                     k8s_helper.v1api.delete_namespaced_service(service.metadata.name, namespace)
                     logger.info(f"Deleted service: {service.metadata.name}")
             except ApiException as e:

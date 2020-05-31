@@ -17,19 +17,120 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                     string(credentialsId: git_deploy_user_token, variable: 'GIT_TOKEN')
             ]) {
                 github.release(git_deploy_user, git_project, git_project_user, git_project_upstream_user, true, GIT_TOKEN) {
-                    stage("build ${git_project} in dood") {
-                        container('docker-cmd') {
-                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make docker-images")
+                    parallel(
+                        "build ${git_project}/api in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/api in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make api")
+                                    }
+                                }
+                                stage('push api') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/api:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
+                            }
+                        },
+                        "build ${git_project}/base in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/base in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base")
+                                    }
+                                }
+                                stage('push base') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/base:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
+                            }
+                        },
+                        "build ${git_project}/base-legacy in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/base-legacy in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy")
+                                    }
+                                }
+                                stage('push base-legacy') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/base-legacy:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
+                            }
+                        },
+                        "build ${git_project}/models in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/models in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models")
+                                    }
+                                }
+                                stage('push models') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/models:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
+                            }
+                        },
+                        "build ${git_project}/models-legacy in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/models-legacy in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy")
+                                    }
+                                }
+                                stage('push models-legacy') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/models-legacy:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
+                            }
+                        },
+                        "build ${git_project}/models-gpu in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/models-gpu in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu")
+                                    }
+                                }
+                                stage('push models-gpu') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/models-gpu:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
+                            }
+                        },
+                        "build ${git_project}/models-gpu-legacy in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/models-gpu-legacy in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy")
+                                    }
+                                }
+                                stage('push models-gpu-legacy') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/models-gpu-legacy:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
+                            }
+                        },
+                        "build ${git_project}/mlrun in dood": {
+                            container('docker-cmd') {
+                                stage("build ${git_project}/mlrun in dood") {
+                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
+                                    }
+                                }
+                                stage('push mlrun') {
+                                    container('docker-cmd') {
+                                        dockerx.images_push_multi_registries(["${git_project}/mlrun:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                    }
+                                }
                             }
                         }
-                    }
-
-                    stage('push') {
-                        container('docker-cmd') {
-                            dockerx.images_push_multi_registries(["${git_project}:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
-                        }
-                    }
+                    )
                 }
             }
         }

@@ -637,9 +637,9 @@ def is_local(url):
 
 class BaseRuntimeHandler:
 
-    def list_resources(self, namespace: str = None, label_selector: str = None) -> Dict:
+    def list_resources(self, label_selector: str = None) -> Dict:
         k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace(namespace)
+        namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(label_selector)
         pod_resources = self._list_pod_resources(namespace, label_selector)
         crd_resources = self._list_crd_resources(namespace, label_selector)
@@ -647,9 +647,9 @@ class BaseRuntimeHandler:
         response = self._enrich_list_resources_response(response, namespace, label_selector)
         return response
 
-    def delete_resources(self, namespace: str = None, label_selector: str = None, running: bool = False):
+    def delete_resources(self, label_selector: str = None, running: bool = False):
         k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace(namespace)
+        namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(label_selector)
         self._delete_resources(namespace, label_selector, running)
         crd_group, crd_version, crd_plural = self._get_crd_info()

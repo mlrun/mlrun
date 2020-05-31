@@ -16,6 +16,7 @@ import json
 import tempfile
 import time
 from os import path, remove, environ
+from typing import List, Dict
 
 import kfp
 import requests
@@ -319,13 +320,13 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', 'funcs', error, params=params)
         return resp.json()['funcs']
 
-    def list_runtimes(self, label_selector: str = None):
+    def list_runtimes(self, label_selector: str = None) -> List:
         params = {'label_selector': label_selector}
         error = 'list runtimes'
         resp = self.api_call('GET', 'runtimes', error, params=params)
         return resp.json()
 
-    def get_runtime(self, kind: str, label_selector: str = None):
+    def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
         params = {'label_selector': label_selector}
         path = f'runtimes/{kind}'
         error = f'get runtime {kind}'

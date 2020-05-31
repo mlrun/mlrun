@@ -373,7 +373,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_default_label_selector() -> str:
-        return 'dask.org/component=scheduler'
+        return 'mlrun/class=dask'
 
     def _delete_resources(self, namespace: str, label_selector: str = None, running: bool = False):
         """

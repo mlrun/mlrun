@@ -1,5 +1,3 @@
-from http import HTTPStatus
-
 from fastapi import APIRouter, status, Response
 
 from mlrun.api.api.utils import log_and_raise

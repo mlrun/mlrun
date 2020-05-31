@@ -13,16 +13,17 @@
 # limitations under the License.
 
 from mlrun.config import config
+from mlrun.k8s_utils import get_k8s_helper
 from .base import RunError, BaseRuntime, BaseRuntimeHandler  # noqa
-from .local import HandlerRuntime, LocalRuntime  # noqa
-from .function import RemoteRuntime, new_model_server  # noqa
-from .mpijob import MpiRuntimeV1Alpha1, MpiRuntimeV1, MPIJobCRDVersions  # noqa
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
-from .kubejob import KubejobRuntime  # noqa
-from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
+from .function import RemoteRuntime, new_model_server  # noqa
+from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa
+from .local import HandlerRuntime, LocalRuntime  # noqa
+from .mpijob import MpiRuntimeV1Alpha1, MpiRuntimeV1, MPIJobCRDVersions, MpiV1RuntimeHandler, \
+    MpiV1Alpha1RuntimeHandler  # noqa
 from .nuclio import nuclio_init_hook
 from .serving import MLModelServer
-from mlrun.k8s_utils import get_k8s_helper
+from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 
 
 class RuntimeKinds(object):
@@ -47,19 +48,41 @@ runtime_resources_map = {
     RuntimeKinds.dask: get_dask_resource()
 }
 
+runtime_handler_instances_cache = {}
 
-def get_runtime_handler_class(kind: str) -> BaseRuntimeHandler:
+
+def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
+    global runtime_handler_instances_cache
+    if kind == RuntimeKinds.mpijob:
+        mpijob_crd_version = _resolve_mpi_crd_version()
+        crd_version_to_runtime_handler_class = {
+            MPIJobCRDVersions.v1alpha1: MpiV1Alpha1RuntimeHandler,
+            MPIJobCRDVersions.v1: MpiV1RuntimeHandler
+        }
+        runtime_handler_class = crd_version_to_runtime_handler_class[mpijob_crd_version]
+        if not runtime_handler_instances_cache.setdefault(RuntimeKinds.mpijob, {}).get(mpijob_crd_version):
+            runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version] = runtime_handler_class()
+        return runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version]
+
     kind_runtime_handler_map = {
         RuntimeKinds.dask: DaskRuntimeHandler,
         RuntimeKinds.spark: SparkRuntimeHandler,
+        RuntimeKinds.job: KubeRuntimeHandler,
     }
-
-    return kind_runtime_handler_map[kind]
+    runtime_handler_class = kind_runtime_handler_map[kind]
+    if not runtime_handler_instances_cache.get(kind):
+        runtime_handler_instances_cache[kind] = runtime_handler_class()
+    return runtime_handler_instances_cache[kind]
 
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:
-        return _resolve_mpi_runtime()
+        mpijob_crd_version = _resolve_mpi_crd_version()
+        crd_version_to_runtime = {
+            MPIJobCRDVersions.v1alpha1: MpiRuntimeV1Alpha1,
+            MPIJobCRDVersions.v1: MpiRuntimeV1
+        }
+        return crd_version_to_runtime[mpijob_crd_version]
 
     kind_runtime_map = {
         RuntimeKinds.remote: RemoteRuntime,
@@ -75,7 +98,7 @@ def get_runtime_class(kind: str):
 # resolve mpijob runtime according to the mpi-operator's supported crd-version
 # if specified on mlrun config set it likewise,
 # if not specified, try resolving it according to the mpi-operator, otherwise set to default
-def _resolve_mpi_runtime():
+def _resolve_mpi_crd_version():
 
     # try getting mpijob crd version from config
     mpijob_crd_version = config.mpijob_crd_version
@@ -97,8 +120,4 @@ def _resolve_mpi_runtime():
         raise ValueError('unsupported mpijob crd version: {}. supported versions: {}'.format(mpijob_crd_version,
                                                                                              MPIJobCRDVersions.all()))
 
-    crd_version_to_runtime = {
-        MPIJobCRDVersions.v1alpha1: MpiRuntimeV1Alpha1,
-        MPIJobCRDVersions.v1: MpiRuntimeV1
-    }
-    return crd_version_to_runtime[mpijob_crd_version]
+    return mpijob_crd_version

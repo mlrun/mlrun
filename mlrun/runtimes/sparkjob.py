@@ -13,14 +13,12 @@
 # limitations under the License.
 import time
 from copy import deepcopy
-from typing import Dict
+from typing import Tuple
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.base import BaseRuntimeHandler
-from mlrun.config import config
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
@@ -262,51 +260,13 @@ class SparkRuntime(KubejobRuntime):
 class SparkRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
-    def list_resources(namespace: str = None, label_selector: str = None) -> Dict:
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace(namespace)
-        default_label_selector = 'mlrun/class=spark'
-        if label_selector:
-            label_selector = ','.join([default_label_selector, label_selector])
-        else:
-            label_selector = default_label_selector
-
-        pods = k8s_helper.list_pods(namespace, selector=label_selector)
-        pod_resources = BaseRuntimeHandler.build_pod_resources(pods)
-
-        spark_jobs = k8s_helper.crdapi.list_namespaced_custom_object(SparkRuntime.group,
-                                                                     SparkRuntime.version,
-                                                                     namespace,
-                                                                     SparkRuntime.plural)
-        crd_resources = BaseRuntimeHandler.build_crd_resources(spark_jobs)
-
-        response = BaseRuntimeHandler.build_list_resources_response(pod_resources, crd_resources)
-
-        return response
+    def _get_pod_default_label_selector() -> str:
+        return 'mlrun/class=spark'
 
     @staticmethod
-    def delete_resources(namespace: str = None, label_selector: str = None, running: bool = False):
-        k8s_helper = get_k8s_helper()
-        namespace = namespace or config.namespace
+    def _get_crd_info() -> Tuple[str, str, str]:
+        return SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural
 
-        spark_jobs = k8s_helper.crdapi.list_namespaced_custom_object(SparkRuntime.group,
-                                                                     SparkRuntime.version,
-                                                                     namespace,
-                                                                     SparkRuntime.plural)
-
-        for spark_job in spark_jobs.items:
-            state = spark_job.status.applicationState.state
-            if running or state != 'RUNNING':
-                name = spark_job.metadata.name
-                try:
-                    k8s_helper.crdapi.delete_namespaced_custom_object(SparkRuntime.group,
-                                                                      SparkRuntime.version,
-                                                                      namespace,
-                                                                      SparkRuntime.plural,
-                                                                      name,
-                                                                      client.V1DeleteOptions())
-                    logger.info(f"Deleted spark job: {name}")
-                except ApiException as e:
-                    # ignore error if spark job is already removed
-                    if e.status != 404:
-                        raise
+    @staticmethod
+    def _is_crd_object_in_transient_state(crd_object) -> bool:
+        return crd_object.status.applicationState.state == 'RUNNING'

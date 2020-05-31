@@ -11,18 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
 import abc
+import time
 import typing
 
-from mlrun.execution import MLClientCtx
+from kubernetes import client
+
 from mlrun.config import config
+from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import AsyncLogWriter, RunError
 from mlrun.utils import logger, get_in
-
-from kubernetes import client
 
 
 class MPIJobCRDVersions(object):
@@ -43,11 +43,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = 'mpijob'
     _is_nested = False
 
-    # should return the mpijob CRD information -> (group, version, plural)
-    @abc.abstractmethod
-    def _get_crd_info(self) -> typing.Tuple[str, str, str]:
-        pass
-
     @abc.abstractmethod
     def _generate_mpi_job(self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta) -> typing.Dict:
         pass
@@ -56,8 +51,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def _get_job_launcher_status(self, resp: list) -> str:
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def _generate_pods_selector(self, name: str, launcher: bool) -> str:
+    def _generate_pods_selector(name: str, launcher: bool) -> str:
+        pass
+
+    # should return the mpijob CRD information -> (group, version, plural)
+    @staticmethod
+    @abc.abstractmethod
+    def _get_crd_info() -> typing.Tuple[str, str, str]:
         pass
 
     def _pretty_print_jobs(self, items: typing.List):

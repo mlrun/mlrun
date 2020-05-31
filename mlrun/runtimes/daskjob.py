@@ -14,7 +14,6 @@
 import inspect
 import socket
 from os import environ
-from typing import Dict
 
 from kubernetes.client.rest import ApiException
 
@@ -372,34 +371,12 @@ def get_obj_status(selector=[], namespace=None):
 class DaskRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
-    def list_resources(namespace: str = None, label_selector: str = None) -> Dict:
+    def _get_pod_default_label_selector() -> str:
+        return 'dask.org/component=scheduler'
+
+    def _delete_pod_resources(self, namespace: str, label_selector: str = None, running: bool = False):
         k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace(namespace)
-
-        default_label_selector = 'dask.org/component=scheduler'
-        if label_selector:
-            label_selector = ','.join([default_label_selector, label_selector])
-        else:
-            label_selector = default_label_selector
-
-        pods = k8s_helper.list_pods(namespace, selector=label_selector)
-        pod_resources = BaseRuntimeHandler.build_pod_resources(pods)
-
-        response = BaseRuntimeHandler.build_list_resources_response(pod_resources)
-
-        return response
-
-    @staticmethod
-    def delete_resources(namespace: str = None, label_selector: str = None, running: bool = False):
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace(namespace)
-
-        default_label_selector = 'dask.org/component=scheduler'
-        if label_selector is not None:
-            label_selector = ','.join([default_label_selector, label_selector])
-        else:
-            label_selector = default_label_selector
-
+        label_selector = self._resolve_pod_label_selector(label_selector)
         pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         service_names = []
         for pod in pods.items:

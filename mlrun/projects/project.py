@@ -35,7 +35,7 @@ import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
 
-from ..utils import update_in, new_pipe_meta, logger, dict_to_str, is_ipython
+from ..utils import update_in, new_pipe_meta, logger, dict_to_str, is_ipython, RunNotifications
 from ..runtimes.utils import add_code_metadata
 
 
@@ -554,6 +554,12 @@ class MlrunProject(ModelObj):
             return self._secrets.get(key)
         return None
 
+    def get_param(self, key: str, default=None):
+        """get project param by key"""
+        if self.params:
+            return self.params.get(key)
+        return None
+
     def run(self, name=None, workflow_path=None, arguments=None,
             artifact_path=None, namespace=None, sync=False, dirty=False):
         """run a workflow using kubeflow pipelines
@@ -658,8 +664,9 @@ class MlrunProject(ModelObj):
         if code:
             remove(workflow_path)
 
-    def get_run_status(self, workflow_id, report='html', timeout=60 * 60,
-                       expected_statuses=None):
+    def get_run_status(self, workflow_id, timeout=60 * 60,
+                       expected_statuses=None,
+                       notifiers: RunNotifications = None):
         status = ''
         if timeout:
             logger.info('waiting for pipeline run completion')
@@ -683,22 +690,8 @@ class MlrunProject(ModelObj):
         if status:
             text += f', status={status}'
 
-        if report == 'html':
-            text = '<h2>Run Results</h2>' + text
-            text += '<br>click the hyper links below to see detailed results<br>'
-            text += runs.show(display=False, short=True)
-        elif report == 'text':
-            df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'results']]
-            df['start'] = df['start'].apply(str)
-            df['results'] = df['results'].apply(dict_to_str)
-            text += '\n' + tabulate(df, headers='keys')
-        elif report:
-            raise ValueError('illegal report format, should be text or html')
-
-        if report == 'html' and is_ipython:
-            import IPython
-            IPython.display.display(IPython.display.HTML(text))
-
+        if notifiers:
+            notifiers.push(text, runs)
         return status, had_errors, text
 
     def clear_context(self):

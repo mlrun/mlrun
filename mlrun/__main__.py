@@ -39,7 +39,7 @@ from .run import (new_function, import_function_to_dict, import_function,
                   get_object)
 from .runtimes import RemoteRuntime, RunError
 from .utils import (list2dict, logger, run_keys, update_in, get_in,
-                    parse_function_uri, dict_to_yaml, pr_comment)
+                    parse_function_uri, dict_to_yaml, pr_comment, RunNotifications)
 
 
 @click.group()
@@ -581,11 +581,10 @@ def project(context, name, url, run, arguments, artifact_path,
             exit(1)
 
         if watch:
-            report = 'html' if gitops else 'text'
-            status, had_errors, text = proj.get_run_status(run, report=report)
-            print(text)
+            n = RunNotifications(with_slack=True).print()
             if gitops:
-                pr_comment(git_repo, git_issue, text, token=proj.get_secret('GITHUB_TOKEN'))
+                n.git_comment(git_repo, git_issue, token=proj.get_secret('GITHUB_TOKEN'))
+            proj.get_run_status(run, notifiers=n)
 
     elif sync:
         print('saving project functions to db ..')

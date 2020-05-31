@@ -88,8 +88,6 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                                         common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
                                     }
                                 }
-                                
-                                dockerx.images_push_multi_registries(["${git_project}/mlrun:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                             }
                         }
                     )

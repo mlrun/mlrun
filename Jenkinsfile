@@ -22,12 +22,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/api in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make api")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make api")
                                     }
                                 }
                                 stage('push api') {
                                     container('docker-cmd') {
-                                        dockerx.images_push_multi_registries(["${git_project}/api:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                        dockerx.images_push_multi_registries(["${git_project}/mlrun-api:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                                     }
                                 }
                             }
@@ -36,12 +36,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/base in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base")
                                     }
                                 }
                                 stage('push base') {
                                     container('docker-cmd') {
-                                        dockerx.images_push_multi_registries(["${git_project}/base:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                        dockerx.images_push_multi_registries(["${git_project}/ml-base:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                                     }
                                 }
                             }
@@ -50,12 +50,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/base-legacy in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy")
                                     }
                                 }
                                 stage('push base-legacy') {
                                     container('docker-cmd') {
-                                        dockerx.images_push_multi_registries(["${git_project}/base-legacy:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                        dockerx.images_push_multi_registries(["${git_project}/ml-base:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                                     }
                                 }
                             }
@@ -64,12 +64,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/models in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models")
                                     }
                                 }
                                 stage('push models') {
                                     container('docker-cmd') {
-                                        dockerx.images_push_multi_registries(["${git_project}/models:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                        dockerx.images_push_multi_registries(["${git_project}/ml-models:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                                     }
                                 }
                             }
@@ -78,12 +78,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/models-legacy in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy")
                                     }
                                 }
                                 stage('push models-legacy') {
                                     container('docker-cmd') {
-                                        dockerx.images_push_multi_registries(["${git_project}/models-legacy:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                        dockerx.images_push_multi_registries(["${git_project}/ml-models:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                                     }
                                 }
                             }
@@ -92,12 +92,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/models-gpu in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu")
                                     }
                                 }
                                 stage('push models-gpu') {
                                     container('docker-cmd') {
-                                        dockerx.images_push_multi_registries(["${git_project}/models-gpu:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                        dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                                     }
                                 }
                             }
@@ -106,12 +106,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/models-gpu-legacy in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy")
                                     }
                                 }
                                 stage('push models-gpu-legacy') {
                                     container('docker-cmd') {
-                                        dockerx.images_push_multi_registries(["${git_project}/models-gpu-legacy:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
+                                        dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.DOCKER_HUB, pipelinex.DockerRepo.QUAY_IO])
                                     }
                                 }
                             }
@@ -120,7 +120,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             container('docker-cmd') {
                                 stage("build ${git_project}/mlrun in dood") {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
+                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
                                     }
                                 }
                                 stage('push mlrun') {

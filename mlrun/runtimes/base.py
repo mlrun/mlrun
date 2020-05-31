@@ -35,7 +35,7 @@ from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image, dict_to_yaml, dict_to_json
-from .pod import PodPhases
+from .constants import PodPhases
 
 
 class FunctionStatus(ModelObj):
@@ -640,6 +640,7 @@ class BaseRuntimeHandler:
     def list_resources(self, namespace: str = None, label_selector: str = None) -> Dict:
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace(namespace)
+        label_selector = self._resolve_label_selector(label_selector)
         pod_resources = self._list_pod_resources(namespace, label_selector)
         crd_resources = self._list_crd_resources(namespace, label_selector)
         response = self._build_list_resources_response(pod_resources, crd_resources)
@@ -648,6 +649,7 @@ class BaseRuntimeHandler:
     def delete_resources(self, namespace: str = None, label_selector: str = None, running: bool = False):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace(namespace)
+        label_selector = self._resolve_label_selector(label_selector)
         self._delete_resources(namespace, label_selector, running)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
@@ -663,9 +665,9 @@ class BaseRuntimeHandler:
         pass
 
     @staticmethod
-    def _get_pod_default_label_selector() -> str:
+    def _get_default_label_selector() -> str:
         """
-        Override this to add a default pod label selector
+        Override this to add a default label selector
         """
         return ''
 
@@ -688,7 +690,6 @@ class BaseRuntimeHandler:
 
     def _list_pod_resources(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
-        label_selector = self._resolve_pod_label_selector(label_selector)
         pods = k8s_helper.list_pods(namespace, selector=label_selector)
         return self._build_pod_resources(pods)
 
@@ -705,8 +706,8 @@ class BaseRuntimeHandler:
             crd_resources = self._build_crd_resources(crd_objects)
         return crd_resources
 
-    def _resolve_pod_label_selector(self, label_selector: str = None) -> str:
-        default_label_selector = self._get_pod_default_label_selector()
+    def _resolve_label_selector(self, label_selector: str = None) -> str:
+        default_label_selector = self._get_default_label_selector()
 
         if label_selector:
             label_selector = ','.join([default_label_selector, label_selector])
@@ -717,7 +718,6 @@ class BaseRuntimeHandler:
 
     def _delete_pod_resources(self, namespace: str, label_selector: str = None, running: bool = False):
         k8s_helper = get_k8s_helper()
-        label_selector = self._resolve_pod_label_selector(label_selector)
         pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         for pod in pods.items:
             # it is less likely that there will be new stable states, or the existing ones will change so better to

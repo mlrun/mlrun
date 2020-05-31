@@ -245,5 +245,5 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 class KubeRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
-    def _get_pod_default_label_selector() -> str:
+    def _get_default_label_selector() -> str:
         return 'mlrun/class in (build, job)'

@@ -23,18 +23,6 @@ from ..utils import normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec
 
 
-class PodPhases:
-    succeeded = 'Succeeded'
-    failed = 'Failed'
-
-    @staticmethod
-    def stable_phases():
-        return [
-            PodPhases.succeeded,
-            PodPhases.failed,
-        ]
-
-
 class KubeResourceSpec(FunctionSpec):
     def __init__(self, command=None, args=None, image=None, mode=None,
                  volumes=None, volume_mounts=None, env=None, resources=None,

@@ -161,7 +161,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 class MpiV1RuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
-    def _get_pod_default_label_selector() -> str:
+    def _get_default_label_selector() -> str:
         return 'mlrun/class=mpijob'
 
     @staticmethod

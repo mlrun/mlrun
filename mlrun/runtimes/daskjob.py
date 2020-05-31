@@ -21,7 +21,8 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
 from .kubejob import KubejobRuntime
 from .local import load_module, exec_from_params
-from .pod import KubeResourceSpec, PodPhases
+from .pod import KubeResourceSpec
+from .constants import PodPhases
 from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
 from ..config import config
 from ..execution import MLClientCtx
@@ -371,7 +372,7 @@ def get_obj_status(selector=[], namespace=None):
 class DaskRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
-    def _get_pod_default_label_selector() -> str:
+    def _get_default_label_selector() -> str:
         return 'dask.org/component=scheduler'
 
     def _delete_resources(self, namespace: str, label_selector: str = None, running: bool = False):
@@ -379,7 +380,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         Handling services deletion
         """
         k8s_helper = get_k8s_helper()
-        label_selector = self._resolve_pod_label_selector(label_selector)
         pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         service_names = []
         for pod in pods.items:

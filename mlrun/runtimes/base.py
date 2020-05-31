@@ -741,10 +741,10 @@ class BaseRuntimeHandler:
                                                                       crd_plural,
                                                                       label_selector=label_selector)
 
-        for crd_object in crd_objects.items:
+        for crd_object in crd_objects['items']:
             in_transient_state = self._is_crd_object_in_transient_state(crd_object)
             if not in_transient_state or (running and in_transient_state):
-                name = crd_object.metadata.name
+                name = crd_object['metadata']['name']
                 try:
                     k8s_helper.crdapi.delete_namespaced_custom_object(crd_group,
                                                                       crd_version,
@@ -774,12 +774,12 @@ class BaseRuntimeHandler:
     @staticmethod
     def _build_crd_resources(custom_objects) -> List:
         crd_resources = []
-        for custom_object in custom_objects.items:
-            status = custom_object.status.phase.lower()
+        for custom_object in custom_objects['items']:
+            status = custom_object['status']['phase'].lower()
             crd_resources.append(
                 {
-                    'name': custom_object.metadata.name,
-                    'labels': custom_object.metadata.labels,
+                    'name': custom_object['metadata']['name'],
+                    'labels': custom_object['metadata']['labels'],
                     'status': status,
                 })
         return crd_resources

@@ -171,4 +171,4 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _is_crd_object_in_transient_state(crd_object) -> bool:
         # FIXME: this is not correct, check what's mpi job states
-        return crd_object.status.applicationState.state == 'RUNNING'
+        return False

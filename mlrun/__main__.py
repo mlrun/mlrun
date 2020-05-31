@@ -581,7 +581,6 @@ def project(context, name, url, run, arguments, artifact_path,
             exit(1)
 
         if wait:
-            print('waiting for pipeline completion')
             report = 'html' if gitops else 'text'
             status, had_errors, text = proj.get_run_status(run, report=report)
             print(text)

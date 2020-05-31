@@ -14,6 +14,7 @@
 import inspect
 import socket
 from os import environ
+from typing import Dict
 
 from kubernetes.client.rest import ApiException
 
@@ -374,6 +375,23 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_default_label_selector() -> str:
         return 'mlrun/class=dask'
+
+    def _enrich_list_resources_response(self, response: Dict, namespace: str, label_selector: str = None) -> Dict:
+        """
+        Handling listing service resources
+        """
+        k8s_helper = get_k8s_helper()
+        services = k8s_helper.v1api.list_namespaced_service(namespace, label_selector=label_selector)
+        service_resources = []
+        for service in services.items:
+            service_resources.append(
+                {
+                    'name': service.metadata.name,
+                    'labels': service.metadata.labels,
+                    'status': service.status,
+                })
+        response['service_resources'] = service_resources
+        return response
 
     def _delete_resources(self, namespace: str, label_selector: str = None, running: bool = False):
         """

@@ -644,6 +644,7 @@ class BaseRuntimeHandler:
         pod_resources = self._list_pod_resources(namespace, label_selector)
         crd_resources = self._list_crd_resources(namespace, label_selector)
         response = self._build_list_resources_response(pod_resources, crd_resources)
+        response = self._enrich_list_resources_response(response, namespace, label_selector)
         return response
 
     def delete_resources(self, namespace: str = None, label_selector: str = None, running: bool = False):
@@ -656,6 +657,12 @@ class BaseRuntimeHandler:
             self._delete_crd_resources(namespace, label_selector, running)
         else:
             self._delete_pod_resources(namespace, label_selector, running)
+
+    def _enrich_list_resources_response(self, response: Dict, namespace: str, label_selector: str = None) -> Dict:
+        """
+        Override this to list resources other then pods or CRDs (which are handled by the base class)
+        """
+        return response
 
     def _delete_resources(self, namespace: str, label_selector: str = None, running: bool = False):
         """

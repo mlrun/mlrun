@@ -35,6 +35,16 @@ def get_runtime(
     }
 
 
+@router.delete("/runtimes")
+def delete_runtimes(
+        label_selector: str = None,
+        running: bool = False):
+    for kind in RuntimeKinds.runtime_with_handlers():
+        runtime_handler = get_runtime_handler(kind)
+        runtime_handler.delete_resources(label_selector, running)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.delete("/runtimes/{kind}")
 def delete_runtime(
         kind: str,

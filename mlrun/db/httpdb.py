@@ -332,6 +332,11 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', path, error, params=params)
         return resp.json()
 
+    def delete_runtimes(self, label_selector: str = None, running: bool = False):
+        params = {'label_selector': label_selector, 'running': running}
+        error = 'delete runtimes'
+        self.api_call('DELETE', 'runtimes', error, params=params)
+
     def delete_runtime(self, kind: str, label_selector: str = None, running: bool = False):
         params = {'label_selector': label_selector, 'running': running}
         path = f'runtimes/{kind}'

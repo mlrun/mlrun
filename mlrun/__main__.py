@@ -588,17 +588,16 @@ def project(context, name, url, run, arguments, artifact_path,
 
 
 @main.command()
-@click.argument('name', type=str, default='', required=False)
+@click.argument('kind', type=str, default='', required=False)
 @click.option('--api', help='api and db service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')
 @click.option('--force', '-f', is_flag=True,
               help='clean resources in transient states as well')
-def clean(name, api, label_selector, force):
-    """Clean completed or failed pods/jobs"""
+def clean(kind, api, label_selector, force):
+    """Clean runtime resources"""
     mldb = get_run_db(api or mlconf.dbpath).connect()
-    if name:
-        # the runtime identifier is its kind
-        mldb.delete_runtime(kind=name, label_selector=label_selector, force=force)
+    if kind:
+        mldb.delete_runtime(kind=kind, label_selector=label_selector, force=force)
         return
 
     mldb.delete_runtimes(label_selector=label_selector, force=force)

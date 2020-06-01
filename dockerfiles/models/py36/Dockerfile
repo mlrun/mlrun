@@ -1,4 +1,3 @@
-# syntax = docker/dockerfile:1.0-experimental
 FROM continuumio/anaconda3:2020.02
 
 LABEL maintainer="yashab@iguazio.com"

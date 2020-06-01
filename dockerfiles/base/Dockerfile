@@ -1,4 +1,3 @@
-# syntax = docker/dockerfile:1.0-experimental
 ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}-slim-buster

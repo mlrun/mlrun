@@ -1,4 +1,3 @@
-# syntax = docker/dockerfile:1.0-experimental
 ARG CUDA_VER=10.1
 
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04

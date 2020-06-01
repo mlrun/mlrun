@@ -398,6 +398,15 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                 if i.status.start_time:
                     start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
+    elif kind.startswith('runtime'):
+        mldb = get_run_db(db or mlconf.dbpath).connect()
+        if name:
+            # the runtime identifier is its kind
+            runtime = mldb.get_runtime(kind=name, label_selector=selector)
+            print(dict_to_yaml(runtime))
+            return
+        runtimes = mldb.list_runtimes(label_selector=selector)
+        print(dict_to_yaml(runtimes))
     elif kind.startswith('run'):
         mldb = get_run_db(db or mlconf.dbpath).connect()
         if name:
@@ -440,15 +449,6 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             ]
             lines.append(line)
         print(tabulate(lines, headers=headers))
-    elif kind.startswith('runtime'):
-        mldb = get_run_db(db or mlconf.dbpath).connect()
-        if name:
-            # the runtime identifier is its kind
-            runtime = mldb.get_runtime(kind=name, label_selector=selector)
-            print(dict_to_yaml(runtime))
-            return
-        runtimes = mldb.list_runtimes(label_selector=selector)
-        print(dict_to_yaml(runtimes))
     else:
         print('currently only get pods | runs | artifacts | func [name] | runtime are supported')
 

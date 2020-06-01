@@ -1,3 +1,4 @@
+# syntax = docker/dockerfile:1.0-experimental
 ARG CUDA_VER=10.1
 
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
@@ -6,10 +7,6 @@ LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
 ARG OMPI=4.0.3
-ARG MLRUN_GITHUB_REPO=mlrun
-
-ARG MLRUN_PACKAGE_TAG=development
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
@@ -26,9 +23,6 @@ RUN apt-get update && \
     curl \
     git \
     ibverbs-providers \
-    libboost-dev \
-    libboost-filesystem-dev \
-    libboost-system-dev \
     libc6 \
     libglib2.0-0 \
     libibverbs1\
@@ -42,10 +36,9 @@ RUN apt-get update && \
     libsm6 \
     libxext6 \
     libxrender1 \
-    mercurial \
     openssh-client \
     openssh-server \
-    subversion \
+    unzip \
     wget && \
     apt install -y ca-certificates  && \
     update-ca-certificates --fresh && \
@@ -59,21 +52,18 @@ RUN mkdir -p /var/run/sshd && \
     # Allow OpenSSH to talk to containers without asking for confirmation
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
-    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config && \
-    svn checkout https://github.com/horovod/horovod/trunk/examples && \
-    rm -rf /examples/.svn
+    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config 
 
 # Install Open MPI
-RUN mkdir /tmp/openmpi && \
-    cd /tmp/openmpi && \
-    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-${OMPI}.tar.gz && \
-    tar zxf openmpi-${OMPI}.tar.gz && \
-    cd openmpi-${OMPI} && \
-    ./configure --enable-orterun-prefix-by-default && \
-    make -j`nproc` all && \
-    make install && \
-    ldconfig && \
-    rm -rf /tmp/openmpi    
+ARG OMPI=4.0.3
+ENV OPMI=${OMPI}
+RUN curl -o ./openmpi.zip \
+    https://raw.githubusercontent.com/yjb-ds/mlrun-builds/master/archives/openmpi-${OMPI}.zip && \
+    unzip openmpi.zip -d /usr && \
+    rm -rf ./openmpi.zip
+
+ENV PATH "$PATH:/usr/openmpi/bin"
+ENV LD_LIBRARY_PATH "$LD_LIBRARY_PATH:/usr/openmpi/lib/"
 
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
@@ -123,16 +113,22 @@ RUN conda clean -aqy
 
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-    python -m pip install horovod && \
+    python -m pip install --no-cache-dir horovod && \
     ldconfig
 
 # remove dask verify version mismatch warnings
 COPY ./dockerfiles/models-gpu/requirements.txt ./
 
-RUN python -m pip install -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
 
-RUN python -m pip install \
+ARG MLRUN_GITHUB_REPO=mlrun
+ARG MLRUN_PACKAGE_TAG=development
+LABEL MLRUN_TAG=$MLRUN_PACKAGE_TAG
+ENV MLRUN_TAG=${MLRUN_PACKAGE_TAG}
+RUN python -m pip install --no-cache-dir \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
 
-RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}
+ARG MLUTILS_GITHUB_REPO=mlrun
+ARG MLRUN_MLUTILS_GITHUB_TAG=development
+RUN python -m pip install --no-cache-dir \
+    git+https://github.com/${MLUTILS_GITHUB_REPO}/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

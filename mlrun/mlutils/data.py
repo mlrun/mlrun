@@ -6,10 +6,10 @@ from ..datastore import DataItem
 
 def get_sample(src: DataItem, sample: int, label: str, reader=None):
     """generate data sample to be split (candidate for mlrun)
-     
+
     Returns features matrix and header (x), and labels (y)
     :param src:    data artifact
-    :param sample: sample size from data source, use negative 
+    :param sample: sample size from data source, use negative
                    integers to sample randomly, positive to
                    sample consecutively from the first row
     :param label:  label column title
@@ -45,14 +45,13 @@ def get_splits(
     1. cut out a test set
     2a. use the training set in a cross validation scheme, or
     2b. make another split to generate a validation set
-    
+
     2 parts (n_ways=2): train and test set only
     3 parts (n_ways=3): train, validation and test set
-    4 parts (n_ways=4): n_ways=3 + a held-out probability calibration set
-    
+
     :param raw:            dataframe or numpy array of raw features
     :param labels:         dataframe or numpy array of raw labels
-    :param n_ways:         (3) split data into 2, 3, or 4 parts
+    :param n_ways:         (3) split data into 2 or 3 parts
     :param test_size:      proportion of raw data to set asid as test data
     :param valid_size:     proportion of remaining data to be set as validation
     :param label_names:         label names
@@ -61,22 +60,16 @@ def get_splits(
     x, xte, y, yte = train_test_split(raw, labels, test_size=test_size,
                                       random_state=random_state)
     if n_ways == 2:
-        return (x, y), (xte, yte), None, None
+        return (x, y), (xte, yte)
     elif n_ways == 3:
-        xtr, xva, ytr, yva = train_test_split(x, y, train_size=valid_size,
+        xtr, xva, ytr, yva = train_test_split(x, y, train_size=1-valid_size,
                                               random_state=random_state)
-        return (xtr, ytr), (xva, yva), (xte, yte), None
-    elif n_ways == 4:
-        xt, xva, yt, yva = train_test_split(x, y, train_size=valid_size,
-                                            random_state=random_state)
-        xtr, xcal, ytr, ycal = train_test_split(xt, yt, train_size=0.8,
-                                                random_state=random_state)
-        return (xtr, ytr), (xva, yva), (xte, yte), (xcal, ycal)
+        return (xtr, ytr), (xva, yva), (xte, yte)
     else:
-        raise Exception("n_ways must be in the range [2,4]")
+        raise Exception("n_ways must be in the range [2,3]")
 
 
-def save_heldout(
+def save_test_set(
     context,
     data: dict,
     header: list,
@@ -87,7 +80,7 @@ def save_heldout(
 ):
     """log a held out test set
     :param context:    the function execution context
-    :param data:       dict with keys 'xtest'. 'ytest', and optionally 
+    :param data:       dict with keys 'xtest'. 'ytest', and optionally
                        'xcal', 'ycal' if n_ways=4 in `get_splits`
     :param ytest:      test labels, as np.ndarray output from `get_splits`
     :param header:     ([])features header if required
@@ -96,6 +89,7 @@ def save_heldout(
     :param index:      preserve index column
     :param debug:      (False)
     """
+
     if all(x in data.keys() for x in ["xtest", "ytest"]):
         test_set = pd.concat(
             [pd.DataFrame(data=data["xtest"], columns=header),

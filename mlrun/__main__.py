@@ -498,7 +498,8 @@ def logs(uid, project, offset, db, watch):
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
 @click.option('--run', '-r', help='run workflow name of .py file')
-@click.option('--arguments', '-a', help='Kubeflow pipeline arguments dict')
+@click.option('--arguments', '-a', default='', multiple=True,
+              help='Kubeflow pipeline arguments name and value tuples, e.g. -a x=6')
 @click.option('--artifact-path', '-p', help='output artifacts path')
 @click.option('--param', '-x', default='', multiple=True,
               help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'")
@@ -544,12 +545,7 @@ def project(context, name, url, run, arguments, artifact_path,
 
         args = None
         if arguments:
-            try:
-                args = literal_eval(arguments)
-            except (SyntaxError, ValueError):
-                print('arguments ({}) must be a dict object/str'
-                      .format(arguments))
-                exit(1)
+            args = fill_params(arguments)
 
         print('running workflow {} file: {}'.format(run, workflow_path))
         message = run = ''

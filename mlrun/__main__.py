@@ -589,7 +589,7 @@ def project(context, name, url, run, arguments, artifact_path,
 
 @main.command()
 @click.argument('kind', type=str, default='', required=False)
-@click.argument('id', 'object_id', type=str, default='', required=False)
+@click.argument('object_id', metavar='id', type=str, default='', required=False)
 @click.option('--api', help='api and db service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')
 @click.option('--force', '-f', is_flag=True,

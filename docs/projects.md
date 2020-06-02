@@ -2,7 +2,7 @@
 # Projects
 
 A Project is a container for all your work on a particular activity. All the associated code, jobs and artifacts are organized within the projects. A project is also a great way to collaborate with others, since you can share your work, as well as create projects based on existing projects.
-One option is to create a project
+
 
 It's a best practice to have all your notebooks associated with a project. An easy way to do that is to create a project in the beginning of the notebook using the `new_project` MLRun method, which receives the following parameters:
 

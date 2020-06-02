@@ -9,7 +9,7 @@
 - [Functions marketplace](#functions-marketplace)
 - [Running functions on different runtimes](#running-functions-on-different-runtimes)
   - [Accessing shared storage on Kubernetes](#accessing-shared-storage-on-kubernetes)
-  - [Run the `describe` function from the marketplace](#run-the-describe-function-from-the-marketplace)
+  - [Run the function from the marketplace](#run-the-function-from-the-marketplace)
   - [Convert python code to a function](#convert-python-code-to-a-function)
 - [Create a machine-learning training function](#create-a-machine-learning-training-function)
 - [Pipelines](#pipelines)
@@ -212,10 +212,6 @@ One of the key advantages of MLRun is the ability to seamlessly run your code on
 
 The functions need shared storage (file or object) media to pass and store artifacts.
 
-You can add _**Kubernetes**_ resources like volumes, environment variables, secrets, cpu/mem/gpu, etc. to a function.
-
-```MLRun``` uses _**KubeFlow**_ modifiers (`apply`) to configure resources, you can build your own or use predefined ones e.g. for [AWS resources](https://github.com/kubeflow/pipelines/blob/master/sdk/python/kfp/aws.py).
-
 If your are using [Iguazio data science platform](https://www.iguazio.com/) use the `mount_v3io()` auto-mount modifier. If you use other k8s PVC volumes you can use the `mlrun.platforms.mount_pvc(..)` modifier with the requiered params.
 
 
@@ -223,167 +219,25 @@ If your are using [Iguazio data science platform](https://www.iguazio.com/) use 
 from os import environ
 from pathlib import Path
 from mlrun.platforms import mount_v3io, mount_pvc
-```
 
-
-```python
 # mount_v3io if using Iguazio data science platform, else mount to k8s PVC 'data' directory in the home folder
 extra_volume = mount_v3io() if 'V3IO_HOME' in environ \
                             else mount_pvc(pvc_name='nfsvol', volume_name='nfsvol', volume_mount_path=path.join(Path.home(), 'data'))
 ```
 
-### Run the `describe` function from the marketplace
+### Run the function from the marketplace
 
 
 ```python
 describe = project.func('describe').apply(extra_volume)
-```
 
-
-```python
 describe_run = describe.run(params={'label_column': 'label'},
                             inputs={"table": get_data_run.outputs['source_data']},
                             artifact_path=artifact_path)
 ```
 
-    [mlrun] 2020-06-02 20:00:10,027 starting run describe-summarize uid=0655346d86fe48b5bb8c6f34e08873ab  -> http://10.193.140.11:8080
-    [mlrun] 2020-06-02 20:00:10,174 Job is running in the background, pod: describe-summarize-dp8zq
-    [mlrun] 2020-06-02 20:00:18,690 log artifact histograms at /User/mlrun/jobs/plots/hist.html, size: 282853, db: Y
-    [mlrun] 2020-06-02 20:00:19,295 log artifact imbalance at /User/mlrun/jobs/plots/imbalance.html, size: 11716, db: Y
-    [mlrun] 2020-06-02 20:00:19,517 log artifact correlation at /User/mlrun/jobs/plots/corr.html, size: 30642, db: Y
-    
-    [mlrun] 2020-06-02 20:00:19,608 run executed, status=completed
-    final state: succeeded
-
-function copyToClipboard(fld) {
-    if (document.queryCommandSupported && document.queryCommandSupported('copy')) {
-        var textarea = document.createElement('textarea');
-        textarea.textContent = fld.innerHTML;
-        textarea.style.position = 'fixed';
-        document.body.appendChild(textarea);
-        textarea.select();
-
-        try {
-            return document.execCommand('copy'); // Security exception may be thrown by some browsers.
-        } catch (ex) {
-
-        } finally {
-            document.body.removeChild(textarea);
-        }
-    }
-}
-function expandPanel(el) {
-  const panelName = "#" + el.getAttribute('paneName');
-  console.log(el.title);
-
-  document.querySelector(panelName + "-title").innerHTML = el.title
-  iframe = document.querySelector(panelName + "-body");
-
-  const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
-    #csv { margin-bottom: 15px; }
-    #csv table { border-collapse: collapse;}
-    #csv table td { padding: 4px 8px; border: 1px solid silver;} </style>`;
-
-  function csvToHtmlTable(str) {
-    return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
-      .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
-  }
-
-  function reqListener () {
-    if (el.title.endsWith(".csv")) {
-      iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
-    } else {
-      iframe.setAttribute("srcdoc", this.responseText);
-    }  
-    console.log(this.responseText);
-  }
-
-  const oReq = new XMLHttpRequest();
-  oReq.addEventListener("load", reqListener);
-  oReq.open("GET", el.title);
-  oReq.send();
-
-
-  //iframe.src = el.title;
-  const resultPane = document.querySelector(panelName + "-pane");
-  if (resultPane.classList.contains("hidden")) {
-    resultPane.classList.remove("hidden");
-  }
-}
-function closePanel(el) {
-  const panelName = "#" + el.getAttribute('paneName')
-  const resultPane = document.querySelector(panelName + "-pane");
-  if (!resultPane.classList.contains("hidden")) {
-    resultPane.classList.add("hidden");
-  }
-}
-
-</script>
-<div class="master-wrapper">
-  <div class="block master-tbl"><div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th>project</th>
-      <th>uid</th>
-      <th>iter</th>
-      <th>start</th>
-      <th>state</th>
-      <th>name</th>
-      <th>labels</th>
-      <th>inputs</th>
-      <th>parameters</th>
-      <th>results</th>
-      <th>artifacts</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>my-project</td>
-      <td><div title="0655346d86fe48b5bb8c6f34e08873ab"><a href="https://mlrun-ui.default-tenant.app.dev34.lab.iguazeng.com/projects/my-project/jobs/0655346d86fe48b5bb8c6f34e08873ab/info" target="_blank" >...e08873ab</a></div></td>
-      <td>0</td>
-      <td>Jun 02 20:00:14</td>
-      <td>completed</td>
-      <td>describe-summarize</td>
-      <td><div class="dictlist">host=describe-summarize-dp8zq</div><div class="dictlist">kind=job</div><div class="dictlist">owner=gilads</div><div class="dictlist">v3io_user=gilads</div></td>
-      <td><div title="store://my-project/get_data_source_data#7b0ee47f520b49dd962835ea283a59a3">table</div></td>
-      <td><div class="dictlist">label_column=label</div></td>
-      <td><div class="dictlist">scale_pos_weight=1.00</div></td>
-      <td><div class="artifact" onclick="expandPanel(this)" paneName="resulte1acf2ff" title="/files/mlrun/jobs/plots/hist.html">histograms</div><div class="artifact" onclick="expandPanel(this)" paneName="resulte1acf2ff" title="/files/mlrun/jobs/plots/imbalance.html">imbalance</div><div class="artifact" onclick="expandPanel(this)" paneName="resulte1acf2ff" title="/files/mlrun/jobs/plots/corr.html">correlation</div></td>
-    </tr>
-  </tbody>
-</table>
-</div></div>
-  <div id="resulte1acf2ff-pane" class="right-pane block hidden">
-    <div class="pane-header">
-      <span id="resulte1acf2ff-title" class="pane-header-title">Title</span>
-      <span onclick="closePanel(this)" paneName="resulte1acf2ff" class="close clickable">&times;</span>
-    </div>
-    <iframe class="fileview" id="resulte1acf2ff-body"></iframe>
-  </div>
-</div>
-
-
-
-    to track results use .show() or .logs() or in CLI: 
-    !mlrun get run 0655346d86fe48b5bb8c6f34e08873ab --project my-project , !mlrun logs 0655346d86fe48b5bb8c6f34e08873ab --project my-project
-    [mlrun] 2020-06-02 20:00:29,430 run executed, status=completed
-
-
 The expected output is:
+
 ``` text
 [mlrun] 2020-05-26 19:20:10,027 starting run describe-summarize uid=0655346d86fe48b5bb8c6f34e08873ab  -> http://10.193.140.11:8080
 [mlrun] 2020-05-26 19:20:10,174 Job is running in the background, pod: describe-summarize-dp8zq
@@ -396,7 +250,7 @@ The expected output is:
 
 ### Convert python code to a function
 
-Place the previously defined `get_data` code in a file called `get_data.py`. Wd can then use MLRun's `code_to_function` to run that python code as an MLRun function on other runtimes: 
+Place the previously defined `get_data` code in a file called `get_data.py`. We can then use MLRun's `code_to_function` to run that python code as an MLRun function on other runtimes: 
 
 
 ```python
@@ -423,8 +277,7 @@ get_data_run = get_data.run(inputs={'source_url': source_url},
 
 ## Create a machine-learning training function
 
-To complete our example, see the following code that trains a simple logistic regression model:
-
+To complete our example, see the following code that trains a simple logistic regression model. In many cases this is not needed since you will find many of the required functions already available in the **Functions Marketplace**. However, this simplified function will give you a good starting point should you need to build similar functions on your own. 
 
 ```python
 import pandas as pd
@@ -490,7 +343,7 @@ def train(context: MLClientCtx,
 
 ```
 
-Place the code above in `train.py` file and execute the following command to run that code as a job:
+Copy the code above to `train.py` file and execute the following command to run that code as a job:
 
 
 ```python
@@ -504,222 +357,6 @@ train_func.apply(mount_v3io()).run(inputs={'dataset': get_data_run.output('sourc
                                    params={'label_column': 'label'},
                                    artifact_path=artifact_path)
 ```
-
-    [mlrun] 2020-06-02 20:54:57,635 starting run train-train uid=8f99f4702b21470d85b40092ff548e74  -> http://10.193.140.11:8080
-    [mlrun] 2020-06-02 20:54:57,839 Job is running in the background, pod: train-train-glpnj
-    [mlrun] 2020-06-02 20:55:03,131 log artifact test-set at /User/mlrun/jobs/data/test_set.parquet, size: 5753, db: Y
-    [mlrun] 2020-06-02 20:55:03,187 log artifact model at /User/mlrun/jobs/models/, size: 949, db: Y
-    [mlrun] 2020-06-02 20:55:03,327 log artifact confusion-matrix at /User/mlrun/jobs/plots/confusion_matrix.html, size: 24535, db: Y
-    
-    [mlrun] 2020-06-02 20:55:03,354 run executed, status=completed
-    final state: succeeded
-
-
-
-<style> 
-.dictlist {
-  background-color: #b3edff; 
-  text-align: center; 
-  margin: 4px; 
-  border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
-.artifact {
-  cursor: pointer; 
-  background-color: #ffe6cc; 
-  text-align: left; 
-  margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
-}
-div.block.hidden {
-  display: none;
-}
-.clickable {
-  cursor: pointer;
-}
-.ellipsis {
-  display: inline-block;
-  max-width: 60px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.master-wrapper {
-  display: flex;
-  flex-flow: row nowrap;
-  justify-content: flex-start;
-  align-items: stretch;
-}
-.master-tbl {
-  flex: 3
-}
-.master-wrapper > div {
-  margin: 4px;
-  padding: 10px;
-}
-iframe.fileview {
-  border: 0 none;
-  height: 100%;
-  width: 100%;
-  white-space: pre-wrap;
-}
-.pane-header-title {
-  width: 80%;
-  font-weight: 500;
-}
-.pane-header {
-  line-height: 1;
-  background-color: #ffe6cc;
-  padding: 3px;
-}
-.pane-header .close {
-  font-size: 20px;
-  font-weight: 700;
-  float: right;
-  margin-top: -5px;
-}
-.master-wrapper .right-pane {
-  border: 1px inset silver;
-  width: 40%;
-  min-height: 300px;
-  flex: 3
-  min-width: 500px;
-}
-.master-wrapper * {
-  box-sizing: border-box;
-}
-</style><script>
-function copyToClipboard(fld) {
-    if (document.queryCommandSupported && document.queryCommandSupported('copy')) {
-        var textarea = document.createElement('textarea');
-        textarea.textContent = fld.innerHTML;
-        textarea.style.position = 'fixed';
-        document.body.appendChild(textarea);
-        textarea.select();
-
-        try {
-            return document.execCommand('copy'); // Security exception may be thrown by some browsers.
-        } catch (ex) {
-
-        } finally {
-            document.body.removeChild(textarea);
-        }
-    }
-}
-function expandPanel(el) {
-  const panelName = "#" + el.getAttribute('paneName');
-  console.log(el.title);
-
-  document.querySelector(panelName + "-title").innerHTML = el.title
-  iframe = document.querySelector(panelName + "-body");
-
-  const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
-    #csv { margin-bottom: 15px; }
-    #csv table { border-collapse: collapse;}
-    #csv table td { padding: 4px 8px; border: 1px solid silver;} </style>`;
-
-  function csvToHtmlTable(str) {
-    return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
-      .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
-  }
-
-  function reqListener () {
-    if (el.title.endsWith(".csv")) {
-      iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
-    } else {
-      iframe.setAttribute("srcdoc", this.responseText);
-    }  
-    console.log(this.responseText);
-  }
-
-  const oReq = new XMLHttpRequest();
-  oReq.addEventListener("load", reqListener);
-  oReq.open("GET", el.title);
-  oReq.send();
-
-
-  //iframe.src = el.title;
-  const resultPane = document.querySelector(panelName + "-pane");
-  if (resultPane.classList.contains("hidden")) {
-    resultPane.classList.remove("hidden");
-  }
-}
-function closePanel(el) {
-  const panelName = "#" + el.getAttribute('paneName')
-  const resultPane = document.querySelector(panelName + "-pane");
-  if (!resultPane.classList.contains("hidden")) {
-    resultPane.classList.add("hidden");
-  }
-}
-
-</script>
-<div class="master-wrapper">
-  <div class="block master-tbl"><div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th>project</th>
-      <th>uid</th>
-      <th>iter</th>
-      <th>start</th>
-      <th>state</th>
-      <th>name</th>
-      <th>labels</th>
-      <th>inputs</th>
-      <th>parameters</th>
-      <th>results</th>
-      <th>artifacts</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>my-project</td>
-      <td><div title="8f99f4702b21470d85b40092ff548e74"><a href="https://mlrun-ui.default-tenant.app.dev34.lab.iguazeng.com/projects/my-project/jobs/8f99f4702b21470d85b40092ff548e74/info" target="_blank" >...ff548e74</a></div></td>
-      <td>0</td>
-      <td>Jun 02 20:55:02</td>
-      <td>completed</td>
-      <td>train-train</td>
-      <td><div class="dictlist">host=train-train-glpnj</div><div class="dictlist">kind=job</div><div class="dictlist">owner=gilads</div><div class="dictlist">v3io_user=gilads</div></td>
-      <td><div title="store://my-project/get-data-get_data_source_data#409ee1cf26774e049dd1672a49bbdeab">dataset</div></td>
-      <td><div class="dictlist">label_column=label</div></td>
-      <td><div class="dictlist">accuracy=1.0</div></td>
-      <td><div title="/User/mlrun/jobs/data/test_set.parquet">test-set</div><div title="/User/mlrun/jobs/models">model</div><div class="artifact" onclick="expandPanel(this)" paneName="result7912925e" title="/files/mlrun/jobs/plots/confusion_matrix.html">confusion-matrix</div></td>
-    </tr>
-  </tbody>
-</table>
-</div></div>
-  <div id="result7912925e-pane" class="right-pane block hidden">
-    <div class="pane-header">
-      <span id="result7912925e-title" class="pane-header-title">Title</span>
-      <span onclick="closePanel(this)" paneName="result7912925e" class="close clickable">&times;</span>
-    </div>
-    <iframe class="fileview" id="result7912925e-body"></iframe>
-  </div>
-</div>
-
-
-
-    to track results use .show() or .logs() or in CLI: 
-    !mlrun get run 8f99f4702b21470d85b40092ff548e74 --project my-project , !mlrun logs 8f99f4702b21470d85b40092ff548e74 --project my-project
-    [mlrun] 2020-06-02 20:55:07,141 run executed, status=completed
-
-
-
-
-
-    <mlrun.model.RunObject at 0x7fcdf5d99f28>
-
-
 
 The expected output is:
 ``` text
@@ -735,7 +372,7 @@ The expected output is:
 <a id="pipelines"></a>
 ## Pipelines
 
-If you have [**Kubeflow Pipelines**](https://github.com/kubeflow/pipelines) installed, you can create a workflow that runs the above functions. To do that, copy the following code to **workflow.py** in your project directory (we previously set the project directory as the `conf` folder under the current directory:
+If you have [**Kubeflow Pipelines**](https://github.com/kubeflow/pipelines) installed, you can create a workflow that runs the above functions. To do that, copy the following code to **workflow.py** in your project directory (we previously set the project directory as the `conf` folder under the current directory):
 
 
 ```python
@@ -784,19 +421,14 @@ def kfpipeline(source_url='http://iguazio-sample-data.s3.amazonaws.com/iris_data
         outputs=['model', 'test_set'])
 ```
 
+And run the following code:
 
 ```python
 # Register the workflow file as "main"
 project.set_workflow('main', 'workflow.py')
-```
 
-
-```python
 project.save()
-```
 
-
-```python
 run_id = project.run(
     'main',
     arguments={}, 
@@ -808,7 +440,3 @@ The pipeline created would look as follows
 
 ![Quick-start Pipeline](_static/images/mlrun-quick-start-pipeline-ui.png)
 
-
-```python
-
-```

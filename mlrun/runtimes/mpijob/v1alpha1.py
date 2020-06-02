@@ -114,6 +114,10 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f'mlrun/uid={object_id}'
+
+    @staticmethod
     def _get_default_label_selector() -> str:
         return 'mlrun/class=mpijob'
 

@@ -18,6 +18,7 @@ from ast import literal_eval
 from copy import deepcopy
 from os import environ
 from typing import Dict, List, Tuple
+from abc import ABC, abstractmethod
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -635,7 +636,15 @@ def is_local(url):
     return '://' not in url and not url.startswith('/')
 
 
-class BaseRuntimeHandler:
+class BaseRuntimeHandler(ABC):
+
+    @staticmethod
+    @abstractmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        """
+        Should return the label selector should be used to get only resources of a specific object (with id object_id)
+        """
+        pass
 
     def list_resources(self, label_selector: str = None) -> Dict:
         k8s_helper = get_k8s_helper()
@@ -657,6 +666,14 @@ class BaseRuntimeHandler:
             self._delete_crd_resources(namespace, label_selector, force)
         else:
             self._delete_pod_resources(namespace, label_selector, force)
+
+    def delete_runtime_object_resources(self, object_id: str, label_selector: str = None, force: bool = False):
+        object_label_selector = self._get_object_label_selector(object_id)
+        if label_selector:
+            label_selector = ','.join([object_label_selector, label_selector])
+        else:
+            label_selector = object_label_selector
+        self.delete_resources(label_selector, force)
 
     def _enrich_list_resources_response(self, response: Dict, namespace: str, label_selector: str = None) -> Dict:
         """

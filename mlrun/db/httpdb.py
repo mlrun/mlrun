@@ -344,6 +344,12 @@ class HTTPRunDB(RunDBInterface):
         error = f'delete runtime {kind}'
         self.api_call('DELETE', path, error, params=params)
 
+    def delete_runtime_object(self, kind: str, object_id: str, label_selector: str = None, force: bool = False):
+        params = {'label_selector': label_selector, 'force': force}
+        path = f'runtimes/{kind}/{object_id}'
+        error = f'delete runtime object {kind} {object_id}'
+        self.api_call('DELETE', path, error, params=params)
+
     def remote_builder(self, func, with_mlrun):
         try:
             req = {'function': func.to_dict(),

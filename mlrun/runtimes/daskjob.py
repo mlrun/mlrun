@@ -373,6 +373,10 @@ def get_obj_status(selector=[], namespace=None):
 class DaskRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f'mlrun/function={object_id}'
+
+    @staticmethod
     def _get_default_label_selector() -> str:
         return 'mlrun/class=dask'
 

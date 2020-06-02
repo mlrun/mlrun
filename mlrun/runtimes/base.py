@@ -779,12 +779,11 @@ class BaseRuntimeHandler:
     def _build_pod_resources(pods) -> List:
         pod_resources = []
         for pod in pods:
-            status = pod.status.phase.lower()
             pod_resources.append(
                 {
                     'name': pod.metadata.name,
                     'labels': pod.metadata.labels,
-                    'status': status,
+                    'status': pod.status,
                 })
         return pod_resources
 

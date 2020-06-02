@@ -16,7 +16,4 @@ from .plots import (gcf_clear,
                     plot_importance)
 
 from .data import (get_sample,
-                   get_splits,
-                   save_heldout)
-
-__version__ = '0.3.0'
+                   get_splits)

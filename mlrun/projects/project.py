@@ -561,7 +561,8 @@ class MlrunProject(ModelObj):
         return None
 
     def run(self, name=None, workflow_path=None, arguments=None,
-            artifact_path=None, namespace=None, sync=False, dirty=False):
+            artifact_path=None, namespace=None, sync=False,
+            watch=False, dirty=False):
         """run a workflow using kubeflow pipelines
 
         :param name:      name of the workflow
@@ -614,6 +615,9 @@ class MlrunProject(ModelObj):
                             artifact_path=artifact_path, namespace=namespace)
         if code:
             remove(workflow_path)
+        if watch:
+            self.get_run_status(run,
+                                notifiers=RunNotifications(with_slack=True))
         return run
 
     def _get_wf_cfg(self, name, arguments=None):

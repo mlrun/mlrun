@@ -13,6 +13,9 @@
 # limitations under the License.
 #
 # this file is based on the code from kubeflow pipelines git
+import os
+
+from .iguazio import mount_v3io
 
 
 def mount_pvc(pvc_name='pipeline-claim', volume_name='pipeline', volume_mount_path='/mnt/pipeline'):
@@ -36,3 +39,20 @@ def mount_pvc(pvc_name='pipeline-claim', volume_name='pipeline', volume_mount_pa
                 )
         )
     return _mount_pvc
+
+
+def auto_mount():
+    """choose the mount based on env variables
+
+    set V3IO_ACCESS_KEY and V3IO_USERNAME for iguazio v3io
+    or MLRUN_PVC_MOUNT=<pvc-name>:<mount-path> for k8s pvc
+    """
+    if 'V3IO_ACCESS_KEY' in os.environ:
+        return mount_v3io()
+    if 'MLRUN_PVC_MOUNT' in os.environ:
+        mount = os.environ.get('MLRUN_PVC_MOUNT')
+        items = mount.split(':')
+        if len(items) != 2:
+            raise ValueError('MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>')
+        return mount_pvc(volume_name=items[0], volume_mount_path=items[1])
+    raise ValueError('failed to auto mount, need to set env vars')

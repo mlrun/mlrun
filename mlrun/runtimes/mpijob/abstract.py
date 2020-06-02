@@ -11,18 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
 import abc
+import time
 import typing
 
-from mlrun.execution import MLClientCtx
+from kubernetes import client
+
 from mlrun.config import config
+from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import AsyncLogWriter, RunError
 from mlrun.utils import logger, get_in
-
-from kubernetes import client
 
 
 class MPIJobCRDVersions(object):
@@ -43,11 +43,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = 'mpijob'
     _is_nested = False
 
-    # should return the mpijob CRD information -> (group, version, plural)
-    @abc.abstractmethod
-    def _get_crd_info(self) -> typing.Tuple[str, str, str]:
-        pass
-
     @abc.abstractmethod
     def _generate_mpi_job(self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta) -> typing.Dict:
         pass
@@ -56,8 +51,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def _get_job_launcher_status(self, resp: list) -> str:
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def _generate_pods_selector(self, name: str, launcher: bool) -> str:
+    def _generate_pods_selector(name: str, launcher: bool) -> str:
+        pass
+
+    # should return the mpijob CRD information -> (group, version, plural)
+    @staticmethod
+    @abc.abstractmethod
+    def _get_crd_info() -> typing.Tuple[str, str, str]:
         pass
 
     def _pretty_print_jobs(self, items: typing.List):
@@ -130,7 +132,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
 
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
                 mpi_group, mpi_version, namespace=namespace,
@@ -145,7 +147,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def delete_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             # delete the mpi job
             body = client.V1DeleteOptions()
@@ -159,7 +161,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def list_jobs(self, namespace=None, selector='', show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.list_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural,
@@ -177,7 +179,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def get_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name)
@@ -187,7 +189,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def get_pods(self, name=None, namespace=None, launcher=False):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
 
         selector = self._generate_pods_selector(name, launcher)
 

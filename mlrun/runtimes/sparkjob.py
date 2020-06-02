@@ -11,24 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-from pprint import pprint
-import yaml
 import time
 from copy import deepcopy
+from typing import Tuple
+
+from kubernetes import client
+from kubernetes.client.rest import ApiException
+
+from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
-
-from ..model import ModelObj
-from ..utils import logger, get_in
-from ..model import RunObject
-from ..utils import dict_to_yaml, update_in, logger, get_in
-from ..platforms.iguazio import mount_v3io, mount_v3iod
 from ..execution import MLClientCtx
-
-
-from kubernetes import client
+from ..model import RunObject
+from ..platforms.iguazio import mount_v3io, mount_v3iod
+from ..utils import update_in, logger, get_in
 
 igz_deps = {'jars': ['/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
                      '/igz/java/libs/v3io-spark2-streaming_2.11-{0}.jar',
@@ -191,7 +188,7 @@ class SparkRuntime(KubejobRuntime):
 
     def _submit_job(self, job, namespace=None):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
                 SparkRuntime.group, SparkRuntime.version, namespace=namespace,
@@ -206,7 +203,7 @@ class SparkRuntime(KubejobRuntime):
 
     def get_job(self, name, namespace=None):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
                 SparkRuntime.group, SparkRuntime.version, namespace, SparkRuntime.plural, name)
@@ -233,7 +230,7 @@ class SparkRuntime(KubejobRuntime):
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()
-        namespace = k8s.ns(namespace)
+        namespace = k8s.resolve_namespace(namespace)
         selector = 'mlrun/class=spark'
         if name:
             selector += ',sparkoperator.k8s.io/app-name={}'.format(name)
@@ -258,3 +255,24 @@ class SparkRuntime(KubejobRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, 'spec', SparkJobSpec)
+
+
+class SparkRuntimeHandler(BaseRuntimeHandler):
+
+    @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f'mlrun/uid={object_id}'
+
+    @staticmethod
+    def _get_default_label_selector() -> str:
+        return 'mlrun/class=spark'
+
+    @staticmethod
+    def _get_crd_info() -> Tuple[str, str, str]:
+        return SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural
+
+    @staticmethod
+    def _is_crd_object_in_transient_state(crd_object) -> bool:
+        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
+        # whether it's a transient state by checking if it's not a stable state
+        return crd_object.get('status', {}).get('applicationState', {}).get('state') not in ['COMPLETED', 'FAILED']

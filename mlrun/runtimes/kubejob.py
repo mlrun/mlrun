@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from kubernetes import client
-
-from ..kfpops import build_op
-from .pod import KubeResource
-from .utils import AsyncLogWriter, default_image_name
-from ..model import RunObject
-from .base import RunError
-from ..db import RunDBError
-from ..builder import build_runtime
-from ..utils import get_in, logger
-
 import time
 from base64 import b64encode
+
+from kubernetes import client
+from kubernetes.client.rest import ApiException
+
+from mlrun.runtimes.base import BaseRuntimeHandler
+from .base import RunError
+from .pod import KubeResource
+from .utils import AsyncLogWriter, default_image_name
+from ..builder import build_runtime
+from ..db import RunDBError
+from ..kfpops import build_op
+from ..model import RunObject
+from ..utils import logger, get_in
 
 
 class KubejobRuntime(KubeResource):
@@ -104,8 +106,7 @@ class KubejobRuntime(KubeResource):
             logger.info('running build to add mlrun package, set '
                         'with_mlrun=False to skip if its already in the image')
 
-        self.spec.build.image = self.spec.build.image \
-                                or default_image_name(self)
+        self.spec.build.image = self.spec.build.image or default_image_name(self)
         self.status.state = ''
 
         if self._is_remote_api() and not is_kfp:
@@ -239,3 +240,14 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
             client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)]
 
     return pod_spec
+
+
+class KubeRuntimeHandler(BaseRuntimeHandler):
+
+    @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f'mlrun/uid={object_id}'
+
+    @staticmethod
+    def _get_default_label_selector() -> str:
+        return 'mlrun/class in (build, job)'

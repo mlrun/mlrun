@@ -2,7 +2,7 @@
 
 This guide outlines the steps for installing and running MLRun locally.
 
-> **Note:** Replace the `<namespace>` placeholder in all the commands in this guide with your cluster's Kubernetes namespace.
+> **Note:** These instructions use `mlrun` as the namespace (`-n` parameter). You may want to choose a different namespace in your kubernetes cluster.
 
 - [Run MLRun on a Local Docker Registry](#run-mlrun-on-a-local-docker-registry)
 - [Install MLRun on a Kubernetes Cluster](#install-mlrun-on-a-kubernetes-cluster)
@@ -57,11 +57,11 @@ The following example uses a shared NFS server and a Helm chart for the installa
 1. Run the following commands (provided Helm is installed):
     ```sh
     helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-    helm install -n <namespace> nfsprov stable/nfs-server-provisioner
+    helm install -n mlrun nfsprov stable/nfs-server-provisioner
     ```
-2. Create a `PersistentVolumeClaim` (PVC) for a shared NFS volume: copy the [**nfs-pvc.yaml**](https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/nfs-pvc.yaml) file to you cluster and run the following command:
+2. Create a [**PersistentVolumeClaim**](https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/nfs-pvc.yaml) (PVC) for a shared NFS volume by running the following command:
     ```sh
-    kubectl apply -n <namespace> -f nfs-pvc.yaml
+    kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/nfs-pvc.yaml
     ```
 
 <a id="k8s-install-mlrun-api-n-ui-services"></a>
@@ -70,20 +70,20 @@ The following example uses a shared NFS server and a Helm chart for the installa
 If you plan to push containers or use a private registry, you need to first create a secret with your Docker registry information.
 You can do this by running the following command:
 ```sh
-kubectl create -n <namespace> secret docker-registry my-docker --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>
+kubectl create -n mlrun secret docker-registry my-docker --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>
 ```
 
-Copy the [**mlrun-local.yaml**](https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mlrun-local.yaml) file to your cluster, edit it as needed, and run the following command from the directory that contains the file:
+Run the following command to apply [**mlrun-local.yaml**](https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mlrun-local.yaml):
 ```sh
-kubectl apply -n <namespace> -f mlrun-local.yaml
+kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mlrun-local.yaml
 ```
 
 <a id="k8s-install-jupyter-service-w-mlrun"></a>
 ### Install a Jupyter Server with a Preloaded MLRun Package.
 
-Copy the [**mljupy.yaml**](https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mljupy.yaml) file to you cluster and run the following command from the directory that contains the file:
+Run the following command to apply [**mljupy.yaml**](https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mljupy.yaml):
 ```sh
-kubectl apply -n <namespace> -f mljupy.yaml
+kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mljupy.yaml
 ```
 
 To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](https://github.com/mlrun/mlrun/blob/master/hack/local/Dockerfile.jupy)).

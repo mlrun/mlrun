@@ -118,7 +118,8 @@ parameters/hyper-parameters, etc… For more details, see the
 
 The output would be similar to text below:
 
-.. parsed-literal::
+.. highlight:: none
+::
 
     [mlrun] 2020-05-20 11:54:56,925 starting run iris_gen uid=95d9058eac2d48bdb54352e78ff57bcd  -> http://mlrun-api:8080
     [mlrun] 2020-05-20 11:54:57,188 saving iris dataframe to /User/artifacts/data
@@ -129,7 +130,8 @@ The output would be similar to text below:
    :alt: run-local output
 
 
-.. parsed-literal::
+.. highlight:: none
+::
 
     to track results use .show() or .logs() or in CLI: 
     !mlrun get run 95d9058eac2d48bdb54352e78ff57bcd --project sk-project , !mlrun logs 95d9058eac2d48bdb54352e78ff57bcd --project sk-project
@@ -165,7 +167,8 @@ points to ``mlrun/functions`` git
     #skproj.func('describe').spec.image_pull_policy = 'Always'
 
 
-.. parsed-literal::
+.. highlight:: none
+::
 
     function: describe
     describe and visualizes dataset stats
@@ -183,7 +186,7 @@ points to ``mlrun/functions`` git
 Step 2: Run the describe function as a Kubernetes job with specified
 parameters.
 
-   ``mount_v3io()`` vonnect our function to v3io shared file system and
+   ``mount_v3io()`` connects our function to v3io shared file system and
    allow us to pass the data and get back the results (plots) directly
    to our notebook, we can choose other mount options to use NFS or
    object storage
@@ -195,7 +198,8 @@ parameters.
                                                     artifact_path=artifact_path)
 
 
-.. parsed-literal::
+.. highlight:: none
+::
 
     [mlrun] 2020-05-20 11:55:01,994 starting run describe-summarize uid=9fc84dd77c4142af995c33244ef870b6  -> http://mlrun-api:8080
     [mlrun] 2020-05-20 11:55:02,173 Job is running in the background, pod: describe-summarize-x6r9q
@@ -212,7 +216,8 @@ parameters.
 
 
 
-.. parsed-literal::
+.. highlight:: none
+::
 
     to track results use .show() or .logs() or in CLI: 
     !mlrun get run 9fc84dd77c4142af995c33244ef870b6 --project sk-project , !mlrun logs 9fc84dd77c4142af995c33244ef870b6 --project sk-project
@@ -334,7 +339,8 @@ the function inputs and outputs).
 
 
 
-.. parsed-literal::
+.. highlight:: none
+::
 
     Overwriting project/workflow.py
 
@@ -376,7 +382,8 @@ the notebook is in the same git dir it will always be dirty)
 
 This would output:
 
-.. parsed-literal::
+.. highlight:: none
+::
 
     [mlrun] 2020-05-20 11:55:22,685 Pipeline run id=64d6f1e7-a582-4180-bba6-52c4a860d46b, check UI or DB for progress
 

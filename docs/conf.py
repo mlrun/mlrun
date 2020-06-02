@@ -58,6 +58,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
+    'sphinx_copybutton'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -125,8 +126,8 @@ def setup(app):
 #        f'{project_root}/README.md', 'external/general.md', 'Introduction')
 #    copy_doc(
 #        f'{project_root}/hack/local/README.md', 'external/install.md')
-    check_call([
-        'jupyter', 'nbconvert',
-        '--output', f'{project_root}/docs/external/basics.html',
-        f'{project_root}/examples/mlrun_basics.ipynb',
-    ])
+#    check_call([
+#        'jupyter', 'nbconvert',
+#        '--output', f'{project_root}/docs/external/basics.html',
+#        f'{project_root}/examples/mlrun_basics.ipynb',
+#    ])

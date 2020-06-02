@@ -9,8 +9,8 @@
 - [Managed and Portable Execution](#managed-and-portable-execution)
 - [Functions](#functions)
 - [Jobs](#jobs)
-- [Using Hyperparameters for Job Scaling](#using-hyperparameters-for-job-scaling)
-- [Automated Code Deployment and Containerization](#automated-code-deployment-and-containerization)
+  - [Using Hyperparameters for Job Scaling](#using-hyperparameters-for-job-scaling)
+  - [Automated Code Deployment and Containerization](#automated-code-deployment-and-containerization)
 - [Pipelines](#pipelines)
 - [Viewing Run Data and Performing Database Operations](#viewing-run-data-and-performing-database-operations)
   - [The MLRun Dashboard](#the-mlrun-dashboard)
@@ -24,9 +24,10 @@
 
 ##  Experiment Tracking
 Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find 3 main sections within the your project:
-1. **Functions**: The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions)
-2. **Jobs**: Allows you to review anything you executed, and review the execution outcome
-3. **Artifacts**: Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs
+1. [**Artifacts**](#artifact-management-and-versioning): Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs
+2. [**Functions**](#functions): The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions)
+3. [**Jobs**](#jobs): Allows you to review anything you executed, and review the execution outcome
+4. [**Pipelines**](#pipelines): Reusable end-to-end ML workflows
 
 You can compare different experiments and review these results. When using experiment tracking you don't have to worry about saving your work as you try out different models and various configurations, you can always compare your different results and choose the best strategy based on your current and past experiments.
 
@@ -308,7 +309,7 @@ mlrun run --name train -p p2=5 -i infile.txt=s3://my-bucket/infile.txt -s file=s
 [Back to top](#top)
 
 <a id="using-hyperparameters-for-job-scaling"></a>
-## Using Hyperparameters for Job Scaling
+### Using Hyperparameters for Job Scaling
 
 Data science involves long computation times and data-intensive tasks.
 To ensure efficiency and scalability, you need to implement parallelism whenever possible.
@@ -358,7 +359,7 @@ The following code from the [**Examples section**](examples.html) demonstrates h
 [Back to top](#top)
 
 <a id="auto-code-deployment-n-containerization"></a>
-## Automated Code Deployment and Containerization
+### Automated Code Deployment and Containerization
 
 MLRun adopts Nuclio serverless technologies for automatically packaging code and building containers.
 This enables you to provide code with some package requirements and let MLRun build and deploy your software.
@@ -410,9 +411,11 @@ fn.build(image='mlrun/nuctest:latest')
 <a id="run-ml-workflow-w-kubeflow-pipelines"></a>
 ## Pipelines
 
-ML pipeline execution with MLRun is similar to CLI execution.
-A pipeline is created by running an MLRun workflow.
-MLRun automatically saves outputs and artifacts in a way that is visible to [Kubeflow Pipelines](https://github.com/kubeflow/pipelines), and allows interconnecting steps.
+Pipelines are reusable end-to-end ML workflows. MLRun enables you to run your functions while saveing outputs and artifacts in a way that is visible to [**Kubeflow Pipelines**](https://github.com/kubeflow/pipelines), which enable:
+
+- End to end orchestration: enabling and simplifying the orchestration of end to end machine learning pipelines
+- Easy experimentation: making it easy for you to try numerous ideas and techniques, and manage your various trials/experiments.
+- Easy re-use: enabling you to re-use components and pipelines to quickly cobble together end to end solutions, without having to re-build each time.
 
 For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe)).
 The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/tree/master/sklearn-pipe/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
@@ -474,6 +477,10 @@ def kfpipeline():
     # deploy our model as a serverless function
     deploy = funcs["serving"].deploy_step(models={f"{DATASET}_v1": train.outputs['model']})
 ```
+Visually, the workflow would look as follows:
+
+![Pipeline workflow](_static/images/end-to-end-pipeline-tutorial-workflow.png)
+
 
 [Back to top](#top)
 

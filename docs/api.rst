@@ -40,7 +40,7 @@ mlrun.model module
    :show-inheritance:
 
 mlrun.execution module
-----------------
+----------------------
 
 .. automodule:: mlrun.execution
    :members:

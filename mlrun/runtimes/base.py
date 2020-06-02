@@ -796,11 +796,12 @@ class BaseRuntimeHandler(ABC):
     def _build_pod_resources(pods) -> List:
         pod_resources = []
         for pod in pods:
+            pod_dict = pod.to_dict()
             pod_resources.append(
                 {
-                    'name': pod.metadata.name,
-                    'labels': pod.metadata.labels,
-                    'status': pod.status,
+                    'name': pod_dict['metadata']['name'],
+                    'labels': pod_dict['metadata']['labels'],
+                    'status': pod_dict['status'],
                 })
         return pod_resources
 

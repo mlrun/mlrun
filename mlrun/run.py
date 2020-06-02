@@ -479,7 +479,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         fn.metadata.categories = categories
         fn.metadata.labels = labels
 
-    if not embed_code and (not filename or filename.endswith('.ipynb')):
+    if not embed_code and not code_output and (
+            not filename or filename.endswith('.ipynb')):
         raise ValueError('a valid code file must be specified '
                          'when not using the embed_code option')
 

@@ -26,22 +26,25 @@ class PlotArtifact(Artifact):
         self.viewer = 'chart'
         import matplotlib
         if not self._body or not isinstance(
-           self._body, matplotlib.figure.Figure):
+           self._body, (bytes, matplotlib.figure.Figure)):
             raise ValueError(
-                'matplotlib fig must be provided as artifact body')
+                'matplotlib fig or png bytes must be provided as artifact body')
         if not pathlib.Path(self.key).suffix:
             self.format = 'html'
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use
         using base64 encoding. """
-        from matplotlib.backends.backend_agg import \
-            FigureCanvasAgg as FigureCanvas
+        if isinstance(self._body, bytes):
+            data = self._body
+        else:
+            from matplotlib.backends.backend_agg import \
+                FigureCanvasAgg as FigureCanvas
 
-        canvas = FigureCanvas(self._body)
-        png_output = BytesIO()
-        canvas.print_png(png_output)
-        data = png_output.getvalue()
+            canvas = FigureCanvas(self._body)
+            png_output = BytesIO()
+            canvas.print_png(png_output)
+            data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode('utf-8')
         return '<img title="{}" src="data:image/png;base64,{}">'.format(

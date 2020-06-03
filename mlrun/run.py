@@ -19,7 +19,6 @@ import uuid
 from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
-from datetime import datetime
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
@@ -27,6 +26,7 @@ from tempfile import mktemp
 import yaml
 from kfp import Client
 from nuclio import build_file
+import importlib.util as imputil
 
 from .utils import retry_until_successful
 from .config import config as mlconf
@@ -35,7 +35,7 @@ from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
 from .k8s_utils import get_k8s_helper
-from .model import RunObject, BaseMetadata
+from .model import RunObject, BaseMetadata, RunTemplate
 from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, RuntimeKinds, get_runtime_class
 )
@@ -117,9 +117,79 @@ def run_local(task=None, command='', name: str = '', args: list = None,
             args = args or []
             args = sp[1:] + args
 
+    meta = BaseMetadata(name, project=project, tag=tag)
+    command, runtime = _load_func_code(command, workdir,
+                                       secrets=secrets, name=name)
+
+    if runtime:
+        handler = handler or get_in(runtime, 'spec.default_handler', '')
+        meta = BaseMetadata.from_dict(runtime['metadata'])
+        meta.name = name or meta.name
+        meta.project = project or meta.project
+        meta.tag = tag or meta.tag
+
+    fn = new_function(meta.name, command=command, args=args)
+    meta.name = fn.metadata.name
+    fn.metadata = meta
+    if workdir:
+        fn.spec.workdir = str(workdir)
+    return fn.run(task, name=name, handler=handler, params=params, inputs=inputs,
+                  artifact_path=artifact_path)
+
+
+def func_to_module(code='', workdir=None, secrets=None):
+    """Load code, notebook or mlrun function as .py module
+    this function can import a local/remote py file or notebook
+    or load an mlrun function object as a module, you can use this
+    from your code, notebook, or another function (for common libs)
+
+    Note: the function may have package requirements which must be satisfied
+
+    example:
+
+        mod = mlrun.func_to_module('./examples/training.py')
+        task = mlrun.NewTask(inputs={'infile.txt': '../examples/infile.txt'})
+        context = mlrun.get_or_create_ctx('myfunc', spec=task)
+        mod.my_job(context, p1=1, p2='x')
+        print(context.to_yaml())
+
+        fn = mlrun.import_function('hub://open_archive')
+        mod = mlrun.func_to_module(fn)
+        data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
+        context = mlrun.get_or_create_ctx('myfunc')
+        mod.open_archive(context, archive_url=data)
+        print(context.to_yaml())
+
+    :param code:    path/url to function (.py or .ipynb or .yaml)
+                    OR function object
+    :param workdir: code workdir
+    :param secrets: secrets needed to access the URL (e.g.s3, v3io, ..)
+
+    :return python module
+    """
+    command, runtime = _load_func_code(code, workdir,
+                                       secrets=secrets)
+    if not command:
+        raise ValueError('nothing to run, specify command or function')
+
+    path = Path(command)
+    mod_name = path.name
+    if path.suffix:
+        mod_name = mod_name[:-len(path.suffix)]
+    spec = imputil.spec_from_file_location(mod_name, command)
+    if spec is None:
+        raise OSError(f'cannot import from {command!r}')
+    mod = imputil.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    return mod
+
+
+
+def _load_func_code(command='', workdir=None, secrets=None, name='name'):
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
-    meta = BaseMetadata(name, project=project, tag=tag)
+    runtime = None
     if is_obj or suffix == '.yaml':
         is_remote = False
         if is_obj:
@@ -129,14 +199,8 @@ def run_local(task=None, command='', name: str = '', args: list = None,
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
 
-        handler = handler or get_in(runtime, 'spec.default_handler', '')
         command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
-
-        meta = BaseMetadata.from_dict(runtime['metadata'])
-        meta.name = name or meta.name
-        meta.project = project or meta.project
-        meta.tag = tag or meta.tag
 
         if code:
             fpath = mktemp('.py')
@@ -169,16 +233,7 @@ def run_local(task=None, command='', name: str = '', args: list = None,
     else:
         raise ValueError('unsupported suffix: {}'.format(suffix))
 
-    if not (command or handler or task):
-        raise ValueError('nothing to run, specify command or handler')
-
-    fn = new_function(meta.name, command=command, args=args)
-    meta.name = fn.metadata.name
-    fn.metadata = meta
-    if workdir:
-        fn.spec.workdir = str(workdir)
-    return fn.run(task, name=name, handler=handler, params=params, inputs=inputs,
-                  artifact_path=artifact_path)
+    return command, runtime
 
 
 def get_or_create_ctx(name: str,
@@ -248,7 +303,7 @@ def get_or_create_ctx(name: str,
     elif with_env and config:
         newspec = config
 
-    if isinstance(newspec, RunObject):
+    if isinstance(newspec, (RunObject, RunTemplate)):
         newspec = newspec.to_dict()
 
     if newspec and not isinstance(newspec, dict):

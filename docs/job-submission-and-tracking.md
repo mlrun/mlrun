@@ -71,7 +71,14 @@ MLRun will also calculate statistics on the DataFrame on all numeric fields. You
 
 ### Plots
 
-Storing plots is useful to visualize the data and to show any information regarding the model performance. For example, one can store scatter plots,  histograms and cross-correlation of the data, and for the model store the ROC curve and confusion matrix.
+Storing plots is useful to visualize the data and to show any information regarding the model performance. For example, one can store scatter plots, histograms and cross-correlation of the data, and for the model store the ROC curve and confusion matrix.
+
+For example, the following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.plot_confusion_matrix.html#sklearn.metrics.plot_confusion_matrix) and stores the plot in the artifact repository:
+
+``` python
+    cmd = metrics.plot_confusion_matrix(model, xtest, ytest, normalize='all', values_format='.2g', cmap=plt.cm.Blues)
+    context.log_artifact(PlotArtifact('confusion-matrix', body=cmd.figure_), local_path='plots/confusion_matrix.html')
+```
 
 ### Models
 

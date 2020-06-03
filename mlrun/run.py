@@ -367,7 +367,7 @@ def new_function(name: str = '', project: str = '', tag: str = '',
 
     :return: function object
     """
-    kind, runtime = process_runtime(command, runtime, kind)
+    kind, runtime = _process_runtime(command, runtime, kind)
     command = get_in(runtime, 'spec.command', command)
     name = name or get_in(runtime, 'metadata.name', '')
 
@@ -407,7 +407,7 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     return runner
 
 
-def process_runtime(command, runtime, kind):
+def _process_runtime(command, runtime, kind):
     if runtime and hasattr(runtime, 'to_dict'):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
@@ -637,10 +637,19 @@ def run_pipeline(pipeline, arguments=None, project=None, experiment=None,
 
 
 def wait_for_pipeline_completion(run_id,
-                                 namespace=None,
                                  timeout=60 * 60,
-                                 expected_statuses: typing.List[str]=None):
-    """Wait for Pipeline status, timeout in sec"""
+                                 expected_statuses: typing.List[str]=None,
+                                 namespace=None):
+    """Wait for Pipeline status, timeout in sec
+
+    :param run_id:     id of pipelines run
+    :param timeout:    wait timeout in sec
+    :param expected_statuses:  list of expected statuses, otherwise will raise
+                               succeeded | failed | skipped | error | running
+    :param namespace:  k8s namespace if not default
+
+    :return kfp run dict
+    """
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     logger.debug(f"Waiting for run completion."
@@ -696,7 +705,13 @@ def wait_for_pipeline_completion(run_id,
 
 
 def get_pipeline(run_id, namespace=None):
-    """Get Pipeline status"""
+    """Get Pipeline status
+
+    :param run_id:     id of pipelines run
+    :param namespace:  k8s namespace if not default
+
+    :return kfp run dict
+    """
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     if remote:
@@ -718,7 +733,7 @@ def get_pipeline(run_id, namespace=None):
 
 def list_piplines(full=False, page_token='', page_size=10,
                   sort_by='', experiment_id=None, namespace=None):
-    """Get or wait for Pipeline status, wait time in sec"""
+    """List pipelines"""
     namespace = namespace or mlconf.namespace
     client = Client(namespace=namespace)
     resp = client._run_api.list_runs(page_token=page_token, page_size=page_size,
@@ -762,18 +777,21 @@ def py_eval(data):
 
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):
+    """get mlrun dataitem body (from path/url)"""
     db = db or get_run_db().connect()
     stores = StoreManager(secrets, db=db)
     return stores.object(url=url).get(size, offset)
 
 
 def get_dataitem(url, secrets=None, db=None):
+    """get mlrun dataitem object (from path/url)"""
     db = db or get_run_db().connect()
     stores = StoreManager(secrets, db=db)
     return stores.object(url=url)
 
 
 def download_object(url, target, secrets=None):
+    """download mlrun dataitem (from path/url to target path)"""
     stores = StoreManager(secrets, db=get_run_db().connect())
     stores.object(url=url).download(target_path=target)
 

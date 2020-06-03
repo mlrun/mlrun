@@ -817,8 +817,9 @@ def _run_pipeline(project, name, pipeline, functions, secrets=None,
     kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
-    id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifact_path=artifact_path)
+    id = run_pipeline(kfpipeline, project=project.name, arguments=arguments,
+                      experiment=name, namespace=namespace,
+                      artifact_path=artifact_path)
     return id
 
 

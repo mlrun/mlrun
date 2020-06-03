@@ -228,7 +228,8 @@ class BaseRuntime(ModelObj):
             def_name += '-' + runspec.spec.handler_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         runspec.metadata.project = project or runspec.metadata.project \
-                                   or self.metadata.project
+                                   or self.metadata.project \
+                                   or config.default_project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.verbose = verbose or runspec.spec.verbose
@@ -253,9 +254,14 @@ class BaseRuntime(ModelObj):
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 '{{run.uid}}', meta.uid)
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                '{{run.project}}', runspec.metadata.project)
         if is_local(runspec.spec.output_path):
             logger.warning('artifact path is not defined or is local,'
                            ' artifacts will not be visible in the UI')
+            if self.kind not in ['', 'local']:
+                raise ValueError('artifact_path must be specified'
+                                 ' when running remote tasks')
         db = self._get_db()
 
         if not self.is_deployed:

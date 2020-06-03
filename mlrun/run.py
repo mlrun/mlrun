@@ -574,8 +574,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     return r
 
 
-def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
-                 namespace=None, artifact_path=None, ops=None,
+def run_pipeline(pipeline, arguments=None, project=None, experiment=None,
+                 run=None, namespace=None, artifact_path=None, ops=None,
                  url=None, ttl=None):
     """remote KubeFlow pipeline execution
 
@@ -599,6 +599,13 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     artifact_path = artifact_path or mlconf.artifact_path
     if artifact_path and '{{run.uid}}' in artifact_path:
         artifact_path.replace('{{run.uid}}', '{{workflow.uid}}')
+    if artifact_path and '{{run.project}}' in artifact_path:
+        if not project:
+            raise ValueError('project name must be specified with this' +
+                             f' artifact_path template {artifact_path}')
+        artifact_path.replace('{{run.project}}', project)
+    if not artifact_path:
+        raise ValueError('artifact path was not specified')
 
     namespace = namespace or mlconf.namespace
     arguments = arguments or {}

@@ -259,7 +259,7 @@ class BaseRuntime(ModelObj):
         if is_local(runspec.spec.output_path):
             logger.warning('artifact path is not defined or is local,'
                            ' artifacts will not be visible in the UI')
-            if self.kind not in ['', 'local']:
+            if self.kind not in ['', 'local', 'handler', 'dask']:
                 raise ValueError('artifact_path must be specified'
                                  ' when running remote tasks')
         db = self._get_db()

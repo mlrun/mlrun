@@ -185,7 +185,6 @@ def func_to_module(code='', workdir=None, secrets=None):
     return mod
 
 
-
 def _load_func_code(command='', workdir=None, secrets=None, name='name'):
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix

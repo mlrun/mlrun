@@ -137,7 +137,7 @@ def run_local(task=None, command='', name: str = '', args: list = None,
                   artifact_path=artifact_path)
 
 
-def func_to_module(code='', workdir=None, secrets=None):
+def function_to_module(code='', workdir=None, secrets=None):
     """Load code, notebook or mlrun function as .py module
     this function can import a local/remote py file or notebook
     or load an mlrun function object as a module, you can use this
@@ -147,14 +147,14 @@ def func_to_module(code='', workdir=None, secrets=None):
 
     example:
 
-        mod = mlrun.func_to_module('./examples/training.py')
+        mod = mlrun.function_to_module('./examples/training.py')
         task = mlrun.NewTask(inputs={'infile.txt': '../examples/infile.txt'})
         context = mlrun.get_or_create_ctx('myfunc', spec=task)
         mod.my_job(context, p1=1, p2='x')
         print(context.to_yaml())
 
         fn = mlrun.import_function('hub://open_archive')
-        mod = mlrun.func_to_module(fn)
+        mod = mlrun.function_to_module(fn)
         data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
         context = mlrun.get_or_create_ctx('myfunc')
         mod.open_archive(context, archive_url=data)

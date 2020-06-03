@@ -533,7 +533,8 @@ def project(context, name, url, run, arguments, artifact_path,
     print('Loading project {}{} into {}:\n'.format(
         proj.name, ' from ' + url if url else '', context))
 
-    if artifact_path and '://' not in artifact_path:
+    if artifact_path and not ('://' in artifact_path or
+                              artifact_path.startswith('/')):
         artifact_path = path.abspath(artifact_path)
     if param:
         proj.params = fill_params(param, proj.params)

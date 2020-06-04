@@ -16,3 +16,4 @@ docker cp ompi:/openmpi-4.0.3.tar.gz /tmp/
 docker rm ompi
 ```
 
+Since openmpi versions don't change often, you can build the image, push it to your registry and then just run `docker create` and `docker cp` whenever openmpi is needed.

@@ -10,7 +10,7 @@ router = APIRouter()
 
 @router.get("/healthz")
 def health():
-    mpijob_crd_version = resolve_mpijob_crd_version()
+    mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
     return {
         "version": config.version,
         "namespace": config.namespace,

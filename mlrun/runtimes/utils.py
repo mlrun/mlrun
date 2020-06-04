@@ -60,16 +60,19 @@ cached_mpijob_crd_version = None
 # if not specified, try resolving it according to the mpi-operator, otherwise set to default
 # since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
 # will change in any context - cache it
-def resolve_mpijob_crd_version():
+def resolve_mpijob_crd_version(api_context=False):
     global cached_mpijob_crd_version
     if not cached_mpijob_crd_version:
         # try getting mpijob crd version from config
         mpijob_crd_version = config.mpijob_crd_version
 
         if not mpijob_crd_version:
+            # set default mpijob crd version
+            mpijob_crd_version = MPIJobCRDVersions.default()
+
             k8s_helper = get_k8s_helper()
             remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
-            if remote:
+            if remote and not api_context:
 
                 # connect will populate the config from the server config
                 # TODO: something nicer
@@ -79,9 +82,6 @@ def resolve_mpijob_crd_version():
                 mpijob_crd_version = config.mpijob_crd_version
             else:
                 namespace = k8s_helper.resolve_namespace()
-
-                # set default mpijob crd version
-                mpijob_crd_version = MPIJobCRDVersions.default()
 
                 # try resolving according to mpi-operator that's running
                 res = k8s_helper.list_pods(namespace=namespace, selector='component=mpi-operator')

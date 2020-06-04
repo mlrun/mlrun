@@ -70,7 +70,6 @@ def resolve_mpijob_crd_version(api_context=False):
             # set default mpijob crd version
             mpijob_crd_version = MPIJobCRDVersions.default()
 
-            k8s_helper = get_k8s_helper()
             remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
             if remote and not api_context:
 
@@ -81,6 +80,7 @@ def resolve_mpijob_crd_version(api_context=False):
                     raise Exception('Server does not have configured mpijob crd version')
                 mpijob_crd_version = config.mpijob_crd_version
             else:
+                k8s_helper = get_k8s_helper()
                 namespace = k8s_helper.resolve_namespace()
 
                 # try resolving according to mpi-operator that's running

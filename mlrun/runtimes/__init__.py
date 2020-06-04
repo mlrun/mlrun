@@ -24,6 +24,7 @@ from .mpijob import MpiRuntimeV1Alpha1, MpiRuntimeV1, MPIJobCRDVersions, MpiV1Ru
 from .nuclio import nuclio_init_hook
 from .serving import MLModelServer
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
+from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
 
 class RuntimeKinds(object):
@@ -65,7 +66,7 @@ runtime_handler_instances_cache = {}
 def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
     global runtime_handler_instances_cache
     if kind == RuntimeKinds.mpijob:
-        mpijob_crd_version = _resolve_mpi_crd_version()
+        mpijob_crd_version = resolve_mpijob_crd_version()
         crd_version_to_runtime_handler_class = {
             MPIJobCRDVersions.v1alpha1: MpiV1Alpha1RuntimeHandler,
             MPIJobCRDVersions.v1: MpiV1RuntimeHandler
@@ -88,7 +89,7 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:
-        mpijob_crd_version = _resolve_mpi_crd_version()
+        mpijob_crd_version = resolve_mpijob_crd_version()
         crd_version_to_runtime = {
             MPIJobCRDVersions.v1alpha1: MpiRuntimeV1Alpha1,
             MPIJobCRDVersions.v1: MpiRuntimeV1
@@ -104,31 +105,3 @@ def get_runtime_class(kind: str):
     }
 
     return kind_runtime_map[kind]
-
-
-# resolve mpijob runtime according to the mpi-operator's supported crd-version
-# if specified on mlrun config set it likewise,
-# if not specified, try resolving it according to the mpi-operator, otherwise set to default
-def _resolve_mpi_crd_version():
-
-    # try getting mpijob crd version from config
-    mpijob_crd_version = config.mpijob_crd_version
-
-    if not mpijob_crd_version:
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace()
-
-        # set default mpijob crd version
-        mpijob_crd_version = MPIJobCRDVersions.default()
-
-        # try resolving according to mpi-operator that's running
-        res = k8s_helper.list_pods(namespace=namespace, selector='component=mpi-operator')
-        if len(res) > 0:
-            mpi_operator_pod = res[0]
-            mpijob_crd_version = mpi_operator_pod.metadata.labels.get('crd-version', mpijob_crd_version)
-
-    if mpijob_crd_version not in MPIJobCRDVersions.all():
-        raise ValueError('unsupported mpijob crd version: {}. supported versions: {}'.format(mpijob_crd_version,
-                                                                                             MPIJobCRDVersions.all()))
-
-    return mpijob_crd_version

@@ -1,0 +1,30 @@
+ARG ALPINE=3.12.0
+FROM alpine:$ALPINE
+
+LABEL maintainer="yashab@iguazio.com"
+LABEL org="iguazio.com"
+
+RUN apk update \
+    && apk add --virtual build-dependencies \
+        build-base \
+        curl \
+        gcc \
+        git \
+        linux-headers \
+        perl \
+    && apk add \
+        bash
+
+ARG OMPI=4.0.3
+RUN \
+    curl -o openmpi-$OMPI.tar.gz https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-$OMPI.tar.gz && \
+    tar zxf openmpi-$OMPI.tar.gz && \
+    cd openmpi-$OMPI && \
+    ./configure --enable-orterun-prefix-by-default --prefix=/usr/openmpi && \
+    make -j`nproc` all && \
+    make install
+
+RUN tar -czvf /tmp/openmpi-$OMPI.tar.gz /usr/openmpi
+
+ENTRYPOINT ["/bin/bash"]
+

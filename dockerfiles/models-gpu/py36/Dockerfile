@@ -126,8 +126,3 @@ LABEL MLRUN_TAG=$MLRUN_PACKAGE_TAG
 ENV MLRUN_TAG=${MLRUN_PACKAGE_TAG}
 RUN python -m pip install --no-cache-dir \
     git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
-
-ARG MLUTILS_GITHUB_REPO=mlrun
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
-RUN python -m pip install --no-cache-dir \
-    git+https://github.com/${MLUTILS_GITHUB_REPO}/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

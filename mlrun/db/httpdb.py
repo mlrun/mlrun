@@ -126,6 +126,7 @@ class HTTPRunDB(RunDBInterface):
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get('remote_host')
+            config.mpijob_crd_version = config.mpijob_crd_version or server_cfg.get('mpijob_crd_version')
             config.ui_url = config.ui_url or server_cfg.get('ui_url')
             config.artifact_path = config.artifact_path or server_cfg.get('artifact_path')
             if 'docker_registry' in server_cfg and 'DEFAULT_DOCKER_REGISTRY' not in environ:

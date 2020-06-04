@@ -15,15 +15,20 @@ import hashlib
 import json
 import os
 from copy import deepcopy
-from sys import stderr
-import pandas as pd
 from io import StringIO
-from ..utils import logger
-from ..config import config
-from .generators import selector
-from ..utils import get_in
-from ..artifacts import TableArtifact
+from sys import stderr
+
+import pandas as pd
 from kubernetes import client
+
+from mlrun.db import get_run_db
+from mlrun.k8s_utils import get_k8s_helper
+from mlrun.runtimes.types import MPIJobCRDVersions
+from .generators import selector
+from ..artifacts import TableArtifact
+from ..config import config
+from ..utils import get_in
+from ..utils import logger
 
 
 class RunError(Exception):
@@ -45,6 +50,50 @@ class _ContextStore:
 
 
 global_context = _ContextStore()
+
+
+cached_mpijob_crd_version = None
+
+
+# resolve mpijob runtime according to the mpi-operator's supported crd-version
+# if specified on mlrun config set it likewise,
+# if not specified, try resolving it according to the mpi-operator, otherwise set to default
+# since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
+# will change in any context - cache it
+def resolve_mpijob_crd_version(api_context=False):
+    global cached_mpijob_crd_version
+    if not cached_mpijob_crd_version:
+        # try getting mpijob crd version from config
+        mpijob_crd_version = config.mpijob_crd_version
+
+        if not mpijob_crd_version:
+            # set default mpijob crd version
+            mpijob_crd_version = MPIJobCRDVersions.default()
+
+            in_k8s_cluster = get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+            if in_k8s_cluster:
+                k8s_helper = get_k8s_helper()
+                namespace = k8s_helper.resolve_namespace()
+
+                # try resolving according to mpi-operator that's running
+                res = k8s_helper.list_pods(namespace=namespace, selector='component=mpi-operator')
+                if len(res) > 0:
+                    mpi_operator_pod = res[0]
+                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get('crd-version', mpijob_crd_version)
+            elif not in_k8s_cluster and not api_context:
+                # connect will populate the config from the server config
+                # TODO: something nicer
+                get_run_db().connect()
+                if not config.mpijob_crd_version:
+                    raise Exception('Server does not have configured mpijob crd version')
+                mpijob_crd_version = config.mpijob_crd_version
+
+        if mpijob_crd_version not in MPIJobCRDVersions.all():
+            raise ValueError('unsupported mpijob crd version: {}. '
+                             'supported versions: {}'.format(mpijob_crd_version, MPIJobCRDVersions.all()))
+        cached_mpijob_crd_version = mpijob_crd_version
+
+    return cached_mpijob_crd_version
 
 
 def calc_hash(func, tag=''):

@@ -14,4 +14,3 @@
 
 from .v1 import MpiRuntimeV1, MpiV1RuntimeHandler
 from .v1alpha1 import MpiRuntimeV1Alpha1, MpiV1Alpha1RuntimeHandler
-from .abstract import MPIJobCRDVersions

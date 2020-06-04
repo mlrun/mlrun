@@ -19,8 +19,9 @@ from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime, new_model_server  # noqa
 from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
-from .mpijob import MpiRuntimeV1Alpha1, MpiRuntimeV1, MPIJobCRDVersions, MpiV1RuntimeHandler, \
+from .mpijob import MpiRuntimeV1Alpha1, MpiRuntimeV1, MpiV1RuntimeHandler, \
     MpiV1Alpha1RuntimeHandler  # noqa
+from .types import MPIJobCRDVersions
 from .nuclio import nuclio_init_hook
 from .serving import MLModelServer
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa

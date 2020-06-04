@@ -19,7 +19,8 @@ from kubernetes import client
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler
-from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime, MPIJobCRDVersions
+from mlrun.runtimes.types import MPIJobCRDVersions
+from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import update_in, get_in
 
 

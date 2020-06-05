@@ -22,6 +22,11 @@ from .base import Artifact
 class PlotArtifact(Artifact):
     kind = 'plot'
 
+    def __init__(self, key=None, body=None, is_inline=False,
+                 target_path=None):
+        super().__init__(key, body, format='html',
+                         target_path=target_path)
+
     def before_log(self):
         self.viewer = 'chart'
         import matplotlib
@@ -29,8 +34,6 @@ class PlotArtifact(Artifact):
            self._body, (bytes, matplotlib.figure.Figure)):
             raise ValueError(
                 'matplotlib fig or png bytes must be provided as artifact body')
-        if not pathlib.Path(self.key).suffix:
-            self.format = 'html'
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use

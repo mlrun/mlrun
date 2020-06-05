@@ -44,8 +44,9 @@ def feature_importances(model, header):
     plt.title("features")
     plt.tight_layout()
 
-    return (PlotArtifact("feature-importances", body=plt.gcf()),
-            TableArtifact("feature-importances-tbl", df=feature_imp))
+    return (PlotArtifact("feature-importances", body=plt.gcf(),
+                         title='Feature Importances'),
+            feature_imp)
 
 
 def plot_importance(
@@ -146,7 +147,8 @@ def confusion_matrix(model, xtest, ytest, cmap='Blues'):
         values_format='.2g', cmap=plt.get_cmap(cmap))
     # for now only 1, add different views to this array for display in UI
     cmd.plot()
-    return PlotArtifact("confusion-matrix-normalized", body=cmd.figure_)
+    return PlotArtifact("confusion-matrix-normalized", body=cmd.figure_,
+                        title='Confusion Matrix - Normalized Plot')
 
 
 def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
@@ -204,7 +206,8 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     plt.title('precision recall - multiclass')
     plt.legend(lines, labels, loc=(0, -.41), prop=dict(size=10))
 
-    return PlotArtifact("precision-recall-multiclass", body=plt.gcf())
+    return PlotArtifact("precision-recall-multiclass", body=plt.gcf(),
+                        title='Multiclass Precision Recall')
 
 
 def roc_multi(ytest_b, yprob, labels):
@@ -267,7 +270,8 @@ def roc_multi(ytest_b, yprob, labels):
     plt.title('receiver operating characteristic - multiclass')
     plt.legend(loc=(0, -.68), prop=dict(size=10))
 
-    return PlotArtifact("roc-multiclass", body=plt.gcf())
+    return PlotArtifact("roc-multiclass", body=plt.gcf(),
+                        title='Multiclass ROC Curve')
 
 
 def roc_bin(ytest, yprob, clear: bool = False):
@@ -285,7 +289,8 @@ def roc_bin(ytest, yprob, clear: bool = False):
     plt.title('roc curve')
     plt.legend(loc='best')
 
-    return PlotArtifact("roc-binary", body=plt.gcf())
+    return PlotArtifact("roc-binary", body=plt.gcf(),
+                        title='Binary ROC Curve')
 
 
 def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
@@ -297,7 +302,8 @@ def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
     disp.ax_.set_title(
         f'precision recall: AP={metrics.average_precision_score(ytest, yprob):0.2f}')
 
-    return PlotArtifact("precision-recall-binary", body=disp.figure_)
+    return PlotArtifact("precision-recall-binary", body=disp.figure_,
+                        title='Binary Precision Recall')
 
 
 def plot_roc(

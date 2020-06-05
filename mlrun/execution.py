@@ -276,6 +276,10 @@ class MLClientCtx(object):
         """default output path for artifacts"""
         return self._out_path
 
+    def artifact_subpath(self, *subpaths):
+        """subpaths under output path artifacts path"""
+        return os.path.join(self._out_path,  *subpaths)
+
     @property
     def labels(self):
         """dictionary with labels (read-only)"""

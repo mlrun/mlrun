@@ -24,6 +24,7 @@ model_spec_filename = 'model_spec.yaml'
 
 
 class ModelArtifact(Artifact):
+    """ML Model artifact"""
     _dict_fields = Artifact._dict_fields + ['model_file', 'metrics', 'parameters',
                                             'inputs', 'outputs', 'extra_data']
     kind = 'model'
@@ -54,41 +55,71 @@ class ModelArtifact(Artifact):
 
     def upload(self, data_stores):
 
-        def get_src_path(filename):
-            if self.src_path:
-                return path.join(self.src_path, filename)
-            return filename
-
         target_model_path = path.join(self.target_path, self.model_file)
         body = self.get_body()
         if body:
             self._upload_body(body, data_stores, target=target_model_path)
         else:
-            src_model_path = get_src_path(self.model_file)
+            src_model_path = _get_src_path(self, self.model_file)
             if not path.isfile(src_model_path):
                 raise ValueError('model file {} not found'.format(src_model_path))
             self._upload_file(src_model_path, data_stores, target=target_model_path)
 
+        _upload_extra_data(self, self.extra_data, data_stores)
+
         spec_path = path.join(self.target_path, model_spec_filename)
         data_stores.object(url=spec_path).put(self.to_yaml())
 
-        for key, item in self.extra_data.items():
 
-            if isinstance(item, bytes):
-                target = path.join(self.target_path, key)
-                data_stores.object(url=target).put(item)
-                self.extra_data[key] = target
+def _get_src_path(model_spec: ModelArtifact, filename):
+    if model_spec.src_path:
+        return path.join(model_spec.src_path, filename)
+    return filename
 
-            elif not (item.startswith('/') or '://' in item):
-                src_path = get_src_path(item)
-                if not path.isfile(src_path):
-                    raise ValueError('extra data file {} not found'.format(src_path))
-                target = path.join(self.target_path, item)
-                data_stores.object(url=target).upload(src_path)
+
+def _upload_extra_data(model_spec: ModelArtifact, extra_data: dict,
+                       data_stores, prefix='', update_spec=False):
+    for key, item in extra_data.items():
+
+        if isinstance(item, bytes):
+            target = path.join(model_spec.target_path, key)
+            data_stores.object(url=target).put(item)
+            model_spec.extra_data[prefix + key] = target
+            continue
+
+        if not (item.startswith('/') or '://' in item):
+            src_path = _get_src_path(model_spec, item)
+            if not path.isfile(src_path):
+                raise ValueError('extra data file {} not found'.format(src_path))
+            target = path.join(model_spec.target_path, item)
+            data_stores.object(url=target).upload(src_path)
+
+        if update_spec:
+            model_spec.extra_data[prefix + key] = item
 
 
 def get_model(model_dir, suffix='', stores: StoreManager = None):
-    """return model file, model spec object, and list of extra data items"""
+    """return model file, model spec object, and list of extra data items
+
+    this function will get the model file, metadata, and extra data
+    the returned model file is always local, when using remote urls
+      (such as v3io://, s3://, store://, ..) it will be copied locally.
+
+    returned extra data dict (of key, DataItem objects) allow reading additional model files/objects
+    e.g. use DataItem.get() or .download(target) .as_df() to read
+
+    example:
+        model_file, model_artifact, extra_data = get_model(models_path, suffix='.pkl')
+        model = load(open(model_file, "rb"))
+        categories = extra_data['categories'].as_df()
+
+    :param model_dir:       model dir or artifact path (store://..) or DataItem
+    :param suffix:          model filename suffix (when using a dir)
+    :param stores:          StoreManager object (not required)
+
+    :return model filename, model artifact object, extra data dict
+
+    """
     model_file = ''
     model_spec = None
     extra_dataitems = {}
@@ -157,3 +188,67 @@ def _get_extra(stores, target, extra_data, is_dir=False):
     for k, v in extra_data.items():
         extra_dataitems[k] = stores.object(url=_get_file_path(target, v, isdir=is_dir), key=k)
     return extra_dataitems
+
+
+def update_model(model_artifact, parameters: dict = None, metrics: dict = None,
+                 extra_data: dict = None, inputs: list = None,
+                 outputs: list = None, key_prefix: str = '',
+                 labels: dict = None, stores: StoreManager = None):
+    """Update model object attributes
+
+    this method will edit or add attributes to a model object
+
+    example:
+        update_model(model_path, metrics={'speed': 100},
+                     extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
+
+    :param model_artifact:  model artifact path (store://..) or DataItem
+    :param parameters:      parameters dict
+    :param metrics:         model metrics e.g. accuracy
+    :param extra_data:      extra data items (key: path string | bytes | artifact)
+    :param inputs:          list of inputs (feature vector schema)
+    :param outputs:         list of outputs (output vector schema)
+    :param key_prefix:      key prefix to add to metrics and extra data items
+    :param labels:          metadata labels
+    :param stores:          StoreManager object (not required)
+    """
+
+    if hasattr(model_artifact, 'artifact_url'):
+        model_artifact = model_artifact.artifact_url
+
+    if not model_artifact.startswith(DB_SCHEMA + '://'):
+        raise ValueError('model path must be a model store URL/DataItem')
+
+    stores = stores or StoreManager()
+    model_spec, target = stores.get_store_artifact(model_artifact)
+    if not model_spec or model_spec.kind != 'model':
+        raise ValueError('store artifact ({}) is not model kind'.format(model_artifact))
+
+    if parameters:
+        for key, val in parameters.items():
+            model_spec.parameters[key] = val
+    if metrics:
+        for key, val in metrics.items():
+            model_spec.metrics[key_prefix + key] = val
+    if labels:
+        for key, val in labels.items():
+            model_spec.labels[key] = val
+    if inputs:
+        model_spec.inputs = inputs
+    if outputs:
+        model_spec.outputs = outputs
+
+    if extra_data:
+        for key, item in extra_data.items():
+            if hasattr(item, 'target_path'):
+                extra_data[key] = item.target_path
+
+        _upload_extra_data(model_spec, extra_data, stores,
+                           prefix=key_prefix, update_spec=True)
+
+    spec_path = path.join(model_spec.target_path, model_spec_filename)
+    stores.object(url=spec_path).put(model_spec.to_yaml())
+
+    stores._get_db().store_artifact(model_spec.db_key, model_spec.to_dict(),
+                                    model_spec.tree, iter=model_spec.iter,
+                                    project=model_spec.project)

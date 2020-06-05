@@ -19,8 +19,18 @@ from ..utils import dict_to_json
 from .base import Artifact
 
 
+plot_template = """<h3 style="text-align:center">{}</h3>
+<img title="{}" src="data:image/png;base64,{}">"""
+
+
 class PlotArtifact(Artifact):
     kind = 'plot'
+
+    def __init__(self, key=None, body=None, is_inline=False,
+                 target_path=None, title=None):
+        super().__init__(key, body, format='html',
+                         target_path=target_path)
+        self.description = title
 
     def before_log(self):
         self.viewer = 'chart'
@@ -29,8 +39,6 @@ class PlotArtifact(Artifact):
            self._body, (bytes, matplotlib.figure.Figure)):
             raise ValueError(
                 'matplotlib fig or png bytes must be provided as artifact body')
-        if not pathlib.Path(self.key).suffix:
-            self.format = 'html'
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use
@@ -47,8 +55,8 @@ class PlotArtifact(Artifact):
             data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode('utf-8')
-        return '<img title="{}" src="data:image/png;base64,{}">'.format(
-            self.key, data_uri)
+        return plot_template.format(
+            self.description or self.key, self.key, data_uri)
 
 
 chart_template = '''

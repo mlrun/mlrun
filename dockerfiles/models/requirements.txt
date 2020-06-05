@@ -23,6 +23,7 @@ git+https://github.com/scikit-multiflow/scikit-multiflow.git
 scikit-optimize>=0.7.4
 scikit-plot>=0.3.7
 tornado==6.0.4
+transformers>=2.5.0
 urllib3==1.25.8
 vaex>=2.6
 wrapt>=1.12.1

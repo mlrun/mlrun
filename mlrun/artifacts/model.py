@@ -69,9 +69,6 @@ class ModelArtifact(Artifact):
                 raise ValueError('model file {} not found'.format(src_model_path))
             self._upload_file(src_model_path, data_stores, target=target_model_path)
 
-        spec_path = path.join(self.target_path, model_spec_filename)
-        data_stores.object(url=spec_path).put(self.to_yaml())
-
         for key, item in self.extra_data.items():
 
             if isinstance(item, bytes):
@@ -85,6 +82,9 @@ class ModelArtifact(Artifact):
                     raise ValueError('extra data file {} not found'.format(src_path))
                 target = path.join(self.target_path, item)
                 data_stores.object(url=target).upload(src_path)
+
+        spec_path = path.join(self.target_path, model_spec_filename)
+        data_stores.object(url=spec_path).put(self.to_yaml())
 
 
 def get_model(model_dir, suffix='', stores: StoreManager = None):

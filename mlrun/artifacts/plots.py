@@ -23,9 +23,10 @@ class PlotArtifact(Artifact):
     kind = 'plot'
 
     def __init__(self, key=None, body=None, is_inline=False,
-                 target_path=None):
+                 target_path=None, description=None):
         super().__init__(key, body, format='html',
                          target_path=target_path)
+        self.description = description
 
     def before_log(self):
         self.viewer = 'chart'
@@ -44,6 +45,8 @@ class PlotArtifact(Artifact):
             from matplotlib.backends.backend_agg import \
                 FigureCanvasAgg as FigureCanvas
 
+            if self.description:
+                self._body.title = self.description
             canvas = FigureCanvas(self._body)
             png_output = BytesIO()
             canvas.print_png(png_output)

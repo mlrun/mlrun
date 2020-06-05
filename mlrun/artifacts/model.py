@@ -239,6 +239,10 @@ def update_model(model_artifact, parameters: dict = None, metrics: dict = None,
         model_spec.outputs = outputs
 
     if extra_data:
+        for key, item in extra_data.items():
+            if hasattr(item, 'target_path'):
+                extra_data[key] = item.target_path
+
         _upload_extra_data(model_spec, extra_data, stores,
                            prefix=key_prefix, update_spec=True)
 

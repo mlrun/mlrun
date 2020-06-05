@@ -19,6 +19,10 @@ from ..utils import dict_to_json
 from .base import Artifact
 
 
+plot_template = """<h3 style="text-align:center">{}</h3>
+<img title="{}" src="data:image/png;base64,{}">"""
+
+
 class PlotArtifact(Artifact):
     kind = 'plot'
 
@@ -51,7 +55,7 @@ class PlotArtifact(Artifact):
             data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode('utf-8')
-        return '<h3>{}</h3><img title="{}" src="data:image/png;base64,{}">'.format(
+        return plot_template.format(
             self.description or self.key, self.key, data_uri)
 
 

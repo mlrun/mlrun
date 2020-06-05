@@ -556,6 +556,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                                           kind=subkind)
 
     if code_output:
+        if code_output == '.':
+            code_output = name + '.py'
         if filename == '' or filename.endswith('.ipynb'):
             with open(code_output, 'w') as fp:
                 fp.write(code)

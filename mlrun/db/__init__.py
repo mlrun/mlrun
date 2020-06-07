@@ -14,6 +14,7 @@
 from urllib.parse import urlparse
 
 from ..config import config
+from ..platforms import refresh_credentials
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
 from .httpdb import HTTPRunDB
@@ -28,11 +29,17 @@ def get_or_set_dburl(default=''):
     return config.dbpath
 
 
-def get_httpdb_kwargs():
+def get_httpdb_kwargs(host, user, password):
+    user = user or config.httpdb.user
+    password = password or config.httpdb.password
+    user, password, token = refresh_credentials(
+        host, user, password, config.httpdb.token
+    )
+
     return {
-        'user': config.httpdb.user,
-        'password': config.httpdb.password,
-        'token': config.httpdb.token,
+        'user': user,
+        'password': password,
+        'token': token,
     }
 
 
@@ -48,7 +55,11 @@ def get_run_db(url=''):
         cls = FileRunDB
     elif scheme in ('http', 'https'):
         cls = HTTPRunDB
-        kwargs = get_httpdb_kwargs()
+        kwargs = get_httpdb_kwargs(p.hostname, p.username, p.password)
+        endpoint = p.hostname
+        if p.port:
+            endpoint += ':{}'.format(p.port)
+        url = f'{p.scheme}://{endpoint}{p.path}'
     else:
         cls = SQLDB
 

@@ -14,6 +14,8 @@
 
 import json
 from os import environ
+from urllib.parse import urlparse
+
 import requests
 from datetime import datetime
 import asyncio
@@ -23,12 +25,13 @@ import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io
+from ..platforms.iguazio import mount_v3io, refresh_credentials
 from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in, tag_image
 from ..lists import RunList
 from ..model import RunObject
+from ..config import config as mlconf
 
 serving_handler = 'handler'
 default_max_replicas = 4
@@ -245,6 +248,7 @@ class RemoteRuntime(KubeResource):
             spec.set_config('spec.minReplicas', self.spec.min_replicas)
             spec.set_config('spec.maxReplicas', self.spec.max_replicas)
 
+        dashboard = dashboard or mlconf.nuclio_dashboard
         if self.spec.base_spec:
             if kind:
                 raise ValueError('kind cannot be specified on built functions')
@@ -292,6 +296,7 @@ class RemoteRuntime(KubeResource):
         models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         project = project or self.metadata.project
+        dashboard = dashboard or mlconf.nuclio_dashboard
         return deploy_op(name, self, dashboard=dashboard,
                          project=project, models=models, env=env,
                          tag=tag, verbose=verbose)
@@ -408,3 +413,14 @@ def _fullname(project, name):
     if project:
         return '{}-{}'.format(project, name)
     return name
+
+
+def get_platform_dashboard(dashboard):
+    if '.default-tenant.' not in mlconf.dbpath:
+        return dashboard or mlconf.nuclio_dashboard
+
+    p = urlparse(mlconf.dbpath)
+    user, password, _ = refresh_credentials(p.hostname)
+    return 'https://{}:{}@{}{}'.format(
+        user, password, mlconf.nuclio_dashboard or 'nuclio-api-ex',
+        p.hostname[p.hostname.find('.'):])

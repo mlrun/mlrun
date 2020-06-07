@@ -23,6 +23,7 @@ MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``
    install
    external/remote.md
    end-to-end-pipeline
+   data-management-and-versioning
    projects
    job-submission-and-tracking
    model-management-and-serving

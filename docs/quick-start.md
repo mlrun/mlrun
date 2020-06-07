@@ -19,7 +19,7 @@
 
 MLRun requires separate containers for the API and the dashboard (UI).
 
-To install and run MLRun locally using Docker
+To install and run MLRun locally using Docker:
 ``` sh
 MLRUN_IP=localhost
 SHARED_DIR=/home/me/data
@@ -32,7 +32,21 @@ docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://
 docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data mlrun/jupy:latest
 ```
 
-Using Docker only supports local runs. To fully leverage MLRun capabilities with different runtimes on top of Kubernetes, refer to the Kuberenetes installation instructions in the [Installation Guide](install.html#k8s-cluster).
+When using Docker MLRun can only use local runs.
+
+To install MLRun on a Kubernetes cluster (e.g., on minikube) and support additional runtimes, run the following commands:
+
+``` sh
+kubectl create namespace mlrun
+helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+helm install -n mlrun nfsprov stable/nfs-server-provisioner
+kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/nfs-pvc.yaml
+kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mlrun-local.yaml
+kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mljupy.yaml
+
+```
+
+For more details regarding MLRun installation, refer to the [Installation Guide](install.html).
 
 <a id="setup"></a>
 ## MLRun Setup
@@ -206,13 +220,13 @@ entry points:
 <a id="running-functions-on-different-runtimes"></a>
 ## Running functions on different runtimes
 
-One of the key advantages of MLRun is the ability to seamlessly run your code on different runtimes. MLRun can run your code locally, jobs on Kubernetes, on Dask or MPI (Horovod). In this quickstart guide we'll show how to run on Kubernetes.
+One of the key advantages of MLRun is the ability to seamlessly run your code on different runtimes. MLRun can run your code locally, jobs on Kubernetes, on Dask or MPI (Horovod). In this quick-start guide we'll show how to run on Kubernetes.
 
 ### Accessing shared storage on Kubernetes
 
 The functions need shared storage (file or object) media to pass and store artifacts.
 
-If your are using [Iguazio data science platform](https://www.iguazio.com/) use the `mount_v3io()` auto-mount modifier. If you use other k8s PVC volumes you can use the `mlrun.platforms.mount_pvc(..)` modifier with the requiered params.
+If your are using [Iguazio data science platform](https://www.iguazio.com/) use the `mount_v3io()` auto-mount modifier. If you use other k8s PVC volumes you can use the `mlrun.platforms.mount_pvc(..)` modifier with the required params.
 
 
 ```python
@@ -372,7 +386,9 @@ The expected output is:
 <a id="pipelines"></a>
 ## Pipelines
 
-If you have [**Kubeflow Pipelines**](https://github.com/kubeflow/pipelines) installed, you can create a workflow that runs the above functions. To do that, copy the following code to **workflow.py** in your project directory (we previously set the project directory as the `conf` folder under the current directory):
+You can also [**install Kubeflow Pipelines**](https://www.kubeflow.org/docs/started/getting-started/) and use MLRun to create a workflow that runs the functions defined here.
+
+Once you have Kubeflow installed, copy the following code to **workflow.py** in your project directory (we previously set the project directory as the `conf` folder under the current directory):
 
 
 ```python

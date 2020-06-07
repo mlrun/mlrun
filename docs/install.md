@@ -6,9 +6,12 @@ This guide outlines the steps for installing and running MLRun locally.
 
 - [Run MLRun on a Local Docker Registry](#run-mlrun-on-a-local-docker-registry)
 - [Install MLRun on a Kubernetes Cluster](#install-mlrun-on-a-kubernetes-cluster)
-  - [Install Shared Volume Storage (an NFS Server Provisioner)](#install-shared-volume-storage-an-nfs-server-provisioner)
+  - [Create a namespace](#create-a-namespace)
+  - [Install a Shared Volume Storage](#install-a-shared-volume-storage)
+    - [NFS Server Provisioner](#nfs-server-provisioner)
   - [Install the MLRun API and Dashboard (UI) Services](#install-the-mlrun-api-and-dashboard-ui-services)
   - [Install a Jupyter Server with a Preloaded MLRun Package.](#install-a-jupyter-server-with-a-preloaded-mlrun-package)
+  - [Install Kubeflow](#install-kubeflow)
   - [Start Working](#start-working)
 
 <a id="local-docker"></a>
@@ -45,13 +48,27 @@ Perform the following steps to install and run MLRun on a Kubernetes cluster.
 > **Note:** The outlined procedure allows using the local, job, and Dask runtimes.
 > To use the MPIJob (Horovod) or Spark runtimes, you need to install additional custom resource definitions (CRDs).
 
-- [Install shared volume storage (an NFS server provisioner)](#k8s-install-a-shared-volume-storage)
+- [Create a namespace](#k8s-create-a-namespace)
+- [Install a shared volume storage](#k8s-install-a-shared-volume-storage)
 - [Install the MLRun API and dashboard (UI) services](#k8s-install-mlrun-api-n-ui-services)
 
+<a id=k8s-create-a-namespace></a>
+### Create a namespace
+
+Create a namespace for mlrun. For example:
+
+``` sh
+kubectl create namespace mlrun
+```
+
 <a id="k8s-install-a-shared-volume-storage"></a>
-### Install Shared Volume Storage (an NFS Server Provisioner)
+### Install a Shared Volume Storage
 
 You can use any shared file system (or object storage, with some limitations) for sharing artifacts and/or code across containers.
+
+To store data on your Kubernetes cluster itself, you will need to define a [**persistent volume**](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
+
+#### NFS Server Provisioner
 The following example uses a shared NFS server and a Helm chart for the installation:
 
 1. Run the following commands (provided Helm is installed):
@@ -87,6 +104,10 @@ kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/h
 ```
 
 To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](https://github.com/mlrun/mlrun/blob/master/hack/local/Dockerfile.jupy)).
+
+### Install Kubeflow
+
+MLRun enables you to run your functions while saving outputs and artifacts in a way that is visible to Kubeflow Pipelines. If you wish to use this capability you will need to install Kubeflow on your cluster. Refer to the [**Kubeflow documentation**](https://www.kubeflow.org/docs/started/getting-started/) for more information.
 
 <a id="k8s-install-start-working"></a>
 ### Start Working

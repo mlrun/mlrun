@@ -41,6 +41,7 @@ In addition, imagine a marketplace of ML functions that includes both open-sourc
 
 MLRun has the following main components, which are usually grouped into **"projects"**:
 
+- <a id="ref-project"></a>**Project** &mdash; a container for all your work on a particular activity. All the associated code, jobs and artifacts are organized within the projects. Projects consist of metadata, source code, workflows, data & artifacts, models, triggers and member management for user collaboration.
 - <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment).
     A function can run one or more runs or tasks, it can be created from templates, and it can be stored in a versioned database.
 - <a id="def-task"></a>**Task** &mdash; defines the parameters, inputs, and outputs of a logical job or task to execute.

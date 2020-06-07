@@ -24,11 +24,15 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             }
                         }
 
+                        dockerx.images_push_multi_registries(["${git_project}/mlrun-api:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+
                         stage("build ${git_project}/mlrun in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
                                 common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
                             }
                         }
+
+                        dockerx.images_push_multi_registries(["${git_project}/mlrun:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/base in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
@@ -36,11 +40,15 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             }
                         }
 
+                        dockerx.images_push_multi_registries(["${git_project}/ml-base:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+
                         stage("build ${git_project}/base-legacy in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
                                 common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy")
                             }
                         }
+
+                        dockerx.images_push_multi_registries(["${git_project}/ml-base:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/models in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
@@ -48,11 +56,15 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             }
                         }
 
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+
                         stage("build ${git_project}/models-legacy in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
                                 common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy")
                             }
                         }
+
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/models-gpu in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
@@ -60,57 +72,17 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             }
                         }
 
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+
                         stage("build ${git_project}/models-gpu-legacy in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
                                 common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy")
                             }
                         }
 
-                    }
+                        dockerx.images_push_multi_registries(["${git_project}/mlrun:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
-                    
-                    parallel(
-                        "push ${git_project}/api": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/mlrun-api:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        },
-                        "push ${git_project}/base": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/ml-base:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        },
-                        "push ${git_project}/base-legacy": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/ml-base:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        },
-                        "push ${git_project}/models": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/ml-models:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        },
-                        "push ${git_project}/models-legacy": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/ml-models:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        },
-                        "push ${git_project}/models-gpu": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        },
-                        "push ${git_project}/models-gpu-legacy": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        },
-                        "push ${git_project}/mlrun": {
-                            container('docker-cmd') {
-                                dockerx.images_push_multi_registries(["${git_project}/mlrun:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
-                            }
-                        }
-                    )
+                    }
                 }
             }
         }

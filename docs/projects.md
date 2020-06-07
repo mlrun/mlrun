@@ -1,7 +1,12 @@
 <a id="top"></a>
-# Projects
+# Projects <!-- omit in toc -->
 
 A Project is a container for all your work on a particular activity. All the associated code, jobs and artifacts are organized within the projects. A project is also a great way to collaborate with others, since you can share your work, as well as create projects based on existing projects.
+
+- [Creating a new project](#creating-a-new-project)
+- [Setting up Git Remote Repository](#setting-up-git-remote-repository)
+- [Loading existing projects](#loading-existing-projects)
+- [Updating the project and code](#updating-the-project-and-code)
 
 ## Creating a new project
 

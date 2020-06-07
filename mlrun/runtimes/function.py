@@ -248,7 +248,7 @@ class RemoteRuntime(KubeResource):
             spec.set_config('spec.minReplicas', self.spec.min_replicas)
             spec.set_config('spec.maxReplicas', self.spec.max_replicas)
 
-        dashboard = dashboard or mlconf.nuclio_dashboard
+        dashboard = get_platform_dashboard(dashboard)
         if self.spec.base_spec:
             if kind:
                 raise ValueError('kind cannot be specified on built functions')
@@ -296,7 +296,7 @@ class RemoteRuntime(KubeResource):
         models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         project = project or self.metadata.project
-        dashboard = dashboard or mlconf.nuclio_dashboard
+        dashboard = get_platform_dashboard(dashboard)
         return deploy_op(name, self, dashboard=dashboard,
                          project=project, models=models, env=env,
                          tag=tag, verbose=verbose)

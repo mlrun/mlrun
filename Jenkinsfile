@@ -17,80 +17,57 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                     string(credentialsId: git_deploy_user_token, variable: 'GIT_TOKEN')
             ]) {
                 github.release(git_deploy_user, git_project, git_project_user, git_project_upstream_user, true, GIT_TOKEN) {
-                    parallel(
-                        "build ${git_project}/api in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/api in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make api")
-                                    }
-                                }
-                            }
-                        },
-                        "build ${git_project}/base in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/base in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base")
-                                    }
-                                }
-                            }
-                        },
-                        "build ${git_project}/base-legacy in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/base-legacy in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy")
-                                    }
-                                }
-                            }
-                        },
-                        "build ${git_project}/models in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/models in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models")
-                                    }
-                                }
-                            }
-                        },
-                        "build ${git_project}/models-legacy in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/models-legacy in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy")
-                                    }
-                                }
-                            }
-                        },
-                        "build ${git_project}/models-gpu in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/models-gpu in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu")
-                                    }
-                                }
-                            }
-                        },
-                        "build ${git_project}/models-gpu-legacy in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/models-gpu-legacy in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy")
-                                    }
-                                }
-                            }
-                        },
-                        "build ${git_project}/mlrun in dood": {
-                            container('docker-cmd') {
-                                stage("build ${git_project}/mlrun in dood") {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
-                                    }
-                                }
+                    container('docker-cmd') {
+                        stage("build ${git_project}/api in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make api")
                             }
                         }
-                    )
+
+                        stage("build ${git_project}/mlrun in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
+                            }
+                        }
+
+                        stage("build ${git_project}/base in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base")
+                            }
+                        }
+
+                        stage("build ${git_project}/base-legacy in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy")
+                            }
+                        }
+
+                        stage("build ${git_project}/models in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models")
+                            }
+                        }
+
+                        stage("build ${git_project}/models-legacy in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy")
+                            }
+                        }
+
+                        stage("build ${git_project}/models-gpu in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu")
+                            }
+                        }
+
+                        stage("build ${git_project}/models-gpu-legacy in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy")
+                            }
+                        }
+
+                    }
+
                     
                     parallel(
                         "push ${git_project}/api": {

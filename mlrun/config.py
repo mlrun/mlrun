@@ -188,7 +188,7 @@ def read_env(env=None, prefix=env_prefix):
     svc = env.get('MLRUN_API_PORT')
     if svc and not config.get('dbpath'):
         config['dbpath'] = 'http://mlrun-api:{}'.format(
-            config['httpdb']['port'])
+            default_config['httpdb']['port'] or 8080)
 
     uisvc = env.get('MLRUN_UI_SERVICE_HOST')
     igz_domain = env.get('IGZ_NAMESPACE_DOMAIN')

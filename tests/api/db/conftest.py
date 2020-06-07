@@ -18,13 +18,15 @@ dbs = [
 
 @pytest.fixture(params=dbs)
 def db(request) -> Generator:
+    db_session = None
+
     if request.param == 'sqldb':
         dsn = "sqlite:///:memory:?check_same_thread=false"
         _init_engine(dsn)
 
         # memory sqldb remove it self when all session closed, this session will keep it up during all test
-        db_session = create_session()
         try:
+            db_session = create_session()
             init_data()
             db = SQLDB(dsn)
             db.initialize(db_session)
@@ -33,8 +35,8 @@ def db(request) -> Generator:
             close_session(db_session)
     elif request.param == 'filedb':
         db = FileDB(config.httpdb.dirpath)
-        db_session = create_session(request.param)
         try:
+            db_session = create_session(request.param)
             db.initialize(db_session)
             yield db
         finally:
@@ -46,8 +48,8 @@ def db(request) -> Generator:
 
 @pytest.fixture(params=dbs)
 def db_session(request) -> Generator:
-    db_session = create_session(request.param)
     try:
+        db_session = create_session(request.param)
         yield db_session
     finally:
         close_session(db_session)

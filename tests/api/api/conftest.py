@@ -12,13 +12,11 @@ from mlrun.utils import logger
 
 @pytest.fixture()
 def db() -> Generator:
-    db_file = NamedTemporaryFile(suffix="-mlrun.db")
-    logger.info(f"Created temp db file: {db_file.name}")
-    _init_engine(f"sqlite:///{db_file.name}?check_same_thread=false")
-    init_data()
-    yield create_session()
-    logger.info(f"Removing temp db file: {db_file.name}")
-    db_file.close()
+    with NamedTemporaryFile(suffix="-mlrun.db") as db_file:
+        logger.info(f"Created temp db file: {db_file.name}")
+        _init_engine(f"sqlite:///{db_file.name}?check_same_thread=false")
+        init_data()
+        yield create_session()
 
 
 @pytest.fixture()

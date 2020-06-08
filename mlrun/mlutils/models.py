@@ -337,7 +337,7 @@ def eval_model_v2(
 
     ypred = model.predict(xtest, **pred_params)
     context.log_results({
-        "test-accuracy": float(metrics.accuracy_score(ytest, ypred)),
+        "accuracy": float(metrics.accuracy_score(ytest, ypred)),
         "test-error": np.sum(ytest != ypred) / ytest.shape[0]})
 
     # PROBABILITIES

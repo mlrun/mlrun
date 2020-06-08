@@ -41,6 +41,8 @@ _none_type = type(None)
 default_config = {
     'namespace': 'default-tenant',   # default kubernetes namespace
     'dbpath': '',                    # db/api url
+    # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
+    'nuclio_dashboard_url': '',
     'ui_url': '',                    # remote/external mlrun UI url (for hyperlinks)
     'remote_host': '',
     'version': '',                   # will be set to current version
@@ -186,7 +188,8 @@ def read_env(env=None, prefix=env_prefix):
     # check for mlrun-api or db kubernetes service
     svc = env.get('MLRUN_API_PORT')
     if svc and not config.get('dbpath'):
-        config['dbpath'] = 'http://' + urlparse(svc).netloc
+        config['dbpath'] = 'http://mlrun-api:{}'.format(
+            default_config['httpdb']['port'] or 8080)
 
     uisvc = env.get('MLRUN_UI_SERVICE_HOST')
     igz_domain = env.get('IGZ_NAMESPACE_DOMAIN')

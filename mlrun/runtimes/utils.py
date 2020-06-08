@@ -220,7 +220,12 @@ def results_to_iter(results, runspec, execution):
     if not runspec:
         return summary
 
-    item, id = selector(results, runspec.spec.selector)
+    criteria = runspec.spec.selector
+    item, id = selector(results, criteria)
+    if runspec.spec.selector and not id:
+        logger.warning(f'no best result selected, check selector ({criteria}) or results')
+    if id:
+        logger.info(f'best iteration={id}, used criteria {criteria}')
     task = results[item] if id and results else None
     execution.log_iteration_results(id, summary, task)
 

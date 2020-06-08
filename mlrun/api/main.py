@@ -41,14 +41,20 @@ async def shutdown_event():
 
 
 def _start_periodic_cleanup():
+    logger.info('Starting periodic runtimes cleanup')
     run_function_periodically(config.runtimes_cleanup_interval, _cleanup_runtimes)
 
 
 def _cleanup_runtimes():
     logger.debug('Cleaning runtimes')
-    for kind in RuntimeKinds.runtime_with_handlers():
-        runtime_handler = get_runtime_handler(kind)
-        runtime_handler.delete_resources()
+    db_session = create_session()
+    try:
+        for kind in RuntimeKinds.runtime_with_handlers():
+            runtime_handler = get_runtime_handler(kind)
+            runtime_handler.delete_resources(get_db(), db_session)
+    finally:
+        close_session(db_session)
+
 
 
 def _reschedule_tasks():

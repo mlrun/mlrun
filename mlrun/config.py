@@ -34,27 +34,56 @@ env_prefix = 'MLRUN_'
 env_file_key = f'{env_prefix}CONIFG_FILE'
 
 default_config = {
-    'namespace': 'default-tenant',  # default kubernetes namespace
-    'dbpath': '',  # db/api url
+
+    # default kubernetes namespace
+    'namespace': 'default-tenant',
+
+    # db/api url
+    'dbpath': '',
+
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     'nuclio_dashboard_url': '',
-    'ui_url': '',  # remote/external mlrun UI url (for hyperlinks)
+
+    # remote/external mlrun UI url (for hyperlinks)
+    'ui_url': '',
     'remote_host': '',
-    'version': '',  # will be set to current version
-    'images_tag': '',  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
-    'kfp_ttl': '86400',  # KFP ttl in sec, after that completed PODs will be deleted
-    'kfp_image': '',  # image to use for KFP runner (defaults to mlrun/mlrun)
-    'kaniko_version': 'v0.19.0',  # kaniko builder version
-    'package_path': 'mlrun',  # mlrun pip package
+
+    # will be set to current version
+    'version': '',
+
+    # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
+    'images_tag': '',
+
+    # KFP ttl in sec, after that completed PODs will be deleted
+    'kfp_ttl': '86400',
+
+    # image to use for KFP runner (defaults to mlrun/mlrun)
+    'kfp_image': '',
+
+    # kaniko builder version
+    'kaniko_version': 'v0.19.0',
+
+    # mlrun pip package
+    'package_path': 'mlrun',
     'default_image': 'python:3.6-jessie',
-    'default_project': 'default',  # default project name
-    'default_archive': '',  # default remote archive URL (for build tar.gz)
-    'mpijob_crd_version': '',  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
+
+    # default project name
+    'default_project': 'default',
+
+    # default remote archive URL (for build tar.gz)
+    'default_archive': '',
+
+    # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
+    'mpijob_crd_version': '',
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'ERROR',
-    'submit_timeout': '180',  # timeout when submitting a new k8s resource
-    'artifact_path': '',  # default artifacts path/url
+
+    # timeout when submitting a new k8s resource
+    'submit_timeout': '180',
+
+    # default artifacts path/url
+    'artifact_path': '',
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
@@ -134,7 +163,7 @@ class Config(object):
         for key, value in d.items():
             if hasattr(self, key):
                 if isinstance(value, dict):
-                    getattr(self, key)._update(value)
+                    getattr(self, key).update(value)
                 else:
                     setattr(self, key, value)
 

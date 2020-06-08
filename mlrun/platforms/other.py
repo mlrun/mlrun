@@ -41,12 +41,16 @@ def mount_pvc(pvc_name='pipeline-claim', volume_name='pipeline', volume_mount_pa
     return _mount_pvc
 
 
-def auto_mount():
-    """choose the mount based on env variables
+def auto_mount(pvc_name='', volume_mount_path=''):
+    """choose the mount based on env variables and params
 
-    set V3IO_ACCESS_KEY and V3IO_USERNAME for iguazio v3io
-    or MLRUN_PVC_MOUNT=<pvc-name>:<mount-path> for k8s pvc
+    volume will be selected by the following order:
+    - k8s PVC volume when both pvc_name and volume_mount_path are set
+    - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
+    - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     """
+    if pvc_name and volume_mount_path:
+        return mount_pvc(volume_name=pvc_name, volume_mount_path=volume_mount_path)
     if 'V3IO_ACCESS_KEY' in os.environ:
         return mount_v3io()
     if 'MLRUN_PVC_MOUNT' in os.environ:

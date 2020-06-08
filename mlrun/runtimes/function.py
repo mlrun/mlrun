@@ -25,7 +25,7 @@ import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io, get_or_create_control_session, is_iguazio_endpoint
+from ..platforms.iguazio import mount_v3io, add_or_refresh_credentials, is_iguazio_endpoint
 from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in, tag_image
@@ -419,10 +419,11 @@ def get_auth_filled_platform_dashboard_url(dashboard: str) -> str:
     if not is_iguazio_endpoint(mlconf.dbpath):
         return dashboard or mlconf.nuclio_dashboard_url
 
+    # todo: workaround for 2.8 use nuclio_dashboard_url for subdns name
     parsed_dbpath = urlparse(mlconf.dbpath)
-    user, control_session = get_or_create_control_session(parsed_dbpath.hostname)
+    user, control_session = add_or_refresh_credentials(parsed_dbpath.hostname)
     return 'https://{}:{}@{}{}'.format(
         user,
         control_session,
-        mlconf.nuclio_dashboard_url or 'nuclio-api-ex',
+        mlconf.nuclio_dashboard_url or 'nuclio-api-ext',
         parsed_dbpath.hostname[parsed_dbpath.hostname.find('.'):])

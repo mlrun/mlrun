@@ -14,7 +14,7 @@
 from urllib.parse import urlparse
 
 from ..config import config
-from ..platforms import get_or_create_control_session
+from ..platforms import add_or_refresh_credentials
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
 from .httpdb import HTTPRunDB
@@ -32,16 +32,14 @@ def get_or_set_dburl(default=''):
 def get_httpdb_kwargs(host, username, password):
     username = username or config.httpdb.user
     password = password or config.httpdb.password
-    if not config.httpdb.token:
 
-        # we assign the control session to the password since this is iguazio auth scheme
-        # (requests should be sent with username:control_session as auth header)
-        username, password = get_or_create_control_session(host, username, password)
+    username, password, token = add_or_refresh_credentials(
+        host, username, password, config.httpdb.token)
 
     return {
         'user': username,
         'password': password,
-        'token': config.httpdb.token,
+        'token': token,
     }
 
 

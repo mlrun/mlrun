@@ -58,6 +58,9 @@ default_config = {
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'ERROR',
+
+    # log formatter (options: json | human)
+    'log_formatter': 'human',
     'submit_timeout': '180',         # timeout when submitting a new k8s resource
     'artifact_path': '',             # default artifacts path/url
     'httpdb': {

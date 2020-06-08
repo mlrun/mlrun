@@ -15,12 +15,12 @@
 import time
 import hashlib
 import json
-import logging
+import sys
 import pathlib
 import re
 from datetime import datetime, timezone
 from os import path, environ
-from sys import stdout
+from .clients.logger import create_logger
 
 import numpy as np
 import requests
@@ -37,23 +37,7 @@ hub_prefix = 'hub://'
 DB_SCHEMA = 'store'
 
 
-def create_logger(stream=None):
-    level = logging.INFO
-    if config.log_level.lower() == 'debug':
-        level = logging.DEBUG
-    handler = logging.StreamHandler(stream or stdout)
-    handler.setFormatter(
-        logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
-    handler.setLevel(level)
-    logger = logging.getLogger('mlrun')
-    if not len(logger.handlers):
-        logger.addHandler(handler)
-    logger.setLevel(level)
-    logger.propagate = False
-    return logger
-
-
-logger = create_logger()
+logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
 is_ipython = False

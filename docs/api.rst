@@ -2,7 +2,7 @@ API
 ===
 
 mlrun Module contents
----------------
+---------------------
 
 .. automodule:: mlrun
    :members:
@@ -38,3 +38,9 @@ mlrun.model module
 .. automodule:: mlrun.model
    :members:
    :show-inheritance:
+
+mlrun.execution module
+----------------------
+
+.. automodule:: mlrun.execution
+   :members:

@@ -104,14 +104,13 @@ class Logger(object):
 class LoggerFormatterEnum(Enum):
     HUMAN = 'human'
     JSON = 'json'
-    DEFAULT = 'default'
 
 
 def _resolve_formatter(logger_formatter: LoggerFormatterEnum):
     return {
         LoggerFormatterEnum.HUMAN: HumanReadableFormatter(),
         LoggerFormatterEnum.JSON: JSONFormatter(),
-    }.get(logger_formatter, logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
+    }[logger_formatter]
 
 
 def create_logger(level: str = "debug",

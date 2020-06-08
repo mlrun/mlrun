@@ -59,7 +59,7 @@ default_config = {
     'ipython_widget': True,
     'log_level': 'ERROR',
 
-    # log formatter (options: json | human)
+    # log formatter (options: human | json)
     'log_formatter': 'human',
     'submit_timeout': '180',         # timeout when submitting a new k8s resource
     'artifact_path': '',             # default artifacts path/url

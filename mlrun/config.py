@@ -59,6 +59,9 @@ default_config = {
     'ipython_widget': True,
     'log_level': 'ERROR',
     'submit_timeout': '180',         # timeout when submitting a new k8s resource
+
+    # runtimes cleanup interval in seconds
+    'runtimes_cleanup_interval': '60',
     'artifact_path': '',             # default artifacts path/url
     'httpdb': {
         'port': 8080,

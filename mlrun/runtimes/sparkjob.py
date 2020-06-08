@@ -17,7 +17,9 @@ from typing import Tuple
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from sqlalchemy.orm import Session
 
+from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
 from .kubejob import KubejobRuntime
@@ -272,7 +274,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural
 
     @staticmethod
-    def _is_crd_object_in_transient_state(crd_object) -> bool:
+    def _is_crd_object_in_transient_state(db: DBInterface, db_session: Session, crd_object) -> bool:
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
         return crd_object.get('status', {}).get('applicationState', {}).get('state') not in ['COMPLETED', 'FAILED']

@@ -15,12 +15,14 @@ import typing
 from copy import deepcopy
 
 from kubernetes import client
+from sqlalchemy.orm import Session
 
+from mlrun.api.db.base import DBInterface
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler
-from mlrun.runtimes.types import MPIJobCRDVersions
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
+from mlrun.runtimes.types import MPIJobCRDVersions
 from mlrun.utils import update_in, get_in
 
 
@@ -127,7 +129,7 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         return MpiRuntimeV1Alpha1.crd_group, MpiRuntimeV1Alpha1.crd_version, MpiRuntimeV1Alpha1.crd_plural
 
     @staticmethod
-    def _is_crd_object_in_transient_state(crd_object) -> bool:
+    def _is_crd_object_in_transient_state(db: DBInterface, db_session: Session, crd_object) -> bool:
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
         return crd_object.get('status', {}).get('launcherStatus', '') not in ['Succeeded', 'Failed']

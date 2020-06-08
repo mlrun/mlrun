@@ -305,6 +305,8 @@ def get_resource_labels(function, uid=None):
     labels[mlrun_key + 'function'] = '{}'.format(meta.name)
     labels[mlrun_key + 'tag'] = '{}'.format(meta.tag or 'latest')
 
+    uid = uid or meta.uid
+
     if uid:
         labels[mlrun_key + 'uid'] = uid
 

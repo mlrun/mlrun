@@ -18,7 +18,7 @@ from copy import deepcopy
 from kubernetes import client
 from kfp.dsl import ContainerOp
 
-from .utils import apply_kfp, set_named_item, get_item_name
+from .utils import apply_kfp, set_named_item, get_item_name, get_resource_labels
 from ..utils import normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec
 
@@ -151,8 +151,7 @@ class KubeResource(BaseRuntime):
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
-        uid = runobj.metadata.uid
-        labels = {'mlrun/class': self.kind, 'mlrun/uid': uid}
+        labels = get_resource_labels(runobj)
         new_meta = client.V1ObjectMeta(namespace=namespace,
                                        labels=labels)
 

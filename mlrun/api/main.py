@@ -56,7 +56,6 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-
 def _reschedule_tasks():
     db_session = None
     try:

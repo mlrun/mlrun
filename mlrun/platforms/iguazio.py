@@ -16,9 +16,10 @@ import os
 import requests
 import urllib3
 from datetime import datetime
+from mlrun.config import config
 
 
-_control_session = None
+_cached_control_session = None
 
 
 def xcp_op(src, dst, f='', recursive=False, mtime='', log_level='info', minsize=0, maxsize=0):
@@ -185,11 +186,11 @@ class OutputStream:
                                                  records=records)
 
 
-def gen_v1_session_key(url, username, password):
+def create_control_session(url, username, password):
     # for systems without production cert - silence no cert verification WARN
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     if not username or not password:
-        raise ValueError('cannot create session key, missing user or password')
+        raise ValueError('cannot create session key, missing username or password')
 
     session = requests.Session()
     session.auth = (username, password)
@@ -199,33 +200,42 @@ def gen_v1_session_key(url, username, password):
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
 
     if not auth.ok:
-        raise OSError('failed to get session id from {}, {}'.format(
-            url, auth.text))
+        raise OSError('failed to create session: {}, {}'.format(url, auth.text))
 
     return auth.json()['data']['id']
 
 
-def refresh_credentials(endpoint, user='', password='', token=''):
-    if token or '.default-tenant.' not in endpoint or len(password) > 20:
-        return user, password, token
+def is_iguazio_endpoint(endpoint_url: str) -> bool:
+    # TODO: find a better heuristic
+    return '.default-tenant.' in endpoint_url
 
-    user = user or os.environ.get('V3IO_USERNAME')
-    password = password or os.environ.get('V3IO_PASSWORD')
 
-    global _control_session
+def is_iguazio_control_session(value: str) -> bool:
+    # TODO: find a better heuristic
+    return len(value) > 20 and '-' in value
+
+
+def get_or_create_control_session(api_url: str, username: str = '', password: str = '') -> (str, str):
+    # this may be called in "open source scenario" so in this case (not iguazio endpoint) simply do nothing
+    if not is_iguazio_endpoint(api_url) or is_iguazio_control_session(password):
+        return username, password
+
+    username = username or config.httpdb.user or os.environ.get('V3IO_USERNAME')
+    password = password or config.httpdb.password or os.environ.get('V3IO_PASSWORD')
+
+    if not username or not password:
+        raise ValueError('username and password needed to create session')
+
+    global _cached_control_session
     now = datetime.now()
-    if _control_session:
-        if (now - _control_session[1]).seconds < 20 * 60 * 60:
-            return _control_session[2], _control_session[0], ''
+    if _cached_control_session:
+        if _cached_control_session[2] == username and _cached_control_session[3] == password \
+                and (now - _cached_control_session[1]).seconds < 20 * 60 * 60:
+            return _cached_control_session[2], _cached_control_session[0]
 
-        user = user or _control_session[2]
-        password = password or _control_session[3]
-
-    if not user:
-        raise ValueError('username and password needed to obtain session')
-    dashboard_url = 'https://dashboard' + endpoint[endpoint.find('.'):]
-    key = gen_v1_session_key(dashboard_url, user, password)
-    _control_session = (key, now, user, password)
-    return user, key, ''
+    iguazio_dashboard_url = 'https://dashboard' + api_url[api_url.find('.'):]
+    control_session = create_control_session(iguazio_dashboard_url, username, password)
+    _cached_control_session = (control_session, now, username, password)
+    return username, control_session
 
 

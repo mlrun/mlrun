@@ -41,7 +41,8 @@ _none_type = type(None)
 default_config = {
     'namespace': 'default-tenant',   # default kubernetes namespace
     'dbpath': '',                    # db/api url
-    'nuclio_dashboard': '',          # url to nuclio dashboard api (can be with user & token)
+    # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
+    'nuclio_dashboard_url': '',
     'ui_url': '',                    # remote/external mlrun UI url (for hyperlinks)
     'remote_host': '',
     'version': '',                   # will be set to current version

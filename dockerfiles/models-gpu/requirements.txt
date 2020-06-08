@@ -18,6 +18,6 @@ networkx>=2.4
 opencv-contrib-python>=4.2.0.34
 pyod>=0.7.9
 tornado==6.0.4
-transformers>=2.10
+transformers>=2.11
 vaex>=2.6
 urllib3==1.25.8 

@@ -23,7 +23,7 @@ from kubernetes import client
 
 from mlrun.db import get_run_db
 from mlrun.k8s_utils import get_k8s_helper
-from mlrun.runtimes.types import MPIJobCRDVersions
+from mlrun.runtimes.constants import MPIJobCRDVersions
 from .generators import selector
 from ..artifacts import TableArtifact
 from ..config import config

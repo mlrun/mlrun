@@ -23,7 +23,7 @@ from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
-from mlrun.runtimes.types import MPIJobCRDVersions
+from mlrun.runtimes.constants import MPIJobCRDVersions
 from mlrun.utils import update_in, get_in
 
 

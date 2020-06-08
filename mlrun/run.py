@@ -19,7 +19,6 @@ import uuid
 from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
-from datetime import datetime
 from os import environ, makedirs, path
 from pathlib import Path
 from tempfile import mktemp
@@ -27,6 +26,7 @@ from tempfile import mktemp
 import yaml
 from kfp import Client
 from nuclio import build_file
+import importlib.util as imputil
 
 from .utils import retry_until_successful
 from .config import config as mlconf
@@ -35,7 +35,7 @@ from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
 from .k8s_utils import get_k8s_helper
-from .model import RunObject, BaseMetadata
+from .model import RunObject, BaseMetadata, RunTemplate
 from .runtimes import (
     HandlerRuntime, LocalRuntime, RemoteRuntime, RuntimeKinds, get_runtime_class
 )
@@ -117,9 +117,78 @@ def run_local(task=None, command='', name: str = '', args: list = None,
             args = args or []
             args = sp[1:] + args
 
+    meta = BaseMetadata(name, project=project, tag=tag)
+    command, runtime = _load_func_code(command, workdir,
+                                       secrets=secrets, name=name)
+
+    if runtime:
+        handler = handler or get_in(runtime, 'spec.default_handler', '')
+        meta = BaseMetadata.from_dict(runtime['metadata'])
+        meta.name = name or meta.name
+        meta.project = project or meta.project
+        meta.tag = tag or meta.tag
+
+    fn = new_function(meta.name, command=command, args=args)
+    meta.name = fn.metadata.name
+    fn.metadata = meta
+    if workdir:
+        fn.spec.workdir = str(workdir)
+    return fn.run(task, name=name, handler=handler, params=params, inputs=inputs,
+                  artifact_path=artifact_path)
+
+
+def function_to_module(code='', workdir=None, secrets=None):
+    """Load code, notebook or mlrun function as .py module
+    this function can import a local/remote py file or notebook
+    or load an mlrun function object as a module, you can use this
+    from your code, notebook, or another function (for common libs)
+
+    Note: the function may have package requirements which must be satisfied
+
+    example:
+
+        mod = mlrun.function_to_module('./examples/training.py')
+        task = mlrun.NewTask(inputs={'infile.txt': '../examples/infile.txt'})
+        context = mlrun.get_or_create_ctx('myfunc', spec=task)
+        mod.my_job(context, p1=1, p2='x')
+        print(context.to_yaml())
+
+        fn = mlrun.import_function('hub://open_archive')
+        mod = mlrun.function_to_module(fn)
+        data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
+        context = mlrun.get_or_create_ctx('myfunc')
+        mod.open_archive(context, archive_url=data)
+        print(context.to_yaml())
+
+    :param code:    path/url to function (.py or .ipynb or .yaml)
+                    OR function object
+    :param workdir: code workdir
+    :param secrets: secrets needed to access the URL (e.g.s3, v3io, ..)
+
+    :return python module
+    """
+    command, runtime = _load_func_code(code, workdir,
+                                       secrets=secrets)
+    if not command:
+        raise ValueError('nothing to run, specify command or function')
+
+    path = Path(command)
+    mod_name = path.name
+    if path.suffix:
+        mod_name = mod_name[:-len(path.suffix)]
+    spec = imputil.spec_from_file_location(mod_name, command)
+    if spec is None:
+        raise OSError(f'cannot import from {command!r}')
+    mod = imputil.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    return mod
+
+
+def _load_func_code(command='', workdir=None, secrets=None, name='name'):
     is_obj = hasattr(command, 'to_dict')
     suffix = '' if is_obj else Path(command).suffix
-    meta = BaseMetadata(name, project=project, tag=tag)
+    runtime = None
     if is_obj or suffix == '.yaml':
         is_remote = False
         if is_obj:
@@ -129,14 +198,8 @@ def run_local(task=None, command='', name: str = '', args: list = None,
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
 
-        handler = handler or get_in(runtime, 'spec.default_handler', '')
         command = get_in(runtime, 'spec.command', '')
         code = get_in(runtime, 'spec.build.functionSourceCode')
-
-        meta = BaseMetadata.from_dict(runtime['metadata'])
-        meta.name = name or meta.name
-        meta.project = project or meta.project
-        meta.tag = tag or meta.tag
 
         if code:
             fpath = mktemp('.py')
@@ -169,16 +232,7 @@ def run_local(task=None, command='', name: str = '', args: list = None,
     else:
         raise ValueError('unsupported suffix: {}'.format(suffix))
 
-    if not (command or handler or task):
-        raise ValueError('nothing to run, specify command or handler')
-
-    fn = new_function(meta.name, command=command, args=args)
-    meta.name = fn.metadata.name
-    fn.metadata = meta
-    if workdir:
-        fn.spec.workdir = str(workdir)
-    return fn.run(task, name=name, handler=handler, params=params, inputs=inputs,
-                  artifact_path=artifact_path)
+    return command, runtime
 
 
 def get_or_create_ctx(name: str,
@@ -248,7 +302,7 @@ def get_or_create_ctx(name: str,
     elif with_env and config:
         newspec = config
 
-    if isinstance(newspec, RunObject):
+    if isinstance(newspec, (RunObject, RunTemplate)):
         newspec = newspec.to_dict()
 
     if newspec and not isinstance(newspec, dict):
@@ -367,7 +421,7 @@ def new_function(name: str = '', project: str = '', tag: str = '',
 
     :return: function object
     """
-    kind, runtime = process_runtime(command, runtime, kind)
+    kind, runtime = _process_runtime(command, runtime, kind)
     command = get_in(runtime, 'spec.command', command)
     name = name or get_in(runtime, 'metadata.name', '')
 
@@ -407,7 +461,7 @@ def new_function(name: str = '', project: str = '', tag: str = '',
     return runner
 
 
-def process_runtime(command, runtime, kind):
+def _process_runtime(command, runtime, kind):
     if runtime and hasattr(runtime, 'to_dict'):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
@@ -439,31 +493,32 @@ def parse_command(runtime, url):
 
 
 def code_to_function(name: str = '', project: str = '', tag: str = '',
-                     filename: str = '', handler='', runtime='', kind='',
-                     image=None, code_output='', embed_code=True,
-                     with_doc=True):
+                     filename: str = '', handler: str = '', kind: str = '',
+                     image: str = None, code_output='', embed_code=True,
+                     description='', categories: list = None,
+                     labels: dict = None, with_doc=True):
     """convert code or notebook to function object with embedded code
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
 
-    :param name:       function name
-    :param project:    function project (none for 'default')
-    :param tag:        function tag (none for 'latest')
-    :param filename:   blank for current notebook, or path to .py/.ipynb file
-    :param handler:    name of function handler (if not main)
-    :param runtime:    optional, runtime type local, job, dask, mpijob, ..
-    :param kind:       optional, runtime type local, job, dask, mpijob, ..
-    :param image:      optional, container image
+    :param name:        function name
+    :param project:     function project (none for 'default')
+    :param tag:         function tag (none for 'latest')
+    :param filename:    blank for current notebook, or path to .py/.ipynb file
+    :param handler:     name of function handler (if not main)
+    :param kind:        optional, runtime type local, job, dask, mpijob, ..
+    :param image:       optional, container image
     :param code_output: save the generated code (from notebook) in that path
-    :param embed_code: embed the source code into the function spec
+    :param embed_code:  embed the source code into the function spec
+    :param description: function description
+    :param categories:  list of categories (for function marketplace)
+    :param labels:      dict of label names and values to tag the function
+    :param with_doc:    document the function parameters
 
     :return:
            function object
     """
     filebase, _ = path.splitext(path.basename(filename))
-    if runtime:
-        logger.warning('"runtime=" param is deprecated, use "kind="')
-    kind = runtime or kind  # for backwards computability
 
     def add_name(origin, name=''):
         name = filename or (name + '.ipynb')
@@ -471,7 +526,15 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
             return name
         return '{}:{}'.format(origin, name)
 
-    if not embed_code and (not filename or filename.endswith('.ipynb')):
+    def update_meta(fn):
+        fn.spec.description = description
+        fn.metadata.project = project
+        fn.metadata.tag = tag
+        fn.metadata.categories = categories
+        fn.metadata.labels = labels
+
+    if not embed_code and not code_output and (
+            not filename or filename.endswith('.ipynb')):
         raise ValueError('a valid code file must be specified '
                          'when not using the embed_code option')
 
@@ -493,6 +556,8 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
                                           kind=subkind)
 
     if code_output:
+        if code_output == '.':
+            code_output = name + '.py'
         if filename == '' or filename.endswith('.ipynb'):
             with open(code_output, 'w') as fp:
                 fp.write(code)
@@ -515,17 +580,13 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         if not name:
             raise ValueError('name must be specified')
         r.metadata.name = name
-        r.metadata.project = project
-        r.metadata.tag = tag
         r.spec.build.code_origin = code_origin
+        update_meta(r)
         return r
 
     if kind is None or kind in ['', 'Function']:
         raise ValueError('please specify the function kind')
     elif kind in ['local']:
-        if not code_output and embed_code:
-            raise ValueError('code_output path or embed_code=False should be'
-                             ' specified for local runtime')
         r = LocalRuntime()
     elif kind in RuntimeKinds.all():
         r = get_runtime_class(kind)()
@@ -539,20 +600,19 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
     h = get_in(spec, 'spec.handler', '').split(':')
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, 'spec.metadata')
-    r.metadata.project = project
     r.metadata.name = name
-    r.metadata.tag = tag
     r.spec.image = get_in(spec, 'spec.image', image)
     build = r.spec.build
     build.code_origin = code_origin
     build.base_image = get_in(spec, 'spec.build.baseImage')
     build.commands = get_in(spec, 'spec.build.commands')
-    if code_output:
-        r.spec.command = code_output
-    elif not embed_code:
-        r.spec.command = filename
-    else:
+    if embed_code:
         build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+    else:
+        if code_output:
+            r.spec.command = code_output
+        else:
+            r.spec.command = filename
 
     build.image = get_in(spec, 'spec.build.image')
     build.secret = get_in(spec, 'spec.build.secret')
@@ -566,11 +626,12 @@ def code_to_function(name: str = '', project: str = '', tag: str = '',
         handlers = find_handlers(code)
         r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
     r.spec.default_handler = handler
+    update_meta(r)
     return r
 
 
-def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
-                 namespace=None, artifact_path=None, ops=None,
+def run_pipeline(pipeline, arguments=None, project=None, experiment=None,
+                 run=None, namespace=None, artifact_path=None, ops=None,
                  url=None, ttl=None):
     """remote KubeFlow pipeline execution
 
@@ -594,6 +655,13 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
     artifact_path = artifact_path or mlconf.artifact_path
     if artifact_path and '{{run.uid}}' in artifact_path:
         artifact_path.replace('{{run.uid}}', '{{workflow.uid}}')
+    if artifact_path and '{{run.project}}' in artifact_path:
+        if not project:
+            raise ValueError('project name must be specified with this' +
+                             f' artifact_path template {artifact_path}')
+        artifact_path.replace('{{run.project}}', project)
+    if not artifact_path:
+        raise ValueError('artifact path was not specified')
 
     namespace = namespace or mlconf.namespace
     arguments = arguments or {}
@@ -625,10 +693,19 @@ def run_pipeline(pipeline, arguments=None, experiment=None, run=None,
 
 
 def wait_for_pipeline_completion(run_id,
-                                 namespace=None,
                                  timeout=60 * 60,
-                                 expected_statuses: typing.List[str]=None):
-    """Wait for Pipeline status, timeout in sec"""
+                                 expected_statuses: typing.List[str]=None,
+                                 namespace=None):
+    """Wait for Pipeline status, timeout in sec
+
+    :param run_id:     id of pipelines run
+    :param timeout:    wait timeout in sec
+    :param expected_statuses:  list of expected statuses, otherwise will raise
+                               succeeded | failed | skipped | error | running
+    :param namespace:  k8s namespace if not default
+
+    :return kfp run dict
+    """
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     logger.debug(f"Waiting for run completion."
@@ -684,7 +761,13 @@ def wait_for_pipeline_completion(run_id,
 
 
 def get_pipeline(run_id, namespace=None):
-    """Get Pipeline status"""
+    """Get Pipeline status
+
+    :param run_id:     id of pipelines run
+    :param namespace:  k8s namespace if not default
+
+    :return kfp run dict
+    """
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     if remote:
@@ -706,7 +789,7 @@ def get_pipeline(run_id, namespace=None):
 
 def list_piplines(full=False, page_token='', page_size=10,
                   sort_by='', experiment_id=None, namespace=None):
-    """Get or wait for Pipeline status, wait time in sec"""
+    """List pipelines"""
     namespace = namespace or mlconf.namespace
     client = Client(namespace=namespace)
     resp = client._run_api.list_runs(page_token=page_token, page_size=page_size,
@@ -750,18 +833,21 @@ def py_eval(data):
 
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):
+    """get mlrun dataitem body (from path/url)"""
     db = db or get_run_db().connect()
     stores = StoreManager(secrets, db=db)
     return stores.object(url=url).get(size, offset)
 
 
 def get_dataitem(url, secrets=None, db=None):
+    """get mlrun dataitem object (from path/url)"""
     db = db or get_run_db().connect()
     stores = StoreManager(secrets, db=db)
     return stores.object(url=url)
 
 
 def download_object(url, target, secrets=None):
+    """download mlrun dataitem (from path/url to target path)"""
     stores = StoreManager(secrets, db=get_run_db().connect())
     stores.object(url=url).download(target_path=target)
 

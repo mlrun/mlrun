@@ -86,6 +86,14 @@ class MLClientCtx(object):
         self._updated_child = False
 
     def get_child(self, **params):
+        """get child context (iteration)
+
+        allow sub experiments (epochs, hyper-param, ..) under a parent
+        will create a new iteration, log_xx will update the child only
+        use commit_children() to save all the childes and specify the best run
+
+        the **params are extra (or override) params to parent context
+        """
         if self.iteration != 0:
             raise ValueError('cannot create child from a child iteration!')
         ctx = deepcopy(self.to_dict())
@@ -101,9 +109,13 @@ class MLClientCtx(object):
         return ctx
 
     def get_dataitem(self, url):
+        """get mlrun dataitem from url"""
         return self._data_stores.object(url=url)
 
-    def commit_child(self, best_run=0):
+    def commit_children(self, best_run=0):
+        """update/commit all children, and optionally mark the best
+        note: best_run marks the child iteration number (starts from 1)
+        """
         results = []
         if not self._child or best_run > len(self._child):
             raise ValueError('cannot commit without child or if best_run > len(child)')
@@ -147,6 +159,7 @@ class MLClientCtx(object):
     @classmethod
     def from_dict(cls, attrs: dict, rundb='', autocommit=False, tmp='',
                   host=None, log_stream=None):
+        """create execution context from dict"""
 
         self = cls(autocommit=autocommit, tmp=tmp, log_stream=log_stream)
 
@@ -262,6 +275,10 @@ class MLClientCtx(object):
     def artifact_path(self):
         """default output path for artifacts"""
         return self._out_path
+
+    def artifact_subpath(self, *subpaths):
+        """subpaths under output path artifacts path"""
+        return os.path.join(self._out_path,  *subpaths)
 
     @property
     def labels(self):
@@ -428,7 +445,7 @@ class MLClientCtx(object):
         if message:
             self._annotations['message'] = message
         if self._child and not self._updated_child:
-            self.commit_child()
+            self.commit_children()
         self._last_update = now_date()
         self._update_db(commit=True, message=message)
 

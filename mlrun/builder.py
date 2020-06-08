@@ -193,7 +193,7 @@ def build_image(dest,
         kpod.mount_v3io(remote=source, mount_path='/context')
 
     k8s = get_k8s_helper()
-    kpod.namespace = k8s.ns(namespace)
+    kpod.namespace = k8s.resolve_namespace(namespace)
 
     if interactive:
         return k8s.run_job(kpod)

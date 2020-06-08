@@ -12,33 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
-import json
 import socket
-from copy import deepcopy
 from os import environ
+from typing import Dict
 
-import math
 from kubernetes.client.rest import ApiException
-from ..k8s_utils import get_k8s_helper
-from ..utils import update_in, logger, normalize_name
+
+from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
-from ..execution import MLClientCtx
-from .local import get_func_arg, load_module, exec_from_params
-from ..model import RunObject
 from .kubejob import KubejobRuntime
+from .local import load_module, exec_from_params
 from .pod import KubeResourceSpec
-from ..lists import RunList
-from ..config import config
+from .constants import PodPhases
 from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
+from ..config import config
+from ..execution import MLClientCtx
+from ..k8s_utils import get_k8s_helper
+from ..model import RunObject
 from ..render import ipython_display
+from ..utils import update_in, logger, normalize_name
+
 
 def get_dask_resource():
     return {
         'scope': 'function',
         'start': deploy_function,
-        'list': list_objects,
         'status': get_obj_status,
-        'clean': clean_objects,
     }
 
 
@@ -354,41 +353,6 @@ def deploy_function(function: DaskCluster, secrets=None):
     return cluster
 
 
-def clean_objects(selector=[], running=False, namespace=None):
-    k8s = get_k8s_helper()
-    namespace = namespace or config.namespace
-
-    selector = ','.join(['{}class=dask'.format(mlrun_key)] + selector)
-    pods = k8s.v1api.list_namespaced_pod(namespace, label_selector=selector)
-    service_names = []
-    for pod in pods.items:
-        status = pod.status.phase.lower()
-        if running or status != 'running':
-            comp = pod.metadata.labels.get('dask.org/component')
-            if comp == 'scheduler':
-                service_names.append(pod.metadata.labels.get('dask.org/cluster-name'))
-            try:
-                k8s.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-                logger.info("Deleted pod: %s", pod.metadata.name)
-            except ApiException as e:
-                # ignore error if pod is already removed
-                if e.status != 404:
-                    raise
-
-    services = k8s.v1api.list_namespaced_service(
-        namespace, label_selector=selector
-    )
-    for service in services.items:
-        try:
-            if running or service.metadata.name in service_names:
-                k8s.v1api.delete_namespaced_service(service.metadata.name, namespace)
-                logger.info("Deleted service: %s", service.metadata.name)
-        except ApiException as e:
-            # ignore error if service is already removed
-            if e.status != 404:
-                raise
-
-
 def get_obj_status(selector=[], namespace=None):
     k8s = get_k8s_helper()
     namespace = namespace or config.namespace
@@ -406,25 +370,53 @@ def get_obj_status(selector=[], namespace=None):
     return status
 
 
-def list_objects(selector=[], namespace=None):
-    k8s = get_k8s_helper()
-    namespace = namespace or config.namespace
-    selector = ','.join(['dask.org/component=scheduler'.format(mlrun_key)] + selector)
-    pods = k8s.list_pods(namespace, selector=selector)
-    objects = []
-    for pod in pods:
-        status = pod.status.phase.lower()
-        objects.append([pod.metadata.name, status, pod.metadata.labels])
+class DaskRuntimeHandler(BaseRuntimeHandler):
 
-    return 'pod', objects
+    @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f'mlrun/function={object_id}'
 
+    @staticmethod
+    def _get_default_label_selector() -> str:
+        return 'mlrun/class=dask'
 
-# def clean_objects(namespace=None, selector=[], states=None):
-#     if not selector and not states:
-#         raise ValueError(
-#             'labels selector or states list must be specified')
-#     items = list_objects(namespace, selector, states)
-#     for item in items:
-#         del_object(item.metadata.name, item.metadata.namespace)
+    def _enrich_list_resources_response(self, response: Dict, namespace: str, label_selector: str = None) -> Dict:
+        """
+        Handling listing service resources
+        """
+        k8s_helper = get_k8s_helper()
+        services = k8s_helper.v1api.list_namespaced_service(namespace, label_selector=label_selector)
+        service_resources = []
+        for service in services.items:
+            service_resources.append(
+                {
+                    'name': service.metadata.name,
+                    'labels': service.metadata.labels,
+                })
+        response['service_resources'] = service_resources
+        return response
 
+    def _delete_resources(self, namespace: str, label_selector: str = None, force: bool = False):
+        """
+        Handling services deletion
+        """
+        k8s_helper = get_k8s_helper()
+        pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
+        service_names = []
+        for pod in pods.items:
+            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
+            if not in_transient_phase or (force and in_transient_phase):
+                comp = pod.metadata.labels.get('dask.org/component')
+                if comp == 'scheduler':
+                    service_names.append(pod.metadata.labels.get('dask.org/cluster-name'))
 
+        services = k8s_helper.v1api.list_namespaced_service(namespace, label_selector=label_selector)
+        for service in services.items:
+            try:
+                if force or service.metadata.name in service_names:
+                    k8s_helper.v1api.delete_namespaced_service(service.metadata.name, namespace)
+                    logger.info(f"Deleted service: {service.metadata.name}")
+            except ApiException as e:
+                # ignore error if service is already removed
+                if e.status != 404:
+                    raise

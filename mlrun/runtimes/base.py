@@ -12,25 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getpass
 import uuid
 from ast import literal_eval
-import getpass
 from copy import deepcopy
-from os import environ, path
+from os import environ
+from typing import Dict, List, Tuple
+from abc import ABC, abstractmethod
 
+from kubernetes import client
+from kubernetes.client.rest import ApiException
+
+from .generators import get_generator
+from .utils import calc_hash, RunError, results_to_iter
+from ..config import config
 from ..datastore import StoreManager
-from ..kfpops import write_kfpmeta, mlrun_op
 from ..db import get_run_db, get_or_set_dburl, RunDBError
+from ..execution import MLClientCtx
+from ..k8s_utils import get_k8s_helper
+from ..kfpops import write_kfpmeta, mlrun_op
+from ..lists import RunList
 from ..model import (
     RunObject, ModelObj, RunTemplate, BaseMetadata, ImageBuilder)
 from ..secrets import SecretsStore
 from ..utils import get_in, update_in, logger, is_ipython, now_date, tag_image, dict_to_yaml, dict_to_json
-from .utils import calc_hash, RunError, results_to_iter
-from ..execution import MLClientCtx
-from ..lists import RunList
-from .generators import get_generator
-from ..k8s_utils import get_k8s_helper
-from ..config import config
+from .constants import PodPhases
 
 
 class FunctionStatus(ModelObj):
@@ -222,7 +228,8 @@ class BaseRuntime(ModelObj):
             def_name += '-' + runspec.spec.handler_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         runspec.metadata.project = project or runspec.metadata.project \
-                                   or self.metadata.project
+                                   or self.metadata.project \
+                                   or config.default_project
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.verbose = verbose or runspec.spec.verbose
@@ -247,9 +254,14 @@ class BaseRuntime(ModelObj):
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 '{{run.uid}}', meta.uid)
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                '{{run.project}}', runspec.metadata.project)
         if is_local(runspec.spec.output_path):
             logger.warning('artifact path is not defined or is local,'
                            ' artifacts will not be visible in the UI')
+            if self.kind not in ['', 'local', 'handler', 'dask']:
+                raise ValueError('artifact_path must be specified'
+                                 ' when running remote tasks')
         db = self._get_db()
 
         if not self.is_deployed:
@@ -628,3 +640,196 @@ def is_local(url):
     if not url:
         return True
     return '://' not in url and not url.startswith('/')
+
+
+class BaseRuntimeHandler(ABC):
+
+    @staticmethod
+    @abstractmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        """
+        Should return the label selector should be used to get only resources of a specific object (with id object_id)
+        """
+        pass
+
+    def list_resources(self, label_selector: str = None) -> Dict:
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace()
+        label_selector = self._resolve_label_selector(label_selector)
+        pod_resources = self._list_pod_resources(namespace, label_selector)
+        crd_resources = self._list_crd_resources(namespace, label_selector)
+        response = self._build_list_resources_response(pod_resources, crd_resources)
+        response = self._enrich_list_resources_response(response, namespace, label_selector)
+        return response
+
+    def delete_resources(self, label_selector: str = None, force: bool = False):
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace()
+        label_selector = self._resolve_label_selector(label_selector)
+        self._delete_resources(namespace, label_selector, force)
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        if crd_group and crd_version and crd_plural:
+            self._delete_crd_resources(namespace, label_selector, force)
+        else:
+            self._delete_pod_resources(namespace, label_selector, force)
+
+    def delete_runtime_object_resources(self, object_id: str, label_selector: str = None, force: bool = False):
+        object_label_selector = self._get_object_label_selector(object_id)
+        if label_selector:
+            label_selector = ','.join([object_label_selector, label_selector])
+        else:
+            label_selector = object_label_selector
+        self.delete_resources(label_selector, force)
+
+    def _enrich_list_resources_response(self, response: Dict, namespace: str, label_selector: str = None) -> Dict:
+        """
+        Override this to list resources other then pods or CRDs (which are handled by the base class)
+        """
+        return response
+
+    def _delete_resources(self, namespace: str, label_selector: str = None, force: bool = False):
+        """
+        Override this to handle deletion of resources other then pods or CRDs (which are handled by the base class)
+        Note that this is happening before the deletion of the CRDs or the pods
+        """
+        pass
+
+    @staticmethod
+    def _get_default_label_selector() -> str:
+        """
+        Override this to add a default label selector
+        """
+        return ''
+
+    @staticmethod
+    def _get_crd_info() -> Tuple[str, str, str]:
+        """
+        Override this if the runtime has CRD resources. this should return the CRD info:
+        crd group, crd version, crd plural
+        """
+        return '', '', ''
+
+    @staticmethod
+    def _is_crd_object_in_transient_state(crd_object) -> bool:
+        """
+        Override this if the runtime has CRD resources.
+        this should return a bool determining whether the CRD object is in transient state
+        """
+        return False
+
+    def _list_pod_resources(self, namespace: str, label_selector: str = None) -> List:
+        k8s_helper = get_k8s_helper()
+        pods = k8s_helper.list_pods(namespace, selector=label_selector)
+        return self._build_pod_resources(pods)
+
+    def _list_crd_resources(self, namespace: str, label_selector: str = None) -> List:
+        k8s_helper = get_k8s_helper()
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        crd_resources = None
+        if crd_group and crd_version and crd_plural:
+            try:
+                crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(crd_group,
+                                                                              crd_version,
+                                                                              namespace,
+                                                                              crd_plural,
+                                                                              label_selector=label_selector)
+            except ApiException as e:
+                # ignore error if crd is not defined
+                if e.status != 404:
+                    raise
+            else:
+                crd_resources = self._build_crd_resources(crd_objects)
+        return crd_resources
+
+    def _resolve_label_selector(self, label_selector: str = None) -> str:
+        default_label_selector = self._get_default_label_selector()
+
+        if label_selector:
+            label_selector = ','.join([default_label_selector, label_selector])
+        else:
+            label_selector = default_label_selector
+
+        return label_selector
+
+    def _delete_pod_resources(self, namespace: str, label_selector: str = None, force: bool = False):
+        k8s_helper = get_k8s_helper()
+        pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
+        for pod in pods.items:
+            # it is less likely that there will be new stable states, or the existing ones will change so better to
+            # resolve whether it's a transient state by checking if it's not a stable state
+            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
+            if not in_transient_phase or (force and in_transient_phase):
+                try:
+                    k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
+                    logger.info(f"Deleted pod: {pod.metadata.name}")
+                except ApiException as e:
+                    # ignore error if pod is already removed
+                    if e.status != 404:
+                        raise
+
+    def _delete_crd_resources(self, namespace: str, label_selector: str = None, force: bool = False):
+        k8s_helper = get_k8s_helper()
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        try:
+            crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(crd_group,
+                                                                          crd_version,
+                                                                          namespace,
+                                                                          crd_plural,
+                                                                          label_selector=label_selector)
+        except ApiException as e:
+            # ignore error if crd is not defined
+            if e.status != 404:
+                raise
+        else:
+            for crd_object in crd_objects['items']:
+                in_transient_state = self._is_crd_object_in_transient_state(crd_object)
+                if not in_transient_state or (force and in_transient_state):
+                    name = crd_object['metadata']['name']
+                    try:
+                        k8s_helper.crdapi.delete_namespaced_custom_object(crd_group,
+                                                                          crd_version,
+                                                                          namespace,
+                                                                          crd_plural,
+                                                                          name,
+                                                                          client.V1DeleteOptions())
+                        logger.info(f"Deleted crd object: {name}, {namespace}, {crd_plural}")
+                    except ApiException as e:
+                        # ignore error if crd object is already removed
+                        if e.status != 404:
+                            raise
+
+    @staticmethod
+    def _build_pod_resources(pods) -> List:
+        pod_resources = []
+        for pod in pods:
+            pod_dict = pod.to_dict()
+            pod_resources.append(
+                {
+                    'name': pod_dict['metadata']['name'],
+                    'labels': pod_dict['metadata']['labels'],
+                    'status': pod_dict['status'],
+                })
+        return pod_resources
+
+    @staticmethod
+    def _build_crd_resources(custom_objects) -> List:
+        crd_resources = []
+        for custom_object in custom_objects['items']:
+            crd_resources.append(
+                {
+                    'name': custom_object['metadata']['name'],
+                    'labels': custom_object['metadata']['labels'],
+                    'status': custom_object['status'],
+                })
+        return crd_resources
+
+    @staticmethod
+    def _build_list_resources_response(pod_resources: List = None, crd_resources: List = None) -> Dict:
+        if crd_resources is None:
+            crd_resources = []
+        if pod_resources is None:
+            pod_resources = []
+        return {
+            'crd_resources': crd_resources,
+            'pod_resources': pod_resources,
+        }

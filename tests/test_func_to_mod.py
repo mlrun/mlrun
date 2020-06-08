@@ -12,5 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .v1 import MpiRuntimeV1, MpiV1RuntimeHandler
-from .v1alpha1 import MpiRuntimeV1Alpha1, MpiV1Alpha1RuntimeHandler
+import pytest
+import pandas as pd
+from tests.conftest import (
+    examples_path, has_secrets, here, out_path, tag_test, verify_state
+)
+from mlrun import function_to_module, NewTask, get_or_create_ctx
+
+
+def test_local_py():
+    file_path = f'{examples_path}/training.py'
+    mod = function_to_module(file_path)
+    task = NewTask(inputs={'infile.txt': f'{examples_path}/infile.txt'})
+    context = get_or_create_ctx('myfunc', spec=task)
+    mod.my_job(context, p1=2, p2='x')
+    assert context.results['accuracy'] == 4, 'failed to run'

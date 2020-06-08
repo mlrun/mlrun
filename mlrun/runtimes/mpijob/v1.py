@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import shlex
-from copy import deepcopy
 import typing
-
-from .abstract import MPIJobCRDVersions
-from mlrun.execution import MLClientCtx
-from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
-from mlrun.model import RunObject
-from mlrun.utils import update_in, get_in
+from copy import deepcopy
 
 from kubernetes import client
+
+from mlrun.execution import MLClientCtx
+from mlrun.model import RunObject
+from mlrun.runtimes.base import BaseRuntimeHandler
+from mlrun.runtimes.types import MPIJobCRDVersions
+from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
+from mlrun.utils import update_in, get_in
 
 
 class MpiRuntimeV1(AbstractMPIJobRuntime):
@@ -41,6 +42,10 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         },
         'metadata': {}
     }
+
+    crd_group = 'kubeflow.org'
+    crd_version = MPIJobCRDVersions.v1
+    crd_plural = 'mpijobs'
 
     def _generate_mpi_job_template(self, launcher_pod_template, worker_pod_template):
         return {
@@ -64,13 +69,6 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
     def _update_container(self, struct, key, value):
         struct['spec']['containers'][0][key] = value
-
-    def _get_crd_info(self) -> typing.Tuple[str, str, str]:
-        mpi_group = 'kubeflow.org'
-        mpi_version = MPIJobCRDVersions.v1
-        mpi_plural = 'mpijobs'
-
-        return mpi_group, mpi_version, mpi_plural
 
     def _enrich_launcher_configurations(self, launcher_pod_template):
         quoted_args = []
@@ -148,9 +146,38 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
         return ''
 
-    def _generate_pods_selector(self, name: str, launcher: bool) -> str:
+    @staticmethod
+    def _generate_pods_selector(name: str, launcher: bool) -> str:
         selector = 'mpi-job-name={}'.format(name)
         if launcher:
             selector += ',mpi-job-role=launcher'
 
         return selector
+
+    @staticmethod
+    def _get_crd_info() -> typing.Tuple[str, str, str]:
+        return MpiRuntimeV1.crd_group, MpiRuntimeV1.crd_version, MpiRuntimeV1.crd_plural
+
+
+class MpiV1RuntimeHandler(BaseRuntimeHandler):
+
+    @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f'mlrun/uid={object_id}'
+
+    @staticmethod
+    def _get_default_label_selector() -> str:
+        return 'mlrun/class=mpijob'
+
+    @staticmethod
+    def _get_crd_info() -> typing.Tuple[str, str, str]:
+        return MpiRuntimeV1.crd_group, MpiRuntimeV1.crd_version, MpiRuntimeV1.crd_plural
+
+    @staticmethod
+    def _is_crd_object_in_transient_state(crd_object) -> bool:
+        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
+        # whether it's a transient state by checking if it's not a stable state
+        for replica_type, replica_status in crd_object.get('status', {}).items():
+            if replica_status.get('active', 0) != 0:
+                return True
+        return False

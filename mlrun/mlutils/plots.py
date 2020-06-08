@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from ..artifacts import PlotArtifact, TableArtifact
 import pandas as pd
+import numpy as np
+from scipy import interp
+from itertools import cycle
 
 
 def gcf_clear(plt):
@@ -25,7 +28,9 @@ def feature_importances(model, header):
     """
     if not hasattr(model, "feature_importances_"):
         raise Exception(
-            "feature importaces are only available for some models")
+            "feature importances are only available for some models, if you got"
+            "here then please make sure to check your estimated model for a "
+            "`feature_importances_` attribute before calling this method")
 
     # create a feature importance table with desired labels
     zipped = zip(model.feature_importances_, header)
@@ -34,13 +39,14 @@ def feature_importances(model, header):
     )
 
     plt.clf()  # gcf_clear(plt)
-    plt.figure(figsize=(20, 10))
+    plt.figure()
     sns.barplot(x="freq", y="feature", data=feature_imp)
     plt.title("features")
     plt.tight_layout()
 
-    return (PlotArtifact("feature-importances", body=plt.gcf()),
-            TableArtifact("feature-importances-tbl", df=feature_imp))
+    return (PlotArtifact("feature-importances", body=plt.gcf(),
+                         title='Feature Importances'),
+            feature_imp)
 
 
 def plot_importance(
@@ -135,11 +141,14 @@ def learning_curves(model):
     return plots
 
 
-def confusion_matrix(model, xtest, ytest):
+def confusion_matrix(model, xtest, ytest, cmap='Blues'):
     cmd = metrics.plot_confusion_matrix(
-        model, xtest, ytest, normalize='all', values_format='.2g', cmap=plt.cm.Blues)
+        model, xtest, ytest, normalize='all',
+        values_format='.2g', cmap=plt.get_cmap(cmap))
     # for now only 1, add different views to this array for display in UI
-    return PlotArtifact("confusion-matrix-normalized", body=cmd.figure_)
+    cmd.plot()
+    return PlotArtifact("confusion-matrix-normalized", body=cmd.figure_,
+                        title='Confusion Matrix - Normalized Plot')
 
 
 def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
@@ -160,12 +169,12 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     avg_prec["micro"] = metrics.average_precision_score(
         ytest_b, yprob, average="micro")
     ap_micro = avg_prec["micro"]
-    model_metrics.update({'precision-micro-avg-classes': ap_micro})
+    # model_metrics.update({'precision-micro-avg-classes': ap_micro})
 
-    gcf_clear(plt)
+    #gcf_clear(plt)
     colors = cycle(['navy', 'turquoise', 'darkorange',
                     'cornflowerblue', 'teal'])
-    plt.figure(figsize=(7, 8))
+    plt.figure()
     f_scores = np.linspace(0.2, 0.8, num=4)
     lines = []
     labels = []
@@ -188,8 +197,8 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
         labels.append(
             f'precision-recall for class {i} (area = {avg_prec[i]:0.2f})')
 
-    fig = plt.gcf()
-    fig.subplots_adjust(bottom=0.25)
+    #fig = plt.gcf()
+    #fig.subplots_adjust(bottom=0.25)
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
     plt.xlabel('recall')
@@ -197,7 +206,8 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     plt.title('precision recall - multiclass')
     plt.legend(lines, labels, loc=(0, -.41), prop=dict(size=10))
 
-    return PlotArtifact("precision-recall-multiclass", body=plt.gcf())
+    return PlotArtifact("precision-recall-multiclass", body=plt.gcf(),
+                        title='Multiclass Precision Recall')
 
 
 def roc_multi(ytest_b, yprob, labels):
@@ -234,7 +244,7 @@ def roc_multi(ytest_b, yprob, labels):
     roc_auc["macro"] = metrics.auc(fpr["macro"], tpr["macro"])
 
     # Plot all ROC curves
-    #gcf_clear(plt)
+    gcf_clear(plt)
     plt.figure()
     plt.plot(fpr["micro"], tpr["micro"],
              label='micro-average ROC curve (area = {0:0.2f})'
@@ -260,16 +270,18 @@ def roc_multi(ytest_b, yprob, labels):
     plt.title('receiver operating characteristic - multiclass')
     plt.legend(loc=(0, -.68), prop=dict(size=10))
 
-    return PlotArtifact("roc-multiclass", body=plt.gcf())
+    return PlotArtifact("roc-multiclass", body=plt.gcf(),
+                        title='Multiclass ROC Curve')
 
 
-def roc_bin(ytest, yprob):
+def roc_bin(ytest, yprob, clear: bool = False):
     """
     """
     # ROC plot
-    #gcf_clear(plt)
+    if clear:
+        gcf_clear(plt)
     fpr, tpr, _ = metrics.roc_curve(ytest, yprob)
-    plt.figure(1)
+    plt.figure()
     plt.plot([0, 1], [0, 1], 'k--')
     plt.plot(fpr, tpr, label='a label')
     plt.xlabel('false positive rate')
@@ -277,19 +289,21 @@ def roc_bin(ytest, yprob):
     plt.title('roc curve')
     plt.legend(loc='best')
 
-    return PlotArtifact("roc-binary", body=plt.gcf())
+    return PlotArtifact("roc-binary", body=plt.gcf(),
+                        title='Binary ROC Curve')
 
 
-def precision_recall_bin(model, xtest, ytest, yprob):
+def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
     """
     """
-    # precision-recall
-    #gcf_clear(plt)
+    if clear:
+        gcf_clear(plt)
     disp = metrics.plot_precision_recall_curve(model, xtest, ytest)
     disp.ax_.set_title(
         f'precision recall: AP={metrics.average_precision_score(ytest, yprob):0.2f}')
 
-    return PlotArtifact("precision-recall-binary", body=disp.figure_)
+    return PlotArtifact("precision-recall-binary", body=disp.figure_,
+                        title='Binary Precision Recall')
 
 
 def plot_roc(
@@ -303,6 +317,7 @@ def plot_roc(
     tpr_label: str = "true positive rate",
     title: str = "roc curve",
     legend_loc: str = "best",
+    clear: bool = True
 ):
     """plot roc curves
 
@@ -318,9 +333,11 @@ def plot_roc(
     :param tpr_label:    ("true positive rate") y-axis labels
     :param title:        ("roc curve") title of plot
     :param legend_loc:   ("best") location of plot legend
+    :param clear:        (True) clear the matplotlib figure before drawing
     """
     # clear matplotlib current figure
-    gcf_clear(plt)
+    if clear:
+        gcf_clear(plt)
 
     # draw 45 degree line
     plt.plot([0, 1], [0, 1], "k--")
@@ -348,4 +365,5 @@ def plot_roc(
         plt.plot(fpr, tpr, label=f"positive class")
 
     fname = f"{plots_dir}/{key}.html"
-    return context.log_artifact(PlotArtifact(key, body=plt.gcf()), local_path=fname)
+    return context.log_artifact(PlotArtifact(key, body=plt.gcf()),
+                                local_path=fname)

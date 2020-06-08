@@ -70,7 +70,8 @@ def test_local_file_noembed():
 def test_job_file_codeout():
     name = '{}/mlrun_jobs.ipynb'.format(examples_path)
     out = '{}/ctf_tst.py'.format(results)
-    fn = code_to_function(filename=name, kind='job', code_output=out)
+    fn = code_to_function(filename=name, kind='job', code_output=out,
+                          embed_code=False)
     assert fn.kind == 'job', 'kind not set, test failed'
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
     assert fn.spec.command == out, 'filename not set to out in command'
@@ -80,7 +81,8 @@ def test_job_file_codeout():
 def test_local_file_codeout():
     name = '{}/mlrun_jobs.ipynb'.format(examples_path)
     out = '{}/ctf_tst.py'.format(results)
-    fn = code_to_function(filename=name, kind='local', code_output=out)
+    fn = code_to_function(filename=name, kind='local', code_output=out,
+                          embed_code=False)
     assert fn.kind == 'local', 'kind not set, test failed'
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
     assert fn.spec.command == out, 'filename not set to out in command'

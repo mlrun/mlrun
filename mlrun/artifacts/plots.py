@@ -19,33 +19,44 @@ from ..utils import dict_to_json
 from .base import Artifact
 
 
+plot_template = """<h3 style="text-align:center">{}</h3>
+<img title="{}" src="data:image/png;base64,{}">"""
+
+
 class PlotArtifact(Artifact):
     kind = 'plot'
+
+    def __init__(self, key=None, body=None, is_inline=False,
+                 target_path=None, title=None):
+        super().__init__(key, body, format='html',
+                         target_path=target_path)
+        self.description = title
 
     def before_log(self):
         self.viewer = 'chart'
         import matplotlib
         if not self._body or not isinstance(
-           self._body, matplotlib.figure.Figure):
+           self._body, (bytes, matplotlib.figure.Figure)):
             raise ValueError(
-                'matplotlib fig must be provided as artifact body')
-        if not pathlib.Path(self.key).suffix:
-            self.format = 'html'
+                'matplotlib fig or png bytes must be provided as artifact body')
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use
         using base64 encoding. """
-        from matplotlib.backends.backend_agg import \
-            FigureCanvasAgg as FigureCanvas
+        if isinstance(self._body, bytes):
+            data = self._body
+        else:
+            from matplotlib.backends.backend_agg import \
+                FigureCanvasAgg as FigureCanvas
 
-        canvas = FigureCanvas(self._body)
-        png_output = BytesIO()
-        canvas.print_png(png_output)
-        data = png_output.getvalue()
+            canvas = FigureCanvas(self._body)
+            png_output = BytesIO()
+            canvas.print_png(png_output)
+            data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode('utf-8')
-        return '<img title="{}" src="data:image/png;base64,{}">'.format(
-            self.key, data_uri)
+        return plot_template.format(
+            self.description or self.key, self.key, data_uri)
 
 
 chart_template = '''

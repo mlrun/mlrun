@@ -561,7 +561,8 @@ class MlrunProject(ModelObj):
         return None
 
     def run(self, name=None, workflow_path=None, arguments=None,
-            artifact_path=None, namespace=None, sync=False, dirty=False):
+            artifact_path=None, namespace=None, sync=False,
+            watch=False, dirty=False, ttl=None):
         """run a workflow using kubeflow pipelines
 
         :param name:      name of the workflow
@@ -574,7 +575,9 @@ class MlrunProject(ModelObj):
                           '{{workflow.uid}}' will be replaced by workflow id
         :param namespace: kubernetes namespace if other than default
         :param sync:      force functions sync before run
+        :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
+        :param ttl        pipeline ttl in secs (after that the pods will be removed)
 
         :returns: run id
         """
@@ -611,9 +614,13 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self.artifact_path
         run = _run_pipeline(self, name, workflow_path, self._function_objects,
                             secrets=self._secrets, arguments=arguments,
-                            artifact_path=artifact_path, namespace=namespace)
+                            artifact_path=artifact_path, namespace=namespace,
+                            ttl=ttl)
         if code:
             remove(workflow_path)
+        if watch:
+            self.get_run_status(run,
+                                notifiers=RunNotifications(with_slack=True))
         return run
 
     def _get_wf_cfg(self, name, arguments=None):
@@ -809,12 +816,14 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
 
 
 def _run_pipeline(project, name, pipeline, functions, secrets=None,
-                  arguments=None, artifact_path=None, namespace=None):
+                  arguments=None, artifact_path=None, namespace=None,
+                  ttl=None):
     kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
-    id = run_pipeline(kfpipeline, arguments=arguments, experiment=name,
-                      namespace=namespace, artifact_path=artifact_path)
+    id = run_pipeline(kfpipeline, project=project.name, arguments=arguments,
+                      experiment=name, namespace=namespace,
+                      artifact_path=artifact_path, ttl=ttl)
     return id
 
 

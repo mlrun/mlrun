@@ -16,6 +16,7 @@ import json
 import tempfile
 import time
 from os import path, remove, environ
+from typing import List, Dict
 
 import kfp
 import requests
@@ -125,6 +126,7 @@ class HTTPRunDB(RunDBInterface):
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get('remote_host')
+            config.mpijob_crd_version = config.mpijob_crd_version or server_cfg.get('mpijob_crd_version')
             config.ui_url = config.ui_url or server_cfg.get('ui_url')
             config.artifact_path = config.artifact_path or server_cfg.get('artifact_path')
             if 'docker_registry' in server_cfg and 'DEFAULT_DOCKER_REGISTRY' not in environ:
@@ -318,6 +320,36 @@ class HTTPRunDB(RunDBInterface):
         error = f'list functions'
         resp = self.api_call('GET', 'funcs', error, params=params)
         return resp.json()['funcs']
+
+    def list_runtimes(self, label_selector: str = None) -> List:
+        params = {'label_selector': label_selector}
+        error = 'list runtimes'
+        resp = self.api_call('GET', 'runtimes', error, params=params)
+        return resp.json()
+
+    def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
+        params = {'label_selector': label_selector}
+        path = f'runtimes/{kind}'
+        error = f'get runtime {kind}'
+        resp = self.api_call('GET', path, error, params=params)
+        return resp.json()
+
+    def delete_runtimes(self, label_selector: str = None, force: bool = False):
+        params = {'label_selector': label_selector, 'force': force}
+        error = 'delete runtimes'
+        self.api_call('DELETE', 'runtimes', error, params=params)
+
+    def delete_runtime(self, kind: str, label_selector: str = None, force: bool = False):
+        params = {'label_selector': label_selector, 'force': force}
+        path = f'runtimes/{kind}'
+        error = f'delete runtime {kind}'
+        self.api_call('DELETE', path, error, params=params)
+
+    def delete_runtime_object(self, kind: str, object_id: str, label_selector: str = None, force: bool = False):
+        params = {'label_selector': label_selector, 'force': force}
+        path = f'runtimes/{kind}/{object_id}'
+        error = f'delete runtime object {kind} {object_id}'
+        self.api_call('DELETE', path, error, params=params)
 
     def remote_builder(self, func, with_mlrun):
         try:

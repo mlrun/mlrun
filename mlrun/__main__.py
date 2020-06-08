@@ -403,6 +403,15 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                 if i.status.start_time:
                     start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print('{:10} {:16} {:8} {}'.format(state, start, task, name))
+    elif kind.startswith('runtime'):
+        mldb = get_run_db(db or mlconf.dbpath).connect()
+        if name:
+            # the runtime identifier is its kind
+            runtime = mldb.get_runtime(kind=name, label_selector=selector)
+            print(dict_to_yaml(runtime))
+            return
+        runtimes = mldb.list_runtimes(label_selector=selector)
+        print(dict_to_yaml(runtimes))
     elif kind.startswith('run'):
         mldb = get_run_db().connect()
         if name:
@@ -446,7 +455,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             lines.append(line)
         print(tabulate(lines, headers=headers))
     else:
-        print('currently only get pods | runs | artifacts | func [name] are supported')
+        print('currently only get pods | runs | artifacts | func [name] | runtime are supported')
 
 
 @main.command()
@@ -498,7 +507,8 @@ def logs(uid, project, offset, db, watch):
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
 @click.option('--run', '-r', help='run workflow name of .py file')
-@click.option('--arguments', '-a', help='Kubeflow pipeline arguments dict')
+@click.option('--arguments', '-a', default='', multiple=True,
+              help='Kubeflow pipeline arguments name and value tuples, e.g. -a x=6')
 @click.option('--artifact-path', '-p', help='output artifacts path')
 @click.option('--param', '-x', default='', multiple=True,
               help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'")
@@ -523,7 +533,8 @@ def project(context, name, url, run, arguments, artifact_path,
     print('Loading project {}{} into {}:\n'.format(
         proj.name, ' from ' + url if url else '', context))
 
-    if artifact_path and '://' not in artifact_path:
+    if artifact_path and not ('://' in artifact_path or
+                              artifact_path.startswith('/')):
         artifact_path = path.abspath(artifact_path)
     if param:
         proj.params = fill_params(param, proj.params)
@@ -544,12 +555,7 @@ def project(context, name, url, run, arguments, artifact_path,
 
         args = None
         if arguments:
-            try:
-                args = literal_eval(arguments)
-            except (SyntaxError, ValueError):
-                print('arguments ({}) must be a dict object/str'
-                      .format(arguments))
-                exit(1)
+            args = fill_params(arguments)
 
         print('running workflow {} file: {}'.format(run, workflow_path))
         message = run = ''
@@ -592,34 +598,22 @@ def project(context, name, url, run, arguments, artifact_path,
 
 
 @main.command()
-@click.option('--api', help='api and db service path/url')
-@click.option('--namespace', '-n', help='kubernetes namespace')
-@click.option('--pending', '-p', is_flag=True,
-              help='clean pending pods as well')
-@click.option('--running', '-r', is_flag=True,
-              help='clean running pods as well')
-def clean(api, namespace, pending, running):
-    """Clean completed or failed pods/jobs"""
-    k8s = K8sHelper(namespace)
-    #mldb = get_run_db(db or mlconf.dbpath).connect()
-    items = k8s.list_pods(namespace)
-    states = ['Succeeded', 'Failed']
-    if pending:
-        states.append('Pending')
-    if running:
-        states.append('Running')
-    print('{:10} {:16} {:8} {}'.format('state', 'started', 'type', 'name'))
-    for i in items:
-        task = i.metadata.labels.get('mlrun/class', '')
-        state = i.status.phase
-        # todo: clean mpi, spark, .. jobs (+CRDs)
-        if task and task in ['build', 'job', 'dask'] and state in states:
-            name = i.metadata.name
-            start = ''
-            if i.status.start_time:
-                start = i.status.start_time.strftime("%b %d %H:%M:%S")
-            print('{:10} {:16} {:8} {}'.format(state, start, task, name))
-            k8s.del_pod(name)
+@click.argument('kind', type=str, default='', required=False)
+@click.argument('object_id', metavar='id', type=str, default='', required=False)
+@click.option('--api', help='api and db service url')
+@click.option('--label-selector', '-ls', default='', help='label selector')
+@click.option('--force', '-f', is_flag=True,
+              help='clean resources in transient states as well')
+def clean(kind, object_id, api, label_selector, force):
+    """Clean runtime resources"""
+    mldb = get_run_db(api or mlconf.dbpath).connect()
+    if kind:
+        if object_id:
+            mldb.delete_runtime_object(kind=kind, object_id=object_id, label_selector=label_selector, force=force)
+        else:
+            mldb.delete_runtime(kind=kind, label_selector=label_selector, force=force)
+    else:
+        mldb.delete_runtimes(label_selector=label_selector, force=force)
 
 
 @main.command(name='config')

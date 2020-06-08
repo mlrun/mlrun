@@ -62,6 +62,9 @@ default_config = {
 
     # runtimes cleanup interval in seconds
     'runtimes_cleanup_interval': '60',
+    # the grace period (in seconds) that will be given to runtime resources (after they're in stable state)
+    # before deleting them
+    'runtime_resources_deletion_grace_period': '60',
     'artifact_path': '',             # default artifacts path/url
     'httpdb': {
         'port': 8080,

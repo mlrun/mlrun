@@ -17,6 +17,7 @@ import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
 from copy import deepcopy
+from datetime import datetime, timedelta
 from os import environ
 from typing import Dict, List, Tuple
 
@@ -25,7 +26,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
-from .constants import PodPhases
+from .constants import PodPhases, FunctionStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
 from ..config import config
@@ -710,6 +711,13 @@ class BaseRuntimeHandler(ABC):
         """
         pass
 
+    def _is_crd_object_in_transient_state(self, db: DBInterface, db_session: Session, crd_object) -> bool:
+        """
+        Override this if the runtime has CRD resources.
+        this should return a bool determining whether the CRD object is in transient state
+        """
+        return False
+
     @staticmethod
     def _get_default_label_selector() -> str:
         """
@@ -724,14 +732,6 @@ class BaseRuntimeHandler(ABC):
         crd group, crd version, crd plural
         """
         return '', '', ''
-
-    @staticmethod
-    def _is_crd_object_in_transient_state(db: DBInterface, db_session: Session, crd_object) -> bool:
-        """
-        Override this if the runtime has CRD resources.
-        this should return a bool determining whether the CRD object is in transient state
-        """
-        return False
 
     def _list_pod_resources(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
@@ -823,6 +823,25 @@ class BaseRuntimeHandler(ABC):
                         # ignore error if crd object is already removed
                         if e.status != 404:
                             raise
+
+    @staticmethod
+    def _is_crd_function_in_transient_state(db: DBInterface, db_session: Session, crd_object) -> bool:
+        # verify the mlrun function is in stable state
+        project = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/project')
+        function_name = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/function')
+        function_tag = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/tag')
+        function = db.get_function(db_session, function_name, project, function_tag)
+        if function.get('status', {}).get('state') not in FunctionStates.stable_phases():
+            return True
+
+        # give some grace period
+        now = datetime.now()
+        last_update_str = function.get('status', {}).get('last_update', now)
+        last_update = datetime.fromisoformat(last_update_str)
+        if last_update + timedelta(seconds=config.runtime_resources_deletion_grace_period) > now:
+            return True
+
+        return False
 
     @staticmethod
     def _build_pod_resources(pods) -> List:

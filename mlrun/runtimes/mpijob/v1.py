@@ -22,8 +22,8 @@ from mlrun.api.db.base import DBInterface
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler
-from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.runtimes.constants import MPIJobCRDVersions
+from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import update_in, get_in
 
 
@@ -163,6 +163,15 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
 class MpiV1RuntimeHandler(BaseRuntimeHandler):
 
+    def _is_crd_object_in_transient_state(self, db: DBInterface, db_session: Session, crd_object) -> bool:
+        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
+        # whether it's a transient state by checking if it's not a stable state
+        for replica_type, replica_status in crd_object.get('status', {}).items():
+            if replica_status.get('active', 0) != 0:
+                return True
+
+        return self._is_crd_function_in_transient_state(db, db_session, crd_object)
+
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f'mlrun/uid={object_id}'
@@ -174,12 +183,3 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:
         return MpiRuntimeV1.crd_group, MpiRuntimeV1.crd_version, MpiRuntimeV1.crd_plural
-
-    @staticmethod
-    def _is_crd_object_in_transient_state(db: DBInterface, db_session: Session, crd_object) -> bool:
-        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
-        # whether it's a transient state by checking if it's not a stable state
-        for replica_type, replica_status in crd_object.get('status', {}).items():
-            if replica_status.get('active', 0) != 0:
-                return True
-        return False

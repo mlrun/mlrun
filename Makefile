@@ -222,7 +222,6 @@ circleci: test-dockerized
 docs-requirements: ## Build docs requirements
 	cp requirements.txt docs/requirements.txt
 	echo numpydoc >> docs/requirements.txt
-	echo sphinx-copybutton >> docs/requirements.txt
 
 html-docs: docs-requirements ## Build html docs
 	rm -f docs/external/*.md

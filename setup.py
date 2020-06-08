@@ -58,7 +58,7 @@ setup(
     packages=['mlrun', 'mlrun.runtimes', 'mlrun.runtimes.mpijob', 'mlrun.db', 'mlrun.mlutils',
               'mlrun.platforms', 'mlrun.projects', 'mlrun.artifacts',
               'mlrun.datastore', 'mlrun.api', 'mlrun.api.api', 'mlrun.api.api.endpoints', 'mlrun.api.db',
-              'mlrun.api.db.sqldb', 'mlrun.api.db.filedb', 'mlrun.api.schemas'],
+              'mlrun.api.db.sqldb', 'mlrun.api.db.filedb', 'mlrun.api.schemas', 'mlrun.api.utils'],
     install_requires=install_requires,
     extra_requires={
         'api': api_deps,

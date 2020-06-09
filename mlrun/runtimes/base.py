@@ -837,7 +837,7 @@ class BaseRuntimeHandler(ABC):
         now = datetime.now()
         last_update_str = run.get('status', {}).get('last_update', now)
         last_update = datetime.fromisoformat(last_update_str)
-        if last_update + timedelta(seconds=config.runtime_resources_deletion_grace_period) > now:
+        if last_update + timedelta(seconds=float(config.runtime_resources_deletion_grace_period)) > now:
             return True
 
         return False

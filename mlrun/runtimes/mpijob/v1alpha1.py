@@ -122,7 +122,7 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         if crd_object.get('status', {}).get('launcherStatus', '') not in ['Succeeded', 'Failed']:
             return True
 
-        return self._is_crd_function_in_transient_state(db, db_session, crd_object)
+        return self._is_runtime_resource_run_in_transient_state(db, db_session, crd_object)
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:

@@ -718,6 +718,9 @@ class BaseRuntimeHandler(ABC):
         """
         return False
 
+    def _is_pod_in_transient_state(self, db: DBInterface, db_session: Session, pod) -> bool:
+        return pod.status.phase not in PodPhases.stable_phases()
+
     @staticmethod
     def _get_default_label_selector() -> str:
         """
@@ -778,8 +781,8 @@ class BaseRuntimeHandler(ABC):
         for pod in pods.items:
             # it is less likely that there will be new stable states, or the existing ones will change so better to
             # resolve whether it's a transient state by checking if it's not a stable state
-            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
-            if not in_transient_phase or (force and in_transient_phase):
+            in_transient_state = self._is_pod_in_transient_state(db, db_session, pod)
+            if not in_transient_state or (force and in_transient_state):
                 try:
                     k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
                     logger.info(f"Deleted pod: {pod.metadata.name}")
@@ -825,10 +828,19 @@ class BaseRuntimeHandler(ABC):
                             raise
 
     @staticmethod
-    def _is_crd_function_in_transient_state(db: DBInterface, db_session: Session, crd_object) -> bool:
+    def _is_runtime_resource_run_in_transient_state(db: DBInterface,
+                                                    db_session: Session,
+                                                    runtime_resource: Dict) -> bool:
+        """
+        A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
+        resource. This function will verify whether the Run object related to this runtime resource is in transient
+        state. This is useful in order to determine whether an object can be removed. for example, a kubejob's pod
+        might be in completed state, but we would like to verify that the run is completed as well to verify the logs
+        were collected before we're removing the pod.
+        """
         # verify the mlrun function is in stable state
-        project = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/project')
-        uid = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/uid')
+        project = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project')
+        uid = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/uid')
         run = db.read_run(db_session, uid, project)
         if run.get('status', {}).get('state') not in FunctionStates.stable_phases():
             return True

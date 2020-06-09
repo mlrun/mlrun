@@ -17,7 +17,9 @@ from base64 import b64encode
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from sqlalchemy.orm import Session
 
+from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
 from .pod import KubeResource
@@ -243,6 +245,13 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
+
+    def _is_pod_in_transient_state(self, db: DBInterface, db_session: Session, pod) -> bool:
+        if super()._is_pod_in_transient_state(db, db_session, pod):
+            return True
+
+        # verify pod related run is not in transient state
+        return self._is_runtime_resource_run_in_transient_state(db, db_session, pod.to_dict())
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:

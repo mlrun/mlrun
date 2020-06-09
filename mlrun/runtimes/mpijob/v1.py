@@ -170,7 +170,8 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
             if replica_status.get('active', 0) != 0:
                 return True
 
-        return self._is_crd_function_in_transient_state(db, db_session, crd_object)
+        # verify whether the related Run object is in transient state
+        return self._is_runtime_resource_run_in_transient_state(db, db_session, crd_object)
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:

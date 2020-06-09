@@ -142,8 +142,9 @@ class Config(object):
         """
         reload configuration from config file (if exists in environment) and from environment variables.
         """
+        env = env if env else os.environ
         config_instance = cls(default_config)
-        config_path = os.environ.get(env_file_key)
+        config_path = env.get(env_file_key)
         if config_path:
             with open(config_path) as fp:
                 data = yaml.safe_load(fp)
@@ -223,4 +224,4 @@ class Config(object):
         self.version = __version__
 
 
-config = Config(default_config)
+config = Config(default_config).load()

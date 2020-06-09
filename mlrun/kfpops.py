@@ -249,7 +249,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         function_name = function.metadata.name
         if function.kind == 'dask':
             image = image or function.spec.kfp_image \
-                    or 'mlrun/dask:{}'.format(config.version)
+                    or 'mlrun/ml-base:{}'.format(config.version)
 
     image = image or config.kfp_image
 

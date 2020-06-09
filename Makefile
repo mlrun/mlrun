@@ -42,13 +42,13 @@ build: docker-images package-wheel ## Build all artifacts
 
 DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
+	mlrun \
 	base \
 	base-legacy \
 	models \
 	models-legacy \
 	models-gpu \
-	models-gpu-legacy \
-	mlrun
+	models-gpu-legacy
 
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
 	@echo Done.

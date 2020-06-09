@@ -17,7 +17,7 @@ import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Tuple
 
@@ -834,7 +834,7 @@ class BaseRuntimeHandler(ABC):
             return True
 
         # give some grace period
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         last_update_str = run.get('status', {}).get('last_update', now)
         last_update = datetime.fromisoformat(last_update_str)
         if last_update + timedelta(seconds=float(config.runtime_resources_deletion_grace_period)) > now:

@@ -77,6 +77,9 @@ class Logger(object):
         # save as the named output
         self._handlers[handler_name] = stream_handler
 
+    def replace_handler_stream(self, handler_name: str, file: IO[str]):
+        self._handlers[handler_name].stream = file
+
     def debug(self, message, *args, **kw_args):
         self._update_bound_vars_and_log(logging.DEBUG, message, *args, **kw_args)
 

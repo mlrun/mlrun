@@ -828,15 +828,14 @@ class BaseRuntimeHandler(ABC):
     def _is_crd_function_in_transient_state(db: DBInterface, db_session: Session, crd_object) -> bool:
         # verify the mlrun function is in stable state
         project = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/project')
-        function_name = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/function')
-        function_tag = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/tag')
-        function = db.get_function(db_session, function_name, project, function_tag)
-        if function.get('status', {}).get('state') not in FunctionStates.stable_phases():
+        uid = crd_object.get('metadata', {}).get('labels', {}).get('mlrun/uid')
+        run = db.read_run(db_session, uid, project)
+        if run.get('status', {}).get('state') not in FunctionStates.stable_phases():
             return True
 
         # give some grace period
         now = datetime.now()
-        last_update_str = function.get('status', {}).get('last_update', now)
+        last_update_str = run.get('status', {}).get('last_update', now)
         last_update = datetime.fromisoformat(last_update_str)
         if last_update + timedelta(seconds=config.runtime_resources_deletion_grace_period) > now:
             return True

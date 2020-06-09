@@ -249,7 +249,7 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         function_name = function.metadata.name
         if function.kind == 'dask':
             image = image or function.spec.kfp_image \
-                    or 'mlrun/dask:{}'.format(config.version)
+                    or 'mlrun/ml-base:{}'.format(config.version)
 
     image = image or config.kfp_image
 
@@ -350,9 +350,9 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
             'mlpipeline-metrics': '/mlpipeline-metrics.json',
         },
     )
-    if rundb:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name='MLRUN_DBPATH', value=rundb))
+    # if rundb:
+    #     cop.container.add_env_variable(k8s_client.V1EnvVar(
+    #         name='MLRUN_DBPATH', value=rundb))
     if code_env:
         cop.container.add_env_variable(k8s_client.V1EnvVar(
             name='MLRUN_EXEC_CODE', value=code_env))

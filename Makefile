@@ -217,6 +217,8 @@ package-wheel: clean ## Build python package wheel
 publish-package: package-wheel ## Publish python package wheel
 	python -m twine upload dist/mlrun-*.whl
 
+test-publish: package-wheel
+	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/mlrun-*.whl
 
 clean: ## Clean python package build artifacts
 	rm -rf build
@@ -257,7 +259,6 @@ circleci: test-dockerized
 docs-requirements: ## Build docs requirements
 	cp requirements.txt docs/requirements.txt
 	echo numpydoc >> docs/requirements.txt
-
 
 html-docs: docs-requirements ## Build html docs
 	rm -f docs/external/*.md

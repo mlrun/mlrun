@@ -99,8 +99,8 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
                 self._update_container(pod_template, 'image', self.full_image_path())
             self._update_container(pod_template, 'volumeMounts', self.spec.volume_mounts)
             extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
-            if self.spec.rundb:
-                extra_env['MLRUN_DBPATH'] = self.spec.rundb
+            # if self.spec.rundb:
+            #     extra_env['MLRUN_DBPATH'] = self.spec.rundb
             extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
             self._update_container(pod_template, 'env', extra_env + self.spec.env)
             if self.spec.image_pull_policy:

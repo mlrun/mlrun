@@ -130,8 +130,8 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, 'spec.volumes', self.spec.volumes)
 
         extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
-        if self.spec.rundb:
-            extra_env['MLRUN_DBPATH'] = self.spec.rundb
+        # if self.spec.rundb:
+        #     extra_env['MLRUN_DBPATH'] = self.spec.rundb
         extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
 
         update_in(job, 'spec.driver.env', extra_env + self.spec.env)

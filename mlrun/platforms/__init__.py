@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .iguazio import v3io_cred, mount_v3io
-from .other import mount_pvc
+from .iguazio import v3io_cred, mount_v3io, add_or_refresh_credentials
+from .other import mount_pvc, auto_mount

@@ -202,7 +202,7 @@ def update_model(model_artifact, parameters: dict = None, metrics: dict = None,
         update_model(model_path, metrics={'speed': 100},
                      extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
 
-    :param model_artifact:  model artifact path (store://..) or DataItem
+    :param model_artifact:  model artifact object or path (store://..) or DataItem
     :param parameters:      parameters dict
     :param metrics:         model metrics e.g. accuracy
     :param extra_data:      extra data items (key: path string | bytes | artifact)
@@ -216,11 +216,14 @@ def update_model(model_artifact, parameters: dict = None, metrics: dict = None,
     if hasattr(model_artifact, 'artifact_url'):
         model_artifact = model_artifact.artifact_url
 
-    if not model_artifact.startswith(DB_SCHEMA + '://'):
-        raise ValueError('model path must be a model store URL/DataItem')
-
     stores = stores or StoreManager()
-    model_spec, target = stores.get_store_artifact(model_artifact)
+    if isinstance(model_artifact, ModelArtifact):
+        model_spec = model_artifact
+    elif model_artifact.startswith(DB_SCHEMA + '://'):
+        model_spec, _ = stores.get_store_artifact(model_artifact)
+    else:
+        raise ValueError('model path must be a model store object/URL/DataItem')
+
     if not model_spec or model_spec.kind != 'model':
         raise ValueError('store artifact ({}) is not model kind'.format(model_artifact))
 

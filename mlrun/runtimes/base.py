@@ -399,8 +399,8 @@ class BaseRuntime(ModelObj):
 
     def _get_cmd_args(self, runobj, with_mlrun):
         extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
-        if self.spec.rundb:
-            extra_env['MLRUN_DBPATH'] = self.spec.rundb or config.dbpath
+        # if self.spec.rundb:
+        #     extra_env['MLRUN_DBPATH'] = self.spec.rundb or config.dbpath
         if self.spec.pythonpath:
             extra_env['PYTHONPATH'] = self.spec.pythonpath
         args = []

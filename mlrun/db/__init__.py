@@ -14,6 +14,7 @@
 from urllib.parse import urlparse
 
 from ..config import config
+from ..platforms import add_or_refresh_credentials
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
 from .httpdb import HTTPRunDB
@@ -28,11 +29,17 @@ def get_or_set_dburl(default=''):
     return config.dbpath
 
 
-def get_httpdb_kwargs():
+def get_httpdb_kwargs(host, username, password):
+    username = username or config.httpdb.user
+    password = password or config.httpdb.password
+
+    username, password, token = add_or_refresh_credentials(
+        host, username, password, config.httpdb.token)
+
     return {
-        'user': config.httpdb.user,
-        'password': config.httpdb.password,
-        'token': config.httpdb.token,
+        'user': username,
+        'password': password,
+        'token': token,
     }
 
 
@@ -41,14 +48,18 @@ def get_run_db(url=''):
     if not url:
         url = get_or_set_dburl('./')
 
-    p = urlparse(url)
-    scheme = p.scheme.lower()
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme.lower()
     kwargs = {}
     if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
         cls = FileRunDB
     elif scheme in ('http', 'https'):
         cls = HTTPRunDB
-        kwargs = get_httpdb_kwargs()
+        kwargs = get_httpdb_kwargs(parsed_url.hostname, parsed_url.username, parsed_url.password)
+        endpoint = parsed_url.hostname
+        if parsed_url.port:
+            endpoint += ':{}'.format(parsed_url.port)
+        url = f'{parsed_url.scheme}://{endpoint}{parsed_url.path}'
     else:
         cls = SQLDB
 

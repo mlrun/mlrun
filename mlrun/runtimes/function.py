@@ -14,6 +14,8 @@
 
 import json
 from os import environ
+from urllib.parse import urlparse
+
 import requests
 from datetime import datetime
 import asyncio
@@ -23,12 +25,13 @@ import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io
+from ..platforms.iguazio import mount_v3io, add_or_refresh_credentials, is_iguazio_endpoint
 from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in, tag_image
 from ..lists import RunList
 from ..model import RunObject
+from ..config import config as mlconf
 
 serving_handler = 'handler'
 default_max_replicas = 4
@@ -245,6 +248,7 @@ class RemoteRuntime(KubeResource):
             spec.set_config('spec.minReplicas', self.spec.min_replicas)
             spec.set_config('spec.maxReplicas', self.spec.max_replicas)
 
+        dashboard = get_auth_filled_platform_dashboard_url(dashboard)
         if self.spec.base_spec:
             if kind:
                 raise ValueError('kind cannot be specified on built functions')
@@ -292,6 +296,7 @@ class RemoteRuntime(KubeResource):
         models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         project = project or self.metadata.project
+        dashboard = get_auth_filled_platform_dashboard_url(dashboard)
         return deploy_op(name, self, dashboard=dashboard,
                          project=project, models=models, env=env,
                          tag=tag, verbose=verbose)
@@ -408,3 +413,17 @@ def _fullname(project, name):
     if project:
         return '{}-{}'.format(project, name)
     return name
+
+
+def get_auth_filled_platform_dashboard_url(dashboard: str) -> str:
+    if not is_iguazio_endpoint(mlconf.dbpath):
+        return dashboard or mlconf.nuclio_dashboard_url
+
+    # todo: workaround for 2.8 use nuclio_dashboard_url for subdns name
+    parsed_dbpath = urlparse(mlconf.dbpath)
+    user, control_session = add_or_refresh_credentials(parsed_dbpath.hostname)
+    return 'https://{}:{}@{}{}'.format(
+        user,
+        control_session,
+        mlconf.nuclio_dashboard_url or 'nuclio-api-ext',
+        parsed_dbpath.hostname[parsed_dbpath.hostname.find('.'):])

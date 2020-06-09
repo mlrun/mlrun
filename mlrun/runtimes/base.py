@@ -841,6 +841,10 @@ class BaseRuntimeHandler(ABC):
         # verify the mlrun function is in stable state
         project = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project')
         uid = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/uid')
+
+        # if no uid, assume in stable state
+        if not uid:
+            return False
         run = db.read_run(db_session, uid, project)
         if run.get('status', {}).get('state') not in FunctionStates.stable_phases():
             return True

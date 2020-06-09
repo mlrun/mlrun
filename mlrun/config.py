@@ -168,10 +168,8 @@ class Config(object):
                 else:
                     setattr(self, key, value)
 
-    def _enrich_from_env(self, env=None, prefix=env_prefix):
+    def _enrich_from_env(self, env, prefix=env_prefix):
         """Read configuration from environment"""
-
-        env = os.environ if env is None else env
 
         for key, value in env.items():
             if not key.startswith(prefix) or key == env_file_key:
@@ -193,8 +191,8 @@ class Config(object):
 
             while len(path) > 1:
                 name, *path = path
-                setattr(self, name, {})
-            setattr(self, path[0], value)
+                self._cfg.setdefault(name, {})
+            self._cfg[path[0]] = value
 
         # check for mlrun-api or db kubernetes service
         api_port = env.get('MLRUN_API_PORT')
@@ -224,4 +222,4 @@ class Config(object):
         self.version = __version__
 
 
-config = Config(default_config).load()
+config = Config.load()

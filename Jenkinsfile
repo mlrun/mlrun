@@ -99,6 +99,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                                                  usernameVariable: 'TWINE_USERNAME')])
                                 {
                                     dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                        commin.shellc("pip install twine")
                                         common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make publish-package")
                                     }
                                 }

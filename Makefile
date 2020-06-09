@@ -215,11 +215,9 @@ package-wheel: clean ## Build python package wheel
 
 
 publish-package: package-wheel ## Publish python package wheel
-	pip install twine
 	python -m twine upload dist/mlrun-*.whl
 
 test-publish: package-wheel
-	pip install twine
 	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/mlrun-*.whl
 
 clean: ## Clean python package build artifacts

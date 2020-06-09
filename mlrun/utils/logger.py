@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import json
-import logging
+from traceback import format_exception
+from sys import stdout
 from enum import Enum
 from typing import IO
+import json
+import logging
 
 
 class JSONFormatter(logging.Formatter):
@@ -25,11 +26,14 @@ class JSONFormatter(logging.Formatter):
         self._json_encoder = json.JSONEncoder()
 
     def format(self, record):
+        record_with = getattr(record, 'with', {})
+        if record.exc_info:
+            record_with.update(exc_info=format_exception(*record.exc_info))
         record_fields = {
             'datetime': self.formatTime(record, self.datefmt),
             'level': record.levelname.lower(),
             'message': record.getMessage(),
-            'with': getattr(record, 'with', {}),
+            'with': record_with,
         }
 
         return self._json_encoder.encode(record_fields)
@@ -42,6 +46,8 @@ class HumanReadableFormatter(logging.Formatter):
 
     def format(self, record):
         record_with = getattr(record, 'with', {})
+        if record.exc_info:
+            record_with.update(exc_info=format_exception(*record.exc_info))
         more = f': {record_with}' if record_with else ''
         return f'> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage()}{more}'
 
@@ -59,7 +65,6 @@ class Logger(object):
 
         # check if there's a handler by this name
         if handler_name in self._handlers:
-
             # log that we're removing it
             self.info('Replacing logger output', handler_name=handler_name)
 
@@ -89,20 +94,26 @@ class Logger(object):
     def warn(self, message, *args, **kw_args):
         self._update_bound_vars_and_log(logging.WARNING, message, *args, **kw_args)
 
+    def warning(self, message, *args, **kw_args):
+        self.warn(message, *args, **kw_args)
+
     def error(self, message, *args, **kw_args):
         self._update_bound_vars_and_log(logging.ERROR, message, *args, **kw_args)
+
+    def exception(self, message, *args, exc_info=True, **kw_args):
+        self._update_bound_vars_and_log(logging.ERROR, message, *args, exc_info=exc_info, **kw_args)
 
     def bind(self, **kw_args):
         self._bound_variables.update(kw_args)
 
-    def _update_bound_vars_and_log(self, level, message, *args, **kw_args):
+    def _update_bound_vars_and_log(self, level, message, *args, exc_info=None, **kw_args):
         kw_args.update(self._bound_variables)
 
         if kw_args:
-            self._logger._log(level, message, args, extra={'with': kw_args})
+            self._logger._log(level, message, args, exc_info, extra={'with': kw_args})
             return
 
-        self._logger._log(level, message, args)
+        self._logger._log(level, message, args, exc_info)
 
 
 class LoggerFormatterEnum(Enum):
@@ -120,7 +131,7 @@ def _resolve_formatter(logger_formatter: LoggerFormatterEnum):
 def create_logger(level: str = "debug",
                   formatter: str = LoggerFormatterEnum.HUMAN.name,
                   name: str = "mlrun",
-                  stream=sys.stdout):
+                  stream=stdout):
     level = logging.getLevelName(level.upper())
 
     # create logger instance
@@ -130,7 +141,7 @@ def create_logger(level: str = "debug",
     formatter = _resolve_formatter(LoggerFormatterEnum(formatter.lower()))
 
     # set handler
-    logger_instance.set_handler("default", stream or sys.stdout, formatter)
+    logger_instance.set_handler("default", stream or stdout, formatter)
 
     # disable event propagation to higher classes
     # TODO: Why?!

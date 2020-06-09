@@ -56,7 +56,7 @@ setup(
     license='MIT',
     url='https://github.com/mlrun/mlrun',
     packages=['mlrun', 'mlrun.runtimes', 'mlrun.runtimes.mpijob', 'mlrun.db', 'mlrun.mlutils',
-              'mlrun.platforms', 'mlrun.projects', 'mlrun.artifacts',
+              'mlrun.platforms', 'mlrun.projects', 'mlrun.artifacts', 'mlrun.utils',
               'mlrun.datastore', 'mlrun.api', 'mlrun.api.api', 'mlrun.api.api.endpoints', 'mlrun.api.db',
               'mlrun.api.db.sqldb', 'mlrun.api.db.filedb', 'mlrun.api.schemas'],
     install_requires=install_requires,

@@ -20,7 +20,6 @@ import pathlib
 import re
 from datetime import datetime, timezone
 from os import path, environ
-from .clients.logger import create_logger
 
 import numpy as np
 import requests
@@ -28,7 +27,8 @@ import yaml
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-from .config import config
+from ..config import config
+from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -574,5 +574,3 @@ class RunNotifications:
 
         self._hooks.append(_comment)
         return self
-
-

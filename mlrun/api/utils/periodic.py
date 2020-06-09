@@ -1,7 +1,10 @@
 import asyncio
-from typing import List, Callable
-from mlrun.utils import logger
+import traceback
+from typing import List
+
 from fastapi.concurrency import run_in_threadpool
+
+from mlrun.utils import logger
 
 tasks: List = []
 
@@ -17,7 +20,8 @@ async def _periodic_function_wrapper(interval, function, *args, **kwargs):
             else:
                 await run_in_threadpool(function, *args, **kwargs)
         except Exception as exc:
-            logger.warning(f'Failed during periodic function execution: {function.__name__}, exc: {exc}')
+            logger.warning(
+                f'Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}')
         await asyncio.sleep(interval)
 
 

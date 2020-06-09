@@ -189,10 +189,12 @@ class Config(object):
             # 'A__B' → ['a', 'b']
             path = key.lower().split('__')
 
+            c = self
             while len(path) > 1:
                 name, *path = path
-                self._cfg.setdefault(name, {})
-            self._cfg[path[0]] = value
+                c._cfg.setdefault(name, {})
+                c = getattr(self, name)
+            setattr(c, path[0], value)
 
         # check for mlrun-api or db kubernetes service
         api_port = env.get('MLRUN_API_PORT')

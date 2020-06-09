@@ -11,10 +11,13 @@ tasks: List = []
 # TODO: merge the modules
 async def _periodic_function_wrapper(interval, function, *args, **kwargs):
     while True:
-        if asyncio.iscoroutinefunction(function):
-            await function(*args, **kwargs)
-        else:
-            await run_in_threadpool(function, *args, **kwargs)
+        try:
+            if asyncio.iscoroutinefunction(function):
+                await function(*args, **kwargs)
+            else:
+                await run_in_threadpool(function, *args, **kwargs)
+        except Exception as exc:
+            logger.warning(f'Failed during periodic function execution: {function.__name__}, exc: {exc}')
         await asyncio.sleep(interval)
 
 

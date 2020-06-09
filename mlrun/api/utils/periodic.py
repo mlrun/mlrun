@@ -12,7 +12,7 @@ tasks: List = []
 # This module is different from mlrun.db.periodic in that this module's functions aren't supposed to persist
 # also this module supports asyncio while the other currently not
 # TODO: merge the modules
-async def _periodic_function_wrapper(interval, function, *args, **kwargs):
+async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
     while True:
         try:
             if asyncio.iscoroutinefunction(function):
@@ -25,7 +25,7 @@ async def _periodic_function_wrapper(interval, function, *args, **kwargs):
         await asyncio.sleep(interval)
 
 
-def run_function_periodically(interval, function, *args, **kwargs):
+def run_function_periodically(interval: int, function, *args, **kwargs):
     global tasks
     logger.debug(f'Submitting function to run periodically: {function.__name__}')
     loop = asyncio.get_running_loop()

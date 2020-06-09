@@ -42,7 +42,7 @@ async def shutdown_event():
 
 def _start_periodic_cleanup():
     logger.info('Starting periodic runtimes cleanup')
-    run_function_periodically(config.runtimes_cleanup_interval, _cleanup_runtimes)
+    run_function_periodically(int(config.runtimes_cleanup_interval), _cleanup_runtimes)
 
 
 def _cleanup_runtimes():

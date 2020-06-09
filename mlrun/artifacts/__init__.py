@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Don't remove this, used by sphinx documentation
-__all__ = ['get_model', 'update_model', 'MlrunProject']
+__all__ = ['get_model', 'update_model']
 
 from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
 from .base import Artifact

@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Don't remove this, used by sphinx documentation
+__all__ = ['get_model', 'update_model', 'MlrunProject']
+
 from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
 from .base import Artifact
 from .plots import PlotArtifact, ChartArtifact

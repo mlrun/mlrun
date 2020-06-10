@@ -91,7 +91,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                                                     passwordVariable: 'TWINE_PASSWORD',
                                                     usernameVariable: 'TWINE_USERNAME')]) {
                                 dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                    commin.shellc("pip install twine")
+                                    common.shellc("pip install twine")
                                     common.shellc("make publish-package")
                                 }
                             }

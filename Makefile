@@ -264,7 +264,14 @@ html-docs: docs-requirements ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 
+.PHONY: fmt
+fmt:
+	python -m black --skip-string-normalization .
+
+.PHONY: lint
+lint:
+	python -m black --skip-string-normalization --check --diff -S .
 
 .PHONY: all help build docker-images push-docker-images print-docker-images base models models-gpu mlrun serving api \
  build-test package-wheel publish-package clean test-dockerized test run-api-undockerized circleci docs-requirements \
- html-docs
+ html-docs fmt lint

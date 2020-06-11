@@ -43,7 +43,11 @@ def _initialize_logs_dir():
 
 def _initialize_db():
     global db
-    if config.httpdb.db_type == "sqldb":
+    if config.httpdb.db_type == "filedb":
+        logger.info("using FileRunDB")
+        db = FileDB(config.httpdb.dirpath)
+        db.initialize(None)
+    else:
         logger.info("using SQLDB")
         db = SQLDB(config.httpdb.dsn)
         db_session = None
@@ -52,10 +56,6 @@ def _initialize_db():
             db.initialize(db_session)
         finally:
             db_session.close()
-    else:
-        logger.info("using FileRunDB")
-        db = FileDB(config.httpdb.dirpath)
-        db.initialize(None)
 
 
 def get_db() -> DBInterface:

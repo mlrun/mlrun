@@ -63,7 +63,7 @@ default_config = {
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
-        'dsn': 'sqlite:////tmp/mlrun.db?check_same_thread=false',
+        'dsn': 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',
@@ -202,6 +202,10 @@ def read_env(env=None, prefix=env_prefix):
             if ':' in igz_domain:
                 igz_domain = igz_domain[:igz_domain.rfind(':')]
             env['IGZ_NAMESPACE_DOMAIN'] = igz_domain
+
+    # workaround wrongly sqldb dsn in 2.8
+    if config.get('httpdb', {}).get('dsn') == 'sqlite:///mlrun.sqlite3?check_same_thread=false':
+        config['httpdb']['dsn'] = 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 
     if uisvc and not config.get('ui_url'):
         if igz_domain:

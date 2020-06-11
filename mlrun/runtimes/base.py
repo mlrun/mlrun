@@ -168,10 +168,12 @@ class BaseRuntime(ModelObj):
 
     def _function_uri(self, tag=None, hash_key=None):
         url = '{}/{}'.format(self.metadata.project, self.metadata.name)
-        if tag or self.metadata.tag:
-            url += ':{}'.format(tag or self.metadata.tag)
-        elif hash_key:
+
+        # prioritize hash key over tag
+        if hash_key:
             url += '@{}'.format(hash_key)
+        elif tag or self.metadata.tag:
+            url += ':{}'.format(tag or self.metadata.tag)
         return url
 
     def _get_db(self):

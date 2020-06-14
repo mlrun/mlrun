@@ -20,7 +20,18 @@ from .datastore import uri_to_ipython
 from .config import config
 
 JUPYTER_SERVER_ROOT = environ.get('HOME', '/User')
-supported_viewers = ['.htm', '.html', '.json', '.yaml', '.txt', '.log', '.jpg', '.png', '.csv', '.py']
+supported_viewers = [
+    '.htm',
+    '.html',
+    '.json',
+    '.yaml',
+    '.txt',
+    '.log',
+    '.jpg',
+    '.png',
+    '.csv',
+    '.py',
+]
 
 
 def html_dict(title, data, open=False, show_nil=False):
@@ -57,8 +68,7 @@ def table_sum(title, df):
 
 
 def dict_html(x):
-    return ''.join([f'<div class="dictlist">{i}</div>'
-                    for i in dict_to_list(x)])
+    return ''.join([f'<div class="dictlist">{i}</div>' for i in dict_to_list(x)])
 
 
 def link_to_ipython(link):
@@ -141,6 +151,7 @@ def run_to_html(results, display=True):
 def ipython_display(html, display=True, alt_text=None):
     if display and html and is_ipython:
         import IPython
+
         IPython.display.display(IPython.display.HTML(html))
     elif alt_text:
         print(alt_text)
@@ -299,7 +310,9 @@ tblframe = """
 
 
 def get_tblframe(df, display, classes=None):
-    table_html = df.to_html(escape=False, index=False, notebook=display, classes=classes)
+    table_html = df.to_html(
+        escape=False, index=False, notebook=display, classes=classes
+    )
     if not display:
         return table_html
 
@@ -313,23 +326,26 @@ uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/{}/info" target="_b
 
 
 def runs_to_html(df, display=True, classes=None, short=False):
-
     def time_str(x):
         try:
             return x.strftime("%b %d %H:%M:%S")
         except ValueError:
             return ''
 
-    df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(
-        x, 'target_path'))
+    df['artifacts'] = df['artifacts'].apply(lambda x: artifacts_html(x, 'target_path'))
     df['results'] = df['results'].apply(dict_html)
     df['start'] = df['start'].apply(time_str)
     if config.ui_url:
-        df['uid'] = df.apply(lambda x: uid_template.format(
-            x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]), axis=1)
+        df['uid'] = df.apply(
+            lambda x: uid_template.format(
+                x.uid, config.ui_url, x.project, x.uid, x.uid[-8:]
+            ),
+            axis=1,
+        )
     else:
         df['uid'] = df['uid'].apply(
-            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:]))
+            lambda x: '<div title="{}">...{}</div>'.format(x, x[-6:])
+        )
 
     if short:
         df.drop('project', axis=1, inplace=True)
@@ -345,7 +361,8 @@ def runs_to_html(df, display=True, classes=None, short=False):
     def expand_error(x):
         if x['state'] == 'error':
             x['state'] = '<div style="color: red;" title="{}">{}</div>'.format(
-                (str(x['error'])).replace('"', "'"), x['state'])
+                (str(x['error'])).replace('"', "'"), x['state']
+            )
         return x
 
     df = df.apply(expand_error, axis=1)
@@ -361,7 +378,9 @@ def artifacts_to_html(df, display=True, classes=None):
         p = '{}/{}'.format(get_in(x, 'kind', ''), get_in(x, 'uri', ''))
         if 'owner' in x:
             p += ' by {}'.format(x['owner'])
-        return '<div title="{}" class="producer">{}</div>'.format(p, get_in(x, 'name', 'unknown'))
+        return '<div title="{}" class="producer">{}</div>'.format(
+            p, get_in(x, 'name', 'unknown')
+        )
 
     if 'tree' in df.columns.values:
         df['tree'] = df['tree'].apply(html_crop)

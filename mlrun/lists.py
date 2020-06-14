@@ -21,11 +21,22 @@ from .render import runs_to_html, artifacts_to_html
 
 
 class RunList(list):
-
     def to_rows(self):
         rows = []
-        head = ['project', 'uid', 'iter', 'start', 'state', 'name', 'labels',
-                'inputs', 'parameters', 'results', 'artifacts', 'error']
+        head = [
+            'project',
+            'uid',
+            'iter',
+            'start',
+            'state',
+            'name',
+            'labels',
+            'inputs',
+            'parameters',
+            'results',
+            'artifacts',
+            'error',
+        ]
         for run in self:
             row = [
                 get_in(run, 'metadata.project', config.default_project),
@@ -70,9 +81,20 @@ class ArtifactList(list):
 
     def to_rows(self):
         rows = []
-        head = {'tree': '', 'key': '', 'iter': '', 'kind': '', 'path': 'target_path', 'hash': '',
-                'viewer': '', 'updated': '', 'description': '', 'producer': '',
-                'sources': '', 'labels': ''}
+        head = {
+            'tree': '',
+            'key': '',
+            'iter': '',
+            'kind': '',
+            'path': 'target_path',
+            'hash': '',
+            'viewer': '',
+            'updated': '',
+            'description': '',
+            'producer': '',
+            'sources': '',
+            'labels': '',
+        }
         for artifact in self:
             row = [get_in(artifact, v or k, '') for k, v in head.items()]
             rows.append(row)

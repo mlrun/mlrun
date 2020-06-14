@@ -17,8 +17,8 @@ router = APIRouter()
 @router.post("/submit_job")
 @router.post("/submit_job/")
 async def submit_job(
-        request: Request,
-        db_session: Session = Depends(deps.get_db_session)):
+    request: Request, db_session: Session = Depends(deps.get_db_session)
+):
     data = None
     try:
         data = await request.json()

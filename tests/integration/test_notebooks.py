@@ -58,13 +58,17 @@ def iterate_notebooks():
                 env_var = match.group('env_var')
                 env_var_value = general_env.get(env_var)
                 if env_var_value is None:
-                    raise ValueError(f'Env var {env_var} references general env, but it does not exist there')
+                    raise ValueError(
+                        f'Env var {env_var} references general env, but it does not exist there'
+                    )
                 test_env[key] = env_var_value
             else:
                 test_env[key] = value
         notebook_test_config['env'] = test_env
 
-        yield pytest.param(notebook_test_config, id=notebook_test_config['notebook_name'])
+        yield pytest.param(
+            notebook_test_config, id=notebook_test_config['notebook_name']
+        )
 
 
 def args_from_env(env):
@@ -83,9 +87,11 @@ def args_from_env(env):
     return args, cmd
 
 
-@pytest.mark.skipif(not mlrun_api_configured(),
-                    reason='This is an integration test, add the needed environment variables in test-notebooks.yml '
-                           'to run it')
+@pytest.mark.skipif(
+    not mlrun_api_configured(),
+    reason='This is an integration test, add the needed environment variables in test-notebooks.yml '
+    'to run it',
+)
 @pytest.mark.parametrize('notebook', iterate_notebooks())
 def test_notebook(notebook):
     path = f'./examples/{notebook["notebook_name"]}'
@@ -99,10 +105,10 @@ def test_notebook(notebook):
     with tmp_dockerfile.open('w') as out:
         out.write(code)
 
-    cmd = [
-              'docker', 'build',
-              '--file', str(tmp_dockerfile),
-              '--tag', docker_tag,
-          ] + args_cmd + ['.']
+    cmd = (
+        ['docker', 'build', '--file', str(tmp_dockerfile), '--tag', docker_tag,]
+        + args_cmd
+        + ['.']
+    )
     out = run(cmd, cwd=root)
     assert out.returncode == 0, 'cannot build'

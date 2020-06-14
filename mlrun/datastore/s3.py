@@ -27,15 +27,20 @@ class S3Store(DataStore):
         secret_key = self._secret('AWS_SECRET_ACCESS_KEY')
 
         if access_key or secret_key:
-            self.s3 = boto3.resource('s3', region_name=region,
-                                     aws_access_key_id=access_key,
-                                     aws_secret_access_key=secret_key)
+            self.s3 = boto3.resource(
+                's3',
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
         else:
             # from env variables
             self.s3 = boto3.resource('s3', region_name=region)
 
     def upload(self, key, src_path):
-        self.s3.Object(self.endpoint, self._join(key)[1:]).put(Body=open(src_path, 'rb'))
+        self.s3.Object(self.endpoint, self._join(key)[1:]).put(
+            Body=open(src_path, 'rb')
+        )
 
     def get(self, key, size=None, offset=0):
         obj = self.s3.Object(self.endpoint, self._join(key)[1:])
@@ -58,5 +63,3 @@ class S3Store(DataStore):
         l = len(key)
         bucket = self.s3.Bucket(self.endpoint)
         return [obj.key[l:] for obj in bucket.objects.filter(Prefix=key)]
-
-

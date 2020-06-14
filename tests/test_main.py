@@ -14,7 +14,14 @@
 
 from sys import executable, stderr
 from subprocess import run, PIPE
-from tests.conftest import rundb_path, out_path, tag_test, here, examples_path, root_path
+from tests.conftest import (
+    rundb_path,
+    out_path,
+    tag_test,
+    here,
+    examples_path,
+    root_path,
+)
 
 
 def exec_main(op, args):
@@ -41,25 +48,31 @@ def param_list(params: dict, flag='-p'):
 
 
 def test_main_run_basic():
-    out = exec_run(f'{examples_path}/training.py',
-                   param_list(dict(p1=5, p2='"aaa"')),
-                   'test_main_run_basic')
+    out = exec_run(
+        f'{examples_path}/training.py',
+        param_list(dict(p1=5, p2='"aaa"')),
+        'test_main_run_basic',
+    )
     print(out)
     assert out.find('state: completed') != -1, out
 
 
 def test_main_run_hyper():
-    out = exec_run(f'{examples_path}/training.py',
-                   param_list(dict(p2=[4, 5, 6]), '-x'),
-                   'test_main_run_hyper')
+    out = exec_run(
+        f'{examples_path}/training.py',
+        param_list(dict(p2=[4, 5, 6]), '-x'),
+        'test_main_run_hyper',
+    )
     print(out)
     assert out.find('state: completed') != -1, out
     assert out.find('iterations:') != -1, out
 
 
 def test_main_run_noctx():
-    out = exec_run(f'{here}/no_ctx.py',
-                   ['--mode', 'noctx'] + param_list(dict(p1=5, p2='"aaa"')),
-                   'test_main_run_noctx')
+    out = exec_run(
+        f'{here}/no_ctx.py',
+        ['--mode', 'noctx'] + param_list(dict(p1=5, p2='"aaa"')),
+        'test_main_run_noctx',
+    )
     print(out)
     assert out.find('state: completed') != -1, out

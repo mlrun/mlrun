@@ -15,11 +15,7 @@ router = APIRouter()
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @router.post("/log/{project}/{uid}")
-async def store_log(
-        request: Request,
-        project: str,
-        uid: str,
-        append: str = "on"):
+async def store_log(request: Request, project: str, uid: str, append: str = "on"):
     append = strtobool(append)
     body = await request.body()
     await run_in_threadpool(_write_to_log_file, project, uid, append, body)
@@ -29,12 +25,13 @@ async def store_log(
 # curl http://localhost:8080/log/prj/7
 @router.get("/log/{project}/{uid}")
 def get_log(
-        project: str,
-        uid: str,
-        size: int = -1,
-        offset: int = 0,
-        tag: str = "",
-        db_session: Session = Depends(deps.get_db_session)):
+    project: str,
+    uid: str,
+    size: int = -1,
+    offset: int = 0,
+    tag: str = "",
+    db_session: Session = Depends(deps.get_db_session),
+):
     out = b""
     log_file = log_path(project, uid)
     if log_file.exists():
@@ -64,8 +61,7 @@ def get_log(
                         update_in(data, "status.last_update", now)
                         if new_status == "failed":
                             update_in(data, "status.state", "error")
-                            update_in(
-                                data, "status.error", "error, check logs")
+                            update_in(data, "status.error", "error, check logs")
                             get_db().store_run(db_session, data, uid, project)
                         if new_status == "succeeded":
                             update_in(data, "status.state", "completed")
@@ -73,11 +69,12 @@ def get_log(
                 status = new_status
             elif status == "running":
                 update_in(data, "status.state", "error")
-                update_in(
-                    data, "status.error", "pod not found, maybe terminated")
+                update_in(data, "status.error", "pod not found, maybe terminated")
                 get_db().store_run(db_session, data, uid, project)
                 status = "failed"
-    return Response(content=out, media_type="text/plain", headers={"pod_status": status})
+    return Response(
+        content=out, media_type="text/plain", headers={"pod_status": status}
+    )
 
 
 def _write_to_log_file(project, uid, append, body):

@@ -59,9 +59,7 @@ def test_save_get_function(db: RunDBInterface):
 
 def new_func(labels, **kw):
     obj = {
-        'metadata': {
-            'labels': labels,
-        },
+        'metadata': {'labels': labels,},
     }
     obj.update(kw)
     return obj
@@ -108,10 +106,7 @@ def test_runs(db: RunDBInterface):
     db.store_run(run3, uid3)  # should not raise
 
     updates = {
-        'status': {
-            'start_time': run_now(),
-            'state': 's2',
-        },
+        'status': {'start_time': run_now(), 'state': 's2',},
     }
     db.update_run(updates, uid3)
 

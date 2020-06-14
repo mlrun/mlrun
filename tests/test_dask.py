@@ -22,12 +22,15 @@ from mlrun import NewTask, new_function
 has_dask = False
 try:
     import dask  # noqa
+
     has_dask = True
 except ImportError:
     pass
 
+
 def inc(x):
-    return x+2
+    return x + 2
+
 
 def my_func(context, p1=1, p2='a-string'):
     print(f'Run: {context.name} (uid={context.uid})')
@@ -44,8 +47,5 @@ def my_func(context, p1=1, p2='a-string'):
 @pytest.mark.skipif(not has_dask, reason='missing dask')
 def test_dask_local():
     spec = tag_test(NewTask(params={'p1': 3, 'p2': 'vv'}), 'test_dask_local')
-    run = new_function(kind='dask').run(
-        spec, handler=my_func)
+    run = new_function(kind='dask').run(spec, handler=my_func)
     verify_state(run)
-
-

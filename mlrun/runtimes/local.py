@@ -49,14 +49,15 @@ class HandlerRuntime(BaseRuntime):
         if self.spec.pythonpath:
             set_paths(self.spec.pythonpath)
 
-        context = MLClientCtx.from_dict(runobj.to_dict(),
-                                        rundb=self.spec.rundb,
-                                        autocommit=False,
-                                        tmp=tmp,
-                                        host=socket.gethostname())
+        context = MLClientCtx.from_dict(
+            runobj.to_dict(),
+            rundb=self.spec.rundb,
+            autocommit=False,
+            tmp=tmp,
+            host=socket.gethostname(),
+        )
         global_context.set(context)
-        sout, serr = exec_from_params(handler, runobj, context,
-                                      self.spec.workdir)
+        sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
 
@@ -84,23 +85,25 @@ class LocalRuntime(BaseRuntime):
             environ['MLRUN_DBPATH'] = self.spec.rundb
 
         handler = runobj.spec.handler
-        logger.info('starting local run: {} # {}'.format(
-            self.spec.command, handler or 'main'))
+        logger.info(
+            'starting local run: {} # {}'.format(self.spec.command, handler or 'main')
+        )
 
         if handler:
             if self.spec.pythonpath:
                 set_paths(self.spec.pythonpath)
 
             mod, fn = load_module(self.spec.command, handler)
-            context = MLClientCtx.from_dict(runobj.to_dict(),
-                                            rundb=self.spec.rundb,
-                                            autocommit=False,
-                                            tmp=tmp,
-                                            host=socket.gethostname())
+            context = MLClientCtx.from_dict(
+                runobj.to_dict(),
+                rundb=self.spec.rundb,
+                autocommit=False,
+                tmp=tmp,
+                host=socket.gethostname(),
+            )
             mod.global_mlrun_context = context
             global_context.set(context)
-            sout, serr = exec_from_params(fn, runobj, context,
-                                          self.spec.workdir)
+            sout, serr = exec_from_params(fn, runobj, context, self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
             return context.to_dict()
 
@@ -117,8 +120,7 @@ class LocalRuntime(BaseRuntime):
                     pypath = '{}:{}'.format(environ['PYTHONPATH'], pypath)
                 env = {'PYTHONPATH': pypath}
 
-            sout, serr = run_exec(cmd, self.spec.args, env=env,
-                                  cwd=self.spec.workdir)
+            sout, serr = run_exec(cmd, self.spec.args, env=env, cwd=self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
 
             try:
@@ -148,7 +150,7 @@ def load_module(file_name, handler):
     path = Path(file_name)
     mod_name = path.name
     if path.suffix:
-        mod_name = mod_name[:-len(path.suffix)]
+        mod_name = mod_name[: -len(path.suffix)]
     spec = imputil.spec_from_file_location(mod_name, file_name)
     if spec is None:
         raise RunError(f'cannot import from {file_name!r}')
@@ -171,8 +173,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     return out.stdout.decode('utf-8'), err
 
 
-def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
-                     cwd=None):
+def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
     args_list = get_func_arg(handler, runobj, context)
 
     stdout = StringIO()

@@ -22,12 +22,13 @@ router = APIRouter()
 # curl -d@/path/to/func.json http://localhost:8080/func/prj/7?tag=0.3.2
 @router.post("/func/{project}/{name}")
 async def store_function(
-        request: Request,
-        project: str,
-        name: str,
-        tag: str = "",
-        versioned: bool = False,
-        db_session: Session = Depends(deps.get_db_session)):
+    request: Request,
+    project: str,
+    name: str,
+    tag: str = "",
+    versioned: bool = False,
+    db_session: Session = Depends(deps.get_db_session),
+):
     data = None
     try:
         data = await request.json()
@@ -35,20 +36,28 @@ async def store_function(
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
-    logger.info(
-        "store function: project=%s, name=%s, tag=%s", project, name, tag)
-    await run_in_threadpool(get_db().store_function, db_session, data, name, project, tag=tag, versioned=versioned)
+    logger.info("store function: project=%s, name=%s, tag=%s", project, name, tag)
+    await run_in_threadpool(
+        get_db().store_function,
+        db_session,
+        data,
+        name,
+        project,
+        tag=tag,
+        versioned=versioned,
+    )
     return {}
 
 
 # curl http://localhost:8080/log/prj/7?tag=0.2.3
 @router.get("/func/{project}/{name}")
 def get_function(
-        project: str,
-        name: str,
-        tag: str = "",
-        hash_key="",
-        db_session: Session = Depends(deps.get_db_session)):
+    project: str,
+    name: str,
+    tag: str = "",
+    hash_key="",
+    db_session: Session = Depends(deps.get_db_session),
+):
     func = get_db().get_function(db_session, name, project, tag, hash_key)
     return {
         "func": func,
@@ -58,11 +67,12 @@ def get_function(
 # curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
 @router.get("/funcs")
 def list_functions(
-        project: str = config.default_project,
-        name: str = None,
-        tag: str = None,
-        labels: List[str] = Query([], alias='label'),
-        db_session: Session = Depends(deps.get_db_session)):
+    project: str = config.default_project,
+    name: str = None,
+    tag: str = None,
+    labels: List[str] = Query([], alias='label'),
+    db_session: Session = Depends(deps.get_db_session),
+):
     funcs = get_db().list_functions(db_session, name, project, tag, labels)
     return {
         "funcs": list(funcs),
@@ -73,8 +83,8 @@ def list_functions(
 @router.post("/build/function")
 @router.post("/build/function/")
 async def build_function(
-        request: Request,
-        db_session: Session = Depends(deps.get_db_session)):
+    request: Request, db_session: Session = Depends(deps.get_db_session)
+):
     data = None
     try:
         data = await request.json()
@@ -84,7 +94,9 @@ async def build_function(
     logger.info("build_function:\n{}".format(data))
     function = data.get("function")
     with_mlrun = strtobool(data.get("with_mlrun", "on"))
-    fn, ready = await run_in_threadpool(_build_function, db_session, function, with_mlrun)
+    fn, ready = await run_in_threadpool(
+        _build_function, db_session, function, with_mlrun
+    )
     return {
         "data": fn.to_dict(),
         "ready": ready,
@@ -95,8 +107,8 @@ async def build_function(
 @router.post("/start/function")
 @router.post("/start/function/")
 async def start_function(
-        request: Request,
-        db_session: Session = Depends(deps.get_db_session)):
+    request: Request, db_session: Session = Depends(deps.get_db_session)
+):
     data = None
     try:
         data = await request.json()
@@ -113,8 +125,7 @@ async def start_function(
 # curl -d@/path/to/job.json http://localhost:8080/status/function
 @router.post("/status/function")
 @router.post("/status/function/")
-async def function_status(
-        request: Request):
+async def function_status(request: Request):
     data = None
     try:
         data = await request.json()
@@ -131,12 +142,13 @@ async def function_status(
 @router.get("/build/status")
 @router.get("/build/status/")
 def build_status(
-        name: str = "",
-        project: str = "",
-        tag: str = "",
-        offset: int = 0,
-        logs: str = "on",
-        db_session: Session = Depends(deps.get_db_session)):
+    name: str = "",
+    project: str = "",
+    tag: str = "",
+    offset: int = 0,
+    logs: str = "on",
+    db_session: Session = Depends(deps.get_db_session),
+):
     logs = strtobool(logs)
     fn = get_db().get_function(db_session, name, project, tag)
     if not fn:
@@ -149,11 +161,15 @@ def build_status(
     if not pod:
         if state == "ready":
             image = image or get_in(fn, "spec.image")
-        return Response(content=out,
-                        media_type="text/plain",
-                        headers={"function_status": state,
-                                 "function_image": image,
-                                 "builder_pod": pod})
+        return Response(
+            content=out,
+            media_type="text/plain",
+            headers={
+                "function_status": state,
+                "function_image": image,
+                "builder_pod": pod,
+            },
+        )
 
     logger.info("get pod {} status".format(pod))
     state = get_k8s().get_pod_status(pod)
@@ -163,8 +179,7 @@ def build_status(
         logger.info("build completed successfully")
         state = "ready"
     if state in ["failed", "error"]:
-        logger.error("build {}, watch the build pod logs: {}".format(
-            state, pod))
+        logger.error("build {}, watch the build pod logs: {}".format(state, pod))
 
     if logs and state != "pending":
         resp = get_k8s().logs(pod)
@@ -177,11 +192,11 @@ def build_status(
 
     get_db().store_function(db_session, fn, name, project, tag)
 
-    return Response(content=out,
-                    media_type="text/plain",
-                    headers={"function_status": state,
-                             "function_image": image,
-                             "builder_pod": pod})
+    return Response(
+        content=out,
+        media_type="text/plain",
+        headers={"function_status": state, "function_image": image, "builder_pod": pod},
+    )
 
 
 def _build_function(db_session, function, with_mlrun):
@@ -207,17 +222,25 @@ def _start_function(db_session, data):
     logger.info("start_function:\n{}".format(data))
     url = data.get("functionUrl")
     if not url:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: functionUrl not specified")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST, reason="runtime error: functionUrl not specified"
+        )
 
     project, name, tag, hash_key = parse_function_uri(url)
     runtime = get_db().get_function(db_session, name, project, tag, hash_key)
     if not runtime:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST,
+            reason="runtime error: function {} not found".format(url),
+        )
 
     fn = new_function(runtime=runtime)
     resource = runtime_resources_map.get(fn.kind)
     if "start" not in resource:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: 'start' not supported by this runtime")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST,
+            reason="runtime error: 'start' not supported by this runtime",
+        )
 
     try:
 
@@ -239,11 +262,17 @@ def _get_function_status(data):
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: selector or runtime kind not specified")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST,
+            reason="runtime error: selector or runtime kind not specified",
+        )
 
     resource = runtime_resources_map.get(kind)
     if "status" not in resource:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: 'status' not supported by this runtime")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST,
+            reason="runtime error: 'status' not supported by this runtime",
+        )
 
     resp = None
     try:

@@ -10,10 +10,12 @@ from mlrun.db import periodic
 from mlrun.utils import logger
 from mlrun.api.initial_data import init_data
 
-app = FastAPI(title="MLRun",
-              description="Machine Learning automation and tracking",
-              version=config.version,
-              debug=config.httpdb.debug)
+app = FastAPI(
+    title="MLRun",
+    description="Machine Learning automation and tracking",
+    version=config.version,
+    debug=config.httpdb.debug,
+)
 
 app.include_router(api_router, prefix="/api")
 

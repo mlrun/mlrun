@@ -34,8 +34,7 @@ def get_generator(spec, execution):
         return None
 
     if tuning_strategy and tuning_strategy not in hyper_types:
-        raise ValueError('unsupported hyperparams type ({})'.format(
-            tuning_strategy))
+        raise ValueError('unsupported hyperparams type ({})'.format(tuning_strategy))
 
     if spec.param_file and hyperparams:
         raise ValueError('hyperparams and param_file cannot be used together')
@@ -156,7 +155,7 @@ def selector(results: list, criteria):
         op = 'max'
     else:
         op = criteria[:idx]
-        criteria = criteria[idx + 1:]
+        criteria = criteria[idx + 1 :]
 
     best_id = 0
     best_item = 0
@@ -179,8 +178,7 @@ def selector(results: list, criteria):
             except Exception:
                 val = None
         if state != 'error' and val is not None:
-            if (op == 'max' and val > best_val) \
-                    or (op == 'min' and val < best_val):
+            if (op == 'max' and val > best_val) or (op == 'min' and val < best_val):
                 best_id, best_item, best_val = id, i, val
         i += 1
 

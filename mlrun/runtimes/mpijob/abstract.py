@@ -30,7 +30,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     _is_nested = False
 
     @abc.abstractmethod
-    def _generate_mpi_job(self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta) -> typing.Dict:
+    def _generate_mpi_job(
+        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta
+    ) -> typing.Dict:
         pass
 
     @abc.abstractmethod
@@ -49,15 +51,16 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         pass
 
     def _pretty_print_jobs(self, items: typing.List):
-        print('{:10} {:20} {:21} {}'.format(
-            'status', 'name', 'start', 'end'))
+        print('{:10} {:20} {:21} {}'.format('status', 'name', 'start', 'end'))
         for i in items:
-            print('{:10} {:20} {:21} {}'.format(
-                self._get_job_launcher_status(i),
-                get_in(i, 'metadata.name', ''),
-                get_in(i, 'status.startTime', ''),
-                get_in(i, 'status.completionTime', ''),
-            ))
+            print(
+                '{:10} {:20} {:21} {}'.format(
+                    self._get_job_launcher_status(i),
+                    get_in(i, 'metadata.name', ''),
+                    get_in(i, 'status.startTime', ''),
+                    get_in(i, 'status.completionTime', ''),
+                )
+            )
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
 
@@ -80,33 +83,39 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             time.sleep(1)
 
         if resp:
-            logger.info('MpiJob {} state={}'.format(
-                meta.name, state or 'unknown'))
+            logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
             if state:
                 state = state.lower()
-                launcher, _ = self._get_launcher(meta.name,
-                                                 meta.namespace)
+                launcher, _ = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state('running' if state == 'active' else state)
                 if self.kfp:
                     writer = AsyncLogWriter(self._db_conn, runobj)
                     status = self._get_k8s().watch(
-                        launcher, meta.namespace, writer=writer)
+                        launcher, meta.namespace, writer=writer
+                    )
                     logger.info(
-                        'MpiJob {} finished with state {}'.format(
-                            meta.name, status))
+                        'MpiJob {} finished with state {}'.format(meta.name, status)
+                    )
                     if status == 'succeeded':
                         execution.set_state('completed')
                     else:
-                        execution.set_state('error', 'MpiJob {} finished with state {}'.format(meta.name, status))
+                        execution.set_state(
+                            'error',
+                            'MpiJob {} finished with state {}'.format(
+                                meta.name, status
+                            ),
+                        )
                 else:
                     txt = 'MpiJob {} launcher pod {} state {}'.format(
-                        meta.name, launcher, state)
+                        meta.name, launcher, state
+                    )
                     logger.info(txt)
                     runobj.status.status_text = txt
             else:
                 txt = 'MpiJob status unknown or failed, check pods: {}'.format(
-                    self.get_pods(meta.name, meta.namespace))
+                    self.get_pods(meta.name, meta.namespace)
+                )
                 logger.warning(txt)
                 runobj.status.status_text = txt
                 if self.kfp:
@@ -121,8 +130,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
-                mpi_group, mpi_version, namespace=namespace,
-                plural=mpi_plural, body=job)
+                mpi_group, mpi_version, namespace=namespace, plural=mpi_plural, body=job
+            )
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('MpiJob {} created'.format(name))
             return resp
@@ -138,9 +147,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             # delete the mpi job
             body = client.V1DeleteOptions()
             resp = k8s.crdapi.delete_namespaced_custom_object(
-                mpi_group, mpi_version, namespace, mpi_plural, name, body)
-            logger.info('del status: {}'.format(
-                get_in(resp, 'status', 'unknown')))
+                mpi_group, mpi_version, namespace, mpi_plural, name, body
+            )
+            logger.info('del status: {}'.format(get_in(resp, 'status', 'unknown')))
         except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
 
@@ -150,8 +159,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.list_namespaced_custom_object(
-                mpi_group, mpi_version, namespace, mpi_plural,
-                watch=False, label_selector=selector)
+                mpi_group,
+                mpi_version,
+                namespace,
+                mpi_plural,
+                watch=False,
+                label_selector=selector,
+            )
         except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
 
@@ -168,7 +182,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
-                mpi_group, mpi_version, namespace, mpi_plural, name)
+                mpi_group, mpi_version, namespace, mpi_plural, name
+            )
         except client.rest.ApiException as e:
             print("Exception when reading MPIJob: %s" % e)
         return resp

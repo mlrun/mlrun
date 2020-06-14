@@ -29,13 +29,27 @@ from os import path, remove
 
 from ..datastore import StoreManager
 from ..config import config
-from ..run import (import_function, code_to_function, new_function,
-                   download_object, run_pipeline, get_object, wait_for_pipeline_completion)
+from ..run import (
+    import_function,
+    code_to_function,
+    new_function,
+    download_object,
+    run_pipeline,
+    get_object,
+    wait_for_pipeline_completion,
+)
 import importlib.util as imputil
 from urllib.parse import urlparse
 from kfp import compiler
 
-from ..utils import update_in, new_pipe_meta, logger, dict_to_str, is_ipython, RunNotifications
+from ..utils import (
+    update_in,
+    new_pipe_meta,
+    logger,
+    dict_to_str,
+    is_ipython,
+    RunNotifications,
+)
 from ..runtimes.utils import add_code_metadata
 
 
@@ -62,8 +76,9 @@ def new_project(name, context=None, init_git=False):
     return project
 
 
-def load_project(context, url=None, name=None, secrets=None,
-                 init_git=False, subpath='', clone=False):
+def load_project(
+    context, url=None, name=None, secrets=None, init_git=False, subpath='', clone=False
+):
     """Load an MLRun project from git or tar or dir
 
     :param context:    project local directory path
@@ -93,8 +108,7 @@ def load_project(context, url=None, name=None, secrets=None,
 
     else:
         if not path.isdir(context):
-            raise ValueError('context {} is not an existing dir path'.format(
-                context))
+            raise ValueError('context {} is not an existing dir path'.format(context))
         try:
             repo = Repo(context)
             url = _get_repo_url(repo)
@@ -125,9 +139,10 @@ def _load_project_dir(context, name='', subpath=''):
 
     elif path.isfile(path.join(context, subpath, 'function.yaml')):
         func = import_function(path.join(context, subpath, 'function.yaml'))
-        project = MlrunProject(name=func.metadata.project,
-                               functions=[{'url': 'function.yaml',
-                                           'name': func.metadata.name}])
+        project = MlrunProject(
+            name=func.metadata.project,
+            functions=[{'url': 'function.yaml', 'name': func.metadata.name}],
+        )
     else:
         raise ValueError('project or function YAML not found in path')
 
@@ -151,9 +166,17 @@ def _load_project_file(url, name='', secrets=None):
 class MlrunProject(ModelObj):
     kind = 'project'
 
-    def __init__(self, name=None, description=None, params=None,
-                 functions=None, workflows=None, artifacts=None,
-                 artifact_path=None, conda=None):
+    def __init__(
+        self,
+        name=None,
+        description=None,
+        params=None,
+        functions=None,
+        workflows=None,
+        artifacts=None,
+        artifact_path=None,
+        conda=None,
+    ):
 
         self._initialized = False
         self.name = name
@@ -228,11 +251,11 @@ class MlrunProject(ModelObj):
         for name, f in self._function_defs.items():
             if hasattr(f, 'to_dict'):
                 spec = f.to_dict(strip=True)
-                if f.spec.build.source and \
-                        f.spec.build.source.startswith(self._source_repo()):
+                if f.spec.build.source and f.spec.build.source.startswith(
+                    self._source_repo()
+                ):
                     update_in(spec, 'spec.build.source', './')
-                funcs.append({'name': name,
-                              'spec': spec})
+                funcs.append({'name': name, 'spec': spec})
             else:
                 funcs.append(f)
         return funcs
@@ -333,24 +356,42 @@ class MlrunProject(ModelObj):
     def register_artifacts(self):
         """register the artifacts in the MLRun DB (under this project)"""
         am = self._get_artifact_mngr()
-        producer = ArtifactProducer('project', self.name, self.name,
-                                    tag=self._get_hexsha() or 'latest')
+        producer = ArtifactProducer(
+            'project', self.name, self.name, tag=self._get_hexsha() or 'latest'
+        )
         for name, obj in self._artifacts.items():
             artifact = dict_to_artifact(obj)
             am.log_artifact(producer, artifact, upload=False)
 
-    def log_artifact(self, item, body=None, tag='', local_path='',
-                     artifact_path=None, format=None, upload=True,
-                     labels=None, target_path=None):
+    def log_artifact(
+        self,
+        item,
+        body=None,
+        tag='',
+        local_path='',
+        artifact_path=None,
+        format=None,
+        upload=True,
+        labels=None,
+        target_path=None,
+    ):
         am = self._get_artifact_mngr()
         artifact_path = artifact_path or self.artifact_path
-        producer = ArtifactProducer('project', self.name, self.name,
-                                    tag=self._get_hexsha() or 'latest')
-        item = am.log_artifact(producer, item, body, tag=tag,
-                               local_path=local_path,
-                               artifact_path=artifact_path, format=format,
-                               upload=upload, labels=labels,
-                               target_path=target_path)
+        producer = ArtifactProducer(
+            'project', self.name, self.name, tag=self._get_hexsha() or 'latest'
+        )
+        item = am.log_artifact(
+            producer,
+            item,
+            body,
+            tag=tag,
+            local_path=local_path,
+            artifact_path=artifact_path,
+            format=format,
+            upload=upload,
+            labels=labels,
+            target_path=target_path,
+        )
         self._artifacts[item.key] = item.base_dict()
 
     def reload(self, sync=False):
@@ -404,8 +445,13 @@ class MlrunProject(ModelObj):
         if isinstance(func, str):
             if not name:
                 raise ValueError('function name must be specified')
-            fdict = {'url': func, 'name': name, 'kind': kind,
-                     'image': image, 'with_repo': with_repo}
+            fdict = {
+                'url': func,
+                'name': name,
+                'kind': kind,
+                'image': image,
+                'with_repo': with_repo,
+            }
             func = {k: v for k, v in fdict.items() if v}
             name, f = _init_function_from_dict(func, self)
         elif hasattr(func, 'to_dict'):
@@ -472,8 +518,7 @@ class MlrunProject(ModelObj):
         self._source = self.source or url
         self.origin_url = self.origin_url or url
 
-    def push(self, branch, message=None, update=True, remote=None,
-             add: list = None):
+    def push(self, branch, message=None, update=True, remote=None, add: list = None):
         """update spec and push updates to remote git repo
 
          :param branch:  target git branch
@@ -560,9 +605,18 @@ class MlrunProject(ModelObj):
             return self.params.get(key)
         return None
 
-    def run(self, name=None, workflow_path=None, arguments=None,
-            artifact_path=None, namespace=None, sync=False,
-            watch=False, dirty=False, ttl=None):
+    def run(
+        self,
+        name=None,
+        workflow_path=None,
+        arguments=None,
+        artifact_path=None,
+        namespace=None,
+        sync=False,
+        watch=False,
+        dirty=False,
+        ttl=None,
+    ):
         """run a workflow using kubeflow pipelines
 
         :param name:      name of the workflow
@@ -592,7 +646,8 @@ class MlrunProject(ModelObj):
 
         if need_repo and self.repo and not self.source:
             raise ProjectError(
-                'remote repo is not defined, use .create_remote() + push()')
+                'remote repo is not defined, use .create_remote() + push()'
+            )
 
         self.sync_functions(always=sync)
         if not self._function_objects:
@@ -612,15 +667,21 @@ class MlrunProject(ModelObj):
 
         name = '{}-{}'.format(self.name, name) if name else self.name
         artifact_path = artifact_path or self.artifact_path
-        run = _run_pipeline(self, name, workflow_path, self._function_objects,
-                            secrets=self._secrets, arguments=arguments,
-                            artifact_path=artifact_path, namespace=namespace,
-                            ttl=ttl)
+        run = _run_pipeline(
+            self,
+            name,
+            workflow_path,
+            self._function_objects,
+            secrets=self._secrets,
+            arguments=arguments,
+            artifact_path=artifact_path,
+            namespace=namespace,
+            ttl=ttl,
+        )
         if code:
             remove(workflow_path)
         if watch:
-            self.get_run_status(run,
-                                notifiers=RunNotifications(with_slack=True))
+            self.get_run_status(run, notifiers=RunNotifications(with_slack=True))
         return run
 
     def _get_wf_cfg(self, name, arguments=None):
@@ -662,8 +723,9 @@ class MlrunProject(ModelObj):
             raise ValueError('workflow {} not found'.format(name))
 
         workflow_path, code, _ = self._get_wf_file(name)
-        pipeline = _create_pipeline(self, workflow_path, self._function_objects,
-                                    secrets=self._secrets)
+        pipeline = _create_pipeline(
+            self, workflow_path, self._function_objects, secrets=self._secrets
+        )
 
         artifact_path = artifact_path or self.artifact_path
         conf = new_pipe_meta(artifact_path, ttl=ttl)
@@ -671,15 +733,19 @@ class MlrunProject(ModelObj):
         if code:
             remove(workflow_path)
 
-    def get_run_status(self, workflow_id, timeout=60 * 60,
-                       expected_statuses=None,
-                       notifiers: RunNotifications = None):
+    def get_run_status(
+        self,
+        workflow_id,
+        timeout=60 * 60,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
         status = ''
         if timeout:
             logger.info('waiting for pipeline run completion')
             run_info = wait_for_pipeline_completion(
-                workflow_id, timeout=timeout,
-                expected_statuses=expected_statuses)
+                workflow_id, timeout=timeout, expected_statuses=expected_statuses
+            )
             if run_info:
                 status = run_info['run'].get('status')
 
@@ -708,8 +774,7 @@ class MlrunProject(ModelObj):
 
     def save(self, filepath=None):
         """save the project object into a file (default to project.yaml)"""
-        filepath = filepath or path.join(self.context, self.subpath,
-                                         'project.yaml')
+        filepath = filepath or path.join(self.context, self.subpath, 'project.yaml')
         with open(filepath, 'w') as fp:
             fp.write(self.to_yaml())
 
@@ -737,8 +802,7 @@ def _init_function_from_dict(f, project):
 
     if 'spec' in f:
         func = new_function(name, runtime=f['spec'])
-    elif url.endswith('.yaml') or url.startswith('db://') \
-            or url.startswith('hub://'):
+    elif url.endswith('.yaml') or url.startswith('db://') or url.startswith('hub://'):
         func = import_function(url)
         if image:
             func.spec.image = image
@@ -746,8 +810,10 @@ def _init_function_from_dict(f, project):
         func = code_to_function(name, filename=url, image=image, kind=kind)
     elif url.endswith('.py'):
         if not image:
-            raise ValueError('image must be provided with py code files, '
-                             'use function object for more control/settings')
+            raise ValueError(
+                'image must be provided with py code files, '
+                'use function object for more control/settings'
+            )
         if in_context and with_repo:
             func = new_function(name, command=url, image=image, kind=kind or 'job')
         else:
@@ -815,15 +881,29 @@ def _create_pipeline(project, pipeline, funcs, secrets=None):
     return kfpipeline
 
 
-def _run_pipeline(project, name, pipeline, functions, secrets=None,
-                  arguments=None, artifact_path=None, namespace=None,
-                  ttl=None):
+def _run_pipeline(
+    project,
+    name,
+    pipeline,
+    functions,
+    secrets=None,
+    arguments=None,
+    artifact_path=None,
+    namespace=None,
+    ttl=None,
+):
     kfpipeline = _create_pipeline(project, pipeline, functions, secrets)
 
     namespace = namespace or config.namespace
-    id = run_pipeline(kfpipeline, project=project.name, arguments=arguments,
-                      experiment=name, namespace=namespace,
-                      artifact_path=artifact_path, ttl=ttl)
+    id = run_pipeline(
+        kfpipeline,
+        project=project.name,
+        arguments=arguments,
+        experiment=name,
+        namespace=namespace,
+        artifact_path=artifact_path,
+        ttl=ttl,
+    )
     return id
 
 
@@ -861,13 +941,10 @@ def clone_git(url, context, secrets, clone):
     if urlobj.port:
         host += ':{}'.format(urlobj.port)
 
-    token = urlobj.username or secrets.get('GITHUB_TOKEN') \
-            or secrets.get('git_user')
-    password = urlobj.password or secrets.get('git_password') \
-               or 'x-oauth-basic'
+    token = urlobj.username or secrets.get('GITHUB_TOKEN') or secrets.get('git_user')
+    password = urlobj.password or secrets.get('git_password') or 'x-oauth-basic'
     if token:
-        clone_path = 'https://{}:{}@{}{}'.format(
-            token, password, host, urlobj.path)
+        clone_path = 'https://{}:{}@{}{}'.format(token, password, host, urlobj.path)
     else:
         clone_path = 'https://{}{}'.format(host, urlobj.path)
 
@@ -875,7 +952,7 @@ def clone_git(url, context, secrets, clone):
     if urlobj.fragment:
         refs = urlobj.fragment
         if refs.startswith('refs/'):
-            branch = refs[refs.rfind('/')+1:]
+            branch = refs[refs.rfind('/') + 1 :]
         else:
             url = url.replace('#' + refs, '#refs/heads/{}'.format(refs))
 
@@ -911,8 +988,3 @@ def _get_repo_url(repo):
         pass
 
     return url
-
-
-
-
-

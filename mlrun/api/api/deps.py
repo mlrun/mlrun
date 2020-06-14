@@ -41,7 +41,7 @@ class AuthVerifier:
         elif self._bearer_auth_required(cfg):
             if not header.startswith(self._bearer_prefix):
                 log_and_raise(HTTPStatus.UNAUTHORIZED, reason="missing bearer auth")
-            token = header[len(self._bearer_prefix):]
+            token = header[len(self._bearer_prefix) :]
             if token != cfg.token:
                 log_and_raise(HTTPStatus.UNAUTHORIZED, reason="bad basic auth")
             self.token = token
@@ -60,6 +60,6 @@ class AuthVerifier:
         parse_basic_auth('Basic YnVnczpidW5ueQ==')
         ['bugs', 'bunny']
         """
-        b64value = header[len(AuthVerifier._basic_prefix):]
+        b64value = header[len(AuthVerifier._basic_prefix) :]
         value = b64decode(b64value).decode()
         return value.split(':', 1)

@@ -58,11 +58,13 @@ def dict_to_artifact(struct: dict):
 
 
 class ArtifactManager:
-
-    def __init__(self, stores: StoreManager,
-                 db: RunDBInterface = None,
-                 out_path='',
-                 calc_hash=True):
+    def __init__(
+        self,
+        stores: StoreManager,
+        db: RunDBInterface = None,
+        out_path='',
+        calc_hash=True,
+    ):
         self.out_path = out_path
         self.calc_hash = calc_hash
 
@@ -84,9 +86,20 @@ class ArtifactManager:
         return artifacts
 
     def log_artifact(
-        self, producer, item, body=None, target_path='', tag='',
-            viewer='', local_path='', artifact_path=None, format=None,
-            upload=None, labels=None, db_key=None):
+        self,
+        producer,
+        item,
+        body=None,
+        target_path='',
+        tag='',
+        viewer='',
+        local_path='',
+        artifact_path=None,
+        format=None,
+        upload=None,
+        labels=None,
+        db_key=None,
+    ):
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
@@ -98,24 +111,31 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         src_path = local_path or item.src_path  # TODO: remove src_path
-        if format == 'html' or (
-                src_path and pathlib.Path(src_path).suffix == 'html'):
+        if format == 'html' or (src_path and pathlib.Path(src_path).suffix == 'html'):
             viewer = 'web-app'
         item.format = format or item.format
         item.src_path = src_path
         if src_path and ('://' in src_path or src_path.startswith('/')):
-            raise ValueError('local/source path ({}) must be a relative path, '
-                             'cannot be remote or absolute path, '
-                             'use target_path for absolute paths'.format(src_path))
+            raise ValueError(
+                'local/source path ({}) must be a relative path, '
+                'cannot be remote or absolute path, '
+                'use target_path for absolute paths'.format(src_path)
+            )
 
         if target_path:
             if not (target_path.startswith('/') or '://' in target_path):
-                raise ValueError('target_path ({}) param cannot be relative'.format(target_path))
+                raise ValueError(
+                    'target_path ({}) param cannot be relative'.format(target_path)
+                )
         else:
             artifact_path = artifact_path or self.out_path
             target_path = uxjoin(
-                artifact_path, src_path, filename(key, item.format),
-                producer.iteration, item.is_dir)
+                artifact_path,
+                src_path,
+                filename(key, item.format),
+                producer.iteration,
+                item.is_dir,
+            )
 
         if item.is_dir and not target_path.endswith('/'):
             target_path += '/'
@@ -145,33 +165,56 @@ class ArtifactManager:
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or '?'
-        logger.info('log artifact {} at {}, size: {}, db: {}'.format(
-            key, item.target_path, size, 'Y' if (self.artifact_db and db_key) else 'N'
-        ))
+        logger.info(
+            'log artifact {} at {}, size: {}, db: {}'.format(
+                key,
+                item.target_path,
+                size,
+                'Y' if (self.artifact_db and db_key) else 'N',
+            )
+        )
         return item
 
     def _log_to_db(self, key, project, sources, item, tag):
         if self.artifact_db:
             if sources:
-                item.sources = [{'name': k, 'path': str(v)}
-                                for k, v in sources.items()]
-            self.artifact_db.store_artifact(key, item.to_dict(), item.tree,
-                                            iter=item.iter, tag=tag,
-                                            project=project)
+                item.sources = [{'name': k, 'path': str(v)} for k, v in sources.items()]
+            self.artifact_db.store_artifact(
+                key, item.to_dict(), item.tree, iter=item.iter, tag=tag, project=project
+            )
 
-    def link_artifact(self, project, name, tree, key, iter=0, artifact_path='', tag='',
-                      link_iteration=0, link_key=None, link_tree=None):
+    def link_artifact(
+        self,
+        project,
+        name,
+        tree,
+        key,
+        iter=0,
+        artifact_path='',
+        tag='',
+        link_iteration=0,
+        link_key=None,
+        link_tree=None,
+    ):
         if self.artifact_db:
-            item = LinkArtifact(key, artifact_path,
-                                link_iteration=link_iteration,
-                                link_key=link_key,
-                                link_tree=link_tree)
+            item = LinkArtifact(
+                key,
+                artifact_path,
+                link_iteration=link_iteration,
+                link_key=link_key,
+                link_tree=link_tree,
+            )
             item.tree = tree
             item.iter = iter
             item.db_key = name + '_' + key
-            self.artifact_db.store_artifact(item.db_key, item.to_dict(), item.tree,
-                                            iter=iter, tag=tag,
-                                            project=project)
+            self.artifact_db.store_artifact(
+                item.db_key,
+                item.to_dict(),
+                item.tree,
+                iter=iter,
+                tag=tag,
+                project=project,
+            )
 
     def _get_store(self, url):
         return self.data_stores.get_or_create_store(url)

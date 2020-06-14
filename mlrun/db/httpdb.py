@@ -44,8 +44,9 @@ def bool2str(val):
     return 'yes' if val else 'no'
 
 
-http_adapter = HTTPAdapter(max_retries=Retry(
-    total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504]))
+http_adapter = HTTPAdapter(
+    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+)
 
 
 class HTTPRunDB(RunDBInterface):
@@ -63,13 +64,26 @@ class HTTPRunDB(RunDBInterface):
         cls = self.__class__.__name__
         return f'{cls}({self.base_url!r})'
 
-    def api_call(self, method, path, error=None, params=None,
-                 body=None, json=None, headers=None, timeout=20):
+    def api_call(
+        self,
+        method,
+        path,
+        error=None,
+        params=None,
+        body=None,
+        json=None,
+        headers=None,
+        timeout=20,
+    ):
         url = f'{self.base_url}/api/{path}'
         kw = {
             key: value
-            for key, value in (('params', params), ('data', body),
-                               ('json', json), ('headers', headers))
+            for key, value in (
+                ('params', params),
+                ('data', body),
+                ('json', json),
+                ('headers', headers),
+            )
             if value is not None
         }
 
@@ -84,7 +98,9 @@ class HTTPRunDB(RunDBInterface):
             self.session.mount('https://', http_adapter)
 
         try:
-            resp = self.session.request(method, url, timeout=timeout, verify=False, **kw)
+            resp = self.session.request(
+                method, url, timeout=timeout, verify=False, **kw
+            )
         except requests.RequestException as err:
             error = error or '{} {}, error: {}'.format(method, url, err)
             raise RunDBError(error) from err
@@ -118,18 +134,34 @@ class HTTPRunDB(RunDBInterface):
             server_cfg = resp.json()
             self.server_version = server_cfg['version']
             if self.server_version != config.version:
-                logger.warning('warning!, server ({}) and client ({}) ver dont match'
-                               .format(self.server_version, config.version))
-            if 'namespace' in server_cfg and server_cfg['namespace'] != config.namespace:
-                logger.warning('warning!, server ({}) and client ({}) namespace dont match'
-                               .format(server_cfg['namespace'], config.namespace))
+                logger.warning(
+                    'warning!, server ({}) and client ({}) ver dont match'.format(
+                        self.server_version, config.version
+                    )
+                )
+            if (
+                'namespace' in server_cfg
+                and server_cfg['namespace'] != config.namespace
+            ):
+                logger.warning(
+                    'warning!, server ({}) and client ({}) namespace dont match'.format(
+                        server_cfg['namespace'], config.namespace
+                    )
+                )
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get('remote_host')
-            config.mpijob_crd_version = config.mpijob_crd_version or server_cfg.get('mpijob_crd_version')
+            config.mpijob_crd_version = config.mpijob_crd_version or server_cfg.get(
+                'mpijob_crd_version'
+            )
             config.ui_url = config.ui_url or server_cfg.get('ui_url')
-            config.artifact_path = config.artifact_path or server_cfg.get('artifact_path')
-            if 'docker_registry' in server_cfg and 'DEFAULT_DOCKER_REGISTRY' not in environ:
+            config.artifact_path = config.artifact_path or server_cfg.get(
+                'artifact_path'
+            )
+            if (
+                'docker_registry' in server_cfg
+                and 'DEFAULT_DOCKER_REGISTRY' not in environ
+            ):
                 environ['DEFAULT_DOCKER_REGISTRY'] = server_cfg['docker_registry']
 
         except Exception:
@@ -204,8 +236,17 @@ class HTTPRunDB(RunDBInterface):
         error = f'del run {project}/{uid}'
         self.api_call('DELETE', path, error, params=params)
 
-    def list_runs(self, name=None, uid=None, project=None, labels=None,
-                  state=None, sort=True, last=0, iter=False):
+    def list_runs(
+        self,
+        name=None,
+        uid=None,
+        project=None,
+        labels=None,
+        state=None,
+        sort=True,
+        last=0,
+        iter=False,
+    ):
 
         project = project or default_project
         params = {
@@ -244,8 +285,7 @@ class HTTPRunDB(RunDBInterface):
         error = f'store artifact {project}/{uid}/{key}'
 
         body = _as_json(artifact)
-        self.api_call(
-            'POST', path, error, params=params, body=body)
+        self.api_call('POST', path, error, params=params, body=body)
 
     def read_artifact(self, key, tag=None, iter=None, project=''):
         project = project or default_project
@@ -265,8 +305,9 @@ class HTTPRunDB(RunDBInterface):
         error = f'del artifact {project}/{key}'
         self.api_call('DELETE', path, error, params=params)
 
-    def list_artifacts(self, name=None, project=None, tag=None, labels=None,
-                       since=None, until=None):
+    def list_artifacts(
+        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
         project = project or default_project
         params = {
             'name': name,
@@ -280,8 +321,7 @@ class HTTPRunDB(RunDBInterface):
         values.tag = tag
         return values
 
-    def del_artifacts(
-            self, name=None, project=None, tag=None, labels=None, days_ago=0):
+    def del_artifacts(self, name=None, project=None, tag=None, labels=None, days_ago=0):
         project = project or default_project
         params = {
             'name': name,
@@ -299,8 +339,7 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of('func', project, name)
 
         error = f'store function {project}/{name}'
-        self.api_call(
-            'POST', path, error, params=params, body=json.dumps(function))
+        self.api_call('POST', path, error, params=params, body=json.dumps(function))
 
     def get_function(self, name, project='', tag=None, hash_key=''):
         params = {'tag': tag, 'hash_key': hash_key}
@@ -339,13 +378,17 @@ class HTTPRunDB(RunDBInterface):
         error = 'delete runtimes'
         self.api_call('DELETE', 'runtimes', error, params=params)
 
-    def delete_runtime(self, kind: str, label_selector: str = None, force: bool = False):
+    def delete_runtime(
+        self, kind: str, label_selector: str = None, force: bool = False
+    ):
         params = {'label_selector': label_selector, 'force': force}
         path = f'runtimes/{kind}'
         error = f'delete runtime {kind}'
         self.api_call('DELETE', path, error, params=params)
 
-    def delete_runtime_object(self, kind: str, object_id: str, label_selector: str = None, force: bool = False):
+    def delete_runtime_object(
+        self, kind: str, object_id: str, label_selector: str = None, force: bool = False
+    ):
         params = {'label_selector': label_selector, 'force': force}
         path = f'runtimes/{kind}/{object_id}'
         error = f'delete runtime object {kind} {object_id}'
@@ -353,13 +396,11 @@ class HTTPRunDB(RunDBInterface):
 
     def remote_builder(self, func, with_mlrun):
         try:
-            req = {'function': func.to_dict(),
-                   'with_mlrun': bool2str(with_mlrun)}
+            req = {'function': func.to_dict(), 'with_mlrun': bool2str(with_mlrun)}
             resp = self.api_call('POST', 'build/function', json=req)
         except OSError as err:
             logger.error('error submitting build task: {}'.format(err))
-            raise OSError(
-                'error: cannot submit build, {}'.format(err))
+            raise OSError('error: cannot submit build, {}'.format(err))
 
         if not resp.ok:
             logger.error('bad resp!!\n{}'.format(resp.text))
@@ -369,16 +410,17 @@ class HTTPRunDB(RunDBInterface):
 
     def get_builder_status(self, func, offset=0, logs=True):
         try:
-            params = {'name': func.metadata.name,
-                      'project': func.metadata.project,
-                      'tag': func.metadata.tag,
-                      'logs': bool2str(logs),
-                      'offset': str(offset)}
+            params = {
+                'name': func.metadata.name,
+                'project': func.metadata.project,
+                'tag': func.metadata.tag,
+                'logs': bool2str(logs),
+                'offset': str(offset),
+            }
             resp = self.api_call('GET', 'build/status', params=params)
         except OSError as err:
             logger.error('error getting build status: {}'.format(err))
-            raise OSError(
-                'error: cannot get build status, {}'.format(err))
+            raise OSError('error: cannot get build status, {}'.format(err))
 
         if not resp.ok:
             logger.warning('failed resp, {}'.format(resp.text))
@@ -394,12 +436,15 @@ class HTTPRunDB(RunDBInterface):
     def remote_start(self, func_url):
         try:
             req = {'functionUrl': func_url}
-            resp = self.api_call('POST', 'start/function', json=req,
-                                 timeout=int(config.submit_timeout) or 60)
+            resp = self.api_call(
+                'POST',
+                'start/function',
+                json=req,
+                timeout=int(config.submit_timeout) or 60,
+            )
         except OSError as err:
             logger.error('error starting function: {}'.format(err))
-            raise OSError(
-                'error: cannot start function, {}'.format(err))
+            raise OSError('error: cannot start function, {}'.format(err))
 
         if not resp.ok:
             logger.error('bad resp!!\n{}'.format(resp.text))
@@ -413,8 +458,7 @@ class HTTPRunDB(RunDBInterface):
             resp = self.api_call('POST', 'status/function', json=req)
         except OSError as err:
             logger.error('error starting function: {}'.format(err))
-            raise OSError(
-                'error: cannot start function, {}'.format(err))
+            raise OSError('error: cannot start function, {}'.format(err))
 
         if not resp.ok:
             logger.error('bad resp!!\n{}'.format(resp.text))
@@ -431,8 +475,7 @@ class HTTPRunDB(RunDBInterface):
             resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)
         except OSError as err:
             logger.error('error submitting task: {}'.format(err))
-            raise OSError(
-                'error: cannot submit task, {}'.format(err))
+            raise OSError('error: cannot submit task, {}'.format(err))
 
         if not resp.ok:
             logger.error('bad resp!!\n{}'.format(resp.text))
@@ -441,17 +484,26 @@ class HTTPRunDB(RunDBInterface):
         resp = resp.json()
         return resp['data']
 
-    def submit_pipeline(self, pipeline, arguments=None, experiment=None,
-                        run=None, namespace=None, artifact_path=None,
-                        ops=None, ttl=None):
+    def submit_pipeline(
+        self,
+        pipeline,
+        arguments=None,
+        experiment=None,
+        run=None,
+        namespace=None,
+        artifact_path=None,
+        ops=None,
+        ttl=None,
+    ):
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.mktemp(suffix='.yaml')
             conf = new_pipe_meta(artifact_path, ttl, ops)
-            kfp.compiler.Compiler().compile(pipeline, pipe_file,
-                                            type_check=False, pipeline_conf=conf)
+            kfp.compiler.Compiler().compile(
+                pipeline, pipe_file, type_check=False, pipeline_conf=conf
+            )
 
         if pipe_file.endswith('.yaml'):
             headers = {"content-type": "application/yaml"}
@@ -472,15 +524,18 @@ class HTTPRunDB(RunDBInterface):
             remove(pipe_file)
 
         try:
-            params = {'namespace': namespace,
-                      'experiment': experiment,
-                      'run': run}
-            resp = self.api_call('POST', 'submit_pipeline', params=params,
-                                 timeout=20, body=data, headers=headers)
+            params = {'namespace': namespace, 'experiment': experiment, 'run': run}
+            resp = self.api_call(
+                'POST',
+                'submit_pipeline',
+                params=params,
+                timeout=20,
+                body=data,
+                headers=headers,
+            )
         except OSError as err:
             logger.error('error cannot submit pipeline: {}'.format(err))
-            raise OSError(
-                'error: cannot cannot submit pipeline, {}'.format(err))
+            raise OSError('error: cannot cannot submit pipeline, {}'.format(err))
 
         if not resp.ok:
             logger.error('bad resp!!\n{}'.format(resp.text))
@@ -496,7 +551,9 @@ class HTTPRunDB(RunDBInterface):
             query = ''
             if namespace:
                 query = 'namespace={}'.format(namespace)
-            resp = self.api_call('GET', 'pipelines/{}?{}'.format(run_id, query), timeout=timeout)
+            resp = self.api_call(
+                'GET', 'pipelines/{}?{}'.format(run_id, query), timeout=timeout
+            )
         except OSError as err:
             logger.error('error cannot get pipeline: {}'.format(err))
             raise OSError('error: cannot get pipeline, {}'.format(err))

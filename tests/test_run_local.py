@@ -16,7 +16,12 @@ from os import path
 import pytest
 
 from tests.conftest import (
-    examples_path, has_secrets, here, out_path, tag_test, verify_state
+    examples_path,
+    has_secrets,
+    here,
+    out_path,
+    tag_test,
+    verify_state,
 )
 from mlrun import NewTask, run_local, code_to_function
 
@@ -26,24 +31,27 @@ base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 def test_run_local():
     spec = tag_test(base_spec, 'test_run_local')
-    result = run_local(spec, command='{}/training.py'.format(
-        examples_path), workdir=examples_path)
+    result = run_local(
+        spec, command='{}/training.py'.format(examples_path), workdir=examples_path
+    )
     verify_state(result)
 
 
 def test_run_local_handler():
     spec = tag_test(base_spec, 'test_run_local_handler')
     spec.spec.handler = 'my_func'
-    result = run_local(spec, command='{}/handler.py'.format(
-        examples_path), workdir=examples_path)
+    result = run_local(
+        spec, command='{}/handler.py'.format(examples_path), workdir=examples_path
+    )
     verify_state(result)
 
 
 def test_run_local_nb():
     spec = tag_test(base_spec, 'test_run_local_handler')
     spec.spec.handler = 'training'
-    result = run_local(spec, command='{}/mlrun_jobs.ipynb'.format(
-        examples_path), workdir=examples_path)
+    result = run_local(
+        spec, command='{}/mlrun_jobs.ipynb'.format(examples_path), workdir=examples_path
+    )
     verify_state(result)
 
 

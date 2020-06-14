@@ -26,19 +26,22 @@ plot_template = """<h3 style="text-align:center">{}</h3>
 class PlotArtifact(Artifact):
     kind = 'plot'
 
-    def __init__(self, key=None, body=None, is_inline=False,
-                 target_path=None, title=None):
-        super().__init__(key, body, format='html',
-                         target_path=target_path)
+    def __init__(
+        self, key=None, body=None, is_inline=False, target_path=None, title=None
+    ):
+        super().__init__(key, body, format='html', target_path=target_path)
         self.description = title
 
     def before_log(self):
         self.viewer = 'chart'
         import matplotlib
+
         if not self._body or not isinstance(
-           self._body, (bytes, matplotlib.figure.Figure)):
+            self._body, (bytes, matplotlib.figure.Figure)
+        ):
             raise ValueError(
-                'matplotlib fig or png bytes must be provided as artifact body')
+                'matplotlib fig or png bytes must be provided as artifact body'
+            )
 
     def get_body(self):
         """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use
@@ -46,8 +49,7 @@ class PlotArtifact(Artifact):
         if isinstance(self._body, bytes):
             data = self._body
         else:
-            from matplotlib.backends.backend_agg import \
-                FigureCanvasAgg as FigureCanvas
+            from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
             canvas = FigureCanvas(self._body)
             png_output = BytesIO()
@@ -55,8 +57,7 @@ class PlotArtifact(Artifact):
             data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode('utf-8')
-        return plot_template.format(
-            self.description or self.key, self.key, data_uri)
+        return plot_template.format(self.description or self.key, self.key, data_uri)
 
 
 chart_template = '''
@@ -87,12 +88,27 @@ chart_template = '''
 class ChartArtifact(Artifact):
     kind = 'chart'
     _dict_fields = [
-        'key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
-        'description', 'viewer',
+        'key',
+        'kind',
+        'iter',
+        'tree',
+        'src_path',
+        'target_path',
+        'hash',
+        'description',
+        'viewer',
     ]
 
-    def __init__(self, key=None, data=None, header=None, options=None,
-                 title=None, chart=None, target_path=None):
+    def __init__(
+        self,
+        key=None,
+        data=None,
+        header=None,
+        options=None,
+        title=None,
+        chart=None,
+        target_path=None,
+    ):
         data = [] if data is None else data
         options = {} if options is None else options
         super().__init__(key, target_path=target_path)
@@ -117,6 +133,8 @@ class ChartArtifact(Artifact):
         if not self.options.get('title'):
             self.options['title'] = self.title or self.key
         data = [self.header] + self.rows
-        return chart_template.replace('$data$', dict_to_json(data))\
-            .replace('$opts$', dict_to_json(self.options))\
+        return (
+            chart_template.replace('$data$', dict_to_json(data))
+            .replace('$opts$', dict_to_json(self.options))
             .replace('$chart$', self.chart)
+        )

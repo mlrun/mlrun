@@ -4,8 +4,7 @@ class MPIJobCRDVersions(object):
 
     @staticmethod
     def all():
-        return [MPIJobCRDVersions.v1,
-                MPIJobCRDVersions.v1alpha1]
+        return [MPIJobCRDVersions.v1, MPIJobCRDVersions.v1alpha1]
 
     @staticmethod
     def default():

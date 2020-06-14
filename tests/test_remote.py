@@ -29,7 +29,8 @@ def myfunction(context, event):
     p2 = ctx.get_param('p2', 'a-string')
 
     context.logger.info(
-        f'Run: {ctx.name} uid={ctx.uid}:{ctx.iteration} Params: p1={p1}, p2={p2}')
+        f'Run: {ctx.name} uid={ctx.uid}:{ctx.iteration} Params: p1={p1}, p2={p2}'
+    )
 
     time.sleep(1)
 
@@ -45,17 +46,19 @@ def myfunction(context, event):
     return ctx.to_json()
 
 
-base_spec = NewTask(params={'p1':8}, out_path=out_path)
+base_spec = NewTask(params={'p1': 8}, out_path=out_path)
 base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
 
 
 def verify_state(result: RunObject):
     state = result.status.state
-    assert state == 'completed', 'wrong state ({}) {}'.format(state, result.status.error)
+    assert state == 'completed', 'wrong state ({}) {}'.format(
+        state, result.status.error
+    )
 
 
 def test_simple_function():
-    #Thread(target=create_function, args=(myfunction, 4444)).start()
+    # Thread(target=create_function, args=(myfunction, 4444)).start()
     _thread.start_new_thread(create_function, (myfunction, 4444))
     time.sleep(2)
 
@@ -66,7 +69,7 @@ def test_simple_function():
 
 
 def test_hyper_function():
-    #Thread(target=create_function, args=(myfunction, 4444))
+    # Thread(target=create_function, args=(myfunction, 4444))
     _thread.start_new_thread(create_function, (myfunction, 4444))
     time.sleep(2)
 

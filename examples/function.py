@@ -15,7 +15,8 @@ def handler(context, event):
     p2 = ctx.get_param('p2', 'a-string')
 
     context.logger.info(
-        f'Run: {ctx.name} uid={ctx.uid}:{ctx.iteration} Params: p1={p1}, p2={p2}')
+        f'Run: {ctx.name} uid={ctx.uid}:{ctx.iteration} Params: p1={p1}, p2={p2}'
+    )
 
     time.sleep(1)
 

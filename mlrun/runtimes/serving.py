@@ -27,7 +27,6 @@ from ..platforms.iguazio import OutputStream
 
 
 class MLModelServer:
-
     def __init__(self, name: str, model_dir: str = None, model=None):
         self.name = name
         self.ready = False
@@ -46,7 +45,8 @@ class MLModelServer:
 
     def get_model(self, suffix=''):
         model_file, self.model_spec, extra_dataitems = get_model(
-            self.model_dir, suffix, self._stores)
+            self.model_dir, suffix, self._stores
+        )
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():
                 self._params[key] = value
@@ -75,12 +75,16 @@ def nuclio_serving_init(context, data):
 
     # Initialize models from environment variables
     # Using the {model_prefix}_{model_name} = {model_path} syntax
-    model_paths = {k[len(model_prefix):]: v for k, v in os.environ.items() if
-                   k.startswith(model_prefix)}
+    model_paths = {
+        k[len(model_prefix) :]: v
+        for k, v in os.environ.items()
+        if k.startswith(model_prefix)
+    }
     model_class = os.environ.get('MODEL_CLASS', 'MLModelServer')
     fhandler = data[model_class]
-    models = {name: fhandler(name=name, model_dir=path) for name, path in
-              model_paths.items()}
+    models = {
+        name: fhandler(name=name, model_dir=path) for name, path in model_paths.items()
+    }
 
     params = os.environ.get(params_prefix)
     if params:
@@ -94,8 +98,9 @@ def nuclio_serving_init(context, data):
             model.ready = True
 
     # Verify that models are loaded
-    assert len(
-        models) > 0, "No models were loaded!\n Please load a model by using the environment variable SERVING_MODEL_{model_name} = model_path"
+    assert (
+        len(models) > 0
+    ), "No models were loaded!\n Please load a model by using the environment variable SERVING_MODEL_{model_name} = model_path"
     context.logger.info(f'Loaded {list(models.keys())}')
 
     # Initialize route handlers
@@ -103,10 +108,7 @@ def nuclio_serving_init(context, data):
     server_context = _ServerInfo(context, hostname, model_class)
     predictor = PredictHandler(models).with_context(server_context)
     explainer = ExplainHandler(models).with_context(server_context)
-    router = {
-        'predict': predictor.post,
-        'explain': explainer.post
-    }
+    router = {'predict': predictor.post, 'explain': explainer.post}
 
     ## Define handle
     setattr(context, 'mlrun_handler', nuclio_serving_handler)
@@ -114,7 +116,9 @@ def nuclio_serving_init(context, data):
     setattr(context, 'router', router)
 
 
-err_string = 'Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}'
+err_string = (
+    'Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}'
+)
 
 
 def nuclio_serving_handler(context, event):
@@ -124,9 +128,14 @@ def nuclio_serving_handler(context, event):
         route = context.router[route]
     except:
         return context.Response(
-            body=err_string.format(event.path, '|'.join(context.router.keys()), '|'.join(context.models.keys())),
+            body=err_string.format(
+                event.path,
+                '|'.join(context.router.keys()),
+                '|'.join(context.models.keys()),
+            ),
             content_type='text/plain',
-            status_code=404)
+            status_code=404,
+        )
 
     return route(context, model_name, event)
 
@@ -194,7 +203,7 @@ class HTTPHandler:
                 parsed_event['content_type'] = event.content_type
             else:
                 raise Exception("Unrecognized request format: %s" % e)
-                
+
         return parsed_event
 
     def validate(self, request):
@@ -207,13 +216,14 @@ class HTTPHandler:
         return request
 
     def push_to_stream(self, start, request, resp, model):
-
         def base_data():
-            data = {'op': self.kind,
-                    'class': self.srvinfo.model_class,
-                    'worker': self.srvinfo.worker,
-                    'model': model.name,
-                    'host': self.srvinfo.hostname}
+            data = {
+                'op': self.kind,
+                'class': self.srvinfo.model_class,
+                'worker': self.srvinfo.worker,
+                'model': model.name,
+                'host': self.srvinfo.hostname,
+            }
             if getattr(model, 'labels', None):
                 data['labels'] = model.labels
             return data
@@ -252,7 +262,8 @@ class PredictHandler(HTTPHandler):
             return context.Response(
                 body=f'Model with name {name} does not exist, please try to list the models',
                 content_type='text/plain',
-                status_code=404)
+                status_code=404,
+            )
 
         model = self.get_model_class(name)
         context.logger.debug('event: {}'.format(type(event.body)))
@@ -264,9 +275,9 @@ class PredictHandler(HTTPHandler):
         response = model.postprocess(response)
         self.push_to_stream(start, request, response, model)
 
-        return context.Response(body=json.dumps(response),
-                                content_type='application/json',
-                                status_code=200)
+        return context.Response(
+            body=json.dumps(response), content_type='application/json', status_code=200
+        )
 
 
 class ExplainHandler(HTTPHandler):
@@ -277,15 +288,18 @@ class ExplainHandler(HTTPHandler):
             return context.Response(
                 body=f'Model with name {name} does not exist, please try to list the models',
                 content_type='text/plain',
-                status_code=404)
+                status_code=404,
+            )
 
         model = self.get_model_class(name)
         try:
             body = json.loads(event.body)
         except json.decoder.JSONDecodeError as e:
-            return context.Response(body="Unrecognized request format: %s" % e,
-                                    content_type='text/plain',
-                                    status_code=400)
+            return context.Response(
+                body="Unrecognized request format: %s" % e,
+                content_type='text/plain',
+                status_code=400,
+            )
 
         start = datetime.now()
         request = model.preprocess(body)
@@ -294,6 +308,6 @@ class ExplainHandler(HTTPHandler):
         response = model.postprocess(response)
         self.push_to_stream(start, request, response, model)
 
-        return context.Response(body=json.dumps(response),
-                                content_type='application/json',
-                                status_code=200)
+        return context.Response(
+            body=json.dumps(response), content_type='application/json', status_code=200
+        )

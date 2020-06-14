@@ -12,17 +12,20 @@ router = APIRouter()
 # curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @router.get("/files")
 def get_files(
-        request: Request,
-        schema: str = "",
-        objpath: str = Query("", alias="path"),
-        user: str = "",
-        size: int = 0,
-        offset: int = 0):
+    request: Request,
+    schema: str = "",
+    objpath: str = Query("", alias="path"),
+    user: str = "",
+    size: int = 0,
+    offset: int = 0,
+):
     _, filename = objpath.split(objpath)
 
     objpath = get_obj_path(schema, objpath, user=user)
     if not objpath:
-        log_and_raise(HTTPStatus.NOT_FOUND, path=objpath, err="illegal path prefix or schema")
+        log_and_raise(
+            HTTPStatus.NOT_FOUND, path=objpath, err="illegal path prefix or schema"
+        )
 
     secrets = get_secrets(request)
     body = None
@@ -44,21 +47,21 @@ def get_files(
     ctype, _ = mimetypes.guess_type(objpath)
     if not ctype:
         ctype = "application/octet-stream"
-    return Response(content=body, media_type=ctype, headers={"x-suggested-filename": filename})
+    return Response(
+        content=body, media_type=ctype, headers={"x-suggested-filename": filename}
+    )
 
 
 # curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
 @router.get("/filestat")
-def get_filestat(
-        request: Request,
-        schema: str = "",
-        path: str = "",
-        user: str = ""):
+def get_filestat(request: Request, schema: str = "", path: str = "", user: str = ""):
     _, filename = path.split(path)
 
     path = get_obj_path(schema, path, user=user)
     if not path:
-        log_and_raise(HTTPStatus.NOT_FOUND, path=path, err="illegal path prefix or schema")
+        log_and_raise(
+            HTTPStatus.NOT_FOUND, path=path, err="illegal path prefix or schema"
+        )
     secrets = get_secrets(request)
     stat = None
     try:

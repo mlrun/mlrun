@@ -15,7 +15,12 @@
 import pytest
 import pandas as pd
 from tests.conftest import (
-    examples_path, has_secrets, here, out_path, tag_test, verify_state
+    examples_path,
+    has_secrets,
+    here,
+    out_path,
+    tag_test,
+    verify_state,
 )
 from mlrun import function_to_module, NewTask, get_or_create_ctx
 

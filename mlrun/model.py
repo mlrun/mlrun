@@ -32,9 +32,10 @@ class ModelObj:
     @staticmethod
     def _verify_dict(param, name, new_type=None):
         if (
-          param is not None and
-          not isinstance(param, dict) and
-          not hasattr(param, 'to_dict')):
+            param is not None
+            and not isinstance(param, dict)
+            and not hasattr(param, 'to_dict')
+        ):
             raise ValueError(f'parameter {name} must be a dict or object')
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
@@ -87,9 +88,18 @@ class ModelObj:
 
 
 class BaseMetadata(ModelObj):
-    def __init__(self, name=None, tag=None, hash=None, namespace=None,
-                 project=None, labels=None, annotations=None,
-                 categories=None, updated=None):
+    def __init__(
+        self,
+        name=None,
+        tag=None,
+        hash=None,
+        namespace=None,
+        project=None,
+        labels=None,
+        annotations=None,
+        categories=None,
+        updated=None,
+    ):
         self.name = name
         self.tag = tag
         self.hash = hash
@@ -103,10 +113,18 @@ class BaseMetadata(ModelObj):
 
 class ImageBuilder(ModelObj):
     """An Image builder"""
+
     def __init__(
-        self, functionSourceCode=None, source=None, image=None,
-            base_image=None, commands=None, secret=None,
-            code_origin=None, registry=None):
+        self,
+        functionSourceCode=None,
+        source=None,
+        image=None,
+        base_image=None,
+        commands=None,
+        secret=None,
+        code_origin=None,
+        registry=None,
+    ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ''  #: codeEntryType
         self.source = source  #: course
@@ -121,9 +139,16 @@ class ImageBuilder(ModelObj):
 
 class RunMetadata(ModelObj):
     """Run metadata"""
+
     def __init__(
-        self, uid=None, name=None, project=None, labels=None,
-            annotations=None, iteration=None):
+        self,
+        uid=None,
+        name=None,
+        project=None,
+        labels=None,
+        annotations=None,
+        iteration=None,
+    ):
         self.uid = uid
         self._iteration = iteration
         self.name = name
@@ -142,11 +167,24 @@ class RunMetadata(ModelObj):
 
 class RunSpec(ModelObj):
     """Run specification"""
-    def __init__(self, parameters=None, hyperparams=None, param_file=None,
-                 selector=None, handler=None, inputs=None, outputs=None,
-                 input_path=None, output_path=None, function=None,
-                 secret_sources=None, data_stores=None,
-                 tuning_strategy=None, verbose=None):
+
+    def __init__(
+        self,
+        parameters=None,
+        hyperparams=None,
+        param_file=None,
+        selector=None,
+        handler=None,
+        inputs=None,
+        outputs=None,
+        input_path=None,
+        output_path=None,
+        function=None,
+        secret_sources=None,
+        data_stores=None,
+        tuning_strategy=None,
+        verbose=None,
+    ):
 
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
@@ -216,9 +254,20 @@ class RunSpec(ModelObj):
 
 class RunStatus(ModelObj):
     """Run status"""
-    def __init__(self, state=None, error=None, host=None, commit=None,
-                 status_text=None, results=None, artifacts=None,
-                 start_time=None, last_update=None, iterations=None):
+
+    def __init__(
+        self,
+        state=None,
+        error=None,
+        host=None,
+        commit=None,
+        status_text=None,
+        results=None,
+        artifacts=None,
+        start_time=None,
+        last_update=None,
+        iterations=None,
+    ):
         self.state = state or 'created'
         self.status_text = status_text
         self.error = error
@@ -233,8 +282,8 @@ class RunStatus(ModelObj):
 
 class RunTemplate(ModelObj):
     """Run template"""
-    def __init__(self, spec: RunSpec = None,
-                 metadata: RunMetadata = None):
+
+    def __init__(self, spec: RunSpec = None, metadata: RunMetadata = None):
         self._spec = None
         self._metadata = None
         self.spec = spec
@@ -305,9 +354,13 @@ class RunTemplate(ModelObj):
 
 class RunObject(RunTemplate):
     """A run"""
-    def __init__(self, spec: RunSpec = None,
-                 metadata: RunMetadata = None,
-                 status: RunStatus = None):
+
+    def __init__(
+        self,
+        spec: RunSpec = None,
+        metadata: RunMetadata = None,
+        status: RunStatus = None,
+    ):
         super().__init__(spec, metadata)
         self._status = None
         self.status = status
@@ -339,8 +392,7 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                outputs[a['key']] = get_artifact_target(
-                    a, self.metadata.project)
+                outputs[a['key']] = get_artifact_target(a, self.metadata.project)
         return outputs
 
     def artifact(self, key):
@@ -355,16 +407,17 @@ class RunObject(RunTemplate):
 
     def state(self):
         db = get_run_db().connect()
-        run = db.read_run(uid=self.metadata.uid,
-                          project=self.metadata.project,
-                          iter=self.metadata.iteration)
+        run = db.read_run(
+            uid=self.metadata.uid,
+            project=self.metadata.project,
+            iter=self.metadata.iteration,
+        )
         if run:
             return get_in(run, 'status.state', 'unknown')
 
     def show(self):
         db = get_run_db().connect()
-        db.list_runs(
-            uid=self.metadata.uid, project=self.metadata.project).show()
+        db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
     def logs(self, watch=True, db=None):
         if not db:
@@ -374,12 +427,9 @@ class RunObject(RunTemplate):
             return None
 
         if db.kind == 'http':
-            state = db.watch_log(self.metadata.uid,
-                                 self.metadata.project,
-                                 watch=watch)
+            state = db.watch_log(self.metadata.uid, self.metadata.project, watch=watch)
         else:
-            state, text = db.get_log(self.metadata.uid,
-                                     self.metadata.project)
+            state, text = db.get_log(self.metadata.uid, self.metadata.project)
             if text:
                 print(text.decode())
 
@@ -388,11 +438,23 @@ class RunObject(RunTemplate):
         return state
 
 
-def NewTask(name=None, project=None, handler=None,
-            params=None, hyper_params=None, param_file=None, selector=None,
-            tuning_strategy=None, inputs=None, outputs=None,
-            in_path=None, out_path=None, artifact_path=None,
-            secrets=None, base=None):
+def NewTask(
+    name=None,
+    project=None,
+    handler=None,
+    params=None,
+    hyper_params=None,
+    param_file=None,
+    selector=None,
+    tuning_strategy=None,
+    inputs=None,
+    outputs=None,
+    in_path=None,
+    out_path=None,
+    artifact_path=None,
+    secrets=None,
+    base=None,
+):
     """Create new task"""
 
     if base:

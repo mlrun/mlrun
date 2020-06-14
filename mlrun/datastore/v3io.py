@@ -97,7 +97,10 @@ class V3ioStore(DataStore):
         container, subpath = split_path(self._join(key))
         if not subpath.endswith('/'):
             subpath += '/'
-        l = len(subpath) - 1
+
+        # without the trailing slash
+        subpath_length = len(subpath) - 1
+
         response = v3io_client.get_container_contents(
             container=container,
             path=subpath,
@@ -106,4 +109,4 @@ class V3ioStore(DataStore):
         )
 
         # todo: full = key, size, last_modified
-        return [obj.key[l:] for obj in response.output.contents]
+        return [obj.key[subpath_length:] for obj in response.output.contents]

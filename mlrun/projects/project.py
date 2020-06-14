@@ -14,8 +14,6 @@
 
 import shutil
 
-from tabulate import tabulate
-
 from ..db import get_run_db
 from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
 from ..secrets import SecretsStore
@@ -46,8 +44,6 @@ from ..utils import (
     update_in,
     new_pipe_meta,
     logger,
-    dict_to_str,
-    is_ipython,
     RunNotifications,
 )
 from ..runtimes.utils import add_code_metadata
@@ -922,8 +918,7 @@ def github_webhook(request):
 
 
 def clone_git(url, context, secrets, clone):
-    urlobj = urlparse(url)
-    scheme = urlobj.scheme.lower()
+    url_obj = urlparse(url)
     if not context:
         raise ValueError('please specify a target (context) directory for clone')
 
@@ -937,20 +932,20 @@ def clone_git(url, context, secrets, clone):
             except Exception:
                 pass
 
-    host = urlobj.hostname or 'github.com'
-    if urlobj.port:
-        host += ':{}'.format(urlobj.port)
+    host = url_obj.hostname or 'github.com'
+    if url_obj.port:
+        host += ':{}'.format(url_obj.port)
 
-    token = urlobj.username or secrets.get('GITHUB_TOKEN') or secrets.get('git_user')
-    password = urlobj.password or secrets.get('git_password') or 'x-oauth-basic'
+    token = url_obj.username or secrets.get('GITHUB_TOKEN') or secrets.get('git_user')
+    password = url_obj.password or secrets.get('git_password') or 'x-oauth-basic'
     if token:
-        clone_path = 'https://{}:{}@{}{}'.format(token, password, host, urlobj.path)
+        clone_path = 'https://{}:{}@{}{}'.format(token, password, host, url_obj.path)
     else:
-        clone_path = 'https://{}{}'.format(host, urlobj.path)
+        clone_path = 'https://{}{}'.format(host, url_obj.path)
 
     branch = None
-    if urlobj.fragment:
-        refs = urlobj.fragment
+    if url_obj.fragment:
+        refs = url_obj.fragment
         if refs.startswith('refs/'):
             branch = refs[refs.rfind('/') + 1 :]
         else:

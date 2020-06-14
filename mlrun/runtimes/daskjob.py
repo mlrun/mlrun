@@ -256,9 +256,7 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
             except OSError as e:
                 logger.warning(
-                    'remote scheduler at {} not ready, will try to restart ()'.format(
-                        addr, e
-                    )
+                    'remote scheduler at {} not ready, will try to restart {}'.format(addr, e)
                 )
 
                 # todo: figure out if test is needed
@@ -424,7 +422,7 @@ def deploy_function(function: DaskCluster, secrets=None):
 def get_obj_status(selector=[], namespace=None):
     k8s = get_k8s_helper()
     namespace = namespace or config.namespace
-    selector = ','.join(['dask.org/component=scheduler'.format(mlrun_key)] + selector)
+    selector = ','.join(['dask.org/component=scheduler'] + selector)
     pods = k8s.list_pods(namespace, selector=selector)
     status = ''
     for pod in pods:
@@ -468,7 +466,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_resources = []
         for service in services.items:
             service_resources.append(
-                {'name': service.metadata.name, 'labels': service.metadata.labels,}
+                {'name': service.metadata.name, 'labels': service.metadata.labels}
             )
         response['service_resources'] = service_resources
         return response

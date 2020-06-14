@@ -15,8 +15,6 @@
 from sys import executable, stderr
 from subprocess import run, PIPE
 from tests.conftest import (
-    rundb_path,
-    out_path,
     tag_test,
     here,
     examples_path,
@@ -40,17 +38,17 @@ def exec_run(cmd, args, test):
     return exec_main('run', args)
 
 
-def param_list(params: dict, flag='-p'):
-    l = []
+def compose_param_list(params: dict, flag='-p'):
+    composed_params = []
     for k, v in params.items():
-        l += [flag, f'{k}={v}']
-    return l
+        composed_params += [flag, f'{k}={v}']
+    return composed_params
 
 
 def test_main_run_basic():
     out = exec_run(
         f'{examples_path}/training.py',
-        param_list(dict(p1=5, p2='"aaa"')),
+        compose_param_list(dict(p1=5, p2='"aaa"')),
         'test_main_run_basic',
     )
     print(out)
@@ -60,7 +58,7 @@ def test_main_run_basic():
 def test_main_run_hyper():
     out = exec_run(
         f'{examples_path}/training.py',
-        param_list(dict(p2=[4, 5, 6]), '-x'),
+        compose_param_list(dict(p2=[4, 5, 6]), '-x'),
         'test_main_run_hyper',
     )
     print(out)
@@ -71,7 +69,7 @@ def test_main_run_hyper():
 def test_main_run_noctx():
     out = exec_run(
         f'{here}/no_ctx.py',
-        ['--mode', 'noctx'] + param_list(dict(p1=5, p2='"aaa"')),
+        ['--mode', 'noctx'] + compose_param_list(dict(p1=5, p2='"aaa"')),
         'test_main_run_noctx',
     )
     print(out)

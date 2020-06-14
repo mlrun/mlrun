@@ -99,7 +99,7 @@ find_handlers_expected = [
         'name': 'inc',
         'doc': '',
         'return': funcdoc.param_dict(),
-        'params': [funcdoc.param_dict('n'),],
+        'params': [funcdoc.param_dict('n')],
         'lineno': 6,
     },
 ]

@@ -2,7 +2,7 @@
 
 
 from mlrun import get_or_create_ctx
-
+from pyspark.sql import SparkSession
 
 # Acquire MLRun context
 mlctx = get_or_create_ctx('spark-function')
@@ -12,8 +12,6 @@ mlctx.logger.info('!@!@!@!@!@ Getting env variables')
 READ_OPTIONS = mlctx.get_param('data_sources')
 QUERY = mlctx.get_param('query')
 WRITE_OPTIONS = mlctx.get_param('write_options')
-
-from pyspark.sql import SparkSession
 
 # Create spark session
 spark = SparkSession.builder.appName('Spark function').getOrCreate()

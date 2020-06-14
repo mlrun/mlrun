@@ -423,9 +423,9 @@ class SQLDB(DBInterface):
         if not name:
             raise ValueError("project missing name")
 
-        user_names = project.pop("users", [])
+        project.pop("users", [])
         prj = Project(**project)
-        users = []  # self._find_or_create_users(session, user_names)
+        users = []  # self._find_or_create_users(session, user_names) - user_names are previously popped users
         prj.users.extend(users)
         self._upsert(session, prj)
         self._projects.add(prj.name)
@@ -437,13 +437,13 @@ class SQLDB(DBInterface):
             raise DBError(f"unknown project - {name}")
 
         data = data.copy()
-        user_names = data.pop("users", [])
+        data.pop("users", [])
         for key, value in data.items():
             if not hasattr(prj, key):
                 raise DBError(f"unknown project attribute - {key}")
             setattr(prj, key, value)
 
-        users = []  # self._find_or_create_users(session, user_names)
+        users = []  # self._find_or_create_users(session, user_names) - user_names are previously popped users
         prj.users.clear()
         prj.users.extend(users)
         self._upsert(session, prj, ignore=True)

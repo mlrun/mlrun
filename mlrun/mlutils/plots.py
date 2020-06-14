@@ -94,11 +94,11 @@ def plot_importance(
 
 def learning_curves(model):
     """model class dependent
-    
+
     WIP
-    
+
     get training history plots for xgboost, lightgbm
-    
+
     returns list of PlotArtifacts, can be empty if no history
     is found
     """
@@ -127,7 +127,7 @@ def learning_curves(model):
         plt.title('learning curve - auc')
         ax.plot(learning_curves.train_auc, label='train')
         ax.plot(learning_curves.valid_auc, label='valid')
-        legend = ax.legend(loc='lower left')
+        ax.legend(loc='lower left')
         plots.append(PlotArtifact("learning curve - auc", body=plt.gcf()))
 
         plt.clf()  # gcf_clear(plt)
@@ -137,8 +137,9 @@ def learning_curves(model):
         plt.title('learning curve - error')
         ax.plot(learning_curves.train_error, label='train')
         ax.plot(learning_curves.valid_error, label='valid')
-        legend = ax.legend(loc='lower left')
+        ax.legend(loc='lower left')
         plots.append(PlotArtifact("learning curve - taoot", body=plt.gcf()))
+
     # elif some other model history api...
 
     return plots
@@ -370,9 +371,10 @@ def plot_roc(
     plt.title(title)
     plt.legend(loc=legend_loc)
 
-    # single ROC or mutliple
+    # single ROC or multiple
     if y_labels.shape[1] > 1:
-        # data accummulators by class
+
+        # data accumulators by class
         fpr = dict()
         tpr = dict()
         roc_auc = dict()
@@ -384,7 +386,7 @@ def plot_roc(
             plt.plot(fpr[i], tpr[i], label=f"class {i}")
     else:
         fpr, tpr, _ = metrics.roc_curve(y_labels, y_probs[:, 1], pos_label=1)
-        plt.plot(fpr, tpr, label=f"positive class")
+        plt.plot(fpr, tpr, label="positive class")
 
     fname = f"{plots_dir}/{key}.html"
     return context.log_artifact(PlotArtifact(key, body=plt.gcf()), local_path=fname)

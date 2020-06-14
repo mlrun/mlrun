@@ -99,8 +99,10 @@ def nuclio_serving_init(context, data):
 
     # Verify that models are loaded
     assert (
-        len(models) > 0
-    ), "No models were loaded!\n Please load a model by using the environment variable SERVING_MODEL_{model_name} = model_path"
+            len(models) > 0
+    ), "No models were loaded!\n Please load a model by using the environment variable " \
+       "SERVING_MODEL_{model_name} = model_path"
+
     context.logger.info(f'Loaded {list(models.keys())}')
 
     # Initialize route handlers
@@ -110,7 +112,7 @@ def nuclio_serving_init(context, data):
     explainer = ExplainHandler(models).with_context(server_context)
     router = {'predict': predictor.post, 'explain': explainer.post}
 
-    ## Define handle
+    # Define handle
     setattr(context, 'mlrun_handler', nuclio_serving_handler)
     setattr(context, 'models', models)
     setattr(context, 'router', router)
@@ -122,11 +124,12 @@ err_string = (
 
 
 def nuclio_serving_handler(context, event):
+
     # check if valid route & model
     try:
         model_name, route = event.path.strip('/').split('/')
         route = context.router[route]
-    except:
+    except Exception:
         return context.Response(
             body=err_string.format(
                 event.path,

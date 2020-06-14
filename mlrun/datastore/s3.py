@@ -60,6 +60,6 @@ class S3Store(DataStore):
     def listdir(self, key):
         if not key.endswith('/'):
             key += '/'
-        l = len(key)
+        key_length = len(key)
         bucket = self.s3.Bucket(self.endpoint)
-        return [obj.key[l:] for obj in bucket.objects.filter(Prefix=key)]
+        return [obj.key[key_length:] for obj in bucket.objects.filter(Prefix=key)]

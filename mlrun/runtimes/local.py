@@ -158,7 +158,7 @@ def load_module(file_name, handler):
     spec.loader.exec_module(mod)
     try:
         fn = getattr(mod, handler)  # Will raise if name not found
-    except AttributeError as e:
+    except AttributeError:
         raise RunError('handler {} not found in {}'.format(handler, file_name))
 
     return mod, fn

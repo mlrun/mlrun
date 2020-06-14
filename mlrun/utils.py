@@ -66,6 +66,7 @@ except ImportError:
     pass
 
 if is_ipython:
+
     # bypass Jupyter asyncio bug
     import nest_asyncio
 

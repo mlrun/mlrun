@@ -13,14 +13,11 @@
 # limitations under the License.
 import json
 import random
-from io import BytesIO
 import pandas as pd
 import sys
 from copy import deepcopy
 from ..model import RunObject
 from ..utils import get_in, logger
-
-import mlrun
 
 
 hyper_types = ['list', 'grid', 'random']

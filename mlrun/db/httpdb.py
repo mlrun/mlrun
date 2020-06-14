@@ -356,7 +356,7 @@ class HTTPRunDB(RunDBInterface):
             'tag': tag,
             'label': labels or [],
         }
-        error = f'list functions'
+        error = 'list functions'
         resp = self.api_call('GET', 'funcs', error, params=params)
         return resp.json()['funcs']
 

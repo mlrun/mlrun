@@ -40,7 +40,7 @@ def test_load():
 
 def test_inline_str():
     spec = {
-        'secret_sources': [{'kind': 'inline', 'source': "{'abc': 'def'}"},],
+        'secret_sources': [{'kind': 'inline', 'source': "{'abc': 'def'}"}],
     }
 
     ss = SecretsStore.from_list(spec['secret_sources'])

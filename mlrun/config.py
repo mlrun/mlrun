@@ -27,7 +27,7 @@ from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
-from urllib.parse import urlparse
+
 from . import __version__
 
 import yaml

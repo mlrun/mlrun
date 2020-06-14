@@ -13,12 +13,8 @@
 # limitations under the License.
 from os import path
 
-import pytest
-
 from tests.conftest import (
     examples_path,
-    has_secrets,
-    here,
     out_path,
     tag_test,
     verify_state,

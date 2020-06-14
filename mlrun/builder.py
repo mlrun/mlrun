@@ -236,9 +236,9 @@ def build_image(
 def build_runtime(runtime, with_mlrun, interactive=False):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
-    inline = None
+    inline = None  # noqa: F841
     if build.functionSourceCode:
-        inline = b64decode(build.functionSourceCode).decode('utf-8')
+        inline = b64decode(build.functionSourceCode).decode('utf-8')  # noqa: F841
     if not build.image:
         raise ValueError(
             'build spec must have a target image, set build.image = <target image>'

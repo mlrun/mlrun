@@ -158,16 +158,16 @@ def ipython_display(html, display=True, alt_text=None):
     return html
 
 
-style = """<style> 
+style = """<style>
 .dictlist {
-  background-color: #b3edff; 
-  text-align: center; 
-  margin: 4px; 
+  background-color: #b3edff;
+  text-align: center;
+  margin: 4px;
   border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
 .artifact {
-  cursor: pointer; 
-  background-color: #ffe6cc; 
-  text-align: left; 
+  cursor: pointer;
+  background-color: #ffe6cc;
+  text-align: left;
   margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
 }
 div.block.hidden {
@@ -253,7 +253,7 @@ function expandPanel(el) {
 
   document.querySelector(panelName + "-title").innerHTML = el.title
   iframe = document.querySelector(panelName + "-body");
-  
+
   const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
     #csv { margin-bottom: 15px; }
     #csv table { border-collapse: collapse;}
@@ -263,13 +263,13 @@ function expandPanel(el) {
     return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
       .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
   }
-  
+
   function reqListener () {
     if (el.title.endsWith(".csv")) {
       iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
     } else {
       iframe.setAttribute("srcdoc", this.responseText);
-    }  
+    }
     console.log(this.responseText);
   }
 
@@ -277,8 +277,8 @@ function expandPanel(el) {
   oReq.addEventListener("load", reqListener);
   oReq.open("GET", el.title);
   oReq.send();
-  
-  
+
+
   //iframe.src = el.title;
   const resultPane = document.querySelector(panelName + "-pane");
   if (resultPane.classList.contains("hidden")) {

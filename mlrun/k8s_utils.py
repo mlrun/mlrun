@@ -66,13 +66,13 @@ class K8sHelper:
         try:
             config.load_incluster_config()
             in_cluster = True
-        except:
+        except Exception:
             pass
 
         # this will load the "right" k8s config if there's one (might not be the incluster one)
         try:
             self._init_k8s_config(log=False)
-        except:
+        except Exception:
             pass
         return in_cluster
 

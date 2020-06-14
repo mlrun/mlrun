@@ -69,7 +69,7 @@ def test_notebook(notebook):
         out.write(code)
 
     cmd = (
-        ['docker', 'build', '--file', str(tmp_dockerfile), '--tag', docker_tag,]
+        ['docker', 'build', '--file', str(tmp_dockerfile), '--tag', docker_tag]
         + args_cmd
         + ['.']
     )

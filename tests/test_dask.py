@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pprint import pprint
-
 import pytest
 
-from tests.conftest import rundb_path, tag_test, verify_state
+from tests.conftest import tag_test, verify_state
 from mlrun import NewTask, new_function
 
 has_dask = False

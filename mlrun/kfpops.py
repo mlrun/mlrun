@@ -34,7 +34,7 @@ def write_kfpmeta(struct):
     results = struct['status'].get('results', {})
     metrics = {
         'metrics': [
-            {'name': k, 'numberValue': v,} for k, v in results.items() if is_num(v)
+            {'name': k, 'numberValue': v} for k, v in results.items() if is_num(v)
         ],
     }
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
@@ -316,16 +316,16 @@ def mlrun_op(
         cmd += ['--name', name]
     if func_url:
         cmd += ['-f', func_url]
-    for s in secrets:
-        cmd += ['-s', '{}={}'.format(s['kind'], s['source'])]
-    for p, val in params.items():
-        cmd += ['-p', '{}={}'.format(p, val)]
-    for x, val in hyperparams.items():
-        cmd += ['-x', '{}={}'.format(x, val)]
-    for i, val in inputs.items():
-        cmd += ['-i', '{}={}'.format(i, val)]
-    for l, val in labels.items():
-        cmd += ['--label', '{}={}'.format(l, val)]
+    for secret in secrets:
+        cmd += ['-s', '{}={}'.format(secret['kind'], secret['source'])]
+    for param, val in params.items():
+        cmd += ['-p', '{}={}'.format(param, val)]
+    for xpram, val in hyperparams.items():
+        cmd += ['-x', '{}={}'.format(xpram, val)]
+    for input_param, val in inputs.items():
+        cmd += ['-i', '{}={}'.format(input_param, val)]
+    for label, val in labels.items():
+        cmd += ['--label', '{}={}'.format(label, val)]
     for o in outputs:
         cmd += ['-o', '{}'.format(o)]
         file_outputs[o.replace('.', '_')] = '/tmp/{}'.format(o)

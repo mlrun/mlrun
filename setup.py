@@ -74,7 +74,7 @@ setup(
         'mlrun.api.schemas',
     ],
     install_requires=install_requires,
-    extra_requires={'api': api_deps,},
+    extra_requires={'api': api_deps},
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
@@ -92,5 +92,5 @@ setup(
     tests_require=tests_require,
     zip_safe=False,
     include_package_data=True,
-    entry_points={'console_scripts': ['mlrun=mlrun.__main__:main',],},
+    entry_points={'console_scripts': ['mlrun=mlrun.__main__:main']},
 )

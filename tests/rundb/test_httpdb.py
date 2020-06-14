@@ -27,7 +27,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from tests.conftest import wait_for_server, in_docker
+from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple('Server', 'url conn workdir')
@@ -187,7 +187,7 @@ def test_run(create_server):
     prj, uid = 'p18', '3i920'
     run_as_dict = RunObject().to_dict()
     run_as_dict['metadata'].update(
-        {'algorithm': 'svm', 'C': 3,}
+        {'algorithm': 'svm', 'C': 3}
     )
     db.store_run(run_as_dict, uid, prj)
 

@@ -13,14 +13,11 @@
 # limitations under the License.
 
 import time
-from threading import Thread
 import _thread
-import pytest
 
-from tests.conftest import has_secrets, out_path, rundb_path, tag_test
+from tests.conftest import out_path, tag_test
 from tests.http_srv import create_function
 from mlrun import get_or_create_ctx, new_function, RunObject, NewTask
-from mlrun.utils import run_keys
 
 
 def myfunction(context, event):

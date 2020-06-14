@@ -125,7 +125,9 @@ def mount_v3iod(
             k8s_client.V1VolumeMount(mount_path='/etc/config/v3io', name='v3io-config')
         )
 
-        # vol = k8s_client.V1Volume(name='v3io-auth', secret=k8s_client.V1SecretVolumeSource(secret_name= v3io_auth_secret, default_mode= 420))
+        # vol = k8s_client.V1Volume(name='v3io-auth',
+        #                           secret=k8s_client.V1SecretVolumeSource(secret_name=v3io_auth_secret,
+        #                                                                  default_mode=420))
         # task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path='/igz/.igz', name='v3io-auth'))
 
         task.add_env_variable(
@@ -236,9 +238,9 @@ class OutputStream:
         if not isinstance(data, list):
             data = [data]
         records = [{'data': json.dumps(rec)} for rec in data]
-        response = self._v3io_client.put_records(
-            container=self._container, path=self._stream_path, records=records
-        )
+        self._v3io_client.put_records(container=self._container,
+                                      path=self._stream_path,
+                                      records=records)
 
 
 def create_control_session(url, username, password):

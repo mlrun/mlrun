@@ -1,22 +1,17 @@
+import json
 from inspect import signature, _empty
 from importlib import import_module
 from typing import List
-
-from cloudpickle import dumps, dump
-import json
-import os
 from itertools import cycle
 
 from ..artifacts import PlotArtifact
 from .plots import (
     gcf_clear,
-    learning_curves,
     feature_importances,
     precision_recall_bin,
     precision_recall_multi,
     roc_multi,
     roc_bin,
-    confusion_matrix,
 )
 
 import numpy as np
@@ -55,7 +50,7 @@ def get_class_fit(module_pkg_class: str):
 
 def create_class(pkg_class: str):
     """Create a class from a package.module.class string
-    
+
     :param pkg_class:  full class location,
                        e.g. "sklearn.model_selection.GroupKFold"
     """
@@ -68,7 +63,7 @@ def create_class(pkg_class: str):
 
 def create_function(pkg_func: list):
     """Create a function from a package.module.function string
-    
+
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
     """
@@ -82,8 +77,8 @@ def create_function(pkg_func: list):
 
 def gen_sklearn_model(model_pkg, skparams):
     """generate an sklearn model configuration
-    
-    input can be either a "package.module.class" or 
+
+    input can be either a "package.module.class" or
     a json file
     """
     if model_pkg.endswith("json"):
@@ -104,11 +99,11 @@ def eval_class_model(
     xtest, ytest, model, labels: str = "labels", pred_params: dict = {}
 ):
     """generate predictions and validation stats
-    
+
     pred_params are non-default, scikit-learn api prediction-function parameters.
     For example, a tree-type of model may have a tree depth limit for its prediction
     function.
-    
+
     :param xtest:        features array type Union(DataItem, DataFrame, np. Array)
     :param ytest:        ground-truth labels Union(DataItem, DataFrame, Series, np. Array, List)
     :param model:        estimated model

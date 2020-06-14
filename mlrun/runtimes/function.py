@@ -175,7 +175,7 @@ class NuclioSpec(KubeResourceSpec):
                     'found volume without a volume mount ({})'.format(name)
                 )
             vols.append(
-                {'volume': vol, 'volumeMount': self._volume_mounts[name],}
+                {'volume': vol, 'volumeMount': self._volume_mounts[name]}
             )
         return vols
 

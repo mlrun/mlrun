@@ -175,7 +175,7 @@ class SparkRuntime(KubejobRuntime):
             update_in(job, 'spec.mainApplicationFile', self.spec.command)
         update_in(job, 'spec.arguments', self.spec.args)
         resp = self._submit_job(job, meta.namespace)
-        name = get_in(resp, 'metadata.name', 'unknown')
+        # name = get_in(resp, 'metadata.name', 'unknown')
 
         state = get_in(resp, 'status.applicationState.state', 'SUBMITTED')
         logger.info('SparkJob {} state={}'.format(meta.name, 'STARTING'))
@@ -308,7 +308,7 @@ class SparkRuntime(KubejobRuntime):
         if not pods:
             logger.error('no pod matches that job name')
             return
-        k8s = self._get_k8s()
+        _ = self._get_k8s()
         return list(pods.items())[0]
 
     @property

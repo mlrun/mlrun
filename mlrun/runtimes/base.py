@@ -25,7 +25,7 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud as crud
+
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from .constants import PodPhases, FunctionStates
@@ -835,6 +835,9 @@ class BaseRuntimeHandler(ABC):
         # if cannot resolve related run, assume collected
         if not project or not uid:
             return
+
+        # import here to avoid circular imports
+        import mlrun.api.crud as crud
 
         logs_from_persistency = crud.Logs.get_log(db_session, project, uid, source=LogSources.PERSISTENCY)
         logs_from_k8s = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)

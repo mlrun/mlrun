@@ -86,7 +86,7 @@ class NuclioSpec(KubeResourceSpec):
         self.function_handler = ''
         self.no_cache = no_cache
         self.replicas = replicas
-        self.min_replicas = min_replicas or 0
+        self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
 
     @property

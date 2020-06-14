@@ -12,5 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
 from .datastore import StoreManager, uri_to_ipython, get_object_stat
 from .base import DataItem

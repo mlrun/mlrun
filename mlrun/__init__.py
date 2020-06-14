@@ -21,6 +21,8 @@ MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and 
 The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` command-line interface (CLI).
 """
 
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
 __version__ = '0.4.8'
 
 from .run import (

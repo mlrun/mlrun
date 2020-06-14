@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
 from .base import RunError, BaseRuntime, BaseRuntimeHandler  # noqa

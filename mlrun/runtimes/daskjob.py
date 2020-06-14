@@ -321,9 +321,11 @@ class DaskCluster(KubejobRuntime):
 
 
 def deploy_function(function: DaskCluster, secrets=None):
+
+    # TODO: why is this here :|
     try:
-        from dask_kubernetes import KubeCluster, make_pod_spec
-        from dask.distributed import Client, default_client
+        from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
+        from dask.distributed import Client, default_client  # noqa: F401
         from kubernetes_asyncio import client
         import dask
     except ImportError as e:

@@ -1,3 +1,5 @@
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
 from .models import (
     get_class_fit,
     create_class,

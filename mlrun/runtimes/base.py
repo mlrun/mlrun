@@ -25,8 +25,9 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud as crud
+from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
-from mlrun.api.api.endpoints.logs import get_log_internal, LogSources, store_log_internal
 from .constants import PodPhases, FunctionStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
@@ -835,11 +836,11 @@ class BaseRuntimeHandler(ABC):
         if not project or not uid:
             return
 
-        logs_from_persistency = get_log_internal(db_session, project, uid, source=LogSources.PERSISTENCY)
-        logs_from_k8s = get_log_internal(db_session, project, uid, source=LogSources.K8S)
+        logs_from_persistency = crud.Logs.get_log(db_session, project, uid, source=LogSources.PERSISTENCY)
+        logs_from_k8s = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
         if logs_from_k8s != logs_from_persistency:
             logger.warning('Different in logs, storing')
-            store_log_internal(logs_from_k8s, project, uid, append=False)
+            crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     def _is_runtime_resource_run_in_transient_state(self,
                                                     db: DBInterface,

@@ -230,7 +230,7 @@ class KubejobRuntime(KubeResource):
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace = k8s.create_pod(pod)
-        except client.rest.ApiException as e:
+        except ApiException as e:
             raise RunError(str(e))
 
         if pod_name and self.kfp:

@@ -14,7 +14,6 @@
 
 from tests.conftest import (
     examples_path,
-    tag_test,
     verify_state,
 )
 from mlrun import function_to_module, NewTask, get_or_create_ctx

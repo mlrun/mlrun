@@ -15,7 +15,6 @@
 from sys import executable, stderr
 from subprocess import run, PIPE
 from tests.conftest import (
-    tag_test,
     here,
     examples_path,
     root_path,

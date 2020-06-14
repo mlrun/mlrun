@@ -81,6 +81,7 @@ class Config:
 
     def __init__(self, cfg=None):
         cfg = {} if cfg is None else cfg
+
         # Can't use self._cfg = cfg → infinite recursion
         object.__setattr__(self, '_cfg', cfg)
 

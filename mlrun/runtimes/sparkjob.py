@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import time
 from copy import deepcopy
 from typing import Tuple
 
-from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 from mlrun.runtimes.base import BaseRuntimeHandler
@@ -246,7 +246,7 @@ class SparkRuntime(KubejobRuntime):
             name = get_in(resp, 'metadata.name', 'unknown')
             logger.info('SparkJob {} created'.format(name))
             return resp
-        except client.rest.ApiException as e:
+        except ApiException as e:
             crd = '{}/{}/{}'.format(
                 SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural
             )
@@ -264,7 +264,7 @@ class SparkRuntime(KubejobRuntime):
                 SparkRuntime.plural,
                 name,
             )
-        except client.rest.ApiException as e:
+        except ApiException as e:
             print("Exception when reading SparkJob: %s" % e)
         return resp
 

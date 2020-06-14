@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tests.conftest import (
-    examples_path,
-    verify_state,
-)
+from tests.conftest import examples_path
 from mlrun import function_to_module, NewTask, get_or_create_ctx
 
 

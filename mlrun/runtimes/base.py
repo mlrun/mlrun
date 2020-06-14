@@ -26,6 +26,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
+from mlrun.api.api.endpoints.logs import get_log_internal, LogSources, store_log_internal
 from .constants import PodPhases, FunctionStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
@@ -781,17 +782,18 @@ class BaseRuntimeHandler(ABC):
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         for pod in pods.items:
+            if force:
+                self._delete_pod(namespace, pod)
+                continue
+
             # it is less likely that there will be new stable states, or the existing ones will change so better to
             # resolve whether it's a transient state by checking if it's not a stable state
             in_transient_state = self._is_pod_in_transient_state(db, db_session, pod)
-            if not in_transient_state or (force and in_transient_state):
-                try:
-                    k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-                    logger.info(f"Deleted pod: {pod.metadata.name}")
-                except ApiException as e:
-                    # ignore error if pod is already removed
-                    if e.status != 404:
-                        raise
+            if in_transient_state:
+                continue
+
+            self._ensure_runtime_resource_run_logs_collected(db_session, pod.to_dict())
+            self._delete_pod(namespace, pod)
 
     def _delete_crd_resources(self,
                               db: DBInterface,
@@ -813,24 +815,34 @@ class BaseRuntimeHandler(ABC):
                 raise
         else:
             for crd_object in crd_objects['items']:
-                in_transient_state = self._is_crd_object_in_transient_state(db, db_session, crd_object)
-                if not in_transient_state or (force and in_transient_state):
-                    name = crd_object['metadata']['name']
-                    try:
-                        k8s_helper.crdapi.delete_namespaced_custom_object(crd_group,
-                                                                          crd_version,
-                                                                          namespace,
-                                                                          crd_plural,
-                                                                          name,
-                                                                          client.V1DeleteOptions())
-                        logger.info(f"Deleted crd object: {name}, {namespace}, {crd_plural}")
-                    except ApiException as e:
-                        # ignore error if crd object is already removed
-                        if e.status != 404:
-                            raise
+                if force:
+                    self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
+                    continue
 
-    @staticmethod
-    def _is_runtime_resource_run_in_transient_state(db: DBInterface,
+                in_transient_state = self._is_crd_object_in_transient_state(db, db_session, crd_object)
+                if in_transient_state:
+                    continue
+
+                self._ensure_runtime_resource_run_logs_collected(db_session, crd_object)
+                self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
+
+    def _ensure_runtime_resource_run_logs_collected(self,
+                                                    db_session: Session,
+                                                    runtime_resource: Dict):
+        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+
+        # if cannot resolve related run, assume collected
+        if not project or not uid:
+            return
+
+        logs_from_persistency = get_log_internal(db_session, project, uid, source=LogSources.PERSISTENCY)
+        logs_from_k8s = get_log_internal(db_session, project, uid, source=LogSources.K8S)
+        if logs_from_k8s != logs_from_persistency:
+            logger.warning('Different in logs, storing')
+            store_log_internal(logs_from_k8s, project, uid, append=False)
+
+    def _is_runtime_resource_run_in_transient_state(self,
+                                                    db: DBInterface,
                                                     db_session: Session,
                                                     runtime_resource: Dict) -> bool:
         """
@@ -840,9 +852,7 @@ class BaseRuntimeHandler(ABC):
         might be in completed state, but we would like to verify that the run is completed as well to verify the logs
         were collected before we're removing the pod.
         """
-        # verify the mlrun function is in stable state
-        project = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project')
-        uid = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/uid')
+        project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
         # if no uid, assume in stable state
         if not uid:
@@ -859,6 +869,40 @@ class BaseRuntimeHandler(ABC):
             return True
 
         return False
+
+    @staticmethod
+    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
+        project = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project')
+        uid = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/uid')
+        return project, uid
+
+    @staticmethod
+    def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):
+        k8s_helper = get_k8s_helper()
+        name = crd_object['metadata']['name']
+        try:
+            k8s_helper.crdapi.delete_namespaced_custom_object(crd_group,
+                                                              crd_version,
+                                                              namespace,
+                                                              crd_plural,
+                                                              name,
+                                                              client.V1DeleteOptions())
+            logger.info(f"Deleted crd object: {name}, {namespace}, {crd_plural}")
+        except ApiException as e:
+            # ignore error if crd object is already removed
+            if e.status != 404:
+                raise
+
+    @staticmethod
+    def _delete_pod(namespace, pod):
+        k8s_helper = get_k8s_helper()
+        try:
+            k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
+            logger.info(f"Deleted pod: {pod.metadata.name}")
+        except ApiException as e:
+            # ignore error if pod is already removed
+            if e.status != 404:
+                raise
 
     @staticmethod
     def _build_pod_resources(pods) -> List:

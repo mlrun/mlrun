@@ -1,5 +1,6 @@
 from distutils.util import strtobool
 from http import HTTPStatus
+from enum import Enum
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -22,7 +23,7 @@ async def store_log(
         append: str = "on"):
     append = strtobool(append)
     body = await request.body()
-    await run_in_threadpool(_write_to_log_file, project, uid, append, body)
+    await run_in_threadpool(store_log_internal, str(body), project, uid, append)
     return {}
 
 
@@ -35,14 +36,39 @@ def get_log(
         offset: int = 0,
         tag: str = "",
         db_session: Session = Depends(deps.get_db_session)):
+    out, status = get_log_internal(db_session, project, uid, size, offset)
+    return Response(content=out, media_type="text/plain", headers={"pod_status": status})
+
+
+def store_log_internal(body: str, project: str, uid: str, append: bool = True):
+    log_file = log_path(project, uid)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    mode = "ab" if append else "wb"
+    with log_file.open(mode) as fp:
+        fp.write(body)
+
+
+class LogSources(Enum):
+    AUTO = 'auto'
+    PERSISTENCY = 'persistency'
+    K8S = 'k8s'
+
+
+def get_log_internal(db_session: Session,
+                     project: str,
+                     uid: str,
+                     size: int = -1,
+                     offset: int = 0,
+                     source: LogSources = LogSources.AUTO):
     out = b""
     log_file = log_path(project, uid)
-    if log_file.exists():
+    status = None
+    if log_file.exists() and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
         with log_file.open("rb") as fp:
             fp.seek(offset)
             out = fp.read(size)
         status = ""
-    else:
+    elif source in [LogSources.AUTO, LogSources.K8S]:
         data = get_db().read_run(db_session, uid, project)
         if not data:
             log_and_raise(HTTPStatus.NOT_FOUND, project=project, uid=uid)
@@ -77,12 +103,4 @@ def get_log(
                     data, "status.error", "pod not found, maybe terminated")
                 get_db().store_run(db_session, data, uid, project)
                 status = "failed"
-    return Response(content=out, media_type="text/plain", headers={"pod_status": status})
-
-
-def _write_to_log_file(project, uid, append, body):
-    log_file = log_path(project, uid)
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    mode = "ab" if append else "wb"
-    with log_file.open(mode) as fp:
-        fp.write(body)
+    return out, status

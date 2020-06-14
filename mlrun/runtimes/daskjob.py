@@ -256,7 +256,9 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
             except OSError as e:
                 logger.warning(
-                    'remote scheduler at {} not ready, will try to restart {}'.format(addr, e)
+                    'remote scheduler at {} not ready, will try to restart {}'.format(
+                        addr, e
+                    )
                 )
 
                 # todo: figure out if test is needed

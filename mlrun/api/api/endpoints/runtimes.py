@@ -13,9 +13,7 @@ def list_runtimes(label_selector: str = None):
     for kind in RuntimeKinds.runtime_with_handlers():
         runtime_handler = get_runtime_handler(kind)
         resources = runtime_handler.list_resources(label_selector)
-        runtimes.append(
-            {'kind': kind, 'resources': resources}
-        )
+        runtimes.append({'kind': kind, 'resources': resources})
     return runtimes
 
 

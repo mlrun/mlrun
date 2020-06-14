@@ -98,10 +98,10 @@ def nuclio_serving_init(context, data):
             model.ready = True
 
     # Verify that models are loaded
-    assert (
-            len(models) > 0
-    ), "No models were loaded!\n Please load a model by using the environment variable " \
-       "SERVING_MODEL_{model_name} = model_path"
+    assert len(models) > 0, (
+        "No models were loaded!\n Please load a model by using the environment variable "
+        "SERVING_MODEL_{model_name} = model_path"
+    )
 
     context.logger.info(f'Loaded {list(models.keys())}')
 

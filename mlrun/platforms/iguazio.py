@@ -237,9 +237,9 @@ class OutputStream:
         if not isinstance(data, list):
             data = [data]
         records = [{'data': json.dumps(rec)} for rec in data]
-        self._v3io_client.put_records(container=self._container,
-                                      path=self._stream_path,
-                                      records=records)
+        self._v3io_client.put_records(
+            container=self._container, path=self._stream_path, records=records
+        )
 
 
 def create_control_session(url, username, password):

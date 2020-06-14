@@ -186,9 +186,7 @@ def test_run(create_server):
     db = server.conn
     prj, uid = 'p18', '3i920'
     run_as_dict = RunObject().to_dict()
-    run_as_dict['metadata'].update(
-        {'algorithm': 'svm', 'C': 3}
-    )
+    run_as_dict['metadata'].update({'algorithm': 'svm', 'C': 3})
     db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)

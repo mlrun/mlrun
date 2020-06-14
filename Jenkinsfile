@@ -80,21 +80,22 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             }
                         }
 
-                        dockerx.images_push_multi_registries(["${git_project}/mlrun:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
-                        common.conditional_stage('Upload to PyPi', "${github.TAG_VERSION}" != "unstable") {
-                            container('python37') {
-                                withCredentials([
-                                    usernamePassword(credentialsId: "iguazio-prod-pypi-credentials",
-                                                     passwordVariable: 'TWINE_PASSWORD',
-                                                     usernameVariable: 'TWINE_USERNAME')]) {
-                                    dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                        commin.shellc("pip install twine")
-                                        common.shellc("make publish-package")
-                                    }
+
+                    }
+                    common.conditional_stage('Upload to PyPi', "${github.TAG_VERSION}" != "unstable") {
+                        container('python37') {
+                            withCredentials([
+                                usernamePassword(credentialsId: "iguazio-prod-pypi-credentials",
+                                                    passwordVariable: 'TWINE_PASSWORD',
+                                                    usernameVariable: 'TWINE_USERNAME')]) {
+                                dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                    common.shellc("pip install twine")
+                                    common.shellc("make publish-package")
                                 }
                             }
-                        } 
+                        }
                     }
                 }
             }

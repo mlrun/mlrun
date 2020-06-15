@@ -856,12 +856,11 @@ class BaseRuntimeHandler(ABC):
             # here we're using the knowledge that the function is called only after a it was verified that the runtime
             # resource run is not in transient state, so we're assuming the run's last update is the last one, so if the
             # log file was modified after it, we're considering it as all logs collected
-            logger.warning(f'Checking datetimes, log mtime {log_mtime_datetime}, last update {last_update}')
             if log_mtime_datetime < last_update:
                 store_log = True
 
         if store_log:
-            logger.debug(f'Storing log')
+            logger.debug(f'Storing runtime resource log before deletion')
             logs_from_k8s, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
             crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 

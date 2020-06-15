@@ -46,8 +46,8 @@ if 'IGZ_NAMESPACE_DOMAIN' in environ:
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
-def set_environment_defaults(api_path: str = None, artifact_path: str = '',
-                             project: str = ''):
+def set_environment(api_path: str = None, artifact_path: str = '',
+                    project: str = ''):
     """set and test default config for: api path, artifact_path and project
 
     this function will try and read the configuration from the environment/api

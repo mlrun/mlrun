@@ -839,8 +839,8 @@ class BaseRuntimeHandler(ABC):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        logs_from_persistency = crud.Logs.get_log(db_session, project, uid, source=LogSources.PERSISTENCY)
-        logs_from_k8s = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
+        logs_from_persistency, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.PERSISTENCY)
+        logs_from_k8s, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
         if logs_from_k8s != logs_from_persistency:
             logger.warning('Different in logs, storing')
             crud.Logs.store_log(logs_from_k8s.encode(), project, uid, append=False)

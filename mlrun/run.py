@@ -694,18 +694,20 @@ def run_pipeline(pipeline, arguments=None, project=None, experiment=None,
 
 def wait_for_pipeline_completion(run_id,
                                  timeout=60 * 60,
-                                 expected_statuses: typing.List[str]=None,
-                                 namespace=None):
+                                 expected_statuses: typing.List[str] = None,
+                                 namespace = None):
     """Wait for Pipeline status, timeout in sec
 
     :param run_id:     id of pipelines run
     :param timeout:    wait timeout in sec
-    :param expected_statuses:  list of expected statuses, otherwise will raise
-                               succeeded | failed | skipped | error | running
+    :param expected_statuses:  list of expected statuses, one of [ succeeded | failed | skipped | error ], by default
+                               [ succeeded ]
     :param namespace:  k8s namespace if not default
 
     :return kfp run dict
     """
+    if expected_statuses is None:
+        expected_statuses = ['succeeded']
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     logger.debug(f"Waiting for run completion."
@@ -749,7 +751,7 @@ def wait_for_pipeline_completion(run_id,
 
     status = resp['run']['status'] if resp else 'unknown'
     if expected_statuses:
-        if status not in expected_statuses:
+        if status.lower() not in expected_statuses:
             raise RuntimeError(f"run status {status} not in expected statuses")
 
     logger.debug(f"Finished waiting for pipeline completion."

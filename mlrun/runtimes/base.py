@@ -876,7 +876,9 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
-        project = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project', config.default_project)
+        project = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project')
+        if not project:
+            project = config.default_project
         uid = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/uid')
         return project, uid
 

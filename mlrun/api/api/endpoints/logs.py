@@ -19,7 +19,7 @@ async def store_log(
         append: str = "on"):
     append = strtobool(append)
     body = await request.body()
-    await run_in_threadpool(crud.Logs.store_log, str(body), project, uid, append)
+    await run_in_threadpool(crud.Logs.store_log, body, project, uid, append)
     return {}
 
 

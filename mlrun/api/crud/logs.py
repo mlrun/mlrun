@@ -11,7 +11,7 @@ from mlrun.utils import get_in, now_date, update_in
 class Logs:
 
     @staticmethod
-    def store_log(body: str, project: str, uid: str, append: bool = True):
+    def store_log(body: bytes, project: str, uid: str, append: bool = True):
         log_file = log_path(project, uid)
         log_file.parent.mkdir(parents=True, exist_ok=True)
         mode = "ab" if append else "wb"

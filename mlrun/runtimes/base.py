@@ -793,7 +793,7 @@ class BaseRuntimeHandler(ABC):
             if in_transient_state:
                 continue
 
-            self._ensure_runtime_resource_run_logs_collected(db_session, pod.to_dict())
+            self._ensure_runtime_resource_run_logs_collected(db, db_session, pod.to_dict())
             self._delete_pod(namespace, pod)
 
     def _delete_crd_resources(self,
@@ -824,10 +824,11 @@ class BaseRuntimeHandler(ABC):
                 if in_transient_state:
                     continue
 
-                self._ensure_runtime_resource_run_logs_collected(db_session, crd_object)
+                self._ensure_runtime_resource_run_logs_collected(db, db_session, crd_object)
                 self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
 
     def _ensure_runtime_resource_run_logs_collected(self,
+                                                    db: DBInterface,
                                                     db_session: Session,
                                                     runtime_resource: Dict):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
@@ -839,10 +840,29 @@ class BaseRuntimeHandler(ABC):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        logs_from_persistency, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.PERSISTENCY)
-        logs_from_k8s, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
-        if logs_from_k8s != logs_from_persistency:
-            logger.warning('Different in logs, storing')
+        log_file_exists = crud.Logs.log_file_exists(project, uid)
+        store_log = False
+        if not log_file_exists:
+            store_log = True
+        else:
+            log_mtime = crud.Logs.get_log_mtime(project, uid)
+            log_mtime_datetime = datetime.fromtimestamp(log_mtime, timezone.utc)
+            now = datetime.now(timezone.utc)
+            run = db.read_run(db_session, uid, project)
+            last_update_str = run.get('status', {}).get('last_update', now)
+            last_update = datetime.fromisoformat(last_update_str)
+
+            # this function is used to verify that logs collected from runtime resources before deleting them
+            # here we're using the knowledge that the function is called only after a it was verified that the runtime
+            # resource run is not in transient state, so we're assuming the run's last update is the last one, so if the
+            # log file was modified after it, we're considering it as all logs collected
+            logger.warning(f'Checking datetimes, log mtime {log_mtime_datetime}, last update {last_update}')
+            if log_mtime_datetime < last_update:
+                store_log = True
+
+        if store_log:
+            logger.debug(f'Storing log')
+            logs_from_k8s, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
             crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     def _is_runtime_resource_run_in_transient_state(self,
@@ -867,6 +887,7 @@ class BaseRuntimeHandler(ABC):
 
         # give some grace period
         now = datetime.now(timezone.utc)
+        datetime.fromtimestamp()
         last_update_str = run.get('status', {}).get('last_update', now)
         last_update = datetime.fromisoformat(last_update_str)
         if last_update + timedelta(seconds=float(config.runtime_resources_deletion_grace_period)) > now:

@@ -69,3 +69,15 @@ class Logs:
                     get_db().store_run(db_session, data, uid, project)
                     status = "failed"
         return out, status
+
+    @staticmethod
+    def get_log_mtime(project: str, uid: str) -> int:
+        log_file = log_path(project, uid)
+        if not log_file.exists():
+            raise FileNotFoundError(f'Log file does not exist: {log_file}')
+        return log_file.stat().st_mtime
+
+    @staticmethod
+    def log_file_exists(project: str, uid: str) -> bool:
+        log_file = log_path(project, uid)
+        return log_file.exists()

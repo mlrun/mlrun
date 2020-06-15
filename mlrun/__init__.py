@@ -58,7 +58,8 @@ def set_environment(api_path: str = None, artifact_path: str = '',
     :param project:        default project name
 
     :return actual artifact path/url, can be used to create subpaths per task,
-            e.g. data_subpath = os.join(artifact_path, 'data')
+            e.g.:  artifact_path = set_environment()
+                   data_subpath = os.join(artifact_path, 'data')
     """
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:

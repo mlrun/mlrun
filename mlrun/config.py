@@ -75,7 +75,7 @@ default_config = {
         'user': '',
         'password': '',
         'token': '',
-        'logs_path': expanduser('~/.mlrun/logs'),
+        'logs_path': '/mlrun/db/logs',
         'data_volume': '',
         'real_path': '',
         'db_type': 'sqldb',

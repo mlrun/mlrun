@@ -21,6 +21,8 @@ from kubernetes.client.rest import ApiException
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 from .config import config as mlconfig
+from kubernetes.stream import stream
+
 
 _k8s = None
 
@@ -268,6 +270,49 @@ class K8sHelper:
                 results[p.metadata.name] = p.status.phase
 
         return results
+
+    def get_shell_pod_name(self, pod_name='shell'):
+        shell_pod = self.v1api.list_namespaced_pod(namespace=self.namespace)
+        for i in shell_pod.items:
+            if pod_name in i.metadata.name:
+                logger.info("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
+                shell_name = i.metadata.name
+                break
+        return shell_name
+
+    def exec_shell_cmd(self, cmd, v3io_access_key):
+        shell_name = self.get_shell_pod_name()
+        # Calling exec and waiting for response
+        exec_command = [
+            '/bin/bash',
+            '-c',
+            cmd]
+        if self._validate_access_key(v3io_access_key):
+
+            resp = stream(self.v1api.connect_get_namespaced_pod_exec,
+                          shell_name,
+                          self.namespace,
+                          command=exec_command,
+                          stderr=True, stdin=False,
+                          stdout=True, tty=False)
+            logger.info("Response: " + resp)
+        else:
+            logger.info("Access key not valid")
+
+    def _validate_access_key(self, v3io_access_key):
+        shell_name = self.get_shell_pod_name()
+        # Calling exec and waiting for response
+        exec_command = [
+            '/bin/bash',
+            '-c',
+            "printenv V3IO_ACCESS_KEY"]
+        resp = stream(self.v1api.connect_get_namespaced_pod_exec,
+                      shell_name,
+                      self.namespace,
+                      command=exec_command,
+                      stderr=True, stdin=False,
+                      stdout=True, tty=False)
+        return resp.rstrip() == v3io_access_key
 
 
 class BasePod:

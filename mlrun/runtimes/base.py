@@ -843,7 +843,7 @@ class BaseRuntimeHandler(ABC):
         logs_from_k8s, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
         if logs_from_k8s != logs_from_persistency:
             logger.warning('Different in logs, storing')
-            crud.Logs.store_log(logs_from_k8s.encode(), project, uid, append=False)
+            crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     def _is_runtime_resource_run_in_transient_state(self,
                                                     db: DBInterface,

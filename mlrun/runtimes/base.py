@@ -887,7 +887,6 @@ class BaseRuntimeHandler(ABC):
 
         # give some grace period
         now = datetime.now(timezone.utc)
-        datetime.fromtimestamp()
         last_update_str = run.get('status', {}).get('last_update', now)
         last_update = datetime.fromisoformat(last_update_str)
         if last_update + timedelta(seconds=float(config.runtime_resources_deletion_grace_period)) > now:

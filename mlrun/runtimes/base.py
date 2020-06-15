@@ -833,7 +833,7 @@ class BaseRuntimeHandler(ABC):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
         # if cannot resolve related run, assume collected
-        if not project or not uid:
+        if not uid:
             return
 
         # import here to avoid circular imports

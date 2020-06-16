@@ -24,6 +24,7 @@ RUN python -m pip install \
     -r requirements.txt
 COPY . .
 ENV PYTHONPATH=/mlrun
+RUN python setup.py install
 {args}
 {pip}
 RUN jupyter nbconvert --execute {notebook}

@@ -27,10 +27,14 @@ async def startup_event():
 
     initialize_singletons()
 
-    task = periodic.Task()
-    periodic.schedule(task, 60)
+    # don't fail the app on re-scheduling failure
+    try:
+        task = periodic.Task()
+        periodic.schedule(task, 60)
 
-    _reschedule_tasks()
+        _reschedule_tasks()
+    except Exception as exc:
+        logger.warning(f'Failed rescheduling tasks, err: {exc}')
 
     _start_periodic_cleanup()
 

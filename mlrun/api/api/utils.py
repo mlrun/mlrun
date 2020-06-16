@@ -68,7 +68,7 @@ def submit(db_session: Session, data):
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
     # remote/container runtime)
 
-    resp = None
+    response = None
     try:
         if function and not url:
             fn = new_function(runtime=function)
@@ -99,17 +99,17 @@ def submit(db_session: Session, data):
             args = (task,)
             job_id = get_scheduler().add(schedule, fn, args)
             get_db().store_schedule(db_session, data)
-            resp = {"schedule": schedule, "id": job_id}
+            response = {"schedule": schedule, "id": job_id}
         else:
-            resp = fn.run(task, watch=False)
+            run = fn.run(task, watch=False)
+            if run:
+                response = run.to_yaml()
 
-        logger.info("resp: %s", resp.to_yaml())
+        logger.info("response: %s", response)
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
 
-    if not isinstance(resp, dict):
-        resp = resp.to_dict()
     return {
-        "data": resp,
+        "data": response,
     }

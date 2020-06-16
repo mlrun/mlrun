@@ -103,13 +103,13 @@ def submit(db_session: Session, data):
         else:
             run = fn.run(task, watch=False)
             if run:
-                response = run.to_yaml()
+                response = run.to_dict()
 
-        logger.info("response: %s", response)
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
 
+    logger.info("response: %s", response)
     return {
         "data": response,
     }

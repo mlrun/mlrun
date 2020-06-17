@@ -17,13 +17,15 @@ from os import environ
 from typing import Dict
 
 from kubernetes.client.rest import ApiException
+from sqlalchemy.orm import Session
 
+from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
+from .constants import PodPhases
 from .kubejob import KubejobRuntime
 from .local import load_module, exec_from_params
 from .pod import KubeResourceSpec
-from .constants import PodPhases
 from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
 from ..config import config
 from ..execution import MLClientCtx
@@ -396,7 +398,12 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         response['service_resources'] = service_resources
         return response
 
-    def _delete_resources(self, namespace: str, label_selector: str = None, force: bool = False):
+    def _delete_resources(self,
+                          db: DBInterface,
+                          db_session: Session,
+                          namespace: str,
+                          label_selector: str = None,
+                          force: bool = False):
         """
         Handling services deletion
         """

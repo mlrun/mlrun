@@ -59,16 +59,23 @@ default_config = {
     'ipython_widget': True,
     'log_level': 'ERROR',
     'submit_timeout': '180',         # timeout when submitting a new k8s resource
+
+    # runtimes cleanup interval in seconds
+    'runtimes_cleanup_interval': '300',
+
+    # the grace period (in seconds) that will be given to runtime resources (after they're in stable state)
+    # before deleting them
+    'runtime_resources_deletion_grace_period': '14400',
     'artifact_path': '',             # default artifacts path/url
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
-        'dsn': 'sqlite:////tmp/mlrun.db?check_same_thread=false',
+        'dsn': 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',
         'token': '',
-        'logs_path': expanduser('~/.mlrun/logs'),
+        'logs_path': '/mlrun/db/logs',
         'data_volume': '',
         'real_path': '',
         'db_type': 'sqldb',
@@ -202,6 +209,10 @@ def read_env(env=None, prefix=env_prefix):
             if ':' in igz_domain:
                 igz_domain = igz_domain[:igz_domain.rfind(':')]
             env['IGZ_NAMESPACE_DOMAIN'] = igz_domain
+
+    # workaround wrongly sqldb dsn in 2.8
+    if config.get('httpdb', {}).get('dsn') == 'sqlite:///mlrun.sqlite3?check_same_thread=false':
+        config['httpdb']['dsn'] = 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 
     if uisvc and not config.get('ui_url'):
         if igz_domain:

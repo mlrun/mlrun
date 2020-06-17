@@ -20,7 +20,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                     container('docker-cmd') {
                         stage("build ${git_project}/api in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make api")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make api"))
                             }
                         }
 
@@ -28,7 +28,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         stage("build ${git_project}/mlrun in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make mlrun"))
                             }
                         }
 
@@ -36,7 +36,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         stage("build ${git_project}/base in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base"))
                             }
                         }
 
@@ -44,7 +44,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         stage("build ${git_project}/base-legacy in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base-legacy"))
                             }
                         }
 
@@ -52,7 +52,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         stage("build ${git_project}/models in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models"))
                             }
                         }
 
@@ -60,7 +60,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         stage("build ${git_project}/models-legacy in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-legacy"))
                             }
                         }
 
@@ -68,7 +68,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         stage("build ${git_project}/models-gpu in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu"))
                             }
                         }
 
@@ -76,7 +76,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         stage("build ${git_project}/models-gpu-legacy in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy")
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make models-gpu-legacy"))
                             }
                         }
 
@@ -91,8 +91,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                                                     passwordVariable: 'TWINE_PASSWORD',
                                                     usernameVariable: 'TWINE_USERNAME')]) {
                                 dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
-                                    common.shellc("pip install twine")
-                                    common.shellc("make publish-package")
+                                    println(common.shellc("pip install twine"))
+                                    println(common.shellc("make publish-package"))
                                 }
                             }
                         }

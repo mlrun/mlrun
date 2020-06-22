@@ -174,8 +174,7 @@ class KubeResource(BaseRuntime):
         namespace = self._get_k8s().resolve_namespace()
         uid = runobj.metadata.uid
         labels = get_resource_labels(self, uid)
-        new_meta = client.V1ObjectMeta(namespace=namespace,
-                                       labels=labels)
+        new_meta = client.V1ObjectMeta(namespace=namespace, labels=labels)
 
         name = runobj.metadata.name or 'mlrun'
         norm_name = '{}-'.format(normalize_name(name))

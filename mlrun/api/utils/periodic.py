@@ -21,7 +21,8 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
                 await run_in_threadpool(function, *args, **kwargs)
         except Exception as exc:
             logger.warning(
-                f'Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}')
+                f'Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}'
+            )
         await asyncio.sleep(interval)
 
 
@@ -29,7 +30,9 @@ def run_function_periodically(interval: int, function, *args, **kwargs):
     global tasks
     logger.debug(f'Submitting function to run periodically: {function.__name__}')
     loop = asyncio.get_running_loop()
-    task = loop.create_task(_periodic_function_wrapper(interval, function, *args, **kwargs))
+    task = loop.create_task(
+        _periodic_function_wrapper(interval, function, *args, **kwargs)
+    )
     tasks.append(task)
 
 

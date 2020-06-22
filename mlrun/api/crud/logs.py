@@ -9,7 +9,6 @@ from mlrun.utils import get_in, now_date, update_in
 
 
 class Logs:
-
     @staticmethod
     def store_log(body: bytes, project: str, uid: str, append: bool = True):
         log_file = log_path(project, uid)
@@ -19,12 +18,14 @@ class Logs:
             fp.write(body)
 
     @staticmethod
-    def get_log(db_session: Session,
-                project: str,
-                uid: str,
-                size: int = -1,
-                offset: int = 0,
-                source: LogSources = LogSources.AUTO):
+    def get_log(
+        db_session: Session,
+        project: str,
+        uid: str,
+        size: int = -1,
+        offset: int = 0,
+        source: LogSources = LogSources.AUTO,
+    ):
         out = b""
         log_file = log_path(project, uid)
         status = None
@@ -55,8 +56,7 @@ class Logs:
                             update_in(data, "status.last_update", now)
                             if new_status == "failed":
                                 update_in(data, "status.state", "error")
-                                update_in(
-                                    data, "status.error", "error, check logs")
+                                update_in(data, "status.error", "error, check logs")
                                 get_db().store_run(db_session, data, uid, project)
                             if new_status == "succeeded":
                                 update_in(data, "status.state", "completed")
@@ -64,8 +64,7 @@ class Logs:
                     status = new_status
                 elif status == "running":
                     update_in(data, "status.state", "error")
-                    update_in(
-                        data, "status.error", "pod not found, maybe terminated")
+                    update_in(data, "status.error", "pod not found, maybe terminated")
                     get_db().store_run(db_session, data, uid, project)
                     status = "failed"
         return out, status

@@ -68,7 +68,9 @@ def resolve_mpijob_crd_version(api_context=False):
         mpijob_crd_version = config.mpijob_crd_version
 
         if not mpijob_crd_version:
-            in_k8s_cluster = get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+            in_k8s_cluster = get_k8s_helper(
+                init=False
+            ).is_running_inside_kubernetes_cluster()
             if in_k8s_cluster:
                 k8s_helper = get_k8s_helper()
                 namespace = k8s_helper.resolve_namespace()
@@ -79,7 +81,9 @@ def resolve_mpijob_crd_version(api_context=False):
                 )
                 if len(res) > 0:
                     mpi_operator_pod = res[0]
-                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get('crd-version')
+                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
+                        'crd-version'
+                    )
             elif not in_k8s_cluster and not api_context:
                 # connect will populate the config from the server config
                 # TODO: something nicer
@@ -91,8 +95,10 @@ def resolve_mpijob_crd_version(api_context=False):
                 mpijob_crd_version = MPIJobCRDVersions.default()
 
         if mpijob_crd_version not in MPIJobCRDVersions.all():
-            raise ValueError(f'unsupported mpijob crd version: {mpijob_crd_version}. '
-                             f'supported versions: {MPIJobCRDVersions.all()}')
+            raise ValueError(
+                f'unsupported mpijob crd version: {mpijob_crd_version}. '
+                f'supported versions: {MPIJobCRDVersions.all()}'
+            )
         cached_mpijob_crd_version = mpijob_crd_version
 
     return cached_mpijob_crd_version

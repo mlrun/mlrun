@@ -58,15 +58,13 @@ default_config = {
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'ERROR',
-    'submit_timeout': '180',         # timeout when submitting a new k8s resource
-
+    'submit_timeout': '180',  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     'runtimes_cleanup_interval': '300',
-
     # the grace period (in seconds) that will be given to runtime resources (after they're in stable state)
     # before deleting them
     'runtime_resources_deletion_grace_period': '14400',
-    'artifact_path': '',             # default artifacts path/url
+    'artifact_path': '',  # default artifacts path/url
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),

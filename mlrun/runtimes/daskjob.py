@@ -477,12 +477,14 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         response['service_resources'] = service_resources
         return response
 
-    def _delete_resources(self,
-                          db: DBInterface,
-                          db_session: Session,
-                          namespace: str,
-                          label_selector: str = None,
-                          force: bool = False):
+    def _delete_resources(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        namespace: str,
+        label_selector: str = None,
+        force: bool = False,
+    ):
         """
         Handling services deletion
         """

@@ -772,10 +772,9 @@ def run_pipeline(
     return id
 
 
-def wait_for_pipeline_completion(run_id,
-                                 timeout=60 * 60,
-                                 expected_statuses: typing.List[str] = None,
-                                 namespace = None):
+def wait_for_pipeline_completion(
+    run_id, timeout=60 * 60, expected_statuses: typing.List[str] = None, namespace=None
+):
     """Wait for Pipeline status, timeout in sec
 
     :param run_id:     id of pipelines run

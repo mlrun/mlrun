@@ -60,8 +60,7 @@ if 'IGZ_NAMESPACE_DOMAIN' in environ:
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
-def set_environment(api_path: str = None, artifact_path: str = '',
-                    project: str = ''):
+def set_environment(api_path: str = None, artifact_path: str = '', project: str = ''):
     """set and test default config for: api path, artifact_path and project
 
     this function will try and read the configuration from the environment/api
@@ -92,7 +91,8 @@ def set_environment(api_path: str = None, artifact_path: str = '',
     if artifact_path.startswith('./'):
         artifact_path = path.abspath(artifact_path)
     elif not artifact_path.startswith('/') and '://' not in artifact_path:
-        raise ValueError('artifact_path must refer to an absolute path'
-                         ' or a valid url')
+        raise ValueError(
+            'artifact_path must refer to an absolute path' ' or a valid url'
+        )
     mlconf.artifact_path = artifact_path or mlconf.artifact_path
     return mlconf.artifact_path

@@ -7,7 +7,10 @@ from mlrun.api.db.session import create_session, close_session
 from mlrun.api.singletons import initialize_singletons, get_db
 from mlrun.config import config
 from mlrun.db import periodic
-from mlrun.api.utils.periodic import run_function_periodically, cancel_periodic_functions
+from mlrun.api.utils.periodic import (
+    run_function_periodically,
+    cancel_periodic_functions,
+)
 from mlrun.utils import logger
 from mlrun.api.initial_data import init_data
 from mlrun.runtimes import RuntimeKinds

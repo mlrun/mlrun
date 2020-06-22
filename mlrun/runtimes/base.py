@@ -966,7 +966,7 @@ class BaseRuntimeHandler(ABC):
                 store_log = True
 
         if store_log:
-            logger.debug(f'Storing runtime resource log before deletion')
+            logger.debug('Storing runtime resource log before deletion')
             logs_from_k8s, _ = crud.Logs.get_log(
                 db_session, project, uid, source=LogSources.K8S
             )

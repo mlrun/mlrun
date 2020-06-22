@@ -26,7 +26,7 @@ from .constants import PodPhases
 from .kubejob import KubejobRuntime
 from .local import load_module, exec_from_params
 from .pod import KubeResourceSpec
-from .utils import mlrun_key, get_resource_labels, get_func_selector, log_std, RunError
+from .utils import get_resource_labels, get_func_selector, log_std, RunError
 from ..config import config
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper

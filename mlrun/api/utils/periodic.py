@@ -19,7 +19,7 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
                 await function(*args, **kwargs)
             else:
                 await run_in_threadpool(function, *args, **kwargs)
-        except Exception as exc:
+        except Exception:
             logger.warning(
                 f'Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}'
             )

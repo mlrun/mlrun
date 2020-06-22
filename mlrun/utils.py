@@ -39,8 +39,8 @@ DB_SCHEMA = 'store'
 
 def create_logger(stream=None):
     level = logging.INFO
-    if config.log_level.lower() == 'debug':
-        level = logging.DEBUG
+    if config.log_level:
+        level = logging._checkLevel(config.log_level.upper())
     handler = logging.StreamHandler(stream or stdout)
     handler.setFormatter(
         logging.Formatter('[%(name)s] %(asctime)s %(message)s'))

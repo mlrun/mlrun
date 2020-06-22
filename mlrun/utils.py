@@ -53,6 +53,12 @@ def create_logger(stream=None):
     return logger
 
 
+def set_logger_level(level):
+    logger.setLevel(level)
+    for handler in logger.handlers:
+        handler.setLevel(level)
+
+
 logger = create_logger()
 missing = object()
 

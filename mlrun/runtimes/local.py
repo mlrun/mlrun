@@ -116,6 +116,10 @@ class LocalRuntime(BaseRuntime):
                 if 'PYTHONPATH' in environ:
                     pypath = '{}:{}'.format(environ['PYTHONPATH'], pypath)
                 env = {'PYTHONPATH': pypath}
+            if runobj.spec.verbose:
+                if not env:
+                    env = {}
+                env['MLRUN_LOG_LEVEL'] = 'debug'
 
             sout, serr = run_exec(cmd, self.spec.args, env=env,
                                   cwd=self.spec.workdir)
@@ -173,6 +177,9 @@ def run_exec(cmd, args, env=None, cwd=None):
 
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
                      cwd=None):
+    old_level = logger.level
+    if runobj.spec.verbose:
+        logger.setLevel('DEBUG')
     args_list = get_func_arg(handler, runobj, context)
 
     stdout = StringIO()
@@ -190,6 +197,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
             err = str(e)
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
+            logger.setLevel(old_level)
 
     if cwd:
         os.chdir(old_dir)
@@ -197,6 +205,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
     if val:
         context.log_result('return', val)
     context.commit()
+    logger.setLevel(old_level)
     return stdout.getvalue(), err
 
 

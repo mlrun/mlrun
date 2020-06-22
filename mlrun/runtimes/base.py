@@ -14,15 +14,21 @@
 
 import getpass
 import uuid
+from abc import ABC, abstractmethod
 from ast import literal_eval
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Tuple
-from abc import ABC, abstractmethod
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from sqlalchemy.orm import Session
 
+
+from mlrun.api.constants import LogSources
+from mlrun.api.db.base import DBInterface
+from .constants import PodPhases, FunctionStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
 from ..config import config
@@ -44,7 +50,6 @@ from ..utils import (
     dict_to_yaml,
     dict_to_json,
 )
-from .constants import PodPhases
 
 
 class FunctionStatus(ModelObj):
@@ -739,26 +744,33 @@ class BaseRuntimeHandler(ABC):
         )
         return response
 
-    def delete_resources(self, label_selector: str = None, force: bool = False):
+    def delete_resources(self,
+                         db: DBInterface,
+                         db_session: Session,
+                         label_selector: str = None,
+                         force: bool = False):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(label_selector)
-        self._delete_resources(namespace, label_selector, force)
+        self._delete_resources(db, db_session, namespace, label_selector, force)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
-            self._delete_crd_resources(namespace, label_selector, force)
+            self._delete_crd_resources(db, db_session, namespace, label_selector, force)
         else:
-            self._delete_pod_resources(namespace, label_selector, force)
+            self._delete_pod_resources(db, db_session, namespace, label_selector, force)
 
-    def delete_runtime_object_resources(
-        self, object_id: str, label_selector: str = None, force: bool = False
-    ):
+    def delete_runtime_object_resources(self,
+                                        db: DBInterface,
+                                        db_session: Session,
+                                        object_id: str,
+                                        label_selector: str = None,
+                                        force: bool = False):
         object_label_selector = self._get_object_label_selector(object_id)
         if label_selector:
             label_selector = ','.join([object_label_selector, label_selector])
         else:
             label_selector = object_label_selector
-        self.delete_resources(label_selector, force)
+        self.delete_resources(db, db_session, label_selector, force)
 
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None
@@ -768,14 +780,27 @@ class BaseRuntimeHandler(ABC):
         """
         return response
 
-    def _delete_resources(
-        self, namespace: str, label_selector: str = None, force: bool = False
-    ):
+    def _delete_resources(self,
+                          db: DBInterface,
+                          db_session: Session,
+                          namespace: str,
+                          label_selector: str = None,
+                          force: bool = False):
         """
         Override this to handle deletion of resources other then pods or CRDs (which are handled by the base class)
         Note that this is happening before the deletion of the CRDs or the pods
         """
         pass
+
+    def _is_crd_object_in_transient_state(self, db: DBInterface, db_session: Session, crd_object) -> bool:
+        """
+        Override this if the runtime has CRD resources.
+        this should return a bool determining whether the CRD object is in transient state
+        """
+        return False
+
+    def _is_pod_in_transient_state(self, db: DBInterface, db_session: Session, pod) -> bool:
+        return pod.status.phase not in PodPhases.stable_phases()
 
     @staticmethod
     def _get_default_label_selector() -> str:
@@ -791,14 +816,6 @@ class BaseRuntimeHandler(ABC):
         crd group, crd version, crd plural
         """
         return '', '', ''
-
-    @staticmethod
-    def _is_crd_object_in_transient_state(crd_object) -> bool:
-        """
-        Override this if the runtime has CRD resources.
-        this should return a bool determining whether the CRD object is in transient state
-        """
-        return False
 
     def _list_pod_resources(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
@@ -836,29 +853,36 @@ class BaseRuntimeHandler(ABC):
 
         return label_selector
 
-    def _delete_pod_resources(
-        self, namespace: str, label_selector: str = None, force: bool = False
-    ):
+    def _delete_pod_resources(self,
+                              db: DBInterface,
+                              db_session: Session,
+                              namespace: str,
+                              label_selector: str = None,
+                              force: bool = False):
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(
             namespace, label_selector=label_selector
         )
         for pod in pods.items:
+            if force:
+                self._delete_pod(namespace, pod)
+                continue
+
             # it is less likely that there will be new stable states, or the existing ones will change so better to
             # resolve whether it's a transient state by checking if it's not a stable state
-            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
-            if not in_transient_phase or (force and in_transient_phase):
-                try:
-                    k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-                    logger.info(f"Deleted pod: {pod.metadata.name}")
-                except ApiException as e:
-                    # ignore error if pod is already removed
-                    if e.status != 404:
-                        raise
+            in_transient_state = self._is_pod_in_transient_state(db, db_session, pod)
+            if in_transient_state:
+                continue
 
-    def _delete_crd_resources(
-        self, namespace: str, label_selector: str = None, force: bool = False
-    ):
+            self._ensure_runtime_resource_run_logs_collected(db, db_session, pod.to_dict())
+            self._delete_pod(namespace, pod)
+
+    def _delete_crd_resources(self,
+                              db: DBInterface,
+                              db_session: Session,
+                              namespace: str,
+                              label_selector: str = None,
+                              force: bool = False):
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         try:
@@ -875,25 +899,118 @@ class BaseRuntimeHandler(ABC):
                 raise
         else:
             for crd_object in crd_objects['items']:
-                in_transient_state = self._is_crd_object_in_transient_state(crd_object)
-                if not in_transient_state or (force and in_transient_state):
-                    name = crd_object['metadata']['name']
-                    try:
-                        k8s_helper.crdapi.delete_namespaced_custom_object(
-                            crd_group,
-                            crd_version,
-                            namespace,
-                            crd_plural,
-                            name,
-                            client.V1DeleteOptions(),
-                        )
-                        logger.info(
-                            f"Deleted crd object: {name}, {namespace}, {crd_plural}"
-                        )
-                    except ApiException as e:
-                        # ignore error if crd object is already removed
-                        if e.status != 404:
-                            raise
+                if force:
+                    self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
+                    continue
+
+                in_transient_state = self._is_crd_object_in_transient_state(db, db_session, crd_object)
+                if in_transient_state:
+                    continue
+
+                self._ensure_runtime_resource_run_logs_collected(db, db_session, crd_object)
+                self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
+
+    def _ensure_runtime_resource_run_logs_collected(self,
+                                                    db: DBInterface,
+                                                    db_session: Session,
+                                                    runtime_resource: Dict):
+        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+
+        # if cannot resolve related run, assume collected
+        if not uid:
+            return
+
+        # import here to avoid circular imports
+        import mlrun.api.crud as crud
+
+        log_file_exists = crud.Logs.log_file_exists(project, uid)
+        store_log = False
+        if not log_file_exists:
+            store_log = True
+        else:
+            log_mtime = crud.Logs.get_log_mtime(project, uid)
+            log_mtime_datetime = datetime.fromtimestamp(log_mtime, timezone.utc)
+            now = datetime.now(timezone.utc)
+            run = db.read_run(db_session, uid, project)
+            last_update_str = run.get('status', {}).get('last_update', now)
+            last_update = datetime.fromisoformat(last_update_str)
+
+            # this function is used to verify that logs collected from runtime resources before deleting them
+            # here we're using the knowledge that the function is called only after a it was verified that the runtime
+            # resource run is not in transient state, so we're assuming the run's last update is the last one, so if the
+            # log file was modified after it, we're considering it as all logs collected
+            if log_mtime_datetime < last_update:
+                store_log = True
+
+        if store_log:
+            logger.debug(f'Storing runtime resource log before deletion')
+            logs_from_k8s, _ = crud.Logs.get_log(db_session, project, uid, source=LogSources.K8S)
+            crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
+
+    def _is_runtime_resource_run_in_transient_state(self,
+                                                    db: DBInterface,
+                                                    db_session: Session,
+                                                    runtime_resource: Dict) -> bool:
+        """
+        A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
+        resource. This function will verify whether the Run object related to this runtime resource is in transient
+        state. This is useful in order to determine whether an object can be removed. for example, a kubejob's pod
+        might be in completed state, but we would like to verify that the run is completed as well to verify the logs
+        were collected before we're removing the pod.
+        """
+        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+
+        # if no uid, assume in stable state
+        if not uid:
+            return False
+        run = db.read_run(db_session, uid, project)
+        if run.get('status', {}).get('state') not in FunctionStates.stable_phases():
+            return True
+
+        # give some grace period
+        now = datetime.now(timezone.utc)
+        last_update_str = run.get('status', {}).get('last_update', now)
+        last_update = datetime.fromisoformat(last_update_str)
+        if last_update + timedelta(seconds=float(config.runtime_resources_deletion_grace_period)) > now:
+            return True
+
+        return False
+
+    @staticmethod
+    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
+        project = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project')
+        if not project:
+            project = config.default_project
+        uid = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/uid')
+        return project, uid
+
+    @staticmethod
+    def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):
+        k8s_helper = get_k8s_helper()
+        name = crd_object['metadata']['name']
+        try:
+            k8s_helper.crdapi.delete_namespaced_custom_object(crd_group,
+                                                              crd_version,
+                                                              namespace,
+                                                              crd_plural,
+                                                              name,
+                                                              client.V1DeleteOptions())
+            logger.info(f"Deleted crd object: {name}, {namespace}, {crd_plural}")
+        except ApiException as e:
+            # ignore error if crd object is already removed
+            if e.status != 404:
+                raise
+
+    @staticmethod
+    def _delete_pod(namespace, pod):
+        k8s_helper = get_k8s_helper()
+        try:
+            k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
+            logger.info(f"Deleted pod: {pod.metadata.name}")
+        except ApiException as e:
+            # ignore error if pod is already removed
+            if e.status != 404:
+                raise
 
     @staticmethod
     def _build_pod_resources(pods) -> List:

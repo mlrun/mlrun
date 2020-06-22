@@ -56,11 +56,11 @@ from .utils import (
 
 
 class RunStatuses(object):
-    succeeded = 'succeeded'
-    failed = 'failed'
-    skipped = 'skipped'
-    error = 'error'
-    running = 'running'
+    succeeded = 'Succeeded'
+    failed = 'Failed'
+    skipped = 'Skipped'
+    error = 'Error'
+    running = 'Running'
 
     @staticmethod
     def all():
@@ -772,19 +772,22 @@ def run_pipeline(
     return id
 
 
-def wait_for_pipeline_completion(
-    run_id, timeout=60 * 60, expected_statuses: typing.List[str] = None, namespace=None
-):
+def wait_for_pipeline_completion(run_id,
+                                 timeout=60 * 60,
+                                 expected_statuses: typing.List[str] = None,
+                                 namespace = None):
     """Wait for Pipeline status, timeout in sec
 
     :param run_id:     id of pipelines run
     :param timeout:    wait timeout in sec
-    :param expected_statuses:  list of expected statuses, otherwise will raise
-                               succeeded | failed | skipped | error | running
+    :param expected_statuses:  list of expected statuses, one of [ Succeeded | Failed | Skipped | Error ], by default
+                               [ Succeeded ]
     :param namespace:  k8s namespace if not default
 
     :return kfp run dict
     """
+    if expected_statuses is None:
+        expected_statuses = [RunStatuses.succeeded]
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
     logger.debug(
@@ -802,7 +805,7 @@ def wait_for_pipeline_completion(
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
             status = resp['run']['status']
-            if status.lower() not in RunStatuses.stable_statuses():
+            if status not in RunStatuses.stable_statuses():
 
                 # TODO: think of nicer liveness indication and make it re-usable
                 # log '.' each retry as a liveness indication

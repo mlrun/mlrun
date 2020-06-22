@@ -16,11 +16,11 @@ MLRUN_DOCKER_TAG ?= latest
 MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to something like "quay.io/"
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
-MLRUN_PACKAGE_TAG ?= development
+MLRUN_PACKAGE_TAG ?= 7bd139301fbb48b53796775656d108a6f5fe8116
 MLRUN_GITHUB_REPO ?= mlrun
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
-MLRUN_MLUTILS_GITHUB_TAG ?= development
+MLRUN_MLUTILS_GITHUB_TAG ?= 3794e129cebc4d0dfef8d22f303d9f33f30358b9
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -42,13 +42,13 @@ build: docker-images package-wheel ## Build all artifacts
 
 DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
+	mlrun \
 	base \
 	base-legacy \
 	models \
 	models-legacy \
 	models-gpu \
-	models-gpu-legacy \
-	mlrun
+	models-gpu-legacy
 
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
 	@echo Done.

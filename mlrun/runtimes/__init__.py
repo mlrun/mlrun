@@ -27,7 +27,7 @@ from .mpijob import (
     MpiV1RuntimeHandler,
     MpiV1Alpha1RuntimeHandler,
 )  # noqa
-from .types import MPIJobCRDVersions
+from .constants import MPIJobCRDVersions
 from .nuclio import nuclio_init_hook
 from .serving import MLModelServer
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa

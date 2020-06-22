@@ -133,7 +133,11 @@ class NuclioSpec(KubeResourceSpec):
         self.function_handler = ''
         self.no_cache = no_cache
         self.replicas = replicas
-        self.min_replicas = min_replicas or 0
+
+        # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the
+        #  x-nuclio-target header or to create the function with http trigger and invoke the function through it - so
+        #  we need to do one of the two
+        self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
 
     @property

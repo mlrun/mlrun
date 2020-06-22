@@ -145,7 +145,7 @@ class ArtifactManager:
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
         size = str(item.size) or '?'
-        logger.info('log artifact {} at {}, size: {}, db: {}'.format(
+        logger.debug('log artifact {} at {}, size: {}, db: {}'.format(
             key, item.target_path, size, 'Y' if (self.artifact_db and db_key) else 'N'
         ))
         return item

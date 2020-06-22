@@ -404,10 +404,10 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _get_cmd_args(self, runobj, with_mlrun):
+    def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
         extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
-        # if self.spec.rundb:
-        #     extra_env['MLRUN_DBPATH'] = self.spec.rundb or config.dbpath
+        if runobj.spec.verbose:
+             extra_env['MLRUN_LOG_LEVEL'] = 'debug'
         if self.spec.pythonpath:
             extra_env['PYTHONPATH'] = self.spec.pythonpath
         args = []

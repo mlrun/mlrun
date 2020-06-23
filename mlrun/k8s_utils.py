@@ -25,21 +25,29 @@ from .config import config as mlconfig
 _k8s = None
 
 
-def get_k8s_helper(namespace=None, init=True):
+def get_k8s_helper(namespace=None, silent=False):
+    """
+    :param silent: set to true if you're calling this function from a code that might run from remotely (outside of a
+    k8s cluster)
+    """
     global _k8s
     if not _k8s:
-        _k8s = K8sHelper(namespace, init=init)
+        _k8s = K8sHelper(namespace, silent=silent)
     return _k8s
 
 
 class K8sHelper:
-    def __init__(self, namespace=None, config_file=None, init=True):
+    def __init__(self, namespace=None, config_file=None, silent=False):
         self.namespace = namespace or mlconfig.namespace
         self.config_file = config_file
-        if init:
+        self.running_inside_kubernetes_cluster = False
+        try:
             self._init_k8s_config()
-        self.v1api = client.CoreV1Api()
-        self.crdapi = client.CustomObjectsApi()
+            self.v1api = client.CoreV1Api()
+            self.crdapi = client.CustomObjectsApi()
+        except Exception:
+            if not silent:
+                raise
 
     def resolve_namespace(self, namespace=None):
         return namespace or self.namespace
@@ -47,6 +55,7 @@ class K8sHelper:
     def _init_k8s_config(self, log=True):
         try:
             config.load_incluster_config()
+            self.running_inside_kubernetes_cluster = True
             if log:
                 logger.info('using in-cluster config.')
         except Exception:
@@ -61,19 +70,7 @@ class K8sHelper:
                     'KUBECONFIG env var')
 
     def is_running_inside_kubernetes_cluster(self):
-        in_cluster = False
-        try:
-            config.load_incluster_config()
-            in_cluster = True
-        except:
-            pass
-
-        # this will load the "right" k8s config if there's one (might not be the incluster one)
-        try:
-            self._init_k8s_config(log=False)
-        except:
-            pass
-        return in_cluster
+        return self.running_inside_kubernetes_cluster
 
     def list_pods(self, namespace=None, selector='', states=None):
         try:

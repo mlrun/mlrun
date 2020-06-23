@@ -152,7 +152,8 @@ class KubeResource(BaseRuntime):
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
         uid = runobj.metadata.uid
-        labels = get_resource_labels(self, uid)
+        name = runobj.metadata.name
+        labels = get_resource_labels(self, uid, name)
         new_meta = client.V1ObjectMeta(namespace=namespace,
                                        labels=labels)
 

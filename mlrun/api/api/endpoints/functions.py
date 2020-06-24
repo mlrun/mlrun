@@ -37,7 +37,7 @@ async def store_function(
 
     logger.debug(data)
     logger.info("store function: project=%s, name=%s, tag=%s", project, name, tag)
-    await run_in_threadpool(
+    hash_key = await run_in_threadpool(
         get_db().store_function,
         db_session,
         data,
@@ -46,7 +46,9 @@ async def store_function(
         tag=tag,
         versioned=versioned,
     )
-    return {}
+    return {
+        'hash_key': hash_key,
+    }
 
 
 # curl http://localhost:8080/log/prj/7?tag=0.2.3

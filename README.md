@@ -1,11 +1,11 @@
 <a id="top"></a>
-# MLRun
-
 [![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+<p align="left"><img src="docs/_static/images/MLRun-logo.png" width="150"/></p>
 
 MLRun is a generic and convenient mechanism for data scientists and software developers to build, run, and monitor 
 machine learning (ML) tasks and pipelines on a scalable cluster while automatically tracking executed code, metadata, inputs, and outputs.

@@ -23,7 +23,7 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__version__ = '0.4.9'
+__version__ = '0.4.10'
 
 from .run import (
     get_or_create_ctx,

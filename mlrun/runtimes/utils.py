@@ -69,7 +69,7 @@ def resolve_mpijob_crd_version(api_context=False):
 
         if not mpijob_crd_version:
             in_k8s_cluster = get_k8s_helper(
-                init=False
+                silent=True
             ).is_running_inside_kubernetes_cluster()
             if in_k8s_cluster:
                 k8s_helper = get_k8s_helper()
@@ -315,7 +315,7 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def get_resource_labels(function, uid=None):
+def get_resource_labels(function, uid=None, name=None):
     meta = function.metadata
     labels = deepcopy(meta.labels)
     labels[mlrun_key + 'class'] = function.kind
@@ -325,6 +325,9 @@ def get_resource_labels(function, uid=None):
 
     if uid:
         labels[mlrun_key + 'uid'] = uid
+
+    if name:
+        labels[mlrun_key + 'name'] = name
 
     return labels
 

@@ -132,7 +132,7 @@ class DaskCluster(KubejobRuntime):
         super().__init__(spec, metadata)
         self._cluster = None
         self.use_remote = not get_k8s_helper(
-            init=False
+            silent=True
         ).is_running_inside_kubernetes_cluster()
         self.spec.build.base_image = self.spec.build.base_image or 'daskdev/dask:latest'
 

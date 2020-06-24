@@ -57,7 +57,7 @@ default_config = {
     'mpijob_crd_version': '',        # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
-    'log_level': 'ERROR',
+    'log_level': 'INFO',
     'submit_timeout': '180',         # timeout when submitting a new k8s resource
 
     # runtimes cleanup interval in seconds

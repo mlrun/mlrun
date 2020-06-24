@@ -299,8 +299,10 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of('func', project, name)
 
         error = f'store function {project}/{name}'
-        self.api_call(
-            'POST', path, error, params=params, body=json.dumps(function))
+        resp = self.api_call('POST', path, error, params=params, body=json.dumps(function))
+
+        # hash key optional to be backwards compatible to API v<0.4.10 in which it wasn't in the response
+        return resp.json().get('hash_key')
 
     def get_function(self, name, project='', tag=None, hash_key=''):
         params = {'tag': tag, 'hash_key': hash_key}

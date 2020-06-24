@@ -14,6 +14,7 @@
 
 import getpass
 import uuid
+import traceback
 from abc import ABC, abstractmethod
 from ast import literal_eval
 from copy import deepcopy
@@ -783,18 +784,24 @@ class BaseRuntimeHandler(ABC):
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
         for pod in pods.items:
-            if force:
+
+            # best effort - don't let one failure in pod deletion to cut the whole operation
+            try:
+                if force:
+                    self._delete_pod(namespace, pod)
+                    continue
+
+                # it is less likely that there will be new stable states, or the existing ones will change so better to
+                # resolve whether it's a transient state by checking if it's not a stable state
+                in_transient_state = self._is_pod_in_transient_state(db, db_session, pod)
+                if in_transient_state:
+                    continue
+
+                self._ensure_runtime_resource_run_logs_collected(db, db_session, pod.to_dict())
                 self._delete_pod(namespace, pod)
-                continue
-
-            # it is less likely that there will be new stable states, or the existing ones will change so better to
-            # resolve whether it's a transient state by checking if it's not a stable state
-            in_transient_state = self._is_pod_in_transient_state(db, db_session, pod)
-            if in_transient_state:
-                continue
-
-            self._ensure_runtime_resource_run_logs_collected(db, db_session, pod.to_dict())
-            self._delete_pod(namespace, pod)
+            except Exception:
+                exc = traceback.format_exc()
+                logger.warning(f'Failed deleting pod {pod.metadata.name}: {exc}. Continuing')
 
     def _delete_crd_resources(self,
                               db: DBInterface,
@@ -816,16 +823,22 @@ class BaseRuntimeHandler(ABC):
                 raise
         else:
             for crd_object in crd_objects['items']:
-                if force:
+                # best effort - don't let one failure in pod deletion to cut the whole operation
+                try:
+                    if force:
+                        self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
+                        continue
+
+                    in_transient_state = self._is_crd_object_in_transient_state(db, db_session, crd_object)
+                    if in_transient_state:
+                        continue
+
+                    self._ensure_runtime_resource_run_logs_collected(db, db_session, crd_object)
                     self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
-                    continue
-
-                in_transient_state = self._is_crd_object_in_transient_state(db, db_session, crd_object)
-                if in_transient_state:
-                    continue
-
-                self._ensure_runtime_resource_run_logs_collected(db, db_session, crd_object)
-                self._delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object)
+                except Exception:
+                    exc = traceback.format_exc()
+                    crd_object_name = crd_object['metadata']['name']
+                    logger.warning(f'Failed deleting CRD obejct {crd_object_name}: {exc}. Continuing')
 
     def _ensure_runtime_resource_run_logs_collected(self,
                                                     db: DBInterface,

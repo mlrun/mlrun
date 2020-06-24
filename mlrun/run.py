@@ -650,7 +650,7 @@ def run_pipeline(pipeline, arguments=None, project=None, experiment=None,
     :return kubeflow pipeline id
     """
 
-    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
 
     artifact_path = artifact_path or mlconf.artifact_path
     if artifact_path and '{{run.uid}}' in artifact_path:
@@ -709,7 +709,7 @@ def wait_for_pipeline_completion(run_id,
     if expected_statuses is None:
         expected_statuses = [RunStatuses.succeeded]
     namespace = namespace or mlconf.namespace
-    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     logger.debug(f"Waiting for run completion."
                  f" run_id: {run_id},"
                  f" expected_statuses: {expected_statuses},"
@@ -771,7 +771,7 @@ def get_pipeline(run_id, namespace=None):
     :return kfp run dict
     """
     namespace = namespace or mlconf.namespace
-    remote = not get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+    remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     if remote:
         mldb = get_run_db().connect()
         if mldb.kind != 'http':

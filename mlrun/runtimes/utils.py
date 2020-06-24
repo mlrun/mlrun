@@ -68,7 +68,7 @@ def resolve_mpijob_crd_version(api_context=False):
         mpijob_crd_version = config.mpijob_crd_version
 
         if not mpijob_crd_version:
-            in_k8s_cluster = get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+            in_k8s_cluster = get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
             if in_k8s_cluster:
                 k8s_helper = get_k8s_helper()
                 namespace = k8s_helper.resolve_namespace()

@@ -72,7 +72,7 @@ def read_run(
 def del_run(
         project: str,
         uid: str,
-        tag: int = 0,
+        iter: int = 0,
         db_session: Session = Depends(deps.get_db_session)):
     get_db().del_run(db_session, uid, project, iter=iter)
     return {}

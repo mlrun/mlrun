@@ -30,7 +30,6 @@ def get_log(
         uid: str,
         size: int = -1,
         offset: int = 0,
-        tag: str = "",
         db_session: Session = Depends(deps.get_db_session)):
     out, status = crud.Logs.get_log(db_session, project, uid, size, offset)
     return Response(content=out, media_type="text/plain", headers={"pod_status": status})

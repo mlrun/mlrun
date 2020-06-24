@@ -98,7 +98,7 @@ class SQLDB(DBInterface):
         session.commit()
         self._delete_empty_labels(session, Run.Label)
 
-    def read_run(self, session, uid, project=None, iter=None):
+    def read_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
@@ -107,7 +107,7 @@ class SQLDB(DBInterface):
 
     def list_runs(
             self, session, name=None, uid=None, project=None, labels=None,
-            state=None, sort=True, last=0, iter=None):
+            state=None, sort=True, last=0, iter=False):
         # FIXME: Run has no "name"
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels, state)
@@ -124,7 +124,7 @@ class SQLDB(DBInterface):
 
         return runs
 
-    def del_run(self, session, uid, project=None, iter=None):
+    def del_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
         # We currently delete *all* iterations
         self._delete(session, Run, uid=uid, project=project)

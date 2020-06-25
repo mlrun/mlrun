@@ -303,7 +303,3 @@ fmt-check:
 flake8:
 	@echo "Running flake8 lint..."
 	python -m flake8 .
-
-.PHONY: all help build docker-images push-docker-images print-docker-images base models models-gpu mlrun serving api \
- build-test package-wheel publish-package clean test-dockerized test run-api-undockerized docs-requirements \
- html-docs html-docs-dockerized fmt lint fmt-check flake8

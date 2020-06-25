@@ -250,7 +250,7 @@ clean: ## Clean python package build artifacts
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
 	docker run \
-		-ti \
+		-t \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \

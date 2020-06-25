@@ -33,7 +33,7 @@ jobs:
     - name: Lint
       run: make lint
   tests:
-    name: Run Dockerized CI tests
+    name: Run Dockerized Tests
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2

@@ -264,6 +264,8 @@ flake8:
 	@echo "Running flake8 lint..."
 	python -m flake8 .
 
-.PHONY: all help build docker-images push-docker-images print-docker-images base models models-gpu mlrun serving api \
- build-test package-wheel publish-package clean test-dockerized test run-api-undockerized docs-requirements \
- html-docs html-docs-dockerized fmt lint fmt-check flake8
+.PHONY: help all build docker-images push-docker-images print-docker-images base push-base base-legacy \
+	push-base-legacy models push-models models-legacy push-models-legacy models-gpu push-models-gpu models-gpu-legacy \
+	push-models-gpu-legacy mlrun push-mlrun serving push-serving api push-api build-test push-test package-wheel \
+	publish-package test-publish clean test-dockerized test run-api-undockerized docs-requirements html-docs \
+	html-docs-dockerized fmt lint fmt-check flake8

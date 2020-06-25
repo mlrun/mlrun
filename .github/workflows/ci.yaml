@@ -32,3 +32,19 @@ jobs:
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
+  tests:
+    name: Run Dockerized CI tests
+    steps:
+    - name: Run tests
+      run: make test-dockerized
+  store-docs:
+    name: Generate docs and upload artifacts
+    steps:
+    - uses: actions/checkout@v2
+    - name: Generate HTML docs
+      run: make html-docs-dockerized
+    - name: Upload generated docs
+      uses: actions/upload-artifact@v2
+      with:
+        name: docs
+        path: docs/_build/html

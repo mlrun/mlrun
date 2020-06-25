@@ -1,18 +1,18 @@
 env:
   # The mlrun-api URL. e.g. https://mlrun-api.default-tenant.app.hedingber-28-1.iguazio-cd2.com
-  MLRUN_DBPATH:
+  MLRUN_DBPATH: https://mlrun-api.default-tenant.app.kllubvxfkgiw.iguazio-cd0.com
 
   # The webapi https_direct url - e.g. https://default-tenant.app.hedingber-28-1.iguazio-cd2.com:8444
-  V3IO_API:
+  V3IO_API: https://default-tenant.app.kllubvxfkgiw.iguazio-cd0.com:8444
 
   # user used to add v3io mounts to pods - e.g. iguazio
-  V3IO_USERNAME:
+  V3IO_USERNAME: iguazio
 
   # password used to generate control sessions (needed only in 2.8) - e.g. password
-  V3IO_PASSWORD:
+  V3IO_PASSWORD: 'nkwSWe6NLO47qV9@'
 
   # access key used to add v3io mounts to pods - e.g. 4c1c2011-618f-434a-abd6-d456770fd33c
-  V3IO_ACCESS_KEY:
+  V3IO_ACCESS_KEY: 5322b7b5-71c5-4aba-8fa6-4be1b6b095c2
 
 notebook_tests:
 - notebook_name: mlrun_db.ipynb

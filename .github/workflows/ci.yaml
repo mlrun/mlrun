@@ -34,11 +34,13 @@ jobs:
       run: make lint
   tests:
     name: Run Dockerized CI tests
+    runs-on: ubuntu-latest
     steps:
     - name: Run tests
       run: make test-dockerized
   store-docs:
     name: Generate docs and upload artifacts
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Generate HTML docs

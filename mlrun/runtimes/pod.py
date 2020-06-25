@@ -24,16 +24,37 @@ from .base import BaseRuntime, FunctionSpec
 
 
 class KubeResourceSpec(FunctionSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None,
-                 volumes=None, volume_mounts=None, env=None, resources=None,
-                 default_handler=None, entry_points=None, description=None,
-                 workdir=None, replicas=None, image_pull_policy=None,
-                 service_account=None, build=None, image_pull_secret=None):
-        super().__init__(command=command, args=args, image=image, mode=mode,
-                         build=build, entry_points=entry_points,
-                         description=description,
-                         workdir=workdir,
-                         default_handler=default_handler)
+    def __init__(
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        default_handler=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        replicas=None,
+        image_pull_policy=None,
+        service_account=None,
+        build=None,
+        image_pull_secret=None,
+    ):
+        super().__init__(
+            command=command,
+            args=args,
+            image=image,
+            mode=mode,
+            build=build,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            default_handler=default_handler,
+        )
         self._volumes = {}
         self._volume_mounts = {}
         self.volumes = volumes or []
@@ -154,8 +175,7 @@ class KubeResource(BaseRuntime):
         uid = runobj.metadata.uid
         name = runobj.metadata.name
         labels = get_resource_labels(self, uid, name)
-        new_meta = client.V1ObjectMeta(namespace=namespace,
-                                       labels=labels)
+        new_meta = client.V1ObjectMeta(namespace=namespace, labels=labels)
 
         name = runobj.metadata.name or 'mlrun'
         norm_name = '{}-'.format(normalize_name(name))

@@ -17,6 +17,7 @@ from shutil import copyfile
 
 from .base import DataStore, FileStats
 
+
 class FileStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=''):
         super().__init__(parent, name, 'file', endpoint)

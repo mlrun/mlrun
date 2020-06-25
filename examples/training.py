@@ -13,7 +13,7 @@ def my_job(context, p1=1, p2='x'):
     print(f'Params: p1={p1}, p2={p2}')
     print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
     print('file\n{}\n'.format(context.get_input('infile.txt', 'infile.txt').get()))
-    
+
     # Run some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)
@@ -22,25 +22,37 @@ def my_job(context, p1=1, p2='x'):
     context.set_label('framework', 'sklearn')
 
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-    context.log_artifact('model', body=b'abc is 123', local_path='model.txt', labels={'framework': 'xgboost'})
-    context.log_artifact('html_result', body=b'<b> Some HTML <b>', local_path='result.html')
-    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', visible=True,
-                                        header=['A', 'B', 'C']), local_path='dataset.csv')
+    context.log_artifact(
+        'model',
+        body=b'abc is 123',
+        local_path='model.txt',
+        labels={'framework': 'xgboost'},
+    )
+    context.log_artifact(
+        'html_result', body=b'<b> Some HTML <b>', local_path='result.html'
+    )
+    context.log_artifact(
+        TableArtifact(
+            'dataset', '1,2,3\n4,5,6\n', visible=True, header=['A', 'B', 'C']
+        ),
+        local_path='dataset.csv',
+    )
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart')
     chart.labels = {'type': 'roc'}
     chart.header = ['Epoch', 'Accuracy', 'Loss']
     for i in range(1, 8):
-        chart.add_row([i, i/20+0.75, 0.30-i/20])
+        chart.add_row([i, i / 20 + 0.75, 0.30 - i / 20])
     context.log_artifact(chart)
 
-    raw_data = {'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
-                'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
-                'age': [42, 52, 36, 24, 73],
-                'testScore': [25, 94, 57, 62, 70]}
-    df = pd.DataFrame(raw_data, columns=[
-        'first_name', 'last_name', 'age', 'testScore'])
+    raw_data = {
+        'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
+        'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
+        'age': [42, 52, 36, 24, 73],
+        'testScore': [25, 94, 57, 62, 70],
+    }
+    df = pd.DataFrame(raw_data, columns=['first_name', 'last_name', 'age', 'testScore'])
     context.log_dataset('mydf', df=df, stats=True)
 
 

@@ -30,11 +30,9 @@ def get_obj_path(schema, path, user=""):
     elif path.startswith("/User/"):
         user = user or environ.get("V3IO_USERNAME", "admin")
         return "v3io:///users/" + user + path[5:]
-    elif config.httpdb.data_volume and \
-            path.startswith(config.httpdb.data_volume):
+    elif config.httpdb.data_volume and path.startswith(config.httpdb.data_volume):
         if config.httpdb.real_path:
-            path = config.httpdb.real_path + \
-                   path[len(config.httpdb.data_volume) - 1:]
+            path = config.httpdb.real_path + path[len(config.httpdb.data_volume) - 1 :]
         return path
     return None
 
@@ -63,7 +61,10 @@ def submit(db_session: Session, data):
     if not url and task:
         url = get_in(task, "spec.function")
     if not (function or url) or not task:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON, need to include function/url and task objects")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST,
+            reason="bad JSON, need to include function/url and task objects",
+        )
 
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
     # remote/container runtime)
@@ -77,15 +78,26 @@ def submit(db_session: Session, data):
                 fn = import_function(url=url)
             else:
                 project, name, tag, hash_key = parse_function_uri(url)
-                runtime = get_db().get_function(db_session, name, project, tag, hash_key)
+                runtime = get_db().get_function(
+                    db_session, name, project, tag, hash_key
+                )
                 if not runtime:
-                    log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: function {} not found".format(url))
+                    log_and_raise(
+                        HTTPStatus.BAD_REQUEST,
+                        reason="runtime error: function {} not found".format(url),
+                    )
                 fn = new_function(runtime=runtime)
 
             if function:
                 fn2 = new_function(runtime=function)
-                for attr in ["volumes", "volume_mounts", "env", "resources",
-                             "image_pull_policy", "replicas"]:
+                for attr in [
+                    "volumes",
+                    "volume_mounts",
+                    "env",
+                    "resources",
+                    "image_pull_policy",
+                    "replicas",
+                ]:
                     val = getattr(fn2.spec, attr, None)
                     if val:
                         setattr(fn.spec, attr, val)

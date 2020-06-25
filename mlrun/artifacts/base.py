@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
 import os
 import hashlib
 from ..model import ModelObj
@@ -24,12 +23,32 @@ calc_hash = True
 class Artifact(ModelObj):
 
     _dict_fields = [
-        'key', 'kind', 'iter', 'tree', 'src_path', 'target_path', 'hash',
-        'description', 'viewer', 'inline', 'format', 'size', 'db_key']
+        'key',
+        'kind',
+        'iter',
+        'tree',
+        'src_path',
+        'target_path',
+        'hash',
+        'description',
+        'viewer',
+        'inline',
+        'format',
+        'size',
+        'db_key',
+    ]
     kind = ''
 
-    def __init__(self, key=None, body=None, viewer=None, is_inline=False,
-                 format=None, size=None, target_path=None):
+    def __init__(
+        self,
+        key=None,
+        body=None,
+        viewer=None,
+        is_inline=False,
+        format=None,
+        size=None,
+        target_path=None,
+    ):
         self.key = key
         self.project = ''
         self.db_key = None
@@ -82,13 +101,20 @@ class Artifact(ModelObj):
 
     def to_dict(self, fields=None):
         return super().to_dict(
-            self._dict_fields + [
-                'updated', 'labels', 'annotations', 'producer', 'sources', 'project'])
+            self._dict_fields
+            + ['updated', 'labels', 'annotations', 'producer', 'sources', 'project']
+        )
 
     @classmethod
     def from_dict(cls, struct=None, fields=None):
         fields = fields or cls._dict_fields + [
-                'updated', 'labels', 'annotations', 'producer', 'sources', 'project']
+            'updated',
+            'labels',
+            'annotations',
+            'producer',
+            'sources',
+            'project',
+        ]
         return super().from_dict(struct, fields=fields)
 
     def upload(self, data_stores: StoreManager):
@@ -118,8 +144,15 @@ class Artifact(ModelObj):
 
 class DirArtifact(Artifact):
     _dict_fields = [
-        'key', 'kind', 'iter', 'tree', 'src_path', 'target_path',
-        'description', 'db_key']
+        'key',
+        'kind',
+        'iter',
+        'tree',
+        'src_path',
+        'target_path',
+        'description',
+        'db_key',
+    ]
     kind = 'dir'
 
     @property
@@ -143,8 +176,14 @@ class LinkArtifact(Artifact):
     _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
     kind = 'link'
 
-    def __init__(self, key=None, target_path='', link_iteration=None,
-                 link_key=None, link_tree=None):
+    def __init__(
+        self,
+        key=None,
+        target_path='',
+        link_iteration=None,
+        link_key=None,
+        link_tree=None,
+    ):
 
         super().__init__(key)
         self.target_path = target_path
@@ -155,7 +194,7 @@ class LinkArtifact(Artifact):
 
 def file_hash(filename):
     h = hashlib.sha1()
-    b = bytearray(128*1024)
+    b = bytearray(128 * 1024)
     mv = memoryview(b)
     with open(filename, 'rb', buffering=0) as f:
         for n in iter(lambda: f.readinto(mv), 0):
@@ -169,6 +208,3 @@ def blob_hash(data):
     h = hashlib.sha1()
     h.update(data)
     return h.hexdigest()
-
-
-

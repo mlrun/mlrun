@@ -34,7 +34,8 @@ def get_httpdb_kwargs(host, username, password):
     password = password or config.httpdb.password
 
     username, password, token = add_or_refresh_credentials(
-        host, username, password, config.httpdb.token)
+        host, username, password, config.httpdb.token
+    )
 
     return {
         'user': username,
@@ -55,7 +56,9 @@ def get_run_db(url=''):
         cls = FileRunDB
     elif scheme in ('http', 'https'):
         cls = HTTPRunDB
-        kwargs = get_httpdb_kwargs(parsed_url.hostname, parsed_url.username, parsed_url.password)
+        kwargs = get_httpdb_kwargs(
+            parsed_url.hostname, parsed_url.username, parsed_url.password
+        )
         endpoint = parsed_url.hostname
         if parsed_url.port:
             endpoint += ':{}'.format(parsed_url.port)

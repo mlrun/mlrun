@@ -14,7 +14,6 @@
 import re
 import sys
 from os import path
-from subprocess import check_call
 
 
 sys.path.insert(0, '..')
@@ -24,6 +23,7 @@ def current_version():
     root = path.dirname(path.dirname(path.abspath(__file__)))
     with open('{}/mlrun/__init__.py'.format(root)) as fp:
         for line in fp:
+
             # __version__ = '0.4.6'
             match = re.search(r"__version__\s*=\s*'([^']+)'", line)
             if match:
@@ -41,7 +41,7 @@ master_doc = 'index'
 
 # The short X.Y version
 version = current_version()
-version = version[:version.rfind('.')]
+version = version[: version.rfind('.')]
 
 # The full version, including alpha/beta/rc tags
 release = current_version()
@@ -58,7 +58,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
-    'sphinx_copybutton'
+    'sphinx_copybutton',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -90,6 +90,7 @@ source_suffix = {
 html_theme = 'alabaster'
 try:
     import sphinx_rtd_theme  # noqa
+
     html_theme = 'sphinx_rtd_theme'
 except ImportError:
     pass
@@ -122,8 +123,9 @@ def copy_doc(src, dest, title=''):
 
 def setup(app):
     project_root = path.dirname(path.dirname(path.abspath(__file__)))
-    copy_doc(
-        f'{project_root}/examples/remote.md', 'external/remote.md')
+    copy_doc(f'{project_root}/examples/remote.md', 'external/remote.md')
+
+
 #    copy_doc(
 #        f'{project_root}/README.md', 'external/general.md', 'Introduction')
 #    copy_doc(

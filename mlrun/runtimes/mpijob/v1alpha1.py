@@ -30,27 +30,28 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     _mpijob_template = {
         'apiVersion': 'kubeflow.org/v1alpha1',
         'kind': 'MPIJob',
-        'metadata': {
-            'name': '',
-            'namespace': 'default-tenant'
-        },
+        'metadata': {'name': '', 'namespace': 'default-tenant'},
         'spec': {
             'replicas': 1,
             'template': {
                 'metadata': {},
                 'spec': {
-                    'containers': [{
-                        'image': 'mlrun/mpijob',
-                        'name': 'base',
-                        'command': [],
-                        'env': [],
-                        'volumeMounts': [],
-                        'securityContext': {
-                            'capabilities': {'add': ['IPC_LOCK']}},
-                        'resources': {
-                            'limits': {}}}],
-                    'volumes': []
-                }}}}
+                    'containers': [
+                        {
+                            'image': 'mlrun/mpijob',
+                            'name': 'base',
+                            'command': [],
+                            'env': [],
+                            'volumeMounts': [],
+                            'securityContext': {'capabilities': {'add': ['IPC_LOCK']}},
+                            'resources': {'limits': {}},
+                        }
+                    ],
+                    'volumes': [],
+                },
+            },
+        },
+    }
 
     crd_group = 'kubeflow.org'
     crd_version = MPIJobCRDVersions.v1alpha1
@@ -59,7 +60,9 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     def _update_container(self, struct, key, value):
         struct['spec']['template']['spec']['containers'][0][key] = value
 
-    def _generate_mpi_job(self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta) -> typing.Dict:
+    def _generate_mpi_job(
+        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta
+    ) -> typing.Dict:
         job = deepcopy(self._mpijob_template)
 
         pod_labels = deepcopy(meta.labels)
@@ -78,21 +81,23 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
         extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
         self._update_container(job, 'env', extra_env + self.spec.env)
         if self.spec.image_pull_policy:
-            self._update_container(
-                job, 'imagePullPolicy', self.spec.image_pull_policy)
+            self._update_container(job, 'imagePullPolicy', self.spec.image_pull_policy)
         if self.spec.resources:
             self._update_container(job, 'resources', self.spec.resources)
         if self.spec.workdir:
             self._update_container(job, 'workingDir', self.spec.workdir)
 
         if self.spec.image_pull_secret:
-            update_in(job, 'spec.template.spec.imagePullSecrets',
-                      [{'name': self.spec.image_pull_secret}])
+            update_in(
+                job,
+                'spec.template.spec.imagePullSecrets',
+                [{'name': self.spec.image_pull_secret}],
+            )
 
         if self.spec.command:
             self._update_container(
-                job, 'command',
-                ['mpirun', 'python', self.spec.command] + self.spec.args)
+                job, 'command', ['mpirun', 'python', self.spec.command] + self.spec.args
+            )
 
         return job
 
@@ -111,18 +116,28 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:
-        return MpiRuntimeV1Alpha1.crd_group, MpiRuntimeV1Alpha1.crd_version, MpiRuntimeV1Alpha1.crd_plural
+        return (
+            MpiRuntimeV1Alpha1.crd_group,
+            MpiRuntimeV1Alpha1.crd_version,
+            MpiRuntimeV1Alpha1.crd_plural,
+        )
 
 
 class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
-
-    def _is_crd_object_in_transient_state(self, db: DBInterface, db_session: Session, crd_object) -> bool:
+    def _is_crd_object_in_transient_state(
+        self, db: DBInterface, db_session: Session, crd_object
+    ) -> bool:
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
-        if crd_object.get('status', {}).get('launcherStatus', '') not in ['Succeeded', 'Failed']:
+        if crd_object.get('status', {}).get('launcherStatus', '') not in [
+            'Succeeded',
+            'Failed',
+        ]:
             return True
 
-        return self._is_runtime_resource_run_in_transient_state(db, db_session, crd_object)
+        return self._is_runtime_resource_run_in_transient_state(
+            db, db_session, crd_object
+        )
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
@@ -134,7 +149,11 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:
-        return MpiRuntimeV1Alpha1.crd_group, MpiRuntimeV1Alpha1.crd_version, MpiRuntimeV1Alpha1.crd_plural
+        return (
+            MpiRuntimeV1Alpha1.crd_group,
+            MpiRuntimeV1Alpha1.crd_version,
+            MpiRuntimeV1Alpha1.crd_plural,
+        )
 
     @staticmethod
     def _get_crd_object_status(crd_object) -> str:

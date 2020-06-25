@@ -43,9 +43,7 @@ def update_labels(obj, labels: dict):
 def to_dict(obj):
     if isinstance(obj, Base):
         return {
-            attr: to_dict(getattr(obj, attr))
-            for attr in dir(obj)
-            if is_field(attr)
+            attr: to_dict(getattr(obj, attr)) for attr in dir(obj) if is_field(attr)
         }
 
     if isinstance(obj, (list, tuple)):

@@ -127,16 +127,23 @@ class DataStore:
 
     def to_dict(self):
         return {
-                'name': self.name,
-                'url': '{}://{}/{}'.format(self.kind, self.endpoint, self.subpath),
-                'secret_pfx': self.secret_pfx,
-                'options': self.options,
-            }
+            'name': self.name,
+            'url': '{}://{}/{}'.format(self.kind, self.endpoint, self.subpath),
+            'secret_pfx': self.secret_pfx,
+            'options': self.options,
+        }
 
 
 class DataItem:
-    def __init__(self, key: str, store: DataStore, subpath: str,
-                 url: str = '', meta=None, artifact_url=None):
+    def __init__(
+        self,
+        key: str,
+        store: DataStore,
+        subpath: str,
+        url: str = '',
+        meta=None,
+        artifact_url=None,
+    ):
         self._store = store
         self._key = key
         self._url = url
@@ -195,15 +202,15 @@ class DataItem:
             return self._local_path
 
         dot = self._path.rfind('.')
-        self._local_path = mktemp() if dot == -1 else \
-            mktemp(self._path[dot:])
+        self._local_path = mktemp() if dot == -1 else mktemp(self._path[dot:])
         logger.info('downloading {} to local tmp'.format(self.url))
         self.download(self._local_path)
         return self._local_path
 
     def as_df(self, columns=None, df_module=None, format='', **kwargs):
-        return self._store.as_df(self._path, columns=columns,
-                                 df_module=df_module, format=format, **kwargs)
+        return self._store.as_df(
+            self._path, columns=columns, df_module=df_module, format=format, **kwargs
+        )
 
     def __str__(self):
         return self.url
@@ -250,13 +257,13 @@ def http_head(url, headers=None, auth=None):
 
 def http_put(url, data, headers=None, auth=None):
     try:
-        resp = requests.put(url, data=data, headers=headers,
-                            auth=auth, verify=verify_ssl)
+        resp = requests.put(
+            url, data=data, headers=headers, auth=auth, verify=verify_ssl
+        )
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
     if not resp.ok:
-        raise OSError(
-            'failed to upload to {} {}'.format(url, resp.status_code))
+        raise OSError('failed to upload to {} {}'.format(url, resp.status_code))
 
 
 def http_upload(url, file_path, headers=None, auth=None):

@@ -264,7 +264,24 @@ html-docs: docs-requirements ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 
+.PHONY: fmt
+fmt:
+	@echo "Running black fmt..."
+	python -m black --skip-string-normalization .
+
+.PHONY: lint
+lint: flake8 fmt-check
+
+.PHONY: fmt-check
+fmt-check:
+	@echo "Running black fmt check..."
+	python -m black --skip-string-normalization --check --diff -S .
+
+.PHONY: flake8
+flake8:
+	@echo "Running flake8 lint..."
+	python -m flake8 .
 
 .PHONY: all help build docker-images push-docker-images print-docker-images base models models-gpu mlrun serving api \
  build-test package-wheel publish-package clean test-dockerized test run-api-undockerized circleci docs-requirements \
- html-docs
+ html-docs fmt lint fmt-check flake8

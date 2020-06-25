@@ -19,8 +19,16 @@ import time
 import v3io.dataplane
 
 from ..platforms.iguazio import split_path
-from .base import (DataStore, FileStats, basic_auth_header, get_range,
-                   http_get, http_put, http_head, http_upload)
+from .base import (
+    DataStore,
+    FileStats,
+    basic_auth_header,
+    get_range,
+    http_get,
+    http_put,
+    http_head,
+    http_upload,
+)
 
 
 V3IO_LOCAL_ROOT = 'v3io'
@@ -38,10 +46,10 @@ class V3ioStore(DataStore):
         self.headers = None
         self.secure = self.kind == 'v3ios'
         if self.endpoint.startswith('https://'):
-            self.endpoint = self.endpoint[len('https://'):]
+            self.endpoint = self.endpoint[len('https://') :]
             self.secure = True
         elif self.endpoint.startswith('http://'):
-            self.endpoint = self.endpoint[len('http://'):]
+            self.endpoint = self.endpoint[len('http://') :]
             self.secure = False
 
         self.auth = None
@@ -77,22 +85,28 @@ class V3ioStore(DataStore):
         head = http_head(self.url + self._join(key), self.headers)
         size = int(head.get('Content-Length', '0'))
         datestr = head.get('Last-Modified', '0')
-        modified = time.mktime(datetime.strptime(
-            datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple())
+        modified = time.mktime(
+            datetime.strptime(datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple()
+        )
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(endpoint=self.url,
-                                            access_key=self.token,
-                                            transport_kind='requests')
+        v3io_client = v3io.dataplane.Client(
+            endpoint=self.url, access_key=self.token, transport_kind='requests'
+        )
         container, subpath = split_path(self._join(key))
         if not subpath.endswith('/'):
             subpath += '/'
-        l = len(subpath) - 1
-        response = v3io_client.get_container_contents(container=container,
-                                                      path=subpath,
-                                                      get_all_attributes=False,
-                                                      directories_only=False)
+
+        # without the trailing slash
+        subpath_length = len(subpath) - 1
+
+        response = v3io_client.get_container_contents(
+            container=container,
+            path=subpath,
+            get_all_attributes=False,
+            directories_only=False,
+        )
 
         # todo: full = key, size, last_modified
-        return [obj.key[l:] for obj in response.output.contents]
+        return [obj.key[subpath_length:] for obj in response.output.contents]

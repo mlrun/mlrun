@@ -27,7 +27,8 @@ from mlrun import NewTask, new_function
 run_spec = NewTask(
     params={'p1': 5},
     out_path=out_path,
-    outputs=['model.txt', 'chart.html', 'iteration_results']).set_label('tests', 'kfp')
+    outputs=['model.txt', 'chart.html', 'iteration_results'],
+).set_label('tests', 'kfp')
 
 
 def my_job(context, p1=1, p2='a-string'):
@@ -47,11 +48,18 @@ def my_job(context, p1=1, p2='a-string'):
     # log various types of artifacts (file, web page, table), will be
     # versioned and visible in the UI
     context.log_artifact('model', body=b'abc is 123', local_path='model.txt')
-    context.log_artifact('results',
-        local_path='results.html',
-        body=b'<b> Some HTML <b>')
-    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', format='csv',
-                                       viewer='table', header=['A', 'B', 'C']))
+    context.log_artifact(
+        'results', local_path='results.html', body=b'<b> Some HTML <b>'
+    )
+    context.log_artifact(
+        TableArtifact(
+            'dataset',
+            '1,2,3\n4,5,6\n',
+            format='csv',
+            viewer='table',
+            header=['A', 'B', 'C'],
+        )
+    )
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart')
@@ -60,12 +68,15 @@ def my_job(context, p1=1, p2='a-string'):
         chart.add_row([i, i / 20 + 0.75, 0.30 - i / 20])
     context.log_artifact(chart)
 
-    raw_data = {'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
-                'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
-                'age': [42, 52, 36, 24, 73],
-                'postTestScore': [25, 94, 57, 62, 70]}
-    df = pd.DataFrame(raw_data, columns=[
-        'first_name', 'last_name', 'age', 'postTestScore'])
+    raw_data = {
+        'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
+        'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
+        'age': [42, 52, 36, 24, 73],
+        'postTestScore': [25, 94, 57, 62, 70],
+    }
+    df = pd.DataFrame(
+        raw_data, columns=['first_name', 'last_name', 'age', 'postTestScore']
+    )
     context.log_dataset('mydf', df=df)
 
 
@@ -81,8 +92,9 @@ def test_kfp_run():
     for a in expected:
         assert a in alist, 'artifact {} was not generated'.format(a)
     assert result.output('accuracy') == 10, 'failed to run'
-    assert result.status.state == 'completed', \
-        'wrong state ({}) {}'.format(result.status.state, result.status.error)
+    assert result.status.state == 'completed', 'wrong state ({}) {}'.format(
+        result.status.state, result.status.error
+    )
 
 
 def test_kfp_hyper():
@@ -102,5 +114,6 @@ def test_kfp_hyper():
             print(yaml.dump(row))
             count += 1
     assert count == 3, 'didnt see expected iterations file output'
-    assert result.status.state == 'completed', \
-        'wrong state ({}) {}'.format(result.status.state, result.status.error)
+    assert result.status.state == 'completed', 'wrong state ({}) {}'.format(
+        result.status.state, result.status.error
+    )

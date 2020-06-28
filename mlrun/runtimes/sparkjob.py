@@ -45,7 +45,7 @@ _sparkjob_template = {
     'metadata': {'name': '', 'namespace': 'default-tenant'},
     'spec': {
         'type': 'Python',
-        'pythonVersion': '2',
+        'pythonVersion': '3',
         'mode': 'cluster',
         'image': '',
         'imagePullPolicy': 'IfNotPresent',

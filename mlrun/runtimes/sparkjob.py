@@ -48,7 +48,7 @@ _sparkjob_template = {
         'pythonVersion': '2',
         'mode': 'cluster',
         'image': '',
-        'imagePullPolicy': 'Always',
+        'imagePullPolicy': 'IfNotPresent',
         'mainApplicationFile': '',
         'sparkVersion': '2.4.0',
         'restartPolicy': {

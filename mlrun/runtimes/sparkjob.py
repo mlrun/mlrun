@@ -60,7 +60,7 @@ _sparkjob_template = {
         },
         'deps': {},
         'volumes': [],
-        'serviceAccount': 'spark-operator-spark',
+        'serviceAccount': 'sparkapp',
         'driver': {
             'cores': 1,
             'coreLimit': '1200m',

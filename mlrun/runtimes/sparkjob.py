@@ -31,12 +31,12 @@ from ..utils import update_in, logger, get_in
 
 igz_deps = {
     'jars': [
-        '/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
-        '/igz/java/libs/v3io-spark2-streaming_2.11-{0}.jar',
-        '/igz/java/libs/v3io-spark2-object-dataframe_2.11-{0}.jar',
+        '/spark/v3io-libs/v3io-hcfs_2.11.jar',
+        '/spark/v3io-libs/v3io-spark2-streaming_2.11.jar',
+        '/spark/v3io-libs/v3io-spark2-object-dataframe_2.11.jar',
         '/igz/java/libs/scala-library-2.11.12.jar',
     ],
-    'files': ['/igz/java/libs/v3io-pyspark-{0}.zip'],
+    'files': ['/igz/java/libs/v3io-pyspark.zip'],
 }
 
 _sparkjob_template = {

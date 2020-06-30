@@ -133,9 +133,22 @@ class KubeResource(BaseRuntime):
     def apply(self, modify):
         return apply_kfp(modify, self._cop, self)
 
-    def set_env(self, name, value):
+    def set_env(self, name, value=None, secret=None, secret_key=None):
+        """set pod environment var from value or secret"""
         i = 0
-        new_var = client.V1EnvVar(name=name, value=value)
+        value_from = None
+        if secret:
+            if value:
+                raise ValueError('cannot use both secret and value')
+            secret_key = secret_key or name
+            value_from = client.V1EnvVarSource(
+                secret_key_ref=client.V1SecretKeySelector(name=secret,
+                                                          key=secret_key))
+        else:
+            if value is None:
+                raise ValueError('value cannot be None')
+        new_var = client.V1EnvVar(name=name, value=value,
+                                  value_from=value_from)
         for v in self.spec.env:
             if get_item_name(v) == name:
                 self.spec.env[i] = new_var
@@ -145,6 +158,7 @@ class KubeResource(BaseRuntime):
         return self
 
     def set_envs(self, env_vars):
+        """set pod environment var key/value dict"""
         for name, value in env_vars.items():
             self.set_env(name, value)
         return self
@@ -153,6 +167,7 @@ class KubeResource(BaseRuntime):
         update_in(self.spec.resources, ['limits', gpu_type], gpus)
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
+        """set pod cpu/memory/gpu limits"""
         limits = {}
         if gpus:
             limits[gpu_type] = gpus
@@ -163,6 +178,7 @@ class KubeResource(BaseRuntime):
         update_in(self.spec.resources, 'limits', limits)
 
     def with_requests(self, mem=None, cpu=None):
+        """set requested (desired) pod cpu/memory/gpu resources"""
         requests = {}
         if mem:
             requests['memory'] = mem

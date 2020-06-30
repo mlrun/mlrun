@@ -133,21 +133,21 @@ class KubeResource(BaseRuntime):
     def apply(self, modify):
         return apply_kfp(modify, self._cop, self)
 
-    def set_env(self, name, value=None, secret=None, secret_key=None):
-        """set pod environment var from value or secret"""
-        i = 0
-        value_from = None
-        if secret:
-            if value:
-                raise ValueError('cannot use both secret and value')
-            secret_key = secret_key or name
-            value_from = client.V1EnvVarSource(
-                secret_key_ref=client.V1SecretKeySelector(name=secret, key=secret_key)
-            )
-        else:
-            if value is None:
-                raise ValueError('value cannot be None')
+    def set_env_from_secret(self, name, secret=None, secret_key=None):
+        """set pod environment var from secret"""
+        secret_key = secret_key or name
+        value_from = client.V1EnvVarSource(
+            secret_key_ref=client.V1SecretKeySelector(name=secret, key=secret_key)
+        )
+        return self._set_env(name, value_from=value_from)
+
+    def set_env(self, name, value):
+        """set pod environment var from value"""
+        return self._set_env(name, value=value)
+
+    def _set_env(self, name, value=None, value_from=None):
         new_var = client.V1EnvVar(name=name, value=value, value_from=value_from)
+        i = 0
         for v in self.spec.env:
             if get_item_name(v) == name:
                 self.spec.env[i] = new_var

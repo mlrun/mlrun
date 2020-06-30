@@ -16,7 +16,6 @@ import time
 import hashlib
 import json
 import logging
-import pathlib
 import re
 from datetime import datetime, timezone
 from os import path, environ

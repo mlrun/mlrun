@@ -31,12 +31,12 @@ from ..utils import update_in, logger, get_in
 
 igz_deps = {
     'jars': [
-        '/igz/java/libs/v3io-hcfs_2.11-{0}.jar',
-        '/igz/java/libs/v3io-spark2-streaming_2.11-{0}.jar',
-        '/igz/java/libs/v3io-spark2-object-dataframe_2.11-{0}.jar',
+        '/spark/v3io-libs/v3io-hcfs_2.11.jar',
+        '/spark/v3io-libs/v3io-spark2-streaming_2.11.jar',
+        '/spark/v3io-libs/v3io-spark2-object-dataframe_2.11.jar',
         '/igz/java/libs/scala-library-2.11.12.jar',
     ],
-    'files': ['/igz/java/libs/v3io-py-{0}.zip'],
+    'files': ['/igz/java/libs/v3io-pyspark.zip'],
 }
 
 _sparkjob_template = {
@@ -45,10 +45,10 @@ _sparkjob_template = {
     'metadata': {'name': '', 'namespace': 'default-tenant'},
     'spec': {
         'type': 'Python',
-        'pythonVersion': '2',
+        'pythonVersion': '3',
         'mode': 'cluster',
         'image': '',
-        'imagePullPolicy': 'Always',
+        'imagePullPolicy': 'IfNotPresent',
         'mainApplicationFile': '',
         'sparkVersion': '2.4.0',
         'restartPolicy': {
@@ -60,7 +60,7 @@ _sparkjob_template = {
         },
         'deps': {},
         'volumes': [],
-        'serviceAccount': 'spark-operator-spark',
+        'serviceAccount': 'sparkapp',
         'driver': {
             'cores': 1,
             'coreLimit': '1200m',
@@ -270,20 +270,20 @@ class SparkRuntime(KubejobRuntime):
             print("Exception when reading SparkJob: %s" % e)
         return resp
 
-    def _update_igz_jars(self, igz_version, deps=igz_deps):
+    def _update_igz_jars(self, deps=igz_deps):
         if not self.spec.deps:
             self.spec.deps = {}
         if 'jars' in deps:
             if 'jars' not in self.spec.deps:
                 self.spec.deps['jars'] = []
-            self.spec.deps['jars'] += [x.format(igz_version) for x in deps['jars']]
+            self.spec.deps['jars'] += deps['jars']
         if 'files' in deps:
             if 'files' not in self.spec.deps:
                 self.spec.deps['files'] = []
-            self.spec.deps['files'] += [x.format(igz_version) for x in deps['files']]
+            self.spec.deps['files'] += deps['files']
 
-    def with_igz_spark(self, igz_version):
-        self._update_igz_jars(igz_version=igz_version)
+    def with_igz_spark(self):
+        self._update_igz_jars()
         self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
         self.apply(
             mount_v3iod(

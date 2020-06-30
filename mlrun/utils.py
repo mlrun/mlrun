@@ -268,18 +268,16 @@ def dict_to_yaml(struct):
 # solve numpy json serialization
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, np.integer):
+        if isinstance(obj, (int, str, float, list, dict)):
+            return obj
+        elif isinstance(obj, (np.integer, np.int6)):
             return int(obj)
-        elif isinstance(obj, np.floating) or isinstance(obj, np.float64):
+        elif isinstance(obj, (np.floating, np.float64)):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif isinstance(obj, pathlib.PosixPath):
-            return str(obj)
-        elif np.isnan(obj) or np.isinf(obj):
-            return str(obj)
         else:
-            return super(MyEncoder, self).default(obj)
+            return str(obj)
 
 
 def dict_to_json(struct):

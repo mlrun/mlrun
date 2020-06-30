@@ -35,7 +35,9 @@ def my_func(context):
     context.log_result('np-nan', np.nan)
     context.log_result('np-list', [1.5, np.nan, np.inf])
     context.log_result('dict', {'x': -1.3, 'y': np.float32(1.5), 'z': 'ab'})
-    context.log_result('array', np.array([1, 2, 3.2, np.nan, np.datetime64('2018-01-01')]))
+    context.log_result(
+        'array', np.array([1, 2, 3.2, np.nan, np.datetime64('2018-01-01')])
+    )
 
     raw_data = {
         'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
@@ -43,9 +45,7 @@ def my_func(context):
         'x': np.array([1, 2, 3.2, np.nan, 5.5]),
         'y': [25, 94, 0.1, 57, datetime.datetime(2018, 1, 1)],
     }
-    df = pd.DataFrame(
-        raw_data, columns=['first_name', 'last_name', 'x', 'y']
-    )
+    df = pd.DataFrame(raw_data, columns=['first_name', 'last_name', 'x', 'y'])
     context.log_dataset('df1', df=df)
 
     date_rng = pd.date_range('2018-01-01', periods=4, freq='H')

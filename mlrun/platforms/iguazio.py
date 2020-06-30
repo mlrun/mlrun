@@ -275,7 +275,7 @@ def is_iguazio_control_session(value: str) -> bool:
 # (requests should be sent with username:control_session as auth header)
 def add_or_refresh_credentials(
     api_url: str, username: str = '', password: str = '', token: str = ''
-) -> (str, str):
+) -> (str, str, str):
 
     # this may be called in "open source scenario" so in this case (not iguazio endpoint) simply do nothing
     if not is_iguazio_endpoint(api_url) or is_iguazio_control_session(password):

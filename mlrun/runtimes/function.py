@@ -504,10 +504,10 @@ def get_auth_filled_platform_dashboard_url(dashboard: str) -> str:
 
     # todo: workaround for 2.8 use nuclio_dashboard_url for subdns name
     parsed_dbpath = urlparse(mlconf.dbpath)
-    user, control_session = add_or_refresh_credentials(parsed_dbpath.hostname)
+    user, control_session, _ = add_or_refresh_credentials(parsed_dbpath.hostname)
     return 'https://{}:{}@{}{}'.format(
         user,
         control_session,
-        mlconf.nuclio_dashboard_url or 'nuclio-api-ext',
+        mlconf.nuclio_dashboard_url or 'nuclio-api',
         parsed_dbpath.hostname[parsed_dbpath.hostname.find('.') :],
     )

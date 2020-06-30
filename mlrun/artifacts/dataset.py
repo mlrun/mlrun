@@ -15,6 +15,7 @@ import os
 import pathlib
 from io import StringIO
 from tempfile import mktemp
+import numpy as np
 
 from pandas.io.json import build_table_schema
 
@@ -124,7 +125,7 @@ class DatasetArtifact(Artifact):
             self.preview = shortdf.reset_index().values.tolist()
             self.schema = build_table_schema(df)
             if stats or self.length < max_csv:
-                self.stats = get_stats(df)
+                self.stats = _get_stats(df)
 
         self._df = df
         self._kw = kwargs
@@ -179,11 +180,16 @@ class DatasetArtifact(Artifact):
         raise ValueError(f'format {self.format} not implemented yes')
 
 
-def get_stats(df):
+def _get_stats(df):
     d = {}
-    for k, v in df.describe(include='all').items():
-        v = {
-            m: float(x) if not isinstance(x, str) else x for m, x in v.dropna().items()
-        }
-        d[k] = v
+    for col, values in df.describe(include='all').items():
+        stats_dict = {}
+        for stat, val in values.dropna().items():
+            if isinstance(val, (float, np.floating, np.float64)):
+                stats_dict[stat] = float(val)
+            elif isinstance(val, (int, np.integer, np.int64)):
+                stats_dict[stat] = int(val)
+            else:
+                stats_dict[stat] = str(val)
+        d[col] = stats_dict
     return d

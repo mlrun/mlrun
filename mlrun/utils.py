@@ -269,7 +269,7 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, (int, str, float, list, dict)):
             return obj
-        elif isinstance(obj, (np.integer, np.int6)):
+        elif isinstance(obj, (np.integer, np.int64)):
             return int(obj)
         elif isinstance(obj, (np.floating, np.float64)):
             return float(obj)

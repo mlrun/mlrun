@@ -142,13 +142,12 @@ class KubeResource(BaseRuntime):
                 raise ValueError('cannot use both secret and value')
             secret_key = secret_key or name
             value_from = client.V1EnvVarSource(
-                secret_key_ref=client.V1SecretKeySelector(name=secret,
-                                                          key=secret_key))
+                secret_key_ref=client.V1SecretKeySelector(name=secret, key=secret_key)
+            )
         else:
             if value is None:
                 raise ValueError('value cannot be None')
-        new_var = client.V1EnvVar(name=name, value=value,
-                                  value_from=value_from)
+        new_var = client.V1EnvVar(name=name, value=value, value_from=value_from)
         for v in self.spec.env:
             if get_item_name(v) == name:
                 self.spec.env[i] = new_var

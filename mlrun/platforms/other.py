@@ -63,9 +63,7 @@ def auto_mount(pvc_name='', volume_mount_path=''):
     raise ValueError('failed to auto mount, need to set env vars')
 
 
-def mount_secret(
-    secret_name, mount_path, volume_name='secret', items=None
-):
+def mount_secret(secret_name, mount_path, volume_name='secret', items=None):
     """Modifier function to mount kubernetes secret as files(s)
 
      :param secret_name:  k8s secret name
@@ -79,12 +77,15 @@ def mount_secret(
                           the specified paths, and unlisted keys will not be
                           present.
      """
+
     def _mount_secret(task):
         from kubernetes import client as k8s_client
+
         vol = k8s_client.V1SecretVolumeSource(secret_name=secret_name, items=items)
         return task.add_volume(
             k8s_client.V1Volume(name=volume_name, secret=vol)
         ).add_volume_mount(
             k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
         )
+
     return _mount_secret

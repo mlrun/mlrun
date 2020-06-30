@@ -36,7 +36,7 @@ igz_deps = {
         '/igz/java/libs/v3io-spark2-object-dataframe_2.11-{0}.jar',
         '/igz/java/libs/scala-library-2.11.12.jar',
     ],
-    'files': ['/igz/java/libs/v3io-py-{0}.zip'],
+    'files': ['/igz/java/libs/v3io-pyspark-{0}.zip'],
 }
 
 _sparkjob_template = {

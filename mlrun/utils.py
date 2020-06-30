@@ -24,6 +24,7 @@ from sys import stdout
 import numpy as np
 import requests
 import yaml
+from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
@@ -247,11 +248,21 @@ def int_representer(dumper, data):
     return dumper.represent_int(data)
 
 
+def date_representer(dumper, data):
+    if isinstance(data, np.datetime64):
+        value = str(data)
+    else:
+        value = data.isoformat()
+    return dumper.represent_scalar('tag:yaml.org,2002:timestamp', value)
+
+
 yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.ndarray, numpy_representer_seq, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.datetime64, date_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
 
 
 def dict_to_yaml(struct):

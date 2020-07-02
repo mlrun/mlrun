@@ -14,10 +14,8 @@
 
 import time
 import os
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobClient, BlobServiceClient
-from azure.core.exceptions import ResourceExistsError
-from .base import DataStore, get_range, FileStats
+from azure.storage.blob import BlobServiceClient
+from .base import DataStore, FileStats
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.

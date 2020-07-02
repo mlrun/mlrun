@@ -16,7 +16,9 @@ def azure_connection_configured():
 
 
 def prepare_env():
-    os.environ['AZURE_STORAGE_CONNECTION_STRING'] = config['env'].get('AZURE_STORAGE_CONNECTION_STRING')
+    os.environ['AZURE_STORAGE_CONNECTION_STRING'] = config['env'].get(
+        'AZURE_STORAGE_CONNECTION_STRING'
+    )
 
 
 @pytest.mark.skipif(
@@ -52,13 +54,15 @@ def test_azure_blob():
     # Check dir list
     dir_data_item = mlrun.run.get_dataitem(blob_path + '/' + blob_dir)
     dir_list = dir_data_item.listdir()
-    assert any(blob_file in item for item in dir_list), 'List dir did not contain our file name'
+    assert any(
+        blob_file in item for item in dir_list
+    ), 'List dir did not contain our file name'
 
 
 @pytest.mark.skipif(
     not azure_connection_configured(),
     reason='This is an integration test, add the needed environment variables in test-azure-blob.yml '
-           'to run it',
+    'to run it',
 )
 def test_blob_upload():
     # Check upload functionality

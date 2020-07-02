@@ -25,7 +25,9 @@ class AzureBlobStore(DataStore):
     def __init__(self, parent, schema, name, endpoint=''):
         super().__init__(parent, name, schema, endpoint)
 
-        con_string = self._secret('AZURE_STORAGE_CONNECTION_STRING') or os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+        con_string = self._secret('AZURE_STORAGE_CONNECTION_STRING') or os.getenv(
+            'AZURE_STORAGE_CONNECTION_STRING'
+        )
         if con_string:
             self.bsc = BlobServiceClient.from_connection_string(con_string)
 

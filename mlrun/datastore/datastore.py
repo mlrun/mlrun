@@ -22,6 +22,7 @@ from .base import DataItem, HttpStore
 from .s3 import S3Store
 from .filestore import FileStore
 from .v3io import V3ioStore
+from .azure_blob import AzureBlobStore
 
 
 def get_object_stat(url, secrets=None):
@@ -43,6 +44,8 @@ def schema_to_store(schema):
         return FileStore
     elif schema == 's3':
         return S3Store
+    elif schema == 'az':
+        return AzureBlobStore
     elif schema in ['v3io', 'v3ios']:
         return V3ioStore
     elif schema in ['http', 'https']:

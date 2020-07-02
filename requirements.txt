@@ -16,3 +16,8 @@ v3io>=0.3.3
 matplotlib
 scikit-learn
 seaborn
+azure-mgmt-resource
+azure-mgmt-storage
+azure-cli-core
+azure-storage-blob
+azure-identity

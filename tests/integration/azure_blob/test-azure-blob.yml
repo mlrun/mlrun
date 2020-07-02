@@ -1,0 +1,7 @@
+env:
+  # The Azure connection string which points at a storage account. For example:
+  # DefaultEndpointsProtocol=https;AccountName=myAcct;AccountKey=XXXX;EndpointSuffix=core.windows.net
+  AZURE_STORAGE_CONNECTION_STRING:
+
+  # Storage container within the given storage account where objects will be created.
+  AZURE_CONTAINER:

@@ -16,7 +16,9 @@ def azure_connection_configured():
 
 
 def prepare_env():
-    os.environ['AZURE_STORAGE_CONNECTION_STRING'] = config['env'].get('AZURE_STORAGE_CONNECTION_STRING')
+    os.environ['AZURE_STORAGE_CONNECTION_STRING'] = config['env'].get(
+        'AZURE_STORAGE_CONNECTION_STRING'
+    )
 
 
 @pytest.mark.skipif(

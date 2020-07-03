@@ -16,3 +16,4 @@ v3io>=0.3.3
 matplotlib
 scikit-learn
 seaborn
+azure-storage-blob

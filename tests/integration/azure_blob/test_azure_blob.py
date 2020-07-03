@@ -57,7 +57,7 @@ def test_azure_blob():
 @pytest.mark.skipif(
     not azure_connection_configured(),
     reason='This is an integration test, add the needed environment variables in test-azure-blob.yml '
-           'to run it',
+    'to run it',
 )
 def test_list_dir():
     prepare_env()

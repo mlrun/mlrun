@@ -54,9 +54,10 @@ class AzureBlobStore(DataStore):
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):
-        if not key.endswith('/'):
+        if key and not key.endswith('/'):
             key = key[1:] + '/'
 
+        key_length = len(key)
         container_client = self.bsc.get_container_client(self.endpoint)
         blob_list = container_client.list_blobs(name_starts_with=key)
-        return [blob.name for blob in blob_list]
+        return [blob.name[key_length:] for blob in blob_list]

@@ -157,7 +157,7 @@ DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME)
 
 mlrun: ## Build mlrun docker image
 	docker build \
-		--file ./Dockerfile \
+		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_IMAGE_NAME) .
 
@@ -236,7 +236,7 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
 
 docs-requirements: ## Build docs requirements
-	cp requirements.txt docs/requirements.txt
+	cp dockerfiles/common/requirements.txt docs/requirements.txt
 	echo numpydoc >> docs/requirements.txt
 
 html-docs: docs-requirements ## Build html docs

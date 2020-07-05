@@ -27,13 +27,13 @@ RUN python -m pip install --upgrade --no-cache pip
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/mlrun-api/requirements.txt ./api-requirements.txt
+COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
 
-COPY ./requirements.txt ./
+COPY ./dockerfiles/common/requirements.txt ./common-requirements.txt
 
 RUN python -m pip install \
-    -r api-requirements.txt \
-    -r requirements.txt
+    -r mlrun-api-requirements.txt \
+    -r common-requirements.txt
 
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080

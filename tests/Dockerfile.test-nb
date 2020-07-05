@@ -16,12 +16,15 @@ FROM python:3.6-slim
 RUN apt-get update && apt-get install -y g++ make git-core
 RUN python -m pip install --upgrade --no-cache pip
 WORKDIR /mlrun
-COPY ./dockerfiles ./
-COPY *requirements.txt ./
-RUN python -m pip install \
+
+COPY ./dockerfiles/common/requirements.txt ./common-requirements.txt
+COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
+COPY ./dockerfiles/dev-requirements.txt ./dev-requirements.txt
+
+RUN pip install \
     -r dev-requirements.txt \
-    -r mlrun-api/requirements.txt \
-    -r requirements.txt
+    -r mlrun-api-requirements.txt \
+    -r common-requirements.txt
 COPY . .
 ENV PYTHONPATH=/mlrun
 RUN python setup.py install

@@ -372,7 +372,6 @@ class RemoteRuntime(KubeResource):
         models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         project = project or self.metadata.project
-        dashboard = get_auth_filled_platform_dashboard_url(dashboard)
         return deploy_op(
             name,
             self,

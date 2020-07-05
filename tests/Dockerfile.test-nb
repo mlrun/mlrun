@@ -16,15 +16,12 @@ FROM python:3.6-slim
 RUN apt-get update && apt-get install -y g++ make git-core
 RUN python -m pip install --upgrade --no-cache pip
 WORKDIR /mlrun
-COPY ./dockerfiles/*requirements.txt ./
+COPY ./dockerfiles ./
 COPY *requirements.txt ./
 RUN python -m pip install \
     -r dev-requirements.txt \
-    -r api-requirements.txt \
+    -r mlrun-api/requirements.txt \
     -r requirements.txt
 COPY . .
 ENV PYTHONPATH=/mlrun
 RUN python setup.py install
-{args}
-{pip}
-RUN jupyter nbconvert --execute {notebook}

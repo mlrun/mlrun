@@ -67,9 +67,8 @@ base: ## Build base docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=${MLRUN_MLUTILS_GITHUB_TAG} \
-		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE="$(date)" \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
 push-base: base ## Push base docker image
@@ -83,9 +82,8 @@ base-legacy: ## Build base legacy docker image
 	docker build \
 		--file dockerfiles/base/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
-		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE="$(date)" \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
 push-base-legacy: base-legacy ## Push base legacy docker image

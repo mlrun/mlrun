@@ -84,6 +84,10 @@ class Logger(object):
         # save as the named output
         self._handlers[handler_name] = stream_handler
 
+    @property
+    def level(self):
+        return self._logger.level
+
     def set_logger_level(self, level):
         level = logging.getLevelName(level.upper())
         self._logger.setLevel(level)

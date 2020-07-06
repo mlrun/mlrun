@@ -200,7 +200,7 @@ package-wheel: clean ## Build python package wheel
 publish-package: package-wheel ## Publish python package wheel
 	python -m twine upload dist/mlrun-*.whl
 
-test-publish: package-wheel
+test-publish: package-wheel ## Test python package publishing
 	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/mlrun-*.whl
 
 clean: ## Clean python package build artifacts
@@ -235,24 +235,24 @@ html-docs: docs-requirements ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 
-html-docs-dockerized:
+html-docs-dockerized: ## Build html docs dockerized
 	docker run \
 		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \
 		$(MLRUN_TEST_IMAGE_NAME) \
 		make html-docs
 
-fmt:
+fmt: ## Format the code (using black)
 	@echo "Running black fmt..."
 	python -m black --skip-string-normalization .
 
-lint: flake8 fmt-check
+lint: flake8 fmt-check ## Run lint on the code
 
-fmt-check:
+fmt-check: ## Format and check the code (using black)
 	@echo "Running black fmt check..."
 	python -m black --skip-string-normalization --check --diff -S .
 
-flake8:
+flake8: ## Run flake8 lint
 	@echo "Running flake8 lint..."
 	python -m flake8 .
 

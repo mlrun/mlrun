@@ -16,8 +16,6 @@ MLRUN_DOCKER_TAG ?= latest
 MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to something like "quay.io/"
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
-MLRUN_PACKAGE_TAG ?= 5e160c870db82f92741631a09629a6ec47aee9b1
-MLRUN_GITHUB_REPO ?= mlrun
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
 MLRUN_MLUTILS_GITHUB_TAG ?= 3794e129cebc4d0dfef8d22f303d9f33f30358b9
@@ -96,9 +94,8 @@ DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME)
 models: ## Build models docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
-		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
 		--tag $(MLRUN_MODELS_IMAGE_NAME) .
 
 push-models: models ## Push models docker image
@@ -111,9 +108,8 @@ DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
 models-legacy: ## Build models legacy docker image
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
-		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
 push-models-legacy: models-legacy ## Push models legacy docker image
@@ -126,9 +122,8 @@ DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME)
 models-gpu: ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
 
 push-models-gpu: models-gpu ## Push models gpu docker image
@@ -141,9 +136,8 @@ DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 models-gpu-legacy: ## Build models-gpu legacy docker image
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
-		--build-arg MLRUN_PACKAGE_TAG=$(MLRUN_PACKAGE_TAG) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_GITHUB_REPO=$(MLRUN_GITHUB_REPO) \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 
 push-models-gpu-legacy: models-gpu-legacy ## Push models gpu legacy docker image

@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .helpers import *
-from .logger import *
+import mlrun.utils.helpers  # noqa
+import mlrun.utils.logger  # noqa

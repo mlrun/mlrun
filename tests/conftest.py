@@ -24,6 +24,10 @@ from urllib.request import URLError, urlopen
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from mlrun.api.db.sqldb.models import Base
+from mlrun.api.db.sqldb.db import run_time_fmt
+
+
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
 is_ci = 'CI' in environ
@@ -40,9 +44,6 @@ examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
 environ['MLRUN_httpdb__dirpath'] = rundb_path
-
-from mlrun.api.db.sqldb.models import Base
-from mlrun.api.db.sqldb.db import run_time_fmt
 
 
 def check_docker():
@@ -75,8 +76,9 @@ def has_secrets():
 
 def verify_state(result: RunObject):
     state = result.status.state
-    assert state == 'completed', \
-        'wrong state ({}) {}'.format(state, result.status.error)
+    assert state == 'completed', 'wrong state ({}) {}'.format(
+        state, result.status.error
+    )
 
 
 def wait_for_server(url, timeout_sec):
@@ -98,13 +100,8 @@ def run_now():
 
 def new_run(state, labels, uid=None, **kw):
     obj = {
-        'metadata': {
-            'labels': labels,
-        },
-        'status': {
-            'state': state,
-            'start_time': run_now(),
-        },
+        'metadata': {'labels': labels},
+        'status': {'state': state, 'start_time': run_now()},
     }
     if uid:
         obj['metadata']['uid'] = uid

@@ -18,7 +18,7 @@ class ProjectBase(BaseModel):
 # Properties to receive via API on creation
 class ProjectCreate(ProjectBase):
     name: str
-    owner: str
+    owner: Optional[str] = None
 
 
 # Properties to receive via API on update

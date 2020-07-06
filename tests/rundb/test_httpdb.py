@@ -27,7 +27,7 @@ import pytest
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
-from tests.conftest import wait_for_server, in_docker
+from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple('Server', 'url conn workdir')
@@ -56,12 +56,15 @@ def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
     env['MLRUN_httpdb__port'] = str(port)
-    env['MLRUN_httpdb__dsn'] = f'sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false'
+    env[
+        'MLRUN_httpdb__dsn'
+    ] = f'sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false'
     env['MLRUN_httpdb__logs_path'] = workdir
     env.update(env_config or {})
     cmd = [
         executable,
-        '-m', 'mlrun.api.main',
+        '-m',
+        'mlrun.api.main',
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
@@ -79,21 +82,26 @@ def docker_fixture():
 
         env_config = {} if env_config is None else env_config
         cmd = [
-            'docker', 'build',
-            '-f', 'dockerfiles/mlrun-api/Dockerfile',
-            '--tag', docker_tag,
+            'docker',
+            'build',
+            '-f',
+            'dockerfiles/mlrun-api/Dockerfile',
+            '--tag',
+            docker_tag,
             '.',
         ]
         run(cmd, check=True, stdout=PIPE, cwd=project_dir_path)
         workdir = create_workdir(root_dir='/tmp')
 
         cmd = [
-            'docker', 'run',
+            'docker',
+            'run',
             '--detach',
-            '--publish', '8080',
-
+            '--publish',
+            '8080',
             # For debugging
-            '--volume', f'{workdir}:/tmp',
+            '--volume',
+            f'{workdir}:/tmp',
         ]
 
         env_config.setdefault('MLRUN_httpdb__logs_path', '/tmp')
@@ -178,10 +186,7 @@ def test_run(create_server):
     db = server.conn
     prj, uid = 'p18', '3i920'
     run_as_dict = RunObject().to_dict()
-    run_as_dict['metadata'].update({
-        'algorithm': 'svm',
-        'C': 3,
-    })
+    run_as_dict['metadata'].update({'algorithm': 'svm', 'C': 3})
     db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)

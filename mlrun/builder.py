@@ -24,11 +24,14 @@ from .utils import logger, normalize_name, tag_image
 from .config import config
 
 
-def make_dockerfile(base_image,
-                    commands=None, src_dir=None,
-                    requirements=None,
-                    workdir='/mlrun',
-                    extra=''):
+def make_dockerfile(
+    base_image,
+    commands=None,
+    src_dir=None,
+    requirements=None,
+    workdir='/mlrun',
+    extra='',
+):
     dock = 'FROM {}\n'.format(base_image)
     if src_dir:
         dock += 'RUN mkdir -p {}\n'.format(workdir)
@@ -45,15 +48,18 @@ def make_dockerfile(base_image,
     return dock
 
 
-def make_kaniko_pod(context, dest,
-                    dockerfile=None,
-                    dockertext=None,
-                    inline_code=None,
-                    inline_path=None,
-                    requirements=None,
-                    secret_name=None,
-                    name='',
-                    verbose=False):
+def make_kaniko_pod(
+    context,
+    dest,
+    dockerfile=None,
+    dockertext=None,
+    inline_code=None,
+    inline_path=None,
+    requirements=None,
+    secret_name=None,
+    name='',
+    verbose=False,
+):
 
     if not dockertext and not dockerfile:
         raise ValueError('docker file or text must be specified')
@@ -61,18 +67,18 @@ def make_kaniko_pod(context, dest,
     if dockertext:
         dockerfile = '/empty/Dockerfile'
 
-    args = ["--dockerfile", dockerfile,
-            "--context", context,
-            "--destination", dest]
+    args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
     if not secret_name:
         args.append('--insecure')
     if verbose:
         args += ["--verbosity", 'debug']
 
-    kpod=BasePod(name or 'mlrun-build',
-                 'gcr.io/kaniko-project/executor:' + config.kaniko_version,
-                 args=args,
-                 kind='build')
+    kpod = BasePod(
+        name or 'mlrun-build',
+        'gcr.io/kaniko-project/executor:' + config.kaniko_version,
+        args=args,
+        kind='build',
+    )
 
     if secret_name:
         items = [{'key': '.dockerconfigjson', 'path': '.docker/config.json'}]
@@ -90,10 +96,16 @@ def make_kaniko_pod(context, dest,
             commands.append('echo ${CODE} | base64 -d > /empty/' + name)
             env['CODE'] = b64encode(inline_code.encode('utf-8')).decode('utf-8')
         if requirements:
-            commands.append('echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt')
-            env['REQUIREMENTS'] = b64encode('\n'.join(requirements).encode('utf-8')).decode('utf-8')
+            commands.append(
+                'echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt'
+            )
+            env['REQUIREMENTS'] = b64encode(
+                '\n'.join(requirements).encode('utf-8')
+            ).decode('utf-8')
 
-        kpod.set_init_container('alpine', args=['sh', '-c', '; '.join(commands)], env=env)
+        kpod.set_init_container(
+            'alpine', args=['sh', '-c', '; '.join(commands)], env=env
+        )
 
     return kpod
 
@@ -109,22 +121,24 @@ def upload_tarball(source_dir, target, secrets=None):
     remove(tmpfile)
 
 
-def build_image(dest,
-                commands=None,
-                source='',
-                mounter='v3io',
-                base_image=None,
-                requirements=None,
-                inline_code=None,
-                inline_path=None,
-                secret_name=None,
-                namespace=None,
-                with_mlrun=True,
-                registry=None,
-                interactive=True,
-                name='',
-                extra=None,
-                verbose=False):
+def build_image(
+    dest,
+    commands=None,
+    source='',
+    mounter='v3io',
+    base_image=None,
+    requirements=None,
+    inline_code=None,
+    inline_path=None,
+    secret_name=None,
+    namespace=None,
+    with_mlrun=True,
+    registry=None,
+    interactive=True,
+    name='',
+    extra=None,
+    verbose=False,
+):
 
     if registry:
         dest = '{}/{}'.format(registry, dest)
@@ -136,8 +150,10 @@ def build_image(dest,
             registry = environ.get('DEFAULT_DOCKER_REGISTRY')
             secret_name = secret_name or environ.get('DEFAULT_DOCKER_SECRET')
         if not registry:
-            raise ValueError('local docker registry is not defined, set '
-                             'DEFAULT_DOCKER_REGISTRY/SECRET env vars')
+            raise ValueError(
+                'local docker registry is not defined, set '
+                'DEFAULT_DOCKER_REGISTRY/SECRET env vars'
+            )
         dest = '{}/{}'.format(registry, dest)
 
     if isinstance(requirements, list):
@@ -161,8 +177,11 @@ def build_image(dest,
     context = '/context'
     to_mount = False
     src_dir = '.'
-    v3io = source.startswith('v3io://') or \
-           source.startswith('v3ios://') if source else None
+    v3io = (
+        source.startswith('v3io://') or source.startswith('v3ios://')
+        if source
+        else None
+    )
 
     if inline_code:
         context = '/empty'
@@ -177,16 +196,25 @@ def build_image(dest,
     else:
         src_dir = None
 
-    dock = make_dockerfile(base_image, commands,
-                           src_dir=src_dir,
-                           requirements=requirements_path,
-                           extra=extra)
+    dock = make_dockerfile(
+        base_image,
+        commands,
+        src_dir=src_dir,
+        requirements=requirements_path,
+        extra=extra,
+    )
 
-    kpod = make_kaniko_pod(context, dest, dockertext=dock,
-                           inline_code=inline_code, inline_path=inline_path,
-                           requirements=requirements_list,
-                           secret_name=secret_name,
-                           name=name, verbose=verbose)
+    kpod = make_kaniko_pod(
+        context,
+        dest,
+        dockertext=dock,
+        inline_code=inline_code,
+        inline_path=inline_path,
+        requirements=requirements_list,
+        secret_name=secret_name,
+        name=name,
+        verbose=verbose,
+    )
 
     if to_mount:
         # todo: support different mounters
@@ -199,18 +227,22 @@ def build_image(dest,
         return k8s.run_job(kpod)
     else:
         pod, ns = k8s.create_pod(kpod)
-        logger.info('started build, to watch build logs use "mlrun watch {} {}"'.format(pod, ns))
+        logger.info(
+            'started build, to watch build logs use "mlrun watch {} {}"'.format(pod, ns)
+        )
         return 'build:{}'.format(pod)
 
 
 def build_runtime(runtime, with_mlrun, interactive=False):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
-    inline = None
+    inline = None  # noqa: F841
     if build.functionSourceCode:
-        inline = b64decode(build.functionSourceCode).decode('utf-8')
+        inline = b64decode(build.functionSourceCode).decode('utf-8')  # noqa: F841
     if not build.image:
-        raise ValueError('build spec must have a target image, set build.image = <target image>')
+        raise ValueError(
+            'build spec must have a target image, set build.image = <target image>'
+        )
     logger.info(f'building image ({build.image})')
 
     if runtime.kind == 'dask':
@@ -223,17 +255,19 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     if not build.base_image:
         with_mlrun = False
 
-    status = build_image(build.image,
-                         base_image=base_image,
-                         commands=build.commands,
-                         namespace=namespace,
-                         #inline_code=inline,
-                         source=build.source,
-                         secret_name=build.secret,
-                         interactive=interactive,
-                         name=name,
-                         extra=extra,
-                         with_mlrun=with_mlrun)
+    status = build_image(
+        build.image,
+        base_image=base_image,
+        commands=build.commands,
+        namespace=namespace,
+        # inline_code=inline,
+        source=build.source,
+        secret_name=build.secret,
+        interactive=interactive,
+        name=name,
+        extra=extra,
+        with_mlrun=with_mlrun,
+    )
     runtime.status.build_pod = None
     if status == 'skipped':
         runtime.spec.image = build.base_image
@@ -253,6 +287,3 @@ def build_runtime(runtime, with_mlrun, interactive=False):
     runtime.spec.image = local + build.image
     runtime.status.state = 'ready'
     return True
-
-
-

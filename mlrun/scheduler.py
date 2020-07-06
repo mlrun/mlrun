@@ -19,12 +19,11 @@ from time import sleep
 
 from croniter import croniter
 
-from mlrun.runtimes import BaseRuntime
 from mlrun.utils import logger
 
 
 class Job:
-    def __init__(self, schedule, runtime: BaseRuntime, args=None, kw=None):
+    def __init__(self, schedule, runtime, args=None, kw=None):
         self.sched = croniter(schedule, ret_type=datetime)
         self.runtime = runtime
         self.args = () if args is None else args
@@ -49,7 +48,7 @@ class Scheduler(list):
         self.pool = ThreadPoolExecutor()
         Thread(target=self._loop, daemon=True).start()
 
-    def add(self, schedule: str, runtime: BaseRuntime, args=None, kw=None):
+    def add(self, schedule: str, runtime, args=None, kw=None):
         """Add a job to run according to schedule.
 
         args & kw are passed to runtime.run

@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from sklearn.model_selection import train_test_split
 from ..datastore import DataItem
 
@@ -38,7 +37,7 @@ def get_splits(
     test_size: float = 0.15,
     valid_size: float = 0.30,
     label_names: list = ["labels"],
-    random_state: int = 1
+    random_state: int = 1,
 ):
     """generate train and test sets (candidate for mlrun)
     cross validation:
@@ -57,13 +56,15 @@ def get_splits(
     :param label_names:         label names
     :param random_state:   (1) random number seed
     """
-    x, xte, y, yte = train_test_split(raw, labels, test_size=test_size,
-                                      random_state=random_state)
+    x, xte, y, yte = train_test_split(
+        raw, labels, test_size=test_size, random_state=random_state
+    )
     if n_ways == 2:
         return (x, y), (xte, yte)
     elif n_ways == 3:
-        xtr, xva, ytr, yva = train_test_split(x, y, train_size=1-valid_size,
-                                              random_state=random_state)
+        xtr, xva, ytr, yva = train_test_split(
+            x, y, train_size=1 - valid_size, random_state=random_state
+        )
         return (xtr, ytr), (xva, yva), (xte, yte)
     else:
         raise Exception("n_ways must be in the range [2,3]")
@@ -76,7 +77,7 @@ def save_test_set(
     label: str = "labels",
     file_ext: str = "parquet",
     index: bool = False,
-    debug: bool = False
+    debug: bool = False,
 ):
     """log a held out test set
     :param context:    the function execution context
@@ -92,22 +93,20 @@ def save_test_set(
 
     if all(x in data.keys() for x in ["xtest", "ytest"]):
         test_set = pd.concat(
-            [pd.DataFrame(data=data["xtest"], columns=header),
-             pd.DataFrame(data=data["ytest"].values, columns=[label])],
-            axis=1)
-        context.log_dataset(
-            "test_set",
-            df=test_set,
-            format=file_ext,
-            index=index)
+            [
+                pd.DataFrame(data=data["xtest"], columns=header),
+                pd.DataFrame(data=data["ytest"].values, columns=[label]),
+            ],
+            axis=1,
+        )
+        context.log_dataset("test_set", df=test_set, format=file_ext, index=index)
 
     if all(x in data.keys() for x in ["xcal", "ycal"]):
         cal_set = pd.concat(
-            [pd.DataFrame(data=data["xcal"], columns=header),
-             pd.DataFrame(data=data["ycal"].values, columns=[label])],
-            axis=1)
-        context.log_dataset(
-            "calibration_set",
-            df=cal_set,
-            format=file_ext,
-            index=index)
+            [
+                pd.DataFrame(data=data["xcal"], columns=header),
+                pd.DataFrame(data=data["ycal"].values, columns=[label]),
+            ],
+            axis=1,
+        )
+        context.log_dataset("calibration_set", df=cal_set, format=file_ext, index=index)

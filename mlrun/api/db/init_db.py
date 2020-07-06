@@ -6,5 +6,5 @@ from mlrun.config import config
 
 
 def init_db(db_session: Session) -> None:
-    if config.httpdb.db_type == "sqldb":
+    if config.httpdb.db_type != "filedb":
         Base.metadata.create_all(bind=get_engine())

@@ -27,7 +27,7 @@ from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
-from urllib.parse import urlparse
+
 from . import __version__
 
 import yaml
@@ -39,39 +39,43 @@ _none_type = type(None)
 
 
 default_config = {
-    'namespace': 'default-tenant',   # default kubernetes namespace
-    'dbpath': '',                    # db/api url
+    'namespace': 'default-tenant',  # default kubernetes namespace
+    'dbpath': '',  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     'nuclio_dashboard_url': '',
-    'ui_url': '',                    # remote/external mlrun UI url (for hyperlinks)
+    'ui_url': '',  # remote/external mlrun UI url (for hyperlinks)
     'remote_host': '',
-    'version': '',                   # will be set to current version
-    'images_tag': '',                # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
-    'kfp_ttl': '86400',              # KFP ttl in sec, after that completed PODs will be deleted
-    'kfp_image': '',                 # image to use for KFP runner (defaults to mlrun/mlrun)
-    'kaniko_version': 'v0.19.0',     # kaniko builder version
-    'package_path': 'mlrun',         # mlrun pip package
+    'version': '',  # will be set to current version
+    'images_tag': '',  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
+    'kfp_ttl': '86400',  # KFP ttl in sec, after that completed PODs will be deleted
+    'kfp_image': '',  # image to use for KFP runner (defaults to mlrun/mlrun)
+    'kaniko_version': 'v0.19.0',  # kaniko builder version
+    'package_path': 'mlrun',  # mlrun pip package
     'default_image': 'python:3.6-jessie',
-    'default_project': 'default',    # default project name
-    'default_archive': '',           # default remote archive URL (for build tar.gz)
-    'mpijob_crd_version': '',        # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
+    'default_project': 'default',  # default project name
+    'default_archive': '',  # default remote archive URL (for build tar.gz)
+    'mpijob_crd_version': '',  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
-    'log_level': 'ERROR',
-
+    'log_level': 'INFO',
     # log formatter (options: human | json)
     'log_formatter': 'human',
-    'submit_timeout': '180',         # timeout when submitting a new k8s resource
-    'artifact_path': '',             # default artifacts path/url
+    'submit_timeout': '180',  # timeout when submitting a new k8s resource
+    # runtimes cleanup interval in seconds
+    'runtimes_cleanup_interval': '300',
+    # the grace period (in seconds) that will be given to runtime resources (after they're in stable state)
+    # before deleting them
+    'runtime_resources_deletion_grace_period': '14400',
+    'artifact_path': '',  # default artifacts path/url
     'httpdb': {
         'port': 8080,
         'dirpath': expanduser('~/.mlrun/db'),
-        'dsn': 'sqlite:////tmp/mlrun.db?check_same_thread=false',
+        'dsn': 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false',
         'debug': False,
         'user': '',
         'password': '',
         'token': '',
-        'logs_path': expanduser('~/.mlrun/logs'),
+        'logs_path': '/mlrun/db/logs',
         'data_volume': '',
         'real_path': '',
         'db_type': 'sqldb',
@@ -84,6 +88,7 @@ class Config:
 
     def __init__(self, cfg=None):
         cfg = {} if cfg is None else cfg
+
         # Can't use self._cfg = cfg → infinite recursion
         object.__setattr__(self, '_cfg', cfg)
 
@@ -180,7 +185,7 @@ def read_env(env=None, prefix=env_prefix):
             value = json.loads(value)  # values can be JSON encoded
         except ValueError:
             pass  # Leave as string
-        key = key[len(env_prefix):]  # Trim MLRUN_
+        key = key[len(env_prefix) :]  # Trim MLRUN_
         path = key.lower().split('__')  # 'A__B' → ['a', 'b']
         cfg = config
         while len(path) > 1:
@@ -192,7 +197,8 @@ def read_env(env=None, prefix=env_prefix):
     svc = env.get('MLRUN_API_PORT')
     if svc and not config.get('dbpath'):
         config['dbpath'] = 'http://mlrun-api:{}'.format(
-            default_config['httpdb']['port'] or 8080)
+            default_config['httpdb']['port'] or 8080
+        )
 
     uisvc = env.get('MLRUN_UI_SERVICE_HOST')
     igz_domain = env.get('IGZ_NAMESPACE_DOMAIN')
@@ -201,10 +207,17 @@ def read_env(env=None, prefix=env_prefix):
     if not igz_domain and 'DEFAULT_DOCKER_REGISTRY' in env:
         registry = env['DEFAULT_DOCKER_REGISTRY']
         if registry.startswith('docker-registry.default-tenant'):
-            igz_domain = registry[len('docker-registry.'):]
+            igz_domain = registry[len('docker-registry.') :]
             if ':' in igz_domain:
-                igz_domain = igz_domain[:igz_domain.rfind(':')]
+                igz_domain = igz_domain[: igz_domain.rfind(':')]
             env['IGZ_NAMESPACE_DOMAIN'] = igz_domain
+
+    # workaround wrongly sqldb dsn in 2.8
+    if (
+        config.get('httpdb', {}).get('dsn')
+        == 'sqlite:///mlrun.sqlite3?check_same_thread=false'
+    ):
+        config['httpdb']['dsn'] = 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 
     if uisvc and not config.get('ui_url'):
         if igz_domain:

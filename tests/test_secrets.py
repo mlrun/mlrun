@@ -19,7 +19,7 @@ from mlrun.secrets import SecretsStore
 spec = {
     'secret_sources': [
         {'kind': 'file', 'source': 'tests/secrets_test.txt'},
-        {'kind': 'inline', 'source': {'abc':'def'}},
+        {'kind': 'inline', 'source': {'abc': 'def'}},
         {'kind': 'env', 'source': 'ENV123,ENV456'},
     ],
 }
@@ -37,15 +37,11 @@ def test_load():
     assert ss.get('abc') == 'def', 'failed on 1st env var secret'
     print(ss.get_all())
 
+
 def test_inline_str():
     spec = {
-        'secret_sources': [
-            {'kind': 'inline', 'source': "{'abc': 'def'}"},
-        ],
+        'secret_sources': [{'kind': 'inline', 'source': "{'abc': 'def'}"}],
     }
 
     ss = SecretsStore.from_list(spec['secret_sources'])
     assert ss.get('abc') == 'def', 'failed on 1st env var secret'
-
-
-

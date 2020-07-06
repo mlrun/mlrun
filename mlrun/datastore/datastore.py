@@ -22,6 +22,7 @@ from .base import DataItem, HttpStore
 from .s3 import S3Store
 from .filestore import FileStore
 from .v3io import V3ioStore
+from .azure_blob import AzureBlobStore
 
 
 def get_object_stat(url, secrets=None):
@@ -43,6 +44,8 @@ def schema_to_store(schema):
         return FileStore
     elif schema == 's3':
         return S3Store
+    elif schema == 'az':
+        return AzureBlobStore
     elif schema in ['v3io', 'v3ios']:
         return V3ioStore
     elif schema in ['http', 'https']:
@@ -82,7 +85,9 @@ class StoreManager:
                 self._stores[stor['name']] = new_stor
 
     def to_dict(self, struct):
-        struct[run_keys.data_stores] = [stor.to_dict() for stor in self._stores.values() if stor.from_spec]
+        struct[run_keys.data_stores] = [
+            stor.to_dict() for stor in self._stores.values() if stor.from_spec
+        ]
 
     def secret(self, key):
         return self._secrets.get(key)
@@ -101,21 +106,25 @@ class StoreManager:
         if '/' in key:
             idx = key.rfind('/')
             try:
-                iteration = int(key[idx+1:])
+                iteration = int(key[idx + 1 :])
             except ValueError:
-                raise ValueError('illegal store path {}, iteration must be integer value'.format(url))
+                raise ValueError(
+                    'illegal store path {}, iteration must be integer value'.format(url)
+                )
             key = key[:idx]
 
         try:
-            meta = self._get_db().read_artifact(key, tag=tag,
-                                                iter=iteration,
-                                                project=project)
+            meta = self._get_db().read_artifact(
+                key, tag=tag, iter=iteration, project=project
+            )
             if meta.get('kind', '') == 'link':
                 # todo: support other link types (not just iter, move this to the db/api layer
-                meta = self._get_db().read_artifact(p.path[1:],
-                                                    tag=tag,
-                                                    iter=meta.get('link_iteration', 0),
-                                                    project=project)
+                meta = self._get_db().read_artifact(
+                    p.path[1:],
+                    tag=tag,
+                    iter=meta.get('link_iteration', 0),
+                    project=project,
+                )
 
             meta = mlrun.artifacts.dict_to_artifact(meta)
         except Exception as e:
@@ -129,8 +138,7 @@ class StoreManager:
             meta, url = self.get_store_artifact(url, project)
 
         store, subpath = self.get_or_create_store(url)
-        return DataItem(key, store, subpath, url,
-                        meta=meta, artifact_url=artifact_url)
+        return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 
     def get_or_create_store(self, url):
         schema, endpoint, p = parseurl(url)
@@ -149,5 +157,3 @@ class StoreManager:
         store = schema_to_store(schema)(self, schema, storekey, endpoint)
         self._stores[storekey] = store
         return store, subpath
-
-

@@ -34,8 +34,7 @@ def write_kfpmeta(struct):
     results = struct['status'].get('results', {})
     metrics = {
         'metrics': [
-            {'name': k, 'numberValue': v, }
-            for k, v in results.items() if is_num(v)
+            {'name': k, 'numberValue': v} for k, v in results.items() if is_num(v)
         ],
     }
     with open(KFPMETA_DIR + 'mlpipeline-metrics.json', 'w') as f:
@@ -47,7 +46,7 @@ def write_kfpmeta(struct):
     output_artifacts, out_dict = get_kfp_outputs(
         struct['status'].get(run_keys.artifacts, []),
         struct['metadata'].get('labels', {}),
-        project
+        project,
     )
 
     results['run_id'] = results.get('run_id', '{}/{}'.format(project, uid))
@@ -58,8 +57,7 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            logger.info(
-                'writing artifact output: /tmp/{} = {}'.format(key, val))
+            logger.info('writing artifact output: /tmp/{} = {}'.format(key, val))
             with open('/tmp/{}'.format(key), 'w') as fp:
                 fp.write(val)
         except Exception:
@@ -72,11 +70,8 @@ def write_kfpmeta(struct):
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
     metadata = {
-        'outputs': output_artifacts + [{
-            'type': 'markdown',
-            'storage': 'inline',
-            'source': text
-        }]
+        'outputs': output_artifacts
+        + [{'type': 'markdown', 'storage': 'inline', 'source': text}]
     }
     with open(KFPMETA_DIR + 'mlpipeline-ui-metadata.json', 'w') as f:
         json.dump(metadata, f)
@@ -101,17 +96,18 @@ def get_kfp_outputs(artifacts, labels, project):
 
         viewer = output.get('viewer', '')
         if viewer in ['web-app', 'chart']:
-            meta = {'type': 'web-app',
-                    'source': target}
+            meta = {'type': 'web-app', 'source': target}
             outputs += [meta]
 
         elif viewer == 'table':
             header = output.get('header', None)
             if header and target.endswith('.csv'):
-                meta = {'type': 'table',
-                        'format': 'csv',
-                        'header': header,
-                        'source': target}
+                meta = {
+                    'type': 'table',
+                    'format': 'csv',
+                    'header': header,
+                    'source': target,
+                }
                 outputs += [meta]
 
         elif output['kind'] == 'dataset':
@@ -122,22 +118,38 @@ def get_kfp_outputs(artifacts, labels, project):
                 text = '## Dataset: {}  \n\n'.format(key) + tbl_md
                 del output['preview']
 
-                meta = {'type': 'markdown',
-                        'storage': 'inline',
-                        'source': text}
+                meta = {'type': 'markdown', 'storage': 'inline', 'source': text}
                 outputs += [meta]
 
     return outputs, out_dict
 
 
-def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
-             image: str = '', runobj=None, command: str = '',
-             secrets: list = None, params: dict = None, job_image=None,
-             hyperparams: dict = None, param_file: str = '', labels: dict = None,
-             selector: str = '', inputs: dict = None, outputs: list = None,
-             in_path: str = '', out_path: str = '', rundb: str = '',
-             mode: str = '', handler: str = '', more_args: list = None,
-             tuning_strategy=None, verbose=None):
+def mlrun_op(
+    name: str = '',
+    project: str = '',
+    function=None,
+    func_url=None,
+    image: str = '',
+    runobj=None,
+    command: str = '',
+    secrets: list = None,
+    params: dict = None,
+    job_image=None,
+    hyperparams: dict = None,
+    param_file: str = '',
+    labels: dict = None,
+    selector: str = '',
+    inputs: dict = None,
+    outputs: list = None,
+    in_path: str = '',
+    out_path: str = '',
+    rundb: str = '',
+    mode: str = '',
+    handler: str = '',
+    more_args: list = None,
+    tuning_strategy=None,
+    verbose=None,
+):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
     when using kubeflow pipelines, each step is wrapped in an mlrun_op
@@ -225,8 +237,14 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
 
     rundb = rundb or get_or_set_dburl()
     cmd = [
-        'python', '-m', 'mlrun', 'run', '--kfp', '--from-env', '--workflow',
-        '{{workflow.uid}}'
+        'python',
+        '-m',
+        'mlrun',
+        'run',
+        '--kfp',
+        '--from-env',
+        '--workflow',
+        '{{workflow.uid}}',
     ]
     file_outputs = {}
 
@@ -248,8 +266,11 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
 
         function_name = function.metadata.name
         if function.kind == 'dask':
-            image = image or function.spec.kfp_image \
-                    or 'mlrun/dask:{}'.format(config.version)
+            image = (
+                image
+                or function.spec.kfp_image
+                or 'mlrun/ml-base:{}'.format(config.version)
+            )
 
     image = image or config.kfp_image
 
@@ -295,16 +316,16 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
         cmd += ['--name', name]
     if func_url:
         cmd += ['-f', func_url]
-    for s in secrets:
-        cmd += ['-s', '{}={}'.format(s['kind'], s['source'])]
-    for p, val in params.items():
-        cmd += ['-p', '{}={}'.format(p, val)]
-    for x, val in hyperparams.items():
-        cmd += ['-x', '{}={}'.format(x, val)]
-    for i, val in inputs.items():
-        cmd += ['-i', '{}={}'.format(i, val)]
-    for l, val in labels.items():
-        cmd += ['--label', '{}={}'.format(l, val)]
+    for secret in secrets:
+        cmd += ['-s', '{}={}'.format(secret['kind'], secret['source'])]
+    for param, val in params.items():
+        cmd += ['-p', '{}={}'.format(param, val)]
+    for xpram, val in hyperparams.items():
+        cmd += ['-x', '{}={}'.format(xpram, val)]
+    for input_param, val in inputs.items():
+        cmd += ['-i', '{}={}'.format(input_param, val)]
+    for label, val in labels.items():
+        cmd += ['--label', '{}={}'.format(label, val)]
     for o in outputs:
         cmd += ['-o', '{}'.format(o)]
         file_outputs[o.replace('.', '_')] = '/tmp/{}'.format(o)
@@ -354,28 +375,45 @@ def mlrun_op(name: str = '', project: str = '', function=None, func_url=None,
     #     cop.container.add_env_variable(k8s_client.V1EnvVar(
     #         name='MLRUN_DBPATH', value=rundb))
     if code_env:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name='MLRUN_EXEC_CODE', value=code_env))
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(name='MLRUN_EXEC_CODE', value=code_env)
+        )
     if registry:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name='DEFAULT_DOCKER_REGISTRY', value=registry))
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(name='DEFAULT_DOCKER_REGISTRY', value=registry)
+        )
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(
             'MLRUN_NAMESPACE',
             value_from=k8s_client.V1EnvVarSource(
                 field_ref=k8s_client.V1ObjectFieldSelector(
-                    field_path='metadata.namespace'))))
+                    field_path='metadata.namespace'
+                )
+            ),
+        )
+    )
 
     if config.mpijob_crd_version:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version))
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version
+            )
+        )
 
     return cop
 
 
-def deploy_op(name, function, source='', dashboard='',
-              project='', models: dict = None, env: dict = None,
-              tag='', verbose=False):
+def deploy_op(
+    name,
+    function,
+    source='',
+    dashboard='',
+    project='',
+    models: dict = None,
+    env: dict = None,
+    tag='',
+    verbose=False,
+):
     from kfp import dsl
 
     models = {} if models is None else models
@@ -400,8 +438,7 @@ def deploy_op(name, function, source='', dashboard='',
         name=name,
         image=config.kfp_image,
         command=cmd,
-        file_outputs={'endpoint': '/tmp/output',
-                      'name': '/tmp/name'},
+        file_outputs={'endpoint': '/tmp/output', 'name': '/tmp/name'},
     )
     return cop
 
@@ -418,6 +455,7 @@ def add_env(env=None):
 
     def _add_env(task):
         from kubernetes import client as k8s_client
+
         for k, v in env.items():
             task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
         return task
@@ -425,8 +463,17 @@ def add_env(env=None):
     return _add_env
 
 
-def build_op(name, function=None, func_url=None, image=None, base_image=None, commands: list = None,
-             secret_name='', with_mlrun=True, skip_deployed=False):
+def build_op(
+    name,
+    function=None,
+    func_url=None,
+    image=None,
+    base_image=None,
+    commands: list = None,
+    secret_name='',
+    with_mlrun=True,
+    skip_deployed=False,
+):
     """build Docker image."""
 
     from kfp import dsl
@@ -465,24 +512,39 @@ def build_op(name, function=None, func_url=None, image=None, base_image=None, co
     )
 
     if 'DEFAULT_DOCKER_REGISTRY' in environ:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name='DEFAULT_DOCKER_REGISTRY', value=environ.get('DEFAULT_DOCKER_REGISTRY')))
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name='DEFAULT_DOCKER_REGISTRY',
+                value=environ.get('DEFAULT_DOCKER_REGISTRY'),
+            )
+        )
     if 'IGZ_NAMESPACE_DOMAIN' in environ:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name='IGZ_NAMESPACE_DOMAIN', value=environ.get('IGZ_NAMESPACE_DOMAIN')))
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name='IGZ_NAMESPACE_DOMAIN', value=environ.get('IGZ_NAMESPACE_DOMAIN')
+            )
+        )
 
-    is_v3io = function.spec.build.source and \
-              function.spec.build.source.startswith('v3io')
+    is_v3io = function.spec.build.source and function.spec.build.source.startswith(
+        'v3io'
+    )
     if 'V3IO_ACCESS_KEY' in environ and is_v3io:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(
-            name='V3IO_ACCESS_KEY', value=environ.get('V3IO_ACCESS_KEY')))
-    
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name='V3IO_ACCESS_KEY', value=environ.get('V3IO_ACCESS_KEY')
+            )
+        )
+
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(
             'MLRUN_NAMESPACE',
             value_from=k8s_client.V1EnvVarSource(
                 field_ref=k8s_client.V1ObjectFieldSelector(
-                    field_path='metadata.namespace'))))
+                    field_path='metadata.namespace'
+                )
+            ),
+        )
+    )
     return cop
 
 
@@ -490,6 +552,5 @@ def get_default_reg():
     if 'DEFAULT_DOCKER_REGISTRY' in environ:
         return environ.get('DEFAULT_DOCKER_REGISTRY')
     if 'IGZ_NAMESPACE_DOMAIN' in environ:
-        return 'docker-registry.{}:80'.format(
-            environ.get('IGZ_NAMESPACE_DOMAIN'))
+        return 'docker-registry.{}:80'.format(environ.get('IGZ_NAMESPACE_DOMAIN'))
     return ''

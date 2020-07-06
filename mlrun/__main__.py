@@ -35,11 +35,19 @@ from .builder import upload_tarball
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
-from .run import (new_function, import_function_to_dict, import_function,
-                  get_object)
+from .run import new_function, import_function_to_dict, import_function, get_object
 from .runtimes import RemoteRuntime, RunError
-from .utils import (list2dict, logger, run_keys, update_in, get_in,
-                    parse_function_uri, dict_to_yaml, pr_comment, RunNotifications)
+from .utils import (
+    list2dict,
+    logger,
+    run_keys,
+    update_in,
+    get_in,
+    parse_function_uri,
+    dict_to_yaml,
+    pr_comment,
+    RunNotifications,
+)
 
 
 @click.group()
@@ -49,29 +57,61 @@ def main():
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("url", type=str, required=False)
-@click.option('--param', '-p', default='', multiple=True,
-              help="parameter name and value tuples, e.g. -p x=37 -p y='text'")
+@click.option(
+    '--param',
+    '-p',
+    default='',
+    multiple=True,
+    help="parameter name and value tuples, e.g. -p x=37 -p y='text'",
+)
 @click.option('--inputs', '-i', multiple=True, help='input artifact')
 @click.option('--outputs', '-o', multiple=True, help='output artifact/result for kfp')
 @click.option('--in-path', help='default input path/url (prefix) for artifact')
 @click.option('--out-path', help='default output path/url (prefix) for artifact')
-@click.option('--secrets', '-s', multiple=True, help='secrets file=<filename> or env=ENV_KEY1,..')
+@click.option(
+    '--secrets', '-s', multiple=True, help='secrets file=<filename> or env=ENV_KEY1,..'
+)
 @click.option('--uid', help='unique run ID')
 @click.option('--name', help='run name')
 @click.option('--workflow', help='workflow name/id')
 @click.option('--project', help='project name/id')
 @click.option('--db', default='', help='save run results to path or DB url')
-@click.option('--runtime', '-r', default='', help='function spec dict, for pipeline usage')
-@click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines, do not use')
-@click.option('--hyperparam', '-x', default='', multiple=True,
-              help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]')
-@click.option('--param-file', default='', help='path to csv table of execution (hyper) params')
-@click.option('--selector', default='', help='how to select the best result from a list, e.g. max.accuracy')
-@click.option('--tuning-strategy', default='', help='hyperparam tuning strategy list | grid | random')
-@click.option('--func-url', '-f', default='', help='path/url of function yaml or function '
-                                                   'yaml or db://<project>/<name>[:tag]')
+@click.option(
+    '--runtime', '-r', default='', help='function spec dict, for pipeline usage'
+)
+@click.option(
+    '--kfp', is_flag=True, help='running inside Kubeflow Piplines, do not use'
+)
+@click.option(
+    '--hyperparam',
+    '-x',
+    default='',
+    multiple=True,
+    help='hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]',
+)
+@click.option(
+    '--param-file', default='', help='path to csv table of execution (hyper) params'
+)
+@click.option(
+    '--selector',
+    default='',
+    help='how to select the best result from a list, e.g. max.accuracy',
+)
+@click.option(
+    '--tuning-strategy',
+    default='',
+    help='hyperparam tuning strategy list | grid | random',
+)
+@click.option(
+    '--func-url',
+    '-f',
+    default='',
+    help='path/url of function yaml or function ' 'yaml or db://<project>/<name>[:tag]',
+)
 @click.option('--task', default='', help='path/url to task yaml')
-@click.option('--handler', default='', help='invoke function handler inside the code file')
+@click.option(
+    '--handler', default='', help='invoke function handler inside the code file'
+)
 @click.option('--mode', help='special run mode noctx | pass')
 @click.option('--schedule', help='cron schedule')
 @click.option('--from-env', is_flag=True, help='read the spec from the env var')
@@ -82,10 +122,39 @@ def main():
 @click.option('--watch', '-w', is_flag=True, help='watch/tail run log')
 @click.option('--verbose', is_flag=True, help='verbose log')
 @click.argument('run_args', nargs=-1, type=click.UNPROCESSED)
-def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
-        name, workflow, project, db, runtime, kfp, hyperparam, param_file,
-        selector, tuning_strategy, func_url, task, handler, mode, schedule,
-        from_env, dump, image, workdir, label, watch, verbose, run_args):
+def run(
+    url,
+    param,
+    inputs,
+    outputs,
+    in_path,
+    out_path,
+    secrets,
+    uid,
+    name,
+    workflow,
+    project,
+    db,
+    runtime,
+    kfp,
+    hyperparam,
+    param_file,
+    selector,
+    tuning_strategy,
+    func_url,
+    task,
+    handler,
+    mode,
+    schedule,
+    from_env,
+    dump,
+    image,
+    workdir,
+    label,
+    watch,
+    verbose,
+    run_args,
+):
     """Execute a task and inject parameters."""
 
     out_path = out_path or environ.get('MLRUN_ARTIFACT_PATH')
@@ -179,7 +248,9 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
-    set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
+    set_item(
+        runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source')
+    )
 
     if kfp or runobj.spec.verbose or verbose:
         print('MLRun version: {}'.format(get_version()))
@@ -208,21 +279,47 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
 @click.option('--project', help='project name')
 @click.option('--tag', default='', help='function tag')
 @click.option('--image', '-i', help='target image path')
-@click.option('--source', '-s', default='',
-              help='location/url of the source files dir/tar')
+@click.option(
+    '--source', '-s', default='', help='location/url of the source files dir/tar'
+)
 @click.option('--base-image', '-b', help='base docker image')
-@click.option('--command', '-c', default='', multiple=True,
-              help="build commands, e.g. '-c pip install pandas'")
+@click.option(
+    '--command',
+    '-c',
+    default='',
+    multiple=True,
+    help="build commands, e.g. '-c pip install pandas'",
+)
 @click.option('--secret-name', default='', help='container registry secret name')
 @click.option('--archive', '-a', default='', help='destination archive for code (tar)')
 @click.option('--silent', is_flag=True, help='do not show build logs')
 @click.option('--with-mlrun', is_flag=True, help='add MLRun package')
 @click.option('--db', default='', help='save run results to path or DB url')
-@click.option('--runtime', '-r', default='', help='function spec dict, for pipeline usage')
-@click.option('--kfp', is_flag=True, help='running inside Kubeflow Piplines, do not use')
+@click.option(
+    '--runtime', '-r', default='', help='function spec dict, for pipeline usage'
+)
+@click.option(
+    '--kfp', is_flag=True, help='running inside Kubeflow Piplines, do not use'
+)
 @click.option('--skip', is_flag=True, help='skip if already deployed')
-def build(func_url, name, project, tag, image, source, base_image, command,
-          secret_name, archive, silent, with_mlrun, db, runtime, kfp, skip):
+def build(
+    func_url,
+    name,
+    project,
+    tag,
+    image,
+    source,
+    base_image,
+    command,
+    secret_name,
+    archive,
+    silent,
+    with_mlrun,
+    db,
+    runtime,
+    kfp,
+    skip,
+):
     """Build a container image from code and requirements."""
 
     if db:
@@ -278,8 +375,9 @@ def build(func_url, name, project, tag, image, source, base_image, command,
         src = b.source or './'
         logger.info('uploading data from {} to {}'.format(src, archive))
         target = archive if archive.endswith('/') else archive + '/'
-        target += 'src-{}-{}-{}.tar.gz'.format(meta.project, meta.name,
-                                               meta.tag or 'latest')
+        target += 'src-{}-{}-{}.tar.gz'.format(
+            meta.project, meta.name, meta.tag or 'latest'
+        )
         upload_tarball(src, target)
         # todo: replace function.yaml inside the tar
         b.source = target
@@ -287,8 +385,9 @@ def build(func_url, name, project, tag, image, source, base_image, command,
     if hasattr(func, 'deploy'):
         logger.info('remote deployment started')
         try:
-            func.deploy(with_mlrun=with_mlrun, watch=not silent,
-                        is_kfp=kfp, skip_deployed=skip)
+            func.deploy(
+                with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
+            )
         except Exception as err:
             print('deploy error, {}'.format(err))
             exit(1)
@@ -360,8 +459,9 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("pod", type=str)
 @click.option('--namespace', '-n', help='kubernetes namespace')
-@click.option('--timeout', '-t', default=600, show_default=True,
-              help='timeout in seconds')
+@click.option(
+    '--timeout', '-t', default=600, show_default=True, help='timeout in seconds'
+)
 def watch(pod, namespace, timeout):
     """Read current or previous task (pod) logs."""
     k8s = K8sHelper(namespace)
@@ -420,8 +520,10 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             return
 
         runs = mldb.list_runs(uid=uid, project=project, labels=selector)
-        df = runs.to_df()[['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']]
-        #df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
+        df = runs.to_df()[
+            ['name', 'uid', 'iter', 'start', 'state', 'parameters', 'results']
+        ]
+        # df['uid'] = df['uid'].apply(lambda x: '..{}'.format(x[-6:]))
         df['start'] = df['start'].apply(time_str)
         df['parameters'] = df['parameters'].apply(dict_to_str)
         df['results'] = df['results'].apply(dict_to_str)
@@ -430,7 +532,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     elif kind.startswith('art'):
         mldb = get_run_db().connect()
         artifacts = mldb.list_artifacts(name, project=project, tag=tag, labels=selector)
-        df = artifacts.to_df()[['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']]
+        df = artifacts.to_df()[
+            ['tree', 'key', 'iter', 'kind', 'path', 'hash', 'updated']
+        ]
         df['tree'] = df['tree'].apply(lambda x: '..{}'.format(x[-8:]))
         df['hash'] = df['hash'].apply(lambda x: '..{}'.format(x[-6:]))
         print(tabulate(df, headers='keys'))
@@ -449,13 +553,17 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             line = [
                 get_in(f, 'kind', ''),
                 get_in(f, 'status.state', ''),
-                '{}:{}'.format(get_in(f, 'metadata.name'), get_in(f, 'metadata.tag', '')),
+                '{}:{}'.format(
+                    get_in(f, 'metadata.name'), get_in(f, 'metadata.tag', '')
+                ),
                 get_in(f, 'metadata.hash', ''),
             ]
             lines.append(line)
         print(tabulate(lines, headers=headers))
     else:
-        print('currently only get pods | runs | artifacts | func [name] | runtime are supported')
+        print(
+            'currently only get pods | runs | artifacts | func [name] | runtime are supported'
+        )
 
 
 @main.command()
@@ -507,34 +615,70 @@ def logs(uid, project, offset, db, watch):
 @click.option('--name', '-n', help='project name')
 @click.option('--url', '-u', help='remote git or archive url')
 @click.option('--run', '-r', help='run workflow name of .py file')
-@click.option('--arguments', '-a', default='', multiple=True,
-              help='Kubeflow pipeline arguments name and value tuples, e.g. -a x=6')
+@click.option(
+    '--arguments',
+    '-a',
+    default='',
+    multiple=True,
+    help='Kubeflow pipeline arguments name and value tuples, e.g. -a x=6',
+)
 @click.option('--artifact-path', '-p', help='output artifacts path')
-@click.option('--param', '-x', default='', multiple=True,
-              help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'")
-@click.option('--secrets', '-s', multiple=True, help='secrets file=<filename> or env=ENV_KEY1,..')
+@click.option(
+    '--param',
+    '-x',
+    default='',
+    multiple=True,
+    help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'",
+)
+@click.option(
+    '--secrets', '-s', multiple=True, help='secrets file=<filename> or env=ENV_KEY1,..'
+)
 @click.option('--namespace', help='k8s namespace')
 @click.option('--db', help='api and db service path/url')
 @click.option('--init-git', is_flag=True, help='for new projects init git context')
-@click.option('--clone', '-c', is_flag=True, help='force override/clone the context dir')
+@click.option(
+    '--clone', '-c', is_flag=True, help='force override/clone the context dir'
+)
 @click.option('--sync', is_flag=True, help='sync functions into db')
-@click.option('--watch', '-w', is_flag=True, help='wait for pipeline completion (with -r flag)')
+@click.option(
+    '--watch', '-w', is_flag=True, help='wait for pipeline completion (with -r flag)'
+)
 @click.option('--dirty', '-d', is_flag=True, help='allow git with uncommited changes')
 @click.option('--git-repo', help='git repo (org/repo) for git comments')
-@click.option('--git-issue', type=int, default=None, help='git issue number for git comments')
-def project(context, name, url, run, arguments, artifact_path,
-            param, secrets, namespace, db, init_git, clone, sync,
-            watch, dirty, git_repo, git_issue):
+@click.option(
+    '--git-issue', type=int, default=None, help='git issue number for git comments'
+)
+def project(
+    context,
+    name,
+    url,
+    run,
+    arguments,
+    artifact_path,
+    param,
+    secrets,
+    namespace,
+    db,
+    init_git,
+    clone,
+    sync,
+    watch,
+    dirty,
+    git_repo,
+    git_issue,
+):
     """load and/or run a project"""
     if db:
         mlconf.dbpath = db
 
     proj = load_project(context, url, name, init_git=init_git, clone=clone)
-    print('Loading project {}{} into {}:\n'.format(
-        proj.name, ' from ' + url if url else '', context))
+    print(
+        'Loading project {}{} into {}:\n'.format(
+            proj.name, ' from ' + url if url else '', context
+        )
+    )
 
-    if artifact_path and not ('://' in artifact_path or
-                              artifact_path.startswith('/')):
+    if artifact_path and not ('://' in artifact_path or artifact_path.startswith('/')):
         artifact_path = path.abspath(artifact_path)
     if param:
         proj.params = fill_params(param, proj.params)
@@ -561,9 +705,15 @@ def project(context, name, url, run, arguments, artifact_path,
         message = run = ''
         had_error = False
         try:
-            run = proj.run(run, workflow_path, arguments=args,
-                           artifact_path=artifact_path, namespace=namespace,
-                           sync=sync, dirty=dirty)
+            run = proj.run(
+                run,
+                workflow_path,
+                arguments=args,
+                artifact_path=artifact_path,
+                namespace=namespace,
+                sync=sync,
+                dirty=dirty,
+            )
         except Exception as e:
             print(traceback.format_exc())
             message = 'failed to run pipeline, {}'.format(e)
@@ -578,10 +728,14 @@ def project(context, name, url, run, arguments, artifact_path,
                 if proj.params and 'commit' in proj.params:
                     message += ', commit={}'.format(proj.params['commit'])
                 if mlconf.ui_url:
-                    temp = '<div><a href="{}/projects/{}/jobs" target=' +\
-                           ' "_blank">click here to check progress</a></div>'
+                    temp = (
+                        '<div><a href="{}/projects/{}/jobs" target='
+                        + ' "_blank">click here to check progress</a></div>'
+                    )
                     message += temp.format(mlconf.ui_url, proj.name)
-            pr_comment(git_repo, git_issue, message, token=proj.get_secret('GITHUB_TOKEN'))
+            pr_comment(
+                git_repo, git_issue, message, token=proj.get_secret('GITHUB_TOKEN')
+            )
 
         if had_error:
             exit(1)
@@ -589,7 +743,9 @@ def project(context, name, url, run, arguments, artifact_path,
         if watch:
             n = RunNotifications(with_slack=True).print()
             if gitops:
-                n.git_comment(git_repo, git_issue, token=proj.get_secret('GITHUB_TOKEN'))
+                n.git_comment(
+                    git_repo, git_issue, token=proj.get_secret('GITHUB_TOKEN')
+                )
             proj.get_run_status(run, notifiers=n)
 
     elif sync:
@@ -602,14 +758,20 @@ def project(context, name, url, run, arguments, artifact_path,
 @click.argument('object_id', metavar='id', type=str, default='', required=False)
 @click.option('--api', help='api and db service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')
-@click.option('--force', '-f', is_flag=True,
-              help='clean resources in transient states as well')
+@click.option(
+    '--force', '-f', is_flag=True, help='clean resources in transient states as well'
+)
 def clean(kind, object_id, api, label_selector, force):
     """Clean runtime resources"""
     mldb = get_run_db(api or mlconf.dbpath).connect()
     if kind:
         if object_id:
-            mldb.delete_runtime_object(kind=kind, object_id=object_id, label_selector=label_selector, force=force)
+            mldb.delete_runtime_object(
+                kind=kind,
+                object_id=object_id,
+                label_selector=label_selector,
+                force=force,
+            )
         else:
             mldb.delete_runtime(kind=kind, label_selector=label_selector, force=force)
     else:
@@ -628,10 +790,9 @@ def fill_params(params, params_dict=None):
         i = param.find('=')
         if i == -1:
             continue
-        key, value = param[:i].strip(), param[i + 1:].strip()
+        key, value = param[:i].strip(), param[i + 1 :].strip()
         if key is None:
-            raise ValueError(
-                'cannot find param key in line ({})'.format(param))
+            raise ValueError('cannot find param key in line ({})'.format(param))
         params_dict[key] = py_eval(value)
     return params_dict
 
@@ -658,7 +819,7 @@ def line2keylist(lines: list, keyname='key', valname='path'):
         i = line.find('=')
         if i == -1:
             raise ValueError('cannot find "=" in line ({}={})'.format(keyname, valname))
-        key, value = line[:i].strip(), line[i + 1:].strip()
+        key, value = line[:i].strip(), line[i + 1 :].strip()
         if key is None:
             raise ValueError('cannot find key in line ({}={})'.format(keyname, valname))
         value = path.expandvars(value)

@@ -16,8 +16,8 @@ router = APIRouter()
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
 @router.post("/project")
 def add_project(
-        project: schemas.ProjectCreate,
-        db_session: Session = Depends(deps.get_db_session)):
+    project: schemas.ProjectCreate, db_session: Session = Depends(deps.get_db_session)
+):
     project_id = get_db().add_project(db_session, project.dict())
     return {
         "id": project_id,
@@ -28,18 +28,17 @@ def add_project(
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
 @router.post("/project/{name}")
 def update_project(
-        project: schemas.ProjectUpdate,
-        name: str,
-        db_session: Session = Depends(deps.get_db_session)):
+    project: schemas.ProjectUpdate,
+    name: str,
+    db_session: Session = Depends(deps.get_db_session),
+):
     get_db().update_project(db_session, name, project.dict(exclude_unset=True))
     return {}
 
 
 # curl http://localhost:8080/project/<name>
 @router.get("/project/{name}", response_model=schemas.ProjectOut)
-def get_project(
-        name: str,
-        db_session: Session = Depends(deps.get_db_session)):
+def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
     project = get_db().get_project(db_session, name)
     if not project:
         log_and_raise(error=f"project {name!r} not found")
@@ -53,9 +52,7 @@ def get_project(
 
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects")
-def list_projects(
-        full: str = "no",
-        db_session: Session = Depends(deps.get_db_session)):
+def list_projects(full: str = "no", db_session: Session = Depends(deps.get_db_session)):
     full = strtobool(full)
     fn = db2dict if full else attrgetter("name")
     projects = []

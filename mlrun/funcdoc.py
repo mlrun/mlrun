@@ -122,8 +122,8 @@ def rst_read_section(lines, i):
 
     tag = match.group(1)
     value = match.group(2).strip() if match.group(2) else ''
-    text = lines[i][match.end():].lstrip()
-    for i in range(i+1, len(lines)):
+    text = lines[i][match.end() :].lstrip()
+    for i in range(i + 1, len(lines)):
         if re.match(r'\t+| {3,}', lines[i]):
             text += ' ' + lines[i].lstrip()
         else:
@@ -165,7 +165,7 @@ def ast_func_info(func: ast.FunctionDef):
     params = [ast_param_dict(p) for p in func.args.args]
     defaults = func.args.defaults
     if defaults:
-        for param, default in zip(params[-len(defaults):], defaults):
+        for param, default in zip(params[-len(defaults) :], defaults):
             param['default'] = ast_code(default)
 
     out = func_dict(

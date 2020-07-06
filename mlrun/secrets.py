@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from ast import literal_eval
-from .utils import list2dict, run_keys
+from .utils import list2dict
 from os import environ
 
 

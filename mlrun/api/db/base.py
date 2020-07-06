@@ -21,7 +21,6 @@ class DBError(Exception):
 
 
 class DBInterface(ABC):
-
     @abstractmethod
     def initialize(self, session):
         pass
@@ -48,8 +47,17 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_runs(
-            self, session, name="", uid=None, project="", labels=None,
-            state="", sort=True, last=0, iter=False):
+        self,
+        session,
+        name="",
+        uid=None,
+        project="",
+        labels=None,
+        state="",
+        sort=True,
+        last=0,
+        iter=False,
+    ):
         pass
 
     @abstractmethod
@@ -61,7 +69,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, session, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, session, key, artifact, uid, iter=None, tag="", project=""
+    ):
         pass
 
     @abstractmethod
@@ -70,8 +80,8 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-            self, session, name="", project="", tag="", labels=None,
-            since=None, until=None):
+        self, session, name="", project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     @abstractmethod
@@ -79,20 +89,22 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_artifacts(
-            self, session, name="", project="", tag="", labels=None):
+    def del_artifacts(self, session, name="", project="", tag="", labels=None):
         pass
 
     # TODO: Make these abstract once filedb implements them
     def store_metric(
-            self, session, uid, project="", keyvals=None, timestamp=None, labels=None):
+        self, session, uid, project="", keyvals=None, timestamp=None, labels=None
+    ):
         warnings.warn("store_metric not implemented yet")
 
     def read_metric(self, session, keys, project="", query=""):
         warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
-    def store_function(self, session, function, name, project="", tag="", versioned=False):
+    def store_function(
+        self, session, function, name, project="", tag="", versioned=False
+    ):
         pass
 
     @abstractmethod

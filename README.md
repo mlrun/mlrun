@@ -1,15 +1,19 @@
 <a id="top"></a>
-# MLRun
-
-[![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
+[![Build Status](https://github.com/mlrun/mlrun/workflows/CI/badge.svg)](https://github.com/mlrun/mlrun/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically tracking executed code, metadata, inputs, and outputs.
+<p align="left"><img src="docs/_static/images/MLRun-logo.png" width="150"/></p>
+
+MLRun is a generic and convenient mechanism for data scientists and software developers to build, run, and monitor 
+machine learning (ML) tasks and pipelines on a scalable cluster while automatically tracking executed code, metadata, inputs, and outputs.
 MLRun integrates with the [Nuclio](https://nuclio.io/) serverless project and with [Kubeflow Pipelines](https://github.com/kubeflow/pipelines).
 
 MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), and a graphical user interface (the MLRun dashboard).
+
+Read more [**detailed documentation here**](https://mlrun.readthedocs.io/en/latest/)
 
 #### In This Document
 - [General Concept and Motivation](#concepts-n-motivation)
@@ -72,32 +76,10 @@ To install and run MLRun locally using Docker or Kubernetes, see the instruction
 <a id="installation-iguazio-platform"></a>
 ### Installation on the Iguazio Data Science Platform
 
-To install MLRun on an instance of the [Iguazio Data Science Platform](https://www.iguazio.com) (**"the platform"**) &mdash;
+MLRun runs as a service on the [Iguazio Data Science Platform](https://www.iguazio.com) (version 2.8 and above) &mdash;
 
-1. Create a copy of the [**hack/mlrun-all.yaml**](hack/mlrun-all.yaml) configuration file; you can also rename your copy.
-    You can fetch the file from GitHub by running the following from a command line; to install a specific version of MLRun, replace `master` with the relevant version tag:
-    ```sh
-    curl -O https://raw.githubusercontent.com/mlrun/mlrun/master/hack/mlrun-all.yaml
-    ```
-    <!-- [c-mlrun-versions] TODO: When there are MLRun version tags, instruct
-      to replace `master` with the version tag for the MLRun version supported
-      for the current platform version. -->
+To access MLRun UI select it from the services screen, consult with Iguazio support for further details.
 
-2. Edit the configuration file to match your environment and desired configuration.
-    The following is required:
-
-    - Replace all `<...>` placeholders in the file.
-        Be sure to replace `<access key>` with a valid platform access key and `<default Docker registry URL>` with the URL of the default Docker Registry service of your platform cluster.
-
-        > **Note:** In platform cloud deployments, the URL of the default Docker Registry service is `docker-registry.default-tenant.<cluster DNS>:80`.
-        > Note the port number (80), which indicates a local on-cluster registry (unlike the default Docker port number).
-    - Uncomment the `volumes` and the`mlrun-api` container's `volumeMounts` configurations to add a volume for persisting data in the platform's data store (using the `v3io` data mount).
-    - Ensure that the value of the `V3IO_USERNAME` environment variable (`env`) and the `volumes.subPath` field are set to the name of a platform user with MLRun admin privileges (default: "admin").
-
-3. When you're ready, install MLRun by running the following from a platform command-line shell; replace `<namespace>` with your cluster's Kubernetes namespace, and `<configuration file>` with the path to your edited configuration file:
-    ```sh
-    kubectl apply -n <namespace> -f <configuration file>
-    ```
 
 [Back to top](#top)
 
@@ -107,7 +89,10 @@ To install MLRun on an instance of the [Iguazio Data Science Platform](https://w
 MLRun has many code examples and tutorial Jupyter notebooks with embedded documentation, ranging from examples of basic tasks to full end-to-end use-case applications, including the following; note that some of the examples are found in other mlrun GitHub repositories:
 
 - Learn MLRun basics &mdash; [**examples/mlrun_basics.ipynb**](examples/mlrun_basics.ipynb)
-- Convert local runs to Kubernetes jobs and create automated pipelines in a single notebook &mdash; [**examples/mlrun_jobs.ipynb**](examples/mlrun_jobs.ipynb)
+- Convert local runs to Kubernetes jobs and create automated pipelines &mdash; [**examples/mlrun_jobs.ipynb**](examples/mlrun_jobs.ipynb)
+  - build and end to end pipeline in a single notebook
+  - build custom containers and work with shared files and objects
+  - use model management APIs (log_model, get_model, update_model)
 - End-to-end ML pipeline&mdash; [**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe), including:
   - Data ingestion and analysis 
   - Model training
@@ -121,7 +106,9 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 - MLRun project and Git lifecycle &mdash;
   - Load a project from a remote Git location and run pipelines &mdash; [**examples/load-project.ipynb**](examples/load-project.ipynb)
   - Create a new project, functions, and pipelines, and upload to Git &mdash; [**examples/new-project.ipynb**](examples/new-project.ipynb)
-- Import and export functions using files or Git &mdash; [**examples/mlrun_export_import.ipynb**](examples/mlrun_export_import.ipynb)
+- Import and export functions using different modes &mdash; [**examples/mlrun_export_import.ipynb**](examples/mlrun_export_import.ipynb)
+  - save, auto-document, and upload functions 
+  - import functions and run as: module, local-run, and clusterd job
 - Query the MLRun DB &mdash; [**examples/mlrun_db.ipynb**](examples/mlrun_db.ipynb)
 
 <a id="additional-examples"></a>
@@ -200,7 +187,7 @@ Functions (function objects) can be created by using any of the following method
 - **`new_function`** &mdash; creates a function "from scratch" or from another function.
 - **`code_to_function`** &mdash; creates a function from local or remote source code or from a web notebook.
 - **`import_function`** &mdash; imports a function from a local or remote YAML function-configuration file or from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`).
-
+- **`function_to_module`** &mdash; import MLrun function or code as a local python module (can also be used inside another parent function) 
 You can use the `save` function method to save a function object in the MLRun database, or the `export` method to save a YAML function-configuration function to your preferred local or remote location.
 For function-method details and examples, see the embedded documentation/help text.
 
@@ -235,7 +222,7 @@ def iris_generator(context):
     iris_labels = pd.DataFrame(data=iris.target, columns=['label'])
     iris_dataset = pd.concat([iris_dataset, iris_labels], axis=1)
     context.logger.info('Saving Iris data set to "{}"'.format(context.out_path))
-    context.log_artifact(TableArtifact('iris_dataset', df=iris_dataset))
+    context.log_dataset('iris_dataset', df=iris_dataset)
 
 
 def xgb_train(context,
@@ -268,8 +255,11 @@ def xgb_train(context,
     best_preds = np.asarray([np.argmax(line) for line in preds])
 
     context.log_result('accuracy', float(accuracy_score(Y_test, best_preds)))
-    context.log_artifact('model', body=bytes(xgb_model.save_raw()),
-                         local_path=model_name, labels={'framework': 'xgboost'})
+    context.log_model('model', body=bytes(xgb_model.save_raw()), 
+                      model_file='model.txt', 
+                      metrics=context.results, parameters={'xx':'abc'},
+                      labels={'framework': 'xgboost'},
+                      artifact_path=context.artifact_subpath('models'))
 ```
 
 The example training function can be executed locally with parameters, and the run results and artifacts can be logged automatically into a database by using a single command, as demonstrated in the following example; the example sets the function's `eta` parameter:
@@ -534,7 +524,7 @@ You can view the results and perform operations on the database by using either 
 
 The MLRun dashboard is a graphical user interface (GUI) for working with MLRun and viewing run data.
 
-<br><p align="center"><img src="docs/assets/images/mlrunui.png" width="800"/></p><br>
+<br><p align="center"><img src="docs/_static/images/mlrunui.png" width="800"/></p><br>
 
 [Back to top](#top) / [Back to quick-start TOC](#qs-tutorial)
 

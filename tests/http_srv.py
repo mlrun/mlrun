@@ -23,14 +23,11 @@ def example_function(context, event):
 
 
 class Handler(BaseHTTPRequestHandler):
-
     def do_call(self):
         print(f'got {self.command} request to {self.path}')
-        body = self.rfile.read(
-            int(self.headers['Content-Length']))
+        body = self.rfile.read(int(self.headers['Content-Length']))
 
-        context, event = fake_nuclio_context(
-            body, headers=self.headers)
+        context, event = fake_nuclio_context(body, headers=self.headers)
 
         resp = self.handler_function(context, event)
 

@@ -7,9 +7,7 @@ from sqlalchemy.orm import Session
 from mlrun.run import new_function
 
 
-def test_tag(
-        db: Session, client: TestClient
-) -> None:
+def test_tag(db: Session, client: TestClient) -> None:
     prj = 'prj7'
     fn_name = 'fn_{}'.format
     for i in range(7):

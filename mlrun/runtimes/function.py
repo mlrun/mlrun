@@ -25,7 +25,11 @@ import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io, add_or_refresh_credentials, is_iguazio_endpoint
+from ..platforms.iguazio import (
+    mount_v3io,
+    add_or_refresh_credentials,
+    is_iguazio_endpoint,
+)
 from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in, tag_image
@@ -37,47 +41,90 @@ serving_handler = 'handler'
 default_max_replicas = 4
 
 
-def new_model_server(name, model_class: str, models: dict = None, filename='',
-                     protocol='', image='', endpoint='', explainer=False,
-                     workers=8, canary=None, handler=None):
+def new_model_server(
+    name,
+    model_class: str,
+    models: dict = None,
+    filename='',
+    protocol='',
+    image='',
+    endpoint='',
+    explainer=False,
+    workers=8,
+    canary=None,
+    handler=None,
+):
     f = RemoteRuntime()
     if not image:
         name, spec, code = nuclio.build_file(
-            filename, name=name, handler=serving_handler, kind='serving')
+            filename, name=name, handler=serving_handler, kind='serving'
+        )
         f.spec.base_spec = spec
     elif handler:
         f.spec.function_handler = handler
 
     f.metadata.name = name
-    f.serving(models, model_class, protocol, image=image, endpoint=endpoint,
-              explainer=explainer, workers=workers, canary=canary)
+    f.serving(
+        models,
+        model_class,
+        protocol,
+        image=image,
+        endpoint=endpoint,
+        explainer=explainer,
+        workers=workers,
+        canary=canary,
+    )
     return f
 
 
 class NuclioSpec(KubeResourceSpec):
-    def __init__(self, command=None, args=None, image=None, mode=None,
-                 entry_points=None, description=None, replicas=None,
-                 min_replicas=None, max_replicas=None,
-                 volumes=None, volume_mounts=None, env=None, resources=None,
-                 config=None, base_spec=None, no_cache=None,
-                 source=None, image_pull_policy=None, function_kind=None,
-                 service_account=None):
+    def __init__(
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        entry_points=None,
+        description=None,
+        replicas=None,
+        min_replicas=None,
+        max_replicas=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        config=None,
+        base_spec=None,
+        no_cache=None,
+        source=None,
+        image_pull_policy=None,
+        function_kind=None,
+        service_account=None,
+    ):
 
-        super().__init__(command=command,
-                         args=args,
-                         image=image,
-                         mode=mode,
-                         volumes=volumes,
-                         volume_mounts=volume_mounts,
-                         env=env,
-                         resources=resources,
-                         replicas=replicas,
-                         image_pull_policy=image_pull_policy,
-                         service_account=service_account)
+        super().__init__(
+            command=command,
+            args=args,
+            image=image,
+            mode=mode,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+            env=env,
+            resources=resources,
+            replicas=replicas,
+            image_pull_policy=image_pull_policy,
+            service_account=service_account,
+        )
 
-        super().__init__(command=command, args=args, image=image,
-                         mode=mode, build=None,
-                         entry_points=entry_points, description=description)
+        super().__init__(
+            command=command,
+            args=args,
+            image=image,
+            mode=mode,
+            build=None,
+            entry_points=entry_points,
+            description=description,
+        )
 
         self.base_spec = base_spec or ''
         self.function_kind = function_kind
@@ -86,7 +133,11 @@ class NuclioSpec(KubeResourceSpec):
         self.function_handler = ''
         self.no_cache = no_cache
         self.replicas = replicas
-        self.min_replicas = min_replicas or 0
+
+        # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the
+        #  x-nuclio-target header or to create the function with http trigger and invoke the function through it - so
+        #  we need to do one of the two
+        self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
 
     @property
@@ -124,11 +175,10 @@ class NuclioSpec(KubeResourceSpec):
         vols = []
         for name, vol in self._volumes.items():
             if name not in self._volume_mounts:
-                raise ValueError('found volume without a volume mount ({})'.format(name))
-            vols.append({
-                'volume': vol,
-                'volumeMount': self._volume_mounts[name],
-            })
+                raise ValueError(
+                    'found volume without a volume mount ({})'.format(name)
+                )
+            vols.append({'volume': vol, 'volumeMount': self._volume_mounts[name]})
         return vols
 
 
@@ -163,8 +213,7 @@ class RemoteRuntime(KubeResource):
         self.spec.config[key] = value
         return self
 
-    def add_volume(self, local, remote, name='fs',
-                   access_key='', user=''):
+    def add_volume(self, local, remote, name='fs', access_key='', user=''):
         raise Exception('deprecated, use .apply(mount_v3io())')
 
     def add_trigger(self, name, spec):
@@ -174,19 +223,22 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_v3io(self, local='', remote=''):
-        for key in ['V3IO_FRAMESD', 'V3IO_USERNAME',
-                    'V3IO_ACCESS_KEY', 'V3IO_API']:
+        for key in ['V3IO_FRAMESD', 'V3IO_USERNAME', 'V3IO_ACCESS_KEY', 'V3IO_API']:
             if key in environ:
                 self.set_env(key, environ[key])
         if local and remote:
             self.apply(mount_v3io(remote=remote, mount_path=local))
         return self
 
-    def with_http(self, workers=8, port=0, host=None,
-                  paths=None, canary=None, secret=None):
-        self.add_trigger('http', nuclio.HttpTrigger(
-            workers, port=port, host=host, paths=paths,
-            canary=canary, secret=secret))
+    def with_http(
+        self, workers=8, port=0, host=None, paths=None, canary=None, secret=None
+    ):
+        self.add_trigger(
+            'http',
+            nuclio.HttpTrigger(
+                workers, port=port, host=host, paths=paths, canary=canary, secret=secret
+            ),
+        )
         return self
 
     def add_model(self, key, model):
@@ -196,8 +248,16 @@ class RemoteRuntime(KubeResource):
         return self
 
     def serving(
-      self, models: dict = None, model_class='', protocol='', image='',
-      endpoint='', explainer=False, workers=8, canary=None):
+        self,
+        models: dict = None,
+        model_class='',
+        protocol='',
+        image='',
+        endpoint='',
+        explainer=False,
+        workers=8,
+        canary=None,
+    ):
 
         if models:
             for k, v in models.items():
@@ -213,9 +273,11 @@ class RemoteRuntime(KubeResource):
 
         if image:
             config = nuclio.config.new_config()
-            update_in(config, 'spec.handler',
-                      self.spec.function_handler or 'main:{}'.format(
-                          serving_handler))
+            update_in(
+                config,
+                'spec.handler',
+                self.spec.function_handler or 'main:{}'.format(serving_handler),
+            )
             update_in(config, 'spec.image', image)
             update_in(config, 'spec.build.codeEntryType', 'image')
             self.spec.base_spec = config
@@ -223,7 +285,6 @@ class RemoteRuntime(KubeResource):
         return self
 
     def deploy(self, dashboard='', project='', tag='', kind=None):
-
         def get_fullname(config, name, project, tag):
             if project:
                 name = '{}-{}'.format(project, name)
@@ -233,8 +294,7 @@ class RemoteRuntime(KubeResource):
             return name
 
         self.set_config('metadata.labels.mlrun/class', self.kind)
-        env_dict = {get_item_name(v): get_item_name(v, 'value')
-                    for v in self.spec.env}
+        env_dict = {get_item_name(v): get_item_name(v, 'value') for v in self.spec.env}
         spec = nuclio.ConfigSpec(env=env_dict, config=self.spec.config)
         spec.cmd = self.spec.build.commands or []
         project = project or self.metadata.project or 'default'
@@ -253,7 +313,8 @@ class RemoteRuntime(KubeResource):
             if kind:
                 raise ValueError('kind cannot be specified on built functions')
             config = nuclio.config.extend_config(
-                self.spec.base_spec, spec, tag, self.spec.build.code_origin)
+                self.spec.base_spec, spec, tag, self.spec.build.code_origin
+            )
             update_in(config, 'metadata.name', self.metadata.name)
             update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
             base_image = get_in(config, 'spec.build.baseImage')
@@ -263,25 +324,39 @@ class RemoteRuntime(KubeResource):
             logger.info('deploy started')
             name = get_fullname(config, self.metadata.name, project, tag)
             addr = nuclio.deploy.deploy_config(
-                config, dashboard, name=name,
-                project=project, tag=tag, verbose=self.verbose,
-                create_new=True)
+                config,
+                dashboard,
+                name=name,
+                project=project,
+                tag=tag,
+                verbose=self.verbose,
+                create_new=True,
+            )
         else:
 
             kind = kind if kind is not None else self.spec.function_kind
-            name, config, code = nuclio.build_file(self.spec.source,
-                                                   name=self.metadata.name,
-                                                   project=project,
-                                                   handler=handler,
-                                                   tag=tag, spec=spec,
-                                                   kind=kind,
-                                                   verbose=self.verbose)
+            name, config, code = nuclio.build_file(
+                self.spec.source,
+                name=self.metadata.name,
+                project=project,
+                handler=handler,
+                tag=tag,
+                spec=spec,
+                kind=kind,
+                verbose=self.verbose,
+            )
 
             update_in(config, 'spec.volumes', self.spec.to_nuclio_vol())
             name = get_fullname(config, name, project, tag)
             addr = deploy_config(
-                config, dashboard_url=dashboard, name=name, project=project,
-                tag=tag, verbose=self.verbose, create_new=True)
+                config,
+                dashboard_url=dashboard,
+                name=name,
+                project=project,
+                tag=tag,
+                verbose=self.verbose,
+                create_new=True,
+            )
 
         self.spec.command = 'http://{}'.format(addr)
         self.status.nuclio_name = name
@@ -291,20 +366,29 @@ class RemoteRuntime(KubeResource):
             self.save()
         return self.spec.command
 
-    def deploy_step(self, dashboard='', project='', models=None, env=None,
-                    tag=None, verbose=None):
+    def deploy_step(
+        self, dashboard='', project='', models=None, env=None, tag=None, verbose=None
+    ):
         models = {} if models is None else models
         name = 'deploy_{}'.format(self.metadata.name or 'function')
         project = project or self.metadata.project
-        dashboard = get_auth_filled_platform_dashboard_url(dashboard)
-        return deploy_op(name, self, dashboard=dashboard,
-                         project=project, models=models, env=env,
-                         tag=tag, verbose=verbose)
+        return deploy_op(
+            name,
+            self,
+            dashboard=dashboard,
+            project=project,
+            models=models,
+            env=env,
+            tag=tag,
+            verbose=verbose,
+        )
 
     def _raise_mlrun(self):
         if self.spec.function_kind != 'mlrun':
-            raise RunError('.run() can only be execute on "mlrun" kind'
-                           ', recreate with function kind "mlrun"')
+            raise RunError(
+                '.run() can only be execute on "mlrun" kind'
+                ', recreate with function kind "mlrun"'
+            )
 
     def _run(self, runobj: RunObject, execution):
         self._raise_mlrun()
@@ -317,12 +401,10 @@ class RemoteRuntime(KubeResource):
             command = '{}/{}'.format(command, runobj.spec.handler_name)
         headers = {'x-nuclio-log-level': log_level}
         try:
-            resp = requests.put(
-                command, json=runobj.to_dict(), headers=headers)
+            resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
             logger.error('error invoking function: {}'.format(err))
-            raise OSError(
-                'error: cannot run function at url {}'.format(command))
+            raise OSError('error: cannot run function at url {}'.format(command))
 
         if not resp.ok:
             logger.error('bad function resp!!\n{}'.format(resp.text))
@@ -345,7 +427,8 @@ class RemoteRuntime(KubeResource):
             command = '{}/{}'.format(command, runobj.spec.handler_name)
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            self.invoke_async(tasks, command, headers, secrets))
+            self.invoke_async(tasks, command, headers, secrets)
+        )
 
         loop.run_until_complete(future)
         return future.result()
@@ -365,9 +448,7 @@ class RemoteRuntime(KubeResource):
             for run in runs:
                 self.store_run(run)
                 run.spec.secret_sources = secrets or []
-                tasks.append(asyncio.ensure_future(
-                    submit(session, url, run, headers),
-                ))
+                tasks.append(asyncio.ensure_future(submit(session, url, run, headers),))
 
             for status, resp, logs, run in await asyncio.gather(*tasks):
 
@@ -391,8 +472,9 @@ def parse_logs(logs):
             if k not in ['time', 'level', 'name', 'message']:
                 extra.append('{}={}'.format(k, v))
         line['extra'] = ', '.join(extra)
-        line['time'] = datetime.fromtimestamp(
-            float(line['time'])/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        line['time'] = datetime.fromtimestamp(float(line['time']) / 1000).strftime(
+            '%Y-%m-%d %H:%M:%S.%f'
+        )
         lines += '{time}  {level:<6} {message}  {extra}\n'.format(**line)
 
     return lines
@@ -421,9 +503,10 @@ def get_auth_filled_platform_dashboard_url(dashboard: str) -> str:
 
     # todo: workaround for 2.8 use nuclio_dashboard_url for subdns name
     parsed_dbpath = urlparse(mlconf.dbpath)
-    user, control_session = add_or_refresh_credentials(parsed_dbpath.hostname)
+    user, control_session, _ = add_or_refresh_credentials(parsed_dbpath.hostname)
     return 'https://{}:{}@{}{}'.format(
         user,
         control_session,
-        mlconf.nuclio_dashboard_url or 'nuclio-api-ext',
-        parsed_dbpath.hostname[parsed_dbpath.hostname.find('.'):])
+        mlconf.nuclio_dashboard_url or 'nuclio-api',
+        parsed_dbpath.hostname[parsed_dbpath.hostname.find('.') :],
+    )

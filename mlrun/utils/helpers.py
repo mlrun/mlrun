@@ -15,11 +15,10 @@
 import time
 import hashlib
 import json
-import logging
+import sys
 import re
 from datetime import datetime, timezone
 from os import path, environ
-from sys import stdout
 
 import numpy as np
 import requests
@@ -28,7 +27,8 @@ from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-from .config import config
+from ..config import config
+from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -37,28 +37,7 @@ hub_prefix = 'hub://'
 DB_SCHEMA = 'store'
 
 
-def create_logger(stream=None):
-    level = logging.INFO
-    if config.log_level:
-        level = logging._checkLevel(config.log_level.upper())
-    handler = logging.StreamHandler(stream or stdout)
-    handler.setFormatter(logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
-    handler.setLevel(level)
-    logger = logging.getLogger('mlrun')
-    if not len(logger.handlers):
-        logger.addHandler(handler)
-    logger.setLevel(level)
-    logger.propagate = False
-    return logger
-
-
-def set_logger_level(level):
-    logger.setLevel(level)
-    for handler in logger.handlers:
-        handler.setLevel(level)
-
-
-logger = create_logger()
+logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
 is_ipython = False

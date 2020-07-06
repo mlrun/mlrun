@@ -24,7 +24,7 @@ from tempfile import mktemp
 
 from .kubejob import KubejobRuntime
 from ..model import RunObject
-from ..utils import logger, set_logger_level
+from ..utils import logger
 from ..execution import MLClientCtx
 from .base import BaseRuntime
 from .utils import log_std, global_context, RunError
@@ -193,7 +193,7 @@ class _DupStdout(object):
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
     old_level = logger.level
     if runobj.spec.verbose:
-        set_logger_level('DEBUG')
+        logger.set_logger_level('DEBUG')
     args_list = get_func_arg(handler, runobj, context)
 
     stdout = _DupStdout()
@@ -211,7 +211,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             err = str(e)
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
-            set_logger_level(old_level)
+            logger.set_logger_level(old_level)
 
     if cwd:
         os.chdir(old_dir)
@@ -219,7 +219,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     if val:
         context.log_result('return', val)
     context.commit()
-    set_logger_level(old_level)
+    logger.set_logger_level(old_level)
     return stdout.buf.getvalue(), err
 
 

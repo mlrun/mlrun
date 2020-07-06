@@ -64,6 +64,7 @@ setup(
         'mlrun.platforms',
         'mlrun.projects',
         'mlrun.artifacts',
+        'mlrun.utils',
         'mlrun.datastore',
         'mlrun.api',
         'mlrun.api.api',

@@ -139,9 +139,7 @@ class MLClientCtx(object):
         self._updated_child = True
 
     def set_logger_stream(self, stream):
-        handlers = self._logger.handlers
-        if len(handlers) > 0:
-            handlers[0].stream = stream
+        self._logger.replace_handler_stream('default', stream)
 
     def _init_dbs(self, rundb):
         if rundb:

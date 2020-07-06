@@ -17,8 +17,14 @@ import warnings
 from datetime import datetime
 
 from sqlalchemy import (
-    BLOB, TIMESTAMP, Column, ForeignKey, Integer, String, Table,
-    UniqueConstraint
+    BLOB,
+    TIMESTAMP,
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -57,8 +63,7 @@ def make_tag(table):
     class Tag(Base):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
-            UniqueConstraint(
-                "project", "name", "obj_id", name=f"_{table}_tags_uc"),
+            UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -75,8 +80,7 @@ def make_tag_v2(table):
     class Tag(Base):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
-            UniqueConstraint(
-                "project", "name", "obj_name", name=f"_{table}_tags_uc"),
+            UniqueConstraint("project", "name", "obj_name", name=f"_{table}_tags_uc"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -91,7 +95,6 @@ def make_tag_v2(table):
 # quell SQLAlchemy warnings on duplicate class name (Label)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-
 
     class Artifact(Base, HasStruct):
         __tablename__ = "artifacts"
@@ -110,7 +113,6 @@ with warnings.catch_warnings():
         body = Column(BLOB)
         labels = relationship(Label)
 
-
     class Function(Base, HasStruct):
         __tablename__ = "functions"
         __table_args__ = (
@@ -128,7 +130,6 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP)
         labels = relationship(Label)
 
-
     class Log(Base):
         __tablename__ = "logs"
 
@@ -136,7 +137,6 @@ with warnings.catch_warnings():
         uid = Column(String)
         project = Column(String)
         body = Column(BLOB)
-
 
     class Run(Base, HasStruct):
         __tablename__ = "runs"
@@ -156,38 +156,31 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
 
-
     class Schedule(Base, HasStruct):
         __tablename__ = "schedules"
 
         id = Column(Integer, primary_key=True)
         body = Column(BLOB)
 
-
     # Define "many to many" users/projects
     project_users = Table(
-        "project_users", Base.metadata,
+        "project_users",
+        Base.metadata,
         Column("project_id", Integer, ForeignKey("projects.id")),
         Column("user_id", Integer, ForeignKey("users.id")),
     )
 
-
     class User(Base):
         __tablename__ = "users"
-        __table_args__ = (
-            UniqueConstraint("name", name="_users_uc"),
-        )
+        __table_args__ = (UniqueConstraint("name", name="_users_uc"),)
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
 
-
     class Project(Base):
         __tablename__ = "projects"
         # For now since we use project name a lot
-        __table_args__ = (
-            UniqueConstraint("name", name="_projects_uc"),
-        )
+        __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
@@ -207,6 +200,7 @@ with warnings.catch_warnings():
         @spec.setter
         def spec(self, value):
             self._spec = pickle.dumps(value)
+
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]

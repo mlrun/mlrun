@@ -68,16 +68,22 @@ def resolve_mpijob_crd_version(api_context=False):
         mpijob_crd_version = config.mpijob_crd_version
 
         if not mpijob_crd_version:
-            in_k8s_cluster = get_k8s_helper(init=False).is_running_inside_kubernetes_cluster()
+            in_k8s_cluster = get_k8s_helper(
+                silent=True
+            ).is_running_inside_kubernetes_cluster()
             if in_k8s_cluster:
                 k8s_helper = get_k8s_helper()
                 namespace = k8s_helper.resolve_namespace()
 
                 # try resolving according to mpi-operator that's running
-                res = k8s_helper.list_pods(namespace=namespace, selector='component=mpi-operator')
+                res = k8s_helper.list_pods(
+                    namespace=namespace, selector='component=mpi-operator'
+                )
                 if len(res) > 0:
                     mpi_operator_pod = res[0]
-                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get('crd-version')
+                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
+                        'crd-version'
+                    )
             elif not in_k8s_cluster and not api_context:
                 # connect will populate the config from the server config
                 # TODO: something nicer
@@ -89,8 +95,10 @@ def resolve_mpijob_crd_version(api_context=False):
                 mpijob_crd_version = MPIJobCRDVersions.default()
 
         if mpijob_crd_version not in MPIJobCRDVersions.all():
-            raise ValueError(f'unsupported mpijob crd version: {mpijob_crd_version}. '
-                             f'supported versions: {MPIJobCRDVersions.all()}')
+            raise ValueError(
+                f'unsupported mpijob crd version: {mpijob_crd_version}. '
+                f'supported versions: {MPIJobCRDVersions.all()}'
+            )
         cached_mpijob_crd_version = mpijob_crd_version
 
     return cached_mpijob_crd_version
@@ -158,8 +166,12 @@ def add_code_metadata(path=''):
     path = path or './'
 
     try:
-        from git import (Repo, InvalidGitRepositoryError, GitCommandNotFound,
-                         NoSuchPathError)
+        from git import (
+            Repo,
+            InvalidGitRepositoryError,
+            GitCommandNotFound,
+            NoSuchPathError,
+        )
     except ImportError:
         return None
 
@@ -168,8 +180,7 @@ def add_code_metadata(path=''):
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
             return '{}#{}'.format(remotes[0], repo.head.commit.hexsha)
-    except (GitCommandNotFound, InvalidGitRepositoryError,
-            NoSuchPathError, ValueError):
+    except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):
         pass
     return None
 
@@ -191,16 +202,16 @@ def results_to_iter(results, runspec, execution):
         if task:
             state = get_in(task, ['status', 'state'])
             id = get_in(task, ['metadata', 'iteration'])
-            struct = {'param': get_in(task, ['spec', 'parameters'], {}),
-                      'output': get_in(task, ['status', 'results'], {}),
-                      'state': state,
-                      'iter': id,
-                      }
+            struct = {
+                'param': get_in(task, ['spec', 'parameters'], {}),
+                'output': get_in(task, ['status', 'results'], {}),
+                'state': state,
+                'iter': id,
+            }
             if state == 'error':
                 failed += 1
                 err = get_in(task, ['status', 'error'], '')
-                logger.error('error in task  {}:{} - {}'.format(
-                    execution.uid, id, err))
+                logger.error('error in task  {}:{} - {}'.format(execution.uid, id, err))
             elif state != 'completed':
                 running += 1
 
@@ -223,24 +234,32 @@ def results_to_iter(results, runspec, execution):
     criteria = runspec.spec.selector
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
-        logger.warning(f'no best result selected, check selector ({criteria}) or results')
+        logger.warning(
+            f'no best result selected, check selector ({criteria}) or results'
+        )
     if id:
         logger.info(f'best iteration={id}, used criteria {criteria}')
     task = results[item] if id and results else None
     execution.log_iteration_results(id, summary, task)
 
     csv_buffer = StringIO()
-    df.to_csv(
-        csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
+    df.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
     execution.log_artifact(
-        TableArtifact('iteration_results',
-                      body=csv_buffer.getvalue(),
-                      header=header,
-                      viewer='table'), local_path='iteration_results.csv')
+        TableArtifact(
+            'iteration_results',
+            body=csv_buffer.getvalue(),
+            header=header,
+            viewer='table',
+        ),
+        local_path='iteration_results.csv',
+    )
     if failed:
         execution.set_state(
             error='{} or {} tasks failed, check logs in db for details'.format(
-                failed, len(results)), commit=False)
+                failed, len(results)
+            ),
+            commit=False,
+        )
     elif running == 0:
         execution.set_state('completed', commit=False)
     execution.commit()
@@ -274,8 +293,9 @@ def apply_kfp(modify, cop, runtime):
     for k, v in cop.pod_annotations.items():
         runtime.metadata.annotations[k] = v
     if cop.container.env:
-        env_names = [e.name if hasattr(e, 'name') else e['name']
-                     for e in runtime.spec.env]
+        env_names = [
+            e.name if hasattr(e, 'name') else e['name'] for e in runtime.spec.env
+        ]
         for e in api.sanitize_for_serialization(cop.container.env):
             name = e['name']
             if name in env_names:
@@ -286,10 +306,8 @@ def apply_kfp(modify, cop, runtime):
         cop.container.env.clear()
 
     if cop.volumes and cop.container.volume_mounts:
-        vols = api.sanitize_for_serialization(
-            cop.volumes)
-        mounts = api.sanitize_for_serialization(
-            cop.container.volume_mounts)
+        vols = api.sanitize_for_serialization(cop.volumes)
+        mounts = api.sanitize_for_serialization(cop.container.volume_mounts)
         runtime.spec.update_vols_and_mounts(vols, mounts)
         cop.volumes.clear()
         cop.container.volume_mounts.clear()
@@ -297,7 +315,7 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def get_resource_labels(function, uid=None):
+def get_resource_labels(function, uid=None, name=None):
     meta = function.metadata
     labels = deepcopy(meta.labels)
     labels[mlrun_key + 'class'] = function.kind
@@ -307,6 +325,9 @@ def get_resource_labels(function, uid=None):
 
     if uid:
         labels[mlrun_key + 'uid'] = uid
+
+    if name:
+        labels[mlrun_key + 'name'] = name
 
     return labels
 
@@ -351,9 +372,7 @@ class k8s_resource:
 
     def clean_objects(self, namespace=None, selector=[], states=None):
         if not selector and not states:
-            raise ValueError(
-                'labels selector or states list must be specified')
+            raise ValueError('labels selector or states list must be specified')
         items = self.list_objects(namespace, selector, states)
         for item in items:
             self.del_object(item.metadata.name, item.metadata.namespace)
-

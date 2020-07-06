@@ -24,7 +24,7 @@ from tempfile import mktemp
 
 from .kubejob import KubejobRuntime
 from ..model import RunObject
-from ..utils import logger
+from ..utils import logger, set_logger_level
 from ..execution import MLClientCtx
 from .base import BaseRuntime
 from .utils import log_std, global_context, RunError
@@ -49,14 +49,15 @@ class HandlerRuntime(BaseRuntime):
         if self.spec.pythonpath:
             set_paths(self.spec.pythonpath)
 
-        context = MLClientCtx.from_dict(runobj.to_dict(),
-                                        rundb=self.spec.rundb,
-                                        autocommit=False,
-                                        tmp=tmp,
-                                        host=socket.gethostname())
+        context = MLClientCtx.from_dict(
+            runobj.to_dict(),
+            rundb=self.spec.rundb,
+            autocommit=False,
+            tmp=tmp,
+            host=socket.gethostname(),
+        )
         global_context.set(context)
-        sout, serr = exec_from_params(handler, runobj, context,
-                                      self.spec.workdir)
+        sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr)
         return context.to_dict()
 
@@ -84,23 +85,25 @@ class LocalRuntime(BaseRuntime):
             environ['MLRUN_DBPATH'] = self.spec.rundb
 
         handler = runobj.spec.handler
-        logger.info('starting local run: {} # {}'.format(
-            self.spec.command, handler or 'main'))
+        logger.debug(
+            'starting local run: {} # {}'.format(self.spec.command, handler or 'main')
+        )
 
         if handler:
             if self.spec.pythonpath:
                 set_paths(self.spec.pythonpath)
 
             mod, fn = load_module(self.spec.command, handler)
-            context = MLClientCtx.from_dict(runobj.to_dict(),
-                                            rundb=self.spec.rundb,
-                                            autocommit=False,
-                                            tmp=tmp,
-                                            host=socket.gethostname())
+            context = MLClientCtx.from_dict(
+                runobj.to_dict(),
+                rundb=self.spec.rundb,
+                autocommit=False,
+                tmp=tmp,
+                host=socket.gethostname(),
+            )
             mod.global_mlrun_context = context
             global_context.set(context)
-            sout, serr = exec_from_params(fn, runobj, context,
-                                          self.spec.workdir)
+            sout, serr = exec_from_params(fn, runobj, context, self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
             return context.to_dict()
 
@@ -116,9 +119,12 @@ class LocalRuntime(BaseRuntime):
                 if 'PYTHONPATH' in environ:
                     pypath = '{}:{}'.format(environ['PYTHONPATH'], pypath)
                 env = {'PYTHONPATH': pypath}
+            if runobj.spec.verbose:
+                if not env:
+                    env = {}
+                env['MLRUN_LOG_LEVEL'] = 'debug'
 
-            sout, serr = run_exec(cmd, self.spec.args, env=env,
-                                  cwd=self.spec.workdir)
+            sout, serr = run_exec(cmd, self.spec.args, env=env, cwd=self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
 
             try:
@@ -148,7 +154,7 @@ def load_module(file_name, handler):
     path = Path(file_name)
     mod_name = path.name
     if path.suffix:
-        mod_name = mod_name[:-len(path.suffix)]
+        mod_name = mod_name[: -len(path.suffix)]
     spec = imputil.spec_from_file_location(mod_name, file_name)
     if spec is None:
         raise RunError(f'cannot import from {file_name!r}')
@@ -156,7 +162,7 @@ def load_module(file_name, handler):
     spec.loader.exec_module(mod)
     try:
         fn = getattr(mod, handler)  # Will raise if name not found
-    except AttributeError as e:
+    except AttributeError:
         raise RunError('handler {} not found in {}'.format(handler, file_name))
 
     return mod, fn
@@ -171,8 +177,10 @@ def run_exec(cmd, args, env=None, cwd=None):
     return out.stdout.decode('utf-8'), err
 
 
-def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
-                     cwd=None):
+def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
+    old_level = logger.level
+    if runobj.spec.verbose:
+        set_logger_level('DEBUG')
     args_list = get_func_arg(handler, runobj, context)
 
     stdout = StringIO()
@@ -190,6 +198,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
             err = str(e)
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
+            set_logger_level(old_level)
 
     if cwd:
         os.chdir(old_dir)
@@ -197,6 +206,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx,
     if val:
         context.log_result('return', val)
     context.commit()
+    set_logger_level(old_level)
     return stdout.getvalue(), err
 
 

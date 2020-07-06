@@ -16,7 +16,6 @@ import time
 import hashlib
 import json
 import logging
-import pathlib
 import re
 from datetime import datetime, timezone
 from os import path, environ
@@ -25,6 +24,7 @@ from sys import stdout
 import numpy as np
 import requests
 import yaml
+from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
@@ -39,11 +39,10 @@ DB_SCHEMA = 'store'
 
 def create_logger(stream=None):
     level = logging.INFO
-    if config.log_level.lower() == 'debug':
-        level = logging.DEBUG
+    if config.log_level:
+        level = logging._checkLevel(config.log_level.upper())
     handler = logging.StreamHandler(stream or stdout)
-    handler.setFormatter(
-        logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
+    handler.setFormatter(logging.Formatter('[%(name)s] %(asctime)s %(message)s'))
     handler.setLevel(level)
     logger = logging.getLogger('mlrun')
     if not len(logger.handlers):
@@ -51,6 +50,12 @@ def create_logger(stream=None):
     logger.setLevel(level)
     logger.propagate = False
     return logger
+
+
+def set_logger_level(level):
+    logger.setLevel(level)
+    for handler in logger.handlers:
+        handler.setLevel(level)
 
 
 logger = create_logger()
@@ -67,6 +72,7 @@ except ImportError:
     pass
 
 if is_ipython:
+
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -212,7 +218,7 @@ def list2dict(lines: list):
         i = line.find('=')
         if i == -1:
             continue
-        key, value = line[:i].strip(), line[i + 1:].strip()
+        key, value = line[:i].strip(), line[i + 1 :].strip()
         if key is None:
             raise ValueError('cannot find key in line (key=value)')
         value = path.expandvars(value)
@@ -242,38 +248,46 @@ def int_representer(dumper, data):
     return dumper.represent_int(data)
 
 
+def date_representer(dumper, data):
+    if isinstance(data, np.datetime64):
+        value = str(data)
+    else:
+        value = data.isoformat()
+    return dumper.represent_scalar('tag:yaml.org,2002:timestamp', value)
+
+
 yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.integer, int_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.float64, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.floating, float_representer, Dumper=yaml.SafeDumper)
 yaml.add_representer(np.ndarray, numpy_representer_seq, Dumper=yaml.SafeDumper)
+yaml.add_representer(np.datetime64, date_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
 
 
 def dict_to_yaml(struct):
     try:
-        data = yaml.safe_dump(struct, default_flow_style=False,
-                              sort_keys=False)
+        data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as e:
-        raise ValueError('error: data result cannot be serialized to YAML'
-                         ', {} '.format(e))
+        raise ValueError(
+            'error: data result cannot be serialized to YAML' ', {} '.format(e)
+        )
     return data
 
 
 # solve numpy json serialization
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, np.integer):
+        if isinstance(obj, (int, str, float, list, dict)):
+            return obj
+        elif isinstance(obj, (np.integer, np.int64)):
             return int(obj)
-        elif isinstance(obj, np.floating) or isinstance(obj, np.float64):
+        elif isinstance(obj, (np.floating, np.float64)):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif isinstance(obj, pathlib.PosixPath):
-            return str(obj)
-        elif np.isnan(obj) or np.isinf(obj):
-            return str(obj)
         else:
-            return super(MyEncoder, self).default(obj)
+            return str(obj)
 
 
 def dict_to_json(struct):
@@ -301,14 +315,14 @@ def parse_function_uri(uri):
     if '/' in uri:
         loc = uri.find('/')
         project = uri[:loc]
-        uri = uri[loc + 1:]
+        uri = uri[loc + 1 :]
     if ':' in uri:
         loc = uri.find(':')
-        tag = uri[loc + 1:]
+        tag = uri[loc + 1 :]
         uri = uri[:loc]
     if '@' in uri:
         loc = uri.find('@')
-        hash_key = uri[loc + 1:]
+        hash_key = uri[loc + 1 :]
         uri = uri[:loc]
     return project, uri, tag, hash_key
 
@@ -316,11 +330,11 @@ def parse_function_uri(uri):
 def extend_hub_uri(uri):
     if not uri.startswith(hub_prefix):
         return uri
-    name = uri[len(hub_prefix):]
+    name = uri[len(hub_prefix) :]
     tag = 'master'
     if ':' in name:
         loc = name.find(':')
-        tag = name[loc + 1:]
+        tag = name[loc + 1 :]
         name = name[:loc]
     return config.hub_url.format(name=name, tag=tag)
 
@@ -370,8 +384,10 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 
     def _set_artifact_path(task):
         from kubernetes import client as k8s_client
-        task.add_env_variable(k8s_client.V1EnvVar(
-            name='MLRUN_ARTIFACT_PATH', value=artifact_path))
+
+        task.add_env_variable(
+            k8s_client.V1EnvVar(name='MLRUN_ARTIFACT_PATH', value=artifact_path)
+        )
         return task
 
     conf = PipelineConf()
@@ -388,8 +404,9 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 
 def tag_image(base: str):
     ver = config.images_tag or config.version
-    if ver and (base == 'mlrun/mlrun' or (
-            base.startswith('mlrun/ml-') and ':' not in base)):
+    if ver and (
+        base == 'mlrun/mlrun' or (base.startswith('mlrun/ml-') and ':' not in base)
+    ):
         base += ':' + ver
     return base
 
@@ -397,17 +414,21 @@ def tag_image(base: str):
 def get_artifact_target(item: dict, project=None):
     kind = item.get('kind')
     if kind in ['dataset', 'model'] and item.get('db_key'):
-        return '{}://{}/{}#{}'.format(DB_SCHEMA,
-                                      project or item.get('project'),
-                                      item.get('db_key'), item.get('tree'))
+        return '{}://{}/{}#{}'.format(
+            DB_SCHEMA,
+            project or item.get('project'),
+            item.get('db_key'),
+            item.get('tree'),
+        )
     return item.get('target_path')
 
 
-def pr_comment(repo: str, issue: int,
-               message: str, token=None):
+def pr_comment(repo: str, issue: int, message: str, token=None):
     token = token or environ.get('GITHUB_TOKEN')
-    headers = {'Accept': 'application/vnd.github.v3+json',
-               'Authorization': f'token {token}'}
+    headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': f'token {token}',
+    }
     url = f'https://api.github.com/repos/{repo}/issues/{issue}/comments'
 
     resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
@@ -438,7 +459,9 @@ def fill_function_hash(function_dict, tag=''):
     return hashkey
 
 
-def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs):
+def retry_until_successful(
+    interval: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+):
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
@@ -466,19 +489,25 @@ def retry_until_successful(interval: int, timeout: int, logger, verbose: bool, _
             # If next interval is within allowed time period - wait on interval, abort otherwise
             if timeout is None or time.time() + interval < start_time + timeout:
                 if logger is not None and verbose:
-                    logger.debug(f"Operation not yet successful, Retrying in {interval} seconds. exc: {exc}")
+                    logger.debug(
+                        f"Operation not yet successful, Retrying in {interval} seconds. exc: {exc}"
+                    )
 
                 time.sleep(interval)
             else:
                 break
 
     if logger is not None:
-        logger.warning(f"Operation did not complete on time. last exception: {last_exception}")
+        logger.warning(
+            f"Operation did not complete on time. last exception: {last_exception}"
+        )
 
-    raise Exception(f"failed to execute command by the given deadline."
-                    f" last_exception: {last_exception},"
-                    f" function_name: {_function.__name__},"
-                    f" timeout: {timeout}")
+    raise Exception(
+        f"failed to execute command by the given deadline."
+        f" last_exception: {last_exception},"
+        f" function_name: {_function.__name__},"
+        f" timeout: {timeout}"
+    )
 
 
 class RunNotifications:
@@ -497,8 +526,8 @@ class RunNotifications:
                 logger.warning(f'failed to push notification, {e}')
         if self.with_ipython and is_ipython:
             import IPython
-            IPython.display.display(IPython.display.HTML(
-                self._get_html(message, runs)))
+
+            IPython.display.display(IPython.display.HTML(self._get_html(message, runs)))
 
     def _get_html(self, message, runs):
         if self._html:
@@ -520,20 +549,25 @@ class RunNotifications:
                 else:
                     result = dict_to_str(r['status'].get('results', {}))
 
-                table.append([state,
-                              r['metadata']['name'],
-                              '..' + r['metadata']['uid'][-6:],
-                              result])
-            print(message + '\n' + tabulate(
-                table, headers=['status', 'name', 'uid', 'results']))
+                table.append(
+                    [
+                        state,
+                        r['metadata']['name'],
+                        '..' + r['metadata']['uid'][-6:],
+                        result,
+                    ]
+                )
+            print(
+                message
+                + '\n'
+                + tabulate(table, headers=['status', 'name', 'uid', 'results'])
+            )
 
         self._hooks.append(_print)
         return self
 
     def slack(self, webhook=''):
-        emoji = {'completed': ':smiley:',
-                 'running': ':man-running:',
-                 'error': ':x:'}
+        emoji = {'completed': ':smiley:', 'running': ':man-running:', 'error': ':x:'}
 
         template = '{}/projects/{}/jobs/{}/info'
 
@@ -549,7 +583,9 @@ class RunNotifications:
             for r in runs:
                 meta = r['metadata']
                 if config.ui_url:
-                    url = template.format(config.ui_url, meta.get('project'), meta.get('uid'))
+                    url = template.format(
+                        config.ui_url, meta.get('project'), meta.get('uid')
+                    )
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:
                     line = meta.get("name")
@@ -565,17 +601,17 @@ class RunNotifications:
 
             data = {
                 'blocks': [
-                    {"type": "section",
-                     "text": {"type": "mrkdwn", "text": message}
-                     }
+                    {"type": "section", "text": {"type": "mrkdwn", "text": message}}
                 ]
             }
 
             for i in range(0, len(fields), 8):
-                data['blocks'].append({"type": "section",
-                                       "fields": fields[i:i + 8]})
-            response = requests.post(webhook, data=json.dumps(
-                data), headers={'Content-Type': 'application/json'})
+                data['blocks'].append({"type": "section", "fields": fields[i : i + 8]})
+            response = requests.post(
+                webhook,
+                data=json.dumps(data),
+                headers={'Content-Type': 'application/json'},
+            )
             response.raise_for_status()
 
         self._hooks.append(_slack)
@@ -583,12 +619,12 @@ class RunNotifications:
 
     def git_comment(self, git_repo=None, git_issue=None, token=None):
         def _comment(message, runs):
-            pr_comment(git_repo or self._get_param('git_repo'),
-                       git_issue or self._get_param('git_issue'),
-                       self._get_html(message, runs),
-                       token=token)
+            pr_comment(
+                git_repo or self._get_param('git_repo'),
+                git_issue or self._get_param('git_issue'),
+                self._get_html(message, runs),
+                token=token,
+            )
 
         self._hooks.append(_comment)
         return self
-
-

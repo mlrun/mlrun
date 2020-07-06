@@ -81,8 +81,7 @@ def test_list_artifact_date(db: FileRunDB):
     arts = db.list_artifacts(project=prj, since=t2, tag='*')
     assert 4 == len(arts), 'since t2'
 
-    arts = db.list_artifacts(
-        project=prj, since=t1 + timedelta(days=1), tag='*')
+    arts = db.list_artifacts(project=prj, since=t1 + timedelta(days=1), tag='*')
     assert not arts, 'since t1+'
 
     arts = db.list_artifacts(project=prj, until=t2, tag='*')

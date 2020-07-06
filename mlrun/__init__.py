@@ -12,17 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically tracking executed code, metadata, inputs, and outputs.
-MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and with `Kubeflow Pipelines <https://github.com/kubeflow/pipelines>`_.
+MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks
+    related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically
+    tracking executed code, metadata, inputs, and outputs.
+MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and with `Kubeflow
+    Pipelines <https://github.com/kubeflow/pipelines>`_.
 
 The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` command-line interface (CLI).
 """
 
-__version__ = '0.4.9'
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .run import (get_or_create_ctx, new_function, code_to_function,
-                  import_function, run_pipeline, run_local, function_to_module,
-                  get_object, get_pipeline, wait_for_pipeline_completion)
+__version__ = '0.4.10'
+
+from .run import (
+    get_or_create_ctx,
+    new_function,
+    code_to_function,
+    import_function,
+    run_pipeline,
+    run_local,
+    function_to_module,
+    get_object,
+    get_pipeline,
+    wait_for_pipeline_completion,
+)
 from .db import get_run_db
 from .model import RunTemplate, NewTask, RunObject
 from .config import config as mlconf
@@ -46,8 +60,7 @@ if 'IGZ_NAMESPACE_DOMAIN' in environ:
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
-def set_environment(api_path: str = None, artifact_path: str = '',
-                    project: str = ''):
+def set_environment(api_path: str = None, artifact_path: str = '', project: str = ''):
     """set and test default config for: api path, artifact_path and project
 
     this function will try and read the configuration from the environment/api
@@ -78,7 +91,8 @@ def set_environment(api_path: str = None, artifact_path: str = '',
     if artifact_path.startswith('./'):
         artifact_path = path.abspath(artifact_path)
     elif not artifact_path.startswith('/') and '://' not in artifact_path:
-        raise ValueError('artifact_path must refer to an absolute path'
-                         ' or a valid url')
+        raise ValueError(
+            'artifact_path must refer to an absolute path' ' or a valid url'
+        )
     mlconf.artifact_path = artifact_path or mlconf.artifact_path
     return mlconf.artifact_path

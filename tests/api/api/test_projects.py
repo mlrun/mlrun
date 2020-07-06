@@ -5,9 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 
-def test_project(
-        db: Session, client: TestClient
-) -> None:
+def test_project(db: Session, client: TestClient) -> None:
     name1 = f'prj-{uuid4().hex}'
     prj1 = {
         'name': name1,

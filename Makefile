@@ -16,7 +16,7 @@ MLRUN_DOCKER_TAG ?= latest
 MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to something like "quay.io/"
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
-MLRUN_PACKAGE_TAG ?= 7bd139301fbb48b53796775656d108a6f5fe8116
+MLRUN_PACKAGE_TAG ?= 88771ff743d14ee09d6556c29c264ef83c20849c
 MLRUN_GITHUB_REPO ?= mlrun
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
@@ -27,18 +27,14 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
 MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
 
-
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-
 
 all:
 	$(error please pick a target)
 
-
 build: docker-images package-wheel ## Build all artifacts
 	@echo Done.
-
 
 DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
@@ -53,12 +49,10 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
 	@echo Done.
 
-
 push-docker-images: docker-images ## Push all docker images
 	@echo "Pushing images concurrently $(DEFAULT_IMAGES)"
 	@echo $(DEFAULT_IMAGES) | xargs -n 1 -P 5 docker push
 	@echo Done.
-
 
 print-docker-images: ## Print all docker images
 	@for image in $(DEFAULT_IMAGES); do \
@@ -197,7 +191,6 @@ api: ## Build mlrun-api docker image
 push-api: api ## Push api docker image
 	docker push $(MLRUN_API_IMAGE_NAME)
 
-
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 
 build-test: ## Build test docker image
@@ -209,10 +202,8 @@ build-test: ## Build test docker image
 push-test: build-test ## Push test docker image
 	docker push $(MLRUN_TEST_IMAGE_NAME)
 
-
 package-wheel: clean ## Build python package wheel
 	python setup.py bdist_wheel
-
 
 publish-package: package-wheel ## Publish python package wheel
 	python -m twine upload dist/mlrun-*.whl
@@ -226,16 +217,14 @@ clean: ## Clean python package build artifacts
 	rm -rf mlrun.egg-info
 	find . -name '*.pyc' -exec rm {} \;
 
-
 test-dockerized: build-test ## Run mlrun tests in docker container
 	docker run \
-		-ti \
+		-t \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME) make test
-
 
 test: clean ## Run mlrun tests
 	python -m pytest -v \
@@ -243,18 +232,8 @@ test: clean ## Run mlrun tests
 		-rf \
 		tests
 
-
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
-
-
-circleci: test-dockerized
-	docker run \
-		--rm \
-		-v $(PWD)/docs/_build:/mlrun/docs/_build \
-		$(MLRUN_TEST_IMAGE_NAME) \
-		make html-docs
-
 
 docs-requirements: ## Build docs requirements
 	cp requirements.txt docs/requirements.txt
@@ -264,7 +243,29 @@ html-docs: docs-requirements ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 
+html-docs-dockerized:
+	docker run \
+		--rm \
+		-v $(PWD)/docs/_build:/mlrun/docs/_build \
+		$(MLRUN_TEST_IMAGE_NAME) \
+		make html-docs
 
-.PHONY: all help build docker-images push-docker-images print-docker-images base models models-gpu mlrun serving api \
- build-test package-wheel publish-package clean test-dockerized test run-api-undockerized circleci docs-requirements \
- html-docs
+fmt:
+	@echo "Running black fmt..."
+	python -m black --skip-string-normalization .
+
+lint: flake8 fmt-check
+
+fmt-check:
+	@echo "Running black fmt check..."
+	python -m black --skip-string-normalization --check --diff -S .
+
+flake8:
+	@echo "Running flake8 lint..."
+	python -m flake8 .
+
+.PHONY: help all build docker-images push-docker-images print-docker-images base push-base base-legacy \
+	push-base-legacy models push-models models-legacy push-models-legacy models-gpu push-models-gpu models-gpu-legacy \
+	push-models-gpu-legacy mlrun push-mlrun serving push-serving api push-api build-test push-test package-wheel \
+	publish-package test-publish clean test-dockerized test run-api-undockerized docs-requirements html-docs \
+	html-docs-dockerized fmt lint fmt-check flake8

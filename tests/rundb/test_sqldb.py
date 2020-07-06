@@ -92,7 +92,8 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
     assert 2 == len(arts), 'since t2'
 
     arts = db.list_artifacts(
-        db_session, project=prj, since=t1 + timedelta(days=1), tag='*')
+        db_session, project=prj, since=t1 + timedelta(days=1), tag='*'
+    )
     assert not arts, 'since t1+'
 
     arts = db.list_artifacts(db_session, project=prj, until=t2, tag='*')
@@ -246,6 +247,7 @@ def test_cache_projects(db: SQLDB, db_session: Session):
     with patch(db, add_project=mock):
         db._create_project_if_not_exists(db_session, name)
     mock.assert_not_called()
+
 
 # def test_function_latest(db: SQLDB, db_session: Session):
 #     fn1, t1 = {'x': 1}, 'u83'

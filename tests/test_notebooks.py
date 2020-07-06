@@ -68,10 +68,10 @@ def test_notebook(notebook):
     with tmp_dockerfile.open('w') as out:
         out.write(code)
 
-    cmd = [
-        'docker', 'build',
-        '--file', str(tmp_dockerfile),
-        '--tag', docker_tag,
-    ] + args_cmd + ['.']
+    cmd = (
+        ['docker', 'build', '--file', str(tmp_dockerfile), '--tag', docker_tag]
+        + args_cmd
+        + ['.']
+    )
     out = run(cmd, cwd=root)
     assert out.returncode == 0, 'cannot build'

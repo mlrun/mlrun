@@ -19,17 +19,22 @@ router = APIRouter()
 @router.post("/submit_pipeline")
 @router.post("/submit_pipeline/")
 async def submit_pipeline(
-        request: Request,
-        namespace: str = config.namespace,
-        experiment_name: str = Query("Default", alias="experiment"),
-        run_name: str = Query("", alias="run")):
-    run_name = run_name or experiment_name + " " + datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    request: Request,
+    namespace: str = config.namespace,
+    experiment_name: str = Query("Default", alias="experiment"),
+    run_name: str = Query("", alias="run"),
+):
+    run_name = run_name or experiment_name + " " + datetime.now().strftime(
+        "%Y-%m-%d %H-%M-%S"
+    )
 
     data = await request.body()
     if not data:
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="post data is empty")
 
-    run = await run_in_threadpool(_submit_pipeline, request, data, namespace, experiment_name, run_name)
+    run = await run_in_threadpool(
+        _submit_pipeline, request, data, namespace, experiment_name, run_name
+    )
 
     return {
         "id": run.id,
@@ -40,8 +45,7 @@ async def submit_pipeline(
 # curl http://localhost:8080/pipelines/:id
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
-def get_pipeline(run_id,
-                 namespace: str = Query(config.namespace)):
+def get_pipeline(run_id, namespace: str = Query(config.namespace)):
 
     client = kfclient(namespace=namespace)
     try:
@@ -49,7 +53,9 @@ def get_pipeline(run_id,
         if run:
             run = run.to_dict()
     except Exception as e:
-        log_and_raise(HTTPStatus.INTERNAL_SERVER_ERROR, reason="get kfp error: {}".format(e))
+        log_and_raise(
+            HTTPStatus.INTERNAL_SERVER_ERROR, reason="get kfp error: {}".format(e)
+        )
 
     return run
 
@@ -67,7 +73,9 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
     elif " /zip" in ctype:
         ctype = ".zip"
     else:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="unsupported pipeline type {}".format(ctype))
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST, reason="unsupported pipeline type {}".format(ctype)
+        )
 
     logger.info("writing file {}".format(ctype))
 
@@ -80,8 +88,7 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
     try:
         client = kfclient(namespace=namespace)
         experiment = client.create_experiment(name=experiment_name)
-        run = client.run_pipeline(experiment.id, run_name, pipe_tmp,
-                                  params=arguments)
+        run = client.run_pipeline(experiment.id, run_name, pipe_tmp, params=arguments)
     except Exception as e:
         remove(pipe_tmp)
         log_and_raise(HTTPStatus.BAD_REQUEST, reason="kfp err: {}".format(e))

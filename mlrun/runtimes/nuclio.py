@@ -42,13 +42,17 @@ def nuclio_jobs_handler(context, event):
     if not paths or paths[0] not in context.globals:
         return context.Response(
             body='function name {} does not exist'.format(paths[0]),
-            content_type='text/plain', status_code=400)
+            content_type='text/plain',
+            status_code=400,
+        )
 
     fhandler = context.globals[paths[0]]
     if not inspect.isfunction(fhandler) or paths[0].startswith('_'):
         return context.Response(
             body='{} is not a public function handler'.format(paths[0]),
-            content_type='text/plain', status_code=400)
+            content_type='text/plain',
+            status_code=400,
+        )
 
     out = get_or_set_dburl()
     if out:
@@ -58,13 +62,15 @@ def nuclio_jobs_handler(context, event):
     if newspec and not isinstance(newspec, dict):
         newspec = json.loads(newspec)
 
-    ctx = MLClientCtx.from_dict(newspec, rundb=out,
-                                autocommit=False,
-                                log_stream=context.logger,
-                                host=socket.gethostname())
+    ctx = MLClientCtx.from_dict(
+        newspec,
+        rundb=out,
+        autocommit=False,
+        log_stream=context.logger,
+        host=socket.gethostname(),
+    )
 
-    args = get_func_arg(
-        fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx)
+    args = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx)
     try:
         val = fhandler(*args)
         if val:

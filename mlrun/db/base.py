@@ -49,8 +49,16 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_runs(
-            self, name='', uid=None, project='', labels=None,
-            state='', sort=True, last=0, iter=False):
+        self,
+        name='',
+        uid=None,
+        project='',
+        labels=None,
+        state='',
+        sort=True,
+        last=0,
+        iter=False,
+    ):
         pass
 
     @abstractmethod
@@ -71,8 +79,8 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-            self, name='', project='', tag='', labels=None,
-            since=None, until=None):
+        self, name='', project='', tag='', labels=None, since=None, until=None
+    ):
         pass
 
     @abstractmethod
@@ -80,13 +88,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_artifacts(
-            self, name='', project='', tag='', labels=None):
+    def del_artifacts(self, name='', project='', tag='', labels=None):
         pass
 
     # TODO: Make these abstract once filedb implements them
-    def store_metric(
-            self, uid, project='', keyvals=None, timestamp=None, labels=None):
+    def store_metric(self, uid, project='', keyvals=None, timestamp=None, labels=None):
         warnings.warn('store_metric not implemented yet')
 
     def read_metric(self, keys, project='', query=''):

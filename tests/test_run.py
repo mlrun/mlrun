@@ -15,7 +15,12 @@
 import pytest
 import pandas as pd
 from tests.conftest import (
-    examples_path, has_secrets, here, out_path, tag_test, verify_state
+    examples_path,
+    has_secrets,
+    here,
+    out_path,
+    tag_test,
+    verify_state,
 )
 from mlrun import NewTask, get_run_db, new_function
 
@@ -31,12 +36,15 @@ def my_func(context, p1=1, p2='a-string'):
     context.log_metric('loss', 7)
     context.log_artifact('chart', body='abc')
 
-    raw_data = {'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
-                'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
-                'age': [42, 52, 36, 24, 73],
-                'postTestScore': [25, 94, 57, 62, 70]}
-    df = pd.DataFrame(raw_data, columns=[
-        'first_name', 'last_name', 'age', 'postTestScore'])
+    raw_data = {
+        'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
+        'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
+        'age': [42, 52, 36, 24, 73],
+        'postTestScore': [25, 94, 57, 62, 70],
+    }
+    df = pd.DataFrame(
+        raw_data, columns=['first_name', 'last_name', 'age', 'postTestScore']
+    )
     context.log_dataset('mydf', df=df)
 
 
@@ -86,9 +94,10 @@ def test_handler_hyper():
     run_spec.with_hyper_params({'p1': [1, 5, 3]}, selector='max.accuracy')
     result = new_function().run(run_spec, handler=my_func)
     print(result)
-    assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
-    assert result.status.results['best_iteration'] == 2, \
-        'failed to select best iteration'
+    assert len(result.status.iterations) == 3 + 1, 'hyper parameters test failed'
+    assert (
+        result.status.results['best_iteration'] == 2
+    ), 'failed to select best iteration'
     verify_state(result)
 
 
@@ -97,38 +106,35 @@ def test_handler_hyperlist():
     run_spec.spec.param_file = '{}/param_file.csv'.format(here)
     result = new_function().run(run_spec, handler=my_func)
     print(result)
-    assert len(result.status.iterations) == 3+1, 'hyper parameters test failed'
+    assert len(result.status.iterations) == 3 + 1, 'hyper parameters test failed'
     verify_state(result)
 
 
 def test_local_runtime():
     spec = tag_test(base_spec, 'test_local_runtime')
-    result = new_function(command='{}/training.py'.format(
-        examples_path)).run(spec)
+    result = new_function(command='{}/training.py'.format(examples_path)).run(spec)
     verify_state(result)
 
 
 def test_local_runtime_hyper():
     spec = tag_test(base_spec, 'test_local_runtime_hyper')
     spec.with_hyper_params({'p1': [1, 5, 3]}, selector='max.accuracy')
-    result = new_function(command='{}/training.py'.format(
-        examples_path)).run(spec)
+    result = new_function(command='{}/training.py'.format(examples_path)).run(spec)
     verify_state(result)
 
 
 def test_local_handler():
     spec = tag_test(base_spec, 'test_local_runtime')
-    result = new_function(command='{}/handler.py'.format(
-        examples_path)).run(spec, handler='my_func')
+    result = new_function(command='{}/handler.py'.format(examples_path)).run(
+        spec, handler='my_func'
+    )
     verify_state(result)
 
 
 def test_local_no_context():
     spec = tag_test(base_spec, 'test_local_no_context')
     spec.spec.parameters = {'xyz': '789'}
-    result = new_function(
-        command='{}/no_ctx.py'.format(here),
-        mode='noctx').run(spec)
+    result = new_function(command='{}/no_ctx.py'.format(here), mode='noctx').run(spec)
     verify_state(result)
 
     db = get_run_db().connect()

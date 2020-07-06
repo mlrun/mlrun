@@ -42,7 +42,10 @@ def test_example(db, fname):
     env = environ.copy()
     env['MLRUN_httpdb__dsn'] = dsn
     cmd = [
-        executable, '-m', 'mlrun', 'run',
+        executable,
+        '-m',
+        'mlrun',
+        'run',
         path,
     ]
     out = run(cmd, env=env)

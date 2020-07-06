@@ -38,13 +38,13 @@ RUN python -m pip install --upgrade --no-cache pip
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/*requirements.txt ./
-
 COPY ./requirements.txt ./
+COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
+COPY ./dev-requirements.txt ./
 
 RUN pip install \
     -r dev-requirements.txt \
-    -r api-requirements.txt \
+    -r mlrun-api-requirements.txt \
     -r requirements.txt
 
 COPY . .

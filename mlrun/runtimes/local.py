@@ -58,7 +58,7 @@ class HandlerRuntime(BaseRuntime):
         )
         global_context.set(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
-        log_std(self._db_conn, runobj, sout, serr)
+        log_std(self._db_conn, runobj, sout, serr, show=False)
         return context.to_dict()
 
 
@@ -104,7 +104,7 @@ class LocalRuntime(BaseRuntime):
             mod.global_mlrun_context = context
             global_context.set(context)
             sout, serr = exec_from_params(fn, runobj, context, self.spec.workdir)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
             return context.to_dict()
 
         else:
@@ -177,13 +177,26 @@ def run_exec(cmd, args, env=None, cwd=None):
     return out.stdout.decode('utf-8'), err
 
 
+class _DupStdout(object):
+    def __init__(self):
+        self.terminal = sys.stdout
+        self.buf = StringIO()
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.buf.write(message)
+
+    def flush(self):
+        pass
+
+
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
     old_level = logger.level
     if runobj.spec.verbose:
         logger.set_logger_level('DEBUG')
     args_list = get_func_arg(handler, runobj, context)
 
-    stdout = StringIO()
+    stdout = _DupStdout()
     err = ''
     val = None
     old_dir = os.getcwd()
@@ -207,7 +220,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         context.log_result('return', val)
     context.commit()
     logger.set_logger_level(old_level)
-    return stdout.getvalue(), err
+    return stdout.buf.getvalue(), err
 
 
 def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):

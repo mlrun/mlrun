@@ -320,7 +320,7 @@ class DaskCluster(KubejobRuntime):
         client = self.client
         setattr(context, 'dask_client', client)
         sout, serr = exec_from_params(handler, runobj, context)
-        log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=self.kfp)
+        log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
         return context.to_dict()
 
 

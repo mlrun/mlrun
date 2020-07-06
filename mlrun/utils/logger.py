@@ -17,7 +17,7 @@ import logging
 from enum import Enum
 from sys import stdout
 from traceback import format_exception
-from typing import IO
+from typing import IO, Union
 
 from mlrun.config import config
 
@@ -88,8 +88,7 @@ class Logger(object):
     def level(self):
         return self._logger.level
 
-    def set_logger_level(self, level):
-        level = logging.getLevelName(level.upper())
+    def set_logger_level(self, level: Union[str, int]):
         self._logger.setLevel(level)
 
     def replace_handler_stream(self, handler_name: str, file: IO[str]):

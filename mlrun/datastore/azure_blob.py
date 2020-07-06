@@ -39,6 +39,7 @@ class AzureBlobStore(DataStore):
 
     def get(self, key, size=None, offset=0):
         blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
+        size = size if size else None
         return blob_client.download_blob(offset, size).readall()
 
     def put(self, key, data, append=False):

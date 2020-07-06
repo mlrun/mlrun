@@ -18,7 +18,8 @@ MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to somethin
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
-MLRUN_MLUTILS_GITHUB_TAG ?= 3794e129cebc4d0dfef8d22f303d9f33f30358b9
+MLRUN_MLUTILS_GITHUB_TAG ?= development
+MLRUN_MLUTILS_CACHE_DATE ?= $(date)
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -65,8 +66,8 @@ base: ## Build base docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=${MLRUN_MLUTILS_GITHUB_TAG} \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
+		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_MLUTILS_CACHE_DATE) \
 		--tag $(MLRUN_BASE_IMAGE_NAME) .
 
 push-base: base ## Push base docker image
@@ -81,7 +82,7 @@ base-legacy: ## Build base legacy docker image
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_MLUTILS_CACHE_DATE) \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME) .
 
 push-base-legacy: base-legacy ## Push base legacy docker image
@@ -95,7 +96,7 @@ models: ## Build models docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_MLUTILS_CACHE_DATE) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME) .
 
 push-models: models ## Push models docker image
@@ -109,7 +110,7 @@ models-legacy: ## Build models legacy docker image
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_MLUTILS_CACHE_DATE) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME) .
 
 push-models-legacy: models-legacy ## Push models legacy docker image
@@ -123,7 +124,7 @@ models-gpu: ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_MLUTILS_CACHE_DATE) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME) .
 
 push-models-gpu: models-gpu ## Push models gpu docker image
@@ -137,7 +138,7 @@ models-gpu-legacy: ## Build models-gpu legacy docker image
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
-		--build-arg MLRUN_MLUTILS_CACHE_DATE="$$(date)" \
+		--build-arg MLRUN_MLUTILS_CACHE_DATE=$(MLRUN_MLUTILS_CACHE_DATE) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME) .
 
 push-models-gpu-legacy: models-gpu-legacy ## Push models gpu legacy docker image

@@ -35,7 +35,7 @@ class AzureBlobStore(DataStore):
         # Need to strip leading / from key
         blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
         with open(src_path, 'rb') as data:
-            blob_client.upload_blob(data)
+            blob_client.upload_blob(data, overwrite=True)
 
     def get(self, key, size=None, offset=0):
         blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
@@ -44,7 +44,7 @@ class AzureBlobStore(DataStore):
     def put(self, key, data, append=False):
         blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
         # Note that append=True is not supported. If the blob already exists, this call will fail
-        blob_client.upload_blob(data)
+        blob_client.upload_blob(data, overwrite=True)
 
     def stat(self, key):
         blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])

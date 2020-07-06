@@ -228,7 +228,7 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
 
 docs-requirements: ## Build docs requirements
-	cp dockerfiles/common/requirements.txt docs/requirements.txt
+	cp requirements.txt docs/requirements.txt
 	echo numpydoc >> docs/requirements.txt
 
 html-docs: docs-requirements ## Build html docs

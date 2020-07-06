@@ -18,8 +18,6 @@ FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
-ARG OMPI=4.0.3
-
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
 
@@ -69,6 +67,8 @@ RUN mkdir -p /var/run/sshd && \
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
     mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
+
+ARG OMPI=4.0.3
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \

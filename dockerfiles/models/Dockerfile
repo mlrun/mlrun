@@ -3,8 +3,6 @@ FROM continuumio/anaconda3:2020.02
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
-ARG OMPI=4.0.3
-
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -yq \
@@ -33,6 +31,8 @@ RUN mkdir -p /var/run/sshd && \
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
     mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
+
+ARG OMPI=4.0.3
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \

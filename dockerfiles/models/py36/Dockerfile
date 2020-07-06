@@ -3,8 +3,6 @@ FROM continuumio/anaconda3:2020.02
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
-ARG OMPI=4.0.3
-
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -yq \
@@ -36,6 +34,8 @@ RUN mkdir -p /var/run/sshd && \
     # install horovod examples
     svn checkout https://github.com/horovod/horovod/trunk/examples && \
     rm -rf /examples/.svn
+
+ARG OMPI=4.0.3
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \

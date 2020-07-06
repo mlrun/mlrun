@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from traceback import format_exception
-from sys import stdout
-from enum import Enum
-from typing import IO
 import json
 import logging
+from enum import Enum
+from sys import stdout
+from traceback import format_exception
+from typing import IO
+
+from mlrun.config import config
 
 
 class JSONFormatter(logging.Formatter):
@@ -82,6 +84,10 @@ class Logger(object):
         # save as the named output
         self._handlers[handler_name] = stream_handler
 
+    def set_logger_level(self, level):
+        level = logging.getLevelName(level.upper())
+        self._logger.setLevel(level)
+
     def replace_handler_stream(self, handler_name: str, file: IO[str]):
         self._handlers[handler_name].stream = file
 
@@ -128,10 +134,12 @@ def _resolve_formatter(logger_formatter: LoggerFormatterEnum):
     }[logger_formatter]
 
 
-def create_logger(level: str = "debug",
+def create_logger(level: str = None,
                   formatter: str = LoggerFormatterEnum.HUMAN.name,
                   name: str = "mlrun",
                   stream=stdout):
+    level = level or config.log_level or 'info'
+
     level = logging.getLevelName(level.upper())
 
     # create logger instance
@@ -142,9 +150,5 @@ def create_logger(level: str = "debug",
 
     # set handler
     logger_instance.set_handler("default", stream or stdout, formatter)
-
-    # disable event propagation to higher classes
-    # TODO: Why?!
-    logger_instance.propagate = False
 
     return logger_instance

@@ -3,10 +3,10 @@ from io import StringIO
 
 import pytest
 
-from mlrun.utils.logger import create_logger, LoggerFormatterEnum, Logger
+from mlrun.utils.logger import create_logger, FormatterKinds, Logger
 
 
-@pytest.fixture(params=list(LoggerFormatterEnum.__members__))
+@pytest.fixture(params=[formatter_kind.name for formatter_kind in list(FormatterKinds)])
 def make_stream_logger(request) -> (StringIO, Logger):
     stream = StringIO()
     logger = create_logger("debug", request.param, "test-logger", stream)

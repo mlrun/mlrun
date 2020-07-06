@@ -122,20 +122,20 @@ class Logger(object):
         self._logger._log(level, message, args, exc_info)
 
 
-class LoggerFormatterEnum(Enum):
+class FormatterKinds(Enum):
     HUMAN = 'human'
     JSON = 'json'
 
 
-def _resolve_formatter(logger_formatter: LoggerFormatterEnum):
+def _create_formatter_instance(logger_formatter: FormatterKinds) -> logging.Formatter:
     return {
-        LoggerFormatterEnum.HUMAN: HumanReadableFormatter(),
-        LoggerFormatterEnum.JSON: JSONFormatter(),
+        FormatterKinds.HUMAN: HumanReadableFormatter(),
+        FormatterKinds.JSON: JSONFormatter(),
     }[logger_formatter]
 
 
 def create_logger(level: str = None,
-                  formatter: str = LoggerFormatterEnum.HUMAN.name,
+                  formatter_kind: str = FormatterKinds.HUMAN.name,
                   name: str = "mlrun",
                   stream=stdout):
     level = level or config.log_level or 'info'
@@ -146,9 +146,9 @@ def create_logger(level: str = None,
     logger_instance = Logger(level, name=name, propagate=False)
 
     # resolve formatter
-    formatter = _resolve_formatter(LoggerFormatterEnum(formatter.lower()))
+    formatter_instance = _create_formatter_instance(FormatterKinds(formatter_kind.lower()))
 
     # set handler
-    logger_instance.set_handler("default", stream or stdout, formatter)
+    logger_instance.set_handler("default", stream or stdout, formatter_instance)
 
     return logger_instance

@@ -42,7 +42,6 @@ class JSONFormatter(logging.Formatter):
 
 
 class HumanReadableFormatter(logging.Formatter):
-
     def __init__(self):
         super(HumanReadableFormatter, self).__init__()
 
@@ -55,7 +54,6 @@ class HumanReadableFormatter(logging.Formatter):
 
 
 class Logger(object):
-
     def __init__(self, level, name='mlrun', propagate=True):
         self._logger = logging.getLogger(name)
         self._logger.propagate = propagate
@@ -63,7 +61,9 @@ class Logger(object):
         self._bound_variables = {}
         self._handlers = {}
 
-    def set_handler(self, handler_name: str, file: IO[str], formatter: logging.Formatter):
+    def set_handler(
+        self, handler_name: str, file: IO[str], formatter: logging.Formatter
+    ):
 
         # check if there's a handler by this name
         if handler_name in self._handlers:
@@ -107,12 +107,16 @@ class Logger(object):
         self._update_bound_vars_and_log(logging.ERROR, message, *args, **kw_args)
 
     def exception(self, message, *args, exc_info=True, **kw_args):
-        self._update_bound_vars_and_log(logging.ERROR, message, *args, exc_info=exc_info, **kw_args)
+        self._update_bound_vars_and_log(
+            logging.ERROR, message, *args, exc_info=exc_info, **kw_args
+        )
 
     def bind(self, **kw_args):
         self._bound_variables.update(kw_args)
 
-    def _update_bound_vars_and_log(self, level, message, *args, exc_info=None, **kw_args):
+    def _update_bound_vars_and_log(
+        self, level, message, *args, exc_info=None, **kw_args
+    ):
         kw_args.update(self._bound_variables)
 
         if kw_args:
@@ -134,10 +138,12 @@ def _create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Format
     }[formatter_kind]
 
 
-def create_logger(level: str = None,
-                  formatter_kind: str = FormatterKinds.HUMAN.name,
-                  name: str = "mlrun",
-                  stream=stdout):
+def create_logger(
+    level: str = None,
+    formatter_kind: str = FormatterKinds.HUMAN.name,
+    name: str = "mlrun",
+    stream=stdout,
+):
     level = level or config.log_level or 'info'
 
     level = logging.getLevelName(level.upper())
@@ -146,7 +152,9 @@ def create_logger(level: str = None,
     logger_instance = Logger(level, name=name, propagate=False)
 
     # resolve formatter
-    formatter_instance = _create_formatter_instance(FormatterKinds(formatter_kind.lower()))
+    formatter_instance = _create_formatter_instance(
+        FormatterKinds(formatter_kind.lower())
+    )
 
     # set handler
     logger_instance.set_handler("default", stream or stdout, formatter_instance)

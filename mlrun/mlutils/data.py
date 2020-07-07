@@ -4,7 +4,9 @@ from ..datastore import DataItem
 from typing import Union
 
 
-def get_sample(src: Union[DataItem, pd.core.frame.DataFrame], sample: int, label: str, reader=None):
+def get_sample(
+    src: Union[DataItem, pd.core.frame.DataFrame], sample: int, label: str, reader=None
+):
     """generate data sample to be split (candidate for mlrun)
 
     Returns features matrix and header (x), and labels (y)

@@ -171,3 +171,16 @@ def test_ignore_underscore():
     funcs = funcdoc.find_handlers(underscore_code)
     names = {fn['name'] for fn in funcs}
     assert {'info', 'warning'} == names, 'names'
+
+
+def test_annotate_mod():
+    code = '''
+    import mlrun
+
+    def handler(data: mlrun.DataItem):
+        ...
+    '''
+
+    handlers = funcdoc.find_handlers(dedent(code))
+    param = handlers[0]['params'][0]
+    assert param['type'] == 'mlrun.DataItem'

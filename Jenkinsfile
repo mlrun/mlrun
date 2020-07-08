@@ -5,6 +5,7 @@ git_project_upstream_user = "mlrun"
 git_deploy_user = "iguazio-prod-git-user"
 git_deploy_user_token = "iguazio-prod-git-user-token"
 git_deploy_user_private_key = "iguazio-prod-git-user-private-key"
+git_mlrun_ui_project = "ui"
 
 podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-python37") {
     node("${git_project}-${label}") {
@@ -82,7 +83,22 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${github.DOCKER_TAG_VERSION}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
-
+                        common.conditional_stage('Create mlrun/ui release', "${github.TAG_VERSION}" != "unstable") {
+                            github.create_prerelease(
+                                    git_mlrun_ui_project,
+                                    git_project_upstream_user,
+                                    "${github.TAG_VERSION}",
+                                    GIT_TOKEN,
+                                    "master"
+                            )
+                            github.wait_for_release(
+                                    git_mlrun_ui_project,
+                                    git_project_upstream_user,
+                                    "${github.TAG_VERSION}",
+                                    GIT_TOKEN
+                            )
+                            println("SUCCESS!!!!!!")
+                        }
                     }
                     common.conditional_stage('Upload to PyPi', "${github.TAG_VERSION}" != "unstable") {
                         container('python37') {

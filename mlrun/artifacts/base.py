@@ -235,7 +235,11 @@ def upload_extra_data(
             continue
 
         if not (item.startswith('/') or '://' in item):
-            src_path = os.path.join(artifact_spec.src_path, item) if artifact_spec.src_path else item
+            src_path = (
+                os.path.join(artifact_spec.src_path, item)
+                if artifact_spec.src_path
+                else item
+            )
             if not os.path.isfile(src_path):
                 raise ValueError('extra data file {} not found'.format(src_path))
             target = os.path.join(target_path, item)

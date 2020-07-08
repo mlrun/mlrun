@@ -933,7 +933,7 @@ def clean(struct: dict):
         return None
     if 'default' in struct:
         struct['default'] = py_eval(struct['default'])
-    return {k: v for k, v in struct.items() if v}
+    return {k: v for k, v in struct.items() if v or k == 'default'}
 
 
 def py_eval(data):

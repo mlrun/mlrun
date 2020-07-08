@@ -20,6 +20,8 @@ import numpy as np
 from pandas.io.json import build_table_schema
 
 from .base import Artifact
+from ..datastore import StoreManager
+from ..utils import DB_SCHEMA
 
 preview_lines = 20
 max_csv = 10000
@@ -84,7 +86,8 @@ class DatasetArtifact(Artifact):
         'length',
         'preview',
         'stats',
-        'analysis',
+        'extra_data',
+        'column_labels'
     ]
     kind = 'dataset'
 
@@ -97,6 +100,7 @@ class DatasetArtifact(Artifact):
         stats=None,
         target_path=None,
         extra_data=None,
+        column_labels=None,
         **kwargs,
     ):
 
@@ -114,6 +118,7 @@ class DatasetArtifact(Artifact):
         self.format = format
         self.stats = None
         self.extra_data = extra_data or {}
+        self.column_labels = column_labels or {}
 
         if df is not None:
             self.length = df.shape[0]
@@ -195,3 +200,107 @@ def _get_stats(df):
     return d
 
 
+def _load_model_spec(specpath, stores: StoreManager):
+    data = stores.object(url=specpath).get()
+    spec = yaml.load(data, Loader=yaml.FullLoader)
+    return ModelArtifact.from_dict(spec)
+
+
+def _get_file_path(base_path: str, name: str, isdir=False):
+    if name.startswith('/') or '://' in name:
+        return name
+    if not isdir:
+        base_path = path.dirname(base_path)
+    return path.join(base_path, name).replace('\\', '/')
+
+
+def _get_extra(stores, target, extra_data, is_dir=False):
+    extra_dataitems = {}
+    for k, v in extra_data.items():
+        extra_dataitems[k] = stores.object(
+            url=_get_file_path(target, v, isdir=is_dir), key=k
+        )
+    return extra_dataitems
+
+
+preview = None,
+format = '',
+stats = None,
+target_path = None,
+extra_data = None,
+column_labels = None,
+
+
+def update_dataset_meta(
+    artifact,
+    schema: dict = None,
+    preview: dict = None,
+    stats: dict = None,
+    extra_data: dict = None,
+    column_labels: dict = None,
+    key_prefix: str = '',
+    labels: dict = None,
+    stores: StoreManager = None,
+):
+    """Update dataset object attributes
+
+    this method will edit or add attributes to a model object
+
+    example:
+        update_model(model_path, metrics={'speed': 100},
+                     extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
+
+    :param model_artifact:  model artifact object or path (store://..) or DataItem
+    :param parameters:      parameters dict
+    :param metrics:         model metrics e.g. accuracy
+    :param extra_data:      extra data items (key: path string | bytes | artifact)
+    :param inputs:          list of inputs (feature vector schema)
+    :param outputs:         list of outputs (output vector schema)
+    :param key_prefix:      key prefix to add to metrics and extra data items
+    :param labels:          metadata labels
+    :param stores:          StoreManager object (not required)
+    """
+
+    if hasattr(artifact, 'artifact_url'):
+        artifact = artifact.artifact_url
+
+    stores = stores or StoreManager()
+    if isinstance(artifact, DatasetArtifact):
+        artifact_spec = artifact
+    elif artifact.startswith(DB_SCHEMA + '://'):
+        artifact_spec, _ = stores.get_store_artifact(artifact)
+    else:
+        raise ValueError('model path must be a model store object/URL/DataItem')
+
+    if not artifact_spec or artifact_spec.kind != 'dataset':
+        raise ValueError('store artifact ({}) is not dataset kind'.format(artifact))
+
+    if parameters:
+        for key, val in parameters.items():
+            artifact_spec.parameters[key] = val
+    if metrics:
+        for key, val in metrics.items():
+            artifact_spec.metrics[key_prefix + key] = val
+    if labels:
+        for key, val in labels.items():
+            artifact_spec.labels[key] = val
+    if inputs:
+        artifact_spec.inputs = inputs
+    if outputs:
+        artifact_spec.outputs = outputs
+
+    if extra_data:
+        for key, item in extra_data.items():
+            if hasattr(item, 'target_path'):
+                extra_data[key] = item.target_path
+
+    spec_path = os.path.join(artifact_spec.target_path, model_spec_filename)
+    stores.object(url=spec_path).put(artifact_spec.to_yaml())
+
+    stores._get_db().store_artifact(
+        artifact_spec.db_key,
+        artifact_spec.to_dict(),
+        artifact_spec.tree,
+        iter=artifact_spec.iter,
+        project=artifact_spec.project,
+    )

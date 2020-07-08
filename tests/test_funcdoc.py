@@ -183,4 +183,4 @@ def test_annotate_mod():
 
     handlers = funcdoc.find_handlers(dedent(code))
     param = handlers[0]['params'][0]
-    assert param['type'] == 'mlrun.DataItem'
+    assert param['type'] == 'DataItem'

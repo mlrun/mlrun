@@ -130,7 +130,7 @@ class DatasetArtifact(Artifact):
             self.preview = shortdf.reset_index().values.tolist()
             self.schema = build_table_schema(df)
             if stats or self.length < max_csv:
-                self.stats = _get_stats(df)
+                self.stats = get_df_stats(df)
 
         self._df = df
         self._kw = kwargs
@@ -185,7 +185,7 @@ class DatasetArtifact(Artifact):
         raise ValueError(f'format {self.format} not implemented yes')
 
 
-def _get_stats(df):
+def get_df_stats(df):
     d = {}
     for col, values in df.describe(include='all').items():
         stats_dict = {}
@@ -200,63 +200,34 @@ def _get_stats(df):
     return d
 
 
-def _load_model_spec(specpath, stores: StoreManager):
-    data = stores.object(url=specpath).get()
-    spec = yaml.load(data, Loader=yaml.FullLoader)
-    return ModelArtifact.from_dict(spec)
-
-
-def _get_file_path(base_path: str, name: str, isdir=False):
-    if name.startswith('/') or '://' in name:
-        return name
-    if not isdir:
-        base_path = path.dirname(base_path)
-    return path.join(base_path, name).replace('\\', '/')
-
-
-def _get_extra(stores, target, extra_data, is_dir=False):
-    extra_dataitems = {}
-    for k, v in extra_data.items():
-        extra_dataitems[k] = stores.object(
-            url=_get_file_path(target, v, isdir=is_dir), key=k
-        )
-    return extra_dataitems
-
-
-preview = None,
-format = '',
-stats = None,
-target_path = None,
-extra_data = None,
-column_labels = None,
-
-
 def update_dataset_meta(
     artifact,
+    from_df = None,
     schema: dict = None,
-    preview: dict = None,
+    header: list = None,
+    preview: list = None,
     stats: dict = None,
     extra_data: dict = None,
     column_labels: dict = None,
-    key_prefix: str = '',
     labels: dict = None,
     stores: StoreManager = None,
 ):
-    """Update dataset object attributes
+    """Update dataset object attributes/metadata
 
-    this method will edit or add attributes to a model object
+    this method will edit or add metadata to a dataset object
 
     example:
-        update_model(model_path, metrics={'speed': 100},
-                     extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
+        update_dataset_meta(dataset, from_df=df,
+                            extra_data={'histogram': 's3://mybucket/..'})
 
-    :param model_artifact:  model artifact object or path (store://..) or DataItem
-    :param parameters:      parameters dict
-    :param metrics:         model metrics e.g. accuracy
-    :param extra_data:      extra data items (key: path string | bytes | artifact)
-    :param inputs:          list of inputs (feature vector schema)
-    :param outputs:         list of outputs (output vector schema)
-    :param key_prefix:      key prefix to add to metrics and extra data items
+    :param from_df:         read metadata (schema, preview, ..) from provided df
+    :param artifact:        dataset artifact object or path (store://..) or DataItem
+    :param schema:          dataset schema, see pandas build_table_schema
+    :param header:          column headers
+    :param preview:         list of rows and row values (from df.values.tolist())
+    :param stats:           dict of column names and their stats (cleaned df.describe(include='all'))
+    :param extra_data:      extra data items (key: path string | artifact)
+    :param column_labels:   dict of tag list per column
     :param labels:          metadata labels
     :param stores:          StoreManager object (not required)
     """
@@ -275,27 +246,37 @@ def update_dataset_meta(
     if not artifact_spec or artifact_spec.kind != 'dataset':
         raise ValueError('store artifact ({}) is not dataset kind'.format(artifact))
 
-    if parameters:
-        for key, val in parameters.items():
-            artifact_spec.parameters[key] = val
-    if metrics:
-        for key, val in metrics.items():
-            artifact_spec.metrics[key_prefix + key] = val
+    if from_df is not None:
+        shortdf = from_df
+        length = from_df.shape[0]
+        if length > preview_lines:
+            shortdf = from_df.head(preview_lines)
+        artifact_spec.header = shortdf.reset_index().columns.values.tolist()
+        artifact_spec.preview = shortdf.reset_index().values.tolist()
+        artifact_spec.schema = build_table_schema(from_df)
+        if stats is None and length < max_csv:
+            artifact_spec.stats = get_df_stats(from_df)
+
+    if header:
+        artifact_spec.header = header
+    if stats:
+        artifact_spec.stats = stats
+    if schema:
+        artifact_spec.schema = schema
+    if preview:
+        artifact_spec.preview = preview
+    if extra_data:
+        artifact_spec.extra_data = extra_data
+    if column_labels:
+        artifact_spec.column_labels = column_labels
     if labels:
         for key, val in labels.items():
             artifact_spec.labels[key] = val
-    if inputs:
-        artifact_spec.inputs = inputs
-    if outputs:
-        artifact_spec.outputs = outputs
 
     if extra_data:
         for key, item in extra_data.items():
             if hasattr(item, 'target_path'):
                 extra_data[key] = item.target_path
-
-    spec_path = os.path.join(artifact_spec.target_path, model_spec_filename)
-    stores.object(url=spec_path).put(artifact_spec.to_yaml())
 
     stores._get_db().store_artifact(
         artifact_spec.db_key,

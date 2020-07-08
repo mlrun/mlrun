@@ -13,6 +13,10 @@
 # limitations under the License.
 import os
 import hashlib
+
+import yaml
+
+import mlrun
 from ..model import ModelObj
 from ..datastore import StoreManager
 from ..utils import DB_SCHEMA
@@ -240,4 +244,35 @@ def upload_extra_data(
         if update_spec:
             artifact_spec.extra_data[prefix + key] = item
 
+
+def get_artifact_meta(artifact, stores: StoreManager = None):
+    """return artifact object, and list of extra data items
+
+
+    :param artifact:   artifact path (store://..) or DataItem
+    :param stores:     StoreManager object (not required)
+
+    :return artifact object, extra data dict
+
+    """
+    stores = stores or StoreManager()
+    if hasattr(artifact, 'artifact_url'):
+        artifact = artifact.artifact_url
+
+    if artifact.startswith(DB_SCHEMA + '://'):
+        artifact_spec, target = stores.get_store_artifact(artifact)
+
+    elif artifact.lower().endswith('.yaml'):
+        data = stores.object(url=artifact).get()
+        spec = yaml.load(data, Loader=yaml.FullLoader)
+        artifact_spec = mlrun.artifacts.dict_to_artifact(spec)
+
+    else:
+        raise ValueError('cant resolve artifact file for {}'.format(artifact))
+
+    extra_dataitems = {}
+    for k, v in artifact_spec.extra_data.items():
+        extra_dataitems[k] = stores.object(v, key=k)
+
+    return artifact_spec, extra_dataitems
 

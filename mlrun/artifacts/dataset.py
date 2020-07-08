@@ -87,7 +87,7 @@ class DatasetArtifact(Artifact):
         'preview',
         'stats',
         'extra_data',
-        'column_labels'
+        'column_labels',
     ]
     kind = 'dataset'
 

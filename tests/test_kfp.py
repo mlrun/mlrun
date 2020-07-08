@@ -79,7 +79,7 @@ def test_kfp_run():
     result = new_function(kfp=True).run(spec, handler=my_job)
     print(result.status.artifacts)
     alist = listdir(tmpdir)
-    expected = ['chart.html', 'dataset.csv', 'model.txt', 'results.html']
+    expected = ['chart.html', 'model.txt', 'results.html']
     for a in expected:
         assert a in alist, 'artifact {} was not generated'.format(a)
     assert result.output('accuracy') == 10, 'failed to run'

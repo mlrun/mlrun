@@ -1,3 +1,5 @@
+@Library('pipelinex@IG-16939_mlrun_ui_release') _
+
 label = "${UUID.randomUUID().toString()}"
 git_project = "mlrun"
 git_project_user = "mlrun"

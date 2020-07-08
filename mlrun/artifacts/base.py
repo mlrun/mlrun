@@ -225,7 +225,7 @@ def upload_extra_data(
 ):
     if not extra_data:
         return
-    target_path =  artifact_spec.target_path
+    target_path = artifact_spec.target_path
     for key, item in extra_data.items():
 
         if isinstance(item, bytes):
@@ -275,4 +275,3 @@ def get_artifact_meta(artifact, stores: StoreManager = None):
         extra_dataitems[k] = stores.object(v, key=k)
 
     return artifact_spec, extra_dataitems
-

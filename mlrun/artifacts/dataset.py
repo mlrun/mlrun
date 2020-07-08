@@ -202,7 +202,7 @@ def get_df_stats(df):
 
 def update_dataset_meta(
     artifact,
-    from_df = None,
+    from_df=None,
     schema: dict = None,
     header: list = None,
     preview: list = None,

@@ -17,7 +17,7 @@ from tempfile import mktemp
 import yaml
 
 from ..datastore import StoreManager
-from .base import Artifact
+from .base import Artifact, upload_extra_data
 from ..utils import DB_SCHEMA
 
 model_spec_filename = 'model_spec.yaml'
@@ -82,7 +82,7 @@ class ModelArtifact(Artifact):
                 raise ValueError('model file {} not found'.format(src_model_path))
             self._upload_file(src_model_path, data_stores, target=target_model_path)
 
-        _upload_extra_data(self, self.extra_data, data_stores)
+        upload_extra_data(self, self.extra_data, data_stores)
 
         spec_path = path.join(self.target_path, model_spec_filename)
         data_stores.object(url=spec_path).put(self.to_yaml())
@@ -92,32 +92,6 @@ def _get_src_path(model_spec: ModelArtifact, filename):
     if model_spec.src_path:
         return path.join(model_spec.src_path, filename)
     return filename
-
-
-def _upload_extra_data(
-    model_spec: ModelArtifact,
-    extra_data: dict,
-    data_stores,
-    prefix='',
-    update_spec=False,
-):
-    for key, item in extra_data.items():
-
-        if isinstance(item, bytes):
-            target = path.join(model_spec.target_path, key)
-            data_stores.object(url=target).put(item)
-            model_spec.extra_data[prefix + key] = target
-            continue
-
-        if not (item.startswith('/') or '://' in item):
-            src_path = _get_src_path(model_spec, item)
-            if not path.isfile(src_path):
-                raise ValueError('extra data file {} not found'.format(src_path))
-            target = path.join(model_spec.target_path, item)
-            data_stores.object(url=target).upload(src_path)
-
-        if update_spec:
-            model_spec.extra_data[prefix + key] = item
 
 
 def get_model(model_dir, suffix='', stores: StoreManager = None):
@@ -283,7 +257,7 @@ def update_model(
             if hasattr(item, 'target_path'):
                 extra_data[key] = item.target_path
 
-        _upload_extra_data(
+        upload_extra_data(
             model_spec, extra_data, stores, prefix=key_prefix, update_spec=True
         )
 

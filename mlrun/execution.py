@@ -446,7 +446,7 @@ class MLClientCtx(object):
         stats=False,
         db_key=None,
         target_path='',
-        analysis=None,
+        extra_data=None,
         **kwargs,
     ):
         """log a dataset artifact and optionally upload it"""
@@ -455,7 +455,7 @@ class MLClientCtx(object):
             key,
             df,
             preview=preview,
-            analysis=analysis,
+            extra_data=extra_data,
             format=format,
             stats=stats,
             **kwargs,

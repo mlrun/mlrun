@@ -96,7 +96,7 @@ class DatasetArtifact(Artifact):
         format='',
         stats=None,
         target_path=None,
-        analysis=None,
+        extra_data=None,
         **kwargs,
     ):
 
@@ -113,7 +113,7 @@ class DatasetArtifact(Artifact):
             format = 'parquet'
         self.format = format
         self.stats = None
-        self.analysis = analysis or {}
+        self.extra_data = extra_data or {}
 
         if df is not None:
             self.length = df.shape[0]
@@ -193,3 +193,5 @@ def _get_stats(df):
                 stats_dict[stat] = str(val)
         d[col] = stats_dict
     return d
+
+

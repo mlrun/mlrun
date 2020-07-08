@@ -36,6 +36,7 @@ class Artifact(ModelObj):
         'format',
         'size',
         'db_key',
+        'extra_data',
     ]
     kind = ''
 
@@ -70,6 +71,7 @@ class Artifact(ModelObj):
         self.hash = None
         self._inline = is_inline
         self.license = ''
+        self.extra_data = {}
 
     def before_log(self):
         pass
@@ -208,3 +210,34 @@ def blob_hash(data):
     h = hashlib.sha1()
     h.update(data)
     return h.hexdigest()
+
+
+def upload_extra_data(
+    artifact_spec: Artifact,
+    extra_data: dict,
+    data_stores,
+    prefix='',
+    update_spec=False,
+):
+    if not extra_data:
+        return
+    target_path =  artifact_spec.target_path
+    for key, item in extra_data.items():
+
+        if isinstance(item, bytes):
+            target = os.path.join(target_path, key)
+            data_stores.object(url=target).put(item)
+            artifact_spec.extra_data[prefix + key] = target
+            continue
+
+        if not (item.startswith('/') or '://' in item):
+            src_path = os.path.join(artifact_spec.src_path, item) if artifact_spec.src_path else item
+            if not os.path.isfile(src_path):
+                raise ValueError('extra data file {} not found'.format(src_path))
+            target = os.path.join(target_path, item)
+            data_stores.object(url=target).upload(src_path)
+
+        if update_spec:
+            artifact_spec.extra_data[prefix + key] = item
+
+

@@ -91,7 +91,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                                     git_project_upstream_user,
                                     "${github.TAG_VERSION}",
                                     GIT_TOKEN,
-                                    "IG-16030_add_ui_release"
+                                    "master"
                             )
                             github.wait_for_release(
                                     git_mlrun_ui_project,
@@ -99,7 +99,6 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                                     "${github.TAG_VERSION}",
                                     GIT_TOKEN
                             )
-                            println("SUCCESS!!!!!!")
                         }
                     }
 

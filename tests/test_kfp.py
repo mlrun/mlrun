@@ -20,7 +20,7 @@ import pandas as pd
 import yaml
 
 from tests.conftest import out_path
-from mlrun.artifacts import ChartArtifact, TableArtifact
+from mlrun.artifacts import ChartArtifact
 from mlrun import NewTask, new_function
 
 
@@ -50,15 +50,6 @@ def my_job(context, p1=1, p2='a-string'):
     context.log_artifact('model', body=b'abc is 123', local_path='model.txt')
     context.log_artifact(
         'results', local_path='results.html', body=b'<b> Some HTML <b>'
-    )
-    context.log_artifact(
-        TableArtifact(
-            'dataset',
-            '1,2,3\n4,5,6\n',
-            format='csv',
-            viewer='table',
-            header=['A', 'B', 'C'],
-        )
     )
 
     # create a chart output (will show in the pipelines UI)

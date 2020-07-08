@@ -197,6 +197,9 @@ def ann_type(ann):
         inner = ', '.join(ann_type(e) for e in iter_elems(ann.slice))
         return f'{name}[{inner}]'
 
+    if isinstance(ann, ast.Attribute):
+        return ann.attr
+
     return getattr(ann, 'id', '')
 
 

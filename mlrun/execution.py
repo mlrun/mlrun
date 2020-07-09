@@ -345,12 +345,21 @@ class MLClientCtx(object):
             return self._inputs[key]
 
     def log_result(self, key: str, value, commit=False):
-        """log a scalar result value"""
+        """log a scalar result value
+
+        :param key:    result key
+        :param value:  result value
+        :param commit: commit (write to DB now vs wait for the end of the run)
+        """
         self._results[str(key)] = _cast_result(value)
         self._update_db(commit=commit)
 
     def log_results(self, results: dict, commit=False):
-        """log a set of scalar result values"""
+        """log a set of scalar result values
+
+        :param results:  key/value dict or results
+        :param commit:   commit (write to DB now vs wait for the end of the run)
+        """
         if not isinstance(results, dict):
             raise MLCtxValueError('(multiple) results must be in the form of dict')
 
@@ -413,7 +422,27 @@ class MLClientCtx(object):
         db_key=None,
         **kwargs,
     ):
-        """log an output artifact and optionally upload it"""
+        """log an output artifact and optionally upload it to datastore
+
+        :param item:          artifact key or artifact class ()
+        :param body:          will use the body as the artifact content
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: target artifact path (when not using the default)
+                              to define a subpath under the default location use:
+                                  artifact_path=context.artifact_subpath('data')
+        :param tag:           version tag
+        :param viewer:        kubeflow viewer type
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param src_path:      deprecated, use local_path
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+        :param db_key:        the key to use in the artifact DB table, by default
+                              its run name + '_' + key
+                              db_key=False will not register it in the artifacts table
+
+        :return artifact object
+        """
         local_path = src_path or local_path
         item = self._artifacts_manager.log_artifact(
             self,
@@ -449,8 +478,29 @@ class MLClientCtx(object):
         extra_data=None,
         **kwargs,
     ):
-        """log a dataset artifact and optionally upload it"""
+        """log a dataset artifact and optionally upload it to datastore
 
+        :param key:           artifact key
+        :param df:            dataframe object
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: target artifact path (when not using the default)
+                              to define a subpath under the default location use:
+                                  artifact_path=context.artifact_subpath('data')
+        :param tag:           version tag
+        :param format:        optional, format to use (e.g. csv, parquet, ..)
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param preview:       number of lines to store as preview in the artifact metadata
+        :param stats:         calculate and store dataset stats in the artifact metadata
+        :param extra_data:    key/value list of extra files/charts to link with this dataset
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+        :param db_key:        the key to use in the artifact DB table, by default
+                              its run name + '_' + key
+                              db_key=False will not register it in the artifacts table
+
+        :return artifact object
+        """
         ds = DatasetArtifact(
             key,
             df,
@@ -479,6 +529,7 @@ class MLClientCtx(object):
         self,
         key,
         body=None,
+        framework='',
         tag='',
         model_dir=None,
         model_file=None,
@@ -492,7 +543,31 @@ class MLClientCtx(object):
         extra_data=None,
         db_key=None,
     ):
-        """log a model artifact and optionally upload it"""
+        """log a model artifact and optionally upload it to datastore
+
+        :param key:           artifact key or artifact class ()
+        :param body:          will use the body as the artifact content
+        :param model_file:    path to the local model file we upload (seel also model_dir)
+        :param model_dir:     path to the local dir holding the model file and extra files
+        :param artifact_path: target artifact path (when not using the default)
+                              to define a subpath under the default location use:
+                                  artifact_path=context.artifact_subpath('data')
+        :param framework:     name of the ML framework
+        :param tag:           version tag
+        :param metrics:       key/value dict of model metrics
+        :param parameters:    key/value dict of model parameters
+        :param inputs:        ordered list of model input features (name, type, ..)
+        :param outputs:       ordered list of model output/result elements (name, type, ..)
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+        :param extra_data:    key/value list of extra files/charts to link with this dataset
+                              value can be abs/relative path string | bytes | artifact object
+        :param db_key:        the key to use in the artifact DB table, by default
+                              its run name + '_' + key
+                              db_key=False will not register it in the artifacts table
+
+        :return artifact object
+        """
 
         model = ModelArtifact(
             key,
@@ -502,6 +577,7 @@ class MLClientCtx(object):
             parameters=parameters,
             inputs=inputs,
             outputs=outputs,
+            framework=framework,
             extra_data=extra_data,
         )
 
@@ -528,7 +604,12 @@ class MLClientCtx(object):
         self._update_db(commit=True, message=message)
 
     def set_state(self, state: str = None, error: str = None, commit=True):
-        """modify and store the run state or mark an error"""
+        """modify and store the run state or mark an error
+
+        :param state:   set run state
+        :param error:   error message (if exist will set the state to error)
+        :param commit:  will immediately update the state in the DB
+        """
         updates = {'status.last_update': now_date().isoformat()}
 
         if error:

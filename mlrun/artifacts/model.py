@@ -32,6 +32,7 @@ class ModelArtifact(Artifact):
         'parameters',
         'inputs',
         'outputs',
+        'framework',
         'extra_data',
     ]
     kind = 'model'
@@ -47,6 +48,7 @@ class ModelArtifact(Artifact):
         parameters=None,
         inputs=None,
         outputs=None,
+        framework=None,
         extra_data=None,
     ):
 
@@ -57,6 +59,7 @@ class ModelArtifact(Artifact):
         self.inputs = inputs or []
         self.outputs = outputs or []
         self.extra_data = extra_data or {}
+        self.framework = framework
 
     @property
     def is_dir(self):
@@ -69,6 +72,9 @@ class ModelArtifact(Artifact):
         for key, item in self.extra_data.items():
             if hasattr(item, 'target_path'):
                 self.extra_data[key] = item.target_path
+        if self.framework:
+            self.labels = self.labels or {}
+            self.labels['framework'] = self.framework
 
     def upload(self, data_stores):
 
@@ -216,7 +222,8 @@ def update_model(
     :param model_artifact:  model artifact object or path (store://..) or DataItem
     :param parameters:      parameters dict
     :param metrics:         model metrics e.g. accuracy
-    :param extra_data:      extra data items (key: path string | bytes | artifact)
+    :param extra_data:      extra data items key, value dict
+                            (value can be: path string | bytes | artifact)
     :param inputs:          list of inputs (feature vector schema)
     :param outputs:         list of outputs (output vector schema)
     :param key_prefix:      key prefix to add to metrics and extra data items

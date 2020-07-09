@@ -136,6 +136,7 @@ class DataStore:
 
 class DataItem:
     """Data input/output class abstracting access to various local/remote data sources"""
+
     def __init__(
         self,
         key: str,

@@ -1,6 +1,15 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches:
+    - development
+    - '[0-9]+.[0-9]+.x'
+
+  # Run CI also on push to master
+  push:
+    branches:
+    - master
 
 jobs:
   lint:

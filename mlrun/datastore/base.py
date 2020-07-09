@@ -135,6 +135,7 @@ class DataStore:
 
 
 class DataItem:
+    """Data input/output class abstracting access to various local/remote data sources"""
     def __init__(
         self,
         key: str,
@@ -154,48 +155,61 @@ class DataItem:
 
     @property
     def key(self):
+        """DataItem key"""
         return self._key
 
     @property
     def suffix(self):
+        """DataItem suffix (file extension) e.g. '.png'"""
         _, file_ext = path.splitext(self._path)
         return file_ext
 
     @property
     def kind(self):
+        """DataItem store kind (file, s3, v3io, ..)"""
         return self._store.kind
 
     @property
     def meta(self):
+        """Artifact Metadata, when the DataItem is read from the artifacts store"""
         return self._meta
 
     @property
     def artifact_url(self):
+        """DataItem artifact url (when its an artifact) or url for simple dataitems"""
         return self._artifact_url or self._url
 
     @property
     def url(self):
+        """DataItem url e.g. /dir/path, s3://bucket/path"""
         return self._url
 
     def get(self, size=None, offset=0):
+        """read all or a range and return thge content"""
         return self._store.get(self._path, size=size, offset=offset)
 
     def download(self, target_path):
+        """download to the target dir/path"""
         self._store.download(self._path, target_path)
 
     def put(self, data, append=False):
+        """write/upload the data, append is only supported by some datastores"""
         self._store.put(self._path, data, append=append)
 
     def upload(self, src_path):
+        """upload the source file (src_path) """
         self._store.upload(self._path, src_path)
 
     def stat(self):
+        """return FileStats class (size, modified, content_type)"""
         return self._store.stat(self._path)
 
     def listdir(self):
+        """return a list of child file names"""
         return self._store.listdir(self._path)
 
     def local(self):
+        """get the local path of the file, download to tmp first if its a remote object"""
         if self.kind == 'file':
             return self._path
         if self._local_path:
@@ -208,6 +222,12 @@ class DataItem:
         return self._local_path
 
     def as_df(self, columns=None, df_module=None, format='', **kwargs):
+        """return a dataframe object (generated from the dataitem).
+
+        :param columns:   optional, list of columns to select
+        :param df_module: optional, dataframe class (e.g. pd, dd, cudf, ..)
+        :param format:    file format, if not specified it will be deducted from the suffix
+        """
         return self._store.as_df(
             self._path, columns=columns, df_module=df_module, format=format, **kwargs
         )

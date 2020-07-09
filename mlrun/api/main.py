@@ -6,7 +6,6 @@ from mlrun.api.api.utils import submit
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.singletons import initialize_singletons, get_db
 from mlrun.config import config
-from mlrun.db import periodic
 from mlrun.api.utils.periodic import (
     run_function_periodically,
     cancel_periodic_functions,
@@ -34,9 +33,6 @@ async def startup_event():
 
     # don't fail the app on re-scheduling failure
     try:
-        task = periodic.Task()
-        periodic.schedule(task, 60)
-
         _reschedule_tasks()
     except Exception as exc:
         logger.warning(f'Failed rescheduling tasks, err: {exc}')

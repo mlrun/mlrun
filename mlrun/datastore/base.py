@@ -33,6 +33,9 @@ class FileStats:
         self.modified = modified
         self.content_type = content_type
 
+    def __repr__(self):
+        return f'FileStats(size={self.size}, modified={self.modified}, type={self.content_type})'
+
 
 class DataStore:
     def __init__(self, parent, name, kind, endpoint=''):

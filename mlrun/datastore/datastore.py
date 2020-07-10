@@ -23,9 +23,9 @@ from .s3 import S3Store
 from .filestore import FileStore
 from .v3io import V3ioStore
 from .azure_blob import AzureBlobStore
-from .inmem import InMemStore
+from .inmem import InMemoryStore
 
-inmem_store = InMemStore()
+in_memory_store = InMemoryStore()
 
 
 def get_object_stat(url, secrets=None):
@@ -157,7 +157,7 @@ class StoreManager:
 
         if schema == 'memory':
             subpath = url[len('memory://') :]
-            return inmem_store, subpath
+            return in_memory_store, subpath
 
         if not schema and endpoint:
             if endpoint in self._stores.keys():

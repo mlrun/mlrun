@@ -15,7 +15,7 @@
 from .base import DataStore, FileStats
 
 
-class InMemStore(DataStore):
+class InMemoryStore(DataStore):
     def __init__(self):
         super().__init__(None, 'memory', 'memory', '')
         self._items = {}

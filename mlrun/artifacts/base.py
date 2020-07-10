@@ -254,20 +254,18 @@ def get_artifact_meta(artifact):
 
 
     :param artifact:   artifact path (store://..) or DataItem
-    :param stores:     StoreManager object (not required)
 
     :return artifact object, extra data dict
 
     """
-    stores = store_manager
     if hasattr(artifact, 'artifact_url'):
         artifact = artifact.artifact_url
 
     if artifact.startswith(DB_SCHEMA + '://'):
-        artifact_spec, target = stores.get_store_artifact(artifact)
+        artifact_spec, target = store_manager.get_store_artifact(artifact)
 
     elif artifact.lower().endswith('.yaml'):
-        data = stores.object(url=artifact).get()
+        data = store_manager.object(url=artifact).get()
         spec = yaml.load(data, Loader=yaml.FullLoader)
         artifact_spec = mlrun.artifacts.dict_to_artifact(spec)
 
@@ -276,6 +274,6 @@ def get_artifact_meta(artifact):
 
     extra_dataitems = {}
     for k, v in artifact_spec.extra_data.items():
-        extra_dataitems[k] = stores.object(v, key=k)
+        extra_dataitems[k] = store_manager.object(v, key=k)
 
     return artifact_spec, extra_dataitems

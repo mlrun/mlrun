@@ -80,7 +80,7 @@ class MLClientCtx(object):
         self._function = ''
         self._parameters = {}
         self._in_path = ''
-        self._out_path = ''
+        self.artifact_path = ''
         self._inputs = {}
         self._outputs = []
 
@@ -149,9 +149,7 @@ class MLClientCtx(object):
             else:
                 self._rundb = rundb
         self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
-        self._artifacts_manager = ArtifactManager(
-            self._data_stores, db=self._rundb, out_path=self._out_path
-        )
+        self._artifacts_manager = ArtifactManager(self._data_stores, db=self._rundb)
 
     def get_meta(self):
         """Reserved for internal use"""
@@ -189,7 +187,7 @@ class MLClientCtx(object):
             self._function = spec.get('function', self._function)
             self._parameters = spec.get('parameters', self._parameters)
             self._outputs = spec.get('outputs', self._outputs)
-            self._out_path = spec.get(run_keys.output_path, self._out_path)
+            self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
 
@@ -279,16 +277,11 @@ class MLClientCtx(object):
     def out_path(self):
         """default output path for artifacts"""
         logger.info('.out_path will soon be deprecated, use .artifact_path')
-        return self._out_path
-
-    @property
-    def artifact_path(self):
-        """default output path for artifacts"""
-        return self._out_path
+        return self.artifact_path
 
     def artifact_subpath(self, *subpaths):
         """subpaths under output path artifacts path"""
-        return os.path.join(self._out_path, *subpaths)
+        return os.path.join(self.artifact_path, *subpaths)
 
     @property
     def labels(self):
@@ -449,7 +442,7 @@ class MLClientCtx(object):
             item,
             body=body,
             local_path=local_path,
-            artifact_path=artifact_path,
+            artifact_path=artifact_path or self.artifact_path,
             target_path=target_path,
             tag=tag,
             viewer=viewer,
@@ -515,7 +508,7 @@ class MLClientCtx(object):
             self,
             ds,
             local_path=local_path,
-            artifact_path=artifact_path,
+            artifact_path=artifact_path or self.artifact_path,
             target_path=target_path,
             tag=tag,
             upload=upload,
@@ -585,7 +578,7 @@ class MLClientCtx(object):
             self,
             model,
             local_path=model_dir,
-            artifact_path=artifact_path,
+            artifact_path=artifact_path or self.artifact_path,
             tag=tag,
             upload=upload,
             db_key=db_key,
@@ -658,7 +651,7 @@ class MLClientCtx(object):
                 'log_level': self._log_level,
                 'parameters': self._parameters,
                 'outputs': self._outputs,
-                run_keys.output_path: self._out_path,
+                run_keys.output_path: self.artifact_path,
                 run_keys.inputs: {k: v.artifact_url for k, v in self._inputs.items()},
             },
             'status': {

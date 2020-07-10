@@ -189,7 +189,7 @@ class MlrunProject(ModelObj):
         self.conda = conda or {}
         self._mountdir = None
         self._artifact_mngr = None
-        self.artifact_path = artifact_path
+        self.artifact_path = artifact_path or config.artifact_path
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []

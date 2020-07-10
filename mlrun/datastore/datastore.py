@@ -27,6 +27,7 @@ from .inmem import InMemStore
 
 inmem_store = InMemStore()
 
+
 def get_object_stat(url, secrets=None):
     stores = StoreManager(secrets)
     return stores.object(url=url).stat()
@@ -155,7 +156,7 @@ class StoreManager:
         subpath = p.path
 
         if schema == 'memory':
-            subpath = url[len('memory://'):]
+            subpath = url[len('memory://') :]
             return inmem_store, subpath
 
         if not schema and endpoint:

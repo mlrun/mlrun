@@ -43,9 +43,7 @@ class MLModelServer:
         return self._params.get(key, default)
 
     def get_model(self, suffix=''):
-        model_file, self.model_spec, extra_dataitems = get_model(
-            self.model_dir, suffix
-        )
+        model_file, self.model_spec, extra_dataitems = get_model(self.model_dir, suffix)
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():
                 self._params[key] = value

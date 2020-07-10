@@ -35,7 +35,6 @@ class MLModelServer:
         self._params = {}
         self.metrics = {}
         self.labels = {}
-        self._stores = StoreManager()
         if model:
             self.model = model
             self.ready = True
@@ -45,7 +44,7 @@ class MLModelServer:
 
     def get_model(self, suffix=''):
         model_file, self.model_spec, extra_dataitems = get_model(
-            self.model_dir, suffix, self._stores
+            self.model_dir, suffix
         )
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():

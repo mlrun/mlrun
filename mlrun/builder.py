@@ -18,7 +18,7 @@ from os import environ, path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
-from .datastore import StoreManager
+from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import logger, normalize_name, tag_image
 from .config import config
@@ -115,7 +115,7 @@ def upload_tarball(source_dir, target, secrets=None):
     with tarfile.open(tmpfile, "w:gz") as tar:
         tar.add(source_dir, arcname='')
 
-    stores = StoreManager(secrets)
+    stores = store_manager.set(secrets)
     datastore, subpath = stores.get_or_create_store(target)
     datastore.upload(subpath, tmpfile)
     remove(tmpfile)

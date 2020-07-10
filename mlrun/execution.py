@@ -22,7 +22,7 @@ import mlrun
 from mlrun.artifacts import ModelArtifact
 
 from .artifacts import ArtifactManager, DatasetArtifact
-from .datastore import StoreManager
+from .datastore import store_manager
 from .secrets import SecretsStore
 from .db import get_run_db
 from .utils import (
@@ -148,7 +148,7 @@ class MLClientCtx(object):
                 self._rundb.connect(self._secrets_manager)
             else:
                 self._rundb = rundb
-        self._data_stores = StoreManager(self._secrets_manager, db=self._rundb)
+        self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(
             self._data_stores, db=self._rundb, out_path=self._out_path
         )

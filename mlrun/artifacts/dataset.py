@@ -20,7 +20,7 @@ import numpy as np
 from pandas.io.json import build_table_schema
 
 from .base import Artifact
-from ..datastore import StoreManager
+from ..datastore import store_manager
 from ..utils import DB_SCHEMA
 
 preview_lines = 20
@@ -158,6 +158,10 @@ class DatasetArtifact(Artifact):
         if self._df is None:
             return
 
+        if self.target_path.startswith('memory://'):
+            data_stores.object(self.target_path).put(self._df)
+            return
+
         if self.format in ['csv', 'parquet']:
             if not suffix:
                 self.target_path = self.target_path + '.' + self.format
@@ -210,7 +214,6 @@ def update_dataset_meta(
     extra_data: dict = None,
     column_labels: dict = None,
     labels: dict = None,
-    stores: StoreManager = None,
 ):
     """Update dataset object attributes/metadata
 
@@ -229,13 +232,12 @@ def update_dataset_meta(
     :param extra_data:      extra data items (key: path string | artifact)
     :param column_labels:   dict of tag list per column
     :param labels:          metadata labels
-    :param stores:          StoreManager object (not required)
     """
 
     if hasattr(artifact, 'artifact_url'):
         artifact = artifact.artifact_url
 
-    stores = stores or StoreManager()
+    stores = store_manager
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
     elif artifact.startswith(DB_SCHEMA + '://'):

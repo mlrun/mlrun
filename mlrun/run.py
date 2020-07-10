@@ -30,7 +30,7 @@ import importlib.util as imputil
 
 from .utils import retry_until_successful
 from .config import config as mlconf
-from .datastore import StoreManager
+from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .funcdoc import find_handlers
@@ -946,19 +946,17 @@ def py_eval(data):
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):
     """get mlrun dataitem body (from path/url)"""
-    db = db or get_run_db().connect()
-    stores = StoreManager(secrets, db=db)
+    stores = store_manager.set(secrets, db=db)
     return stores.object(url=url).get(size, offset)
 
 
 def get_dataitem(url, secrets=None, db=None):
     """get mlrun dataitem object (from path/url)"""
-    db = db or get_run_db().connect()
-    stores = StoreManager(secrets, db=db)
+    stores = store_manager.set(secrets, db=db)
     return stores.object(url=url)
 
 
 def download_object(url, target, secrets=None):
     """download mlrun dataitem (from path/url to target path)"""
-    stores = StoreManager(secrets, db=get_run_db().connect())
+    stores = store_manager.set(secrets)
     stores.object(url=url).download(target_path=target)

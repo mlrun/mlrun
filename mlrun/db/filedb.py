@@ -21,7 +21,7 @@ from dateutil.parser import parse as parse_time
 import yaml
 
 from ..config import config
-from ..datastore import StoreManager
+from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
 from ..utils import (
     dict_to_json,
@@ -52,7 +52,7 @@ class FileRunDB(RunDBInterface):
         makedirs(self.schedules_dir, exist_ok=True)
 
     def connect(self, secrets=None):
-        sm = StoreManager(secrets)
+        sm = store_manager.set(secrets)
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
         return self
 

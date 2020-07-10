@@ -18,7 +18,7 @@ import yaml
 
 import mlrun
 from ..model import ModelObj
-from ..datastore import StoreManager
+from ..datastore import StoreManager, store_manager
 from ..utils import DB_SCHEMA
 
 calc_hash = True
@@ -249,7 +249,7 @@ def upload_extra_data(
             artifact_spec.extra_data[prefix + key] = item
 
 
-def get_artifact_meta(artifact, stores: StoreManager = None):
+def get_artifact_meta(artifact):
     """return artifact object, and list of extra data items
 
 
@@ -259,7 +259,7 @@ def get_artifact_meta(artifact, stores: StoreManager = None):
     :return artifact object, extra data dict
 
     """
-    stores = stores or StoreManager()
+    stores = store_manager
     if hasattr(artifact, 'artifact_url'):
         artifact = artifact.artifact_url
 

@@ -16,3 +16,6 @@
 
 from .datastore import StoreManager, uri_to_ipython, get_object_stat
 from .base import DataItem
+
+
+store_manager = StoreManager()

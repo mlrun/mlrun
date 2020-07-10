@@ -16,7 +16,7 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import StoreManager
+from ..datastore import StoreManager, store_manager
 from .base import Artifact, upload_extra_data
 from ..utils import DB_SCHEMA
 
@@ -100,7 +100,7 @@ def _get_src_path(model_spec: ModelArtifact, filename):
     return filename
 
 
-def get_model(model_dir, suffix='', stores: StoreManager = None):
+def get_model(model_dir, suffix=''):
     """return model file, model spec object, and list of extra data items
 
     this function will get the model file, metadata, and extra data
@@ -117,7 +117,6 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
-    :param stores:          StoreManager object (not required)
 
     :return model filename, model artifact object, extra data dict
 
@@ -126,7 +125,7 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     model_spec = None
     extra_dataitems = {}
     suffix = suffix or '.pkl'
-    stores = stores or StoreManager()
+    stores = store_manager
     if hasattr(model_dir, 'artifact_url'):
         model_dir = model_dir.artifact_url
 
@@ -209,7 +208,6 @@ def update_model(
     outputs: list = None,
     key_prefix: str = '',
     labels: dict = None,
-    stores: StoreManager = None,
 ):
     """Update model object attributes
 
@@ -228,13 +226,12 @@ def update_model(
     :param outputs:         list of outputs (output vector schema)
     :param key_prefix:      key prefix to add to metrics and extra data items
     :param labels:          metadata labels
-    :param stores:          StoreManager object (not required)
     """
 
     if hasattr(model_artifact, 'artifact_url'):
         model_artifact = model_artifact.artifact_url
 
-    stores = stores or StoreManager()
+    stores = store_manager
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
     elif model_artifact.startswith(DB_SCHEMA + '://'):

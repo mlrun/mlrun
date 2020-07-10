@@ -23,7 +23,9 @@ from .s3 import S3Store
 from .filestore import FileStore
 from .v3io import V3ioStore
 from .azure_blob import AzureBlobStore
+from .inmem import InMemStore
 
+inmem_store = InMemStore()
 
 def get_object_stat(url, secrets=None):
     stores = StoreManager(secrets)
@@ -56,7 +58,7 @@ def schema_to_store(schema):
 
 def uri_to_ipython(link):
     schema, endpoint, p = parseurl(link)
-    if schema == DB_SCHEMA:
+    if schema in [DB_SCHEMA, 'memory']:
         return ''
     return schema_to_store(schema).uri_to_ipython(endpoint, p.path)
 
@@ -66,6 +68,14 @@ class StoreManager:
         self._stores = {}
         self._secrets = secrets or {}
         self._db = db
+
+    def set(self, secrets=None, db=None):
+        if db and not self._db:
+            self._db = db
+        if secrets:
+            for key, val in secrets.items():
+                self._secrets[key] = val
+        return self
 
     def _get_db(self):
         if not self._db:
@@ -143,6 +153,10 @@ class StoreManager:
     def get_or_create_store(self, url):
         schema, endpoint, p = parseurl(url)
         subpath = p.path
+
+        if schema == 'memory':
+            subpath = url[len('memory://'):]
+            return inmem_store, subpath
 
         if not schema and endpoint:
             if endpoint in self._stores.keys():

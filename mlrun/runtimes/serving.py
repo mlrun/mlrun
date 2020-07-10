@@ -22,7 +22,6 @@ from urllib.request import urlopen
 from datetime import datetime
 
 from ..artifacts import get_model, ModelArtifact
-from ..datastore import StoreManager
 from ..platforms.iguazio import OutputStream
 
 

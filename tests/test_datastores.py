@@ -75,8 +75,9 @@ def test_file():
 
     artifact, _ = mlrun.artifacts.get_artifact_meta('store://default/k2key')
     print(artifact.to_yaml())
-    mlrun.artifacts.update_dataset_meta(artifact, extra_data={'k1': k1},
-                                        column_metadata={'age': 'great'})
+    mlrun.artifacts.update_dataset_meta(
+        artifact, extra_data={'k1': k1}, column_metadata={'age': 'great'}
+    )
     artifact, _ = mlrun.artifacts.get_artifact_meta('store://default/k2key')
     print(artifact.to_yaml())
     assert artifact.column_metadata == {'age': 'great'}, 'failed artifact update test'

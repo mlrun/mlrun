@@ -14,11 +14,11 @@
 from os import listdir
 from tempfile import TemporaryDirectory
 
+from tests.conftest import rundb_path
 import mlrun
 import pandas as pd
-import pytest
-import tests.conftest
 
+mlrun.mlconf.dbpath = rundb_path
 
 raw_data = {
     'name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],

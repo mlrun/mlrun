@@ -101,6 +101,7 @@ class Artifact(ModelObj):
         url = '{}://{}/{}'.format(DB_SCHEMA, project or self.project, self.db_key)
         if with_tag:
             url += '#' + self.tree
+        return url
 
     def base_dict(self):
         return super().to_dict()

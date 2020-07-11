@@ -56,7 +56,8 @@ def test_file():
     context = mlrun.get_or_create_ctx('test-file')
     context.artifact_path = tmpdir
     k1 = context.log_artifact('k1', body='abc', local_path='x.txt')
-    context.log_dataset('k2', df=df, format='csv', db_key='k2key')
+    k2 = context.log_dataset('k2', df=df, format='csv', db_key='k2key')
+    print('k2 url:', k2.get_store_url())
 
     alist = listdir(tmpdir)
     print(alist)
@@ -73,11 +74,13 @@ def test_file():
         mlrun.run.get_dataitem(tmpdir + '/x.txt').get() == b'abc'
     ), 'failed to log in file artifact'
 
-    artifact, _ = mlrun.artifacts.get_artifact_meta('store://default/k2key')
+    name = f'store://{context.project}/k2key'
+    print('key name:', name)
+    artifact, _ = mlrun.artifacts.get_artifact_meta(name)
     print(artifact.to_yaml())
     mlrun.artifacts.update_dataset_meta(
         artifact, extra_data={'k1': k1}, column_metadata={'age': 'great'}
     )
-    artifact, _ = mlrun.artifacts.get_artifact_meta('store://default/k2key')
+    artifact, _ = mlrun.artifacts.get_artifact_meta(name)
     print(artifact.to_yaml())
     assert artifact.column_metadata == {'age': 'great'}, 'failed artifact update test'

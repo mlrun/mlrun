@@ -21,11 +21,11 @@ from .base import DataItem
 store_manager = StoreManager()
 
 
-def set_inmem_item(key, value):
+def set_in_memory_item(key, value):
     item = store_manager.object(f'memory://{key}')
     item.put(value)
     return item
 
 
-def get_inmem_items():
+def get_in_memory_items():
     return in_memory_store._items

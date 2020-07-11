@@ -33,8 +33,8 @@ def test_in_memory():
     context.log_artifact('k1', body='abc')
     context.log_dataset('k2', df=df)
 
-    data = mlrun.datastore.set_inmem_item('aa', '123')
-    in_memory_store = mlrun.datastore.get_inmem_items()
+    data = mlrun.datastore.set_in_memory_item('aa', '123')
+    in_memory_store = mlrun.datastore.get_in_memory_items()
     new_df = mlrun.run.get_dataitem("memory://k2").as_df()
 
     assert len(in_memory_store) == 3, 'data not written properly to in mem store'
@@ -84,4 +84,6 @@ def test_file():
         )
         artifact, _ = mlrun.artifacts.get_artifact_meta(name)
         print(artifact.to_yaml())
-        assert artifact.column_metadata == {'age': 'great'}, 'failed artifact update test'
+        assert artifact.column_metadata == {
+            'age': 'great'
+        }, 'failed artifact update test'

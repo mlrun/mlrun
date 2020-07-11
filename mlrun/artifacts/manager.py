@@ -59,13 +59,8 @@ def dict_to_artifact(struct: dict):
 
 class ArtifactManager:
     def __init__(
-        self,
-        stores: StoreManager,
-        db: RunDBInterface = None,
-        out_path='',
-        calc_hash=True,
+        self, stores: StoreManager, db: RunDBInterface = None, calc_hash=True,
     ):
-        self.out_path = out_path
         self.calc_hash = calc_hash
 
         self.data_stores = stores
@@ -128,7 +123,6 @@ class ArtifactManager:
                     'target_path ({}) param cannot be relative'.format(target_path)
                 )
         else:
-            artifact_path = artifact_path or self.out_path
             target_path = uxjoin(
                 artifact_path,
                 src_path,

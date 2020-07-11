@@ -57,7 +57,7 @@ class SecretsStore:
     def get(self, key, default=None):
         return self._secrets.get(key, default)
 
-    def get_all(self):
+    def items(self):
         return self._secrets.copy()
 
     def to_serial(self):

@@ -16,8 +16,8 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import StoreManager
-from .base import Artifact
+from ..datastore import StoreManager, store_manager
+from .base import Artifact, upload_extra_data
 from ..utils import DB_SCHEMA
 
 model_spec_filename = 'model_spec.yaml'
@@ -32,6 +32,7 @@ class ModelArtifact(Artifact):
         'parameters',
         'inputs',
         'outputs',
+        'framework',
         'extra_data',
     ]
     kind = 'model'
@@ -47,6 +48,7 @@ class ModelArtifact(Artifact):
         parameters=None,
         inputs=None,
         outputs=None,
+        framework=None,
         extra_data=None,
     ):
 
@@ -57,6 +59,7 @@ class ModelArtifact(Artifact):
         self.inputs = inputs or []
         self.outputs = outputs or []
         self.extra_data = extra_data or {}
+        self.framework = framework
 
     @property
     def is_dir(self):
@@ -69,6 +72,9 @@ class ModelArtifact(Artifact):
         for key, item in self.extra_data.items():
             if hasattr(item, 'target_path'):
                 self.extra_data[key] = item.target_path
+        if self.framework:
+            self.labels = self.labels or {}
+            self.labels['framework'] = self.framework
 
     def upload(self, data_stores):
 
@@ -82,7 +88,7 @@ class ModelArtifact(Artifact):
                 raise ValueError('model file {} not found'.format(src_model_path))
             self._upload_file(src_model_path, data_stores, target=target_model_path)
 
-        _upload_extra_data(self, self.extra_data, data_stores)
+        upload_extra_data(self, self.extra_data, data_stores)
 
         spec_path = path.join(self.target_path, model_spec_filename)
         data_stores.object(url=spec_path).put(self.to_yaml())
@@ -94,33 +100,7 @@ def _get_src_path(model_spec: ModelArtifact, filename):
     return filename
 
 
-def _upload_extra_data(
-    model_spec: ModelArtifact,
-    extra_data: dict,
-    data_stores,
-    prefix='',
-    update_spec=False,
-):
-    for key, item in extra_data.items():
-
-        if isinstance(item, bytes):
-            target = path.join(model_spec.target_path, key)
-            data_stores.object(url=target).put(item)
-            model_spec.extra_data[prefix + key] = target
-            continue
-
-        if not (item.startswith('/') or '://' in item):
-            src_path = _get_src_path(model_spec, item)
-            if not path.isfile(src_path):
-                raise ValueError('extra data file {} not found'.format(src_path))
-            target = path.join(model_spec.target_path, item)
-            data_stores.object(url=target).upload(src_path)
-
-        if update_spec:
-            model_spec.extra_data[prefix + key] = item
-
-
-def get_model(model_dir, suffix='', stores: StoreManager = None):
+def get_model(model_dir, suffix=''):
     """return model file, model spec object, and list of extra data items
 
     this function will get the model file, metadata, and extra data
@@ -137,7 +117,6 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
-    :param stores:          StoreManager object (not required)
 
     :return model filename, model artifact object, extra data dict
 
@@ -146,7 +125,7 @@ def get_model(model_dir, suffix='', stores: StoreManager = None):
     model_spec = None
     extra_dataitems = {}
     suffix = suffix or '.pkl'
-    stores = stores or StoreManager()
+    stores = store_manager
     if hasattr(model_dir, 'artifact_url'):
         model_dir = model_dir.artifact_url
 
@@ -229,7 +208,6 @@ def update_model(
     outputs: list = None,
     key_prefix: str = '',
     labels: dict = None,
-    stores: StoreManager = None,
 ):
     """Update model object attributes
 
@@ -242,18 +220,18 @@ def update_model(
     :param model_artifact:  model artifact object or path (store://..) or DataItem
     :param parameters:      parameters dict
     :param metrics:         model metrics e.g. accuracy
-    :param extra_data:      extra data items (key: path string | bytes | artifact)
+    :param extra_data:      extra data items key, value dict
+                            (value can be: path string | bytes | artifact)
     :param inputs:          list of inputs (feature vector schema)
     :param outputs:         list of outputs (output vector schema)
     :param key_prefix:      key prefix to add to metrics and extra data items
     :param labels:          metadata labels
-    :param stores:          StoreManager object (not required)
     """
 
     if hasattr(model_artifact, 'artifact_url'):
         model_artifact = model_artifact.artifact_url
 
-    stores = stores or StoreManager()
+    stores = store_manager
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
     elif model_artifact.startswith(DB_SCHEMA + '://'):
@@ -283,7 +261,7 @@ def update_model(
             if hasattr(item, 'target_path'):
                 extra_data[key] = item.target_path
 
-        _upload_extra_data(
+        upload_extra_data(
             model_spec, extra_data, stores, prefix=key_prefix, update_spec=True
         )
 

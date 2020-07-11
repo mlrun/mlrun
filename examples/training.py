@@ -1,5 +1,5 @@
 from mlrun import get_or_create_ctx
-from mlrun.artifacts import ChartArtifact, TableArtifact
+from mlrun.artifacts import ChartArtifact
 import pandas as pd
 
 
@@ -30,12 +30,6 @@ def my_job(context, p1=1, p2='x'):
     )
     context.log_artifact(
         'html_result', body=b'<b> Some HTML <b>', local_path='result.html'
-    )
-    context.log_artifact(
-        TableArtifact(
-            'dataset', '1,2,3\n4,5,6\n', visible=True, header=['A', 'B', 'C']
-        ),
-        local_path='dataset.csv',
     )
 
     # create a chart output (will show in the pipelines UI)

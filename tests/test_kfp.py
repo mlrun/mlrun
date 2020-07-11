@@ -20,7 +20,7 @@ import pandas as pd
 import yaml
 
 from tests.conftest import out_path
-from mlrun.artifacts import ChartArtifact, TableArtifact
+from mlrun.artifacts import ChartArtifact
 from mlrun import NewTask, new_function
 
 
@@ -51,15 +51,6 @@ def my_job(context, p1=1, p2='a-string'):
     context.log_artifact(
         'results', local_path='results.html', body=b'<b> Some HTML <b>'
     )
-    context.log_artifact(
-        TableArtifact(
-            'dataset',
-            '1,2,3\n4,5,6\n',
-            format='csv',
-            viewer='table',
-            header=['A', 'B', 'C'],
-        )
-    )
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart')
@@ -88,7 +79,7 @@ def test_kfp_run():
     result = new_function(kfp=True).run(spec, handler=my_job)
     print(result.status.artifacts)
     alist = listdir(tmpdir)
-    expected = ['chart.html', 'dataset.csv', 'model.txt', 'results.html']
+    expected = ['chart.html', 'model.txt', 'results.html']
     for a in expected:
         assert a in alist, 'artifact {} was not generated'.format(a)
     assert result.output('accuracy') == 10, 'failed to run'

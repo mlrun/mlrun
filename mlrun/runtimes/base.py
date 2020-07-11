@@ -33,7 +33,7 @@ from .constants import PodPhases, FunctionStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
 from ..config import config
-from ..datastore import StoreManager
+from ..datastore import store_manager
 from ..db import get_run_db, get_or_set_dburl, RunDBError
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
@@ -658,7 +658,7 @@ class BaseRuntime(ModelObj):
             data = dict_to_yaml(struct)
         else:
             data = dict_to_json(struct)
-        stores = StoreManager(secrets)
+        stores = store_manager.set(secrets)
         target = target or 'function.yaml'
         datastore, subpath = stores.get_or_create_store(target)
         datastore.put(subpath, data)

@@ -87,7 +87,7 @@ class DatasetArtifact(Artifact):
         'preview',
         'stats',
         'extra_data',
-        'column_labels',
+        'column_metadata',
     ]
     kind = 'dataset'
 
@@ -100,7 +100,7 @@ class DatasetArtifact(Artifact):
         stats=None,
         target_path=None,
         extra_data=None,
-        column_labels=None,
+        column_metadata=None,
         **kwargs,
     ):
 
@@ -118,7 +118,7 @@ class DatasetArtifact(Artifact):
         self.format = format
         self.stats = None
         self.extra_data = extra_data or {}
-        self.column_labels = column_labels or {}
+        self.column_metadata = column_metadata or {}
 
         if df is not None:
             self.length = df.shape[0]
@@ -212,7 +212,7 @@ def update_dataset_meta(
     preview: list = None,
     stats: dict = None,
     extra_data: dict = None,
-    column_labels: dict = None,
+    column_metadata: dict = None,
     labels: dict = None,
 ):
     """Update dataset object attributes/metadata
@@ -230,7 +230,7 @@ def update_dataset_meta(
     :param preview:         list of rows and row values (from df.values.tolist())
     :param stats:           dict of column names and their stats (cleaned df.describe(include='all'))
     :param extra_data:      extra data items (key: path string | artifact)
-    :param column_labels:   dict of tag list per column
+    :param column_metadata: dict of metadata per column
     :param labels:          metadata labels
     """
 
@@ -267,18 +267,18 @@ def update_dataset_meta(
         artifact_spec.schema = schema
     if preview:
         artifact_spec.preview = preview
-    if extra_data:
-        artifact_spec.extra_data = extra_data
-    if column_labels:
-        artifact_spec.column_labels = column_labels
+    if column_metadata:
+        artifact_spec.column_metadata = column_metadata
     if labels:
         for key, val in labels.items():
             artifact_spec.labels[key] = val
 
     if extra_data:
+        artifact_spec.extra_data = artifact_spec.extra_data or {}
         for key, item in extra_data.items():
             if hasattr(item, 'target_path'):
-                extra_data[key] = item.target_path
+                item = item.target_path
+            artifact_spec.extra_data[key] = item
 
     stores._get_db().store_artifact(
         artifact_spec.db_key,

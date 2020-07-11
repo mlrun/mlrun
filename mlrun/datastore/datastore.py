@@ -124,8 +124,9 @@ class StoreManager:
                 )
             key = key[:idx]
 
+        db = self._get_db()
         try:
-            meta = self._get_db().read_artifact(
+            meta = db.read_artifact(
                 key, tag=tag, iter=iteration, project=project
             )
             if meta.get('kind', '') == 'link':

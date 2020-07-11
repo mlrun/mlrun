@@ -74,8 +74,7 @@ def test_file():
         mlrun.run.get_dataitem(tmpdir + '/x.txt').get() == b'abc'
     ), 'failed to log in file artifact'
 
-    name = f'store://{context.project}/k2key'
-    print('key name:', name)
+    name = k2.get_store_url()
     artifact, _ = mlrun.artifacts.get_artifact_meta(name)
     print(artifact.to_yaml())
     mlrun.artifacts.update_dataset_meta(

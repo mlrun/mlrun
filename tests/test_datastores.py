@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from os import listdir
-from tempfile import mktemp
+from tempfile import TemporaryDirectory
 
 import mlrun
 import pandas as pd
+import pytest
+import tests.conftest
 
 
 raw_data = {
@@ -44,42 +46,42 @@ def test_in_memory():
 
 
 def test_file():
-    tmpdir = mktemp()
-    print(tmpdir)
+    with TemporaryDirectory() as tmpdir:
+        print(tmpdir)
 
-    data = mlrun.run.get_dataitem(tmpdir + '/test1.txt')
-    data.put('abc')
-    assert data.get() == b'abc', 'failed put/get test'
-    assert data.stat().size == 3, 'got wrong file size'
-    print(data.stat())
+        data = mlrun.run.get_dataitem(tmpdir + '/test1.txt')
+        data.put('abc')
+        assert data.get() == b'abc', 'failed put/get test'
+        assert data.stat().size == 3, 'got wrong file size'
+        print(data.stat())
 
-    context = mlrun.get_or_create_ctx('test-file')
-    context.artifact_path = tmpdir
-    k1 = context.log_artifact('k1', body='abc', local_path='x.txt')
-    k2 = context.log_dataset('k2', df=df, format='csv', db_key='k2key')
-    print('k2 url:', k2.get_store_url())
+        context = mlrun.get_or_create_ctx('test-file')
+        context.artifact_path = tmpdir
+        k1 = context.log_artifact('k1', body='abc', local_path='x.txt')
+        k2 = context.log_dataset('k2', df=df, format='csv', db_key='k2key')
+        print('k2 url:', k2.get_store_url())
 
-    alist = listdir(tmpdir)
-    print(alist)
-    assert mlrun.run.get_dataitem(tmpdir).listdir() == alist, 'failed listdir'
+        alist = listdir(tmpdir)
+        print(alist)
+        assert mlrun.run.get_dataitem(tmpdir).listdir() == alist, 'failed listdir'
 
-    expected = ['test1.txt', 'x.txt', 'k2.csv']
-    for a in expected:
-        assert a in alist, 'artifact {} was not generated'.format(a)
+        expected = ['test1.txt', 'x.txt', 'k2.csv']
+        for a in expected:
+            assert a in alist, 'artifact {} was not generated'.format(a)
 
-    new_fd = mlrun.run.get_dataitem(tmpdir + '/k2.csv').as_df()
+        new_fd = mlrun.run.get_dataitem(tmpdir + '/k2.csv').as_df()
 
-    assert len(new_fd) == 5, 'failed dataframe test'
-    assert (
-        mlrun.run.get_dataitem(tmpdir + '/x.txt').get() == b'abc'
-    ), 'failed to log in file artifact'
+        assert len(new_fd) == 5, 'failed dataframe test'
+        assert (
+            mlrun.run.get_dataitem(tmpdir + '/x.txt').get() == b'abc'
+        ), 'failed to log in file artifact'
 
-    name = k2.get_store_url()
-    artifact, _ = mlrun.artifacts.get_artifact_meta(name)
-    print(artifact.to_yaml())
-    mlrun.artifacts.update_dataset_meta(
-        artifact, extra_data={'k1': k1}, column_metadata={'age': 'great'}
-    )
-    artifact, _ = mlrun.artifacts.get_artifact_meta(name)
-    print(artifact.to_yaml())
-    assert artifact.column_metadata == {'age': 'great'}, 'failed artifact update test'
+        name = k2.get_store_url()
+        artifact, _ = mlrun.artifacts.get_artifact_meta(name)
+        print(artifact.to_yaml())
+        mlrun.artifacts.update_dataset_meta(
+            artifact, extra_data={'k1': k1}, column_metadata={'age': 'great'}
+        )
+        artifact, _ = mlrun.artifacts.get_artifact_meta(name)
+        print(artifact.to_yaml())
+        assert artifact.column_metadata == {'age': 'great'}, 'failed artifact update test'

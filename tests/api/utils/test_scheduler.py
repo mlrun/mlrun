@@ -12,7 +12,6 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-@pytest.mark.asyncio
 async def scheduler(db: Session) -> Generator:
     logger.info("Creating scheduler")
     scheduler = Scheduler()

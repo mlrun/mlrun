@@ -45,7 +45,14 @@ class Scheduler:
         scheduled_object: Union[Dict, Callable],
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
-        logger.debug('Creating schedule', project=project, name=name, kind=kind, scheduled_object=scheduled_object, cron_trigger=cron_trigger)
+        logger.debug(
+            'Creating schedule',
+            project=project,
+            name=name,
+            kind=kind,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+        )
         self._create_schedule_in_scheduler(
             db_session, project, name, kind, scheduled_object, cron_trigger
         )

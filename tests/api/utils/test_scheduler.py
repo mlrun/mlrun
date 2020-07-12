@@ -12,12 +12,14 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-def scheduler(db: Session) -> Generator:
+@pytest.mark.asyncio
+async def scheduler(db: Session) -> Generator:
     logger.info(f"Created scheduler")
-    scheduler = Scheduler(db)
+    scheduler = Scheduler()
+    await scheduler.start(db)
     yield scheduler
     logger.info(f"Stopping scheduler")
-    scheduler.stop()
+    await scheduler.stop()
 
 
 call_counter: int = 0
@@ -34,6 +36,8 @@ def do_nothing():
 
 @pytest.mark.asyncio
 async def test_create_schedule(db: Session, scheduler: Scheduler):
+    global call_counter
+    call_counter = 0
     now = datetime.now()
     expected_call_counter = 5
     now_plus_5_seconds = now + timedelta(seconds=expected_call_counter)
@@ -142,6 +146,39 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
 
     schedules = scheduler.get_schedules(db)
     assert len(schedules.schedules) == 0
+
+
+@pytest.mark.asyncio
+async def test_rescheduling(db: Session, scheduler: Scheduler):
+    global call_counter
+    call_counter = 0
+    now = datetime.now()
+    now_plus_2_seconds = now + timedelta(seconds=2)
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second='*/1', start_time=now, end_time=now_plus_2_seconds
+    )
+    schedule_name = 'schedule-name'
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduledObjectKinds.local_function,
+        bump_counter,
+        cron_trigger,
+    )
+
+    # wait so one run will complete
+    await asyncio.sleep(1)
+
+    # stop the scheduler and assert indeed only one call happened
+    await scheduler.stop()
+    assert call_counter == 1
+
+    # start the scheduler and and assert another run
+    await scheduler.start(db)
+    await asyncio.sleep(1)
+    assert call_counter == 2
 
 
 def assert_schedule(

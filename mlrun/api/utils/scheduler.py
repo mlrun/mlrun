@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.utils import logger, retry_until_successful
+from mlrun.utils import logger
 
 
 class Scheduler:

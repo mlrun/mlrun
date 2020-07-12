@@ -47,6 +47,7 @@ class ScheduledObjectKinds(str, Enum):
 
 # Properties to receive via API on creation
 class ScheduleCreate(BaseModel):
+    name: str
     kind: ScheduledObjectKinds
     scheduled_object: Union[Dict, Callable]
     cron_trigger: ScheduleCronTrigger
@@ -55,7 +56,6 @@ class ScheduleCreate(BaseModel):
 class ScheduleBase(ScheduleCreate):
     creation_time: datetime
     project: str
-    name: str
 
 
 class ScheduleInDB(ScheduleBase):

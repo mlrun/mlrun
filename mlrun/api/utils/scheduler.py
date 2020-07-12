@@ -39,7 +39,7 @@ class Scheduler:
         project: str,
         name: str,
         kind: schemas.ScheduledObjectKinds,
-        scheduled_object: Any,
+        scheduled_object: Union[Dict, Callable],
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
         self._create_schedule_in_scheduler(

@@ -1,25 +1,37 @@
+import asyncio
 from typing import Any, Callable, List, Tuple, Dict, Union
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
-from mlrun.api.api.utils import submit
-from mlrun.api.singletons import get_db
-from mlrun.utils import logger
+from mlrun.api.utils.singletons.db import get_db
+from mlrun.utils import logger, retry_until_successful
 
 
 class Scheduler:
     # this should be something that does not make any sense to be inside project name or job name
     JOB_ID_SEPARATOR = "-_-"
 
-    def __init__(self, db_session: Session):
+    def __init__(self):
         self.scheduler = AsyncIOScheduler()
+
+    async def start(self, db_session: Session):
         self.scheduler.start()
+        # the scheduler shutdown and start operation are not fully async compatible yet -
+        # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
+        await asyncio.sleep(0)
         self._reschedule_jobs(db_session)
 
-    def stop(self):
+    async def stop(self):
         self.scheduler.shutdown()
+        # the scheduler shutdown and start operation are not fully async compatible yet -
+        # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
+        await asyncio.sleep(0)
+
+    def _verify_scheduler_down(self):
+        if self.scheduler.running:
+            raise RuntimeError('Scheduler still running')
 
     def create_schedule(
         self,
@@ -114,6 +126,7 @@ class Scheduler:
         """
 
         if scheduled_object_kind == schemas.ScheduledObjectKinds.job:
+            from mlrun.api.api.utils import submit
             return submit, [db_session, scheduled_object], {}
         if scheduled_object_kind == schemas.ScheduledObjectKinds.pipeline:
             raise NotImplementedError("Pipeline scheduling Not implemented yet")

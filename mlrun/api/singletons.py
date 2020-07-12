@@ -6,7 +6,7 @@ from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import create_session
 from mlrun.config import config
 from mlrun.k8s_utils import K8sHelper
-from mlrun.scheduler import Scheduler
+from mlrun.api.utils.scheduler import Scheduler
 from mlrun.utils import logger
 
 # TODO: something nicer

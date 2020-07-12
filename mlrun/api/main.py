@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from mlrun.api.api.api import api_router
 from mlrun.api.api.utils import submit
 from mlrun.api.db.session import create_session, close_session
-from mlrun.api.singletons import initialize_singletons, get_db
+from mlrun.api.singletons import initialize_singletons, get_db, get_scheduler
 from mlrun.config import config
 from mlrun.api.utils.periodic import (
     run_function_periodically,
@@ -43,6 +43,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     cancel_periodic_functions()
+    get_scheduler().stop()
 
 
 def _start_periodic_cleanup():

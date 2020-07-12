@@ -176,4 +176,3 @@ def test_list_runs(db: RunDBInterface):
 
     runs = list(db.list_runs(uid=uid, iter=True))
     assert 5 == len(runs), 'iter=True'
-

@@ -14,9 +14,6 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, List
-
-from mlrun.api import schemas
 
 
 class DBError(Exception):

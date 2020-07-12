@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.constants import LogSources
 from mlrun.api.api.utils import log_and_raise, log_path
-from mlrun.api.singletons import get_db, get_k8s
+from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.utils import get_in, now_date, update_in
 
 

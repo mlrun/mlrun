@@ -2,18 +2,20 @@ import uvicorn
 from fastapi import FastAPI
 
 from mlrun.api.api.api import api_router
-from mlrun.api.api.utils import submit
 from mlrun.api.db.session import create_session, close_session
-from mlrun.api.singletons import initialize_singletons, get_db, get_scheduler
-from mlrun.config import config
+from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
     run_function_periodically,
     cancel_periodic_functions,
 )
-from mlrun.utils import logger
-from mlrun.api.initial_data import init_data
+from mlrun.api.utils.singletons.db import get_db, initialize_db
+from mlrun.api.utils.singletons.k8s import initialize_k8s
+from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
+from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_scheduler
+from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
+from mlrun.utils import logger
 
 app = FastAPI(
     title="MLRun",
@@ -29,7 +31,7 @@ app.include_router(api_router, prefix="/api")
 async def startup_event():
     logger.info("configuration dump", dumped_config=config.dump_yaml())
 
-    initialize_singletons()
+    await _initialize_singletons()
 
     _start_periodic_cleanup()
 
@@ -37,7 +39,14 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     cancel_periodic_functions()
-    get_scheduler().stop()
+    await get_scheduler().stop()
+
+
+async def _initialize_singletons():
+    initialize_db()
+    await initialize_scheduler()
+    initialize_k8s()
+    initialize_logs_dir()
 
 
 def _start_periodic_cleanup():

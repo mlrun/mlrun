@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.singletons import get_db
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.utils import logger
 
 router = APIRouter()

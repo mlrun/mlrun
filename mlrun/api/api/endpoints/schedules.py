@@ -14,8 +14,14 @@ def create_schedule(
     schedule: schemas.ScheduleCreate,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_scheduler().create_schedule(db_session, project, schedule.name, schedule.kind, schedule.scheduled_object,
-                                    schedule.cron_trigger)
+    get_scheduler().create_schedule(
+        db_session,
+        project,
+        schedule.name,
+        schedule.kind,
+        schedule.scheduled_object,
+        schedule.cron_trigger,
+    )
     return Response(status_code=status.HTTP_201_CREATED)
 
 
@@ -30,18 +36,14 @@ def list_schedules(
 
 @router.get("/projects/{project}/schedules/{name}", response_model=schemas.Schedule)
 def get_schedule(
-    project: str,
-    name: str,
-    db_session: Session = Depends(deps.get_db_session),
+    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().get_schedule(db_session, project, name)
 
 
 @router.delete("/projects/{project}/schedules/{name}")
 def delete_schedule(
-    project: str,
-    name: str,
-    db_session: Session = Depends(deps.get_db_session),
+    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().delete_schedule(db_session, project, name)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

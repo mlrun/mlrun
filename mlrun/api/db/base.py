@@ -17,7 +17,6 @@ from abc import ABC, abstractmethod
 from typing import Any, List
 
 from mlrun.api import schemas
-from mlrun.api.utils.scheduler import ScheduledObjectKinds
 
 
 class DBError(Exception):
@@ -125,7 +124,7 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        kind: ScheduledObjectKinds,
+        kind: schemas.ScheduledObjectKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
@@ -133,7 +132,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_schedules(
-        self, session, project: str = None, kind: ScheduledObjectKinds = None
+        self, session, project: str = None, kind: schemas.ScheduledObjectKinds = None
     ) -> List[schemas.ScheduleInDB]:
         pass
 

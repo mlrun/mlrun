@@ -159,15 +159,22 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
 
-    class Schedule(Base, HasStruct):
+    class Schedule(Base):
         __tablename__ = "schedules_v2"
-        __table_args__ = (UniqueConstraint("project", "name", name="_schedules_uc"),)
-        project = Column(String)
-        name = Column(String)
+        project = Column(String, primary_key=True)
+        name = Column(String, primary_key=True)
         kind = Column(String)
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
-        body = Column(BLOB)
+        struct = Column(BLOB)
+
+        @property
+        def scheduled_object(self):
+            return pickle.loads(self.struct)
+
+        @scheduled_object.setter
+        def scheduled_object(self, value):
+            self.struct = pickle.dumps(value)
 
         @property
         def cron_trigger(self) -> schemas.ScheduleCronTrigger:

@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Optional, List, Dict, Union
+from enum import Enum
+from typing import Optional, List, Dict, Union, Callable
 
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from pydantic import BaseModel
@@ -14,10 +15,9 @@ class ScheduleCronTrigger(BaseModel):
     hour: Optional[Union[int, str]]
     minute: Optional[Union[int, str]]
     second: Optional[Union[int, str]]
-    second: Optional[Union[int, str]]
     start_date: Optional[Union[datetime, str]]
     end_date: Optional[Union[datetime, str]]
-    timezone: Optional[Union[datetime.tzinfo, str]]
+    timezone: Optional[str]
     jitter: Optional[str]
 
     def to_apscheduler_cron_trigger(self):
@@ -37,10 +37,18 @@ class ScheduleCronTrigger(BaseModel):
         )
 
 
+class ScheduledObjectKinds(str, Enum):
+    job = "job"
+    pipeline = "pipeline"
+
+    # this is mainly for testing purposes
+    local_function = "local_function"
+
+
 # Properties to receive via API on creation
 class ScheduleCreate(BaseModel):
-    kind: str
-    scheduled_object: Dict
+    kind: ScheduledObjectKinds
+    scheduled_object: Union[Dict, Callable]
     cron_trigger: ScheduleCronTrigger
 
 

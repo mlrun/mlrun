@@ -11,3 +11,4 @@ xgboost
 sphinx-copybutton
 black
 flake8
+pytest-asyncio~=0.14

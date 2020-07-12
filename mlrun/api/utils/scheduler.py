@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Any, Callable, List, Tuple, Dict, Union
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -10,14 +9,6 @@ from mlrun.api.singletons import get_db
 from mlrun.utils import logger
 
 
-class ScheduledObjectKinds(Enum):
-    job = "job"
-    pipeline = "pipeline"
-
-    # this is mainly for testing purposes
-    local_function = "local_function"
-
-
 class Scheduler:
     # this should be something that does not make any sense to be inside project name or job name
     JOB_ID_SEPARATOR = "-_-"
@@ -26,12 +17,15 @@ class Scheduler:
         self.scheduler = AsyncIOScheduler()
         self.scheduler.start()
 
+    def stop(self):
+        self.scheduler.shutdown()
+
     def create_schedule(
         self,
         db_session: Session,
         project: str,
         name: str,
-        kind: ScheduledObjectKinds,
+        kind: schemas.ScheduledObjectKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
@@ -87,18 +81,18 @@ class Scheduler:
     def _resolve_job_function(
         self,
         db_session: Session,
-        scheduled_object_kind: ScheduledObjectKinds,
+        scheduled_object_kind: schemas.ScheduledObjectKinds,
         scheduled_object: Any,
     ) -> Tuple[Callable, Union[List, Tuple], Dict]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
 
-        if scheduled_object_kind == ScheduledObjectKinds.job:
+        if scheduled_object_kind == schemas.ScheduledObjectKinds.job:
             return submit, [db_session, scheduled_object], {}
-        if scheduled_object_kind == ScheduledObjectKinds.pipeline:
+        if scheduled_object_kind == schemas.ScheduledObjectKinds.pipeline:
             raise NotImplementedError("Pipeline scheduling Not implemented yet")
-        if scheduled_object_kind == ScheduledObjectKinds.local_function:
+        if scheduled_object_kind == schemas.ScheduledObjectKinds.local_function:
             return scheduled_object, [], {}
 
         # sanity

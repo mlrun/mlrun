@@ -22,7 +22,6 @@ from urllib.request import urlopen
 from datetime import datetime
 
 from ..artifacts import get_model, ModelArtifact
-from ..datastore import StoreManager
 from ..platforms.iguazio import OutputStream
 
 
@@ -35,7 +34,6 @@ class MLModelServer:
         self._params = {}
         self.metrics = {}
         self.labels = {}
-        self._stores = StoreManager()
         if model:
             self.model = model
             self.ready = True
@@ -44,9 +42,7 @@ class MLModelServer:
         return self._params.get(key, default)
 
     def get_model(self, suffix=''):
-        model_file, self.model_spec, extra_dataitems = get_model(
-            self.model_dir, suffix, self._stores
-        )
+        model_file, self.model_spec, extra_dataitems = get_model(self.model_dir, suffix)
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():
                 self._params[key] = value

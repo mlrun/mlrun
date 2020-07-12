@@ -13,8 +13,12 @@
 # limitations under the License.
 import os
 import hashlib
+
+import yaml
+
+import mlrun
 from ..model import ModelObj
-from ..datastore import StoreManager
+from ..datastore import StoreManager, store_manager
 from ..utils import DB_SCHEMA
 
 calc_hash = True
@@ -36,6 +40,7 @@ class Artifact(ModelObj):
         'format',
         'size',
         'db_key',
+        'extra_data',
     ]
     kind = ''
 
@@ -70,6 +75,7 @@ class Artifact(ModelObj):
         self.hash = None
         self._inline = is_inline
         self.license = ''
+        self.extra_data = {}
 
     def before_log(self):
         pass
@@ -95,6 +101,7 @@ class Artifact(ModelObj):
         url = '{}://{}/{}'.format(DB_SCHEMA, project or self.project, self.db_key)
         if with_tag:
             url += '#' + self.tree
+        return url
 
     def base_dict(self):
         return super().to_dict()
@@ -208,3 +215,66 @@ def blob_hash(data):
     h = hashlib.sha1()
     h.update(data)
     return h.hexdigest()
+
+
+def upload_extra_data(
+    artifact_spec: Artifact,
+    extra_data: dict,
+    data_stores,
+    prefix='',
+    update_spec=False,
+):
+    if not extra_data:
+        return
+    target_path = artifact_spec.target_path
+    for key, item in extra_data.items():
+
+        if isinstance(item, bytes):
+            target = os.path.join(target_path, key)
+            data_stores.object(url=target).put(item)
+            artifact_spec.extra_data[prefix + key] = target
+            continue
+
+        if not (item.startswith('/') or '://' in item):
+            src_path = (
+                os.path.join(artifact_spec.src_path, item)
+                if artifact_spec.src_path
+                else item
+            )
+            if not os.path.isfile(src_path):
+                raise ValueError('extra data file {} not found'.format(src_path))
+            target = os.path.join(target_path, item)
+            data_stores.object(url=target).upload(src_path)
+
+        if update_spec:
+            artifact_spec.extra_data[prefix + key] = item
+
+
+def get_artifact_meta(artifact):
+    """return artifact object, and list of extra data items
+
+
+    :param artifact:   artifact path (store://..) or DataItem
+
+    :return artifact object, extra data dict
+
+    """
+    if hasattr(artifact, 'artifact_url'):
+        artifact = artifact.artifact_url
+
+    if artifact.startswith(DB_SCHEMA + '://'):
+        artifact_spec, target = store_manager.get_store_artifact(artifact)
+
+    elif artifact.lower().endswith('.yaml'):
+        data = store_manager.object(url=artifact).get()
+        spec = yaml.load(data, Loader=yaml.FullLoader)
+        artifact_spec = mlrun.artifacts.dict_to_artifact(spec)
+
+    else:
+        raise ValueError('cant resolve artifact file for {}'.format(artifact))
+
+    extra_dataitems = {}
+    for k, v in artifact_spec.extra_data.items():
+        extra_dataitems[k] = store_manager.object(v, key=k)
+
+    return artifact_spec, extra_dataitems

@@ -4,7 +4,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Query, Request, Response
 
 from mlrun.api.api.utils import log_and_raise, get_obj_path, get_secrets
-from mlrun.datastore import get_object_stat, StoreManager
+from mlrun.datastore import get_object_stat, store_manager
 
 router = APIRouter()
 
@@ -30,7 +30,7 @@ def get_files(
     secrets = get_secrets(request)
     body = None
     try:
-        stores = StoreManager(secrets)
+        stores = store_manager.set(secrets)
         obj = stores.object(url=objpath)
         if objpath.endswith("/"):
             listdir = obj.listdir()

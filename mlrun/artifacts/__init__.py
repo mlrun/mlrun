@@ -18,7 +18,7 @@
 __all__ = ['get_model', 'update_model']
 
 from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
-from .base import Artifact
+from .base import Artifact, get_artifact_meta
 from .plots import PlotArtifact, ChartArtifact
-from .dataset import TableArtifact, DatasetArtifact
+from .dataset import TableArtifact, DatasetArtifact, update_dataset_meta
 from .model import ModelArtifact, get_model, update_model

@@ -1,5 +1,5 @@
-from typing import Generator
 from io import StringIO
+from typing import Generator
 
 import pytest
 

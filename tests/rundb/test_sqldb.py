@@ -111,17 +111,6 @@ def test_list_projects(db: SQLDB, db_session: Session):
     assert {'prj0', 'prj1', 'prj2'} == {p.name for p in db.list_projects(db_session)}
 
 
-def test_schedules(db: SQLDB, db_session: Session):
-    count = 7
-    for i in range(count):
-        data = {'i': i}
-        db.store_schedule(db_session, data)
-
-    scheds = list(db.list_schedules(db_session))
-    assert count == len(scheds), 'wrong number of schedules'
-    assert set(range(count)) == set(s['i'] for s in scheds), 'bad scheds'
-
-
 def test_run_iter0(db: SQLDB, db_session: Session):
     uid, prj = 'uid39', 'lemon'
     run = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, x=1)

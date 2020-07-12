@@ -177,13 +177,3 @@ def test_list_runs(db: RunDBInterface):
     runs = list(db.list_runs(uid=uid, iter=True))
     assert 5 == len(runs), 'iter=True'
 
-
-def test_schedules(db: RunDBInterface):
-    count = 7
-    for i in range(count):
-        data = {'i': i}
-        db.store_schedule(data)
-
-    scheds = list(db.list_schedules())
-    assert count == len(scheds), 'wrong number of schedules'
-    assert set(range(count)) == set(s['i'] for s in scheds), 'bad scheds'

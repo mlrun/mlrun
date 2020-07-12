@@ -12,9 +12,9 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-def scheduler() -> Generator:
+def scheduler(db: Session) -> Generator:
     logger.info(f"Created scheduler")
-    scheduler = Scheduler()
+    scheduler = Scheduler(db)
     yield scheduler
     logger.info(f"Stopping scheduler")
     scheduler.stop()

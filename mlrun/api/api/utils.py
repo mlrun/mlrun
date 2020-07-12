@@ -112,13 +112,20 @@ def submit(db_session: Session, data):
         if schedule:
             data_without_schedule = copy.deepcopy(data)
             del data_without_schedule['schedule']
-            get_scheduler().create_schedule(db_session, fn.metadata.project, fn.metadata.name,
-                                            schemas.ScheduledObjectKinds.job, data_without_schedule,
-                                            schemas.ScheduleCronTrigger(**schedule))
+            get_scheduler().create_schedule(
+                db_session,
+                fn.metadata.project,
+                fn.metadata.name,
+                schemas.ScheduledObjectKinds.job,
+                data_without_schedule,
+                schemas.ScheduleCronTrigger(**schedule),
+            )
 
-            response = {"schedule": schedule,
-                        "project": fn.metadata.project,
-                        "name": fn.metadata.name}
+            response = {
+                "schedule": schedule,
+                "project": fn.metadata.project,
+                "name": fn.metadata.name,
+            }
         else:
             run = fn.run(task, watch=False)
             if run:

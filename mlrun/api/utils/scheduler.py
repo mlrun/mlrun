@@ -13,9 +13,10 @@ class Scheduler:
     # this should be something that does not make any sense to be inside project name or job name
     JOB_ID_SEPARATOR = "-_-"
 
-    def __init__(self):
+    def __init__(self, db_session: Session):
         self.scheduler = AsyncIOScheduler()
         self.scheduler.start()
+        self._reschedule_jobs(db_session)
 
     def stop(self):
         self.scheduler.shutdown()
@@ -29,13 +30,8 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
-
-        job_id = self._resolve_job_identifier(project, name)
-        function, args, kwargs = self._resolve_job_function(
-            db_session, kind, scheduled_object
-        )
-        self.scheduler.add_job(
-            function, cron_trigger.to_apscheduler_cron_trigger(), args, kwargs, job_id
+        self._create_schedule_in_scheduler(
+            db_session, project, name, kind, scheduled_object, cron_trigger
         )
         get_db().create_schedule(
             db_session, project, name, kind, scheduled_object, cron_trigger
@@ -61,6 +57,35 @@ class Scheduler:
         job_id = self._resolve_job_identifier(project, name)
         self.scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
+
+    def _create_schedule_in_scheduler(
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        kind: schemas.ScheduledObjectKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
+        job_id = self._resolve_job_identifier(project, name)
+        function, args, kwargs = self._resolve_job_function(
+            db_session, kind, scheduled_object
+        )
+        self.scheduler.add_job(
+            function, cron_trigger.to_apscheduler_cron_trigger(), args, kwargs, job_id
+        )
+
+    def _reschedule_jobs(self, db_session: Session):
+        db_schedules = get_db().get_schedules(db_session)
+        for db_schedule in db_schedules:
+            self._create_schedule_in_scheduler(
+                db_session,
+                db_schedule.project,
+                db_schedule.name,
+                db_schedule.kind,
+                db_schedule.scheduled_object,
+                db_schedule.cron_trigger,
+            )
 
     def _transform_db_schedule_to_schedule(
         self, db_schedule: schemas.ScheduleInDB

@@ -31,12 +31,6 @@ async def startup_event():
 
     initialize_singletons()
 
-    # don't fail the app on re-scheduling failure
-    try:
-        _reschedule_tasks()
-    except Exception as exc:
-        logger.warning(f'Failed rescheduling tasks, err: {exc}')
-
     _start_periodic_cleanup()
 
 
@@ -58,19 +52,6 @@ def _cleanup_runtimes():
         for kind in RuntimeKinds.runtime_with_handlers():
             runtime_handler = get_runtime_handler(kind)
             runtime_handler.delete_resources(get_db(), db_session)
-    finally:
-        close_session(db_session)
-
-
-def _reschedule_tasks():
-    db_session = None
-    try:
-        db_session = create_session()
-        for data in get_db().list_schedules(db_session):
-            if "schedule" not in data:
-                logger.warning("bad scheduler data - %s", data)
-                continue
-            submit(db_session, data)
     finally:
         close_session(db_session)
 

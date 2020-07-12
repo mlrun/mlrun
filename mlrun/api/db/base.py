@@ -118,31 +118,32 @@ class DBInterface(ABC):
     def list_functions(self, session, name, project="", tag="", labels=None):
         pass
 
-    @abstractmethod
-    def create_schedule(
-        self,
-        session,
-        project: str,
-        name: str,
-        kind: schemas.ScheduledObjectKinds,
-        scheduled_object: Any,
-        cron_trigger: schemas.ScheduleCronTrigger,
-    ):
-        pass
-
-    @abstractmethod
-    def get_schedules(
-        self, session, project: str = None, kind: schemas.ScheduledObjectKinds = None
-    ) -> List[schemas.ScheduleInDB]:
-        pass
-
-    @abstractmethod
-    def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleInDB:
-        pass
-
-    @abstractmethod
-    def delete_schedule(self, session, project: str, name: str):
-        pass
+    # TODO: deprecate FileDB so we can un-comment these (or implement them in FileDB :)
+    # @abstractmethod
+    # def create_schedule(
+    #     self,
+    #     session,
+    #     project: str,
+    #     name: str,
+    #     kind: schemas.ScheduledObjectKinds,
+    #     scheduled_object: Any,
+    #     cron_trigger: schemas.ScheduleCronTrigger,
+    # ):
+    #     pass
+    #
+    # @abstractmethod
+    # def get_schedules(
+    #     self, session, project: str = None, kind: schemas.ScheduledObjectKinds = None
+    # ) -> List[schemas.ScheduleInDB]:
+    #     pass
+    #
+    # @abstractmethod
+    # def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleInDB:
+    #     pass
+    #
+    # @abstractmethod
+    # def delete_schedule(self, session, project: str, name: str):
+    #     pass
 
     def list_projects(self, session):
         return []

@@ -2,3 +2,11 @@
 
 from .project import Project, ProjectOut, ProjectCreate, ProjectInDB, ProjectUpdate
 from .user import User, UserCreate, UserInDB, UserUpdate
+from .schedule import (
+    Schedules,
+    Schedule,
+    ScheduleCronTrigger,
+    ScheduleCreate,
+    ScheduleInDB,
+    ScheduleBase,
+)

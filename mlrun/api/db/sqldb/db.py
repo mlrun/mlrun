@@ -1,9 +1,12 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from typing import Any, List
 
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
+from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
 from mlrun.api.db.sqldb.helpers import (
     label_set,
@@ -22,6 +25,7 @@ from mlrun.api.db.sqldb.models import (
     Project,
     _tagged,
 )
+from mlrun.api.utils.scheduler import ScheduledObjectKinds
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.utils import get_in, update_in, logger, fill_function_hash
@@ -350,13 +354,39 @@ class SQLDB(DBInterface):
         )
         return [row[0] for row in query]
 
-    def store_schedule(self, session, data):
-        sched = Schedule()
-        sched.struct = data
-        self._upsert(session, sched)
+    def create_schedule(
+        self,
+        session: Session,
+        project: str,
+        name: str,
+        kind: ScheduledObjectKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
+        schedule = Schedule(
+            project=project, name=name, kind=kind.value, creation_time=datetime.now(),
+        )
+        schedule.struct = scheduled_object
+        schedule.cron_trigger = cron_trigger
+        self._upsert(session, schedule)
 
-    def list_schedules(self, session):
-        return [s.struct for s in session.query(Schedule)]
+    def get_schedules(
+        self, session: Session, project: str = None, kind: ScheduledObjectKinds = None
+    ) -> List[schemas.ScheduleInDB]:
+        db_schedules = self._query(session, Schedule, project=project, kind=kind)
+        schedules = []
+        for db_schedule in db_schedules:
+            schedules.append(self._transform_schedule_model_to_scheme(db_schedule))
+        return schedules
+
+    def get_schedule(
+        self, session: Session, project: str, name: str
+    ) -> schemas.ScheduleInDB:
+        db_schedule = self._query(session, Schedule, project=project, name=name)
+        return self._transform_schedule_model_to_scheme(db_schedule)
+
+    def delete_schedule(self, session: Session, project: str, name: str):
+        self._delete(session, Schedule, project=project, name=name)
 
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.
@@ -633,3 +663,11 @@ class SQLDB(DBInterface):
 
         subq = session.query(cls.Label).filter(*preds).subquery("labels")
         return query.join(subq)
+
+    @staticmethod
+    def _transform_schedule_model_to_scheme(
+        db_schedule: Schedule,
+    ) -> schemas.ScheduleInDB:
+        schedule = schemas.ScheduleInDB.from_orm(db_schedule)
+        schedule.scheduled_object = db_schedule.struct
+        return schedule

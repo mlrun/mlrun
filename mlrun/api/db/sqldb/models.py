@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import pickle
 import warnings
 from datetime import datetime
@@ -28,6 +29,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+
+from mlrun.api import schemas
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -157,10 +160,22 @@ with warnings.catch_warnings():
         labels = relationship(Label)
 
     class Schedule(Base, HasStruct):
-        __tablename__ = "schedules"
-
-        id = Column(Integer, primary_key=True)
+        __tablename__ = "schedules_v2"
+        __table_args__ = (UniqueConstraint("project", "name", name="_schedules_uc"),)
+        project = Column(String)
+        name = Column(String)
+        kind = Column(String)
+        creation_time = Column(TIMESTAMP)
+        cron_trigger_str = Column(String)
         body = Column(BLOB)
+
+        @property
+        def cron_trigger(self) -> schemas.ScheduleCronTrigger:
+            return json.loads(self.cron_trigger_str)
+
+        @cron_trigger.setter
+        def cron_trigger(self, trigger: schemas.ScheduleCronTrigger):
+            self.cron_trigger_str = json.dumps(trigger.dict(exclude_unset=True))
 
     # Define "many to many" users/projects
     project_users = Table(

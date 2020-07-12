@@ -23,10 +23,11 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from ..utils import dict_to_json, logger, new_pipe_meta
+from mlrun.api import schemas
 from .base import RunDBError, RunDBInterface
-from ..lists import RunList, ArtifactList
 from ..config import config
+from ..lists import RunList, ArtifactList
+from ..utils import dict_to_json, logger, new_pipe_meta
 
 default_project = config.default_project
 
@@ -398,6 +399,36 @@ class HTTPRunDB(RunDBInterface):
         path = f'runtimes/{kind}/{object_id}'
         error = f'delete runtime object {kind} {object_id}'
         self.api_call('DELETE', path, error, params=params)
+
+    def create_schedule(self, project: str, schedule: schemas.ScheduleCreate):
+        project = project or default_project
+        path = f'projects/{project}/schedules'
+
+        error_message = f'Failed creating schedule {project}/{schedule.name}'
+        self.api_call('POST', path, error_message, body=json.dumps(schedule.dict()))
+
+    def get_schedules(
+        self, project: str, kind: schemas.ScheduledObjectKinds = None
+    ) -> schemas.Schedules:
+        project = project or default_project
+        params = {'kind': kind}
+        path = f'projects/{project}/schedules'
+        error_message = f'Failed getting schedules {project} ? {kind}'
+        resp = self.api_call('GET', path, error_message, params=params)
+        return schemas.Schedules(**resp.json())
+
+    def get_schedule(self, project: str, name: str) -> schemas.Schedule:
+        project = project or default_project
+        path = f'projects/{project}/schedules/{name}'
+        error_message = f'Failed getting schedule {project}/{name}'
+        resp = self.api_call('GET', path, error_message)
+        return schemas.Schedule(**resp.json())
+
+    def delete_schedule(self, project: str, name: str):
+        project = project or default_project
+        path = f'projects/{project}/schedules/{name}'
+        error_message = f'Failed deleting schedule {project}/{name}'
+        self.api_call('DELETE', path, error_message)
 
     def remote_builder(self, func, with_mlrun):
         try:

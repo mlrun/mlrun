@@ -17,21 +17,24 @@ class Scheduler:
         self.scheduler = AsyncIOScheduler()
 
     async def start(self, db_session: Session):
+        logger.info('Starting scheduler')
         self.scheduler.start()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
         await asyncio.sleep(0)
-        self._reschedule_jobs(db_session)
+
+        # don't fail the start on re-scheduling failure
+        try:
+            self._reload_schedules(db_session)
+        except Exception as exc:
+            logger.warning('Failed reloading schedules', exc=exc)
 
     async def stop(self):
+        logger.info('Stopping scheduler')
         self.scheduler.shutdown()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
         await asyncio.sleep(0)
-
-    def _verify_scheduler_down(self):
-        if self.scheduler.running:
-            raise RuntimeError('Scheduler still running')
 
     def create_schedule(
         self,
@@ -42,6 +45,7 @@ class Scheduler:
         scheduled_object: Union[Dict, Callable],
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
+        logger.debug('Creating schedule', project=project, name=name, kind=kind, scheduled_object=scheduled_object, cron_trigger=cron_trigger)
         self._create_schedule_in_scheduler(
             db_session, project, name, kind, scheduled_object, cron_trigger
         )
@@ -52,6 +56,7 @@ class Scheduler:
     def get_schedules(
         self, db_session: Session, project: str = None, kind: str = None
     ) -> schemas.Schedules:
+        logger.debug('Getting schedules', project=project, kind=kind)
         db_schedules = get_db().get_schedules(db_session, project, kind)
         schedules = []
         for db_schedule in db_schedules:
@@ -62,10 +67,12 @@ class Scheduler:
     def get_schedule(
         self, db_session: Session, project: str, name: str
     ) -> schemas.Schedule:
+        logger.debug('Getting schedule', project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         return self._transform_db_schedule_to_schedule(db_schedule)
 
     def delete_schedule(self, db_session: Session, project: str, name: str):
+        logger.debug('Deleting schedule', project=project, name=name)
         job_id = self._resolve_job_identifier(project, name)
         self.scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
@@ -87,7 +94,8 @@ class Scheduler:
             function, cron_trigger.to_apscheduler_cron_trigger(), args, kwargs, job_id
         )
 
-    def _reschedule_jobs(self, db_session: Session):
+    def _reload_schedules(self, db_session: Session):
+        logger.info('Reloading schedules')
         db_schedules = get_db().get_schedules(db_session)
         for db_schedule in db_schedules:
             self._create_schedule_in_scheduler(

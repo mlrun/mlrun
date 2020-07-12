@@ -112,6 +112,8 @@ def submit(db_session: Session, data):
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
+            # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
+            # endless scheduling loop
             data_without_schedule = copy.deepcopy(data)
             del data_without_schedule['schedule']
             get_scheduler().create_schedule(

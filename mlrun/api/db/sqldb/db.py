@@ -362,11 +362,18 @@ class SQLDB(DBInterface):
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
+        self._create_project_if_not_exists(session, project)
         schedule = Schedule(
-            project=project, name=name, kind=kind.value, creation_time=datetime.now(),
+            project=project,
+            name=name, kind=kind.value, creation_time=datetime.now(),
+
+            # these are properties of the object that map manually (using getters and setters) to other column of the
+            # table and therefore Pycharm yells that they're unexpected
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
         )
-        schedule.scheduled_object = scheduled_object
-        schedule.cron_trigger = cron_trigger
+
+        logger.debug('Saving schedule to db', project=project, name=name, kind=kind, cron_trigger=cron_trigger)
         self._upsert(session, schedule)
 
     def get_schedules(
@@ -379,6 +386,7 @@ class SQLDB(DBInterface):
         schedules = []
         for db_schedule in db_schedules:
             schedules.append(self._transform_schedule_model_to_scheme(db_schedule))
+        logger.debug('Got schedules from db', schedules=schedules, project=project, kind=kind)
         return schedules
 
     def get_schedule(
@@ -386,10 +394,13 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleInDB:
         query = self._query(session, Schedule, project=project, name=name)
         db_schedule = query.one_or_none()
-        return self._transform_schedule_model_to_scheme(db_schedule)
+        schedule = self._transform_schedule_model_to_scheme(db_schedule)
+        logger.debug('Got schedule from db', schedule=schedule, project=project, name=name)
+        return schedule
 
     def delete_schedule(self, session: Session, project: str, name: str):
         self._delete(session, Schedule, project=project, name=name)
+        logger.debug('Removed schedule from db', project=project, name=name)
 
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.

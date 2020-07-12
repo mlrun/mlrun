@@ -21,6 +21,7 @@ def db() -> Generator:
     config.httpdb.db_type = 'sqldb'
     config.httpdb.dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
 
+    # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
     _init_engine(config.httpdb.dsn)
     init_data()

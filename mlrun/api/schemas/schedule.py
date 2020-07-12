@@ -17,6 +17,8 @@ class ScheduleCronTrigger(BaseModel):
     second: Optional[Union[int, str]]
     start_date: Optional[Union[datetime, str]]
     end_date: Optional[Union[datetime, str]]
+
+    # APScheduler also supports datetime.tzinfo type, but Pydantic doesn't - so we don't
     timezone: Optional[str]
     jitter: Optional[str]
 
@@ -63,6 +65,7 @@ class ScheduleInDB(ScheduleBase):
         orm_mode = True
 
 
+# Additional properties to return via API
 class Schedule(ScheduleBase):
     next_run_time: Optional[datetime]
 

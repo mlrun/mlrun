@@ -502,7 +502,9 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
-    def submit_job(self, runspec, schedule: Union[str, schemas.ScheduleCronTrigger] = None):
+    def submit_job(
+        self, runspec, schedule: Union[str, schemas.ScheduleCronTrigger] = None
+    ):
         try:
             req = {'task': runspec.to_dict()}
             if schedule:

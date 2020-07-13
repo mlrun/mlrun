@@ -42,10 +42,18 @@ class ScheduleCronTrigger(BaseModel):
         """
         values = expr.split()
         if len(values) != 5:
-            raise ValueError('Wrong number of fields; got {}, expected 5'.format(len(values)))
+            raise ValueError(
+                'Wrong number of fields; got {}, expected 5'.format(len(values))
+            )
 
-        return cls(minute=values[0], hour=values[1], day=values[2], month=values[3],
-                   day_of_week=values[4], timezone=timezone)
+        return cls(
+            minute=values[0],
+            hour=values[1],
+            day=values[2],
+            month=values[3],
+            day_of_week=values[4],
+            timezone=timezone,
+        )
 
     def to_apscheduler_cron_trigger(self):
         return APSchedulerCronTrigger(

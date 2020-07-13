@@ -95,6 +95,7 @@ class Scheduler:
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
         job_id = self._resolve_job_identifier(project, name)
+        logger.debug('Adding schedule to scheduler', job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
             db_session, kind, scheduled_object
         )

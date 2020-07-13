@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, Callable, List, Tuple, Dict, Union
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -98,7 +99,13 @@ class Scheduler:
             db_session, kind, scheduled_object
         )
         self.scheduler.add_job(
-            function, cron_trigger.to_apscheduler_cron_trigger(), args, kwargs, job_id
+            function,
+            self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+                cron_trigger
+            ),
+            args,
+            kwargs,
+            job_id,
         )
 
     def _reload_schedules(self, db_session: Session):
@@ -123,13 +130,6 @@ class Scheduler:
         schedule.next_run_time = job.next_run_time
         return schedule
 
-    @staticmethod
-    def _resolve_job_identifier(project, name) -> str:
-        """
-        :return: returns the identifier that will be used inside the APScheduler
-        """
-        return Scheduler.JOB_ID_SEPARATOR.join([project, name])
-
     def _resolve_job_function(
         self,
         db_session: Session,
@@ -153,3 +153,29 @@ class Scheduler:
         message = "Scheduled object kind missing implementation"
         logger.warn(message, scheduled_object_kind=scheduled_object_kind)
         raise NotImplementedError(message)
+
+    @staticmethod
+    def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
+        return APSchedulerCronTrigger(
+            cron_trigger.year,
+            cron_trigger.month,
+            cron_trigger.day,
+            cron_trigger.week,
+            cron_trigger.day_of_week,
+            cron_trigger.hour,
+            cron_trigger.minute,
+            cron_trigger.second,
+            cron_trigger.start_date,
+            cron_trigger.end_date,
+            cron_trigger.timezone,
+            cron_trigger.jitter,
+        )
+
+    @staticmethod
+    def _resolve_job_identifier(project, name) -> str:
+        """
+        :return: returns the identifier that will be used inside the APScheduler
+        """
+        return Scheduler.JOB_ID_SEPARATOR.join([project, name])

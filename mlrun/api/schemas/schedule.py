@@ -54,25 +54,6 @@ class ScheduleCronTrigger(BaseModel):
             timezone=timezone,
         )
 
-    def to_apscheduler_cron_trigger(self):
-        # importing it here so we won't need to add apscheduler as a dependency to MLRun package
-        from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
-
-        return APSchedulerCronTrigger(
-            self.year,
-            self.month,
-            self.day,
-            self.week,
-            self.day_of_week,
-            self.hour,
-            self.minute,
-            self.second,
-            self.start_date,
-            self.end_date,
-            self.timezone,
-            self.jitter,
-        )
-
 
 class ScheduledObjectKinds(str, Enum):
     job = "job"

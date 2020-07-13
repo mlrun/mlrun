@@ -16,7 +16,7 @@ import json
 import tempfile
 import time
 from os import path, remove, environ
-from typing import List, Dict
+from typing import List, Dict, Union
 
 import kfp
 import requests
@@ -502,10 +502,12 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
-    def submit_job(self, runspec, schedule: schemas.ScheduleCronTrigger = None):
+    def submit_job(self, runspec, schedule: Union[str, schemas.ScheduleCronTrigger] = None):
         try:
             req = {'task': runspec.to_dict()}
             if schedule:
+                if isinstance(schedule, str):
+                    schedule = schemas.ScheduleCronTrigger.from_crontab(schedule)
                 req['schedule'] = schedule.dict()
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)

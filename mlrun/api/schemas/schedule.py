@@ -27,6 +27,26 @@ class ScheduleCronTrigger(BaseModel):
     timezone: Optional[str]
     jitter: Optional[str]
 
+    @classmethod
+    def from_crontab(cls, expr, timezone=None):
+        """
+        Create a :class:`~ScheduleCronTrigger` from a standard crontab expression.
+
+        See https://en.wikipedia.org/wiki/Cron for more information on the format accepted here.
+
+        :param expr: minute, hour, day of month, month, day of week
+        :param datetime.tzinfo|str timezone: time zone to use for the date/time calculations (
+            defaults to scheduler timezone)
+        :return: a :class:`~ScheduleCronTrigger` instance
+
+        """
+        values = expr.split()
+        if len(values) != 5:
+            raise ValueError('Wrong number of fields; got {}, expected 5'.format(len(values)))
+
+        return cls(minute=values[0], hour=values[1], day=values[2], month=values[3],
+                   day_of_week=values[4], timezone=timezone)
+
     def to_apscheduler_cron_trigger(self):
         return APSchedulerCronTrigger(
             self.year,

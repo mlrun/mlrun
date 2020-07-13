@@ -20,7 +20,7 @@ from ast import literal_eval
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 from mlrun.api import schemas
 
 from kubernetes import client
@@ -224,7 +224,7 @@ class BaseRuntime(ModelObj):
         workdir: str = '',
         artifact_path: str = '',
         watch: bool = True,
-        schedule: schemas.ScheduleCronTrigger = None,
+        schedule: Union[str, schemas.ScheduleCronTrigger] = None,
         verbose=None,
     ):
         """Run a local or remote task.
@@ -239,7 +239,8 @@ class BaseRuntime(ModelObj):
         :param artifact_path: default artifact output path (will replace out_path)
         :param workdir:       default input artifacts path
         :param watch:         watch/follow run log
-        :param schedule:      Cron trigger class instance, see this link for help:
+        :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string (which
+        will be converted to the class using its `from_crontab` constructor. see this link for help:
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param verbose:       add verbose prints/logs
 

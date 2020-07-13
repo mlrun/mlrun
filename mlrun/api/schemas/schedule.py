@@ -24,7 +24,7 @@ class ScheduleCronTrigger(BaseModel):
 
     # APScheduler also supports datetime.tzinfo type, but Pydantic doesn't - so we don't
     timezone: Optional[str]
-    jitter: Optional[str]
+    jitter: Optional[int]
 
     @classmethod
     def from_crontab(cls, expr, timezone=None):

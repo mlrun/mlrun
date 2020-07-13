@@ -118,7 +118,7 @@ def submit(db_session: Session, data):
             del data_without_schedule['schedule']
             get_scheduler().create_schedule(
                 db_session,
-                fn.metadata.project,
+                fn.metadata.project or config.default_project,
                 fn.metadata.name,
                 schemas.ScheduledObjectKinds.job,
                 data_without_schedule,

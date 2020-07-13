@@ -21,6 +21,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Tuple
+from mlrun.api import schemas
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -223,7 +224,7 @@ class BaseRuntime(ModelObj):
         workdir: str = '',
         artifact_path: str = '',
         watch: bool = True,
-        schedule: str = '',
+        schedule: schemas.ScheduleCronTrigger = None,
         verbose=None,
     ):
         """Run a local or remote task.
@@ -238,7 +239,8 @@ class BaseRuntime(ModelObj):
         :param artifact_path: default artifact output path (will replace out_path)
         :param workdir:       default input artifacts path
         :param watch:         watch/follow run log
-        :param schedule:      cron string for scheduled jobs
+        :param schedule:      Cron trigger class instance, see this link for help:
+        https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param verbose:       add verbose prints/logs
 
         :return: run context object (dict) with run metadata, results and

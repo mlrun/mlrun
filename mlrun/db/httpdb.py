@@ -502,11 +502,11 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
-    def submit_job(self, runspec, schedule=None):
+    def submit_job(self, runspec, schedule: schemas.ScheduleCronTrigger = None):
         try:
             req = {'task': runspec.to_dict()}
             if schedule:
-                req['schedule'] = schedule
+                req['schedule'] = schedule.dict()
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)
         except OSError as err:

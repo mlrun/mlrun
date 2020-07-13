@@ -54,10 +54,10 @@ class Scheduler:
             scheduled_object=scheduled_object,
             cron_trigger=cron_trigger,
         )
-        self._create_schedule_in_scheduler(
+        get_db().create_schedule(
             db_session, project, name, kind, scheduled_object, cron_trigger
         )
-        get_db().create_schedule(
+        self._create_schedule_in_scheduler(
             db_session, project, name, kind, scheduled_object, cron_trigger
         )
 

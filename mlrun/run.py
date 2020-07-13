@@ -579,7 +579,7 @@ def code_to_function(
 
     def update_meta(fn):
         fn.spec.description = description
-        fn.metadata.project = project
+        fn.metadata.project = project or mlconf.default_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
         fn.metadata.labels = labels

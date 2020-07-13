@@ -2,7 +2,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict, Union, Callable
 
-from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from pydantic import BaseModel
 
 
@@ -56,6 +55,9 @@ class ScheduleCronTrigger(BaseModel):
         )
 
     def to_apscheduler_cron_trigger(self):
+        # importing it here so we won't need to add apscheduler as a dependency to MLRun package
+        from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
+
         return APSchedulerCronTrigger(
             self.year,
             self.month,

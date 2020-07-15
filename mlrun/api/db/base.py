@@ -131,11 +131,11 @@ class DBInterface(ABC):
     # @abstractmethod
     # def get_schedules(
     #     self, session, project: str = None, kind: schemas.ScheduledObjectKinds = None
-    # ) -> List[schemas.ScheduleInDB]:
+    # ) -> List[schemas.ScheduleRecord]:
     #     pass
     #
     # @abstractmethod
-    # def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleInDB:
+    # def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleRecord:
     #     pass
     #
     # @abstractmethod

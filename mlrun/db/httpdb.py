@@ -400,7 +400,7 @@ class HTTPRunDB(RunDBInterface):
         error = f'delete runtime object {kind} {object_id}'
         self.api_call('DELETE', path, error, params=params)
 
-    def create_schedule(self, project: str, schedule: schemas.ScheduleCreate):
+    def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
         project = project or default_project
         path = f'projects/{project}/schedules'
 
@@ -417,12 +417,12 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', path, error_message, params=params)
         return schemas.Schedules(**resp.json())
 
-    def get_schedule(self, project: str, name: str) -> schemas.Schedule:
+    def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
         project = project or default_project
         path = f'projects/{project}/schedules/{name}'
         error_message = f'Failed getting schedule {project}/{name}'
         resp = self.api_call('GET', path, error_message)
-        return schemas.Schedule(**resp.json())
+        return schemas.ScheduleOutput(**resp.json())
 
     def delete_schedule(self, project: str, name: str):
         project = project or default_project

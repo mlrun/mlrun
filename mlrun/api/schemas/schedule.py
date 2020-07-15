@@ -64,27 +64,26 @@ class ScheduledObjectKinds(str, Enum):
 
 
 # Properties to receive via API on creation
-class ScheduleCreate(BaseModel):
+class ScheduleInput(BaseModel):
     name: str
     kind: ScheduledObjectKinds
     scheduled_object: Any
     cron_trigger: ScheduleCronTrigger
 
 
-class ScheduleBase(ScheduleCreate):
+# the schedule object returned from the db layer
+class ScheduleRecord(ScheduleInput):
     creation_time: datetime
     project: str
 
-
-class ScheduleInDB(ScheduleBase):
     class Config:
         orm_mode = True
 
 
 # Additional properties to return via API
-class Schedule(ScheduleBase):
+class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
 
 
 class Schedules(BaseModel):
-    schedules: List[Schedule]
+    schedules: List[ScheduleOutput]

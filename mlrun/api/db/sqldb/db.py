@@ -388,7 +388,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         kind: schemas.ScheduledObjectKinds = None,
-    ) -> List[schemas.ScheduleInDB]:
+    ) -> List[schemas.ScheduleRecord]:
         logger.debug('Getting schedules from db', project=project, kind=kind)
         db_schedules = self._query(session, Schedule, project=project, kind=kind)
         schedules = [self._transform_schedule_model_to_scheme(db_schedule) for db_schedule in db_schedules]
@@ -396,7 +396,7 @@ class SQLDB(DBInterface):
 
     def get_schedule(
         self, session: Session, project: str, name: str
-    ) -> schemas.ScheduleInDB:
+    ) -> schemas.ScheduleRecord:
         logger.debug('Getting schedule from db', project=project, name=name)
         query = self._query(session, Schedule, project=project, name=name)
         db_schedule = query.one_or_none()
@@ -686,6 +686,6 @@ class SQLDB(DBInterface):
     @staticmethod
     def _transform_schedule_model_to_scheme(
         db_schedule: Schedule,
-    ) -> schemas.ScheduleInDB:
-        schedule = schemas.ScheduleInDB.from_orm(db_schedule)
+    ) -> schemas.ScheduleRecord:
+        schedule = schemas.ScheduleRecord.from_orm(db_schedule)
         return schedule

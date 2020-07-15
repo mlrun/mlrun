@@ -74,7 +74,7 @@ class Scheduler:
 
     def get_schedule(
         self, db_session: Session, project: str, name: str
-    ) -> schemas.Schedule:
+    ) -> schemas.ScheduleOutput:
         logger.debug('Getting schedule', project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         return self._transform_db_schedule_to_schedule(db_schedule)
@@ -127,11 +127,11 @@ class Scheduler:
                 logger.warn('Failed rescheduling job. Continuing', exc=str(exc), db_schedule=db_schedule)
 
     def _transform_db_schedule_to_schedule(
-        self, db_schedule: schemas.ScheduleInDB
-    ) -> schemas.Schedule:
-        job_id = self._resolve_job_id(db_schedule.project, db_schedule.name)
+        self, schedule_record: schemas.ScheduleRecord
+    ) -> schemas.ScheduleOutput:
+        job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
         job = self._scheduler.get_job(job_id)
-        schedule = schemas.Schedule(**db_schedule.dict())
+        schedule = schemas.ScheduleOutput(**schedule_record.dict())
         schedule.next_run_time = job.next_run_time
         return schedule
 

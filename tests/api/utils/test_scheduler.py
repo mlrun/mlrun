@@ -181,7 +181,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
 
 
 def assert_schedule(
-    schedule: schemas.Schedule, project, name, kind, cron_trigger, next_run_time
+    schedule: schemas.ScheduleOutput, project, name, kind, cron_trigger, next_run_time
 ):
     assert schedule.name == name
     assert schedule.project == project

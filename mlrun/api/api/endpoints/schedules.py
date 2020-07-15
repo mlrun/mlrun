@@ -11,7 +11,7 @@ router = APIRouter()
 @router.post("/projects/{project}/schedules")
 def create_schedule(
     project: str,
-    schedule: schemas.ScheduleCreate,
+    schedule: schemas.ScheduleInput,
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().create_schedule(
@@ -34,7 +34,7 @@ def get_schedules(
     return get_scheduler().get_schedules(db_session, project, kind)
 
 
-@router.get("/projects/{project}/schedules/{name}", response_model=schemas.Schedule)
+@router.get("/projects/{project}/schedules/{name}", response_model=schemas.ScheduleOutput)
 def get_schedule(
     project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):

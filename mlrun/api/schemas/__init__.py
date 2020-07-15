@@ -3,11 +3,10 @@
 from .project import Project, ProjectOut, ProjectCreate, ProjectInDB, ProjectUpdate
 from .schedule import (
     Schedules,
-    Schedule,
+    ScheduleOutput,
     ScheduleCronTrigger,
     ScheduledObjectKinds,
-    ScheduleCreate,
-    ScheduleInDB,
-    ScheduleBase,
+    ScheduleInput,
+    ScheduleRecord,
 )
 from .user import User, UserCreate, UserInDB, UserUpdate

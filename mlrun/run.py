@@ -483,7 +483,9 @@ def new_function(
         else:
             name = 'mlrun-' + uuid.uuid4().hex[0:6]
     runner.metadata.name = name
-    runner.metadata.project = runner.metadata.project or project or mlconf.default_project
+    runner.metadata.project = (
+        runner.metadata.project or project or mlconf.default_project
+    )
     if tag:
         runner.metadata.tag = tag
     if image:

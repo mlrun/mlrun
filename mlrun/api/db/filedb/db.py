@@ -106,9 +106,6 @@ class FileDB(DBInterface):
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
-    def list_schedules(self, session):
-        return self._transform_run_db_error(self.db.list_schedules)
-
     def list_projects(self, session):
         return self._transform_run_db_error(self.db.list_projects)
 
@@ -116,18 +113,18 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
 
     def create_schedule(
-            self,
-            session,
-            project: str,
-            name: str,
-            kind: schemas.ScheduleKinds,
-            scheduled_object: Any,
-            cron_trigger: schemas.ScheduleCronTrigger,
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
     ):
         raise NotImplementedError()
 
     def list_schedules(
-            self, session, project: str = None, kind: schemas.ScheduleKinds = None
+        self, session, project: str = None, kind: schemas.ScheduleKinds = None
     ) -> List[schemas.ScheduleRecord]:
         raise NotImplementedError()
 

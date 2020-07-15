@@ -11,7 +11,6 @@ from mlrun.utils import logger
 
 
 class Scheduler:
-
     def __init__(self):
         self._scheduler = AsyncIOScheduler()
         # this should be something that does not make any sense to be inside project name or job name
@@ -124,7 +123,11 @@ class Scheduler:
                     db_schedule.cron_trigger,
                 )
             except Exception as exc:
-                logger.warn('Failed rescheduling job. Continuing', exc=str(exc), db_schedule=db_schedule)
+                logger.warn(
+                    'Failed rescheduling job. Continuing',
+                    exc=str(exc),
+                    db_schedule=db_schedule,
+                )
 
     def _transform_db_schedule_to_schedule(
         self, schedule_record: schemas.ScheduleRecord

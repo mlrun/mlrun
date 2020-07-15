@@ -34,7 +34,9 @@ def list_schedules(
     return get_scheduler().list_schedules(db_session, project, kind)
 
 
-@router.get("/projects/{project}/schedules/{name}", response_model=schemas.ScheduleOutput)
+@router.get(
+    "/projects/{project}/schedules/{name}", response_model=schemas.ScheduleOutput
+)
 def get_schedule(
     project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):

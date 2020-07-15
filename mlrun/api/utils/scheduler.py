@@ -13,13 +13,13 @@ from mlrun.utils import logger
 class Scheduler:
 
     def __init__(self):
-        self.scheduler = AsyncIOScheduler()
+        self._scheduler = AsyncIOScheduler()
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
 
     async def start(self, db_session: Session):
         logger.info('Starting scheduler')
-        self.scheduler.start()
+        self._scheduler.start()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
         await asyncio.sleep(0)
@@ -32,7 +32,7 @@ class Scheduler:
 
     async def stop(self):
         logger.info('Stopping scheduler')
-        self.scheduler.shutdown()
+        self._scheduler.shutdown()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
         await asyncio.sleep(0)
@@ -82,7 +82,7 @@ class Scheduler:
     def delete_schedule(self, db_session: Session, project: str, name: str):
         logger.debug('Deleting schedule', project=project, name=name)
         job_id = self._resolve_job_identifier(project, name)
-        self.scheduler.remove_job(job_id)
+        self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
     def _create_schedule_in_scheduler(
@@ -99,7 +99,7 @@ class Scheduler:
         function, args, kwargs = self._resolve_job_function(
             db_session, kind, scheduled_object
         )
-        self.scheduler.add_job(
+        self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
                 cron_trigger
@@ -126,7 +126,7 @@ class Scheduler:
         self, db_schedule: schemas.ScheduleInDB
     ) -> schemas.Schedule:
         job_id = self._resolve_job_identifier(db_schedule.project, db_schedule.name)
-        job = self.scheduler.get_job(job_id)
+        job = self._scheduler.get_job(job_id)
         schedule = schemas.Schedule(**db_schedule.dict())
         schedule.next_run_time = job.next_run_time
         return schedule

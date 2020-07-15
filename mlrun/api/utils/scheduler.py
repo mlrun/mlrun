@@ -11,11 +11,11 @@ from mlrun.utils import logger
 
 
 class Scheduler:
-    # this should be something that does not make any sense to be inside project name or job name
-    JOB_ID_SEPARATOR = "-_-"
 
     def __init__(self):
         self.scheduler = AsyncIOScheduler()
+        # this should be something that does not make any sense to be inside project name or job name
+        self._job_id_separator = "-_-"
 
     async def start(self, db_session: Session):
         logger.info('Starting scheduler')
@@ -156,6 +156,12 @@ class Scheduler:
         logger.warn(message, scheduled_object_kind=scheduled_object_kind)
         raise NotImplementedError(message)
 
+    def _resolve_job_identifier(self, project, name) -> str:
+        """
+        :return: returns the identifier that will be used inside the APScheduler
+        """
+        return self._job_id_separator.join([project, name])
+
     @staticmethod
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
         cron_trigger: schemas.ScheduleCronTrigger,
@@ -174,10 +180,3 @@ class Scheduler:
             cron_trigger.timezone,
             cron_trigger.jitter,
         )
-
-    @staticmethod
-    def _resolve_job_identifier(project, name) -> str:
-        """
-        :return: returns the identifier that will be used inside the APScheduler
-        """
-        return Scheduler.JOB_ID_SEPARATOR.join([project, name])

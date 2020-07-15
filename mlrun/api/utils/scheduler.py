@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Callable, List, Tuple, Dict, Union
+from typing import Any, Callable, List, Tuple, Dict, Union, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
@@ -140,7 +140,7 @@ class Scheduler:
         db_session: Session,
         scheduled_object_kind: schemas.ScheduledObjectKinds,
         scheduled_object: Any,
-    ) -> Tuple[Callable, Union[List, Tuple], Dict]:
+    ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
@@ -151,7 +151,7 @@ class Scheduler:
 
             return submit, [db_session, scheduled_object], {}
         if scheduled_object_kind == schemas.ScheduledObjectKinds.local_function:
-            return scheduled_object, [], {}
+            return scheduled_object, None, None
 
         # sanity
         message = "Scheduled object kind missing implementation"

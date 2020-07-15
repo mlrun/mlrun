@@ -142,6 +142,7 @@ class Scheduler:
         """
 
         if scheduled_object_kind == schemas.ScheduledObjectKinds.job:
+            # import here to avoid circular imports
             from mlrun.api.api.utils import submit
 
             return submit, [db_session, scheduled_object], {}

@@ -113,14 +113,18 @@ class Scheduler:
         logger.info('Reloading schedules')
         db_schedules = get_db().get_schedules(db_session)
         for db_schedule in db_schedules:
-            self._create_schedule_in_scheduler(
-                db_session,
-                db_schedule.project,
-                db_schedule.name,
-                db_schedule.kind,
-                db_schedule.scheduled_object,
-                db_schedule.cron_trigger,
-            )
+            # don't let one failure fail the rest
+            try:
+                self._create_schedule_in_scheduler(
+                    db_session,
+                    db_schedule.project,
+                    db_schedule.name,
+                    db_schedule.kind,
+                    db_schedule.scheduled_object,
+                    db_schedule.cron_trigger,
+                )
+            except Exception as exc:
+                logger.warn('Failed rescheduling job. Continuing', exc=str(exc), db_schedule=db_schedule)
 
     def _transform_db_schedule_to_schedule(
         self, db_schedule: schemas.ScheduleInDB

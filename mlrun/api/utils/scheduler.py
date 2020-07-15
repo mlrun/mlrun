@@ -42,7 +42,7 @@ class Scheduler:
         db_session: Session,
         project: str,
         name: str,
-        kind: schemas.ScheduledObjectKinds,
+        kind: schemas.ScheduleKinds,
         scheduled_object: Union[Dict, Callable],
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
@@ -90,7 +90,7 @@ class Scheduler:
         db_session: Session,
         project: str,
         name: str,
-        kind: schemas.ScheduledObjectKinds,
+        kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
@@ -138,24 +138,24 @@ class Scheduler:
     def _resolve_job_function(
         self,
         db_session: Session,
-        scheduled_object_kind: schemas.ScheduledObjectKinds,
+        scheduled_kind: schemas.ScheduleKinds,
         scheduled_object: Any,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
 
-        if scheduled_object_kind == schemas.ScheduledObjectKinds.job:
+        if scheduled_kind == schemas.ScheduleKinds.job:
             # import here to avoid circular imports
             from mlrun.api.api.utils import submit
 
             return submit, [db_session, scheduled_object], {}
-        if scheduled_object_kind == schemas.ScheduledObjectKinds.local_function:
+        if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, None, None
 
         # sanity
         message = "Scheduled object kind missing implementation"
-        logger.warn(message, scheduled_object_kind=scheduled_object_kind)
+        logger.warn(message, scheduled_object_kind=scheduled_kind)
         raise NotImplementedError(message)
 
     def _resolve_job_id(self, project, name) -> str:

@@ -120,7 +120,7 @@ def submit(db_session: Session, data):
                 db_session,
                 fn.metadata.project,
                 fn.metadata.name,
-                schemas.ScheduledObjectKinds.job,
+                schemas.ScheduleKinds.job,
                 data_without_schedule,
                 schemas.ScheduleCronTrigger(**schedule),
             )

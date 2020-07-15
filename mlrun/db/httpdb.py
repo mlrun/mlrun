@@ -408,7 +408,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call('POST', path, error_message, body=json.dumps(schedule.dict()))
 
     def get_schedules(
-        self, project: str, kind: schemas.ScheduledObjectKinds = None
+        self, project: str, kind: schemas.ScheduleKinds = None
     ) -> schemas.SchedulesOutput:
         project = project or default_project
         params = {'kind': kind}

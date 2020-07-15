@@ -358,7 +358,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         name: str,
-        kind: schemas.ScheduledObjectKinds,
+        kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
@@ -387,7 +387,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project: str = None,
-        kind: schemas.ScheduledObjectKinds = None,
+        kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         logger.debug('Getting schedules from db', project=project, kind=kind)
         db_schedules = self._query(session, Schedule, project=project, kind=kind)

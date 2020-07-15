@@ -28,7 +28,7 @@ def create_schedule(
 @router.get("/projects/{project}/schedules", response_model=schemas.SchedulesOutput)
 def get_schedules(
     project: str,
-    kind: schemas.ScheduledObjectKinds = None,
+    kind: schemas.ScheduleKinds = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().get_schedules(db_session, project, kind)

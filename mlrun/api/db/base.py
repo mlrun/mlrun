@@ -122,7 +122,7 @@ class DBInterface(ABC):
     #     session,
     #     project: str,
     #     name: str,
-    #     kind: schemas.ScheduledObjectKinds,
+    #     kind: schemas.ScheduleKinds,
     #     scheduled_object: Any,
     #     cron_trigger: schemas.ScheduleCronTrigger,
     # ):
@@ -130,7 +130,7 @@ class DBInterface(ABC):
     #
     # @abstractmethod
     # def get_schedules(
-    #     self, session, project: str = None, kind: schemas.ScheduledObjectKinds = None
+    #     self, session, project: str = None, kind: schemas.ScheduleKinds = None
     # ) -> List[schemas.ScheduleRecord]:
     #     pass
     #

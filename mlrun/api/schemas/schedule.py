@@ -55,7 +55,7 @@ class ScheduleCronTrigger(BaseModel):
         )
 
 
-class ScheduledObjectKinds(str, Enum):
+class ScheduleKinds(str, Enum):
     job = "job"
     pipeline = "pipeline"
 
@@ -66,7 +66,7 @@ class ScheduledObjectKinds(str, Enum):
 # Properties to receive via API on creation
 class ScheduleInput(BaseModel):
     name: str
-    kind: ScheduledObjectKinds
+    kind: ScheduleKinds
     scheduled_object: Any
     cron_trigger: ScheduleCronTrigger
 

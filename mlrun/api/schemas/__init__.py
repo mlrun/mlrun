@@ -5,7 +5,7 @@ from .schedule import (
     SchedulesOutput,
     ScheduleOutput,
     ScheduleCronTrigger,
-    ScheduledObjectKinds,
+    ScheduleKinds,
     ScheduleInput,
     ScheduleRecord,
 )

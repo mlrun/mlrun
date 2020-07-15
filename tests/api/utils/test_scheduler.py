@@ -49,7 +49,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
         db,
         project,
         schedule_name,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         bump_counter,
         cron_trigger,
     )
@@ -66,7 +66,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         db,
         project,
         schedule_name,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger,
     )
@@ -77,7 +77,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schedule,
         project,
         schedule_name,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         cron_trigger,
         None,
     )
@@ -89,7 +89,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         db,
         project,
         schedule_name_2,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger_2,
     )
@@ -99,7 +99,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schedule_2,
         project,
         schedule_name_2,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         cron_trigger_2,
         year_datetime,
     )
@@ -110,7 +110,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schedules.schedules[0],
         project,
         schedule_name,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         cron_trigger,
         None,
     )
@@ -118,7 +118,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schedules.schedules[1],
         project,
         schedule_name_2,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         cron_trigger_2,
         year_datetime,
     )
@@ -133,7 +133,7 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
         db,
         project,
         schedule_name,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger,
     )
@@ -162,7 +162,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
         db,
         project,
         schedule_name,
-        schemas.ScheduledObjectKinds.local_function,
+        schemas.ScheduleKinds.local_function,
         bump_counter,
         cron_trigger,
     )

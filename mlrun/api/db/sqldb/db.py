@@ -389,27 +389,23 @@ class SQLDB(DBInterface):
         project: str = None,
         kind: schemas.ScheduledObjectKinds = None,
     ) -> List[schemas.ScheduleInDB]:
+        logger.debug('Getting schedules from db', project=project, kind=kind)
         db_schedules = self._query(session, Schedule, project=project, kind=kind)
         schedules = [self._transform_schedule_model_to_scheme(db_schedule) for db_schedule in db_schedules]
-        logger.debug(
-            'Got schedules from db', schedules=schedules, project=project, kind=kind
-        )
         return schedules
 
     def get_schedule(
         self, session: Session, project: str, name: str
     ) -> schemas.ScheduleInDB:
+        logger.debug('Getting schedule from db', project=project, name=name)
         query = self._query(session, Schedule, project=project, name=name)
         db_schedule = query.one_or_none()
         schedule = self._transform_schedule_model_to_scheme(db_schedule)
-        logger.debug(
-            'Got schedule from db', schedule=schedule, project=project, name=name
-        )
         return schedule
 
     def delete_schedule(self, session: Session, project: str, name: str):
+        logger.debug('Removing schedule from db', project=project, name=name)
         self._delete(session, Schedule, project=project, name=name)
-        logger.debug('Removed schedule from db', project=project, name=name)
 
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.

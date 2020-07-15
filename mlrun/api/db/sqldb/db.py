@@ -383,7 +383,7 @@ class SQLDB(DBInterface):
         )
         self._upsert(session, schedule)
 
-    def get_schedules(
+    def list_schedules(
         self,
         session: Session,
         project: str = None,

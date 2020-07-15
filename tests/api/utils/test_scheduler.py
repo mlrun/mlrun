@@ -104,7 +104,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         year_datetime,
     )
 
-    schedules = scheduler.get_schedules(db)
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 2
     assert_schedule(
         schedules.schedules[0],
@@ -138,12 +138,12 @@ async def test_delete_schedule(db: Session, scheduler: Scheduler):
         cron_trigger,
     )
 
-    schedules = scheduler.get_schedules(db)
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 1
 
     scheduler.delete_schedule(db, project, schedule_name)
 
-    schedules = scheduler.get_schedules(db)
+    schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 0
 
 

@@ -150,8 +150,6 @@ class Scheduler:
             from mlrun.api.api.utils import submit
 
             return submit, [db_session, scheduled_object], {}
-        if scheduled_object_kind == schemas.ScheduledObjectKinds.pipeline:
-            raise NotImplementedError("Pipeline scheduling Not implemented yet")
         if scheduled_object_kind == schemas.ScheduledObjectKinds.local_function:
             return scheduled_object, [], {}
 

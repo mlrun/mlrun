@@ -407,6 +407,13 @@ class HTTPRunDB(RunDBInterface):
         error_message = f'Failed creating schedule {project}/{schedule.name}'
         self.api_call('POST', path, error_message, body=json.dumps(schedule.dict()))
 
+    def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
+        project = project or default_project
+        path = f'projects/{project}/schedules/{name}'
+        error_message = f'Failed getting schedule {project}/{name}'
+        resp = self.api_call('GET', path, error_message)
+        return schemas.ScheduleOutput(**resp.json())
+
     def get_schedules(
         self, project: str, kind: schemas.ScheduleKinds = None
     ) -> schemas.SchedulesOutput:
@@ -416,13 +423,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f'Failed getting schedules {project} ? {kind}'
         resp = self.api_call('GET', path, error_message, params=params)
         return schemas.SchedulesOutput(**resp.json())
-
-    def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
-        project = project or default_project
-        path = f'projects/{project}/schedules/{name}'
-        error_message = f'Failed getting schedule {project}/{name}'
-        resp = self.api_call('GET', path, error_message)
-        return schemas.ScheduleOutput(**resp.json())
 
     def delete_schedule(self, project: str, name: str):
         project = project or default_project

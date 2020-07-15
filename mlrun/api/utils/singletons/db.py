@@ -17,11 +17,11 @@ def get_db() -> DBInterface:
 def initialize_db():
     global db
     if config.httpdb.db_type == "filedb":
-        logger.info("using FileRunDB")
+        logger.info("Creating file db")
         db = FileDB(config.httpdb.dirpath)
         db.initialize(None)
     else:
-        logger.info("using SQLDB")
+        logger.info("Creating sql db")
         db = SQLDB(config.httpdb.dsn)
         db_session = None
         try:

@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Union, Callable
+from typing import Optional, List, Union, Any
 
 from pydantic import BaseModel
 
@@ -67,7 +67,7 @@ class ScheduledObjectKinds(str, Enum):
 class ScheduleCreate(BaseModel):
     name: str
     kind: ScheduledObjectKinds
-    scheduled_object: Dict
+    scheduled_object: Any
     cron_trigger: ScheduleCronTrigger
 
 

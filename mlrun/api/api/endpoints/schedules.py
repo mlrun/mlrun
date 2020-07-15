@@ -25,7 +25,7 @@ def create_schedule(
     return Response(status_code=status.HTTP_201_CREATED)
 
 
-@router.get("/projects/{project}/schedules", response_model=schemas.Schedules)
+@router.get("/projects/{project}/schedules", response_model=schemas.SchedulesOutput)
 def get_schedules(
     project: str,
     kind: schemas.ScheduledObjectKinds = None,

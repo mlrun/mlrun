@@ -85,5 +85,5 @@ class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
 
 
-class Schedules(BaseModel):
+class SchedulesOutput(BaseModel):
     schedules: List[ScheduleOutput]

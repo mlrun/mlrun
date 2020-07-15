@@ -63,14 +63,14 @@ class Scheduler:
 
     def get_schedules(
         self, db_session: Session, project: str = None, kind: str = None
-    ) -> schemas.Schedules:
+    ) -> schemas.SchedulesOutput:
         logger.debug('Getting schedules', project=project, kind=kind)
         db_schedules = get_db().get_schedules(db_session, project, kind)
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_db_schedule_to_schedule(db_schedule)
             schedules.append(schedule)
-        return schemas.Schedules(schedules=schedules)
+        return schemas.SchedulesOutput(schedules=schedules)
 
     def get_schedule(
         self, db_session: Session, project: str, name: str

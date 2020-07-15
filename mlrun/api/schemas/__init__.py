@@ -2,7 +2,7 @@
 
 from .project import Project, ProjectOut, ProjectCreate, ProjectInDB, ProjectUpdate
 from .schedule import (
-    Schedules,
+    SchedulesOutput,
     ScheduleOutput,
     ScheduleCronTrigger,
     ScheduledObjectKinds,

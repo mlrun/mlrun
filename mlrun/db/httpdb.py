@@ -410,7 +410,7 @@ class HTTPRunDB(RunDBInterface):
     def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
         project = project or default_project
         path = f'projects/{project}/schedules/{name}'
-        error_message = f'Failed getting schedule {project}/{name}'
+        error_message = f'Failed getting schedule for {project}/{name}'
         resp = self.api_call('GET', path, error_message)
         return schemas.ScheduleOutput(**resp.json())
 
@@ -420,7 +420,7 @@ class HTTPRunDB(RunDBInterface):
         project = project or default_project
         params = {'kind': kind}
         path = f'projects/{project}/schedules'
-        error_message = f'Failed getting schedules {project} ? {kind}'
+        error_message = f'Failed getting schedules for {project} ? {kind}'
         resp = self.api_call('GET', path, error_message, params=params)
         return schemas.SchedulesOutput(**resp.json())
 

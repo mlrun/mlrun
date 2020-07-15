@@ -55,7 +55,7 @@ class SQLDB(DBInterface):
 
     def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -76,7 +76,7 @@ class SQLDB(DBInterface):
 
     def store_run(self, session, struct, uid, project="", iter=0):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -171,7 +171,7 @@ class SQLDB(DBInterface):
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -251,7 +251,7 @@ class SQLDB(DBInterface):
         self, session, function, name, project="", tag="", versioned=False
     ):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -362,7 +362,7 @@ class SQLDB(DBInterface):
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         schedule = Schedule(
             project=project,
             name=name,
@@ -546,7 +546,7 @@ class SQLDB(DBInterface):
         if out:
             return out[0]
 
-    def _create_project_if_not_exists(self, session, name):
+    def _ensure_project(self, session, name):
         if name not in self._projects:
 
             # fill cache from DB

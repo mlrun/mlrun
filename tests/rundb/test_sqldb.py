@@ -221,12 +221,12 @@ def test_cache_projects(db: SQLDB, db_session: Session):
 
     mock = Mock()
     with patch(db, add_project=mock):
-        db._create_project_if_not_exists(db_session, name)
+        db._ensure_project(db_session, name)
     mock.assert_not_called()
 
     mock = Mock()
     with patch(db, add_project=mock):
-        db._create_project_if_not_exists(db_session, name + '-new')
+        db._ensure_project(db_session, name + '-new')
     mock.assert_called_once()
 
     project_2_name = "project-2"
@@ -234,7 +234,7 @@ def test_cache_projects(db: SQLDB, db_session: Session):
     db._projects = set()
     mock = Mock()
     with patch(db, add_project=mock):
-        db._create_project_if_not_exists(db_session, name)
+        db._ensure_project(db_session, name)
     mock.assert_not_called()
 
 

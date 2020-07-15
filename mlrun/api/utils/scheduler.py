@@ -81,7 +81,7 @@ class Scheduler:
 
     def delete_schedule(self, db_session: Session, project: str, name: str):
         logger.debug('Deleting schedule', project=project, name=name)
-        job_id = self._resolve_job_identifier(project, name)
+        job_id = self._resolve_job_id(project, name)
         self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
@@ -94,7 +94,7 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
-        job_id = self._resolve_job_identifier(project, name)
+        job_id = self._resolve_job_id(project, name)
         logger.debug('Adding schedule to scheduler', job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
             db_session, kind, scheduled_object
@@ -129,7 +129,7 @@ class Scheduler:
     def _transform_db_schedule_to_schedule(
         self, db_schedule: schemas.ScheduleInDB
     ) -> schemas.Schedule:
-        job_id = self._resolve_job_identifier(db_schedule.project, db_schedule.name)
+        job_id = self._resolve_job_id(db_schedule.project, db_schedule.name)
         job = self._scheduler.get_job(job_id)
         schedule = schemas.Schedule(**db_schedule.dict())
         schedule.next_run_time = job.next_run_time
@@ -158,7 +158,7 @@ class Scheduler:
         logger.warn(message, scheduled_object_kind=scheduled_object_kind)
         raise NotImplementedError(message)
 
-    def _resolve_job_identifier(self, project, name) -> str:
+    def _resolve_job_id(self, project, name) -> str:
         """
         :return: returns the identifier that will be used inside the APScheduler
         """

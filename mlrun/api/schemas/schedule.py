@@ -67,7 +67,7 @@ class ScheduledObjectKinds(str, Enum):
 class ScheduleCreate(BaseModel):
     name: str
     kind: ScheduledObjectKinds
-    scheduled_object: Union[Dict, Callable]
+    scheduled_object: Dict
     cron_trigger: ScheduleCronTrigger
 
 

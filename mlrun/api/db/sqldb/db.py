@@ -390,9 +390,7 @@ class SQLDB(DBInterface):
         kind: schemas.ScheduledObjectKinds = None,
     ) -> List[schemas.ScheduleInDB]:
         db_schedules = self._query(session, Schedule, project=project, kind=kind)
-        schedules = []
-        for db_schedule in db_schedules:
-            schedules.append(self._transform_schedule_model_to_scheme(db_schedule))
+        schedules = [self._transform_schedule_model_to_scheme(db_schedule) for db_schedule in db_schedules]
         logger.debug(
             'Got schedules from db', schedules=schedules, project=project, kind=kind
         )

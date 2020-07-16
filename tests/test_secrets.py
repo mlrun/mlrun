@@ -35,7 +35,7 @@ def test_load():
     assert ss.get('MYENV') == '123', 'failed on 1st env var secret'
     assert ss.get('MY2NDENV') == '456', 'failed on 1st env var secret'
     assert ss.get('abc') == 'def', 'failed on 1st env var secret'
-    print(ss.get_all())
+    print(ss.items())
 
 
 def test_inline_str():

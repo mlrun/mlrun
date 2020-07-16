@@ -1,9 +1,12 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from ..datastore import DataItem
+from typing import Union
 
 
-def get_sample(src: DataItem, sample: int, label: str, reader=None):
+def get_sample(
+    src: Union[DataItem, pd.core.frame.DataFrame], sample: int, label: str, reader=None
+):
     """generate data sample to be split (candidate for mlrun)
 
     Returns features matrix and header (x), and labels (y)
@@ -13,7 +16,10 @@ def get_sample(src: DataItem, sample: int, label: str, reader=None):
                    sample consecutively from the first row
     :param label:  label column title
     """
-    table = src.as_df()
+    if type(src) == pd.core.frame.DataFrame:
+        table = src
+    else:
+        table = src.as_df()
 
     # get sample
     if (sample == -1) or (sample >= 1):

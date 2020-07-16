@@ -5,14 +5,6 @@ FROM python:${MLRUN_PYTHON_VERSION}-slim-buster
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
-ARG MLRUN_GITHUB_REPO=mlrun
-
-ARG MLRUN_PACKAGE_TAG=development
-LABEL MLRUN_TAG=$MLRUN_PACKAGE_TAG
-ENV MLRUN_TAG=${MLRUN_PACKAGE_TAG}
-
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
-
 RUN apt update -qqq \
     && apt -y upgrade \
     && apt install -y \
@@ -32,9 +24,10 @@ COPY ./dockerfiles/base/requirements.txt ./
 
 RUN python -m pip install -r requirements.txt
 
-RUN python -m pip install \
-    git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+COPY . .
+RUN python setup.py install
 
+ARG MLRUN_MLUTILS_GITHUB_TAG=development
+ARG MLRUN_MLUTILS_CACHE_DATE=initial
 RUN python -m pip install \
     git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}
-

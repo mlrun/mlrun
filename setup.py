@@ -41,8 +41,8 @@ with open('README.md') as fp:
     long_desc = fp.read()
 
 install_requires = list(load_deps('requirements.txt'))
-tests_require = list(load_deps('dockerfiles/dev-requirements.txt'))
-api_deps = list(load_deps('dockerfiles/api-requirements.txt'))
+tests_require = list(load_deps('dev-requirements.txt'))
+api_deps = list(load_deps('dockerfiles/mlrun-api/requirements.txt'))
 
 
 setup(
@@ -64,6 +64,7 @@ setup(
         'mlrun.platforms',
         'mlrun.projects',
         'mlrun.artifacts',
+        'mlrun.utils',
         'mlrun.datastore',
         'mlrun.api',
         'mlrun.api.api',

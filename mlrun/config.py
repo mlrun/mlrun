@@ -58,6 +58,8 @@ default_config = {
     'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
     'ipython_widget': True,
     'log_level': 'INFO',
+    # log formatter (options: human | json)
+    'log_formatter': 'human',
     'submit_timeout': '180',  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     'runtimes_cleanup_interval': '300',

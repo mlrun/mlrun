@@ -2,7 +2,7 @@ from sklearn import metrics
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from ..artifacts import PlotArtifact, TableArtifact
+from ..artifacts import PlotArtifact
 import pandas as pd
 import numpy as np
 from scipy import interp
@@ -87,9 +87,7 @@ def plot_importance(
 
     # feature importances are also saved as a csv table (generally small):
     fname = key + "-tbl.csv"
-    return context.log_artifact(
-        TableArtifact(key + "-tbl", df=feature_imp), local_path=fname
-    )
+    return context.log_dataset(key + "-tbl", df=feature_imp, local_path=fname)
 
 
 def learning_curves(model):

@@ -25,7 +25,7 @@ from git import Repo
 import yaml
 from os import path, remove
 
-from ..datastore import StoreManager
+from ..datastore import store_manager
 from ..config import config
 from ..run import (
     import_function,
@@ -189,7 +189,7 @@ class MlrunProject(ModelObj):
         self.conda = conda or {}
         self._mountdir = None
         self._artifact_mngr = None
-        self.artifact_path = artifact_path
+        self.artifact_path = artifact_path or config.artifact_path
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -345,7 +345,7 @@ class MlrunProject(ModelObj):
         if self._artifact_mngr:
             return self._artifact_mngr
         db = get_run_db().connect(self._secrets)
-        sm = StoreManager(self._secrets, db)
+        sm = store_manager.set(self._secrets, db)
         self._artifact_mngr = ArtifactManager(sm, db)
         return self._artifact_mngr
 

@@ -20,6 +20,8 @@ import numpy as np
 from pandas.io.json import build_table_schema
 
 from .base import Artifact
+from ..datastore import store_manager
+from ..utils import DB_SCHEMA
 
 preview_lines = 20
 max_csv = 10000
@@ -84,7 +86,8 @@ class DatasetArtifact(Artifact):
         'length',
         'preview',
         'stats',
-        'analysis',
+        'extra_data',
+        'column_metadata',
     ]
     kind = 'dataset'
 
@@ -96,7 +99,8 @@ class DatasetArtifact(Artifact):
         format='',
         stats=None,
         target_path=None,
-        analysis=None,
+        extra_data=None,
+        column_metadata=None,
         **kwargs,
     ):
 
@@ -113,7 +117,8 @@ class DatasetArtifact(Artifact):
             format = 'parquet'
         self.format = format
         self.stats = None
-        self.analysis = analysis or {}
+        self.extra_data = extra_data or {}
+        self.column_metadata = column_metadata or {}
 
         if df is not None:
             self.length = df.shape[0]
@@ -125,7 +130,7 @@ class DatasetArtifact(Artifact):
             self.preview = shortdf.reset_index().values.tolist()
             self.schema = build_table_schema(df)
             if stats or self.length < max_csv:
-                self.stats = _get_stats(df)
+                self.stats = get_df_stats(df)
 
         self._df = df
         self._kw = kwargs
@@ -151,6 +156,10 @@ class DatasetArtifact(Artifact):
             return
 
         if self._df is None:
+            return
+
+        if self.target_path.startswith('memory://'):
+            data_stores.object(self.target_path).put(self._df)
             return
 
         if self.format in ['csv', 'parquet']:
@@ -180,7 +189,7 @@ class DatasetArtifact(Artifact):
         raise ValueError(f'format {self.format} not implemented yes')
 
 
-def _get_stats(df):
+def get_df_stats(df):
     d = {}
     for col, values in df.describe(include='all').items():
         stats_dict = {}
@@ -193,3 +202,88 @@ def _get_stats(df):
                 stats_dict[stat] = str(val)
         d[col] = stats_dict
     return d
+
+
+def update_dataset_meta(
+    artifact,
+    from_df=None,
+    schema: dict = None,
+    header: list = None,
+    preview: list = None,
+    stats: dict = None,
+    extra_data: dict = None,
+    column_metadata: dict = None,
+    labels: dict = None,
+):
+    """Update dataset object attributes/metadata
+
+    this method will edit or add metadata to a dataset object
+
+    example:
+        update_dataset_meta(dataset, from_df=df,
+                            extra_data={'histogram': 's3://mybucket/..'})
+
+    :param from_df:         read metadata (schema, preview, ..) from provided df
+    :param artifact:        dataset artifact object or path (store://..) or DataItem
+    :param schema:          dataset schema, see pandas build_table_schema
+    :param header:          column headers
+    :param preview:         list of rows and row values (from df.values.tolist())
+    :param stats:           dict of column names and their stats (cleaned df.describe(include='all'))
+    :param extra_data:      extra data items (key: path string | artifact)
+    :param column_metadata: dict of metadata per column
+    :param labels:          metadata labels
+    """
+
+    if hasattr(artifact, 'artifact_url'):
+        artifact = artifact.artifact_url
+
+    stores = store_manager
+    if isinstance(artifact, DatasetArtifact):
+        artifact_spec = artifact
+    elif artifact.startswith(DB_SCHEMA + '://'):
+        artifact_spec, _ = stores.get_store_artifact(artifact)
+    else:
+        raise ValueError('model path must be a model store object/URL/DataItem')
+
+    if not artifact_spec or artifact_spec.kind != 'dataset':
+        raise ValueError('store artifact ({}) is not dataset kind'.format(artifact))
+
+    if from_df is not None:
+        shortdf = from_df
+        length = from_df.shape[0]
+        if length > preview_lines:
+            shortdf = from_df.head(preview_lines)
+        artifact_spec.header = shortdf.reset_index().columns.values.tolist()
+        artifact_spec.preview = shortdf.reset_index().values.tolist()
+        artifact_spec.schema = build_table_schema(from_df)
+        if stats is None and length < max_csv:
+            artifact_spec.stats = get_df_stats(from_df)
+
+    if header:
+        artifact_spec.header = header
+    if stats:
+        artifact_spec.stats = stats
+    if schema:
+        artifact_spec.schema = schema
+    if preview:
+        artifact_spec.preview = preview
+    if column_metadata:
+        artifact_spec.column_metadata = column_metadata
+    if labels:
+        for key, val in labels.items():
+            artifact_spec.labels[key] = val
+
+    if extra_data:
+        artifact_spec.extra_data = artifact_spec.extra_data or {}
+        for key, item in extra_data.items():
+            if hasattr(item, 'target_path'):
+                item = item.target_path
+            artifact_spec.extra_data[key] = item
+
+    stores._get_db().store_artifact(
+        artifact_spec.db_key,
+        artifact_spec.to_dict(),
+        artifact_spec.tree,
+        iter=artifact_spec.iter,
+        project=artifact_spec.project,
+    )

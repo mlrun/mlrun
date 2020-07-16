@@ -28,7 +28,7 @@ app.include_router(api_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("configuration dump\n%s", config.dump_yaml())
+    logger.info("configuration dump", dumped_config=config.dump_yaml())
 
     initialize_singletons()
 

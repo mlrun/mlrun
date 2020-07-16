@@ -134,7 +134,7 @@ from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 import numpy as np
 from sklearn.metrics import accuracy_score
-from mlrun.artifacts import TableArtifact, PlotArtifact
+from mlrun.artifacts import PlotArtifact
 import pandas as pd
 
 
@@ -144,7 +144,7 @@ def iris_generator(context):
     iris_labels = pd.DataFrame(data=iris.target, columns=['label'])
     iris_dataset = pd.concat([iris_dataset, iris_labels], axis=1)
     context.logger.info('Saving Iris data set to "{}"'.format(context.out_path))
-    context.log_artifact(TableArtifact('iris_dataset', df=iris_dataset))
+    context.log_dataset('iris_dataset', df=iris_dataset)
 
 
 def xgb_train(context,
@@ -194,7 +194,7 @@ The code also demonstrates how you can use the context object to read and write 
 
 ```python
 from mlrun import get_or_create_ctx
-from mlrun.artifacts import ChartArtifact, TableArtifact
+from mlrun.artifacts import ChartArtifact
 import pandas as pd
 
 
@@ -219,8 +219,6 @@ def my_job(context, p1=1, p2='x'):
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
     context.log_artifact('model', body=b'abc is 123', local_path='model.txt', labels={'framework': 'xgboost'})
     context.log_artifact('html_result', body=b'<b> Some HTML <b>', local_path='result.html')
-    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', visible=True,
-                                        header=['A', 'B', 'C']), local_path='dataset.csv')
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart')

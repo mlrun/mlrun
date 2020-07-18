@@ -754,7 +754,7 @@ def project(
 
 
 @main.command()
-@click.argument('kind', type=click.Choice(RuntimeKinds.runtime_with_handlers()), case_sensitive=False,  default='', required=False)
+@click.argument('kind', type=click.Choice(RuntimeKinds.runtime_with_handlers(), case_sensitive=False),  default='', required=False)
 @click.argument('object_id', metavar='id', type=str, default='', required=False)
 @click.option('--api', help='api and db service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')

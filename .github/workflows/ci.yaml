@@ -24,18 +24,18 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-    - uses: actions/cache@v1
-      id: cache-dev-deps
-      with:
-        path: .venv
-        key: venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
-        restore-keys: |
-          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-
-          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-
-          venv-dev-${{ runner.os }}-py-
-          venv-dev-${{ runner.os }}-
+#    - uses: actions/cache@v1
+#      id: cache-dev-deps
+#      with:
+#        path: .venv
+#        key: venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
+#        restore-keys: |
+#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-
+#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-
+#          venv-dev-${{ runner.os }}-py-
+#          venv-dev-${{ runner.os }}-
     - name: Install dependencies
-      if: steps.cache-dev-deps.outputs.cache-hit != 'true'
+#      if: steps.cache-dev-deps.outputs.cache-hit != 'true'
       run: |
         python -m pip install --upgrade pip
         pip install -r dev-requirements.txt

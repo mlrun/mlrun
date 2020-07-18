@@ -1,9 +1,12 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from typing import Any, List
 
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
+from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
 from mlrun.api.db.sqldb.helpers import (
     label_set,
@@ -52,7 +55,7 @@ class SQLDB(DBInterface):
 
     def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -73,7 +76,7 @@ class SQLDB(DBInterface):
 
     def store_run(self, session, struct, uid, project="", iter=0):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -168,7 +171,7 @@ class SQLDB(DBInterface):
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -248,7 +251,7 @@ class SQLDB(DBInterface):
         self, session, function, name, project="", tag="", versioned=False
     ):
         project = project or config.default_project
-        self._create_project_if_not_exists(session, project)
+        self._ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -350,13 +353,59 @@ class SQLDB(DBInterface):
         )
         return [row[0] for row in query]
 
-    def store_schedule(self, session, data):
-        sched = Schedule()
-        sched.struct = data
-        self._upsert(session, sched)
+    def create_schedule(
+        self,
+        session: Session,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
+        self._ensure_project(session, project)
+        schedule = Schedule(
+            project=project,
+            name=name,
+            kind=kind.value,
+            creation_time=datetime.now(),
+            # these are properties of the object that map manually (using getters and setters) to other column of the
+            # table and therefore Pycharm yells that they're unexpected
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+        )
 
-    def list_schedules(self, session):
-        return [s.struct for s in session.query(Schedule)]
+        logger.debug(
+            'Saving schedule to db',
+            project=project,
+            name=name,
+            kind=kind,
+            cron_trigger=cron_trigger,
+        )
+        self._upsert(session, schedule)
+
+    def list_schedules(
+        self, session: Session, project: str = None, kind: schemas.ScheduleKinds = None,
+    ) -> List[schemas.ScheduleRecord]:
+        logger.debug('Getting schedules from db', project=project, kind=kind)
+        db_schedules = self._query(session, Schedule, project=project, kind=kind)
+        schedules = [
+            self._transform_schedule_model_to_scheme(db_schedule)
+            for db_schedule in db_schedules
+        ]
+        return schedules
+
+    def get_schedule(
+        self, session: Session, project: str, name: str
+    ) -> schemas.ScheduleRecord:
+        logger.debug('Getting schedule from db', project=project, name=name)
+        query = self._query(session, Schedule, project=project, name=name)
+        db_schedule = query.one_or_none()
+        schedule = self._transform_schedule_model_to_scheme(db_schedule)
+        return schedule
+
+    def delete_schedule(self, session: Session, project: str, name: str):
+        logger.debug('Removing schedule from db', project=project, name=name)
+        self._delete(session, Schedule, project=project, name=name)
 
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.
@@ -491,7 +540,7 @@ class SQLDB(DBInterface):
         if out:
             return out[0]
 
-    def _create_project_if_not_exists(self, session, name):
+    def _ensure_project(self, session, name):
         if name not in self._projects:
 
             # fill cache from DB
@@ -633,3 +682,10 @@ class SQLDB(DBInterface):
 
         subq = session.query(cls.Label).filter(*preds).subquery("labels")
         return query.join(subq)
+
+    @staticmethod
+    def _transform_schedule_model_to_scheme(
+        db_schedule: Schedule,
+    ) -> schemas.ScheduleRecord:
+        schedule = schemas.ScheduleRecord.from_orm(db_schedule)
+        return schedule

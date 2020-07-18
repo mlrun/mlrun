@@ -75,6 +75,7 @@ setup(
         'mlrun.api.schemas',
         'mlrun.api.crud',
         'mlrun.api.utils',
+        'mlrun.api.utils.singletons',
     ],
     install_requires=install_requires,
     extra_requires={'api': api_deps},

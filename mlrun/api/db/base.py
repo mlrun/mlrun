@@ -14,6 +14,9 @@
 
 import warnings
 from abc import ABC, abstractmethod
+from typing import List, Any
+
+from mlrun.api import schemas
 
 
 class DBError(Exception):
@@ -116,11 +119,29 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_schedule(self, session, data):
+    def create_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
         pass
 
     @abstractmethod
-    def list_schedules(self, session):
+    def list_schedules(
+        self, session, project: str = None, kind: schemas.ScheduleKinds = None
+    ) -> List[schemas.ScheduleRecord]:
+        pass
+
+    @abstractmethod
+    def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleRecord:
+        pass
+
+    @abstractmethod
+    def delete_schedule(self, session, project: str, name: str):
         pass
 
     def list_projects(self, session):

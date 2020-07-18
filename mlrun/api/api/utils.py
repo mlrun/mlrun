@@ -1,3 +1,4 @@
+import copy
 import traceback
 from http import HTTPStatus
 from os import environ
@@ -7,8 +8,11 @@ from fastapi import HTTPException
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.singletons import get_db, get_logs_dir, get_scheduler
+from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.logs_dir import get_logs_dir
+from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
@@ -108,10 +112,24 @@ def submit(db_session: Session, data):
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
-            args = (task,)
-            job_id = get_scheduler().add(schedule, fn, args)
-            get_db().store_schedule(db_session, data)
-            response = {"schedule": schedule, "id": job_id}
+            # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
+            # endless scheduling loop
+            data_without_schedule = copy.deepcopy(data)
+            del data_without_schedule['schedule']
+            get_scheduler().create_schedule(
+                db_session,
+                fn.metadata.project,
+                fn.metadata.name,
+                schemas.ScheduleKinds.job,
+                data_without_schedule,
+                schemas.ScheduleCronTrigger(**schedule),
+            )
+
+            response = {
+                "schedule": schedule,
+                "project": fn.metadata.project,
+                "name": fn.metadata.name,
+            }
         else:
             run = fn.run(task, watch=False)
             if run:

@@ -1,3 +1,6 @@
+from typing import List, Any
+
+from mlrun.api import schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.base import DBInterface
 from mlrun.db.base import RunDBError
@@ -103,14 +106,33 @@ class FileDB(DBInterface):
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
-    def list_schedules(self, session):
-        return self._transform_run_db_error(self.db.list_schedules)
-
     def list_projects(self, session):
         return self._transform_run_db_error(self.db.list_projects)
 
     def list_artifact_tags(self, session, project):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
+
+    def create_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
+        raise NotImplementedError()
+
+    def list_schedules(
+        self, session, project: str = None, kind: schemas.ScheduleKinds = None
+    ) -> List[schemas.ScheduleRecord]:
+        raise NotImplementedError()
+
+    def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleRecord:
+        raise NotImplementedError()
+
+    def delete_schedule(self, session, project: str, name: str):
+        raise NotImplementedError()
 
     @staticmethod
     def _transform_run_db_error(func, *args, **kwargs):

@@ -16,17 +16,18 @@ import json
 import tempfile
 import time
 from os import path, remove, environ
-from typing import List, Dict
+from typing import List, Dict, Union
 
 import kfp
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from ..utils import dict_to_json, logger, new_pipe_meta
+from mlrun.api import schemas
 from .base import RunDBError, RunDBInterface
-from ..lists import RunList, ArtifactList
 from ..config import config
+from ..lists import RunList, ArtifactList
+from ..utils import dict_to_json, logger, new_pipe_meta
 
 default_project = config.default_project
 
@@ -399,6 +400,36 @@ class HTTPRunDB(RunDBInterface):
         error = f'delete runtime object {kind} {object_id}'
         self.api_call('DELETE', path, error, params=params)
 
+    def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
+        project = project or default_project
+        path = f'projects/{project}/schedules'
+
+        error_message = f'Failed creating schedule {project}/{schedule.name}'
+        self.api_call('POST', path, error_message, body=json.dumps(schedule.dict()))
+
+    def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
+        project = project or default_project
+        path = f'projects/{project}/schedules/{name}'
+        error_message = f'Failed getting schedule for {project}/{name}'
+        resp = self.api_call('GET', path, error_message)
+        return schemas.ScheduleOutput(**resp.json())
+
+    def list_schedules(
+        self, project: str, kind: schemas.ScheduleKinds = None
+    ) -> schemas.SchedulesOutput:
+        project = project or default_project
+        params = {'kind': kind}
+        path = f'projects/{project}/schedules'
+        error_message = f'Failed listing schedules for {project} ? {kind}'
+        resp = self.api_call('GET', path, error_message, params=params)
+        return schemas.SchedulesOutput(**resp.json())
+
+    def delete_schedule(self, project: str, name: str):
+        project = project or default_project
+        path = f'projects/{project}/schedules/{name}'
+        error_message = f'Failed deleting schedule {project}/{name}'
+        self.api_call('DELETE', path, error_message)
+
     def remote_builder(self, func, with_mlrun):
         try:
             req = {'function': func.to_dict(), 'with_mlrun': bool2str(with_mlrun)}
@@ -471,11 +502,15 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()['data']
 
-    def submit_job(self, runspec, schedule=None):
+    def submit_job(
+        self, runspec, schedule: Union[str, schemas.ScheduleCronTrigger] = None
+    ):
         try:
             req = {'task': runspec.to_dict()}
             if schedule:
-                req['schedule'] = schedule
+                if isinstance(schedule, str):
+                    schedule = schemas.ScheduleCronTrigger.from_crontab(schedule)
+                req['schedule'] = schedule.dict()
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)
         except OSError as err:

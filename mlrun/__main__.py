@@ -755,7 +755,7 @@ def project(
 
 def validate_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
-    if value not in possible_kinds:
+    if value != '' and value not in possible_kinds:
         raise click.BadParameter(f'kind must be one of {possible_kinds}', ctx=ctx, param=param)
     return value
 

@@ -772,13 +772,17 @@ def project(
 def clean(kind, object_id, api, label_selector, force):
     """
     Clean runtime resources
+
+    \b
     Examples:
         # Clean resources for all jobs of all runtimes
         mlrun clean
 
+        \b
         # Clean resources for all jobs of specific kind (job)
         mlrun clean job
 
+        \b
         # Clean resources for specific job (by uid)
         mlrun clean dask 15d04c19c2194c0a8efb26ea3017254b
     """

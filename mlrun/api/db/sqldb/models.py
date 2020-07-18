@@ -164,6 +164,8 @@ with warnings.catch_warnings():
         project = Column(String, primary_key=True)
         name = Column(String, primary_key=True)
         kind = Column(String)
+        desired_state = Column(String)
+        state = Column(String)
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
         struct = Column(BLOB)

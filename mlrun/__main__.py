@@ -792,7 +792,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
     if kind:
         possible_kinds = RuntimeKinds.runtime_with_handlers()
         if kind not in possible_kinds:
-            raise ValueError(f'kind must be one of {possible_kinds}')
+            raise click.BadParameter('Invalid kind', param=kind, param_hint=f'kind must be one of {possible_kinds}')
         if object_id:
             mldb.delete_runtime_object(
                 kind=kind,

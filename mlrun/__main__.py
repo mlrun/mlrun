@@ -769,9 +769,9 @@ def project(
     help="the grace period (in seconds) that will be given to runtime resources (after they're in stable state) "
     "before cleaning them. Irrelevant when using with --force",
 )
-def clean(kind, object_id, api, label_selector, force):
+def clean(kind, object_id, api, label_selector, force, grace_period):
     """
-    Clean runtime resources
+    Clean jobs resources
 
     \b
     Examples:

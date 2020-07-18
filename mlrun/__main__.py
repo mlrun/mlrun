@@ -753,8 +753,15 @@ def project(
         proj.sync_functions(save=True)
 
 
+def validate_kind(ctx, param, value):
+    possible_kinds = RuntimeKinds.runtime_with_handlers()
+    if value not in possible_kinds:
+        raise click.BadParameter(f'kind must be one of {possible_kinds}', ctx=ctx, param=param)
+    return value
+
+
 @main.command()
-@click.argument('kind', type=str, default='', required=False)
+@click.argument('kind', callback=validate_kind, default='', required=False)
 @click.argument('object_id', metavar='id', type=str, default='', required=False)
 @click.option('--api', help='api and db service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')
@@ -790,9 +797,6 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
     """
     mldb = get_run_db(api or mlconf.dbpath).connect()
     if kind:
-        possible_kinds = RuntimeKinds.runtime_with_handlers()
-        if kind not in possible_kinds:
-            raise click.BadParameter('Invalid kind', param=kind, param_hint=f'kind must be one of {possible_kinds}')
         if object_id:
             mldb.delete_runtime_object(
                 kind=kind,

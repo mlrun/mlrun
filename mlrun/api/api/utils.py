@@ -1,4 +1,3 @@
-import copy
 import traceback
 from http import HTTPStatus
 from os import environ
@@ -112,16 +111,12 @@ def submit(db_session: Session, data):
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
-            # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
-            # endless scheduling loop
-            data_without_schedule = copy.deepcopy(data)
-            del data_without_schedule['schedule']
             get_scheduler().create_schedule(
                 db_session,
-                fn.metadata.project,
-                fn.metadata.name,
+                task['metadata']['project'],
+                task['metadata']['name'],
                 schemas.ScheduleKinds.job,
-                data_without_schedule,
+                data,
                 schemas.ScheduleCronTrigger(**schedule),
             )
 

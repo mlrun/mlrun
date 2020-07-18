@@ -1,4 +1,5 @@
 import asyncio
+import copy
 from typing import Any, Callable, List, Tuple, Dict, Union, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -152,7 +153,12 @@ class Scheduler:
             # import here to avoid circular imports
             from mlrun.api.api.utils import submit
 
-            return submit, [db_session, scheduled_object], {}
+            # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
+            # endless scheduling loop
+            scheduled_object_without_schedule = copy.deepcopy(scheduled_object)
+            scheduled_object_without_schedule.pop('schedule', None)
+
+            return submit, [db_session, scheduled_object_without_schedule], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, None, None
 

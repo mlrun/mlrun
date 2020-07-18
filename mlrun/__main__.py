@@ -754,17 +754,39 @@ def project(
 
 
 @main.command()
-@click.argument('kind', type=click.Choice(RuntimeKinds.runtime_with_handlers(), case_sensitive=False),  default='', required=False)
+@click.argument('kind', type=str, default='', required=False)
 @click.argument('object_id', metavar='id', type=str, default='', required=False)
 @click.option('--api', help='api and db service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')
 @click.option(
     '--force', '-f', is_flag=True, help='clean resources in transient states as well'
 )
+@click.option(
+    '--grace-period',
+    '-gp',
+    type=int,
+    default=mlconf.runtime_resources_deletion_grace_period,
+    help="the grace period (in seconds) that will be given to runtime resources (after they're in stable state) "
+    "before cleaning them. Irrelevant when using with --force",
+)
 def clean(kind, object_id, api, label_selector, force):
-    """Clean runtime resources"""
+    """
+    Clean runtime resources
+    Examples:
+        # Clean resources for all jobs of all runtimes
+        mlrun clean
+
+        # Clean resources for all jobs of specific kind (job)
+        mlrun clean job
+
+        # Clean resources for specific job (by uid)
+        mlrun clean dask 15d04c19c2194c0a8efb26ea3017254b
+    """
     mldb = get_run_db(api or mlconf.dbpath).connect()
     if kind:
+        possible_kinds = RuntimeKinds.runtime_with_handlers()
+        if kind not in possible_kinds:
+            raise ValueError(f'kind must be one of {possible_kinds}')
         if object_id:
             mldb.delete_runtime_object(
                 kind=kind,

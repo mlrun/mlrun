@@ -69,12 +69,14 @@ class ScheduleInput(BaseModel):
     kind: ScheduleKinds
     scheduled_object: Any
     cron_trigger: ScheduleCronTrigger
+    desired_state: str
 
 
 # the schedule object returned from the db layer
 class ScheduleRecord(ScheduleInput):
     creation_time: datetime
     project: str
+    state: str
 
     class Config:
         orm_mode = True

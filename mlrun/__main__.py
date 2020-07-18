@@ -36,7 +36,7 @@ from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .run import new_function, import_function_to_dict, import_function, get_object
-from .runtimes import RemoteRuntime, RunError
+from .runtimes import RemoteRuntime, RunError, RuntimeKinds
 from .utils import (
     list2dict,
     logger,
@@ -754,7 +754,7 @@ def project(
 
 
 @main.command()
-@click.argument('kind', type=str, default='', required=False)
+@click.argument('kind', type=click.Choice(RuntimeKinds.runtime_with_handlers()), case_sensitive=False,  default='', required=False)
 @click.argument('object_id', metavar='id', type=str, default='', required=False)
 @click.option('--api', help='api and db service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')

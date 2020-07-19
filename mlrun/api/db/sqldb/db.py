@@ -195,8 +195,16 @@ class SQLDB(DBInterface):
             key = "{}-{}".format(iter, key)
 
         query = self._query(session, Artifact, key=key, project=project)
-        if uids:
+
+        # TODO: refactor this
+        # tag has 2 meanings:
+        # 1. tag - in this case _resolve_tag will find the relevant uids and will return a list
+        # 2. uid - in this case _resolve_tag won't find anything and simply return what was given to it, which actually
+        # represents the uid
+        if isinstance(uids, list) and uids:
             query = query.filter(Artifact.uid.in_(uids))
+        elif isinstance(uids, str) and uids:
+            query = query.filter(Artifact.uid == uids)
         else:
             # Select by last updated
             max_updated = session.query(func.max(Artifact.updated)).filter(

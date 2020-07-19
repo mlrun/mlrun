@@ -484,6 +484,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
         """
         Handling services deletion

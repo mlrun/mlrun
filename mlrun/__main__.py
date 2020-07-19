@@ -756,7 +756,9 @@ def project(
 def validate_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
     if value != '' and value not in possible_kinds:
-        raise click.BadParameter(f'kind must be one of {possible_kinds}', ctx=ctx, param=param)
+        raise click.BadParameter(
+            f'kind must be one of {possible_kinds}', ctx=ctx, param=param
+        )
     return value
 
 
@@ -804,11 +806,19 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
                 object_id=object_id,
                 label_selector=label_selector,
                 force=force,
+                grace_period=grace_period,
             )
         else:
-            mldb.delete_runtime(kind=kind, label_selector=label_selector, force=force)
+            mldb.delete_runtime(
+                kind=kind,
+                label_selector=label_selector,
+                force=force,
+                grace_period=grace_period,
+            )
     else:
-        mldb.delete_runtimes(label_selector=label_selector, force=force)
+        mldb.delete_runtimes(
+            label_selector=label_selector, force=force, grace_period=grace_period
+        )
 
 
 @main.command(name='config')

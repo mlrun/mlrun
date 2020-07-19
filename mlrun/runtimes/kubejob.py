@@ -279,14 +279,14 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     def _is_pod_in_transient_state(
-        self, db: DBInterface, db_session: Session, pod
+        self, db: DBInterface, db_session: Session, pod, grace_period: int
     ) -> bool:
-        if super()._is_pod_in_transient_state(db, db_session, pod):
+        if super()._is_pod_in_transient_state(db, db_session, pod, grace_period):
             return True
 
         # verify pod related run is not in transient state
         return self._is_runtime_resource_run_in_transient_state(
-            db, db_session, pod.to_dict()
+            db, db_session, pod.to_dict(), grace_period
         )
 
     @staticmethod

@@ -324,7 +324,7 @@ class SparkRuntime(KubejobRuntime):
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
     def _is_crd_object_in_transient_state(
-        self, db: DBInterface, db_session: Session, crd_object
+        self, db: DBInterface, db_session: Session, crd_object, grace_period: int
     ) -> bool:
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
@@ -334,7 +334,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             return True
 
         return self._is_runtime_resource_run_in_transient_state(
-            db, db_session, crd_object
+            db, db_session, crd_object, grace_period
         )
 
     @staticmethod

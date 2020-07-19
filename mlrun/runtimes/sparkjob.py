@@ -39,13 +39,13 @@ igz_deps = {
     'files': ['/igz/java/libs/v3io-pyspark.zip'],
 }
 
+allowed_types = ['Python', 'Scala', 'Java', 'R']
+
 _sparkjob_template = {
     'apiVersion': 'sparkoperator.k8s.io/v1beta2',
     'kind': 'SparkApplication',
     'metadata': {'name': '', 'namespace': 'default-tenant'},
     'spec': {
-        'type': 'Python',
-        'pythonVersion': '3',
         'mode': 'cluster',
         'image': '',
         'imagePullPolicy': 'IfNotPresent',
@@ -97,11 +97,12 @@ class SparkJobSpec(KubeResourceSpec):
         service_account=None,
         image_pull_secret=None,
         driver_resources=None,
-        type=None,
+        job_type=None,
         python_version=None,
         spark_version=None,
         restart_policy=None,
         deps=None,
+        main_class=None,
     ):
 
         super().__init__(
@@ -120,11 +121,12 @@ class SparkJobSpec(KubeResourceSpec):
         )
 
         self.driver_resources = driver_resources
-        self.type = type
+        self.job_type = job_type
         self.python_version = python_version
         self.spark_version = spark_version
         self.restart_policy = restart_policy
         self.deps = deps
+        self.main_class = main_class
 
 
 class SparkRuntime(KubejobRuntime):
@@ -141,6 +143,14 @@ class SparkRuntime(KubejobRuntime):
         meta = self._get_meta(runobj, True)
         pod_labels = deepcopy(meta.labels)
         pod_labels['mlrun/job'] = meta.name
+        job_type = self.spec.job_type or 'Python'
+        update_in(job, 'spec.type', job_type)
+        if self.spec.job_type == 'Python':
+            update_in(job, 'spec.pythonVersion', self.spec.python_version or '3')
+        if self.spec.main_class:
+            update_in(job, 'spec.mainClass', self.spec.main_class)
+        if self.spec.spark_version:
+            update_in(job, 'spec.sparkVersion', self.spec.spark_version)
         update_in(job, 'metadata', meta.to_dict())
         update_in(job, 'spec.driver.labels', pod_labels)
         update_in(job, 'spec.executor.labels', pod_labels)

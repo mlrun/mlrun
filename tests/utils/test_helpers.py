@@ -1,35 +1,14 @@
-from io import StringIO
-from typing import Generator
-
-import pytest
-
-from mlrun.utils.logger import create_logger, FormatterKinds, Logger
 from mlrun.utils.helpers import verify_field_regex
 from mlrun.utils.regex import run_name
 
 
 def test_run_name_regex():
     cases = [
-        {
-            'value': 'asd',
-            'valid': True,
-        },
-        {
-            'value': 'Asd',
-            'valid': True,
-        },
-        {
-            'value': 'AsA',
-            'valid': True,
-        },
-        {
-            'value': 'As-123_2.8A',
-            'valid': True,
-        },
-        {
-            'value': '1As-123_2.8A5',
-            'valid': True,
-        },
+        {'value': 'asd', 'valid': True},
+        {'value': 'Asd', 'valid': True},
+        {'value': 'AsA', 'valid': True},
+        {'value': 'As-123_2.8A', 'valid': True},
+        {'value': '1As-123_2.8A5', 'valid': True},
         {
             'value': 'azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs',
             'valid': True,
@@ -58,6 +37,6 @@ def test_run_name_regex():
     for case in cases:
         try:
             verify_field_regex('test_field', case['value'], run_name)
-        except:
+        except Exception:
             if case['valid']:
                 raise

@@ -275,7 +275,9 @@ class BaseRuntime(ModelObj):
         if runspec.spec.handler_name:
             def_name += '-' + runspec.spec.handler_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
-        verify_field_regex('run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name)
+        verify_field_regex(
+            'run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name
+        )
         runspec.metadata.project = (
             project
             or runspec.metadata.project
@@ -631,7 +633,9 @@ class BaseRuntime(ModelObj):
         else:
             url = None
 
-        verify_field_regex('run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name)
+        verify_field_regex(
+            'run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name
+        )
 
         return mlrun_op(
             name,

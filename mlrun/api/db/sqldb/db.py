@@ -190,13 +190,13 @@ class SQLDB(DBInterface):
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
-        uid = self._resolve_tag(session, Artifact, project, tag)
+        uids = self._resolve_tag(session, Artifact, project, tag)
         if iter:
             key = "{}-{}".format(iter, key)
 
         query = self._query(session, Artifact, key=key, project=project)
-        if uid:
-            query = query.filter(Artifact.uid == uid)
+        if uids:
+            query = query.filter(Artifact.uid.in_(uids))
         else:
             # Select by last updated
             max_updated = session.query(func.max(Artifact.updated)).filter(
@@ -220,13 +220,19 @@ class SQLDB(DBInterface):
         until=None,
     ):
         project = project or config.default_project
-        uid = "latest"
+
+        # TODO: Refactor this area
+        # in case where tag is not given uids will be "latest" to mark to _find_artifacts to find the latest using the
+        # old way - by the updated field
+        uids = "latest"
         if tag:
-            uid = self._resolve_tag(session, Artifact, project, tag)
+            uids = self._resolve_tag(session, Artifact, project, tag)
 
         arts = ArtifactList(
             obj.struct
-            for obj in self._find_artifacts(session, project, uid, labels, since, until)
+            for obj in self._find_artifacts(
+                session, project, uids, labels, since, until
+            )
         )
         return arts
 
@@ -514,9 +520,12 @@ class SQLDB(DBInterface):
         return self._query(session, Project, owner=owner)
 
     def _resolve_tag(self, session, cls, project, name):
+        uids = []
         for tag in self._query(session, cls.Tag, project=project, name=name):
-            return self._query(session, cls).get(tag.obj_id).uid
-        return name  # Not found, return original uid
+            uids.append(self._query(session, cls).get(tag.obj_id).uid)
+        if not uids:
+            return name  # Not found, return original uid
+        return uids
 
     def _resolve_tag_function_uid(self, session, cls, project, obj_name, tag_name):
         for tag in self._query(
@@ -630,14 +639,21 @@ class SQLDB(DBInterface):
             ),
         )
 
-    def _find_artifacts(self, session, project, uid, labels, since, until):
+    def _find_artifacts(self, session, project, uids, labels, since, until):
+        """
+        TODO: refactor this method
+        basically uids should be list of strings (representing uids), but we also handle two special cases (mainly for
+        BC until we refactor the whole artifacts API):
+        1. uids == "*" - in which we don't care about uids we just don't add any filter for this column
+        1. uids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
+        """
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
-        if uid != "*":
-            if uid == "latest":
+        if uids != "*":
+            if uids == "latest":
                 query = self._latest_uid_filter(session, query)
             else:
-                query = query.filter(Artifact.uid == uid)
+                query = query.filter(Artifact.uid.in_(uids))
 
         query = self._add_labels_filter(session, query, Artifact, labels)
 

@@ -68,6 +68,26 @@ class run_keys:
     secrets = 'secret_sources'
 
 
+def verify_field_regex(field_name, field_value, pattern):
+    logger.debug(
+        'Validating field against regex',
+        field_name=field_name,
+        field_value=field_value,
+        pattern=pattern,
+    )
+
+    if not re.match(pattern, str(field_value)):
+        logger.warn(
+            'Field is malformed. Does not match required pattern)',
+            field_name=field_name,
+            field_value=field_value,
+            pattern=pattern,
+        )
+        raise ValueError(
+            f'Field {field_name} is malformed. Does not match required pattern: {pattern}'
+        )
+
+
 def now_date():
     return datetime.now(timezone.utc)
 

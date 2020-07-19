@@ -30,6 +30,8 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
+from mlrun.utils.helpers import verify_field_regex
+import mlrun.utils.regex
 from .constants import PodPhases, FunctionStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
@@ -273,6 +275,7 @@ class BaseRuntime(ModelObj):
         if runspec.spec.handler_name:
             def_name += '-' + runspec.spec.handler_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
+        verify_field_regex('run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name)
         runspec.metadata.project = (
             project
             or runspec.metadata.project
@@ -627,6 +630,8 @@ class BaseRuntime(ModelObj):
             url = 'db://' + self._function_uri(hash_key=hash_key)
         else:
             url = None
+
+        verify_field_regex('run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name)
 
         return mlrun_op(
             name,

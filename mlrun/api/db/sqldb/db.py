@@ -185,8 +185,8 @@ class SQLDB(DBInterface):
         update_labels(art, labels)
         art.struct = artifact
         self._upsert(session, art)
-        if tag:
-            self.tag_objects(session, [art], project, tag)
+        tag = tag or 'latest'
+        self.tag_objects(session, [art], project, tag)
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project

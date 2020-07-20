@@ -100,6 +100,7 @@ class NuclioSpec(KubeResourceSpec):
         image_pull_policy=None,
         function_kind=None,
         service_account=None,
+        readiness_timeout=None,
     ):
 
         super().__init__(
@@ -133,6 +134,7 @@ class NuclioSpec(KubeResourceSpec):
         self.function_handler = ''
         self.no_cache = no_cache
         self.replicas = replicas
+        self.readiness_timeout = readiness_timeout
 
         # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the
         #  x-nuclio-target header or to create the function with http trigger and invoke the function through it - so
@@ -299,6 +301,8 @@ class RemoteRuntime(KubeResource):
         spec.cmd = self.spec.build.commands or []
         project = project or self.metadata.project or 'default'
         handler = self.spec.function_handler
+        if self.spec.readiness_timeout:
+            spec.set_config('spec.readinessTimeoutSeconds', self.spec.readiness_timeout)
         if self.spec.no_cache:
             spec.set_config('spec.build.noCache', True)
         if self.spec.replicas:

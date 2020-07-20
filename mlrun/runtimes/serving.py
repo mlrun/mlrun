@@ -123,7 +123,13 @@ def nuclio_serving_handler(context, event):
 
     # check if valid route & model
     try:
-        model_name, route = event.path.strip('/').split('/')
+        if hasattr(event, 'trigger') and event.trigger.kind != 'http':
+            # non http triggers (i.e. stream) are directed to the first model
+            # todo: take model name and action from json is specified
+            model_name = next(iter(context.models))
+            route = 'predict'
+        else:
+            model_name, route = event.path.strip('/').split('/')
         route = context.router[route]
     except Exception:
         return context.Response(

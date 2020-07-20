@@ -1,5 +1,6 @@
 import asyncio
 import copy
+from datetime import datetime, timedelta
 from typing import Any, Callable, List, Tuple, Dict, Union, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -16,6 +17,8 @@ class Scheduler:
         self._scheduler = AsyncIOScheduler()
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
+        # we don't allow to schedule a job to run more then one time per X minutes
+        self._minimum_time_between_jobs_minutes = 10
 
     async def start(self, db_session: Session):
         logger.info('Starting scheduler')
@@ -48,6 +51,8 @@ class Scheduler:
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+
+        self._validate_cron_trigger(cron_trigger)
 
         logger.debug(
             'Creating schedule',
@@ -87,6 +92,34 @@ class Scheduler:
         job_id = self._resolve_job_id(project, name)
         self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
+
+    def _validate_cron_trigger(self, cron_trigger: schemas.ScheduleCronTrigger):
+        """
+        Enforce no more then one job per 10 minutes
+        """
+        logger.debug('Validating cron trigger')
+        apscheduler_cron_trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+            cron_trigger
+        )
+        now = datetime.now(apscheduler_cron_trigger.timezone)
+        first_fire_time = apscheduler_cron_trigger.get_next_fire_time(None, now)
+        second_fire_time = apscheduler_cron_trigger.get_next_fire_time(
+            first_fire_time, first_fire_time
+        )
+        if second_fire_time < first_fire_time + timedelta(
+            minutes=self._minimum_time_between_jobs_minutes
+        ):
+            logger.warn(
+                'Cron trigger too frequent. Rejecting',
+                cron_trigger=cron_trigger,
+                first_fire_time=first_fire_time,
+                second_fire_time=second_fire_time,
+                delta=second_fire_time - first_fire_time,
+            )
+            raise ValueError(
+                f'Cron trigger too frequent. no more then one job '
+                f'per {self._minimum_time_between_jobs_minutes} minutes is allowed'
+            )
 
     def _create_schedule_in_scheduler(
         self,

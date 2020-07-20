@@ -322,15 +322,13 @@ def get_resource_labels(function, uid=None, name=None, scrape_metrics=False):
     labels[mlrun_key + 'project'] = meta.project
     labels[mlrun_key + 'function'] = '{}'.format(meta.name)
     labels[mlrun_key + 'tag'] = '{}'.format(meta.tag or 'latest')
+    labels[mlrun_key + 'scrape_metrics'] = str(scrape_metrics)
 
     if uid:
         labels[mlrun_key + 'uid'] = uid
 
     if name:
         labels[mlrun_key + 'name'] = name
-
-    if scrape_metrics:
-        labels[mlrun_key + 'scrape_metrics'] = str(scrape_metrics)
 
     return labels
 

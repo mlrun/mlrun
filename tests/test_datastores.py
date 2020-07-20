@@ -94,4 +94,3 @@ def test_parse_url_preserve_case():
     expected_endpoint = 'Hedi'
     _, endpoint, _ = mlrun.datastore.datastore.parse_url(url)
     assert expected_endpoint, endpoint
-

@@ -44,7 +44,9 @@ def parse_url(url):
         netloc = str(parsed_url.netloc)
         lower_netloc = netloc.lower()
         hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
-        endpoint = netloc[hostname_index_in_netloc:hostname_index_in_netloc+len(lower_hostname)]
+        endpoint = netloc[
+            hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
+        ]
     if parsed_url.port:
         endpoint += ':{}'.format(parsed_url.port)
     return schema, endpoint, parsed_url

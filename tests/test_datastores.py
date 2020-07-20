@@ -87,3 +87,10 @@ def test_file():
         assert artifact.column_metadata == {
             'age': 'great'
         }, 'failed artifact update test'
+
+
+def test_parse_url_preserve_case():
+    url = 'store://Hedi/mlrun-dbd7ef-training_mymodel#a5dc8e34a46240bb9a07cd9deb3609c7'
+    expected_endpoint = 'Hedi'
+    _, endpoint, _ = mlrun.datastore.datastore.parse_url(url)
+    assert expected_endpoint, endpoint

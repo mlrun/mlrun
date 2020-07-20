@@ -17,9 +17,7 @@ from base64 import b64encode
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
-from sqlalchemy.orm import Session
 
-from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
 from .pod import KubeResource

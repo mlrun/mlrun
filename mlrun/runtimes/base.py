@@ -918,8 +918,9 @@ class BaseRuntimeHandler(ABC):
                     continue
 
                 if self._consider_run_on_resources_deletion():
-                    should_delete = self._pre_deletion_runtime_resource_run_checks(db, db_session, pod.to_dict(),
-                                                                                   grace_period)
+                    should_delete = self._pre_deletion_runtime_resource_run_checks(
+                        db, db_session, pod.to_dict(), grace_period
+                    )
                     if not should_delete:
                         continue
                 self._delete_pod(namespace, pod)
@@ -969,8 +970,9 @@ class BaseRuntimeHandler(ABC):
                         continue
 
                     if self._consider_run_on_resources_deletion():
-                        should_delete = self._pre_deletion_runtime_resource_run_checks(db, db_session, crd_object,
-                                                                                       grace_period)
+                        should_delete = self._pre_deletion_runtime_resource_run_checks(
+                            db, db_session, crd_object, grace_period
+                        )
                         if not should_delete:
                             continue
 
@@ -985,20 +987,31 @@ class BaseRuntimeHandler(ABC):
                     )
 
     def _pre_deletion_runtime_resource_run_checks(
-        self, db: DBInterface, db_session: Session, runtime_resource: Dict, grace_period: int,
+        self,
+        db: DBInterface,
+        db_session: Session,
+        runtime_resource: Dict,
+        grace_period: int,
     ) -> bool:
         self._ensure_runtime_resource_run_logs_collected(
             db, db_session, runtime_resource
         )
 
-        in_transient_state, last_update = self._is_runtime_resource_run_in_transient_state(db, db_session,
-                                                                                           runtime_resource)
+        (
+            in_transient_state,
+            last_update,
+        ) = self._is_runtime_resource_run_in_transient_state(
+            db, db_session, runtime_resource
+        )
         if in_transient_state:
             return False
 
         # give some grace period if we have last update time
         now = datetime.now(timezone.utc)
-        if last_update is not None and last_update + timedelta(seconds=float(grace_period)) > now:
+        if (
+            last_update is not None
+            and last_update + timedelta(seconds=float(grace_period)) > now
+        ):
             return False
 
         return True
@@ -1042,10 +1055,7 @@ class BaseRuntimeHandler(ABC):
             crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     def _is_runtime_resource_run_in_transient_state(
-        self,
-        db: DBInterface,
-        db_session: Session,
-        runtime_resource: Dict,
+        self, db: DBInterface, db_session: Session, runtime_resource: Dict,
     ) -> Tuple[bool, Optional[datetime]]:
         """
         A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime

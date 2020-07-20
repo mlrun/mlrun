@@ -130,14 +130,14 @@ def test_artifacts_latest(db: SQLDB, db_session: Session):
     u2, art2 = 'u2', {'a': 17}
     db.store_artifact(db_session, k1, art2, u2, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag='latest')
-    assert 1 == len(arts), 'count'
-    assert art2['a'] == arts[0]['a'], 'bad artifact'
+    assert 2 == len(arts), 'count'
+    assert art2['a'] == arts[1]['a'], 'bad artifact'
 
     k2, u3, art3 = 'k2', 'u3', {'a': 99}
     db.store_artifact(db_session, k2, art3, u3, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag='latest')
-    assert 2 == len(arts), 'number'
-    assert {17, 99} == set(art['a'] for art in arts), 'latest'
+    assert 3 == len(arts), 'number'
+    assert {1, 17, 99} == set(art['a'] for art in arts), 'latest'
 
 
 @pytest.mark.parametrize('cls', _tagged)

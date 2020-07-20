@@ -184,6 +184,7 @@ class RunSpec(ModelObj):
         data_stores=None,
         tuning_strategy=None,
         verbose=None,
+        scrape_metrics=False,
     ):
 
         self.parameters = parameters or {}
@@ -200,6 +201,7 @@ class RunSpec(ModelObj):
         self._secret_sources = secret_sources or []
         self._data_stores = data_stores
         self.verbose = verbose
+        self.scrape_metrics = scrape_metrics
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=['handler'])

@@ -58,6 +58,60 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
+async def test_create_schedule_success_cron_trigger_validation(
+    db: Session, scheduler: Scheduler
+):
+    cases = [
+        {'second': '1', 'minute': '19'},
+        {'second': '30', 'minute': '9,19'},
+        {'minute': '*/10'},
+        {'minute': '20-40/10'},
+        {'hour': '1'},
+    ]
+    for index, case in enumerate(cases):
+        cron_trigger = schemas.ScheduleCronTrigger(**case)
+        scheduler.create_schedule(
+            db,
+            'project',
+            f'schedule-name-{index}',
+            schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_failure_too_frequent_cron_trigger(
+    db: Session, scheduler: Scheduler
+):
+    cases = [
+        {'second': '*'},
+        {'second': '1,2'},
+        {'second': '*/30'},
+        {'second': '30-35'},
+        {'second': '30-40/5'},
+        {'minute': '*'},
+        {'minute': '*'},
+        {'minute': '*/5'},
+        {'minute': '43-59'},
+        {'minute': '30-50/6'},
+        {'minute': '1,3,5'},
+    ]
+    for case in cases:
+        cron_trigger = schemas.ScheduleCronTrigger(**case)
+        with pytest.raises(ValueError) as excinfo:
+            scheduler.create_schedule(
+                db,
+                'project',
+                'schedule-name',
+                schemas.ScheduleKinds.local_function,
+                do_nothing,
+                cron_trigger,
+            )
+        assert 'Cron trigger too frequent. no more then one job' in str(excinfo.value)
+
+
+@pytest.mark.asyncio
 async def test_get_schedule(db: Session, scheduler: Scheduler):
     cron_trigger = schemas.ScheduleCronTrigger(year='1999')
     schedule_name = 'schedule-name'

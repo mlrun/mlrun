@@ -62,6 +62,16 @@ def test_noparams():
     assert result.status.artifacts[0].get('key') == 'chart', 'failed to run'
 
 
+def test_invalid_name():
+    with pytest.raises(ValueError) as excinfo:
+        # name cannot have / in it
+        new_function().run(name='asd/asd', handler=my_func)
+    assert (
+        'Field run.metadata.name is malformed. Does not match required pattern'
+        in str(excinfo.value)
+    )
+
+
 def test_with_params():
     spec = tag_test(base_spec, 'test_with_params')
     result = new_function().run(spec, handler=my_func)

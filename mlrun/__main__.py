@@ -755,7 +755,7 @@ def project(
 
 def validate_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
-    if value != '' and value not in possible_kinds:
+    if value is not None and value not in possible_kinds:
         raise click.BadParameter(
             f'kind must be one of {possible_kinds}', ctx=ctx, param=param
         )
@@ -763,8 +763,8 @@ def validate_kind(ctx, param, value):
 
 
 @main.command()
-@click.argument('kind', callback=validate_kind, default='', required=False)
-@click.argument('object_id', metavar='id', type=str, default='', required=False)
+@click.argument('kind', callback=validate_kind, default=None, required=False)
+@click.argument('object_id', metavar='id', type=str, default=None, required=False)
 @click.option('--api', help='api service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')
 @click.option(

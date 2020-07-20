@@ -111,13 +111,15 @@ def submit(db_session: Session, data):
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
+            if isinstance(schedule, dict):
+                schedule = schemas.ScheduleCronTrigger(**schedule)
             get_scheduler().create_schedule(
                 db_session,
                 task['metadata']['project'],
                 task['metadata']['name'],
                 schemas.ScheduleKinds.job,
                 data,
-                schemas.ScheduleCronTrigger(**schedule),
+                schedule,
             )
 
             response = {

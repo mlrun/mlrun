@@ -5,27 +5,27 @@ from mlrun.utils.regex import run_name
 def test_run_name_regex():
     cases = [
         {'value': 'asd', 'valid': True},
-        {'value': 'asd', 'valid': True},
-        {'value': 'asa', 'valid': True},
-        {'value': 'as-123-2-8a', 'valid': True},
-        {'value': '1as-123-2-8a5', 'valid': True},
+        {'value': 'Asd', 'valid': True},
+        {'value': 'AsA', 'valid': True},
+        {'value': 'As-123_2.8A', 'valid': True},
+        {'value': '1As-123_2.8A5', 'valid': True},
         {
             'value': 'azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs',
             'valid': True,
         },
         {
             # Invalid because the first letter is -
-            'value': '-as-12328a',
+            'value': '-As-123_2.8A',
             'valid': False,
         },
         {
             # Invalid because the last letter is .
-            'value': 'as-12328a-',
+            'value': 'As-123_2.8A.',
             'valid': False,
         },
         {
             # Invalid because $ is not allowed
-            'value': 'as-12328A$a',
+            'value': 'As-123_2.8A$a',
             'valid': False,
         },
         {

@@ -16,6 +16,7 @@ async def scheduler(db: Session) -> Generator:
     logger.info("Creating scheduler")
     scheduler = Scheduler()
     await scheduler.start(db)
+    scheduler._minimum_time_between_jobs_minutes = 0
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()
@@ -61,12 +62,15 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 async def test_create_schedule_success_cron_trigger_validation(
     db: Session, scheduler: Scheduler
 ):
+    scheduler._minimum_time_between_jobs_minutes = 10
     cases = [
         {'second': '1', 'minute': '19'},
         {'second': '30', 'minute': '9,19'},
         {'minute': '*/10'},
         {'minute': '20-40/10'},
         {'hour': '1'},
+        {'year': '1999'},
+        {'year': '2050'},
     ]
     for index, case in enumerate(cases):
         cron_trigger = schemas.ScheduleCronTrigger(**case)
@@ -84,6 +88,7 @@ async def test_create_schedule_success_cron_trigger_validation(
 async def test_create_schedule_failure_too_frequent_cron_trigger(
     db: Session, scheduler: Scheduler
 ):
+    scheduler._minimum_time_between_jobs_minutes = 10
     cases = [
         {'second': '*'},
         {'second': '1,2'},

@@ -103,9 +103,15 @@ class Scheduler:
         )
         now = datetime.now(apscheduler_cron_trigger.timezone)
         first_fire_time = apscheduler_cron_trigger.get_next_fire_time(None, now)
+        # will be none if we got a schedule that has no next fire time - for example schedule with year=1999
+        if first_fire_time is None:
+            return
         second_fire_time = apscheduler_cron_trigger.get_next_fire_time(
             first_fire_time, first_fire_time
         )
+        # will be none if we got a schedule that has no next fire time - for example schedule with year=2050
+        if second_fire_time is None:
+            return
         if second_fire_time < first_fire_time + timedelta(
             minutes=self._minimum_time_between_jobs_minutes
         ):

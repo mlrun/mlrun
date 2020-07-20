@@ -13,17 +13,16 @@
 # limitations under the License.
 
 from urllib.parse import urlparse
+
 import mlrun
-
-from ..config import config
-from ..utils import run_keys, DB_SCHEMA, logger
-
-from .base import DataItem, HttpStore
-from .s3 import S3Store
-from .filestore import FileStore
-from .v3io import V3ioStore
 from .azure_blob import AzureBlobStore
+from .base import DataItem, HttpStore
+from .filestore import FileStore
 from .inmem import InMemoryStore
+from .s3 import S3Store
+from .v3io import V3ioStore
+from ..config import config
+from ..utils import run_keys, DB_SCHEMA
 
 in_memory_store = InMemoryStore()
 

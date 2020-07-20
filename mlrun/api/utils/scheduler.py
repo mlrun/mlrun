@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -18,7 +19,7 @@ class Scheduler:
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
         # we don't allow to schedule a job to run more then one time per X minutes
-        self._minimum_time_between_jobs_minutes = 10
+        self._minimum_interval_between_jobs_minutes = int(config.httpdb.minimum_interval_between_scheduled_jobs)
 
     async def start(self, db_session: Session):
         logger.info('Starting scheduler')
@@ -113,7 +114,7 @@ class Scheduler:
         if second_fire_time is None:
             return
         if second_fire_time < first_fire_time + timedelta(
-            minutes=self._minimum_time_between_jobs_minutes
+            minutes=self._minimum_interval_between_jobs_minutes
         ):
             logger.warn(
                 'Cron trigger too frequent. Rejecting',
@@ -124,7 +125,7 @@ class Scheduler:
             )
             raise ValueError(
                 f'Cron trigger too frequent. no more then one job '
-                f'per {self._minimum_time_between_jobs_minutes} minutes is allowed'
+                f'per {self._minimum_interval_between_jobs_minutes} minutes is allowed'
             )
 
     def _create_schedule_in_scheduler(

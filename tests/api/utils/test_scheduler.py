@@ -14,9 +14,9 @@ from mlrun.utils import logger
 @pytest.fixture()
 async def scheduler(db: Session) -> Generator:
     logger.info("Creating scheduler")
+    config.httpdb.minimum_interval_between_scheduled_jobs = '0'
     scheduler = Scheduler()
     await scheduler.start(db)
-    scheduler._minimum_time_between_jobs_minutes = 0
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()
@@ -62,7 +62,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 async def test_create_schedule_success_cron_trigger_validation(
     db: Session, scheduler: Scheduler
 ):
-    scheduler._minimum_time_between_jobs_minutes = 10
+    scheduler._minimum_interval_between_jobs_minutes = 10
     cases = [
         {'second': '1', 'minute': '19'},
         {'second': '30', 'minute': '9,19'},
@@ -88,7 +88,7 @@ async def test_create_schedule_success_cron_trigger_validation(
 async def test_create_schedule_failure_too_frequent_cron_trigger(
     db: Session, scheduler: Scheduler
 ):
-    scheduler._minimum_time_between_jobs_minutes = 10
+    scheduler._minimum_interval_between_jobs_minutes = 10
     cases = [
         {'second': '*'},
         {'second': '1,2'},

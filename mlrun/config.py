@@ -79,6 +79,9 @@ default_config = {
         'data_volume': '',
         'real_path': '',
         'db_type': 'sqldb',
+        # the minimum interval (in minutes) that will be allowed between two scheduled jobs - e.g. a job wouldn't be
+        # allowed to be scheduled to run more then 2 times in X minutes
+        'minimum_interval_between_scheduled_jobs': '10',
     },
 }
 

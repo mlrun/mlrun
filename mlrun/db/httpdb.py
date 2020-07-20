@@ -534,9 +534,9 @@ class HTTPRunDB(RunDBInterface):
         try:
             req = {'task': runspec.to_dict()}
             if schedule:
-                if isinstance(schedule, str):
-                    schedule = schemas.ScheduleCronTrigger.from_crontab(schedule)
-                req['schedule'] = schedule.dict()
+                if isinstance(schedule, schemas.ScheduleCronTrigger):
+                    schedule = schedule.dict()
+                req['schedule'] = schedule
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call('POST', 'submit_job', json=req, timeout=timeout)
         except OSError as err:

@@ -787,11 +787,11 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
     Examples:
 
         \b
-        # Clean resources for all jobs of all runtimes
+        # Clean resources for all runs of all runtimes
         mlrun clean
 
         \b
-        # Clean resources for all jobs of specific kind (job)
+        # Clean resources for all runs of a specific kind (e.g. job)
         mlrun clean job
 
         \b

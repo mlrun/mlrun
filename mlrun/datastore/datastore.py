@@ -36,15 +36,16 @@ def get_object_stat(url, secrets=None):
 def parseurl(url):
     p = urlparse(url)
     schema = p.scheme.lower()
-    # HACK - urlparse returns the hostname after in lower case - we want the original case:
-    # the hostname is a substring of the netloc, in which it's the original case, so we find the indexes of the hostname
-    # in the netloc and take it from there
-    lower_hostname = p.hostname
-    netloc = str(p.netloc)
-    lower_netloc = netloc.lower()
-    logger.warn('WTF', lower_hostname=lower_hostname, lower_netloc=lower_netloc, url=str(url))
-    hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
-    endpoint = netloc[hostname_index_in_netloc:hostname_index_in_netloc+len(lower_hostname)]
+    endpoint = p.hostname
+    if endpoint:
+        # HACK - urlparse returns the hostname after in lower case - we want the original case:
+        # the hostname is a substring of the netloc, in which it's the original case, so we find the indexes of the
+        # hostname in the netloc and take it from there
+        lower_hostname = p.hostname
+        netloc = str(p.netloc)
+        lower_netloc = netloc.lower()
+        hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
+        endpoint = netloc[hostname_index_in_netloc:hostname_index_in_netloc+len(lower_hostname)]
     if p.port:
         endpoint += ':{}'.format(p.port)
     return schema, endpoint, p

@@ -993,10 +993,6 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         grace_period: int,
     ) -> bool:
-        self._ensure_runtime_resource_run_logs_collected(
-            db, db_session, runtime_resource
-        )
-
         (
             in_transient_state,
             last_update,
@@ -1013,6 +1009,10 @@ class BaseRuntimeHandler(ABC):
             and last_update + timedelta(seconds=float(grace_period)) > now
         ):
             return False
+
+        self._ensure_runtime_resource_run_logs_collected(
+            db, db_session, runtime_resource
+        )
 
         return True
 

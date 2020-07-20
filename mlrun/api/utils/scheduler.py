@@ -44,8 +44,11 @@ class Scheduler:
         name: str,
         kind: schemas.ScheduleKinds,
         scheduled_object: Union[Dict, Callable],
-        cron_trigger: schemas.ScheduleCronTrigger,
+        cron_trigger: Union[str, schemas.ScheduleCronTrigger],
     ):
+        if isinstance(cron_trigger, str):
+            cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+
         logger.debug(
             'Creating schedule',
             project=project,

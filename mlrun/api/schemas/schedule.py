@@ -68,7 +68,7 @@ class ScheduleInput(BaseModel):
     name: str
     kind: ScheduleKinds
     scheduled_object: Any
-    cron_trigger: ScheduleCronTrigger
+    cron_trigger: Union[str, ScheduleCronTrigger]
     desired_state: Optional[str]
 
 

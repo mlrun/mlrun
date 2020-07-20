@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 import mlrun
 
 from ..config import config
-from ..utils import run_keys, DB_SCHEMA
+from ..utils import run_keys, DB_SCHEMA, logger
 
 from .base import DataItem, HttpStore
 from .s3 import S3Store
@@ -42,7 +42,8 @@ def parseurl(url):
     lower_hostname = p.hostname
     netloc = str(p.netloc)
     lower_netloc = netloc.lower()
-    hostname_index_in_netloc = lower_netloc.index(str(p.hostname))
+    logger.warn('WTF', lower_hostname=lower_hostname, lower_netloc=lower_netloc, url=str(url))
+    hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
     endpoint = netloc[hostname_index_in_netloc:hostname_index_in_netloc+len(lower_hostname)]
     if p.port:
         endpoint += ':{}'.format(p.port)

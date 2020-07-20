@@ -636,9 +636,10 @@ class BaseRuntime(ModelObj):
         else:
             url = None
 
-        verify_field_regex(
-            'run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name
-        )
+        if runspec is not None:
+            verify_field_regex(
+                'run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name
+            )
 
         return mlrun_op(
             name,

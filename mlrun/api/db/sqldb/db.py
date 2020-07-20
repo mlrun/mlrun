@@ -428,8 +428,7 @@ class SQLDB(DBInterface):
         """
         for obj in objs:
             tag = obj.Tag(project=project, name=name, obj_id=obj.id)
-            session.add(tag)
-        session.commit()
+            self._upsert(session, tag, ignore=True)
 
     def tag_objects_v2(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.

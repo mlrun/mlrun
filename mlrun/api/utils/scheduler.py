@@ -19,7 +19,9 @@ class Scheduler:
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
         # we don't allow to schedule a job to run more then one time per X minutes
-        self._minimum_interval_between_jobs_minutes = int(config.httpdb.minimum_interval_between_scheduled_jobs)
+        self._minimum_interval_between_jobs_minutes = int(
+            config.httpdb.minimum_interval_between_scheduled_jobs
+        )
 
     async def start(self, db_session: Session):
         logger.info('Starting scheduler')

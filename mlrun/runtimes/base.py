@@ -228,23 +228,25 @@ class BaseRuntime(ModelObj):
         watch: bool = True,
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
         verbose=None,
+        scrape_metrics=False,
     ):
         """Run a local or remote task.
 
-        :param runspec:       run template object or dict (see RunTemplate)
-        :param handler:       pointer or name of a function handler
-        :param name:          execution name
-        :param project:       project name
-        :param params:        input parameters (dict)
-        :param inputs:        input objects (dict of key: path)
-        :param out_path:      default artifact output path
-        :param artifact_path: default artifact output path (will replace out_path)
-        :param workdir:       default input artifacts path
-        :param watch:         watch/follow run log
-        :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string (which
+        :param runspec:        run template object or dict (see RunTemplate)
+        :param handler:        pointer or name of a function handler
+        :param name:           execution name
+        :param project:        project name
+        :param params:         input parameters (dict)
+        :param inputs:         input objects (dict of key: path)
+        :param out_path:       default artifact output path
+        :param artifact_path:  default artifact output path (will replace out_path)
+        :param workdir:        default input artifacts path
+        :param watch:          watch/follow run log
+        :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string (which
         will be converted to the class using its `from_crontab` constructor. see this link for help:
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param verbose:       add verbose prints/logs
+        :param verbose:        add verbose prints/logs
+        :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
 
         :return: run context object (dict) with run metadata, results and
             status
@@ -287,6 +289,7 @@ class BaseRuntime(ModelObj):
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
         runspec.spec.verbose = verbose or runspec.spec.verbose
+        runspec.spec.scrape_metrics = scrape_metrics or runspec.spec.scrape_metrics
         runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir

@@ -350,7 +350,7 @@ def deploy_function(function: DaskCluster, secrets=None):
     if spec.extra_pip:
         env.append(spec.extra_pip)
 
-    pod_labels = get_resource_labels(function)
+    pod_labels = get_resource_labels(function, scrape_metrics=False)
     args = ['dask-worker', "--nthreads", str(spec.nthreads)]
     if spec.args:
         args += spec.args

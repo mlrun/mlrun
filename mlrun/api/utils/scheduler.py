@@ -155,10 +155,14 @@ class Scheduler:
 
             # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
             # endless scheduling loop
-            scheduled_object_without_schedule = copy.deepcopy(scheduled_object)
-            scheduled_object_without_schedule.pop('schedule', None)
+            edited_scheduled_object = copy.deepcopy(scheduled_object)
+            edited_scheduled_object.pop('schedule', None)
 
-            return submit, [db_session, scheduled_object_without_schedule], {}
+            # removing the uid from the task metadata so that a new uid will be generated for every run
+            # otherwise all jobs will have the same uid
+            edited_scheduled_object.get('task', {}).get('metadata', {}).pop('uid', None)
+
+            return submit, [db_session, edited_scheduled_object], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, None, None
 

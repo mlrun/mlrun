@@ -20,7 +20,7 @@ from ast import literal_eval
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 from mlrun.api import schemas
 
 from kubernetes import client
@@ -755,16 +755,23 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         label_selector: str = None,
         force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(label_selector)
-        self._delete_resources(db, db_session, namespace, label_selector, force)
+        self._delete_resources(
+            db, db_session, namespace, label_selector, force, grace_period
+        )
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
-            self._delete_crd_resources(db, db_session, namespace, label_selector, force)
+            self._delete_crd_resources(
+                db, db_session, namespace, label_selector, force, grace_period
+            )
         else:
-            self._delete_pod_resources(db, db_session, namespace, label_selector, force)
+            self._delete_pod_resources(
+                db, db_session, namespace, label_selector, force, grace_period
+            )
 
     def delete_runtime_object_resources(
         self,
@@ -773,13 +780,14 @@ class BaseRuntimeHandler(ABC):
         object_id: str,
         label_selector: str = None,
         force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
         object_label_selector = self._get_object_label_selector(object_id)
         if label_selector:
             label_selector = ','.join([object_label_selector, label_selector])
         else:
             label_selector = object_label_selector
-        self.delete_resources(db, db_session, label_selector, force)
+        self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None
@@ -796,6 +804,7 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
         """
         Override this to handle deletion of resources other then pods or CRDs (which are handled by the base class)
@@ -815,6 +824,8 @@ class BaseRuntimeHandler(ABC):
     def _is_pod_in_transient_state(
         self, db: DBInterface, db_session: Session, pod
     ) -> bool:
+        # it is less likely that there will be new stable states, or the existing ones will change so better to
+        # resolve whether it's a transient state by checking if it's not a stable state
         return pod.status.phase not in PodPhases.stable_phases()
 
     @staticmethod
@@ -831,6 +842,17 @@ class BaseRuntimeHandler(ABC):
         crd group, crd version, crd plural
         """
         return '', '', ''
+
+    @staticmethod
+    def _consider_run_on_resources_deletion() -> bool:
+        """
+        Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Funtion of the job kind
+        a kubernetes job is being generated, on the opposite a Function of the daskjob kind generates a dask cluster,
+        and every Run is being excuted using this cluster, i.e. no resources are created for the Run.
+        This function should return true for runtimes in which Run are coupled to the underlying resources and therefore
+        aspects of the Run (like its state) should be taken into consideration on resources deletion
+        """
+        return False
 
     def _list_pod_resources(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
@@ -875,6 +897,7 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(
@@ -888,17 +911,18 @@ class BaseRuntimeHandler(ABC):
                     self._delete_pod(namespace, pod)
                     continue
 
-                # it is less likely that there will be new stable states, or the existing ones will change so better to
-                # resolve whether it's a transient state by checking if it's not a stable state
                 in_transient_state = self._is_pod_in_transient_state(
                     db, db_session, pod
                 )
                 if in_transient_state:
                     continue
 
-                self._ensure_runtime_resource_run_logs_collected(
-                    db, db_session, pod.to_dict()
-                )
+                if self._consider_run_on_resources_deletion():
+                    should_delete = self._pre_deletion_runtime_resource_run_checks(
+                        db, db_session, pod.to_dict(), grace_period
+                    )
+                    if not should_delete:
+                        continue
                 self._delete_pod(namespace, pod)
             except Exception:
                 exc = traceback.format_exc()
@@ -913,6 +937,7 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
@@ -944,9 +969,13 @@ class BaseRuntimeHandler(ABC):
                     if in_transient_state:
                         continue
 
-                    self._ensure_runtime_resource_run_logs_collected(
-                        db, db_session, crd_object
-                    )
+                    if self._consider_run_on_resources_deletion():
+                        should_delete = self._pre_deletion_runtime_resource_run_checks(
+                            db, db_session, crd_object, grace_period
+                        )
+                        if not should_delete:
+                            continue
+
                     self._delete_crd(
                         namespace, crd_group, crd_version, crd_plural, crd_object
                     )
@@ -956,6 +985,36 @@ class BaseRuntimeHandler(ABC):
                     logger.warning(
                         f'Failed deleting CRD obejct {crd_object_name}: {exc}. Continuing'
                     )
+
+    def _pre_deletion_runtime_resource_run_checks(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        runtime_resource: Dict,
+        grace_period: int,
+    ) -> bool:
+        (
+            in_transient_state,
+            last_update,
+        ) = self._is_runtime_resource_run_in_transient_state(
+            db, db_session, runtime_resource
+        )
+        if in_transient_state:
+            return False
+
+        # give some grace period if we have last update time
+        now = datetime.now(timezone.utc)
+        if (
+            last_update is not None
+            and last_update + timedelta(seconds=float(grace_period)) > now
+        ):
+            return False
+
+        self._ensure_runtime_resource_run_logs_collected(
+            db, db_session, runtime_resource
+        )
+
+        return True
 
     def _ensure_runtime_resource_run_logs_collected(
         self, db: DBInterface, db_session: Session, runtime_resource: Dict
@@ -996,36 +1055,33 @@ class BaseRuntimeHandler(ABC):
             crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     def _is_runtime_resource_run_in_transient_state(
-        self, db: DBInterface, db_session: Session, runtime_resource: Dict
-    ) -> bool:
+        self, db: DBInterface, db_session: Session, runtime_resource: Dict,
+    ) -> Tuple[bool, Optional[datetime]]:
         """
         A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
         resource. This function will verify whether the Run object related to this runtime resource is in transient
         state. This is useful in order to determine whether an object can be removed. for example, a kubejob's pod
         might be in completed state, but we would like to verify that the run is completed as well to verify the logs
         were collected before we're removing the pod.
+
+        :return bool determining whether the run in transient state, and the last update time if it exists
         """
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
         # if no uid, assume in stable state
         if not uid:
-            return False
+            return False, None
+
         run = db.read_run(db_session, uid, project)
+        last_update = None
+        last_update_str = run.get('status', {}).get('last_update')
+        if last_update_str is not None:
+            last_update = datetime.fromisoformat(last_update_str)
+
         if run.get('status', {}).get('state') not in FunctionStates.stable_phases():
-            return True
+            return True, last_update
 
-        # give some grace period
-        now = datetime.now(timezone.utc)
-        last_update_str = run.get('status', {}).get('last_update', now)
-        last_update = datetime.fromisoformat(last_update_str)
-        if (
-            last_update
-            + timedelta(seconds=float(config.runtime_resources_deletion_grace_period))
-            > now
-        ):
-            return True
-
-        return False
+        return False, last_update
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:

@@ -343,9 +343,11 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         ) not in ['COMPLETED', 'FAILED']:
             return True
 
-        return self._is_runtime_resource_run_in_transient_state(
-            db, db_session, crd_object
-        )
+        return False
+
+    @staticmethod
+    def _consider_run_on_resources_deletion() -> bool:
+        return True
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:

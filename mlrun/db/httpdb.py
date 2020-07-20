@@ -379,23 +379,49 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call('GET', path, error, params=params)
         return resp.json()
 
-    def delete_runtimes(self, label_selector: str = None, force: bool = False):
-        params = {'label_selector': label_selector, 'force': force}
+    def delete_runtimes(
+        self,
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
+    ):
+        params = {
+            'label_selector': label_selector,
+            'force': force,
+            'grace_period': grace_period,
+        }
         error = 'delete runtimes'
         self.api_call('DELETE', 'runtimes', error, params=params)
 
     def delete_runtime(
-        self, kind: str, label_selector: str = None, force: bool = False
+        self,
+        kind: str,
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        params = {'label_selector': label_selector, 'force': force}
+        params = {
+            'label_selector': label_selector,
+            'force': force,
+            'grace_period': grace_period,
+        }
         path = f'runtimes/{kind}'
         error = f'delete runtime {kind}'
         self.api_call('DELETE', path, error, params=params)
 
     def delete_runtime_object(
-        self, kind: str, object_id: str, label_selector: str = None, force: bool = False
+        self,
+        kind: str,
+        object_id: str,
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = config.runtime_resources_deletion_grace_period,
     ):
-        params = {'label_selector': label_selector, 'force': force}
+        params = {
+            'label_selector': label_selector,
+            'force': force,
+            'grace_period': grace_period,
+        }
         path = f'runtimes/{kind}/{object_id}'
         error = f'delete runtime object {kind} {object_id}'
         self.api_call('DELETE', path, error, params=params)

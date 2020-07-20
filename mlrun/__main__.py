@@ -36,7 +36,7 @@ from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .run import new_function, import_function_to_dict, import_function, get_object
-from .runtimes import RemoteRuntime, RunError
+from .runtimes import RemoteRuntime, RunError, RuntimeKinds
 from .utils import (
     list2dict,
     logger,
@@ -753,16 +753,51 @@ def project(
         proj.sync_functions(save=True)
 
 
+def validate_kind(ctx, param, value):
+    possible_kinds = RuntimeKinds.runtime_with_handlers()
+    if value is not None and value not in possible_kinds:
+        raise click.BadParameter(
+            f'kind must be one of {possible_kinds}', ctx=ctx, param=param
+        )
+    return value
+
+
 @main.command()
-@click.argument('kind', type=str, default='', required=False)
-@click.argument('object_id', metavar='id', type=str, default='', required=False)
-@click.option('--api', help='api and db service url')
+@click.argument('kind', callback=validate_kind, default=None, required=False)
+@click.argument('object_id', metavar='id', type=str, default=None, required=False)
+@click.option('--api', help='api service url')
 @click.option('--label-selector', '-ls', default='', help='label selector')
 @click.option(
     '--force', '-f', is_flag=True, help='clean resources in transient states as well'
 )
-def clean(kind, object_id, api, label_selector, force):
-    """Clean runtime resources"""
+@click.option(
+    '--grace-period',
+    '-gp',
+    type=int,
+    default=mlconf.runtime_resources_deletion_grace_period,
+    help="the grace period (in seconds) that will be given to runtime resources (after they're in stable state) "
+    "before cleaning them. Ignored when --force is given",
+    show_default=True,
+)
+def clean(kind, object_id, api, label_selector, force, grace_period):
+    """
+    Clean jobs resources
+
+    \b
+    Examples:
+
+        \b
+        # Clean resources for all runs of all runtimes
+        mlrun clean
+
+        \b
+        # Clean resources for all runs of a specific kind (e.g. job)
+        mlrun clean job
+
+        \b
+        # Clean resources for specific job (by uid)
+        mlrun clean dask 15d04c19c2194c0a8efb26ea3017254b
+    """
     mldb = get_run_db(api or mlconf.dbpath).connect()
     if kind:
         if object_id:
@@ -771,11 +806,19 @@ def clean(kind, object_id, api, label_selector, force):
                 object_id=object_id,
                 label_selector=label_selector,
                 force=force,
+                grace_period=grace_period,
             )
         else:
-            mldb.delete_runtime(kind=kind, label_selector=label_selector, force=force)
+            mldb.delete_runtime(
+                kind=kind,
+                label_selector=label_selector,
+                force=force,
+                grace_period=grace_period,
+            )
     else:
-        mldb.delete_runtimes(label_selector=label_selector, force=force)
+        mldb.delete_runtimes(
+            label_selector=label_selector, force=force, grace_period=grace_period
+        )
 
 
 @main.command(name='config')

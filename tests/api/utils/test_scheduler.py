@@ -101,6 +101,7 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
         {'minute': '43-59'},
         {'minute': '30-50/6'},
         {'minute': '1,3,5'},
+        {'minute': '11,22,33,44,55,59'},
     ]
     for case in cases:
         cron_trigger = schemas.ScheduleCronTrigger(**case)

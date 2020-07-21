@@ -97,9 +97,10 @@ class Scheduler:
         get_db().delete_schedule(db_session, project, name)
 
     def _validate_cron_trigger(
-        self, cron_trigger: schemas.ScheduleCronTrigger,
+        self,
+        cron_trigger: schemas.ScheduleCronTrigger,
         # accepting now from outside for testing purposes
-        now: datetime = None
+        now: datetime = None,
     ):
         """
         Enforce no more then one job per min_allowed_interval

@@ -20,6 +20,7 @@ class Scheduler:
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
         # we don't allow to schedule a job to run more then one time per X
+        # NOTE this cannot be less then one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
 
     async def start(self, db_session: Session):
@@ -95,40 +96,60 @@ class Scheduler:
         self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
-    def _validate_cron_trigger(self, cron_trigger: schemas.ScheduleCronTrigger):
+    def _validate_cron_trigger(
+        self, cron_trigger: schemas.ScheduleCronTrigger,
+        # accepting now from outside for testing purposes
+        now: datetime = None
+    ):
         """
-        Enforce no more then one job per 10 minutes
+        Enforce no more then one job per min_allowed_interval
         """
         logger.debug('Validating cron trigger')
         apscheduler_cron_trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
             cron_trigger
         )
-        now = datetime.now(apscheduler_cron_trigger.timezone)
-        first_fire_time = apscheduler_cron_trigger.get_next_fire_time(None, now)
-        # will be none if we got a schedule that has no next fire time - for example schedule with year=1999
-        if first_fire_time is None:
-            return
-        second_fire_time = apscheduler_cron_trigger.get_next_fire_time(
-            first_fire_time, first_fire_time
-        )
-        # will be none if we got a schedule that has no next fire time - for example schedule with year=2050
-        if second_fire_time is None:
-            return
-        min_allowed_interval_seconds = humanfriendly.parse_timespan(self._min_allowed_interval)
-        if second_fire_time < first_fire_time + timedelta(
-            seconds=min_allowed_interval_seconds
-        ):
-            logger.warn(
-                'Cron trigger too frequent. Rejecting',
-                cron_trigger=cron_trigger,
-                first_fire_time=first_fire_time,
-                second_fire_time=second_fire_time,
-                delta=second_fire_time - first_fire_time,
+        now = now or datetime.now(apscheduler_cron_trigger.timezone)
+        next_run_time = None
+        second_next_run_time = now
+
+        # doing 60 checks to allow one minute precision, if the _min_allowed_interval is less then one minute validation
+        # won't fail in certain scenarios that it should
+        # if we would run this check one time it won't catch scenarios like:
+        # If the limit is 10 minutes and the cron trigger configured with minute=0-45 (which means every minute, for the
+        # first 45 minutes of every hour), and the check will occur at the 44 minute of some hour, the next run time
+        # will be one minute away, but the second next run time after it, will be at the next hour 0 minute. The delta
+        # between the two will be 15 minutes, more then 10 minutes so it will pass validation, although it actually runs
+        # every minute.
+        for index in range(60):
+            next_run_time = apscheduler_cron_trigger.get_next_fire_time(
+                None, second_next_run_time
             )
-            raise ValueError(
-                f'Cron trigger too frequent. no more then one job '
-                f'per {self._min_allowed_interval} is allowed'
+            # will be none if we got a schedule that has no next fire time - for example schedule with year=1999
+            if next_run_time is None:
+                return
+            second_next_run_time = apscheduler_cron_trigger.get_next_fire_time(
+                next_run_time, next_run_time
             )
+            # will be none if we got a schedule that has no next fire time - for example schedule with year=2050
+            if second_next_run_time is None:
+                return
+            min_allowed_interval_seconds = humanfriendly.parse_timespan(
+                self._min_allowed_interval
+            )
+            if second_next_run_time < next_run_time + timedelta(
+                seconds=min_allowed_interval_seconds
+            ):
+                logger.warn(
+                    'Cron trigger too frequent. Rejecting',
+                    cron_trigger=cron_trigger,
+                    next_run_time=next_run_time,
+                    second_next_run_time=second_next_run_time,
+                    delta=second_next_run_time - next_run_time,
+                )
+                raise ValueError(
+                    f'Cron trigger too frequent. no more then one job '
+                    f'per {self._min_allowed_interval} is allowed'
+                )
 
     def _create_schedule_in_scheduler(
         self,

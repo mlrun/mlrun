@@ -117,6 +117,27 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
 
 
 @pytest.mark.asyncio
+async def test_validate_cron_trigger_multi_checks(
+    db: Session, scheduler: Scheduler
+):
+    """
+    _validate_cron_trigger runs 60 checks to be able to validate limit low as one minute.
+    If we would run the check there one time it won't catch scenarios like:
+    If the limit is 10 minutes and the cron trigger configured with minute=0-45 (which means every minute, for the
+    first 45 minutes of every hour), and the check will occur at the 44 minute of some hour, the next run time
+    will be one minute away, but the second next run time after it, will be at the next hour 0 minute. The delta
+    between the two will be 15 minutes, more then 10 minutes so it will pass validation, although it actually runs
+    every minute.
+    """
+    scheduler._min_allowed_interval = '10 minutes'
+    cron_trigger = schemas.ScheduleCronTrigger(minute='0-45')
+    now = datetime(year=2020, month=2, day=3, hour=4, minute=44, second=30, tzinfo=cron_trigger.timezone)
+    with pytest.raises(ValueError) as excinfo:
+        scheduler._validate_cron_trigger(cron_trigger, now)
+    assert 'Cron trigger too frequent. no more then one job' in str(excinfo.value)
+
+
+@pytest.mark.asyncio
 async def test_get_schedule(db: Session, scheduler: Scheduler):
     cron_trigger = schemas.ScheduleCronTrigger(year='1999')
     schedule_name = 'schedule-name'

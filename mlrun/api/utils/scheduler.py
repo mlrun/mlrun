@@ -3,6 +3,7 @@ import copy
 from datetime import datetime, timedelta
 from typing import Any, Callable, List, Tuple, Dict, Union, Optional
 
+import humanfriendly
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
@@ -18,10 +19,8 @@ class Scheduler:
         self._scheduler = AsyncIOScheduler()
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
-        # we don't allow to schedule a job to run more then one time per X minutes
-        self._minimum_interval_between_jobs_minutes = int(
-            config.httpdb.minimum_interval_between_scheduled_jobs
-        )
+        # we don't allow to schedule a job to run more then one time per X
+        self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
 
     async def start(self, db_session: Session):
         logger.info('Starting scheduler')
@@ -115,8 +114,9 @@ class Scheduler:
         # will be none if we got a schedule that has no next fire time - for example schedule with year=2050
         if second_fire_time is None:
             return
+        min_allowed_interval_seconds = humanfriendly.parse_timespan(self._min_allowed_interval)
         if second_fire_time < first_fire_time + timedelta(
-            minutes=self._minimum_interval_between_jobs_minutes
+            seconds=min_allowed_interval_seconds
         ):
             logger.warn(
                 'Cron trigger too frequent. Rejecting',
@@ -127,7 +127,7 @@ class Scheduler:
             )
             raise ValueError(
                 f'Cron trigger too frequent. no more then one job '
-                f'per {self._minimum_interval_between_jobs_minutes} minutes is allowed'
+                f'per {self._min_allowed_interval} is allowed'
             )
 
     def _create_schedule_in_scheduler(

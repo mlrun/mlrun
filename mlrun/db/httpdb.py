@@ -110,7 +110,7 @@ class HTTPRunDB(RunDBInterface):
             if resp.content:
                 try:
                     data = resp.json()
-                    reason = data.get('reason', '')
+                    reason = data.get('detail', {}).get('reason', '')
                 except Exception:
                     reason = ''
             if reason:

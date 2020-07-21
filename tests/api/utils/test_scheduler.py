@@ -14,6 +14,7 @@ from mlrun.utils import logger
 @pytest.fixture()
 async def scheduler(db: Session) -> Generator:
     logger.info("Creating scheduler")
+    config.httpdb.scheduling.min_allowed_interval = '0'
     scheduler = Scheduler()
     await scheduler.start(db)
     yield scheduler
@@ -55,6 +56,92 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     )
     await asyncio.sleep(expected_call_counter)
     assert call_counter == expected_call_counter
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_success_cron_trigger_validation(
+    db: Session, scheduler: Scheduler
+):
+    scheduler._min_allowed_interval = '10 minutes'
+    cases = [
+        {'second': '1', 'minute': '19'},
+        {'second': '30', 'minute': '9,19'},
+        {'minute': '*/10'},
+        {'minute': '20-40/10'},
+        {'hour': '1'},
+        {'year': '1999'},
+        {'year': '2050'},
+    ]
+    for index, case in enumerate(cases):
+        cron_trigger = schemas.ScheduleCronTrigger(**case)
+        scheduler.create_schedule(
+            db,
+            'project',
+            f'schedule-name-{index}',
+            schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_failure_too_frequent_cron_trigger(
+    db: Session, scheduler: Scheduler
+):
+    scheduler._min_allowed_interval = '10 minutes'
+    cases = [
+        {'second': '*'},
+        {'second': '1,2'},
+        {'second': '*/30'},
+        {'second': '30-35'},
+        {'second': '30-40/5'},
+        {'minute': '*'},
+        {'minute': '*'},
+        {'minute': '*/5'},
+        {'minute': '43-59'},
+        {'minute': '30-50/6'},
+        {'minute': '1,3,5'},
+        {'minute': '11,22,33,44,55,59'},
+    ]
+    for case in cases:
+        cron_trigger = schemas.ScheduleCronTrigger(**case)
+        with pytest.raises(ValueError) as excinfo:
+            scheduler.create_schedule(
+                db,
+                'project',
+                'schedule-name',
+                schemas.ScheduleKinds.local_function,
+                do_nothing,
+                cron_trigger,
+            )
+        assert 'Cron trigger too frequent. no more then one job' in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Scheduler):
+    """
+    _validate_cron_trigger runs 60 checks to be able to validate limit low as one minute.
+    If we would run the check there one time it won't catch scenarios like:
+    If the limit is 10 minutes and the cron trigger configured with minute=0-45 (which means every minute, for the
+    first 45 minutes of every hour), and the check will occur at the 44 minute of some hour, the next run time
+    will be one minute away, but the second next run time after it, will be at the next hour 0 minute. The delta
+    between the two will be 15 minutes, more then 10 minutes so it will pass validation, although it actually runs
+    every minute.
+    """
+    scheduler._min_allowed_interval = '10 minutes'
+    cron_trigger = schemas.ScheduleCronTrigger(minute='0-45')
+    now = datetime(
+        year=2020,
+        month=2,
+        day=3,
+        hour=4,
+        minute=44,
+        second=30,
+        tzinfo=cron_trigger.timezone,
+    )
+    with pytest.raises(ValueError) as excinfo:
+        scheduler._validate_cron_trigger(cron_trigger, now)
+    assert 'Cron trigger too frequent. no more then one job' in str(excinfo.value)
 
 
 @pytest.mark.asyncio

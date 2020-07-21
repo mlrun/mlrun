@@ -58,7 +58,7 @@ class SecretsStore:
         return self._secrets.get(key, default)
 
     def items(self):
-        return self._secrets.copy()
+        return self._secrets.copy().items()
 
     def to_serial(self):
         # todo: use encryption

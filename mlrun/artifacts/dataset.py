@@ -16,6 +16,7 @@ import pathlib
 from io import StringIO
 from tempfile import mktemp
 import numpy as np
+import pandas as pd
 
 from pandas.io.json import build_table_schema
 
@@ -52,7 +53,7 @@ class TableArtifact(Artifact):
 
         if df is not None:
             self._is_df = True
-            self.header = df.columns.values.tolist()
+            self.header = df.reset_index().columns.values.tolist()
             self.format = 'csv'  # todo other formats
             # if visible and not key_suffix:
             #     key += '.csv'
@@ -70,9 +71,7 @@ class TableArtifact(Artifact):
         if not self._is_df:
             return self._body
         csv_buffer = StringIO()
-        self._body.to_csv(
-            csv_buffer, index=False, line_terminator='\n', encoding='utf-8'
-        )
+        self._body.to_csv(csv_buffer, line_terminator='\n', encoding='utf-8')
         return csv_buffer.getvalue()
 
 
@@ -126,21 +125,15 @@ class DatasetArtifact(Artifact):
             shortdf = df
             if self.length > preview:
                 shortdf = df.head(preview)
-            self.header = shortdf.reset_index().columns.values.tolist()
-            self.preview = shortdf.reset_index().values.tolist()
+            shortdf = shortdf.reset_index()
+            self.header = shortdf.columns.values.tolist()
+            self.preview = shortdf.values.tolist()
             self.schema = build_table_schema(df)
             if stats or self.length < max_csv:
                 self.stats = get_df_stats(df)
 
         self._df = df
         self._kw = kwargs
-
-    def get_body(self):
-        csv_buffer = StringIO()
-        self._body.to_csv(
-            csv_buffer, index=False, line_terminator='\n', encoding='utf-8'
-        )
-        return csv_buffer.getvalue()
 
     def upload(self, data_stores):
         suffix = pathlib.Path(self.target_path).suffix
@@ -200,6 +193,15 @@ def get_df_stats(df):
                 stats_dict[stat] = int(val)
             else:
                 stats_dict[stat] = str(val)
+
+        if pd.api.types.is_numeric_dtype(df[col]):
+            # store histogram
+            try:
+                hist, bins = np.histogram(df[col], bins=20)
+                stats_dict['hist'] = [hist.tolist(), bins.tolist()]
+            except Exception:
+                pass
+
         d[col] = stats_dict
     return d
 

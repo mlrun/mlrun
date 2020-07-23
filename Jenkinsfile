@@ -90,7 +90,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                     container('jnlp') {
                         common.conditional_stage('Create mlrun/ui release', "${github.TAG_VERSION}" != "unstable") {
                             def source_branch = github.get_release_commitish(
-                                                            git_mlrun_ui_project,
+                                                            git_project,
                                                             git_project_upstream_user,
                                                             "${github.TAG_VERSION}",
                                                             GIT_TOKEN

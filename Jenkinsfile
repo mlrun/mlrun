@@ -86,6 +86,10 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                     // }
                     container('jnlp') {
                         common.conditional_stage('Create mlrun/ui release', "${github.TAG_VERSION}" != "unstable") {
+                            def source_banch
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                source_banch = common.shellc("git branch --contains tags/${github.TAG_VERSION}")
+                            }
                             def source_banch = common.shellc("git branch --contains tags/${github.TAG_VERSION}")
                             print("source branch is: ${source_branch}, using this as source fo mlrun/ui")
                             github.create_prerelease(

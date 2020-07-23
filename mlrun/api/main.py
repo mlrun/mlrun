@@ -22,6 +22,10 @@ app = FastAPI(
     description="Machine Learning automation and tracking",
     version=config.version,
     debug=config.httpdb.debug,
+    # adding /api prefix
+    openapi_url="/api/openapi.json",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
 )
 
 app.include_router(api_router, prefix="/api")

@@ -123,7 +123,9 @@ class Logger(object):
         kw_args.update(self._bound_variables)
 
         if kw_args:
-            self._logger.log(level, message, *args, exc_info=exc_info, extra={'with': kw_args})
+            self._logger.log(
+                level, message, *args, exc_info=exc_info, extra={'with': kw_args}
+            )
             return
 
         self._logger.log(level, message, *args, exc_info=exc_info)

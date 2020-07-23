@@ -169,6 +169,11 @@ class DataItem:
         return file_ext
 
     @property
+    def store(self):
+        """DataItem store object"""
+        return self._store
+
+    @property
     def kind(self):
         """DataItem store kind (file, s3, v3io, ..)"""
         return self._store.kind

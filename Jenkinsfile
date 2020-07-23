@@ -90,7 +90,6 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
                                 source_banch = common.shellc("git branch --contains tags/${github.TAG_VERSION}")
                             }
-                            def source_banch = common.shellc("git branch --contains tags/${github.TAG_VERSION}")
                             print("source branch is: ${source_branch}, using this as source fo mlrun/ui")
                             github.create_prerelease(
                                     git_mlrun_ui_project,

@@ -94,7 +94,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                                 print("inside source dir.. source_branch")
                             }
                             print("source branch is: ${source_branch}, using this as source for mlrun/ui")
-                            if (!source_banch) {
+                            if (!source_branch) {
                                 error("Could not get source branch from tag ${github.TAG_VERSION} via git command")
                             }
                             github.create_prerelease(

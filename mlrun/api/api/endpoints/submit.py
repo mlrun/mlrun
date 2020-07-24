@@ -18,7 +18,9 @@ router = APIRouter()
 @router.post("/submit_job")
 @router.post("/submit_job/")
 async def submit_job(
-    request: Request, username: Optional[str] = Header(None, alias='x-remote-user'), db_session: Session = Depends(deps.get_db_session)
+    request: Request,
+    username: Optional[str] = Header(None, alias='x-remote-user'),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
     try:

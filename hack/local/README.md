@@ -97,7 +97,7 @@ Copy the [**mljupy.yaml**](mljupy.yaml) file to you cluster and run the followin
 kubectl apply -n <namespace> -f mljupy.yaml
 ```
 
-To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](Dockerfile.jupy)).
+To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](dockerfiles/jupyter/Dockerfile)).
 
 <a id="k8s-install-start-working"></a>
 ### Start Working

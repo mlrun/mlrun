@@ -1,12 +1,9 @@
 FROM jupyter/scipy-notebook
-RUN pip install mlrun[dask]
-copy ./README.md /home/jovyan/
-copy ./examples /home/jovyan/examples/
-RUN pip install mlrun[dask] flask croniter
-
-USER jovyan
+RUN pip install mlrun[api]
 COPY ./README.md /home/jovyan/
 COPY ./examples /home/jovyan/examples/
+
+USER jovyan
 RUN git clone https://github.com/mlrun/demos.git /home/jovyan/demos
 RUN git clone https://github.com/mlrun/functions.git /home/jovyan/functions
 
@@ -16,8 +13,6 @@ ENV MLRUN_DBPATH=http://localhost:8080
 ENV MLRUN_ARTIFACT_PATH=/home/jovyan/data
 ENV JUPYTER_ENABLE_LAB=yes
 ENV MLRUN_HTTPDB__DATA_VOLUME=/home/jovyan/data
-ENV MLRUN_HTTPDB__DB_TYPE=filerundb
-ENV MLRUN_HTTPDB__DIRPATH=/home/jovyan/data/.db
 
 CMD start-notebook.sh \
 CMD mlrun db & start-notebook.sh \

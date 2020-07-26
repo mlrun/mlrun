@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/mlrun-api:latest
+        image: mlrun/mlrun-api:0.5.0
         imagePullPolicy: Always
         env:
         - name: MLRUN_LOG_LEVEL

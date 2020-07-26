@@ -6,7 +6,7 @@ to build run this command from the root directory of the mlrun repository:<br>
     MLRUN_DOCKER_TAG=X MLRUN_DOCKER_REPO=X MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=X MLRUN_PYTHON_VERSION=X make push-docker-images
 
 where:<br>
-* `MLRUN_DOCKER_TAG` this is the tag created and pushed (like `latest` or `0.4.5`, defaults to `latest`)
+* `MLRUN_DOCKER_TAG` this is the tag created and pushed (like `latest` or `0.4.5`, defaults to current code version)
 * `MLRUN_DOCKER_REPO` is your docker hub account (defaults to `mlrun`)
 * `MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX` is some prefix common to the machine-learning/AI images created here (defaults to `ml-`)
 * `MLRUN_PYTHON_VERSION` is the python version used (defaults to `3.7`).

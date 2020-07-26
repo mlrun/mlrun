@@ -940,7 +940,7 @@ class BaseRuntimeHandler(ABC):
             except Exception:
                 exc = traceback.format_exc()
                 logger.warning(
-                    f'Failed deleting pod {pod.metadata.name}: {exc}. Continuing'
+                    f'Cleanup failed processing pod {pod.metadata.name}: {exc}. Continuing'
                 )
 
     def _delete_crd_resources(
@@ -996,7 +996,7 @@ class BaseRuntimeHandler(ABC):
                     exc = traceback.format_exc()
                     crd_object_name = crd_object['metadata']['name']
                     logger.warning(
-                        f'Failed deleting CRD obejct {crd_object_name}: {exc}. Continuing'
+                        f'Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing'
                     )
 
     def _pre_deletion_runtime_resource_run_checks(

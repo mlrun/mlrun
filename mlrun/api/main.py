@@ -13,6 +13,7 @@ from mlrun.api.utils.singletons.k8s import initialize_k8s
 from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
 from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_scheduler
 from mlrun.config import config
+from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
 from mlrun.utils import logger
@@ -37,7 +38,9 @@ async def startup_event():
 
     await _initialize_singletons()
 
-    _start_periodic_cleanup()
+    # periodic cleanup is not needed if we're not inside kubernetes cluster
+    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        _start_periodic_cleanup()
 
 
 @app.on_event("shutdown")

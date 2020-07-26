@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MLRUN_DOCKER_TAG ?= latest
+MLRUN_DOCKER_TAG ?= unstable
 MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to something like "quay.io/"
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-

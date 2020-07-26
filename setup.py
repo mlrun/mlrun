@@ -78,7 +78,7 @@ setup(
         'mlrun.api.utils.singletons',
     ],
     install_requires=install_requires,
-    extra_requires={'api': api_deps},
+    extras_require={'api': api_deps},
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

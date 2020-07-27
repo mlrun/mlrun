@@ -27,6 +27,7 @@ ENV MLRUN_DBPATH=http://localhost:8080 \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false'
 
+# run the mlrun db (api) and the notebook in parallel
 CMD mlrun db & start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \

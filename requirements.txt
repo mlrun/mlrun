@@ -8,6 +8,8 @@ click==7.0
 # this is the pipelines version running in 2.8/2.10 iguazio system, for now locking it to this version
 kfp==0.2.5
 nest-asyncio>=1.0.0
+# <0.16 from botocore inside nuclio-jupyter, >=0.13.1 from readme-renderer inside twine
+docutils<0.16, >=0.13.1
 nuclio-jupyter>=0.8.3
 pandas>=1.0.1
 pyarrow>=0.13

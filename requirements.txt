@@ -1,7 +1,8 @@
 # If you change this file, run "make docs-requirements"
 GitPython>=2.1.0
 aiohttp>=3.5.0
-cloudpickle==1.1.1
+# cloudpickle 1.5.0 fail our mlrun_dask integration test
+cloudpickle>=1.1.1, <1.5.0
 boto3>=1.9
 click==7.0
 kfp>=0.1.29, <1.0.0

@@ -32,8 +32,8 @@ COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
 COPY ./requirements.txt ./
 
 RUN python -m pip install \
-    -r mlrun-api-requirements.txt \
-    -r requirements.txt
+    -r requirements.txt \
+    -r mlrun-api-requirements.txt
 
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080

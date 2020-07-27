@@ -1,4 +1,6 @@
 # If you change this file, run "make docs-requirements"
+# >=1.24.2 from kubernetes-asyncio, <1.25 from kfp
+urllib3>=1.24.2, <1.25
 GitPython>=2.1.0
 aiohttp>=3.5.0
 boto3>=1.9

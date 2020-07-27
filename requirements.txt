@@ -21,5 +21,7 @@ v3io>=0.3.3
 matplotlib
 scikit-learn
 seaborn
+# required by some sub-dependency of a package installed in models-gpu, otherwise building this image fails
+google-auth<2.0dev,>=1.19.1
 azure-storage-blob
 pydantic~=1.5

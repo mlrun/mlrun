@@ -1,5 +1,5 @@
 # If you change this file, run "make docs-requirements"
-# >=1.24.2 from kubernetes-asyncio, <1.25 from kfp
+# >=1.24.2 from kubernetes-asyncio (from API requirements), <1.25 from kfp
 urllib3>=1.24.2, <1.25
 GitPython>=2.1.0
 aiohttp>=3.5.0
@@ -8,7 +8,7 @@ click==7.0
 # this is the pipelines version running in 2.8/2.10 iguazio system, for now locking it to this version
 kfp==0.2.5
 nest-asyncio>=1.0.0
-# <0.16 from botocore inside nuclio-jupyter, >=0.13.1 from readme-renderer inside twine
+# <0.16 from botocore inside nuclio-jupyter, >=0.13.1 from readme-renderer inside twine (from dev-requirements)
 docutils<0.16, >=0.13.1
 nuclio-jupyter>=0.8.3
 pandas>=1.0.1
@@ -21,7 +21,6 @@ v3io>=0.3.3
 matplotlib
 scikit-learn
 seaborn
-google-api-core~=1.20
 azure-storage-blob
 pydantic~=1.5
 numpydoc

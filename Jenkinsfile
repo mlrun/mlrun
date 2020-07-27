@@ -36,6 +36,14 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
 
                         dockerx.images_push_multi_registries(["${git_project}/mlrun:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
+                        stage("build ${git_project}/jupyter in dood") {
+                            dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
+                                println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make jupyter"))
+                            }
+                        }
+
+                        dockerx.images_push_multi_registries(["${git_project}/jupyter:${github.DOCKER_TAG_VERSION}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+
                         stage("build ${git_project}/base in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
                                 println(common.shellc("export MLRUN_DOCKER_TAG=${github.DOCKER_TAG_VERSION} && make base"))

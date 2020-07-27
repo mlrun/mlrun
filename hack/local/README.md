@@ -29,10 +29,10 @@ SHARED_DIR=/home/me/data
 # On Windows, use host.docker.internal for MLRUN_IP
 
 docker pull mlrun/mlrun-ui:0.5.0
-docker pull mlrun/jupy:latest
+docker pull mlrun/jupyter:0.5.0
 
 docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 mlrun/mlrun-ui:0.5.0
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupy:latest
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.0
 ```
 
 When the execution completes &mdash;
@@ -97,7 +97,7 @@ Copy the [**mljupy.yaml**](mljupy.yaml) file to you cluster and run the followin
 kubectl apply -n <namespace> -f mljupy.yaml
 ```
 
-To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](Dockerfile.jupy)).
+To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](dockerfiles/jupyter/Dockerfile)).
 
 <a id="k8s-install-start-working"></a>
 ### Start Working

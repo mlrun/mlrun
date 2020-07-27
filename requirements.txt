@@ -5,6 +5,7 @@ aiohttp>=3.5.0
 cloudpickle>=1.1.1, <1.5.0
 boto3>=1.9
 click==7.0
+# this is the pipelines version running in 2.8/2.10 iguazio system, for now locking it to this version
 kfp==0.2.5
 nest-asyncio>=1.0.0
 nuclio-jupyter>=0.8.3

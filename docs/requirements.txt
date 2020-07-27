@@ -1,8 +1,6 @@
 # If you change this file, run "make docs-requirements"
 GitPython>=2.1.0
 aiohttp>=3.5.0
-# cloudpickle 1.5.0 fail our mlrun_dask integration test
-cloudpickle>=1.1.1, <1.5.0
 boto3>=1.9
 click==7.0
 # this is the pipelines version running in 2.8/2.10 iguazio system, for now locking it to this version

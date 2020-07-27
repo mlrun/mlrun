@@ -21,11 +21,11 @@ RUN chown -R $NB_UID:$NB_GID $HOME
 
 USER $NB_UID
 
-ENV MLRUN_DBPATH=http://localhost:8080
-ENV MLRUN_ARTIFACT_PATH=$HOME/data
-ENV JUPYTER_ENABLE_LAB=yes
-ENV MLRUN_HTTPDB__DATA_VOLUME=$HOME/data
-ENV MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false'
+ENV MLRUN_DBPATH=http://localhost:8080 \
+    MLRUN_ARTIFACT_PATH=$HOME/data \
+    JUPYTER_ENABLE_LAB=yes \
+    MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
+    MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false'
 
 CMD mlrun db & start-notebook.sh \
     --ip="0.0.0.0" \

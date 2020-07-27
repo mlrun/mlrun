@@ -20,4 +20,5 @@ scikit-learn
 seaborn
 google-api-core~=1.20
 azure-storage-blob
-pydantic~=1.5numpydoc
+pydantic~=1.5
+numpydoc

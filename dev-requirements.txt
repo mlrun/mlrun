@@ -1,5 +1,3 @@
-distributed>=2.3.0
-kfp>=0.1.29
 msgpack<1.0.0
 numpydoc==0.9.1
 pytest~=5.4

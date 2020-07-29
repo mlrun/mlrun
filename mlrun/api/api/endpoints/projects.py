@@ -1,4 +1,3 @@
-from distutils.util import strtobool
 from operator import attrgetter
 
 from fastapi import APIRouter, Depends
@@ -52,8 +51,7 @@ def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
 
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects")
-def list_projects(full: str = "no", db_session: Session = Depends(deps.get_db_session)):
-    full = strtobool(full)
+def list_projects(full: bool = False, db_session: Session = Depends(deps.get_db_session)):
     fn = db2dict if full else attrgetter("name")
     projects = []
     for p in get_db().list_projects(db_session):

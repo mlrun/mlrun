@@ -1,4 +1,3 @@
-from distutils.util import strtobool
 from typing import List
 
 from fastapi import APIRouter, Depends, Request, Query, status
@@ -94,12 +93,10 @@ def list_runs(
     labels: List[str] = Query([], alias='label'),
     state: str = None,
     last: int = 0,
-    sort: str = "on",
-    iter: str = "on",
+    sort: bool = True,
+    iter: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    sort = strtobool(sort)
-    iter = strtobool(iter)
     runs = get_db().list_runs(
         db_session,
         name=name,

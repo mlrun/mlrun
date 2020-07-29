@@ -148,10 +148,9 @@ def build_status(
     project: str = "",
     tag: str = "",
     offset: int = 0,
-    logs: str = "on",
+    logs: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    logs = strtobool(logs)
     fn = get_db().get_function(db_session, name, project, tag)
     if not fn:
         log_and_raise(status.HTTP_404_NOT_FOUND, name=name, project=project, tag=tag)

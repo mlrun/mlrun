@@ -1,5 +1,3 @@
-from distutils.util import strtobool
-
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -12,8 +10,7 @@ router = APIRouter()
 
 # curl -d@/path/to/log http://localhost:8080/log/prj/7?append=true
 @router.post("/log/{project}/{uid}")
-async def store_log(request: Request, project: str, uid: str, append: str = "on"):
-    append = strtobool(append)
+async def store_log(request: Request, project: str, uid: str, append: bool = True):
     body = await request.body()
     await run_in_threadpool(crud.Logs.store_log, body, project, uid, append)
     return {}

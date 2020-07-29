@@ -1,8 +1,7 @@
 from distutils.util import strtobool
-from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, Query, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -27,7 +26,7 @@ async def store_run(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     await run_in_threadpool(
@@ -50,7 +49,7 @@ async def update_run(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     await run_in_threadpool(

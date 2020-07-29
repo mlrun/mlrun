@@ -1,9 +1,8 @@
 import traceback
 from distutils.util import strtobool
-from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query, Response
+from fastapi import APIRouter, Depends, Request, Query, Response, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -34,7 +33,7 @@ async def store_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     logger.info("store function: project=%s, name=%s, tag=%s", project, name, tag)
@@ -92,7 +91,7 @@ async def build_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     logger.info("build_function:\n{}".format(data))
     function = data.get("function")
@@ -116,7 +115,7 @@ async def start_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     fn = await run_in_threadpool(_start_function, db_session, data)
 
@@ -133,7 +132,7 @@ async def function_status(request: Request):
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     resp = await run_in_threadpool(_get_function_status, data)
     return {
@@ -155,7 +154,7 @@ def build_status(
     logs = strtobool(logs)
     fn = get_db().get_function(db_session, name, project, tag)
     if not fn:
-        log_and_raise(HTTPStatus.NOT_FOUND, name=name, project=project, tag=tag)
+        log_and_raise(status.HTTP_404_NOT_FOUND, name=name, project=project, tag=tag)
 
     state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
@@ -217,7 +216,9 @@ def _build_function(db_session, function, with_mlrun):
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
+        log_and_raise(
+            status.HTTP_400_BAD_REQUEST, reason="runtime error: {}".format(err)
+        )
     return fn, ready
 
 
@@ -226,14 +227,15 @@ def _start_function(db_session, data):
     url = data.get("functionUrl")
     if not url:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST, reason="runtime error: functionUrl not specified"
+            status.HTTP_400_BAD_REQUEST,
+            reason="runtime error: functionUrl not specified",
         )
 
     project, name, tag, hash_key = parse_function_uri(url)
     runtime = get_db().get_function(db_session, name, project, tag, hash_key)
     if not runtime:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            status.HTTP_400_BAD_REQUEST,
             reason="runtime error: function {} not found".format(url),
         )
 
@@ -241,7 +243,7 @@ def _start_function(db_session, data):
     resource = runtime_resources_map.get(fn.kind)
     if "start" not in resource:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            status.HTTP_400_BAD_REQUEST,
             reason="runtime error: 'start' not supported by this runtime",
         )
 
@@ -255,7 +257,9 @@ def _start_function(db_session, data):
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
+        log_and_raise(
+            status.HTTP_400_BAD_REQUEST, reason="runtime error: {}".format(err)
+        )
 
     return fn
 
@@ -266,14 +270,14 @@ def _get_function_status(data):
     kind = data.get("kind")
     if not selector or not kind:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            status.HTTP_400_BAD_REQUEST,
             reason="runtime error: selector or runtime kind not specified",
         )
 
     resource = runtime_resources_map.get(kind)
     if "status" not in resource:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            status.HTTP_400_BAD_REQUEST,
             reason="runtime error: 'status' not supported by this runtime",
         )
 
@@ -283,4 +287,6 @@ def _get_function_status(data):
         logger.info("status: %s", resp)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
+        log_and_raise(
+            status.HTTP_400_BAD_REQUEST, reason="runtime error: {}".format(err)
+        )

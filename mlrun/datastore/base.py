@@ -279,7 +279,11 @@ def http_get(url, headers=None, auth=None):
         raise ForbiddenPathAccessException(url)
 
     if not resp.ok:
-        raise OSError('failed to read file in {0}, status code: {1}'.format(url, resp.status_code))
+        raise OSError(
+            'failed to read file in {0}, status code: {1}, content: {2}'.format(
+                url, resp.status_code, resp.content
+            )
+        )
     return resp.content
 
 

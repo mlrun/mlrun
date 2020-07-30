@@ -382,8 +382,8 @@ class BaseRuntime(ModelObj):
                 # but there's no run in case of schedule)
                 if not schedule:
                     result = self._post_run(task=runspec, err=err)
-                return self._wrap_result(result, runspec, err=err)
-            return self._wrap_result(resp, runspec)
+                return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
+            return self._wrap_run_result(resp, runspec, schedule=schedule)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning(
@@ -418,9 +418,12 @@ class BaseRuntime(ModelObj):
                 last_err = err
                 result = self._post_run(task=runspec, err=err)
 
-        return self._wrap_result(result, runspec, err=last_err)
+        return self._wrap_run_result(result, runspec, schedule=schedule, err=last_err)
 
-    def _wrap_result(self, result: dict, runspec: RunObject, err=None):
+    def _wrap_run_result(self, result: dict, runspec: RunObject, schedule=None, err=None):
+        # if the purpose was to schedule (and not to run) nothing to wrap
+        if schedule:
+            return
 
         if result and self.kfp and err is None:
             write_kfpmeta(result)

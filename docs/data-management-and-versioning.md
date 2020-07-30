@@ -2,8 +2,8 @@
 
 - [Overview](#overview)
 - [Datasets](#datasets)
-- [Plots](#plots)
 - [Models](#models)
+- [Plots](#plots)
 
 ## Overview
 
@@ -37,17 +37,6 @@ Where `key` is the the name of the artifact and `df` is the DataFrame. By defaul
 
 MLRun will also calculate statistics on the DataFrame on all numeric fields. You can enable statistics regardless to the DataFrame size by setting the `stats` parameter to `True`.
 
-## Plots
-
-Storing plots is useful to visualize the data and to show any information regarding the model performance. For example, one can store scatter plots, histograms and cross-correlation of the data, and for the model store the ROC curve and confusion matrix.
-
-For example, the following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.plot_confusion_matrix.html#sklearn.metrics.plot_confusion_matrix) and stores the plot in the artifact repository:
-
-``` python
-    cmd = metrics.plot_confusion_matrix(model, xtest, ytest, normalize='all', values_format='.2g', cmap=plt.cm.Blues)
-    context.log_artifact(PlotArtifact('confusion-matrix', body=cmd.figure_), local_path='plots/confusion_matrix.html')
-```
-
 ## Models
 
 An essential piece of artifact management and versioning is storing a model version. This allows the users to experiment with different models and compare their performance, without having to worry about losing their previous results.
@@ -62,9 +51,9 @@ context.log_model(key='my_model', body=model_data, model_file='my_model.pkl')
 
 You can also store any related metrics by providing a dictionary in the `metrics` parameter, such as `metrics={'accuracy': 0.9}`. Furthermore, any additional data that you would like to store along with the model can be specified in the `extra_data` parameter. For example `extra_data={'confusion': confusion.target_path}`
 
-A convenient utility method called `eval_model_v2` is available in `mlrun.utils`
+A convenient utility method, `eval_model_v2`, which calculates mode metrics is available in `mlrun.utils`.
 
-See example below for a simple model trained using scikit-learn. The last 2 lines evaluate the model and log the model.
+See example below for a simple model trained using scikit-learn (normally, you would send the data as input to the function). The last 2 lines evaluate the model and log the model.
 
 ``` python
 from sklearn import linear_model
@@ -97,7 +86,7 @@ def train_iris(context: MLClientCtx):
                       labels={"class": "sklearn.linear_model.LogisticRegression"})
 ```
 
-Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [quick-start page](quick-start.html) for the details to create the project and artifacts path. 
+Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [quick-start page](quick-start.html#mlrun-setup) to learn how to create the project and set the artifact path. 
 
 ``` python
 from mlrun import code_to_function
@@ -115,9 +104,9 @@ train_iris = train_iris_func.run(name=train_iris,
                                     artifact_path=artifact_path)
 ```
 
-You can now use `get_model` to read the model and run it. This function will get the model file, metadata, and extra data. You can provide it the path of the model, or the folder where the model resides and it will search for the model file (by default, by searching for .pkl files)
+You can now use `get_model` to read the model and run it. This function will get the model file, metadata, and extra data. The input can be either the path of the model, or the directory where the model resides. If you provide a directory, the function will search for the model file (by default it searches for .pkl files)
 
-The following function gets the model to `models_path` and test data in `test_set` with the expected output provided as a column in the data data. The name of the column containing the expected output is provided in `label_column`. It retrieves the models, runs the model with the test data and updates the model with those results
+The following example gets the model from `models_path` and test data in `test_set` with the expected label provided as a column of the test data. The name of the column containing the expected label is provided in `label_column`. The example then retrieves the models, runs the model with the test data and updates the model with the metrics and results of the test data.
 
 ``` python
 from pickle import load
@@ -163,6 +152,17 @@ run = func.run(name=test_model,
                 inputs={'models_path': train_iris.outputs['model'],
                         'test_set': 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'}),
                 artifact_path=artifact_path)
+```
+
+## Plots
+
+Storing plots is useful to visualize the data and to show any information regarding the model performance. For example, one can store scatter plots, histograms and cross-correlation of the data, and for the model store the ROC curve and confusion matrix.
+
+For example, the following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.plot_confusion_matrix.html#sklearn.metrics.plot_confusion_matrix) and stores the plot in the artifact repository:
+
+``` python
+    cmd = metrics.plot_confusion_matrix(model, xtest, ytest, normalize='all', values_format='.2g', cmap=plt.cm.Blues)
+    context.log_artifact(PlotArtifact('confusion-matrix', body=cmd.figure_), local_path='plots/confusion_matrix.html')
 ```
 
 [Back to top](#top)

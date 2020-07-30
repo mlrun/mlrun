@@ -17,6 +17,8 @@ from datetime import datetime
 from os import environ
 import time
 import v3io.dataplane
+import requests
+from fastapi import status
 
 from ..platforms.iguazio import split_path
 from .base import (
@@ -32,6 +34,11 @@ from .base import (
 
 
 V3IO_LOCAL_ROOT = 'v3io'
+
+
+class ForbiddenPathAccessException(Exception):
+    def __init__(self, accessed_path):
+        super().__init__('Access to the path {0} is forbidden'.format(accessed_path))
 
 
 class V3ioStore(DataStore):
@@ -76,7 +83,15 @@ class V3ioStore(DataStore):
         if size or offset:
             headers = deepcopy(headers)
             headers['Range'] = get_range(size, offset)
-        return http_get(self.url + self._join(key), headers)
+        try:
+            return http_get(self.url + self._join(key), headers)
+        except requests.HTTPError as e:
+            if e.response.status_code in [
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            ]:
+                raise ForbiddenPathAccessException(key)
+            raise e
 
     def put(self, key, data, append=False):
         http_put(self.url + self._join(key), data, self.headers, None)
@@ -101,12 +116,17 @@ class V3ioStore(DataStore):
         # without the trailing slash
         subpath_length = len(subpath) - 1
 
-        response = v3io_client.get_container_contents(
-            container=container,
-            path=subpath,
-            get_all_attributes=False,
-            directories_only=False,
-        )
+        try:
+            response = v3io_client.get_container_contents(
+                container=container,
+                path=subpath,
+                get_all_attributes=False,
+                directories_only=False,
+            )
+        except RuntimeError as e:
+            if 'Permission denied' in str(e):
+                raise ForbiddenPathAccessException(key)
+            raise e
 
         # todo: full = key, size, last_modified
         return [obj.key[subpath_length:] for obj in response.output.contents]

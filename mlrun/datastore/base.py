@@ -28,11 +28,6 @@ if not verify_ssl:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-class ForbiddenPathAccessException(Exception):
-    def __init__(self, accessed_path):
-        super().__init__('Access to the path {0} is forbidden'.format(accessed_path))
-
-
 class FileStats:
     def __init__(self, size, modified, content_type=None):
         self.size = size
@@ -201,12 +196,7 @@ class DataItem:
 
     def get(self, size=None, offset=0):
         """read all or a range and return the content"""
-        try:
-            return self._store.get(self._path, size=size, offset=offset)
-        except requests.HTTPError as e:
-            if e.response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
-                raise ForbiddenPathAccessException(self._path)
-            raise e
+        return self._store.get(self._path, size=size, offset=offset)
 
     def download(self, target_path):
         """download to the target dir/path"""
@@ -226,12 +216,7 @@ class DataItem:
 
     def listdir(self):
         """return a list of child file names"""
-        try:
-            return self._store.listdir(self._path)
-        except RuntimeError as e:
-            if 'Permission denied' in str(e):
-                raise ForbiddenPathAccessException(self._path)
-            raise e
+        return self._store.listdir(self._path)
 
     def local(self):
         """get the local path of the file, download to tmp first if its a remote object"""

@@ -79,6 +79,15 @@ def get_filestat(request: Request, schema: str = "", path: str = "", user: str =
         stat = get_object_stat(path, secrets)
     except FileNotFoundError as e:
         log_and_raise(HTTPStatus.NOT_FOUND, path=path, err=str(e))
+    except ForbiddenPathAccessException as e:
+        log_and_raise(status.HTTP_403_FORBIDDEN, path=path, err=str(e))
+    except requests.HTTPError as e:
+        if e.response.status_code in [
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        ]:
+            log_and_raise(status.HTTP_403_FORBIDDEN, path=path, err=str(e))
+        raise e
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:

@@ -283,6 +283,10 @@ def http_head(url, headers=None, auth=None):
         resp = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
+
+    if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
+        resp.raise_for_status()
+
     if not resp.ok:
         raise OSError('failed to read file head in {}'.format(url))
     return resp.headers

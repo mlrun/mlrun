@@ -120,6 +120,7 @@ def test_forbidden_file_access(monkeypatch):
         return mock_forbidden_response
 
     monkeypatch.setattr(requests, "get", mock_get)
+    monkeypatch.setattr(requests, "head", mock_get)
     monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
 
     store = mlrun.datastore.datastore.StoreManager(
@@ -133,3 +134,7 @@ def test_forbidden_file_access(monkeypatch):
     with pytest.raises(ForbiddenPathAccessException):
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.get()
+
+    with pytest.raises(ForbiddenPathAccessException):
+        obj = store.object('v3io://some-system/some-dir/some-file')
+        obj.stat()

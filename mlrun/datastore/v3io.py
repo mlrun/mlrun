@@ -97,7 +97,15 @@ class V3ioStore(DataStore):
         http_put(self.url + self._join(key), data, self.headers, None)
 
     def stat(self, key):
-        head = http_head(self.url + self._join(key), self.headers)
+        try:
+            head = http_head(self.url + self._join(key), self.headers)
+        except requests.HTTPError as e:
+            if e.response.status_code in [
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            ]:
+                raise ForbiddenPathAccessException(key)
+            raise e
         size = int(head.get('Content-Length', '0'))
         datestr = head.get('Last-Modified', '0')
         modified = time.mktime(

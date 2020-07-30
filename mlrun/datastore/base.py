@@ -200,8 +200,13 @@ class DataItem:
         return self._url
 
     def get(self, size=None, offset=0):
-        """read all or a range and return thge content"""
-        return self._store.get(self._path, size=size, offset=offset)
+        """read all or a range and return the content"""
+        try:
+            return self._store.get(self._path, size=size, offset=offset)
+        except requests.HTTPError as e:
+            if e.response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
+                raise ForbiddenPathAccessException(self._path)
+            raise e
 
     def download(self, target_path):
         """download to the target dir/path"""
@@ -282,8 +287,6 @@ def http_get(url, headers=None, auth=None):
 
     if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
         resp.raise_for_status()
-    # if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
-    #     raise ForbiddenPathAccessException(url)
 
     if not resp.ok:
         raise OSError('failed to read file in {}'.format(url))

@@ -221,7 +221,12 @@ class DataItem:
 
     def listdir(self):
         """return a list of child file names"""
-        return self._store.listdir(self._path)
+        try:
+            return self._store.listdir(self._path)
+        except RuntimeError as e:
+            if 'Permission denied' in str(e):
+                raise ForbiddenPathAccessException(self._path)
+            raise e
 
     def local(self):
         """get the local path of the file, download to tmp first if its a remote object"""
@@ -279,11 +284,7 @@ def http_get(url, headers=None, auth=None):
         raise ForbiddenPathAccessException(url)
 
     if not resp.ok:
-        raise OSError(
-            'failed to read file in {0}, status code: {1}, content: {2}'.format(
-                url, resp.status_code, resp.content
-            )
-        )
+        raise OSError('failed to read file in {}'.format(url))
     return resp.content
 
 

@@ -281,7 +281,9 @@ def http_get(url, headers=None, auth=None):
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
 
     if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
-        raise ForbiddenPathAccessException(url)
+        resp.raise_for_status()
+    # if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
+    #     raise ForbiddenPathAccessException(url)
 
     if not resp.ok:
         raise OSError('failed to read file in {}'.format(url))

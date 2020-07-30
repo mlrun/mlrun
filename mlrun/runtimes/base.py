@@ -377,7 +377,11 @@ class BaseRuntime(ModelObj):
                     resp = self._get_db_run(runspec)
             except Exception as err:
                 logger.error('got remote run err, {}'.format(err))
-                result = self._post_run(task=runspec, err=err)
+                result = None
+                # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
+                # but there's no run in case of schedule)
+                if not schedule:
+                    result = self._post_run(task=runspec, err=err)
                 return self._wrap_result(result, runspec, err=err)
             return self._wrap_result(resp, runspec)
 

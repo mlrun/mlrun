@@ -1,9 +1,10 @@
 import mimetypes
 from http import HTTPStatus
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Query, Request, Response, status
 
 from mlrun.api.api.utils import log_and_raise, get_obj_path, get_secrets
+from mlrun.datastore.base import ForbiddenPathAccessException
 from mlrun.datastore import get_object_stat, store_manager
 
 router = APIRouter()
@@ -41,6 +42,8 @@ def get_files(
         body = obj.get(size, offset)
     except FileNotFoundError as e:
         log_and_raise(HTTPStatus.NOT_FOUND, path=objpath, err=str(e))
+    except ForbiddenPathAccessException as e:
+        log_and_raise(status.HTTP_403_FORBIDDEN, path=objpath, err=str(e))
     if body is None:
         log_and_raise(HTTPStatus.NOT_FOUND, path=objpath)
 

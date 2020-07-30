@@ -19,12 +19,18 @@ from tempfile import mktemp
 import requests
 import urllib3
 import pandas as pd
+from fastapi import status
 
 from mlrun.utils import logger
 
 verify_ssl = False
 if not verify_ssl:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class ForbiddenPathAccessException(Exception):
+    def __init__(self, accessed_path):
+        super().__init__('Access to the path {0} is forbidden'.format(accessed_path))
 
 
 class FileStats:
@@ -268,6 +274,9 @@ def http_get(url, headers=None, auth=None):
         resp = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
+
+    if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
+        raise ForbiddenPathAccessException(url)
 
     if not resp.ok:
         raise OSError('failed to read file in {}'.format(url))

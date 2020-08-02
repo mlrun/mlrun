@@ -213,7 +213,7 @@ def _build_function(db_session, function, with_mlrun):
         fn.save(versioned=False)
 
         ready = build_runtime(fn, with_mlrun)
-        fn.save(versioned=False)
+        fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())

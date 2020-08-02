@@ -18,9 +18,7 @@ import os
 from .iguazio import mount_v3io
 
 
-def mount_pvc(
-    pvc_name='pipeline-claim', volume_name='pipeline', volume_mount_path='/mnt/pipeline'
-):
+def mount_pvc(pvc_name, volume_name='pipeline', volume_mount_path='/mnt/pipeline'):
     """
         Modifier function to apply to a Container Op to simplify volume, volume mount addition and
         enable better reuse of volumes, volume claims across container ops.
@@ -42,7 +40,7 @@ def mount_pvc(
     return _mount_pvc
 
 
-def auto_mount(pvc_name='', volume_mount_path=''):
+def auto_mount(pvc_name='', volume_mount_path='', volume_name=None):
     """choose the mount based on env variables and params
 
     volume will be selected by the following order:
@@ -51,15 +49,23 @@ def auto_mount(pvc_name='', volume_mount_path=''):
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     """
     if pvc_name and volume_mount_path:
-        return mount_pvc(volume_name=pvc_name, volume_mount_path=volume_mount_path)
+        return mount_pvc(
+            pvc_name=pvc_name,
+            volume_mount_path=volume_mount_path,
+            volume_name=volume_name or 'pvc',
+        )
     if 'V3IO_ACCESS_KEY' in os.environ:
-        return mount_v3io()
+        return mount_v3io(name=volume_name or 'v3io')
     if 'MLRUN_PVC_MOUNT' in os.environ:
         mount = os.environ.get('MLRUN_PVC_MOUNT')
         items = mount.split(':')
         if len(items) != 2:
             raise ValueError('MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>')
-        return mount_pvc(volume_name=items[0], volume_mount_path=items[1])
+        return mount_pvc(
+            pvc_name=items[0],
+            volume_mount_path=items[1],
+            volume_name=volume_name or 'pvc',
+        )
     raise ValueError('failed to auto mount, need to set env vars')
 
 

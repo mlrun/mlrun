@@ -22,6 +22,7 @@ from tests.conftest import (
     tag_test,
     verify_state,
 )
+from unittest.mock import Mock
 from mlrun import NewTask, get_run_db, new_function
 
 
@@ -60,6 +61,19 @@ def test_noparams():
 
     assert result.output('accuracy') == 2, 'failed to run'
     assert result.status.artifacts[0].get('key') == 'chart', 'failed to run'
+
+
+def test_failed_schedule_not_creating_run():
+    function = new_function()
+    # mock we're with remote api (only there schedule is relevant)
+    function._use_remote_api = Mock(return_value=True)
+    # mock failure in submit job (failed schedule)
+    db = Mock()
+    function.set_db_connection(db)
+    db.submit_job.side_effect = RuntimeError('Explode!')
+    function.store_run = Mock()
+    function.run(handler=my_func, schedule='* * * * *')
+    assert 0 == function.store_run.call_count
 
 
 def test_invalid_name():

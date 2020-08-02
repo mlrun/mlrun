@@ -84,7 +84,7 @@ def submit(db_session: Session, data):
                 )
                 if not runtime:
                     log_and_raise(
-                        status.HTTP_400_BAD_REQUEST,
+                        status.HTTP_404_NOT_FOUND,
                         reason="runtime error: function {} not found".format(url),
                     )
                 fn = new_function(runtime=runtime)
@@ -131,6 +131,9 @@ def submit(db_session: Session, data):
             if run:
                 response = run.to_dict()
 
+    except HTTPException:
+        logger.error(traceback.format_exc())
+        raise
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(

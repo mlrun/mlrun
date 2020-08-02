@@ -1,6 +1,6 @@
-from http import HTTPStatus
 from uuid import uuid4
 
+from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,7 @@ def test_project(db: Session, client: TestClient) -> None:
         # 'users': ['u1', 'u2'],
     }
     resp = client.post('/api/project', json=prj1)
-    assert resp.status_code == HTTPStatus.OK, 'add'
+    assert resp.status_code == status.HTTP_200_OK, 'add'
     resp = client.get(f'/api/project/{name1}')
     out = {key: val for key, val in resp.json()['project'].items() if val}
     # out['users'].sort()
@@ -23,7 +23,7 @@ def test_project(db: Session, client: TestClient) -> None:
 
     data = {'description': 'lemon', 'name': name1}
     resp = client.post(f'/api/project/{name1}', json=data)
-    assert resp.status_code == HTTPStatus.OK, 'update'
+    assert resp.status_code == status.HTTP_200_OK, 'update'
     resp = client.get(f'/api/project/{name1}')
     assert name1 == resp.json()['project']['name'], 'name after update'
 
@@ -35,7 +35,7 @@ def test_project(db: Session, client: TestClient) -> None:
         # 'users': ['u1', 'u3'],
     }
     resp = client.post('/api/project', json=prj2)
-    assert resp.status_code == HTTPStatus.OK, 'add (2)'
+    assert resp.status_code == status.HTTP_200_OK, 'add (2)'
 
     resp = client.get('/api/projects')
     expected = {name1, name2}

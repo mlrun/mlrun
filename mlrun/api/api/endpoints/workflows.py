@@ -1,5 +1,3 @@
-from distutils.util import strtobool
-
 from fastapi import APIRouter
 
 from mlrun.run import list_piplines
@@ -14,10 +12,9 @@ def list_workflows(
     namespace: str = None,
     sort_by: str = "",
     page_token: str = "",
-    full: str = "0",
+    full: bool = False,
     page_size: int = 10,
 ):
-    full = strtobool(full)
     total_size, next_page_token, runs = list_piplines(
         full=full,
         page_token=page_token,

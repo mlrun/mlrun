@@ -1,10 +1,8 @@
 import traceback
-from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
-from fastapi import HTTPException
-from fastapi import Request
+from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -18,7 +16,7 @@ from mlrun.run import import_function, new_function
 from mlrun.utils import get_in, logger, parse_function_uri
 
 
-def log_and_raise(status=HTTPStatus.BAD_REQUEST, **kw):
+def log_and_raise(status=status.HTTP_400_BAD_REQUEST, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
 
@@ -65,7 +63,7 @@ def submit(db_session: Session, data):
         url = get_in(task, "spec.function")
     if not (function or url) or not task:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            status.HTTP_400_BAD_REQUEST,
             reason="bad JSON, need to include function/url and task objects",
         )
 
@@ -86,7 +84,7 @@ def submit(db_session: Session, data):
                 )
                 if not runtime:
                     log_and_raise(
-                        HTTPStatus.NOT_FOUND,
+                        status.HTTP_404_NOT_FOUND,
                         reason="runtime error: function {} not found".format(url),
                     )
                 fn = new_function(runtime=runtime)
@@ -138,7 +136,9 @@ def submit(db_session: Session, data):
         raise
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
+        log_and_raise(
+            status.HTTP_400_BAD_REQUEST, reason="runtime error: {}".format(err)
+        )
 
     logger.info("response: %s", response)
     return {

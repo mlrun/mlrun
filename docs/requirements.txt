@@ -21,6 +21,7 @@ v3io>=0.3.3
 matplotlib
 scikit-learn
 seaborn
+sphinx-copybutton
 azure-storage-blob
 pydantic~=1.5
 numpydoc

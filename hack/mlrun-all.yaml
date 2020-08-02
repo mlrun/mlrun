@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/mlrun-api:0.5.0
+        image: mlrun/mlrun-api:0.5.1
         imagePullPolicy: Always
         env:
         - name: MLRUN_NAMESPACE
@@ -86,7 +86,7 @@ spec:
     spec:
       containers:
       - name: mlrun-ui
-        image: mlrun/mlrun-ui:0.5.0
+        image: mlrun/mlrun-ui:0.5.1
         imagePullPolicy: Always
         env:
         - name: MLRUN_API_PROXY_URL

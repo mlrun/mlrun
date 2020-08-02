@@ -118,7 +118,7 @@ RUN conda config --add channels conda-forge && \
         wrapt
 
 RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12
+    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7
 
 RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 

@@ -193,7 +193,10 @@ def build_status(
     if state == "ready":
         update_in(fn, "spec.image", image)
 
-    get_db().store_function(db_session, fn, name, project, tag, versioned=True)
+    versioned = False
+    if state == "ready":
+        versioned = True
+    get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
 
     return Response(
         content=out,

@@ -193,7 +193,7 @@ def build_status(
     if state == "ready":
         update_in(fn, "spec.image", image)
 
-    get_db().store_function(db_session, fn, name, project, tag)
+    get_db().store_function(db_session, fn, name, project, tag, versioned=True)
 
     return Response(
         content=out,
@@ -213,7 +213,7 @@ def _build_function(db_session, function, with_mlrun):
         fn.save(versioned=False)
 
         ready = build_runtime(fn, with_mlrun)
-        fn.save(versioned=True)
+        fn.save(versioned=False)
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())

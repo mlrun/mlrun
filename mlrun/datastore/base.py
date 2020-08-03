@@ -19,7 +19,6 @@ from tempfile import mktemp
 import requests
 import urllib3
 import pandas as pd
-from fastapi import status
 
 from mlrun.utils import logger
 

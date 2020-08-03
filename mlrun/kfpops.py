@@ -187,7 +187,7 @@ def mlrun_op(
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
 
-    :return: KFP step operation
+    :returns: KFP step operation
 
     Example:
     from kfp import dsl

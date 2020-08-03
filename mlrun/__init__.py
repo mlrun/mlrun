@@ -13,10 +13,10 @@
 # limitations under the License.
 """
 MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks
-    related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically
-    tracking executed code, metadata, inputs, and outputs.
+related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically
+tracking executed code, metadata, inputs, and outputs.
 MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and with `Kubeflow
-    Pipelines <https://github.com/kubeflow/pipelines>`_.
+Pipelines <https://github.com/kubeflow/pipelines>`_.
 
 The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` command-line interface (CLI).
 """
@@ -70,9 +70,9 @@ def set_environment(api_path: str = None, artifact_path: str = '', project: str 
     :param artifact_path:  path/url for storing experiment artifacts
     :param project:        default project name
 
-    :return actual artifact path/url, can be used to create subpaths per task,
-            e.g.:  artifact_path = set_environment()
-                   data_subpath = os.join(artifact_path, 'data')
+    :returns: actual artifact path/url, can be used to create subpaths per task,
+              e.g.:  artifact_path = set_environment()
+                     data_subpath = os.join(artifact_path, 'data')
     """
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:

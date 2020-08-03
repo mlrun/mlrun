@@ -1088,7 +1088,7 @@ class BaseRuntimeHandler(ABC):
         might be in completed state, but we would like to verify that the run is completed as well to verify the logs
         were collected before we're removing the pod.
 
-        :return bool determining whether the run in transient state, and the last update time if it exists
+        :returns: bool determining whether the run in transient state, and the last update time if it exists
         """
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 

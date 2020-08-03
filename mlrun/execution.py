@@ -100,9 +100,9 @@ class MLClientCtx(object):
 
         allow sub experiments (epochs, hyper-param, ..) under a parent
         will create a new iteration, log_xx will update the child only
-        use commit_children() to save all the childes and specify the best run
+        use commit_children() to save all the children and specify the best run
 
-        the **params are extra (or override) params to parent context
+        :param \**params:           extra (or override) params to parent context
         """
         if self.iteration != 0:
             raise ValueError('cannot create child from a child iteration!')
@@ -434,7 +434,7 @@ class MLClientCtx(object):
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table
 
-        :return artifact object
+        :returns: artifact object
         """
         local_path = src_path or local_path
         item = self._artifacts_manager.log_artifact(
@@ -492,7 +492,7 @@ class MLClientCtx(object):
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table
 
-        :return artifact object
+        :returns: artifact object
         """
         ds = DatasetArtifact(
             key,
@@ -559,7 +559,7 @@ class MLClientCtx(object):
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table
 
-        :return artifact object
+        :returns: artifact object
         """
 
         model = ModelArtifact(

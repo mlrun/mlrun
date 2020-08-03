@@ -1,8 +1,6 @@
-from distutils.util import strtobool
-from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, Query, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -27,7 +25,7 @@ async def store_run(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     await run_in_threadpool(
@@ -50,7 +48,7 @@ async def update_run(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
 
     logger.debug(data)
     await run_in_threadpool(
@@ -95,12 +93,10 @@ def list_runs(
     labels: List[str] = Query([], alias='label'),
     state: str = None,
     last: int = 0,
-    sort: str = "on",
-    iter: str = "on",
+    sort: bool = True,
+    iter: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    sort = strtobool(sort)
-    iter = strtobool(iter)
     runs = get_db().list_runs(
         db_session,
         name=name,

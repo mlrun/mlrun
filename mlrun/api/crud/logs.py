@@ -1,4 +1,4 @@
-from http import HTTPStatus
+from fastapi import status
 
 from sqlalchemy.orm import Session
 
@@ -29,18 +29,18 @@ class Logs:
     ):
         out = b""
         log_file = log_path(project, uid)
-        status = None
+        pod_status = None
         if log_file.exists() and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)
                 out = fp.read(size)
-            status = ""
+            pod_status = ""
         elif source in [LogSources.AUTO, LogSources.K8S]:
             data = get_db().read_run(db_session, uid, project)
             if not data:
-                log_and_raise(HTTPStatus.NOT_FOUND, project=project, uid=uid)
+                log_and_raise(status.HTTP_404_NOT_FOUND, project=project, uid=uid)
 
-            status = get_in(data, "status.state", "")
+            pod_status = get_in(data, "status.state", "")
             if get_k8s():
                 pods = get_k8s().get_logger_pods(uid)
                 if pods:
@@ -52,7 +52,7 @@ class Logs:
                         resp = get_k8s().logs(pod)
                         if resp:
                             out = resp.encode()[offset:]
-                        if status == "running":
+                        if pod_status == "running":
                             now = now_date().isoformat()
                             update_in(data, "status.last_update", now)
                             if new_status == "failed":
@@ -62,13 +62,13 @@ class Logs:
                             if new_status == "succeeded":
                                 update_in(data, "status.state", "completed")
                                 get_db().store_run(db_session, data, uid, project)
-                    status = new_status
-                elif status == "running":
+                    pod_status = new_status
+                elif pod_status == "running":
                     update_in(data, "status.state", "error")
                     update_in(data, "status.error", "pod not found, maybe terminated")
                     get_db().store_run(db_session, data, uid, project)
-                    status = "failed"
-        return out, status
+                    pod_status = "failed"
+        return out, pod_status
 
     @staticmethod
     def get_log_mtime(project: str, uid: str) -> int:

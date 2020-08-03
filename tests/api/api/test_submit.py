@@ -1,5 +1,4 @@
-from http import HTTPStatus
-
+from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -12,7 +11,7 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
         'task': {'spec': {'function': function_reference}},
     }
     resp = client.post('/api/submit_job', json=body)
-    assert resp.status_code == HTTPStatus.NOT_FOUND
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert (
         resp.json()['detail']['reason']
         == f"runtime error: function {function_reference} not found"

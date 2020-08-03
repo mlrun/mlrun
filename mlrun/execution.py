@@ -102,7 +102,7 @@ class MLClientCtx(object):
         will create a new iteration, log_xx will update the child only
         use commit_children() to save all the children and specify the best run
 
-        :param \**params:           extra (or override) params to parent context
+        :param **params:           extra (or override) params to parent context
         """
         if self.iteration != 0:
             raise ValueError('cannot create child from a child iteration!')

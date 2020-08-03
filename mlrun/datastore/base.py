@@ -28,6 +28,11 @@ if not verify_ssl:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
+class ForbiddenPathAccessException(Exception):
+    def __init__(self, accessed_path):
+        super().__init__('Access to the path {0} is forbidden'.format(accessed_path))
+
+
 class FileStats:
     def __init__(self, size, modified, content_type=None):
         self.size = size
@@ -266,30 +271,24 @@ def basic_auth_header(user, password):
 
 def http_get(url, headers=None, auth=None):
     try:
-        resp = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
+        response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
 
-    if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
-        resp.raise_for_status()
+    response.raise_for_status()
 
-    if not resp.ok:
-        raise OSError('failed to read file in {}'.format(url))
-    return resp.content
+    return response.content
 
 
 def http_head(url, headers=None, auth=None):
     try:
-        resp = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
+        response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
 
-    if resp.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]:
-        resp.raise_for_status()
+    response.raise_for_status()
 
-    if not resp.ok:
-        raise OSError('failed to read file head in {}'.format(url))
-    return resp.headers
+    return response.headers
 
 
 def http_put(url, data, headers=None, auth=None):

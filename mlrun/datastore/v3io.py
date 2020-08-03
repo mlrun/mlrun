@@ -30,15 +30,11 @@ from .base import (
     http_put,
     http_head,
     http_upload,
+    ForbiddenPathAccessException
 )
 
 
 V3IO_LOCAL_ROOT = 'v3io'
-
-
-class ForbiddenPathAccessException(Exception):
-    def __init__(self, accessed_path):
-        super().__init__('Access to the path {0} is forbidden'.format(accessed_path))
 
 
 class V3ioStore(DataStore):

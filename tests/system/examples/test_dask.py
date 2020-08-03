@@ -1,5 +1,4 @@
 import os
-import pathlib
 
 import kfp
 import kfp.compiler
@@ -19,9 +18,23 @@ from tests.system.examples.base import TestMlRunExamples
 
 @TestMLRunSystem.skip_test_env_not_configured
 class TestDask(TestMlRunExamples):
+    def custom_setup(self):
+        self._logger.debug('Creating dask function')
+        self.dask_function = code_to_function(
+            'mydask',
+            kind='dask',
+            filename=str(self.artifacts_path / 'dask_function.py'),
+        ).apply(mount_v3io())
+
+        self.dask_function.spec.image = 'mlrun/ml-models'
+        self.dask_function.spec.remote = True
+        self.dask_function.spec.replicas = 1
+        self.dask_function.spec.service_type = 'NodePort'
+        self.dask_function.spec.image_pull_policy = 'Always'
+        self.dask_function.spec.command = str(self.artifacts_path / 'dask_function.py')
+
     def test_dask(self):
-        dsf = self._get_dask_function()
-        run_object = dsf.run(handler='main', params={'x': 12})
+        run_object = self.dask_function.run(handler='main', params={'x': 12})
         self._logger.debug('Finished running task', run_object=run_object.to_dict())
 
         run_uid = run_object.uid()
@@ -50,13 +63,11 @@ class TestDask(TestMlRunExamples):
         assert run_object.state() == 'completed'
 
     def test_run_pipeline(self):
-        dsf = self._get_dask_function()
-
         @kfp.dsl.pipeline(name="dask_pipeline")
         def dask_pipe(x=1, y=10):
 
             # use_db option will use a function (DB) pointer instead of adding the function spec to the YAML
-            dsf.as_step(
+            self.dask_function.as_step(
                 NewTask(handler='main', name='dask_pipeline', params={'x': x, 'y': y}),
                 use_db=True,
             )
@@ -98,20 +109,4 @@ class TestDask(TestMlRunExamples):
         )
 
         # remove compiled dask.yaml file
-        os.remove(str(pathlib.Path(__file__).absolute().parent / 'daskpipe.yaml'))
-
-    def _get_dask_function(self):
-        dsf = code_to_function(
-            'mydask',
-            kind='dask',
-            filename=str(self.artifacts_path / 'dask_function.py'),
-        ).apply(mount_v3io())
-
-        dsf.spec.image = 'mlrun/ml-models'
-        dsf.spec.remote = True
-        dsf.spec.replicas = 1
-        dsf.spec.service_type = 'NodePort'
-        dsf.spec.image_pull_policy = 'Always'
-        dsf.spec.command = str(self.artifacts_path / 'dask_function.py')
-
-        return dsf
+        os.remove('daskpipe.yaml')

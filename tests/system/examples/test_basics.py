@@ -13,10 +13,27 @@ from tests.system.examples.base import TestMlRunExamples
 
 @TestMLRunSystem.skip_test_env_not_configured
 class TestBasics(TestMlRunExamples):
+    def custom_setup(self):
+        self._logger.debug('Creating basics task')
+
+        # {{run.uid}} will be substituted with the run id, so output will be written to different directories per run
+        output_path = str(self.results_path / '{{run.uid}}')
+        self._basics_task = (
+            NewTask(name='demo', params={'p1': 5}, artifact_path=output_path)
+            .with_secrets('file', self.artifacts_path / 'secrets.txt')
+            .set_label('type', 'demo')
+        )
+
+        self._logger.debug('Creating inline task')
+        self._inline_task = NewTask(
+            name='demo2',
+            handler=self._get_inline_handler(),
+            artifact_path=str(self.results_path / '{{run.uid}}'),
+        )
+
     def test_basics(self):
-        task = self._get_basics_task()
         run_object = run_local(
-            task, command='training.py', workdir=str(self.artifacts_path)
+            self._basics_task, command='training.py', workdir=str(self.artifacts_path)
         )
         self._logger.debug('Finished running task', run_object=run_object.to_dict())
 
@@ -59,9 +76,8 @@ class TestBasics(TestMlRunExamples):
         )
 
     def test_basics_hyper_parameters(self):
-        task = self._get_basics_task()
         run_object = run_local(
-            task.with_hyper_params({'p2': [5, 2, 3]}, 'min.loss'),
+            self._basics_task.with_hyper_params({'p2': [5, 2, 3]}, 'min.loss'),
             command='training.py',
             workdir=str(self.artifacts_path),
         )
@@ -85,12 +101,7 @@ class TestBasics(TestMlRunExamples):
         )
 
     def test_inline_code(self):
-        task = NewTask(
-            name='demo2',
-            handler=self._get_inline_handler(),
-            artifact_path=str(self.results_path / '{{run.uid}}'),
-        ).with_params(p1=7)
-        run_object = run_local(task)
+        run_object = run_local(self._inline_task.with_params(p1=7))
         self._logger.debug('Finished running task', run_object=run_object.to_dict())
 
         run_uid = run_object.uid()
@@ -99,29 +110,17 @@ class TestBasics(TestMlRunExamples):
         assert run_object.state() == 'completed'
 
     def test_inline_code_with_param_file(self):
-        task = NewTask(
-            name='demo2',
-            handler=self._get_inline_handler(),
-            artifact_path=str(self.results_path / '{{run.uid}}'),
-        ).with_param_file(str(self.artifacts_path / 'params.csv'), 'max.accuracy')
-        run_object = run_local(task)
+        run_object = run_local(
+            self._inline_task.with_param_file(
+                str(self.artifacts_path / 'params.csv'), 'max.accuracy'
+            )
+        )
         self._logger.debug('Finished running task', run_object=run_object.to_dict())
 
         run_uid = run_object.uid()
 
         assert run_uid is not None
         assert run_object.state() == 'completed'
-
-    def _get_basics_task(self):
-        self._logger.debug('Creating basics task')
-
-        # {{run.uid}} will be substituted with the run id, so output will be written to different directories per run
-        output_path = str(self.results_path / '{{run.uid}}')
-        return (
-            NewTask(name='demo', params={'p1': 5}, artifact_path=output_path)
-            .with_secrets('file', self.artifacts_path / 'secrets.txt')
-            .set_label('type', 'demo')
-        )
 
     @staticmethod
     def _get_inline_handler():

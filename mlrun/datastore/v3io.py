@@ -30,7 +30,7 @@ from .base import (
     http_put,
     http_head,
     http_upload,
-    ForbiddenPathAccessException
+    ForbiddenPathAccessException,
 )
 
 

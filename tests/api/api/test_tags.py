@@ -1,6 +1,6 @@
-from http import HTTPStatus
 from uuid import uuid4
 
+from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -15,21 +15,21 @@ def test_tag(db: Session, client: TestClient) -> None:
         fn = new_function(name=name, project=prj).to_dict()
         tag = uuid4().hex
         resp = client.post(f'/api/func/{prj}/{name}?tag={tag}', json=fn)
-        assert resp.status_code == HTTPStatus.OK, 'status create'
+        assert resp.status_code == status.HTTP_200_OK, 'status create'
     tag = 't1'
     tagged = {fn_name(i) for i in (1, 3, 4)}
     for name in tagged:
         query = {'functions': {'name': name}}
         resp = client.post(f'/api/{prj}/tag/{tag}', json=query)
-        assert resp.status_code == HTTPStatus.OK, 'status tag'
+        assert resp.status_code == status.HTTP_200_OK, 'status tag'
 
     resp = client.get(f'/api/{prj}/tag/{tag}')
-    assert resp.status_code == HTTPStatus.OK, 'status get tag'
+    assert resp.status_code == status.HTTP_200_OK, 'status get tag'
     objs = resp.json()['objects']
     assert {obj['name'] for obj in objs} == tagged, 'tagged'
 
     resp = client.delete(f'/api/{prj}/tag/{tag}')
-    assert resp.status_code == HTTPStatus.OK, 'delete'
+    assert resp.status_code == status.HTTP_200_OK, 'delete'
     resp = client.get(f'/api/{prj}/tags')
-    assert resp.status_code == HTTPStatus.OK, 'list tags'
+    assert resp.status_code == status.HTTP_200_OK, 'list tags'
     assert tag not in resp.json()['tags'], 'tag not deleted'

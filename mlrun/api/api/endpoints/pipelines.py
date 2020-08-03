@@ -1,10 +1,9 @@
 import ast
 import tempfile
 from datetime import datetime
-from http import HTTPStatus
 from os import remove
 
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request, Query, status
 from fastapi.concurrency import run_in_threadpool
 from kfp import Client as kfclient
 
@@ -30,7 +29,7 @@ async def submit_pipeline(
 
     data = await request.body()
     if not data:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="post data is empty")
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="post data is empty")
 
     run = await run_in_threadpool(
         _submit_pipeline, request, data, namespace, experiment_name, run_name
@@ -54,7 +53,7 @@ def get_pipeline(run_id, namespace: str = Query(config.namespace)):
             run = run.to_dict()
     except Exception as e:
         log_and_raise(
-            HTTPStatus.INTERNAL_SERVER_ERROR, reason="get kfp error: {}".format(e)
+            status.HTTP_500_INTERNAL_SERVER_ERROR, reason="get kfp error: {}".format(e)
         )
 
     return run
@@ -74,7 +73,8 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
         ctype = ".zip"
     else:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST, reason="unsupported pipeline type {}".format(ctype)
+            status.HTTP_400_BAD_REQUEST,
+            reason="unsupported pipeline type {}".format(ctype),
         )
 
     logger.info("writing file {}".format(ctype))
@@ -91,7 +91,7 @@ def _submit_pipeline(request, data, namespace, experiment_name, run_name):
         run = client.run_pipeline(experiment.id, run_name, pipe_tmp, params=arguments)
     except Exception as e:
         remove(pipe_tmp)
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="kfp err: {}".format(e))
+        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="kfp err: {}".format(e))
 
     remove(pipe_tmp)
 

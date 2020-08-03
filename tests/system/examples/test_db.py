@@ -49,7 +49,7 @@ class TestDB(TestMlRunExamples):
         self._verify_run_spec(
             runs[0]['spec'],
             parameters={'p1': 5, 'p2': 'a-string'},
-            inputs={'infile.txt': str(self.artifacts_path / 'infile.txt'),},
+            inputs={'infile.txt': str(self.artifacts_path / 'infile.txt')},
             outputs=[],
             output_path=str(self.results_path / self._run_uid),
             secret_sources=[],

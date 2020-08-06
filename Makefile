@@ -206,6 +206,14 @@ build-test: ## Build test docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_TEST_IMAGE_NAME) .
 
+MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
+
+build-test-system: ## Build system tests docker image
+	docker build \
+		--file dockerfiles/test-system/Dockerfile \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
+
 push-test: build-test ## Push test docker image
 	docker push $(MLRUN_TEST_IMAGE_NAME)
 
@@ -238,6 +246,9 @@ test: clean ## Run mlrun tests
 		--disable-warnings \
 		-rf \
 		tests
+
+test-system: build-test-system ## Run mlrun system tests
+	docker run -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
 
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db

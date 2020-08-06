@@ -14,9 +14,16 @@
 from os import listdir
 from tempfile import TemporaryDirectory
 
-from tests.conftest import rundb_path
-import mlrun
 import pandas as pd
+import requests
+from fastapi import status
+from unittest.mock import Mock
+import pytest
+
+import mlrun
+from mlrun.errors import AccessForbiddenError
+import v3io.dataplane
+from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
 
@@ -94,3 +101,46 @@ def test_parse_url_preserve_case():
     expected_endpoint = 'Hedi'
     _, endpoint, _ = mlrun.datastore.datastore.parse_url(url)
     assert expected_endpoint, endpoint
+
+
+def test_forbidden_file_access(monkeypatch):
+    class MockV3ioClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_container_contents(self, *args, **kwargs):
+            raise RuntimeError('Permission denied')
+
+    def mock_get(*args, **kwargs):
+        mock_forbidden_response = Mock()
+        mock_forbidden_response.status_code = status.HTTP_403_FORBIDDEN
+        mock_forbidden_response.raise_for_status = Mock(
+            side_effect=requests.HTTPError('Error', response=mock_forbidden_response)
+        )
+        return mock_forbidden_response
+
+    monkeypatch.setattr(requests, "get", mock_get)
+    monkeypatch.setattr(requests, "head", mock_get)
+    monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
+
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={'V3IO_ACCESS_KEY': 'some-access-key'}
+    )
+
+    with pytest.raises(AccessForbiddenError) as forbidden_exc:
+        obj = store.object('v3io://some-system/some-dir/')
+        obj.listdir()
+
+    assert forbidden_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+
+    with pytest.raises(AccessForbiddenError) as forbidden_exc:
+        obj = store.object('v3io://some-system/some-dir/some-file')
+        obj.get()
+
+    assert forbidden_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+
+    with pytest.raises(AccessForbiddenError) as forbidden_exc:
+        obj = store.object('v3io://some-system/some-dir/some-file')
+        obj.stat()
+
+    assert forbidden_exc.value.response.status_code == status.HTTP_403_FORBIDDEN

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Request, Response, status
 
 from mlrun.api.api.utils import log_and_raise, get_obj_path, get_secrets
 from mlrun.datastore import get_object_stat, store_manager
+from mlrun.errors import MLRunDataStoreError
 
 router = APIRouter()
 
@@ -40,6 +41,9 @@ def get_files(
         body = obj.get(size, offset)
     except FileNotFoundError as e:
         log_and_raise(status.HTTP_404_NOT_FOUND, path=objpath, err=str(e))
+    except MLRunDataStoreError as e:
+        log_and_raise(e.response.status_code, path=objpath, err=str(e))
+
     if body is None:
         log_and_raise(status.HTTP_404_NOT_FOUND, path=objpath)
 
@@ -67,6 +71,8 @@ def get_filestat(request: Request, schema: str = "", path: str = "", user: str =
         stat = get_object_stat(path, secrets)
     except FileNotFoundError as e:
         log_and_raise(status.HTTP_404_NOT_FOUND, path=path, err=str(e))
+    except MLRunDataStoreError as e:
+        log_and_raise(e.response.status_code, path=path, err=str(e))
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:

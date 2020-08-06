@@ -30,10 +30,6 @@ class MLRunDataStoreError(MLRunHTTPError):
         )
 
 
-class MLRunDBError(MLRunHTTPError):
-    pass
-
-
 def raise_for_status(response: requests.Response):
     """
     Raise a specific MLRunSDK error depending on the given response status code.

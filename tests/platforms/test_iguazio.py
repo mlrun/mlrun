@@ -1,8 +1,10 @@
-from mlrun.platforms import add_or_refresh_credentials
 import os
 from unittest.mock import Mock
-from fastapi import status
+
 import requests
+from fastapi import status
+
+from mlrun.platforms import add_or_refresh_credentials
 
 
 def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
@@ -27,7 +29,9 @@ def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
             assert session_mock.auth == (username, password)
             successful_response_mock = Mock()
             successful_response_mock.ok = True
-            successful_response_mock.json.return_value = {'data': {'id': control_session}}
+            successful_response_mock.json.return_value = {
+                'data': {'id': control_session}
+            }
             return successful_response_mock
 
         session_mock.post = _mock_successful_session_creation
@@ -59,4 +63,3 @@ def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
     result_username, result_access_key, _ = add_or_refresh_credentials(api_url)
     assert username == result_username
     assert access_key == result_access_key
-

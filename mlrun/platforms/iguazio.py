@@ -278,7 +278,8 @@ def is_iguazio_system_2_10_or_above(dashboard_url):
 
     if not response.ok:
         if response.status_code == 404:
-            # in iguazio systems prior to 2.10 this endpoint didn't exist, so the api returns 404 cause endpoint not found
+            # in iguazio systems prior to 2.10 this endpoint didn't exist, so the api returns 404 cause endpoint not
+            # found
             return False
         response.raise_for_status()
 
@@ -304,7 +305,9 @@ def add_or_refresh_credentials(
     is_access_key_auth = is_iguazio_system_2_10_or_above(iguazio_dashboard_url)
     if is_access_key_auth:
         if not username or not token:
-            raise ValueError('username and access key required to authenticate against iguazio system')
+            raise ValueError(
+                'username and access key required to authenticate against iguazio system'
+            )
         return username, token, ''
 
     if not username or not password:

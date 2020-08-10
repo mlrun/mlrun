@@ -315,20 +315,24 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def get_resource_labels(function, uid=None, name=None, scrape_metrics=False):
-    meta = function.metadata
-    labels = deepcopy(meta.labels)
+def get_resource_labels(function, run=None, scrape_metrics=False):
+    run_uid, run_name, run_project = None, None, None
+    if run:
+        run_uid = run.metadata.uid
+        run_name = run.metadata.name
+        run_project = run.metadata.project
+    labels = deepcopy(function.metadata.labels)
     labels[mlrun_key + 'class'] = function.kind
-    labels[mlrun_key + 'project'] = meta.project
-    labels[mlrun_key + 'function'] = '{}'.format(meta.name)
-    labels[mlrun_key + 'tag'] = '{}'.format(meta.tag or 'latest')
+    labels[mlrun_key + 'project'] = run_project or function.metadata.project
+    labels[mlrun_key + 'function'] = '{}'.format(function.metadata.name)
+    labels[mlrun_key + 'tag'] = '{}'.format(function.metadata.tag or 'latest')
     labels[mlrun_key + 'scrape_metrics'] = str(scrape_metrics)
 
-    if uid:
-        labels[mlrun_key + 'uid'] = uid
+    if run_uid:
+        labels[mlrun_key + 'uid'] = run_uid
 
-    if name:
-        labels[mlrun_key + 'name'] = name
+    if run_name:
+        labels[mlrun_key + 'name'] = run_name
 
     return labels
 

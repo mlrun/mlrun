@@ -2,11 +2,17 @@ import requests
 from fastapi import status
 
 
-class MLRunSDKError(Exception):
+class MLRunBaseError(Exception):
+    """
+    A base class from which all other exceptions inherit.
+    If you want to catch all errors that the MLRun SDK might raise,
+    catch this base exception.
+    """
+
     pass
 
 
-class MLRunHTTPError(MLRunSDKError, requests.HTTPError):
+class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
         self, message: str, response: requests.Response = None, status_code: int = None
     ):
@@ -41,10 +47,13 @@ def raise_for_status(response: requests.Response):
     """
     try:
         response.raise_for_status()
-    except requests.HTTPError as e:
-        if response.status_code in STATUS_ERRORS:
-            raise STATUS_ERRORS[response.status_code](str(e), response=response) from e
-        raise MLRunHTTPError(str(e), response=response)
+    except requests.HTTPError as exc:
+        try:
+            raise STATUS_ERRORS[response.status_code](
+                str(exc), response=response
+            ) from exc
+        except KeyError:
+            raise MLRunHTTPError(str(exc), response=response) from exc
 
 
 # Specific Errors
@@ -54,7 +63,7 @@ class UnauthorizedError(MLRunDataStoreError):
     error_status_code = status.HTTP_401_UNAUTHORIZED
 
 
-class AccessForbiddenError(MLRunDataStoreError):
+class AccessDeniedError(MLRunDataStoreError):
     error_status_code = status.HTTP_403_FORBIDDEN
 
 
@@ -64,6 +73,6 @@ class NotFoundError(MLRunDataStoreError):
 
 STATUS_ERRORS = {
     status.HTTP_401_UNAUTHORIZED: UnauthorizedError,
-    status.HTTP_403_FORBIDDEN: AccessForbiddenError,
+    status.HTTP_403_FORBIDDEN: AccessDeniedError,
     status.HTTP_404_NOT_FOUND: NotFoundError,
 }

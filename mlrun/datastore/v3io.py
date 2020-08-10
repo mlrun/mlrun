@@ -18,7 +18,7 @@ from os import environ
 import time
 import v3io.dataplane
 
-from mlrun.errors import AccessForbiddenError
+import mlrun.errors
 from ..platforms.iguazio import split_path
 from .base import (
     DataStore,
@@ -109,10 +109,12 @@ class V3ioStore(DataStore):
                 get_all_attributes=False,
                 directories_only=False,
             )
-        except RuntimeError as e:
-            if 'Permission denied' in str(e):
-                raise AccessForbiddenError(f'Access forbidden to path: {key}') from e
-            raise e
+        except RuntimeError as exc:
+            if 'Permission denied' in str(exc):
+                raise mlrun.errors.AccessDeniedError(
+                    f'Access denied to path: {key}'
+                ) from exc
+            raise
 
         # todo: full = key, size, last_modified
         return [obj.key[subpath_length:] for obj in response.output.contents]

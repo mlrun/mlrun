@@ -39,10 +39,10 @@ def get_files(
             }
 
         body = obj.get(size, offset)
-    except FileNotFoundError as e:
-        log_and_raise(status.HTTP_404_NOT_FOUND, path=objpath, err=str(e))
-    except MLRunDataStoreError as e:
-        log_and_raise(e.response.status_code, path=objpath, err=str(e))
+    except FileNotFoundError as exc:
+        log_and_raise(status.HTTP_404_NOT_FOUND, path=objpath, err=str(exc))
+    except MLRunDataStoreError as exc:
+        log_and_raise(exc.response.status_code, path=objpath, err=str(exc))
 
     if body is None:
         log_and_raise(status.HTTP_404_NOT_FOUND, path=objpath)
@@ -69,10 +69,10 @@ def get_filestat(request: Request, schema: str = "", path: str = "", user: str =
     stat = None
     try:
         stat = get_object_stat(path, secrets)
-    except FileNotFoundError as e:
-        log_and_raise(status.HTTP_404_NOT_FOUND, path=path, err=str(e))
-    except MLRunDataStoreError as e:
-        log_and_raise(e.response.status_code, path=path, err=str(e))
+    except FileNotFoundError as exc:
+        log_and_raise(status.HTTP_404_NOT_FOUND, path=path, err=str(exc))
+    except MLRunDataStoreError as exc:
+        log_and_raise(exc.response.status_code, path=path, err=str(exc))
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:

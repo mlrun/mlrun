@@ -21,7 +21,7 @@ from unittest.mock import Mock
 import pytest
 
 import mlrun
-from mlrun.errors import AccessForbiddenError
+import mlrun.errors
 import v3io.dataplane
 from tests.conftest import rundb_path
 
@@ -127,20 +127,20 @@ def test_forbidden_file_access(monkeypatch):
         secrets={'V3IO_ACCESS_KEY': 'some-access-key'}
     )
 
-    with pytest.raises(AccessForbiddenError) as forbidden_exc:
+    with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
         obj = store.object('v3io://some-system/some-dir/')
         obj.listdir()
 
-    assert forbidden_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+    assert access_denied_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
 
-    with pytest.raises(AccessForbiddenError) as forbidden_exc:
+    with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.get()
 
-    assert forbidden_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+    assert access_denied_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
 
-    with pytest.raises(AccessForbiddenError) as forbidden_exc:
+    with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.stat()
 
-    assert forbidden_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+    assert access_denied_exc.value.response.status_code == status.HTTP_403_FORBIDDEN

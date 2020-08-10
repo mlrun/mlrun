@@ -21,9 +21,7 @@ class TestDask(TestMLRunExamples):
     def custom_setup(self):
         self._logger.debug('Creating dask function')
         self.dask_function = code_to_function(
-            'mydask',
-            kind='dask',
-            filename=str(self.assets_path / 'dask_function.py'),
+            'mydask', kind='dask', filename=str(self.assets_path / 'dask_function.py'),
         ).apply(mount_v3io())
 
         self.dask_function.spec.image = 'mlrun/ml-models'

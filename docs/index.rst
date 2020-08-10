@@ -25,6 +25,7 @@ MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``
    end-to-end-pipeline
    data-management-and-versioning
    projects
+   load-from-marketplace
    job-submission-and-tracking
    model-management-and-serving
    examples

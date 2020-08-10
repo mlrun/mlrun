@@ -178,7 +178,7 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
     ) -> bool:
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
-        return crd_object.get('status', {}).get('replicaStatuses', {}).get('active', 1) != 0
+        return crd_object.get('status', {}).get('completionTime', None) is None
 
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:

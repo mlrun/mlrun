@@ -1,12 +1,7 @@
 msgpack<1.0.0
-numpydoc==0.9.1
 pytest~=5.4
-recommonmark==0.6.0
-sphinx==2.2.2
-sphinx_rtd_theme==0.4.3
 twine==3.1.1
 xgboost
-sphinx-copybutton
 black
 flake8
 pytest-asyncio~=0.14

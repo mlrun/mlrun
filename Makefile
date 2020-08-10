@@ -277,18 +277,13 @@ test: clean ## Run mlrun tests
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
 
-.PHONY: docs-requirements
-docs-requirements: ## Build docs requirements
-	cp requirements.txt docs/requirements.txt
-	echo numpydoc >> docs/requirements.txt
-
 .PHONY: html-docs
-html-docs: docs-requirements ## Build html docs
+html-docs: ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 
 .PHONY: html-docs-dockerized
-html-docs-dockerized: ## Build html docs dockerized
+html-docs-dockerized: build-test ## Build html docs dockerized
 	docker run \
 		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \

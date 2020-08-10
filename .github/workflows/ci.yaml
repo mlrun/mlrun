@@ -48,10 +48,16 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run Dockerized tests
       run: make test-dockerized
-    - name: Generate HTML docs
-      run: make html-docs-dockerized
-    - name: Upload generated docs
-      uses: actions/upload-artifact@v2
-      with:
-        name: docs
-        path: docs/_build/html
+
+  docs:
+    name: Build Project Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Generate HTML docs
+        run: make html-docs-dockerized
+      - name: Upload generated docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: docs/_build/html

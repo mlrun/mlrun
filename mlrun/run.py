@@ -193,7 +193,7 @@ def function_to_module(code='', workdir=None, secrets=None):
     :param workdir: code workdir
     :param secrets: secrets needed to access the URL (e.g.s3, v3io, ..)
 
-    :return python module
+    :returns: python module
     """
     command, runtime = _load_func_code(code, workdir, secrets=secrets)
     if not command:
@@ -713,7 +713,7 @@ def run_pipeline(
     :param ops        additional operators (.apply() to all pipeline functions)
     :param ttl        pipeline ttl in secs (after that the pods will be removed)
 
-    :return kubeflow pipeline id
+    :returns: kubeflow pipeline id
     """
 
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
@@ -784,7 +784,7 @@ def wait_for_pipeline_completion(
                                [ Succeeded ]
     :param namespace:  k8s namespace if not default
 
-    :return kfp run dict
+    :return: kfp run dict
     """
     if expected_statuses is None:
         expected_statuses = [RunStatuses.succeeded]
@@ -856,7 +856,7 @@ def get_pipeline(run_id, namespace=None):
     :param run_id:     id of pipelines run
     :param namespace:  k8s namespace if not default
 
-    :return kfp run dict
+    :return: kfp run dict
     """
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()

@@ -4,7 +4,10 @@ FROM jupyter/scipy-notebook
 # in the end
 USER root
 COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && pip install ".[api]" && cd /tmp && rm -rf mlrun
+RUN cd /tmp/mlrun && python -m pip install --no-cache-dir ".[api]" && cd /tmp && rm -rf mlrun
+
+COPY ./dockerfiles/jupyter/requirements.txt /tmp
+RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
 
 WORKDIR $HOME
 
@@ -25,7 +28,8 @@ ENV MLRUN_DBPATH=http://localhost:8080 \
     MLRUN_ARTIFACT_PATH=$HOME/data \
     JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
-    MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false'
+    MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
+    MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data
 
 # run the mlrun db (api) and the notebook in parallel
 CMD mlrun db & start-notebook.sh \

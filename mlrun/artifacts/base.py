@@ -256,7 +256,7 @@ def get_artifact_meta(artifact):
 
     :param artifact:   artifact path (store://..) or DataItem
 
-    :return artifact object, extra data dict
+    :returns: artifact object, extra data dict
 
     """
     if hasattr(artifact, 'artifact_url'):

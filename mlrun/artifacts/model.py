@@ -118,7 +118,7 @@ def get_model(model_dir, suffix=''):
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
 
-    :return model filename, model artifact object, extra data dict
+    :returns: model filename, model artifact object, extra data dict
 
     """
     model_file = ''

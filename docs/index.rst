@@ -28,12 +28,5 @@ MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``
    job-submission-and-tracking
    model-management-and-serving
    examples
-   api
+   api/index
 
-
-Indices and Tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

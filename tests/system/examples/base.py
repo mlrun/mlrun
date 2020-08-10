@@ -3,5 +3,5 @@ import pathlib
 from tests.system.base import TestMLRunSystem
 
 
-class TestMlRunExamples(TestMLRunSystem):
-    artifacts_path = pathlib.Path(__file__).absolute().parent / 'artifacts'
+class TestMLRunExamples(TestMLRunSystem):
+    assets_path = pathlib.Path(__file__).absolute().parent / 'assets'

@@ -13,25 +13,24 @@ from mlrun import (
 )
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMlRunExamples
+from tests.system.examples.base import TestMLRunExamples
 
 
-@TestMLRunSystem.skip_test_env_not_configured
-class TestDask(TestMlRunExamples):
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestDask(TestMLRunExamples):
     def custom_setup(self):
         self._logger.debug('Creating dask function')
         self.dask_function = code_to_function(
             'mydask',
             kind='dask',
-            filename=str(self.artifacts_path / 'dask_function.py'),
+            filename=str(self.assets_path / 'dask_function.py'),
         ).apply(mount_v3io())
 
         self.dask_function.spec.image = 'mlrun/ml-models'
         self.dask_function.spec.remote = True
         self.dask_function.spec.replicas = 1
         self.dask_function.spec.service_type = 'NodePort'
-        self.dask_function.spec.image_pull_policy = 'Always'
-        self.dask_function.spec.command = str(self.artifacts_path / 'dask_function.py')
+        self.dask_function.spec.command = str(self.assets_path / 'dask_function.py')
 
     def test_dask(self):
         run_object = self.dask_function.run(handler='main', params={'x': 12})

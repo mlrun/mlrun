@@ -1,11 +1,11 @@
 from mlrun import get_run_db, run_local, NewTask
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMlRunExamples
+from tests.system.examples.base import TestMLRunExamples
 
 
-@TestMLRunSystem.skip_test_env_not_configured
-class TestDB(TestMlRunExamples):
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestDB(TestMLRunExamples):
     def custom_setup(self):
         self._logger.debug('Connecting to database')
         self._deb = get_run_db().connect()
@@ -16,13 +16,13 @@ class TestDB(TestMlRunExamples):
         output_path = str(self.results_path / '{{run.uid}}')
         task = (
             NewTask(name='demo', params={'p1': 5}, artifact_path=output_path)
-            .with_secrets('file', self.artifacts_path / 'secrets.txt')
+            .with_secrets('file', self.assets_path / 'secrets.txt')
             .set_label('type', 'demo')
         )
 
         self._logger.debug('Running dummy task')
         run_object = run_local(
-            task, command='training.py', workdir=str(self.artifacts_path)
+            task, command='training.py', workdir=str(self.assets_path)
         )
         self._logger.debug(
             'Finished running dummy task', run_object=run_object.to_dict()
@@ -49,7 +49,7 @@ class TestDB(TestMlRunExamples):
         self._verify_run_spec(
             runs[0]['spec'],
             parameters={'p1': 5, 'p2': 'a-string'},
-            inputs={'infile.txt': str(self.artifacts_path / 'infile.txt')},
+            inputs={'infile.txt': str(self.assets_path / 'infile.txt')},
             outputs=[],
             output_path=str(self.results_path / self._run_uid),
             secret_sources=[],

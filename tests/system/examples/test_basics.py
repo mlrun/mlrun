@@ -8,11 +8,11 @@ from mlrun import run_local, NewTask
 from mlrun.artifacts import PlotArtifact
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMlRunExamples
+from tests.system.examples.base import TestMLRunExamples
 
 
-@TestMLRunSystem.skip_test_env_not_configured
-class TestBasics(TestMlRunExamples):
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestBasics(TestMLRunExamples):
     def custom_setup(self):
         self._logger.debug('Creating basics task')
 
@@ -20,7 +20,7 @@ class TestBasics(TestMlRunExamples):
         output_path = str(self.results_path / '{{run.uid}}')
         self._basics_task = (
             NewTask(name='demo', params={'p1': 5}, artifact_path=output_path)
-            .with_secrets('file', self.artifacts_path / 'secrets.txt')
+            .with_secrets('file', self.assets_path / 'secrets.txt')
             .set_label('type', 'demo')
         )
 
@@ -33,7 +33,7 @@ class TestBasics(TestMlRunExamples):
 
     def test_basics(self):
         run_object = run_local(
-            self._basics_task, command='training.py', workdir=str(self.artifacts_path)
+            self._basics_task, command='training.py', workdir=str(self.assets_path)
         )
         self._logger.debug('Finished running task', run_object=run_object.to_dict())
 
@@ -55,7 +55,7 @@ class TestBasics(TestMlRunExamples):
         self._verify_run_spec(
             run_object.to_dict()['spec'],
             parameters={'p1': 5, 'p2': 'a-string'},
-            inputs={'infile.txt': str(self.artifacts_path / 'infile.txt')},
+            inputs={'infile.txt': str(self.assets_path / 'infile.txt')},
             outputs=[],
             output_path=str(self.results_path / run_uid),
             secret_sources=[],
@@ -79,7 +79,7 @@ class TestBasics(TestMlRunExamples):
         run_object = run_local(
             self._basics_task.with_hyper_params({'p2': [5, 2, 3]}, 'min.loss'),
             command='training.py',
-            workdir=str(self.artifacts_path),
+            workdir=str(self.assets_path),
         )
         self._logger.debug('Finished running task', run_object=run_object.to_dict())
 
@@ -112,7 +112,7 @@ class TestBasics(TestMlRunExamples):
     def test_inline_code_with_param_file(self):
         run_object = run_local(
             self._inline_task.with_param_file(
-                str(self.artifacts_path / 'params.csv'), 'max.accuracy'
+                str(self.assets_path / 'params.csv'), 'max.accuracy'
             )
         )
         self._logger.debug('Finished running task', run_object=run_object.to_dict())

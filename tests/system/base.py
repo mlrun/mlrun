@@ -19,7 +19,6 @@ class TestMLRunSystem:
         'MLRUN_DBPATH',
         'V3IO_API',
         'V3IO_USERNAME',
-        'V3IO_PASSWORD',
         'V3IO_ACCESS_KEY',
     ]
 
@@ -63,7 +62,7 @@ class TestMLRunSystem:
         pass
 
     @classmethod
-    def skip_test_env_not_configured(cls, test):
+    def skip_test_if_env_not_configured(cls, test):
         configured = True
         try:
             env = cls._get_env_from_file()

@@ -13,13 +13,13 @@ from mlrun import (
 from mlrun.platforms.other import mount_v3io
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMlRunExamples
+from tests.system.examples.base import TestMLRunExamples
 
 
-@TestMLRunSystem.skip_test_env_not_configured
-class TestJobs(TestMlRunExamples):
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestJobs(TestMLRunExamples):
     def custom_setup(self):
-        code_path = str(self.artifacts_path / 'jobs_function.py')
+        code_path = str(self.assets_path / 'jobs_function.py')
 
         self._logger.debug('Creating trainer job')
         self._trainer = code_to_function(
@@ -28,7 +28,6 @@ class TestJobs(TestMlRunExamples):
 
         self._trainer.spec.build.commands.append('pip install pandas')
         self._trainer.spec.build.base_image = 'mlrun/mlrun'
-        self._trainer.spec.image_pull_policy = 'Always'
         self._trainer.spec.command = code_path
         self._trainer.apply(mount_v3io())
 

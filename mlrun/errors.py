@@ -1,5 +1,6 @@
+from http import HTTPStatus
+
 import requests
-from fastapi import status
 
 
 class MLRunBaseError(Exception):
@@ -56,19 +57,19 @@ def raise_for_status(response: requests.Response):
 
 
 class UnauthorizedError(MLRunDataStoreError):
-    error_status_code = status.HTTP_401_UNAUTHORIZED
+    error_status_code = HTTPStatus.UNAUTHORIZED.value
 
 
 class AccessDeniedError(MLRunDataStoreError):
-    error_status_code = status.HTTP_403_FORBIDDEN
+    error_status_code = HTTPStatus.FORBIDDEN.value
 
 
 class NotFoundError(MLRunDataStoreError):
-    error_status_code = status.HTTP_404_NOT_FOUND
+    error_status_code = HTTPStatus.NOT_FOUND.value
 
 
 STATUS_ERRORS = {
-    status.HTTP_401_UNAUTHORIZED: UnauthorizedError,
-    status.HTTP_403_FORBIDDEN: AccessDeniedError,
-    status.HTTP_404_NOT_FOUND: NotFoundError,
+    HTTPStatus.UNAUTHORIZED.value: UnauthorizedError,
+    HTTPStatus.FORBIDDEN.value: AccessDeniedError,
+    HTTPStatus.NOT_FOUND.value: NotFoundError,
 }

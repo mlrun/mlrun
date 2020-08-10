@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Request, status
+from http import HTTPStatus
+
+from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -21,7 +23,7 @@ async def tag_objects(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     objs = await run_in_threadpool(_tag_objects, db_session, data, project, name)
     return {
@@ -70,7 +72,7 @@ def _tag_objects(db_session, data, project, name):
         cls = table2cls(typ)
         if cls is None:
             err = f"unknown type - {typ}"
-            log_and_raise(status.HTTP_400_BAD_REQUEST, reason=err)
+            log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=err)
         # {"name": "bugs"} -> [Function.name=="bugs"]
         db_query = [getattr(cls, key) == value for key, value in query.items()]
         # TODO: Change _query to query?

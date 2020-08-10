@@ -14,19 +14,18 @@
 
 import shutil
 from datetime import datetime
+from http import HTTPStatus
 from os import environ
 from pathlib import Path
 from sys import platform
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
-from fastapi import status
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from mlrun.api.db.sqldb.models import Base
 from mlrun.api.db.sqldb.db import run_time_fmt
-
+from mlrun.api.db.sqldb.models import Base
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
@@ -86,7 +85,7 @@ def wait_for_server(url, timeout_sec):
     while monotonic() - start <= timeout_sec:
         try:
             with urlopen(url) as resp:
-                if resp.status == status.HTTP_200_OK:
+                if resp.status == HTTPStatus.OK.value:
                     return True
         except (URLError, ConnectionError):
             pass

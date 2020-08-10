@@ -15,6 +15,7 @@ import json
 import os
 import requests
 import urllib3
+from http import HTTPStatus
 from datetime import datetime
 
 
@@ -277,7 +278,7 @@ def is_iguazio_system_2_10_or_above(dashboard_url):
     response = requests.get(f'{dashboard_url}/api/external_versions', verify=False)
 
     if not response.ok:
-        if response.status_code == 404:
+        if response.status_code == HTTPStatus.NOT_FOUND.value:
             # in iguazio systems prior to 2.10 this endpoint didn't exist, so the api returns 404 cause endpoint not
             # found
             return False

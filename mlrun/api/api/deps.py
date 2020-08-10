@@ -1,8 +1,9 @@
 from base64 import b64decode
+from http import HTTPStatus
 from typing import Generator
-from sqlalchemy.orm import Session
 
-from fastapi import Request, status
+from fastapi import Request
+from sqlalchemy.orm import Session
 
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.session import create_session, close_session
@@ -31,20 +32,20 @@ class AuthVerifier:
         header = request.headers.get('Authorization', '')
         if self._basic_auth_required(cfg):
             if not header.startswith(self._basic_prefix):
-                log_and_raise(status.HTTP_401_UNAUTHORIZED, reason="missing basic auth")
+                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="missing basic auth")
             user, password = self._parse_basic_auth(header)
             if user != cfg.user or password != cfg.password:
-                log_and_raise(status.HTTP_401_UNAUTHORIZED, reason="bad basic auth")
+                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="bad basic auth")
             self.username = user
             self.password = password
         elif self._bearer_auth_required(cfg):
             if not header.startswith(self._bearer_prefix):
                 log_and_raise(
-                    status.HTTP_401_UNAUTHORIZED, reason="missing bearer auth"
+                    HTTPStatus.UNAUTHORIZED.valueD, reason="missing bearer auth"
                 )
             token = header[len(self._bearer_prefix) :]
             if token != cfg.token:
-                log_and_raise(status.HTTP_401_UNAUTHORIZED, reason="bad basic auth")
+                log_and_raise(HTTPStatus.UNAUTHORIZED.value, reason="bad basic auth")
             self.token = token
 
     @staticmethod

@@ -20,6 +20,7 @@ import requests
 import urllib3
 import pandas as pd
 
+import mlrun.errors
 from mlrun.utils import logger
 
 verify_ssl = False
@@ -265,34 +266,35 @@ def basic_auth_header(user, password):
 
 def http_get(url, headers=None, auth=None):
     try:
-        resp = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
+        response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
 
-    if not resp.ok:
-        raise OSError('failed to read file in {}'.format(url))
-    return resp.content
+    mlrun.errors.raise_for_status(response)
+
+    return response.content
 
 
 def http_head(url, headers=None, auth=None):
     try:
-        resp = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
+        response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
-    if not resp.ok:
-        raise OSError('failed to read file head in {}'.format(url))
-    return resp.headers
+
+    mlrun.errors.raise_for_status(response)
+
+    return response.headers
 
 
 def http_put(url, data, headers=None, auth=None):
     try:
-        resp = requests.put(
+        response = requests.put(
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as e:
         raise OSError('error: cannot connect to {}: {}'.format(url, e))
-    if not resp.ok:
-        raise OSError('failed to upload to {} {}'.format(url, resp.status_code))
+
+    mlrun.errors.raise_for_status(response)
 
 
 def http_upload(url, file_path, headers=None, auth=None):

@@ -25,7 +25,9 @@ def get_files(
     objpath = get_obj_path(schema, objpath, user=user)
     if not objpath:
         log_and_raise(
-            HTTPStatus.NOT_FOUND.value, path=objpath, err="illegal path prefix or schema"
+            HTTPStatus.NOT_FOUND.value,
+            path=objpath,
+            err="illegal path prefix or schema",
         )
 
     secrets = get_secrets(request)

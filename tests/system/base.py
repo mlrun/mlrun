@@ -30,6 +30,10 @@ class TestMLRunSystem:
         self._test_env = {}
         self._old_env = {}
         self._setup_env(self._get_env_from_file())
+
+        # the dbpath is already configured on the test startup before this stage
+        # so even though we set the env var, we still need to directly configure
+        # it in mlconf.
         mlconf.dbpath = self._test_env['MLRUN_DBPATH']
 
         self.custom_setup()

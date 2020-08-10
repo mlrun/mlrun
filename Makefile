@@ -288,7 +288,7 @@ html-docs: docs-requirements ## Build html docs
 	cd docs && make html
 
 .PHONY: html-docs-dockerized
-html-docs-dockerized: ## Build html docs dockerized
+html-docs-dockerized: build-test ## Build html docs dockerized
 	docker run \
 		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \

@@ -325,7 +325,6 @@ def parse_function_uri(uri):
         hash_key = uri[loc + 1 :]
         uri = uri[:loc]
 
-    project = project or config.default_project
     return project, uri, tag, hash_key
 
 

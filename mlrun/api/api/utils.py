@@ -123,8 +123,8 @@ def submit(db_session: Session, data):
 
             response = {
                 "schedule": schedule,
-                "project": fn.metadata.project,
-                "name": fn.metadata.name,
+                "project": task['metadata']['project'],
+                "name": task['metadata']['name'],
             }
         else:
             run = fn.run(task, watch=False)

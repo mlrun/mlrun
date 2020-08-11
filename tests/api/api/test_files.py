@@ -1,16 +1,23 @@
 from http import HTTPStatus
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.common_fixtures import patch_file_forbidden, patch_file_not_found
+# fixtures for test, aren't used directly so we need to ignore the lint here
+from tests.common_fixtures import (  # noqa: F401
+    patch_file_forbidden,
+    patch_file_not_found,
+)
 
 
-def test_files_forbidden(patch_file_forbidden, db: Session, client: TestClient) -> None:
+@pytest.mark.usefixtures("patch_file_forbidden")
+def test_files_forbidden(db: Session, client: TestClient) -> None:
     validate_files_status_code(client, HTTPStatus.FORBIDDEN.value)
 
 
-def test_files_not_found(patch_file_not_found, db: Session, client: TestClient) -> None:
+@pytest.mark.usefixtures("patch_file_not_found")
+def test_files_not_found(db: Session, client: TestClient) -> None:
     validate_files_status_code(client, HTTPStatus.NOT_FOUND.value)
 
 

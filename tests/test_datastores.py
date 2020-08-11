@@ -11,20 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from http import HTTPStatus
 from os import listdir
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock
 
 import pandas as pd
 import pytest
-import requests
-import v3io.dataplane
 
 import mlrun
 import mlrun.errors
 from tests.conftest import rundb_path
-from tests.common_fixtures import patch_file_forbidden
+
+# fixtures for test, aren't used directly so we need to ignore the lint here
+from tests.common_fixtures import patch_file_forbidden  # noqa: F401
 
 mlrun.mlconf.dbpath = rundb_path
 
@@ -104,7 +102,8 @@ def test_parse_url_preserve_case():
     assert expected_endpoint, endpoint
 
 
-def test_forbidden_file_access(patch_file_forbidden):
+@pytest.mark.usefixtures("patch_file_forbidden")
+def test_forbidden_file_access():
     store = mlrun.datastore.datastore.StoreManager(
         secrets={'V3IO_ACCESS_KEY': 'some-access-key'}
     )

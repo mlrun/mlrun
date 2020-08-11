@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, Request, Header, status
+from http import HTTPStatus
 from typing import Optional
+
+from fastapi import APIRouter, Depends, Request, Header
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -24,7 +26,7 @@ async def submit_job(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(status.HTTP_400_BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     # enrich job task with the username from the request header
     if username:

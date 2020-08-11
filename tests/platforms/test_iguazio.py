@@ -1,8 +1,8 @@
 import os
+from http import HTTPStatus
 from unittest.mock import Mock
 
 import requests
-from fastapi import status
 
 from mlrun.platforms import add_or_refresh_credentials
 
@@ -19,7 +19,7 @@ def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
     def mock_get(*args, **kwargs):
         not_found_response_mock = Mock()
         not_found_response_mock.ok = False
-        not_found_response_mock.status_code = status.HTTP_404_NOT_FOUND
+        not_found_response_mock.status_code = HTTPStatus.NOT_FOUND.value
         return not_found_response_mock
 
     def mock_session(*args, **kwargs):

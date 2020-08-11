@@ -1,5 +1,7 @@
+from http import HTTPStatus
+
 from fastapi import APIRouter, Depends
-from fastapi import status, Response
+from fastapi import Response
 from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
@@ -26,7 +28,7 @@ def list_runtimes(label_selector: str = None):
 def get_runtime(kind: str, label_selector: str = None):
     if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(
-            status.HTTP_400_BAD_REQUEST, kind=kind, err='Invalid runtime kind'
+            HTTPStatus.BAD_REQUEST.value, kind=kind, err='Invalid runtime kind'
         )
     runtime_handler = get_runtime_handler(kind)
     resources = runtime_handler.list_resources(label_selector)
@@ -48,7 +50,7 @@ def delete_runtimes(
         runtime_handler.delete_resources(
             get_db(), db_session, label_selector, force, grace_period
         )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.delete("/runtimes/{kind}")
@@ -61,13 +63,13 @@ def delete_runtime(
 ):
     if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(
-            status.HTTP_400_BAD_REQUEST, kind=kind, err='Invalid runtime kind'
+            HTTPStatus.BAD_REQUEST.value, kind=kind, err='Invalid runtime kind'
         )
     runtime_handler = get_runtime_handler(kind)
     runtime_handler.delete_resources(
         get_db(), db_session, label_selector, force, grace_period
     )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 # FIXME: find a more REST-y path
@@ -82,10 +84,10 @@ def delete_runtime_object(
 ):
     if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(
-            status.HTTP_400_BAD_REQUEST, kind=kind, err='Invalid runtime kind'
+            HTTPStatus.BAD_REQUEST.value, kind=kind, err='Invalid runtime kind'
         )
     runtime_handler = get_runtime_handler(kind)
     runtime_handler.delete_runtime_object_resources(
         get_db(), db_session, object_id, label_selector, force, grace_period
     )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)

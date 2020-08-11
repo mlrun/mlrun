@@ -1,9 +1,9 @@
-from fastapi import status
+from http import HTTPStatus
 
 from sqlalchemy.orm import Session
 
-from mlrun.api.constants import LogSources
 from mlrun.api.api.utils import log_and_raise, log_path
+from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.utils import get_in, now_date, update_in
@@ -38,7 +38,7 @@ class Logs:
         elif source in [LogSources.AUTO, LogSources.K8S]:
             data = get_db().read_run(db_session, uid, project)
             if not data:
-                log_and_raise(status.HTTP_404_NOT_FOUND, project=project, uid=uid)
+                log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
 
             pod_status = get_in(data, "status.state", "")
             if get_k8s():

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Response, status
+from http import HTTPStatus
+
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -22,7 +24,7 @@ def create_schedule(
         schedule.scheduled_object,
         schedule.cron_trigger,
     )
-    return Response(status_code=status.HTTP_201_CREATED)
+    return Response(status_code=HTTPStatus.CREATED.value)
 
 
 @router.get("/projects/{project}/schedules", response_model=schemas.SchedulesOutput)
@@ -48,4 +50,4 @@ def delete_schedule(
     project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().delete_schedule(db_session, project, name)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)

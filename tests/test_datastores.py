@@ -11,18 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from http import HTTPStatus
 from os import listdir
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock
 
 import pandas as pd
-import requests
-from fastapi import status
-from unittest.mock import Mock
 import pytest
+import requests
+import v3io.dataplane
 
 import mlrun
 import mlrun.errors
-import v3io.dataplane
 from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
@@ -113,7 +113,7 @@ def test_forbidden_file_access(monkeypatch):
 
     def mock_get(*args, **kwargs):
         mock_forbidden_response = Mock()
-        mock_forbidden_response.status_code = status.HTTP_403_FORBIDDEN
+        mock_forbidden_response.status_code = HTTPStatus.FORBIDDEN.value
         mock_forbidden_response.raise_for_status = Mock(
             side_effect=requests.HTTPError('Error', response=mock_forbidden_response)
         )
@@ -131,16 +131,16 @@ def test_forbidden_file_access(monkeypatch):
         obj = store.object('v3io://some-system/some-dir/')
         obj.listdir()
 
-    assert access_denied_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+    assert access_denied_exc.value.response.status_code == HTTPStatus.FORBIDDEN.value
 
     with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.get()
 
-    assert access_denied_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+    assert access_denied_exc.value.response.status_code == HTTPStatus.FORBIDDEN.value
 
     with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.stat()
 
-    assert access_denied_exc.value.response.status_code == status.HTTP_403_FORBIDDEN
+    assert access_denied_exc.value.response.status_code == HTTPStatus.FORBIDDEN.value

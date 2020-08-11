@@ -24,6 +24,7 @@ import v3io.dataplane
 import mlrun
 import mlrun.errors
 from tests.conftest import rundb_path
+from tests.common_fixtures import patch_file_forbidden
 
 mlrun.mlconf.dbpath = rundb_path
 
@@ -103,44 +104,19 @@ def test_parse_url_preserve_case():
     assert expected_endpoint, endpoint
 
 
-def test_forbidden_file_access(monkeypatch):
-    class MockV3ioClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def get_container_contents(self, *args, **kwargs):
-            raise RuntimeError('Permission denied')
-
-    def mock_get(*args, **kwargs):
-        mock_forbidden_response = Mock()
-        mock_forbidden_response.status_code = HTTPStatus.FORBIDDEN.value
-        mock_forbidden_response.raise_for_status = Mock(
-            side_effect=requests.HTTPError('Error', response=mock_forbidden_response)
-        )
-        return mock_forbidden_response
-
-    monkeypatch.setattr(requests, "get", mock_get)
-    monkeypatch.setattr(requests, "head", mock_get)
-    monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
-
+def test_forbidden_file_access(patch_file_forbidden):
     store = mlrun.datastore.datastore.StoreManager(
         secrets={'V3IO_ACCESS_KEY': 'some-access-key'}
     )
 
-    with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
+    with pytest.raises(mlrun.errors.AccessDeniedError):
         obj = store.object('v3io://some-system/some-dir/')
         obj.listdir()
 
-    assert access_denied_exc.value.response.status_code == HTTPStatus.FORBIDDEN.value
-
-    with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
+    with pytest.raises(mlrun.errors.AccessDeniedError):
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.get()
 
-    assert access_denied_exc.value.response.status_code == HTTPStatus.FORBIDDEN.value
-
-    with pytest.raises(mlrun.errors.AccessDeniedError) as access_denied_exc:
+    with pytest.raises(mlrun.errors.AccessDeniedError):
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.stat()
-
-    assert access_denied_exc.value.response.status_code == HTTPStatus.FORBIDDEN.value

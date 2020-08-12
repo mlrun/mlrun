@@ -136,7 +136,10 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         completion_time = None
         if not in_transient_state:
             completion_time = datetime.fromisoformat(
-                crd_object.get('status', {}).get('completionTime').replace('Z', '+00:00'))
+                crd_object.get('status', {})
+                .get('completionTime')
+                .replace('Z', '+00:00')
+            )
             desired_run_state = {
                 'Succeeded': RunStates.completed,
                 'Failed': RunStates.error,

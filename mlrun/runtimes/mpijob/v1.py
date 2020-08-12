@@ -177,15 +177,28 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
-        launcher_status = crd_object.get('status', {}).get('replicaStatuses', {}).get('Launcher', {})
-        # the launcher status also has running property, but it's empty for short period after the creation, so we're checking transient state by negating the completion states
-        in_transient_state = not (launcher_status.get('succeeded', 0) > 0 or launcher_status.get('failed', 0) > 0)
+        launcher_status = (
+            crd_object.get('status', {}).get('replicaStatuses', {}).get('Launcher', {})
+        )
+        # the launcher status also has running property, but it's empty for short period after the creation, so we're
+        # checking transient state by negating the completion states
+        in_transient_state = not (
+            launcher_status.get('succeeded', 0) > 0
+            or launcher_status.get('failed', 0) > 0
+        )
         desired_run_state = None
         completion_time = None
         if not in_transient_state:
             completion_time = datetime.fromisoformat(
-                crd_object.get('status', {}).get('completionTime').replace('Z', '+00:00'))
-            desired_run_state = RunStates.completed if launcher_status.get('succeeded', 0) > 0 else RunStates.error
+                crd_object.get('status', {})
+                .get('completionTime')
+                .replace('Z', '+00:00')
+            )
+            desired_run_state = (
+                RunStates.completed
+                if launcher_status.get('succeeded', 0) > 0
+                else RunStates.error
+            )
         return in_transient_state, completion_time, desired_run_state
 
     @staticmethod

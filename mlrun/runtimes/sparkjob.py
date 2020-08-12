@@ -344,7 +344,11 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         desired_run_state = None
         completion_time = None
         if not in_transient_state:
-            completion_time = datetime.fromisoformat(crd_object.get('status', {}).get('terminationTime').replace('Z', '+00:00'))
+            completion_time = datetime.fromisoformat(
+                crd_object.get('status', {})
+                .get('terminationTime')
+                .replace('Z', '+00:00')
+            )
             desired_run_state = {
                 'COMPLETED': RunStates.completed,
                 'FAILED': RunStates.error,

@@ -866,10 +866,17 @@ class BaseRuntimeHandler(ABC):
             desired_run_state = PodPhases.pod_phase_to_run_state(pod.status.phase)
             for container_status in pod.status.container_statuses:
                 if hasattr(container_status.state, 'terminated'):
-                    container_completion_time = datetime.fromisoformat(container_status.state.terminated.finishedAt.replace('Z', '+00:00'))
+                    container_completion_time = datetime.fromisoformat(
+                        container_status.state.terminated.finishedAt.replace(
+                            'Z', '+00:00'
+                        )
+                    )
 
                     # take latest completion time
-                    if not completion_time or completion_time < container_completion_time:
+                    if (
+                        not completion_time
+                        or completion_time < container_completion_time
+                    ):
                         completion_time = container_completion_time
 
         return in_transient_state, completion_time, desired_run_state
@@ -957,17 +964,19 @@ class BaseRuntimeHandler(ABC):
                     self._delete_pod(namespace, pod)
                     continue
 
-                in_transient_state, last_update, desired_run_state = self._resolve_pod_status_info(
-                    db, db_session, pod
-                )
+                (
+                    in_transient_state,
+                    last_update,
+                    desired_run_state,
+                ) = self._resolve_pod_status_info(db, db_session, pod)
                 if in_transient_state:
                     continue
 
                 # give some grace period if we have last update time
                 now = datetime.now(timezone.utc)
                 if (
-                        last_update is not None
-                        and last_update + timedelta(seconds=float(grace_period)) > now
+                    last_update is not None
+                    and last_update + timedelta(seconds=float(grace_period)) > now
                 ):
                     continue
 
@@ -1016,17 +1025,19 @@ class BaseRuntimeHandler(ABC):
                         )
                         continue
 
-                    in_transient_state, last_update, desired_run_state = self._resolve_crd_object_status_info(
-                        db, db_session, crd_object
-                    )
+                    (
+                        in_transient_state,
+                        last_update,
+                        desired_run_state,
+                    ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
                     if in_transient_state:
                         continue
 
                     # give some grace period if we have last update time
                     now = datetime.now(timezone.utc)
                     if (
-                            last_update is not None
-                            and last_update + timedelta(seconds=float(grace_period)) > now
+                        last_update is not None
+                        and last_update + timedelta(seconds=float(grace_period)) > now
                     ):
                         continue
 
@@ -1050,21 +1061,23 @@ class BaseRuntimeHandler(ABC):
         db: DBInterface,
         db_session: Session,
         runtime_resource: Dict,
-        desired_run_state: str
+        desired_run_state: str,
     ):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
         # if cannot resolve related run nothing to do
         if not uid:
-            logger.debug('Could not resolve run uid from runtime resource. Skipping pre-deletion actions',
-                         runtime_resource=runtime_resource)
+            logger.debug(
+                'Could not resolve run uid from runtime resource. Skipping pre-deletion actions',
+                runtime_resource=runtime_resource,
+            )
             return
 
-        self._ensure_runtime_resource_run_status_updated(db, db_session, project, uid, desired_run_state)
-
-        self._ensure_runtime_resource_run_logs_collected(
-            db, db_session, project, uid
+        self._ensure_runtime_resource_run_status_updated(
+            db, db_session, project, uid, desired_run_state
         )
+
+        self._ensure_runtime_resource_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_transient_state(
         self, db: DBInterface, db_session: Session, runtime_resource: Dict,
@@ -1097,7 +1110,7 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _ensure_runtime_resource_run_logs_collected(
-            db: DBInterface, db_session: Session, project: str, uid: str
+        db: DBInterface, db_session: Session, project: str, uid: str
     ):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
@@ -1130,18 +1143,29 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _ensure_runtime_resource_run_status_updated(
-            db: DBInterface, db_session: Session, project: str, uid: str, desired_run_state: str
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        uid: str,
+        desired_run_state: str,
     ):
         try:
             run = db.read_run(db_session, uid, project)
         except mlrun.errors.NotFoundError:
             # If run doesn't exist we don't want to create it
-            logger.debug('Could not find runtime resource run. Skipping pre-deletion actions', uid=uid, project=project)
+            logger.debug(
+                'Could not find runtime resource run. Skipping pre-deletion actions',
+                uid=uid,
+                project=project,
+            )
             return
 
         current_run_state = run.get('status', {}).get('state')
-        logger.debug('Checking whether need to update run status', desired_run_state=desired_run_state,
-                     current_run_state=current_run_state)
+        logger.debug(
+            'Checking whether need to update run status',
+            desired_run_state=desired_run_state,
+            current_run_state=current_run_state,
+        )
         update_run = True
         if current_run_state:
             if current_run_state == desired_run_state:

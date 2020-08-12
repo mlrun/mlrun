@@ -866,11 +866,8 @@ class BaseRuntimeHandler(ABC):
             desired_run_state = PodPhases.pod_phase_to_run_state(pod.status.phase)
             for container_status in pod.status.container_statuses:
                 if hasattr(container_status.state, 'terminated'):
-                    container_completion_time = datetime.fromisoformat(
-                        container_status.state.terminated.finished_at.replace(
-                            'Z', '+00:00'
-                        )
-                    )
+                    datetime.now().replace()
+                    container_completion_time = container_status.state.terminated.finished_at
 
                     # take latest completion time
                     if (

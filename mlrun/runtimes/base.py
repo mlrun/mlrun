@@ -978,9 +978,17 @@ class BaseRuntimeHandler(ABC):
                     continue
 
                 if self._consider_run_on_resources_deletion():
-                    self._pre_deletion_runtime_resource_run_actions(
-                        db, db_session, pod.to_dict(), desired_run_state
-                    )
+                    try:
+                        self._pre_deletion_runtime_resource_run_actions(
+                            db, db_session, pod.to_dict(), desired_run_state
+                        )
+                    except Exception as exc:
+                        # Don't prevent the deletion for failure in the pre deletion run actions
+                        logger.warning(
+                            'Failure in pod run pre-deletion actions. Continuing',
+                            exc=str(exc),
+                            pod_name=pod.metadata.name,
+                        )
 
                 self._delete_pod(namespace, pod)
             except Exception:
@@ -1039,9 +1047,18 @@ class BaseRuntimeHandler(ABC):
                         continue
 
                     if self._consider_run_on_resources_deletion():
-                        self._pre_deletion_runtime_resource_run_actions(
-                            db, db_session, crd_object, desired_run_state
-                        )
+
+                        try:
+                            self._pre_deletion_runtime_resource_run_actions(
+                                db, db_session, crd_object, desired_run_state
+                            )
+                        except Exception as exc:
+                            # Don't prevent the deletion for failure in the pre deletion run actions
+                            logger.warning(
+                                'Failure in crd object run pre-deletion actions. Continuing',
+                                exc=str(exc),
+                                crd_object_name=crd_object['metadata']['name'],
+                            )
 
                     self._delete_crd(
                         namespace, crd_group, crd_version, crd_plural, crd_object
@@ -1064,11 +1081,11 @@ class BaseRuntimeHandler(ABC):
 
         # if cannot resolve related run nothing to do
         if not uid:
-            logger.debug(
+            logger.warning(
                 'Could not resolve run uid from runtime resource. Skipping pre-deletion actions',
                 runtime_resource=runtime_resource,
             )
-            return
+            raise ValueError('Could not resolve run uid from runtime resource')
 
         self._ensure_runtime_resource_run_status_updated(
             db, db_session, project, uid, desired_run_state
@@ -1146,16 +1163,7 @@ class BaseRuntimeHandler(ABC):
         uid: str,
         desired_run_state: str,
     ):
-        try:
-            run = db.read_run(db_session, uid, project)
-        except mlrun.errors.NotFoundError:
-            # If run doesn't exist we don't want to create it
-            logger.warning(
-                'Could not find runtime resource run. Skipping pre-deletion actions',
-                uid=uid,
-                project=project,
-            )
-            return
+        run = db.read_run(db_session, uid, project)
 
         current_run_state = run.get('status', {}).get('state')
         logger.debug(

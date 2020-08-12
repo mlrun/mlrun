@@ -13,11 +13,10 @@ from mlrun import (
 )
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMLRunExamples
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-class TestDask(TestMLRunExamples):
+class TestDask(TestMLRunSystem):
     def custom_setup(self):
         self._logger.debug('Creating dask function')
         self.dask_function = code_to_function(

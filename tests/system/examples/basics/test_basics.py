@@ -8,11 +8,10 @@ from mlrun import run_local, NewTask
 from mlrun.artifacts import PlotArtifact
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMLRunExamples
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-class TestBasics(TestMLRunExamples):
+class TestBasics(TestMLRunSystem):
     def custom_setup(self):
         self._logger.debug('Creating basics task')
 

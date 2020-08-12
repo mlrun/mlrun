@@ -1,11 +1,10 @@
 from mlrun import get_run_db, run_local, NewTask
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMLRunExamples
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-class TestDB(TestMLRunExamples):
+class TestDB(TestMLRunSystem):
     def custom_setup(self):
         self._logger.debug('Connecting to database')
         self._deb = get_run_db().connect()

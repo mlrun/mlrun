@@ -13,11 +13,10 @@ from mlrun import (
 from mlrun.platforms.other import mount_v3io
 
 from tests.system.base import TestMLRunSystem
-from tests.system.examples.base import TestMLRunExamples
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-class TestJobs(TestMLRunExamples):
+class TestJobs(TestMLRunSystem):
     def custom_setup(self):
         code_path = str(self.assets_path / 'jobs_function.py')
 

@@ -1,6 +1,7 @@
 import os
 import pathlib
 import pytest
+import sys
 import yaml
 
 from mlrun import get_run_db, mlconf
@@ -82,6 +83,10 @@ class TestMLRunSystem:
             reason=f'This is a system test, add the needed environment variables {*cls.mandatory_env_vars,} '
             'in tests/system/env.yml to run it',
         )(test)
+
+    @property
+    def assets_path(self):
+        return pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent / 'assets'
 
     @classmethod
     def _get_env_from_file(cls) -> dict:

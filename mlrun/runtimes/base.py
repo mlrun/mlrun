@@ -1132,7 +1132,7 @@ class BaseRuntimeHandler(ABC):
                 store_log = True
 
         if store_log:
-            logger.debug('Storing runtime resource log before deletion')
+            logger.info('Storing runtime resource log before deletion')
             logs_from_k8s, _ = crud.Logs.get_log(
                 db_session, project, uid, source=LogSources.K8S
             )
@@ -1150,7 +1150,7 @@ class BaseRuntimeHandler(ABC):
             run = db.read_run(db_session, uid, project)
         except mlrun.errors.NotFoundError:
             # If run doesn't exist we don't want to create it
-            logger.debug(
+            logger.warning(
                 'Could not find runtime resource run. Skipping pre-deletion actions',
                 uid=uid,
                 project=project,

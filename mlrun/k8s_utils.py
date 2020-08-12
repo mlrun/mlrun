@@ -258,7 +258,7 @@ class K8sHelper:
         selector = 'mlrun/class,mlrun/uid={}'.format(uid)
         pods = self.list_pods(selector=selector, namespace=namespace)
         if not pods:
-            logger.error('no pod matches that uid')
+            logger.error('no pod matches that uid', uid=uid)
             return
 
         kind = pods[0].metadata.labels.get('mlrun/class')

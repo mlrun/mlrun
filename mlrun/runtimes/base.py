@@ -13,26 +13,26 @@
 # limitations under the License.
 
 import getpass
-import uuid
 import traceback
+import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Tuple, Union, Optional
-from mlrun.api import schemas
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-
+import mlrun.errors
+import mlrun.utils.regex
+from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import verify_field_regex
-import mlrun.utils.regex
-from .constants import PodPhases, FunctionStates
+from .constants import PodPhases, RunStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
 from ..config import config
@@ -836,21 +836,43 @@ class BaseRuntimeHandler(ABC):
         """
         pass
 
-    def _is_crd_object_in_transient_state(
+    def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
-    ) -> bool:
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         Override this if the runtime has CRD resources.
-        this should return a bool determining whether the CRD object is in transient state
+        :return: Tuple with:
+        1. bool determining whether the pod is in transient state
+        2. datetime of when the pod got into stable state (only when the pod in stable state)
+        3. the desired run state matching the pod state (only when the pod in stable state)
         """
-        return False
+        return False, None, None
 
-    def _is_pod_in_transient_state(
+    def _resolve_pod_status_info(
         self, db: DBInterface, db_session: Session, pod
-    ) -> bool:
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+        """
+        :return: Tuple with:
+        1. bool determining whether the pod is in transient state
+        2. datetime of when the pod got into stable state (only when the pod in stable state)
+        3. the desired run state matching the pod state (only when the pod in stable state)
+        """
         # it is less likely that there will be new stable states, or the existing ones will change so better to
         # resolve whether it's a transient state by checking if it's not a stable state
-        return pod.status.phase not in PodPhases.stable_phases()
+        in_transient_state = pod.status.phase not in PodPhases.stable_phases()
+        desired_run_state = None
+        completion_time = None
+        if not in_transient_state:
+            desired_run_state = PodPhases.pod_phase_to_run_state(pod.status.phase)
+            for container_status in pod.status.container_statuses:
+                if hasattr(container_status.state, 'terminated'):
+                    container_completion_time = datetime.fromisoformat(container_status.state.terminated.finishedAt.replace('Z', '+00:00'))
+
+                    # take latest completion time
+                    if not completion_time or completion_time < container_completion_time:
+                        completion_time = container_completion_time
+
+        return in_transient_state, completion_time, desired_run_state
 
     @staticmethod
     def _get_default_label_selector() -> str:
@@ -935,18 +957,25 @@ class BaseRuntimeHandler(ABC):
                     self._delete_pod(namespace, pod)
                     continue
 
-                in_transient_state = self._is_pod_in_transient_state(
+                in_transient_state, last_update, desired_run_state = self._resolve_pod_status_info(
                     db, db_session, pod
                 )
                 if in_transient_state:
                     continue
 
+                # give some grace period if we have last update time
+                now = datetime.now(timezone.utc)
+                if (
+                        last_update is not None
+                        and last_update + timedelta(seconds=float(grace_period)) > now
+                ):
+                    continue
+
                 if self._consider_run_on_resources_deletion():
-                    should_delete = self._pre_deletion_runtime_resource_run_checks(
-                        db, db_session, pod.to_dict(), grace_period
+                    self._pre_deletion_runtime_resource_run_actions(
+                        db, db_session, pod.to_dict(), desired_run_state
                     )
-                    if not should_delete:
-                        continue
+
                 self._delete_pod(namespace, pod)
             except Exception:
                 exc = traceback.format_exc()
@@ -987,18 +1016,24 @@ class BaseRuntimeHandler(ABC):
                         )
                         continue
 
-                    in_transient_state = self._is_crd_object_in_transient_state(
+                    in_transient_state, last_update, desired_run_state = self._resolve_crd_object_status_info(
                         db, db_session, crd_object
                     )
                     if in_transient_state:
                         continue
 
+                    # give some grace period if we have last update time
+                    now = datetime.now(timezone.utc)
+                    if (
+                            last_update is not None
+                            and last_update + timedelta(seconds=float(grace_period)) > now
+                    ):
+                        continue
+
                     if self._consider_run_on_resources_deletion():
-                        should_delete = self._pre_deletion_runtime_resource_run_checks(
-                            db, db_session, crd_object, grace_period
+                        self._pre_deletion_runtime_resource_run_actions(
+                            db, db_session, crd_object, desired_run_state
                         )
-                        if not should_delete:
-                            continue
 
                     self._delete_crd(
                         namespace, crd_group, crd_version, crd_plural, crd_object
@@ -1010,45 +1045,60 @@ class BaseRuntimeHandler(ABC):
                         f'Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing'
                     )
 
-    def _pre_deletion_runtime_resource_run_checks(
+    def _pre_deletion_runtime_resource_run_actions(
         self,
         db: DBInterface,
         db_session: Session,
         runtime_resource: Dict,
-        grace_period: int,
-    ) -> bool:
-        (
-            in_transient_state,
-            last_update,
-        ) = self._is_runtime_resource_run_in_transient_state(
-            db, db_session, runtime_resource
-        )
-        if in_transient_state:
-            return False
-
-        # give some grace period if we have last update time
-        now = datetime.now(timezone.utc)
-        if (
-            last_update is not None
-            and last_update + timedelta(seconds=float(grace_period)) > now
-        ):
-            return False
-
-        self._ensure_runtime_resource_run_logs_collected(
-            db, db_session, runtime_resource
-        )
-
-        return True
-
-    def _ensure_runtime_resource_run_logs_collected(
-        self, db: DBInterface, db_session: Session, runtime_resource: Dict
+        desired_run_state: str
     ):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
-        # if cannot resolve related run, assume collected
+        # if cannot resolve related run nothing to do
         if not uid:
+            logger.debug('Could not resolve run uid from runtime resource. Skipping pre-deletion actions',
+                         runtime_resource=runtime_resource)
             return
 
+        self._ensure_runtime_resource_run_status_updated(db, db_session, project, uid, desired_run_state)
+
+        self._ensure_runtime_resource_run_logs_collected(
+            db, db_session, project, uid
+        )
+
+    def _is_runtime_resource_run_in_transient_state(
+        self, db: DBInterface, db_session: Session, runtime_resource: Dict,
+    ) -> Tuple[bool, Optional[datetime]]:
+        """
+        A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
+        resource. This function will verify whether the Run object related to this runtime resource is in transient
+        state. This is useful in order to determine whether an object can be removed. for example, a kubejob's pod
+        might be in completed state, but we would like to verify that the run is completed as well to verify the logs
+        were collected before we're removing the pod.
+
+        :returns: bool determining whether the run in transient state, and the last update time if it exists
+        """
+        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+
+        # if no uid, assume in stable state
+        if not uid:
+            return False, None
+
+        run = db.read_run(db_session, uid, project)
+        last_update = None
+        last_update_str = run.get('status', {}).get('last_update')
+        if last_update_str is not None:
+            last_update = datetime.fromisoformat(last_update_str)
+
+        if run.get('status', {}).get('state') not in RunStates.stable_states():
+            return True, last_update
+
+        return False, last_update
+
+    @staticmethod
+    def _ensure_runtime_resource_run_logs_collected(
+            db: DBInterface, db_session: Session, project: str, uid: str
+    ):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
@@ -1078,34 +1128,33 @@ class BaseRuntimeHandler(ABC):
             )
             crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
-    def _is_runtime_resource_run_in_transient_state(
-        self, db: DBInterface, db_session: Session, runtime_resource: Dict,
-    ) -> Tuple[bool, Optional[datetime]]:
-        """
-        A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
-        resource. This function will verify whether the Run object related to this runtime resource is in transient
-        state. This is useful in order to determine whether an object can be removed. for example, a kubejob's pod
-        might be in completed state, but we would like to verify that the run is completed as well to verify the logs
-        were collected before we're removing the pod.
+    @staticmethod
+    def _ensure_runtime_resource_run_status_updated(
+            db: DBInterface, db_session: Session, project: str, uid: str, desired_run_state: str
+    ):
+        try:
+            run = db.read_run(db_session, uid, project)
+        except mlrun.errors.NotFoundError:
+            # If run doesn't exist we don't want to create it
+            logger.debug('Could not find runtime resource run. Skipping pre-deletion actions', uid=uid, project=project)
+            return
 
-        :returns: bool determining whether the run in transient state, and the last update time if it exists
-        """
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        current_run_state = run.get('status', {}).get('state')
+        logger.debug('Checking whether need to update run status', desired_run_state=desired_run_state,
+                     current_run_state=current_run_state)
+        update_run = True
+        if current_run_state:
+            if current_run_state == desired_run_state:
+                update_run = False
+            # if the current run state is stable and different then the desired - don't touch
+            if current_run_state in RunStates.stable_states():
+                update_run = False
 
-        # if no uid, assume in stable state
-        if not uid:
-            return False, None
-
-        run = db.read_run(db_session, uid, project)
-        last_update = None
-        last_update_str = run.get('status', {}).get('last_update')
-        if last_update_str is not None:
-            last_update = datetime.fromisoformat(last_update_str)
-
-        if run.get('status', {}).get('state') not in FunctionStates.stable_phases():
-            return True, last_update
-
-        return False, last_update
+        if update_run:
+            logger.info('Updating run status')
+            run.setdefault('status', {})['state'] = desired_run_state
+            run.setdefault('status', {})['last_update'] = now_date().isoformat()
+            db.store_run(db_session, run, uid, project)
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:

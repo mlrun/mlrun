@@ -986,15 +986,14 @@ class BaseRuntimeHandler(ABC):
                         # Don't prevent the deletion for failure in the pre deletion run actions
                         logger.warning(
                             'Failure in pod run pre-deletion actions. Continuing',
-                            exc=str(exc),
+                            exc=repr(exc),
                             pod_name=pod.metadata.name,
                         )
 
                 self._delete_pod(namespace, pod)
-            except Exception:
-                exc = traceback.format_exc()
+            except Exception as exc:
                 logger.warning(
-                    f'Cleanup failed processing pod {pod.metadata.name}: {exc}. Continuing'
+                    f'Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing'
                 )
 
     def _delete_crd_resources(
@@ -1208,7 +1207,7 @@ class BaseRuntimeHandler(ABC):
                 name,
                 client.V1DeleteOptions(),
             )
-            logger.info(f"Deleted crd object: {name}, {namespace}, {crd_plural}")
+            logger.info("Deleted crd object", name=name, namespace=namespace, crd_plural=crd_plural)
         except ApiException as e:
             # ignore error if crd object is already removed
             if e.status != 404:
@@ -1219,7 +1218,7 @@ class BaseRuntimeHandler(ABC):
         k8s_helper = get_k8s_helper()
         try:
             k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-            logger.info(f"Deleted pod: {pod.metadata.name}")
+            logger.info("Deleted pod", pod=pod.metadata.name)
         except ApiException as e:
             # ignore error if pod is already removed
             if e.status != 404:

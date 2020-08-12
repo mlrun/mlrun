@@ -867,7 +867,7 @@ class BaseRuntimeHandler(ABC):
             for container_status in pod.status.container_statuses:
                 if hasattr(container_status.state, 'terminated'):
                     container_completion_time = datetime.fromisoformat(
-                        container_status.state.terminated.finishedAt.replace(
+                        container_status.state.terminated.finished_at.replace(
                             'Z', '+00:00'
                         )
                     )

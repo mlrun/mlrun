@@ -86,7 +86,10 @@ class TestMLRunSystem:
 
     @property
     def assets_path(self):
-        return pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent / 'assets'
+        return (
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / 'assets'
+        )
 
     @classmethod
     def _get_env_from_file(cls) -> dict:

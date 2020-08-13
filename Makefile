@@ -26,6 +26,8 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
 MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
 
+MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
+
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -41,6 +43,18 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
+
+.PHONY: bump-version
+bump-version: ## Bump version in all needed places in code
+ifndef MLRUN_NEW_VERSION
+	$(error MLRUN_NEW_VERSION is undefined)
+endif
+ifndef MLRUN_OLD_VERSION
+	$(error MLRUN_OLD_VERSION is undefined)
+endif
+	echo $(MLRUN_OLD_VERSION_ESCAPED)
+	find . \( ! -regex '.*/\..*' \) -a \( -iname \*.md -o -iname \*.txt -o -iname \*.yaml -o -iname \*.yml \) -type f -print0  | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
+	sed -i '' -e "s/__version__[[:space:]]=[[:space:]]'$(MLRUN_OLD_VERSION_ESCAPED)'/__version__ = '$(MLRUN_NEW_VERSION)'/g" ./mlrun/__init__.py
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

@@ -16,10 +16,12 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
-from dateutil.parser import parse as parse_time
 
 import yaml
+from dateutil.parser import parse as parse_time
 
+import mlrun.errors
+from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
@@ -33,7 +35,6 @@ from ..utils import (
     update_in,
     fill_function_hash,
 )
-from .base import RunDBError, RunDBInterface
 
 run_logs = 'runs'
 artifacts_dir = 'artifacts'
@@ -102,7 +103,7 @@ class FileRunDB(RunDBInterface):
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
-            raise RunDBError(uid)
+            raise mlrun.errors.NotFoundError(uid)
         data = self._datastore.get(filepath)
         return self._loads(data)
 

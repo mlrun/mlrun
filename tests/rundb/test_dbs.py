@@ -16,9 +16,10 @@ from tempfile import mkdtemp
 
 import pytest
 
-from tests.conftest import new_run, run_now, init_sqldb
-from mlrun.db import SQLDB, FileRunDB, RunDBError, sqldb
+import mlrun.errors
+from mlrun.db import SQLDB, FileRunDB, sqldb
 from mlrun.db.base import RunDBInterface
+from tests.conftest import new_run, run_now, init_sqldb
 
 dbs = [
     'sql',
@@ -119,7 +120,7 @@ def test_runs(db: RunDBInterface):
     assert run3 == runs[0], 'state run'
 
     db.del_run(uid3)
-    with pytest.raises(RunDBError):
+    with pytest.raises(mlrun.errors.NotFoundError):
         db.read_run(uid3)
 
     label = 'l1'

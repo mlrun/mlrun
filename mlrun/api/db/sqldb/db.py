@@ -6,6 +6,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -118,7 +119,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise DBError(f"Run {uid}:{project} not found")
+            raise mlrun.errors.NotFoundError(f"Run {uid}:{project} not found")
         return run.struct
 
     def list_runs(

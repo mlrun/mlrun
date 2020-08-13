@@ -14,14 +14,15 @@
 
 import time
 from copy import deepcopy
-from typing import Tuple
+from datetime import datetime
+from typing import Tuple, Optional
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
-from .base import RunError
+from .base import RunError, RunStates
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from ..execution import MLClientCtx
@@ -333,17 +334,26 @@ class SparkRuntime(KubejobRuntime):
 
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
-    def _is_crd_object_in_transient_state(
+    def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
-    ) -> bool:
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
-        if crd_object.get('status', {}).get('applicationState', {}).get(
-            'state'
-        ) not in ['COMPLETED', 'FAILED']:
-            return True
-
-        return False
+        state = crd_object.get('status', {}).get('applicationState', {}).get('state')
+        in_transient_state = state not in ['COMPLETED', 'FAILED']
+        desired_run_state = None
+        completion_time = None
+        if not in_transient_state:
+            completion_time = datetime.fromisoformat(
+                crd_object.get('status', {})
+                .get('terminationTime')
+                .replace('Z', '+00:00')
+            )
+            desired_run_state = {
+                'COMPLETED': RunStates.completed,
+                'FAILED': RunStates.error,
+            }[state]
+        return in_transient_state, completion_time, desired_run_state
 
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:

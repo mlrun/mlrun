@@ -14,6 +14,7 @@
 import shlex
 import typing
 from copy import deepcopy
+from datetime import datetime
 
 from kubernetes import client
 from sqlalchemy.orm import Session
@@ -21,7 +22,7 @@ from sqlalchemy.orm import Session
 from mlrun.api.db.base import DBInterface
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
-from mlrun.runtimes.base import BaseRuntimeHandler
+from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
 from mlrun.runtimes.constants import MPIJobCRDVersions
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import update_in, get_in
@@ -173,12 +174,32 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
 
 class MpiV1RuntimeHandler(BaseRuntimeHandler):
-    def _is_crd_object_in_transient_state(
+    def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
-    ) -> bool:
-        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
-        # whether it's a transient state by checking if it's not a stable state
-        return crd_object.get('status', {}).get('completionTime', None) is None
+    ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
+        launcher_status = (
+            crd_object.get('status', {}).get('replicaStatuses', {}).get('Launcher', {})
+        )
+        # the launcher status also has running property, but it's empty for short period after the creation, so we're
+        # checking transient state by negating the completion states
+        in_transient_state = not (
+            launcher_status.get('succeeded', 0) > 0
+            or launcher_status.get('failed', 0) > 0
+        )
+        desired_run_state = None
+        completion_time = None
+        if not in_transient_state:
+            completion_time = datetime.fromisoformat(
+                crd_object.get('status', {})
+                .get('completionTime')
+                .replace('Z', '+00:00')
+            )
+            desired_run_state = (
+                RunStates.completed
+                if launcher_status.get('succeeded', 0) > 0
+                else RunStates.error
+            )
+        return in_transient_state, completion_time, desired_run_state
 
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:

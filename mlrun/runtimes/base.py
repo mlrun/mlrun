@@ -867,7 +867,9 @@ class BaseRuntimeHandler(ABC):
             for container_status in pod.status.container_statuses:
                 if hasattr(container_status.state, 'terminated'):
                     datetime.now().replace()
-                    container_completion_time = container_status.state.terminated.finished_at
+                    container_completion_time = (
+                        container_status.state.terminated.finished_at
+                    )
 
                     # take latest completion time
                     if (
@@ -1207,7 +1209,12 @@ class BaseRuntimeHandler(ABC):
                 name,
                 client.V1DeleteOptions(),
             )
-            logger.info("Deleted crd object", name=name, namespace=namespace, crd_plural=crd_plural)
+            logger.info(
+                "Deleted crd object",
+                name=name,
+                namespace=namespace,
+                crd_plural=crd_plural,
+            )
         except ApiException as e:
             # ignore error if crd object is already removed
             if e.status != 404:

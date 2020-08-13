@@ -32,7 +32,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         'spec': {
             'containers': [
                 {
-                    'image': 'mlrun/mpijob',
+                    'image': 'mlrun/ml-models',
                     'name': 'base',
                     'command': [],
                     'env': [],

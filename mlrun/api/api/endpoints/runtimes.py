@@ -38,7 +38,7 @@ def get_runtime(kind: str, label_selector: str = None):
     }
 
 
-@router.delete("/runtimes")
+@router.delete("/runtimes", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_runtimes(
     label_selector: str = None,
     force: bool = False,
@@ -53,7 +53,7 @@ def delete_runtimes(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.delete("/runtimes/{kind}")
+@router.delete("/runtimes/{kind}", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_runtime(
     kind: str,
     label_selector: str = None,
@@ -73,7 +73,7 @@ def delete_runtime(
 
 
 # FIXME: find a more REST-y path
-@router.delete("/runtimes/{kind}/{object_id}")
+@router.delete("/runtimes/{kind}/{object_id}", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_runtime_object(
     kind: str,
     object_id: str,

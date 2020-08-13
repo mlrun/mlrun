@@ -34,6 +34,14 @@ help: ## Display available commands
 all:
 	$(error please pick a target)
 
+.PHONY: install-requirements
+install-requirements: ## Install all requirements needed for development
+	python -m pip install \
+		-r requirements.txt \
+		-r dev-requirements.txt \
+		-r dockerfiles/mlrun-api/requirements.txt \
+		-r docs/requirements.txt
+
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
 	@echo Done.

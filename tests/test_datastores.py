@@ -170,6 +170,7 @@ def test_get_store_artifact_url_parsing():
             assert expected_tag == tag
             assert expected_iter == iter
             return {}
+
         db.read_artifact = mock_read_artifact
         store_manager.get_store_artifact(url)
 

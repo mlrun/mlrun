@@ -128,7 +128,7 @@ class StoreManager:
             if tag:
                 raise ValueError('Tag can not given both with : and with #')
             idx = key.rfind(':')
-            tag = key[idx + 1:]
+            tag = key[idx + 1 :]
             key = key[:idx]
         if '/' in key:
             idx = key.rfind('/')

@@ -20,12 +20,14 @@ RUN apt update -qqq \
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
+WORKDIR /mlrun
+
 COPY ./dockerfiles/base/requirements.txt ./
 
 RUN python -m pip install -r requirements.txt
 
 COPY . .
-RUN python setup.py install
+RUN python -m pip install .
 
 ARG MLRUN_MLUTILS_GITHUB_TAG=development
 ARG MLRUN_MLUTILS_CACHE_DATE=initial

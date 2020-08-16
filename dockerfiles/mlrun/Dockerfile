@@ -23,4 +23,4 @@ COPY ./requirements.txt ./
 RUN python -m pip install -r requirements.txt
 
 COPY . .
-RUN python setup.py install
+RUN python -m pip install .

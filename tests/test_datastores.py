@@ -150,6 +150,20 @@ def test_get_store_artifact_url_parsing():
             'iter': None,
         },
         {
+            'url': 'store:///ArtifacT_key/1:some_Tag',
+            'project': 'default',
+            'key': 'ArtifacT_key',
+            'tag': 'some_Tag',
+            'iter': 1,
+        },
+        {
+            'url': 'store:///ArtifacT_key/1#Some_Tag',
+            'project': 'default',
+            'key': 'ArtifacT_key',
+            'tag': 'Some_Tag',
+            'iter': 1,
+        },
+        {
             'url': 'store://Project_Name/Artifact_Key:ABC',
             'project': 'Project_Name',
             'key': 'Artifact_Key',

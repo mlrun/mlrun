@@ -72,7 +72,7 @@ COPY ./dockerfiles/models/requirements.txt ./
 RUN python -m pip install -r requirements.txt
 
 COPY . .
-RUN python setup.py install
+RUN python -m pip install .
 
 ARG MLRUN_MLUTILS_GITHUB_TAG=development
 ARG MLRUN_MLUTILS_CACHE_DATE=initial

@@ -124,6 +124,12 @@ class StoreManager:
         project = endpoint or project or config.default_project
         tag = parsed_url.fragment if parsed_url.fragment else ''
         iteration = None
+        if ':' in key:
+            if tag:
+                raise ValueError('Tag can not given both with : and with #')
+            idx = key.rfind(':')
+            tag = key[idx + 1 :]
+            key = key[:idx]
         if '/' in key:
             idx = key.rfind('/')
             try:

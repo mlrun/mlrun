@@ -122,6 +122,8 @@ RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     python -m pip install horovod && \
     ldconfig
 
+WORKDIR /mlrun
+
 # remove dask verify version mismatch warnings
 COPY ./dockerfiles/models-gpu/requirements.txt ./
 

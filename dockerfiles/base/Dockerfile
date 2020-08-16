@@ -20,6 +20,8 @@ RUN apt update -qqq \
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 
+WORKDIR /mlrun
+
 COPY ./dockerfiles/base/requirements.txt ./
 
 RUN python -m pip install -r requirements.txt

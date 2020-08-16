@@ -129,6 +129,8 @@ RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
 
 RUN conda clean -aqy
 
+WORKDIR /mlrun
+
 # do the dask package pinning with pip / faster
 COPY ./dockerfiles/models-gpu/requirements.txt ./
 

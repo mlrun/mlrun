@@ -64,7 +64,7 @@ RUN python -m pip install -U intel-tensorflow
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install horovod
 
-# dask, sklearn, etc...
+WORKDIR /mlrun
 
 COPY ./dockerfiles/models/requirements.txt ./
 

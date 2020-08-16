@@ -13,6 +13,7 @@
 # limitations under the License.
 from os import listdir
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -100,6 +101,77 @@ def test_parse_url_preserve_case():
     expected_endpoint = 'Hedi'
     _, endpoint, _ = mlrun.datastore.datastore.parse_url(url)
     assert expected_endpoint, endpoint
+
+
+def test_get_store_artifact_url_parsing():
+    db = Mock()
+    store_manager = mlrun.datastore.StoreManager(db=db)
+    cases = [
+        {
+            'url': 'store:///artifact_key',
+            'project': 'default',
+            'key': 'artifact_key',
+            'tag': '',
+            'iter': None,
+        },
+        {
+            'url': 'store://project_name/artifact_key',
+            'project': 'project_name',
+            'key': 'artifact_key',
+            'tag': '',
+            'iter': None,
+        },
+        {
+            'url': 'store://Project_Name/Artifact_Key#ABC',
+            'project': 'Project_Name',
+            'key': 'Artifact_Key',
+            'tag': 'ABC',
+            'iter': None,
+        },
+        {
+            'url': 'store://project_name/artifact_key#a5dc8e34a46240bb9a07cd9deb3609c7',
+            'project': 'project_name',
+            'key': 'artifact_key',
+            'tag': 'a5dc8e34a46240bb9a07cd9deb3609c7',
+            'iter': None,
+        },
+        {
+            'url': 'store://project_name/artifact_key/1',
+            'project': 'project_name',
+            'key': 'artifact_key',
+            'tag': '',
+            'iter': 1,
+        },
+        {
+            'url': 'store://project_name/artifact_key:latest',
+            'project': 'project_name',
+            'key': 'artifact_key',
+            'tag': 'latest',
+            'iter': None,
+        },
+        {
+            'url': 'store://Project_Name/Artifact_Key:ABC',
+            'project': 'Project_Name',
+            'key': 'Artifact_Key',
+            'tag': 'ABC',
+            'iter': None,
+        },
+    ]
+    for case in cases:
+        url = case['url']
+        expected_project = case['project']
+        expected_key = case['key']
+        expected_tag = case['tag']
+        expected_iter = case['iter']
+
+        def mock_read_artifact(key, tag=None, iter=None, project=''):
+            assert expected_project == project
+            assert expected_key == key
+            assert expected_tag == tag
+            assert expected_iter == iter
+            return {}
+        db.read_artifact = mock_read_artifact
+        store_manager.get_store_artifact(url)
 
 
 @pytest.mark.usefixtures("patch_file_forbidden")

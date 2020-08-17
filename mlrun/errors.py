@@ -34,6 +34,7 @@ class HTTPStatusableError(HTTPError):
     HTTP Statusable errors should inherit from this class and set the right status code in the
     error_status_code attribute
     """
+
     error_status_code = None
 
     def __init__(self, message: str, response: requests.Response = None):
@@ -55,7 +56,9 @@ def raise_for_status(response: requests.Response):
                 str(exc), response=response
             ) from exc
         except KeyError:
-            raise HTTPError(str(exc), response=response, status_code=response.status_code) from exc
+            raise HTTPError(
+                str(exc), response=response, status_code=response.status_code
+            ) from exc
 
 
 # Specific Errors

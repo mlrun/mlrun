@@ -1,8 +1,6 @@
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.exception_handlers import (
-    http_exception_handler,
-)
+from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.errors
 from mlrun.api.api.api import api_router
@@ -37,11 +35,17 @@ app.include_router(api_router, prefix="/api")
 
 
 @app.exception_handler(mlrun.errors.HTTPStatusableError)
-async def http_statusable_error_handler(request: Request, exc: mlrun.errors.HTTPStatusableError):
+async def http_statusable_error_handler(
+    request: Request, exc: mlrun.errors.HTTPStatusableError
+):
     status_code = exc.response.status_code
     error_message = repr(exc)
-    logger.warning('Failed handling request', error_message=error_message, status_code=status_code)
-    return await http_exception_handler(request, HTTPException(status_code=status_code, detail=error_message))
+    logger.warning(
+        'Failed handling request', error_message=error_message, status_code=status_code
+    )
+    return await http_exception_handler(
+        request, HTTPException(status_code=status_code, detail=error_message)
+    )
 
 
 @app.on_event("startup")

@@ -56,9 +56,7 @@ def raise_for_status(response: requests.Response):
                 str(exc), response=response
             ) from exc
         except KeyError:
-            raise HTTPError(
-                str(exc), response=response, status_code=response.status_code
-            ) from exc
+            raise HTTPError(str(exc), response=response) from exc
 
 
 # Specific Errors

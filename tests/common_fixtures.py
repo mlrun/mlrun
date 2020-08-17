@@ -5,22 +5,6 @@ import pytest
 import requests
 import v3io.dataplane
 
-import mlrun.k8s_utils
-from mlrun.k8s_utils import get_k8s_helper
-
-
-@pytest.fixture
-def k8s_helper_mock(monkeypatch):
-    class K8sHelperMock(Mock):
-        pass
-
-    monkeypatch.setattr(mlrun.k8s_utils, "K8sHelper", K8sHelperMock)
-
-    # call get_k8s_helper so that the mock instance will get into cache
-    k8s_helper_mock_instance = get_k8s_helper()
-
-    return k8s_helper_mock_instance
-
 
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):

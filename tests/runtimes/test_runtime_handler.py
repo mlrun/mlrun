@@ -1,8 +1,6 @@
 from unittest.mock import Mock
 
 from mlrun.runtimes import get_runtime_handler, RuntimeKinds
-# fixtures for test, aren't used directly so we need to ignore the lint here
-from tests.common_fixtures import k8s_helper_mock  # noqa: F401
 
 
 def test_list_kubejobs_resources(k8s_helper_mock):
@@ -16,7 +14,7 @@ def test_list_kubejobs_resources(k8s_helper_mock):
                 'mlrun/project': 'default',
                 'mlrun/scrape_metrics': 'False',
                 'mlrun/tag': 'latest',
-                'mlrun/uid': 'bba96b8313b640cd9143d7513000c47c'
+                'mlrun/uid': 'bba96b8313b640cd9143d7513000c47c',
             },
         },
         'status': {
@@ -27,7 +25,7 @@ def test_list_kubejobs_resources(k8s_helper_mock):
                     'message': None,
                     'reason': 'PodCompleted',
                     'status': 'True',
-                    'type': 'Initialized'
+                    'type': 'Initialized',
                 },
                 {
                     'last_probe_time': None,
@@ -35,7 +33,7 @@ def test_list_kubejobs_resources(k8s_helper_mock):
                     'message': None,
                     'reason': 'PodCompleted',
                     'status': 'False',
-                    'type': 'Ready'
+                    'type': 'Ready',
                 },
                 {
                     'last_probe_time': None,
@@ -43,7 +41,7 @@ def test_list_kubejobs_resources(k8s_helper_mock):
                     'message': None,
                     'reason': 'PodCompleted',
                     'status': 'False',
-                    'type': 'ContainersReady'
+                    'type': 'ContainersReady',
                 },
                 {
                     'last_probe_time': None,
@@ -51,18 +49,21 @@ def test_list_kubejobs_resources(k8s_helper_mock):
                     'message': None,
                     'reason': None,
                     'status': 'True',
-                    'type': 'PodScheduled'
-                }
+                    'type': 'PodScheduled',
+                },
             ],
             'container_statuses': [
                 {
                     'container_id': 'docker://c00c36dc9a702508c76b6074f2c2fa3e569daaf13f5a72931804da04a6e96987',
-                    'image': 'docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.com:80/mlrun/func-default-my-trainer-latest:latest',
-                    'image_id': 'docker-pullable://docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.com:80/mlrun/func-default-my-trainer-latest@sha256:d23c93a997fa5ab89d899bf1bf1cb97fa50697a74c61927c1df3266340076efc',
+                    'image': 'docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.com:80/mlrun/func-defaul'
+                    't-my-trainer-latest:latest',
+                    'image_id': 'docker-pullable://docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.com'
+                    ':80/mlrun/func-default-my-trainer-latest@sha256:d23c93a997fa5ab89d899bf1bf1cb97fa506'
+                    '97a74c61927c1df3266340076efc',
                     'last_state': {
                         'running': None,
                         'terminated': None,
-                        'waiting': None
+                        'waiting': None,
                     },
                     'name': 'base',
                     'ready': False,
@@ -76,10 +77,10 @@ def test_list_kubejobs_resources(k8s_helper_mock):
                             'message': None,
                             'reason': 'Completed',
                             'signal': None,
-                            'started_at': '2020-08-17T18:08:42+00:00'
+                            'started_at': '2020-08-17T18:08:42+00:00',
                         },
-                        'waiting': None
-                    }
+                        'waiting': None,
+                    },
                 }
             ],
             'host_ip': '172.31.6.138',
@@ -90,7 +91,7 @@ def test_list_kubejobs_resources(k8s_helper_mock):
             'pod_ip': '10.200.0.48',
             'qos_class': 'BestEffort',
             'reason': None,
-            'start_time': '2020-08-17T18:08:23+00:00'
+            'start_time': '2020-08-17T18:08:23+00:00',
         },
     }
     pod = Mock()

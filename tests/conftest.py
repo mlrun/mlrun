@@ -19,13 +19,17 @@ from os import environ
 from pathlib import Path
 from sys import platform
 from time import monotonic, sleep
+from unittest.mock import Mock
 from urllib.request import URLError, urlopen
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import mlrun.k8s_utils
 from mlrun.api.db.sqldb.db import run_time_fmt
 from mlrun.api.db.sqldb.models import Base
+from mlrun.k8s_utils import get_k8s_helper
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
@@ -43,6 +47,19 @@ examples_path = Path(here).parent.joinpath('examples')
 environ['PYTHONPATH'] = root_path
 environ['MLRUN_DBPATH'] = rundb_path
 environ['MLRUN_httpdb__dirpath'] = rundb_path
+
+
+@pytest.fixture
+def k8s_helper_mock(monkeypatch):
+    class K8sHelperMock(Mock):
+        pass
+
+    monkeypatch.setattr(mlrun.k8s_utils, "K8sHelper", K8sHelperMock)
+
+    # call get_k8s_helper so that the mock instance will get into cache
+    k8s_helper_mock_instance = get_k8s_helper()
+
+    return k8s_helper_mock_instance
 
 
 def check_docker():

@@ -263,7 +263,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                                                                Defaults to None.
         """
 
-        log_path = os.path.join(config.artifact_path, 'hvd_logs', 'autotune.csv') if file_path is None \
+        log_path = os.path.join(config.artifact_path, 'hvd_logs', 'autotune.csv') if log_file_path is None \
             else log_file_path
         horovod_autotune_settings = {'HOROVOD_AUTOTUNE': 1,
                                      'HOROVOD_AUTOTUNE_LOG': log_path}

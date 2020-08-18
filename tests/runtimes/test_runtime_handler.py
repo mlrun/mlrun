@@ -22,6 +22,10 @@ def test_list_daskjob_resources(k8s_helper_mock):
 
 def test_list_mpijob_resources(k8s_helper_mock):
     crds = _mock_list_mpijob_crds(k8s_helper_mock)
+
+    # there's currently a bug (fix was merged but not released https://github.com/kubeflow/mpi-operator/pull/271)
+    # that causes mpijob's pods to not being labels with the given (MLRun's) labels - this prevents list resources from
+    # finding the pods, so we're simulating the same thing here
     k8s_helper_mock.list_pods.return_value = []
     runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
     _assert_runtime_handler_list_resources(

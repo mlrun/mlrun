@@ -64,7 +64,9 @@ def k8s_helper_mock(monkeypatch):
     # call get_k8s_helper so that the mock instance will get into cache
     k8s_helper_mock_instance = get_k8s_helper()
 
-    return k8s_helper_mock_instance
+    yield k8s_helper_mock_instance
+
+    k8s_helper_mock_instance.reset_mock()
 
 
 def check_docker():

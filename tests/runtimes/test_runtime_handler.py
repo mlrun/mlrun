@@ -4,8 +4,7 @@ from mlrun.runtimes import get_runtime_handler, RuntimeKinds
 
 
 def test_list_kubejob_resources(k8s_helper_mock):
-    pods = _create_kubejob_pod_mocks()
-    k8s_helper_mock.list_pods.return_value = pods
+    pods = _mock_list_kubejob_pods(k8s_helper_mock)
     runtime_handler = get_runtime_handler(RuntimeKinds.job)
     resources = runtime_handler.list_resources()
     k8s_helper_mock.list_pods.assert_called_once_with(
@@ -16,10 +15,8 @@ def test_list_kubejob_resources(k8s_helper_mock):
 
 
 def test_list_daskjob_resources(k8s_helper_mock):
-    pods = _create_daskjob_pod_mocks()
-    services = _create_daskjob_service_mocks()
-    k8s_helper_mock.list_pods.return_value = pods
-    k8s_helper_mock.v1api.list_namespaced_service.return_value = services
+    pods = _mock_list_daskjob_pods(k8s_helper_mock)
+    services = _create_daskjob_service_mocks(k8s_helper_mock)
     runtime_handler = get_runtime_handler(RuntimeKinds.dask)
     resources = runtime_handler.list_resources()
     k8s_helper_mock.list_pods.assert_called_once_with(
@@ -34,12 +31,15 @@ def test_list_daskjob_resources(k8s_helper_mock):
 
 
 def test_list_mpijob_resources(k8s_helper_mock):
-    crds = _create_mpijob_crd_mocks()
-    k8s_helper_mock.crdapi.list_namespaced_custom_object.return_value = crds
+    crds = _mock_list_mpijob_crds(k8s_helper_mock)
     k8s_helper_mock.list_pods.return_value = []
     runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
     resources = runtime_handler.list_resources()
     crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+    k8s_helper_mock.list_pods.assert_called_once_with(
+        k8s_helper_mock.resolve_namespace(),
+        selector=runtime_handler._get_default_label_selector(),
+    )
     k8s_helper_mock.crdapi.list_namespaced_custom_object.assert_called_once_with(
         crd_group,
         crd_version,
@@ -48,6 +48,26 @@ def test_list_mpijob_resources(k8s_helper_mock):
         label_selector=runtime_handler._get_default_label_selector(),
     )
     _assert_resources(resources, expected_crds=crds)
+
+
+def test_list_sparkjob_resources(k8s_helper_mock):
+    crds = _mock_list_sparkjob_crds(k8s_helper_mock)
+    pods = _mock_list_daskjob_pods(k8s_helper_mock)
+    runtime_handler = get_runtime_handler(RuntimeKinds.spark)
+    resources = runtime_handler.list_resources()
+    crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+    k8s_helper_mock.list_pods.assert_called_once_with(
+        k8s_helper_mock.resolve_namespace(),
+        selector=runtime_handler._get_default_label_selector(),
+    )
+    k8s_helper_mock.crdapi.list_namespaced_custom_object.assert_called_once_with(
+        crd_group,
+        crd_version,
+        k8s_helper_mock.resolve_namespace(),
+        crd_plural,
+        label_selector=runtime_handler._get_default_label_selector(),
+    )
+    _assert_resources(resources, expected_crds=crds, expected_pods=pods)
 
 
 def _assert_resources(
@@ -88,7 +108,38 @@ def _assert_resources(
             )
 
 
-def _create_kubejob_pod_mocks():
+def _mock_list_pods(k8s_helper_mock, pod_dicts):
+    pod_mocks = []
+    for pod_dict in pod_dicts:
+        pod_mock = unittest.mock.Mock()
+        pod_mock.to_dict.return_value = pod_dict
+        pod_mocks.append(pod_mock)
+    k8s_helper_mock.list_pods.return_value = pod_mocks
+    return pod_mocks
+
+
+def _mock_list_crds(k8s_helper_mock, crd_dicts):
+    crds = {
+        'items': crd_dicts,
+    }
+    k8s_helper_mock.crdapi.list_namespaced_custom_object.return_value = crds
+    return crds
+
+
+def _mock_list_services(k8s_helper_mock, service_dicts):
+    service_mocks = []
+    for service_dict in service_dicts:
+        service_mock = unittest.mock.Mock()
+        service_mock.metadata.name.return_value = service_dict['metadata']['name']
+        service_mock.metadata.labels.return_value = service_dict['metadata']['labels']
+        service_mocks.append(service_mock)
+    services_mock = unittest.mock.Mock()
+    services_mock.items = service_mocks
+    k8s_helper_mock.v1api.list_namespaced_service.return_value = services_mock
+    return services_mock
+
+
+def _mock_list_kubejob_pods(k8s_helper_mock):
     pod_dict = {
         'metadata': {
             'name': 'my-training-j7dtf',
@@ -179,31 +230,30 @@ def _create_kubejob_pod_mocks():
             'start_time': '2020-08-17T18:08:23+00:00',
         },
     }
-    pod_mock = unittest.mock.Mock()
-    pod_mock.to_dict.return_value = pod_dict
-    return [pod_mock]
+    return _mock_list_pods(k8s_helper_mock, [pod_dict])
 
 
-def _create_daskjob_service_mocks():
-    service_mock = unittest.mock.Mock()
-    service_mock.metadata.name.return_value = 'mlrun-mydask-d7656bc1-0'
-    service_mock.metadata.labels.return_value = {
-        'app': 'dask',
-        'dask.org/cluster-name': 'mlrun-mydask-d7656bc1-0',
-        'dask.org/component': 'scheduler',
-        'mlrun/class': 'dask',
-        'mlrun/function': 'mydask',
-        'mlrun/project': 'default',
-        'mlrun/scrape_metrics': 'False',
-        'mlrun/tag': 'latest',
-        'user': 'root',
+def _create_daskjob_service_mocks(k8s_helper_mock):
+    service_dict = {
+        'metadata': {
+            'name': 'mlrun-mydask-d7656bc1-0',
+            'labels': {
+                'app': 'dask',
+                'dask.org/cluster-name': 'mlrun-mydask-d7656bc1-0',
+                'dask.org/component': 'scheduler',
+                'mlrun/class': 'dask',
+                'mlrun/function': 'mydask',
+                'mlrun/project': 'default',
+                'mlrun/scrape_metrics': 'False',
+                'mlrun/tag': 'latest',
+                'user': 'root',
+            },
+        },
     }
-    services_mock = unittest.mock.Mock()
-    services_mock.items = [service_mock]
-    return services_mock
+    return _mock_list_services(k8s_helper_mock, [service_dict])
 
 
-def _create_daskjob_pod_mocks():
+def _mock_list_daskjob_pods(k8s_helper_mock):
     scheduler_pod_dict = {
         'metadata': {
             'name': 'mlrun-mydask-d7656bc1-0n4z9z',
@@ -368,14 +418,10 @@ def _create_daskjob_pod_mocks():
             'start_time': '2020-08-18T00:36:21+00:00',
         },
     }
-    scheduler_pod_mock = unittest.mock.Mock()
-    scheduler_pod_mock.to_dict.return_value = scheduler_pod_dict
-    worker_pod_mock = unittest.mock.Mock()
-    worker_pod_mock.to_dict.return_value = worker_pod_dict
-    return [scheduler_pod_mock, worker_pod_mock]
+    return _mock_list_pods(k8s_helper_mock, [scheduler_pod_dict, worker_pod_dict])
 
 
-def _create_mpijob_crd_mocks():
+def _mock_list_mpijob_crds(k8s_helper_mock):
     crd_dict = {
         'metadata': {
             'name': 'train-eaf63df8',
@@ -426,9 +472,222 @@ def _create_mpijob_crd_mocks():
             'startTime': '2020-08-18T01:21:15Z'
         }
     }
-    crds = {
-        'items': [
-            crd_dict,
-        ],
+    return _mock_list_crds(k8s_helper_mock, [crd_dict])
+
+
+def _mock_list_sparkjob_crds(k8s_helper_mock):
+    crd_dict = {
+        'metadata': {
+            'name': 'my-spark-jdbc-2ea432f1',
+            'labels': {
+                'mlrun/class': 'spark',
+                'mlrun/function': 'my-spark-jdbc',
+                'mlrun/name': 'my-spark-jdbc',
+                'mlrun/project': 'default',
+                'mlrun/scrape_metrics': 'False',
+                'mlrun/tag': 'latest',
+                'mlrun/uid': 'b532ba206a1649da9925d340d6f97f7a'
+            },
+        },
+        'status': {
+            'applicationState': {
+                'state': 'RUNNING'
+            },
+            'driverInfo': {
+                'podName': 'my-spark-jdbc-2ea432f1-driver',
+                'webUIAddress': '10.197.111.54:0',
+                'webUIPort': 4040,
+                'webUIServiceName': 'my-spark-jdbc-2ea432f1-ui-svc'
+            },
+            'executionAttempts': 2,
+            'executorState': {
+                'my-spark-jdbc-2ea432f1-1597760338437-exec-1': 'RUNNING'
+            },
+            'sparkApplicationId': 'spark-12f88a73cb544ce298deba34947226a4',
+            'submissionAttempts': 1,
+            'submissionID': '44343f6b-42ca-41d4-b01a-66052cc5c919',
+            'submissionTime': '2020-08-18T14:19:16Z',
+            'terminationTime': None
+        }
     }
-    return crds
+    return _mock_list_crds(k8s_helper_mock, [crd_dict])
+
+
+def _mock_list_sparkjob_pods(k8s_helper_mock):
+    executor_pod_dict = {
+        'metadata': {
+            'name': 'my-spark-jdbc-2ea432f1-1597760338437-exec-1',
+            'labels': {
+                    'mlrun/class': 'spark',
+                    'mlrun/function': 'my-spark-jdbc',
+                    'mlrun/job': 'my-spark-jdbc-2ea432f1',
+                    'mlrun/name': 'my-spark-jdbc',
+                    'mlrun/project': 'default',
+                    'mlrun/scrape_metrics': 'False',
+                    'mlrun/tag': 'latest',
+                    'mlrun/uid': 'b532ba206a1649da9925d340d6f97f7a',
+                    'spark-app-selector': 'spark-12f88a73cb544ce298deba34947226a4',
+                    'spark-exec-id': '1',
+                    'spark-role': 'executor',
+                    'sparkoperator.k8s.io/app-name': 'my-spark-jdbc-2ea432f1',
+                    'sparkoperator.k8s.io/launched-by-spark-operator': 'true',
+                    'sparkoperator.k8s.io/submission-id': '44343f6b-42ca-41d4-b01a-66052cc5c919'
+                },
+        },
+        'status': {
+                    'conditions': [
+                        {
+                            'last_probe_time': None,
+                            'last_transition_time': '2020-08-18T14:19:25+00:00',
+                            'message': None,
+                            'reason': None,
+                            'status': 'True',
+                            'type': 'Initialized'
+                        },
+                        {
+                            'last_probe_time': None,
+                            'last_transition_time': '2020-08-18T14:19:28+00:00',
+                            'message': None,
+                            'reason': None,
+                            'status': 'True',
+                            'type': 'Ready'
+                        },
+                        {
+                            'last_probe_time': None,
+                            'last_transition_time': '2020-08-18T14:19:28+00:00',
+                            'message': None,
+                            'reason': None,
+                            'status': 'True',
+                            'type': 'ContainersReady'
+                        },
+                        {
+                            'last_probe_time': None,
+                            'last_transition_time': '2020-08-18T14:19:25+00:00',
+                            'message': None,
+                            'reason': None,
+                            'status': 'True',
+                            'type': 'PodScheduled'
+                        }
+                    ],
+                    'container_statuses': [
+                        {
+                            'container_id': 'docker://de6c8574b113b1200bae56918e77b4f8f344f18741d8f53cdb5eab5c55f6c16a',
+                            'image': 'iguazio/spark-app:2.10_b59_20200813105414',
+                            'image_id': 'docker://sha256:251e43e69e8449dc45883ad4e5d3cf785068fa86852335d69e56b605c6bd03'
+                                        '0b',
+                            'last_state': {
+                                'running': None,
+                                'terminated': None,
+                                'waiting': None
+                            },
+                            'name': 'executor',
+                            'ready': True,
+                            'restart_count': 0,
+                            'state': {
+                                'running': {
+                                    'started_at': '2020-08-18T14:19:28+00:00'
+                                },
+                                'terminated': None,
+                                'waiting': None
+                            }
+                        }
+                    ],
+                    'host_ip': '172.31.7.224',
+                    'init_container_statuses': None,
+                    'message': None,
+                    'nominated_node_name': None,
+                    'phase': 'Running',
+                    'pod_ip': '10.200.0.53',
+                    'qos_class': 'Burstable',
+                    'reason': None,
+                    'start_time': '2020-08-18T14:19:25+00:00'
+                }
+    }
+    driver_pod_dict = {
+        'metadata': {
+            'name': 'my-spark-jdbc-2ea432f1-driver',
+            'labels': {
+                'mlrun/class': 'spark',
+                'mlrun/function': 'my-spark-jdbc',
+                'mlrun/job': 'my-spark-jdbc-2ea432f1',
+                'mlrun/name': 'my-spark-jdbc',
+                'mlrun/project': 'default',
+                'mlrun/scrape_metrics': 'False',
+                'mlrun/tag': 'latest',
+                'mlrun/uid': 'b532ba206a1649da9925d340d6f97f7a',
+                'spark-app-selector': 'spark-12f88a73cb544ce298deba34947226a4',
+                'spark-role': 'driver',
+                'sparkoperator.k8s.io/app-name': 'my-spark-jdbc-2ea432f1',
+                'sparkoperator.k8s.io/launched-by-spark-operator': 'true',
+                'sparkoperator.k8s.io/submission-id': '44343f6b-42ca-41d4-b01a-66052cc5c919'
+            },
+        },
+        'status': {
+            'conditions': [
+                {
+                    'last_probe_time': None,
+                    'last_transition_time': '2020-08-18T14:19:08+00:00',
+                    'message': None,
+                    'reason': None,
+                    'status': 'True',
+                    'type': 'Initialized'
+                },
+                {
+                    'last_probe_time': None,
+                    'last_transition_time': '2020-08-18T14:19:17+00:00',
+                    'message': None,
+                    'reason': None,
+                    'status': 'True',
+                    'type': 'Ready'
+                },
+                {
+                    'last_probe_time': None,
+                    'last_transition_time': '2020-08-18T14:19:17+00:00',
+                    'message': None,
+                    'reason': None,
+                    'status': 'True',
+                    'type': 'ContainersReady'
+                },
+                {
+                    'last_probe_time': None,
+                    'last_transition_time': '2020-08-18T14:19:08+00:00',
+                    'message': None,
+                    'reason': None,
+                    'status': 'True',
+                    'type': 'PodScheduled'
+                }
+            ],
+            'container_statuses': [
+                {
+                    'container_id': 'docker://916268e7baf76e95fc3a8b79227c4807e4f421004e6674649faaa0540d6cad29',
+                    'image': 'iguazio/spark-app:2.10_b59_20200813105414',
+                    'image_id': 'docker://sha256:251e43e69e8449dc45883ad4e5d3cf785068fa86852335d69e56b605c6bd030b',
+                    'last_state': {
+                        'running': None,
+                        'terminated': None,
+                        'waiting': None
+                    },
+                    'name': 'spark-kubernetes-driver',
+                    'ready': True,
+                    'restart_count': 0,
+                    'state': {
+                        'running': {
+                            'started_at': '2020-08-18T14:19:16+00:00'
+                        },
+                        'terminated': None,
+                        'waiting': None
+                    }
+                }
+            ],
+            'host_ip': '172.31.7.224',
+            'init_container_statuses': None,
+            'message': None,
+            'nominated_node_name': None,
+            'phase': 'Running',
+            'pod_ip': '10.200.0.52',
+            'qos_class': 'Burstable',
+            'reason': None,
+            'start_time': '2020-08-18T14:19:08+00:00'
+        },
+    }
+    return _mock_list_pods(k8s_helper_mock, [executor_pod_dict, driver_pod_dict])

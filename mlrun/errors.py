@@ -28,17 +28,17 @@ class HTTPError(BaseError, requests.HTTPError):
         requests.HTTPError.__init__(self, message, response=response)
 
 
-class HTTPStatusableError(HTTPError):
+class HTTPStatusError(HTTPError):
     """
     When an error has a matching http status code it is "HTTP statusable"
-    HTTP Statusable errors should inherit from this class and set the right status code in the
+    HTTP Status errors should inherit from this class and set the right status code in the
     error_status_code attribute
     """
 
     error_status_code = None
 
     def __init__(self, message: str, response: requests.Response = None):
-        super(HTTPStatusableError, self).__init__(
+        super(HTTPStatusError, self).__init__(
             message, response=response, status_code=self.error_status_code
         )
 
@@ -60,23 +60,23 @@ def raise_for_status(response: requests.Response):
 
 
 # Specific Errors
-class UnauthorizedError(HTTPStatusableError):
+class UnauthorizedError(HTTPStatusError):
     error_status_code = HTTPStatus.UNAUTHORIZED.value
 
 
-class AccessDeniedError(HTTPStatusableError):
+class AccessDeniedError(HTTPStatusError):
     error_status_code = HTTPStatus.FORBIDDEN.value
 
 
-class NotFoundError(HTTPStatusableError):
+class NotFoundError(HTTPStatusError):
     error_status_code = HTTPStatus.NOT_FOUND.value
 
 
-class BadRequestError(HTTPStatusableError):
+class BadRequestError(HTTPStatusError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
-class InvalidArgumentError(HTTPStatusableError, ValueError):
+class InvalidArgumentError(HTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 

@@ -34,9 +34,9 @@ app = FastAPI(
 app.include_router(api_router, prefix="/api")
 
 
-@app.exception_handler(mlrun.errors.HTTPStatusableError)
-async def http_statusable_error_handler(
-    request: Request, exc: mlrun.errors.HTTPStatusableError
+@app.exception_handler(mlrun.errors.HTTPStatusError)
+async def http_status_error_handler(
+    request: Request, exc: mlrun.errors.HTTPStatusError
 ):
     status_code = exc.response.status_code
     error_message = repr(exc)

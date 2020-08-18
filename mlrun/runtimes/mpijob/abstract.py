@@ -228,15 +228,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         log_path = os.path.join(config.artifact_path, 'hvd_logs', 'trace.log') if log_file_path is None \
             else log_file_path
         horovod_timeline_settings = {'HOROVOD_TIMELINE': log_path,
-                                     'HOROVOD_TIMELINE_MARK_CYCLES': enable_cycle_markers}
+                                     'HOROVOD_TIMELINE_MARK_CYCLES': str(int(enable_cycle_markers))}
         self.set_envs(horovod_timeline_settings)
 
     def with_autotune(self,
-                      autotune_file_path: str = None,
-                      autotune_warmup_samples: int = None,
-                      autotune_steps_per_sample: int = None,
-                      autotune_bayes_opt_max_samples: int = None,
-                      autotune_gaussian_process_noise: float = None):
+                      log_file_path: str = None,
+                      warmup_samples: int = None,
+                      steps_per_sample: int = None,
+                      bayes_opt_max_samples: int = None,
+                      gaussian_process_noise: float = None):
         """Adds an Autotuner to help optimize Horovod's Parameters for better performence.
 
         The autotuner will collect metrics and tune horovod's parameters while running using
@@ -252,28 +252,28 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         https://horovod.readthedocs.io/en/latest/autotune_include.html
 
         Args:
-            autotune_file_path (str, optional):        filepath for the csv log file.
+            file_path (str, optional):        filepath for the csv log file.
                                                        Defaults to <artifacts_path>/hvd_logs
-            autotune_warmup_samples (int, optional):   number of discarded samples at the beginning of the training
+            warmup_samples (int, optional):   number of discarded samples at the beginning of the training
                                                        process. Defaults to None.
-            autotune_steps_per_sample (int, optional): steps per sample. Defaults to None.
-            autotune_bayes_opt_max_samples (int, optional):    maximum number of samples. Defaults to None.
-            autotune_gaussian_process_noise (float, optional): Bayes optimizer's Alpha (noise regularization), to
+            steps_per_sample (int, optional): steps per sample. Defaults to None.
+            bayes_opt_max_samples (int, optional):    maximum number of samples. Defaults to None.
+            gaussian_process_noise (float, optional): Bayes optimizer's Alpha (noise regularization), to
                                                                account for network and resources variance.
                                                                Defaults to None.
         """
 
-        log_path = os.path.join(config.artifact_path, 'hvd_logs', 'autotune.csv') if autotune_file_path is None \
-            else autotune_file_path
+        log_path = os.path.join(config.artifact_path, 'hvd_logs', 'autotune.csv') if file_path is None \
+            else log_file_path
         horovod_autotune_settings = {'HOROVOD_AUTOTUNE': 1,
                                      'HOROVOD_AUTOTUNE_LOG': log_path}
-        if autotune_warmup_samples is not None:
-            horovod_autotune_settings['autotune-warmup-samples'] = autotune_warmup_samples
-        if autotune_steps_per_sample is not None:
-            horovod_autotune_settings['autotune-steps-per-sample'] = autotune_steps_per_sample
-        if autotune_bayes_opt_max_samples is not None:
-            horovod_autotune_settings['autotune-bayes-opt-max-samples'] = autotune_bayes_opt_max_samples
-        if autotune_gaussian_process_noise is not None:
-            horovod_autotune_settings['autotune-gaussian-process-noise'] = autotune_gaussian_process_noise
+        if warmup_samples is not None:
+            horovod_autotune_settings['autotune-warmup-samples'] = warmup_samples
+        if steps_per_sample is not None:
+            horovod_autotune_settings['autotune-steps-per-sample'] = steps_per_sample
+        if bayes_opt_max_samples is not None:
+            horovod_autotune_settings['autotune-bayes-opt-max-samples'] = bayes_opt_max_samples
+        if gaussian_process_noise is not None:
+            horovod_autotune_settings['autotune-gaussian-process-noise'] = gaussian_process_noise
 
         self.set_envs(horovod_autotune_settings)

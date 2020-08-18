@@ -1,6 +1,8 @@
+import fastapi
 import uvicorn
-from fastapi import FastAPI
+from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.errors
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.initial_data import init_data
@@ -18,7 +20,7 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
 from mlrun.utils import logger
 
-app = FastAPI(
+app = fastapi.FastAPI(
     title="MLRun",
     description="Machine Learning automation and tracking",
     version=config.version,
@@ -30,6 +32,22 @@ app = FastAPI(
 )
 
 app.include_router(api_router, prefix="/api")
+
+
+@app.exception_handler(mlrun.errors.MLRunHTTPStatusError)
+async def http_status_error_handler(
+    request: fastapi.Request, exc: mlrun.errors.MLRunHTTPStatusError
+):
+    status_code = exc.response.status_code
+    error_message = repr(exc)
+    logger.warning(
+        'Request handling returned error status',
+        error_message=error_message,
+        status_code=status_code,
+    )
+    return await http_exception_handler(
+        request, fastapi.HTTPException(status_code=status_code, detail=error_message)
+    )
 
 
 @app.on_event("startup")

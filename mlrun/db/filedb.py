@@ -103,7 +103,7 @@ class FileRunDB(RunDBInterface):
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
-            raise mlrun.errors.NotFoundError(uid)
+            raise mlrun.errors.MLRunNotFoundError(uid)
         data = self._datastore.get(filepath)
         return self._loads(data)
 

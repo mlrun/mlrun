@@ -111,7 +111,7 @@ class V3ioStore(DataStore):
             )
         except RuntimeError as exc:
             if 'Permission denied' in str(exc):
-                raise mlrun.errors.AccessDeniedError(
+                raise mlrun.errors.MLRunAccessDeniedError(
                     f'Access denied to path: {key}'
                 ) from exc
             raise

@@ -120,7 +120,7 @@ def test_runs(db: RunDBInterface):
     assert run3 == runs[0], 'state run'
 
     db.del_run(uid3)
-    with pytest.raises(mlrun.errors.NotFoundError):
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.read_run(uid3)
 
     label = 'l1'

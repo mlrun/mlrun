@@ -195,14 +195,14 @@ def test_forbidden_file_access():
         secrets={'V3IO_ACCESS_KEY': 'some-access-key'}
     )
 
-    with pytest.raises(mlrun.errors.AccessDeniedError):
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         obj = store.object('v3io://some-system/some-dir/')
         obj.listdir()
 
-    with pytest.raises(mlrun.errors.AccessDeniedError):
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.get()
 
-    with pytest.raises(mlrun.errors.AccessDeniedError):
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         obj = store.object('v3io://some-system/some-dir/some-file')
         obj.stat()

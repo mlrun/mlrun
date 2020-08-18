@@ -41,7 +41,7 @@ async def http_status_error_handler(
     status_code = exc.response.status_code
     error_message = repr(exc)
     logger.warning(
-        'Failed handling request', error_message=error_message, status_code=status_code
+        'Request handling returned error status', error_message=error_message, status_code=status_code
     )
     return await http_exception_handler(
         request, HTTPException(status_code=status_code, detail=error_message)

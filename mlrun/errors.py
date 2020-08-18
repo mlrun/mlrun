@@ -3,7 +3,7 @@ from http import HTTPStatus
 import requests
 
 
-class BaseError(Exception):
+class MLRunBaseError(Exception):
     """
     A base class from which all other exceptions inherit.
     If you want to catch all errors that the MLRun SDK might raise,
@@ -13,7 +13,7 @@ class BaseError(Exception):
     pass
 
 
-class HTTPError(BaseError, requests.HTTPError):
+class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
         self, message: str, response: requests.Response = None, status_code: int = None
     ):
@@ -28,7 +28,7 @@ class HTTPError(BaseError, requests.HTTPError):
         requests.HTTPError.__init__(self, message, response=response)
 
 
-class HTTPStatusError(HTTPError):
+class MLRunHTTPStatusError(MLRunHTTPError):
     """
     When an error has a matching http status code it is "HTTP statusable"
     HTTP Status errors should inherit from this class and set the right status code in the
@@ -38,7 +38,7 @@ class HTTPStatusError(HTTPError):
     error_status_code = None
 
     def __init__(self, message: str, response: requests.Response = None):
-        super(HTTPStatusError, self).__init__(
+        super(MLRunHTTPStatusError, self).__init__(
             message, response=response, status_code=self.error_status_code
         )
 
@@ -46,7 +46,7 @@ class HTTPStatusError(HTTPError):
 def raise_for_status(response: requests.Response):
     """
     Raise a specific MLRunSDK error depending on the given response status code.
-    If no specific error exists, raises an HTTPError
+    If no specific error exists, raises an MLRunHTTPError
     """
     try:
         response.raise_for_status()
@@ -56,33 +56,33 @@ def raise_for_status(response: requests.Response):
                 str(exc), response=response
             ) from exc
         except KeyError:
-            raise HTTPError(str(exc), response=response) from exc
+            raise MLRunHTTPError(str(exc), response=response) from exc
 
 
 # Specific Errors
-class UnauthorizedError(HTTPStatusError):
+class MLRunUnauthorizedError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.UNAUTHORIZED.value
 
 
-class AccessDeniedError(HTTPStatusError):
+class MLRunAccessDeniedError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.FORBIDDEN.value
 
 
-class NotFoundError(HTTPStatusError):
+class MLRunNotFoundError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.NOT_FOUND.value
 
 
-class BadRequestError(HTTPStatusError):
+class MLRunBadRequestError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
-class InvalidArgumentError(HTTPStatusError, ValueError):
+class MLRunInvalidArgumentError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
 STATUS_ERRORS = {
-    HTTPStatus.BAD_REQUEST.value: BadRequestError,
-    HTTPStatus.UNAUTHORIZED.value: UnauthorizedError,
-    HTTPStatus.FORBIDDEN.value: AccessDeniedError,
-    HTTPStatus.NOT_FOUND.value: NotFoundError,
+    HTTPStatus.BAD_REQUEST.value: MLRunBadRequestError,
+    HTTPStatus.UNAUTHORIZED.value: MLRunUnauthorizedError,
+    HTTPStatus.FORBIDDEN.value: MLRunAccessDeniedError,
+    HTTPStatus.NOT_FOUND.value: MLRunNotFoundError,
 }

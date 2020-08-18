@@ -64,7 +64,7 @@ def _assert_runtime_handler_list_resources(
             k8s_helper_mock.resolve_namespace(),
             label_selector=runtime_handler._get_default_label_selector(),
         )
-    _assert_resources(
+    _assert_list_resources_response(
         resources,
         expected_crds=expected_crds,
         expected_pods=expected_pods,
@@ -72,7 +72,7 @@ def _assert_runtime_handler_list_resources(
     )
 
 
-def _assert_resources(
+def _assert_list_resources_response(
     resources, expected_crds=None, expected_pods=None, expected_services=None
 ):
     if expected_crds is None:

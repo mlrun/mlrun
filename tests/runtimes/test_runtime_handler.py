@@ -33,16 +33,43 @@ def test_list_daskjob_resources(k8s_helper_mock):
     _assert_resources(resources, expected_pods=pods, expected_services=services)
 
 
+def test_list_mpijob_resources(k8s_helper_mock):
+    crds = _create_mpijob_crd_mocks()
+    k8s_helper_mock.crdapi.list_namespaced_custom_object.return_value = crds
+    k8s_helper_mock.list_pods.return_value = []
+    runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
+    resources = runtime_handler.list_resources()
+    crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+    k8s_helper_mock.crdapi.list_namespaced_custom_object.assert_called_once_with(
+        crd_group,
+        crd_version,
+        k8s_helper_mock.resolve_namespace(),
+        crd_plural,
+        label_selector=runtime_handler._get_default_label_selector(),
+    )
+    _assert_resources(resources, expected_crds=crds)
+
+
 def _assert_resources(
     resources, expected_crds=None, expected_pods=None, expected_services=None
 ):
     if expected_crds is None:
         expected_crds = []
+    else:
+        expected_crds = expected_crds['items']
     if expected_pods is None:
         expected_pods = []
     if expected_services is None:
         expected_services = []
-    assert resources['crd_resources'] == expected_crds
+    else:
+        expected_services = expected_services.items
+    assert len(resources['crd_resources']) == len(expected_crds)
+    for index, crd in enumerate(expected_crds):
+        assert resources['crd_resources'][index]['name'] == crd['metadata']['name']
+        assert (
+                resources['crd_resources'][index]['labels'] == crd['metadata']['labels']
+        )
+        assert resources['crd_resources'][index]['status'] == crd['status']
     assert len(resources['pod_resources']) == len(expected_pods)
     for index, pod in enumerate(expected_pods):
         pod_dict = pod.to_dict()
@@ -52,31 +79,13 @@ def _assert_resources(
             == pod_dict['metadata']['labels']
         )
         assert resources['pod_resources'][index]['status'] == pod_dict['status']
-    assert len(resources['service_resources']) == len(expected_services.items)
-    for index, service in enumerate(expected_services.items):
-        assert resources['service_resources'][index]['name'] == service.metadata.name
-        assert (
-            resources['service_resources'][index]['labels'] == service.metadata.labels
-        )
-
-
-def _create_daskjob_service_mocks():
-    service_mock = unittest.mock.Mock()
-    service_mock.metadata.name.return_value = 'mlrun-mydask-d7656bc1-0'
-    service_mock.metadata.labels.return_value = {
-        'app': 'dask',
-        'dask.org/cluster-name': 'mlrun-mydask-d7656bc1-0',
-        'dask.org/component': 'scheduler',
-        'mlrun/class': 'dask',
-        'mlrun/function': 'mydask',
-        'mlrun/project': 'default',
-        'mlrun/scrape_metrics': 'False',
-        'mlrun/tag': 'latest',
-        'user': 'root',
-    }
-    services_mock = unittest.mock.Mock()
-    services_mock.items = [service_mock]
-    return services_mock
+    if expected_services:
+        assert len(resources['service_resources']) == len(expected_services)
+        for index, service in enumerate(expected_services):
+            assert resources['service_resources'][index]['name'] == service.metadata.name
+            assert (
+                resources['service_resources'][index]['labels'] == service.metadata.labels
+            )
 
 
 def _create_kubejob_pod_mocks():
@@ -173,6 +182,25 @@ def _create_kubejob_pod_mocks():
     pod_mock = unittest.mock.Mock()
     pod_mock.to_dict.return_value = pod_dict
     return [pod_mock]
+
+
+def _create_daskjob_service_mocks():
+    service_mock = unittest.mock.Mock()
+    service_mock.metadata.name.return_value = 'mlrun-mydask-d7656bc1-0'
+    service_mock.metadata.labels.return_value = {
+        'app': 'dask',
+        'dask.org/cluster-name': 'mlrun-mydask-d7656bc1-0',
+        'dask.org/component': 'scheduler',
+        'mlrun/class': 'dask',
+        'mlrun/function': 'mydask',
+        'mlrun/project': 'default',
+        'mlrun/scrape_metrics': 'False',
+        'mlrun/tag': 'latest',
+        'user': 'root',
+    }
+    services_mock = unittest.mock.Mock()
+    services_mock.items = [service_mock]
+    return services_mock
 
 
 def _create_daskjob_pod_mocks():
@@ -345,3 +373,62 @@ def _create_daskjob_pod_mocks():
     worker_pod_mock = unittest.mock.Mock()
     worker_pod_mock.to_dict.return_value = worker_pod_dict
     return [scheduler_pod_mock, worker_pod_mock]
+
+
+def _create_mpijob_crd_mocks():
+    crd_dict = {
+        'metadata': {
+            'name': 'train-eaf63df8',
+            'labels': {
+                'mlrun/class': 'mpijob',
+                'mlrun/function': 'trainer',
+                'mlrun/name': 'train',
+                'mlrun/project': 'cat-and-dog-servers',
+                'mlrun/scrape_metrics': 'False',
+                'mlrun/tag': 'latest',
+                'mlrun/uid': '9401e4b27f004c6ba750d3e936f1fccb'
+            },
+        },
+        'status': {
+            'completionTime': '2020-08-18T01:23:54Z',
+            'conditions': [
+                {
+                    'lastTransitionTime': '2020-08-18T01:21:15Z',
+                    'lastUpdateTime': '2020-08-18T01:21:15Z',
+                    'message': 'MPIJob default-tenant/train-eaf63df8 is created.',
+                    'reason': 'MPIJobCreated',
+                    'status': 'True',
+                    'type': 'Created'
+                },
+                {
+                    'lastTransitionTime': '2020-08-18T01:21:23Z',
+                    'lastUpdateTime': '2020-08-18T01:21:23Z',
+                    'message': 'MPIJob default-tenant/train-eaf63df8 is running.',
+                    'reason': 'MPIJobRunning',
+                    'status': 'False',
+                    'type': 'Running'
+                },
+                {
+                    'lastTransitionTime': '2020-08-18T01:23:54Z',
+                    'lastUpdateTime': '2020-08-18T01:23:54Z',
+                    'message': 'MPIJob default-tenant/train-eaf63df8 successfully completed.',
+                    'reason': 'MPIJobSucceeded',
+                    'status': 'True',
+                    'type': 'Succeeded'
+                }
+            ],
+            'replicaStatuses': {
+                'Launcher': {
+                    'succeeded': 1
+                },
+                'Worker': {}
+            },
+            'startTime': '2020-08-18T01:21:15Z'
+        }
+    }
+    crds = {
+        'items': [
+            crd_dict,
+        ],
+    }
+    return crds

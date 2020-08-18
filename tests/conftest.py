@@ -56,6 +56,9 @@ def k8s_helper_mock(monkeypatch):
         def resolve_namespace(self, namespace=None):
             return namespace or config.namespace
 
+        def is_running_inside_kubernetes_cluster(self):
+            return False
+
     monkeypatch.setattr(mlrun.k8s_utils, "K8sHelper", K8sHelperMock)
 
     # call get_k8s_helper so that the mock instance will get into cache

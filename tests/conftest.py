@@ -28,6 +28,7 @@ from sqlalchemy.orm import sessionmaker
 
 import mlrun.k8s_utils
 from mlrun.api.db.sqldb.db import run_time_fmt
+from mlrun.config import config
 from mlrun.api.db.sqldb.models import Base
 from mlrun.k8s_utils import get_k8s_helper
 
@@ -52,7 +53,8 @@ environ['MLRUN_httpdb__dirpath'] = rundb_path
 @pytest.fixture
 def k8s_helper_mock(monkeypatch):
     class K8sHelperMock(Mock):
-        pass
+        def resolve_namespace(self, namespace=None):
+            return namespace or config.namespace
 
     monkeypatch.setattr(mlrun.k8s_utils, "K8sHelper", K8sHelperMock)
 

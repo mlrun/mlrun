@@ -265,15 +265,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         log_path = os.path.join(config.artifact_path, 'hvd_logs', 'autotune.csv') if log_file_path is None \
             else log_file_path
-        horovod_autotune_settings = {'HOROVOD_AUTOTUNE': 1,
+        horovod_autotune_settings = {'HOROVOD_AUTOTUNE': '1',
                                      'HOROVOD_AUTOTUNE_LOG': log_path}
         if warmup_samples is not None:
-            horovod_autotune_settings['autotune-warmup-samples'] = warmup_samples
+            horovod_autotune_settings['autotune-warmup-samples'] = str(warmup_samples)
         if steps_per_sample is not None:
-            horovod_autotune_settings['autotune-steps-per-sample'] = steps_per_sample
+            horovod_autotune_settings['autotune-steps-per-sample'] = str(steps_per_sample)
         if bayes_opt_max_samples is not None:
-            horovod_autotune_settings['autotune-bayes-opt-max-samples'] = bayes_opt_max_samples
+            horovod_autotune_settings['autotune-bayes-opt-max-samples'] = str(bayes_opt_max_samples)
         if gaussian_process_noise is not None:
-            horovod_autotune_settings['autotune-gaussian-process-noise'] = gaussian_process_noise
+            horovod_autotune_settings['autotune-gaussian-process-noise'] = str(gaussian_process_noise)
 
         self.set_envs(horovod_autotune_settings)

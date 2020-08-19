@@ -219,10 +219,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         https://horovod.readthedocs.io/en/latest/timeline_include.html
 
         Args:
-            log_file_path (str, optional): filepath for the json log file.
+            log_file_path (str, optional):         filepath for the json log file.
+                                                   Defaults to <artifacts_path>/hvd_logs/trace.log.
             enable_cycle_markers (bool, optional): Add cycle markers to the log for
-            Tensor Fusion aid. Could make the trace very crowded.
-            Defaults to False.
+                                                   Tensor Fusion aid. Could make the trace very crowded.
+                                                   Defaults to False.
         """
 
         log_path = os.path.join(config.artifact_path, 'hvd_logs', 'trace.log') if log_file_path is None \
@@ -252,15 +253,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         https://horovod.readthedocs.io/en/latest/autotune_include.html
 
         Args:
-            file_path (str, optional):        filepath for the csv log file.
-                                                       Defaults to <artifacts_path>/hvd_logs
-            warmup_samples (int, optional):   number of discarded samples at the beginning of the training
-                                                       process. Defaults to None.
-            steps_per_sample (int, optional): steps per sample. Defaults to None.
+            file_path (str, optional):                filepath for the csv log file.
+                                                      Defaults to <artifacts_path>/hvd_logs/autotune.csv
+            warmup_samples (int, optional):           number of discarded samples at the beginning of the training
+                                                      process. Defaults to None.
+            steps_per_sample (int, optional):         steps per sample. Defaults to None.
             bayes_opt_max_samples (int, optional):    maximum number of samples. Defaults to None.
             gaussian_process_noise (float, optional): Bayes optimizer's Alpha (noise regularization), to
-                                                               account for network and resources variance.
-                                                               Defaults to None.
+                                                      account for network and resources variance.
+                                                      Defaults to None.
         """
 
         log_path = os.path.join(config.artifact_path, 'hvd_logs', 'autotune.csv') if log_file_path is None \

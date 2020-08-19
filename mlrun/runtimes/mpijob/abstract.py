@@ -235,7 +235,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         )
         horovod_timeline_settings = {
             "HOROVOD_TIMELINE": log_path,
-            "HOROVOD_TIMELINE_MARK_CYCLES": str(int(enable_cycle_markers)),
+            "HOROVOD_TIMELINE_MARK_CYCLES": int(enable_cycle_markers),
         }
         self.set_envs(horovod_timeline_settings)
 
@@ -283,18 +283,16 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             "HOROVOD_AUTOTUNE_LOG": log_path,
         }
         if warmup_samples is not None:
-            horovod_autotune_settings["autotune-warmup-samples"] = str(warmup_samples)
+            horovod_autotune_settings["autotune-warmup-samples"] = warmup_samples
         if steps_per_sample is not None:
-            horovod_autotune_settings["autotune-steps-per-sample"] = str(
-                steps_per_sample
-            )
+            horovod_autotune_settings["autotune-steps-per-sample"] = steps_per_sample
         if bayes_opt_max_samples is not None:
-            horovod_autotune_settings["autotune-bayes-opt-max-samples"] = str(
-                bayes_opt_max_samples
-            )
+            horovod_autotune_settings[
+                "autotune-bayes-opt-max-samples"
+            ] = bayes_opt_max_samples
         if gaussian_process_noise is not None:
-            horovod_autotune_settings["autotune-gaussian-process-noise"] = str(
-                gaussian_process_noise
-            )
+            horovod_autotune_settings[
+                "autotune-gaussian-process-noise"
+            ] = gaussian_process_noise
 
         self.set_envs(horovod_autotune_settings)

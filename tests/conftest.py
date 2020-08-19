@@ -27,10 +27,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import mlrun.k8s_utils
-from mlrun.api.db.sqldb.db import run_time_fmt
+from mlrun.api.db.sqldb.db import run_time_fmt, SQLDB
 from mlrun.config import config
 from mlrun.api.db.sqldb.models import Base
 from mlrun.k8s_utils import get_k8s_helper
+from typing import Callable
+from typing import Generator
 
 here = Path(__file__).absolute().parent
 results = here / 'test_results'
@@ -67,6 +69,36 @@ def k8s_helper_mock(monkeypatch):
     yield k8s_helper_mock_instance
 
     k8s_helper_mock_instance.reset_mock()
+
+
+session_maker: Callable
+
+
+@pytest.fixture
+def db():
+    global session_maker
+    dsn = "sqlite:///:memory:?check_same_thread=false"
+    db_session = None
+    try:
+        session_maker = init_sqldb(dsn)
+        db_session = session_maker()
+        db = SQLDB(dsn)
+        db.initialize(db_session)
+    finally:
+        if db_session is not None:
+            db_session.close()
+    return db
+
+
+@pytest.fixture()
+def db_session() -> Generator:
+    db_session = None
+    try:
+        db_session = session_maker()
+        yield db_session
+    finally:
+        if db_session is not None:
+            db_session.close()
 
 
 def check_docker():

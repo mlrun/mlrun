@@ -262,7 +262,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         https://horovod.readthedocs.io/en/latest/autotune_include.html
 
         Args:
-            file_path (str, optional):                filepath for the csv log file.
+            log_file_path (str, optional):            filepath for the csv log file.
                                                       Defaults to <artifacts_path>/hvd_logs/autotune.csv
             warmup_samples (int, optional):           number of discarded samples at the beginning of the training
                                                       process. Defaults to None.

@@ -1,6 +1,8 @@
 import unittest.mock
 
 from mlrun.runtimes import get_runtime_handler, RuntimeKinds
+from mlrun.config import config
+from mlrun.runtimes.constants import MPIJobCRDVersions
 
 
 def test_list_kubejob_resources(k8s_helper_mock):
@@ -8,6 +10,13 @@ def test_list_kubejob_resources(k8s_helper_mock):
     _assert_runtime_handler_list_resources(
         RuntimeKinds.job, k8s_helper_mock, expected_pods=pods
     )
+
+
+# def test_delete_kubejob_resources(k8s_helper_mock):
+#     pods = _mock_list_kubejob_pods(k8s_helper_mock)
+#     _assert_runtime_handler_delete_resources(
+#         RuntimeKinds.job, k8s_helper_mock, expected_pods=pods
+#     )
 
 
 def test_list_daskjob_resources(k8s_helper_mock):
@@ -19,6 +28,7 @@ def test_list_daskjob_resources(k8s_helper_mock):
 
 
 def test_list_mpijob_resources(k8s_helper_mock):
+    config.mpijob_crd_version = MPIJobCRDVersions.v1
     crds = _mock_list_mpijob_crds(k8s_helper_mock)
 
     # there's currently a bug (fix was merged but not released https://github.com/kubeflow/mpi-operator/pull/271)
@@ -35,6 +45,41 @@ def test_list_sparkjob_resources(k8s_helper_mock):
     pods = _mock_list_daskjob_pods(k8s_helper_mock)
     _assert_runtime_handler_list_resources(
         RuntimeKinds.spark, k8s_helper_mock, expected_crds=crds, expected_pods=pods
+    )
+
+
+def _assert_runtime_handler_delete_resources(
+    runtime_kind,
+    k8s_helper_mock,
+    expected_crds=None,
+    expected_pods=None,
+    expected_services=None,
+):
+    runtime_handler = get_runtime_handler(runtime_kind)
+    runtime_handler.delete_resources()
+    crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+    k8s_helper_mock.list_pods.assert_called_once_with(
+        k8s_helper_mock.resolve_namespace(),
+        selector=runtime_handler._get_default_label_selector(),
+    )
+    if expected_crds:
+        k8s_helper_mock.crdapi.list_namespaced_custom_object.assert_called_once_with(
+            crd_group,
+            crd_version,
+            k8s_helper_mock.resolve_namespace(),
+            crd_plural,
+            label_selector=runtime_handler._get_default_label_selector(),
+        )
+    if expected_services:
+        k8s_helper_mock.v1api.list_namespaced_service.assert_called_once_with(
+            k8s_helper_mock.resolve_namespace(),
+            label_selector=runtime_handler._get_default_label_selector(),
+        )
+    _assert_list_resources_response(
+        resources,
+        expected_crds=expected_crds,
+        expected_pods=expected_pods,
+        expected_services=expected_services,
     )
 
 

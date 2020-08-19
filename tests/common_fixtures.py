@@ -8,7 +8,6 @@ import requests
 import v3io.dataplane
 
 import mlrun.k8s_utils
-import mlrun.k8s_utils
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper

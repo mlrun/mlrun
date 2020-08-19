@@ -22,9 +22,6 @@ import mlrun
 import mlrun.errors
 from tests.conftest import rundb_path
 
-# fixtures for test, aren't used directly so we need to ignore the lint here
-from tests.common_fixtures import patch_file_forbidden  # noqa: F401
-
 mlrun.mlconf.dbpath = rundb_path
 
 raw_data = {

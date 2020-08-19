@@ -14,6 +14,7 @@
 import abc
 import time
 import typing
+import os
 
 from kubernetes import client
 
@@ -206,3 +207,92 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         # TODO: Why was this here?
         # k8s = self._get_k8s()
         return list(pods.items())[0]
+
+    def with_tracing(
+        self, log_file_path: str = None, enable_cycle_markers: bool = False
+    ):
+        """Add Horovod Timeline activity tracking to the job to analyse
+        its performence.
+
+        The data will be saved as JSON to {log_file_path}. It can then be viewed via
+        a trace viewer like chrome or edge's `edge://tracing`.
+
+        More information can be found in the official documentation:
+        https://horovod.readthedocs.io/en/latest/timeline_include.html
+
+        Args:
+            log_file_path (str, optional):         filepath for the json log file.
+                                                   Defaults to <artifacts_path>/hvd_logs/trace.log.
+            enable_cycle_markers (bool, optional): Add cycle markers to the log for
+                                                   Tensor Fusion aid. Could make the trace very crowded.
+                                                   Defaults to False.
+        """
+
+        log_path = (
+            os.path.join(config.artifact_path, "hvd_logs", "trace.log")
+            if log_file_path is None
+            else log_file_path
+        )
+        horovod_timeline_settings = {
+            "HOROVOD_TIMELINE": log_path,
+            "HOROVOD_TIMELINE_MARK_CYCLES": int(enable_cycle_markers),
+        }
+        self.set_envs(horovod_timeline_settings)
+
+    def with_autotune(
+        self,
+        log_file_path: str = None,
+        warmup_samples: int = None,
+        steps_per_sample: int = None,
+        bayes_opt_max_samples: int = None,
+        gaussian_process_noise: float = None,
+    ):
+        """Adds an Autotuner to help optimize Horovod's Parameters for better performence.
+
+        The autotuner will collect metrics and tune horovod's parameters while running using
+        Bayesian optimiation. This may affect the performence of the run initially but after
+        arriving to the best parameters should increase performence.
+
+        Since autotuning imposes a tradeoff between early performence for better performence
+        later on, It's advised to enable it when both:
+        - Training should take a long timeout
+        - Scaling efficiency was found lacking with the default settings
+
+        More information can be found in the official documentation:
+        https://horovod.readthedocs.io/en/latest/autotune_include.html
+
+        Args:
+            log_file_path (str, optional):            filepath for the csv log file.
+                                                      Defaults to <artifacts_path>/hvd_logs/autotune.csv
+            warmup_samples (int, optional):           number of discarded samples at the beginning of the training
+                                                      process. Defaults to None.
+            steps_per_sample (int, optional):         steps per sample. Defaults to None.
+            bayes_opt_max_samples (int, optional):    maximum number of samples. Defaults to None.
+            gaussian_process_noise (float, optional): Bayes optimizer's Alpha (noise regularization), to
+                                                      account for network and resources variance.
+                                                      Defaults to None.
+        """
+
+        log_path = (
+            os.path.join(config.artifact_path, "hvd_logs", "autotune.csv")
+            if log_file_path is None
+            else log_file_path
+        )
+        horovod_autotune_settings = {
+            "HOROVOD_AUTOTUNE": "1",
+            "HOROVOD_AUTOTUNE_LOG": log_path,
+        }
+        if warmup_samples is not None:
+            horovod_autotune_settings["autotune-warmup-samples"] = warmup_samples
+        if steps_per_sample is not None:
+            horovod_autotune_settings["autotune-steps-per-sample"] = steps_per_sample
+        if bayes_opt_max_samples is not None:
+            horovod_autotune_settings[
+                "autotune-bayes-opt-max-samples"
+            ] = bayes_opt_max_samples
+        if gaussian_process_noise is not None:
+            horovod_autotune_settings[
+                "autotune-gaussian-process-noise"
+            ] = gaussian_process_noise
+
+        self.set_envs(horovod_autotune_settings)

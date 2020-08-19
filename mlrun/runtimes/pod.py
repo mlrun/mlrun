@@ -143,7 +143,7 @@ class KubeResource(BaseRuntime):
 
     def set_env(self, name, value):
         """set pod environment var from value"""
-        return self._set_env(name, value=value)
+        return self._set_env(name, value=str(value))
 
     def _set_env(self, name, value=None, value_from=None):
         new_var = client.V1EnvVar(name=name, value=value, value_from=value_from)

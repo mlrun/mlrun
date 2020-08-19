@@ -5,18 +5,16 @@ from mlrun.runtimes import get_runtime_handler, RuntimeKinds
 
 def test_list_kubejob_resources(k8s_helper_mock):
     pods = _mock_list_kubejob_pods(k8s_helper_mock)
-    runtime_handler = get_runtime_handler(RuntimeKinds.job)
     _assert_runtime_handler_list_resources(
-        k8s_helper_mock, runtime_handler, expected_pods=pods
+        RuntimeKinds.job, k8s_helper_mock, expected_pods=pods
     )
 
 
 def test_list_daskjob_resources(k8s_helper_mock):
     pods = _mock_list_daskjob_pods(k8s_helper_mock)
     services = _create_daskjob_service_mocks(k8s_helper_mock)
-    runtime_handler = get_runtime_handler(RuntimeKinds.dask)
     _assert_runtime_handler_list_resources(
-        k8s_helper_mock, runtime_handler, expected_pods=pods, expected_services=services
+        RuntimeKinds.dask, k8s_helper_mock, expected_pods=pods, expected_services=services
     )
 
 
@@ -27,28 +25,27 @@ def test_list_mpijob_resources(k8s_helper_mock):
     # that causes mpijob's pods to not being labels with the given (MLRun's) labels - this prevents list resources from
     # finding the pods, so we're simulating the same thing here
     k8s_helper_mock.list_pods.return_value = []
-    runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
     _assert_runtime_handler_list_resources(
-        k8s_helper_mock, runtime_handler, expected_crds=crds
+        RuntimeKinds.mpijob, k8s_helper_mock, expected_crds=crds
     )
 
 
 def test_list_sparkjob_resources(k8s_helper_mock):
     crds = _mock_list_sparkjob_crds(k8s_helper_mock)
     pods = _mock_list_daskjob_pods(k8s_helper_mock)
-    runtime_handler = get_runtime_handler(RuntimeKinds.spark)
     _assert_runtime_handler_list_resources(
-        k8s_helper_mock, runtime_handler, expected_crds=crds, expected_pods=pods
+        RuntimeKinds.spark, k8s_helper_mock, expected_crds=crds, expected_pods=pods
     )
 
 
 def _assert_runtime_handler_list_resources(
+    runtime_kind,
     k8s_helper_mock,
-    runtime_handler,
     expected_crds=None,
     expected_pods=None,
     expected_services=None,
 ):
+    runtime_handler = get_runtime_handler(runtime_kind)
     resources = runtime_handler.list_resources()
     crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
     k8s_helper_mock.list_pods.assert_called_once_with(

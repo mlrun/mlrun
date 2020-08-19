@@ -27,7 +27,7 @@ from mlrun.utils import logger, get_in
 
 
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
-    kind = 'mpijob'
+    kind = "mpijob"
     _is_nested = False
 
     @abc.abstractmethod
@@ -52,14 +52,14 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         pass
 
     def _pretty_print_jobs(self, items: typing.List):
-        print('{:10} {:20} {:21} {}'.format('status', 'name', 'start', 'end'))
+        print("{:10} {:20} {:21} {}".format("status", "name", "start", "end"))
         for i in items:
             print(
-                '{:10} {:20} {:21} {}'.format(
+                "{:10} {:20} {:21} {}".format(
                     self._get_job_launcher_status(i),
-                    get_in(i, 'metadata.name', ''),
-                    get_in(i, 'status.startTime', ''),
-                    get_in(i, 'status.completionTime', ''),
+                    get_in(i, "metadata.name", ""),
+                    get_in(i, "status.startTime", ""),
+                    get_in(i, "status.completionTime", ""),
                 )
             )
 
@@ -84,43 +84,43 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             time.sleep(1)
 
         if resp:
-            logger.info('MpiJob {} state={}'.format(meta.name, state or 'unknown'))
+            logger.info("MpiJob {} state={}".format(meta.name, state or "unknown"))
             if state:
                 state = state.lower()
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
-                execution.set_state('running' if state == 'active' else state)
+                execution.set_state("running" if state == "active" else state)
                 if self.kfp:
                     writer = AsyncLogWriter(self._db_conn, runobj)
                     status = self._get_k8s().watch(
                         launcher, meta.namespace, writer=writer
                     )
                     logger.info(
-                        'MpiJob {} finished with state {}'.format(meta.name, status)
+                        "MpiJob {} finished with state {}".format(meta.name, status)
                     )
-                    if status == 'succeeded':
-                        execution.set_state('completed')
+                    if status == "succeeded":
+                        execution.set_state("completed")
                     else:
                         execution.set_state(
-                            'error',
-                            'MpiJob {} finished with state {}'.format(
+                            "error",
+                            "MpiJob {} finished with state {}".format(
                                 meta.name, status
                             ),
                         )
                 else:
-                    txt = 'MpiJob {} launcher pod {} state {}'.format(
+                    txt = "MpiJob {} launcher pod {} state {}".format(
                         meta.name, launcher, state
                     )
                     logger.info(txt)
                     runobj.status.status_text = txt
             else:
-                txt = 'MpiJob status unknown or failed, check pods: {}'.format(
+                txt = "MpiJob status unknown or failed, check pods: {}".format(
                     self.get_pods(meta.name, meta.namespace)
                 )
                 logger.warning(txt)
                 runobj.status.status_text = txt
                 if self.kfp:
-                    execution.set_state('error', txt)
+                    execution.set_state("error", txt)
 
         return None
 
@@ -133,8 +133,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.create_namespaced_custom_object(
                 mpi_group, mpi_version, namespace=namespace, plural=mpi_plural, body=job
             )
-            name = get_in(resp, 'metadata.name', 'unknown')
-            logger.info('MpiJob {} created'.format(name))
+            name = get_in(resp, "metadata.name", "unknown")
+            logger.info("MpiJob {} created".format(name))
             return resp
         except client.rest.ApiException as e:
             logger.error("Exception when creating MPIJob: %s" % e)
@@ -150,11 +150,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.delete_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name, body
             )
-            logger.info('del status: {}'.format(get_in(resp, 'status', 'unknown')))
+            logger.info("del status: {}".format(get_in(resp, "status", "unknown")))
         except client.rest.ApiException as e:
             print("Exception when deleting MPIJob: %s" % e)
 
-    def list_jobs(self, namespace=None, selector='', show=True):
+    def list_jobs(self, namespace=None, selector="", show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
@@ -172,7 +172,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         items = []
         if resp:
-            items = resp.get('items', [])
+            items = resp.get("items", [])
             if show and items:
                 self._pretty_print_jobs(items)
         return items
@@ -202,13 +202,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def _get_launcher(self, name, namespace=None):
         pods = self.get_pods(name, namespace, launcher=True)
         if not pods:
-            logger.error('no pod matches that job name')
+            logger.error("no pod matches that job name")
             return
         # TODO: Why was this here?
         # k8s = self._get_k8s()
         return list(pods.items())[0]
 
-    def with_tracing(self, log_file_path: str = None, enable_cycle_markers: bool = False):
+    def with_tracing(
+        self, log_file_path: str = None, enable_cycle_markers: bool = False
+    ):
         """Add Horovod Timeline activity tracking to the job to analyse
         its performence.
 
@@ -226,18 +228,25 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                                                    Defaults to False.
         """
 
-        log_path = os.path.join(config.artifact_path, 'hvd_logs', 'trace.log') if log_file_path is None \
+        log_path = (
+            os.path.join(config.artifact_path, "hvd_logs", "trace.log")
+            if log_file_path is None
             else log_file_path
-        horovod_timeline_settings = {'HOROVOD_TIMELINE': log_path,
-                                     'HOROVOD_TIMELINE_MARK_CYCLES': str(int(enable_cycle_markers))}
+        )
+        horovod_timeline_settings = {
+            "HOROVOD_TIMELINE": log_path,
+            "HOROVOD_TIMELINE_MARK_CYCLES": str(int(enable_cycle_markers)),
+        }
         self.set_envs(horovod_timeline_settings)
 
-    def with_autotune(self,
-                      log_file_path: str = None,
-                      warmup_samples: int = None,
-                      steps_per_sample: int = None,
-                      bayes_opt_max_samples: int = None,
-                      gaussian_process_noise: float = None):
+    def with_autotune(
+        self,
+        log_file_path: str = None,
+        warmup_samples: int = None,
+        steps_per_sample: int = None,
+        bayes_opt_max_samples: int = None,
+        gaussian_process_noise: float = None,
+    ):
         """Adds an Autotuner to help optimize Horovod's Parameters for better performence.
 
         The autotuner will collect metrics and tune horovod's parameters while running using
@@ -264,17 +273,28 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                                                       Defaults to None.
         """
 
-        log_path = os.path.join(config.artifact_path, 'hvd_logs', 'autotune.csv') if log_file_path is None \
+        log_path = (
+            os.path.join(config.artifact_path, "hvd_logs", "autotune.csv")
+            if log_file_path is None
             else log_file_path
-        horovod_autotune_settings = {'HOROVOD_AUTOTUNE': '1',
-                                     'HOROVOD_AUTOTUNE_LOG': log_path}
+        )
+        horovod_autotune_settings = {
+            "HOROVOD_AUTOTUNE": "1",
+            "HOROVOD_AUTOTUNE_LOG": log_path,
+        }
         if warmup_samples is not None:
-            horovod_autotune_settings['autotune-warmup-samples'] = str(warmup_samples)
+            horovod_autotune_settings["autotune-warmup-samples"] = str(warmup_samples)
         if steps_per_sample is not None:
-            horovod_autotune_settings['autotune-steps-per-sample'] = str(steps_per_sample)
+            horovod_autotune_settings["autotune-steps-per-sample"] = str(
+                steps_per_sample
+            )
         if bayes_opt_max_samples is not None:
-            horovod_autotune_settings['autotune-bayes-opt-max-samples'] = str(bayes_opt_max_samples)
+            horovod_autotune_settings["autotune-bayes-opt-max-samples"] = str(
+                bayes_opt_max_samples
+            )
         if gaussian_process_noise is not None:
-            horovod_autotune_settings['autotune-gaussian-process-noise'] = str(gaussian_process_noise)
+            horovod_autotune_settings["autotune-gaussian-process-noise"] = str(
+                gaussian_process_noise
+            )
 
         self.set_envs(horovod_autotune_settings)

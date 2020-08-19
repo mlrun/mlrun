@@ -1,9 +1,67 @@
 from http import HTTPStatus
+from typing import Callable
+from typing import Generator
 from unittest.mock import Mock
 
 import pytest
 import requests
 import v3io.dataplane
+
+import mlrun.k8s_utils
+import mlrun.k8s_utils
+from mlrun.api.db.sqldb.db import SQLDB
+from mlrun.config import config
+from mlrun.k8s_utils import get_k8s_helper
+from tests.conftest import init_sqldb
+
+
+@pytest.fixture
+def k8s_helper_mock(monkeypatch):
+    class K8sHelperMock(Mock):
+        def resolve_namespace(self, namespace=None):
+            return namespace or config.namespace
+
+        def is_running_inside_kubernetes_cluster(self):
+            return False
+
+    monkeypatch.setattr(mlrun.k8s_utils, "K8sHelper", K8sHelperMock)
+
+    # call get_k8s_helper so that the mock instance will get into cache
+    k8s_helper_mock_instance = get_k8s_helper()
+
+    yield k8s_helper_mock_instance
+
+    k8s_helper_mock_instance.reset_mock()
+
+
+session_maker: Callable
+
+
+@pytest.fixture
+def db():
+    global session_maker
+    dsn = "sqlite:///:memory:?check_same_thread=false"
+    db_session = None
+    try:
+        session_maker = init_sqldb(dsn)
+        db_session = session_maker()
+        db = SQLDB(dsn)
+        db.initialize(db_session)
+    finally:
+        if db_session is not None:
+            db_session.close()
+    return db
+
+
+@pytest.fixture()
+def db_session() -> Generator:
+    db_session = None
+    try:
+        db_session = session_maker()
+        yield db_session
+    finally:
+        if db_session is not None:
+            db_session.close()
 
 
 @pytest.fixture

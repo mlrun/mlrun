@@ -331,7 +331,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt
 fmt: ## Format the code (using black)
 	@echo "Running black fmt..."
-	python -m black --skip-string-normalization .
+	python -m black .
 
 .PHONY: lint
 lint: flake8 fmt-check ## Run lint on the code
@@ -339,7 +339,7 @@ lint: flake8 fmt-check ## Run lint on the code
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)
 	@echo "Running black fmt check..."
-	python -m black --skip-string-normalization --check --diff -S .
+	python -m black --check --diff -S .
 
 .PHONY: flake8
 flake8: ## Run flake8 lint

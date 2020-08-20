@@ -14,7 +14,7 @@ def patch_file_forbidden(monkeypatch):
             pass
 
         def get_container_contents(self, *args, **kwargs):
-            raise RuntimeError('Permission denied')
+            raise RuntimeError("Permission denied")
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
 
@@ -44,7 +44,7 @@ def mock_failed_get_func(status_code: int):
         mock_response = Mock()
         mock_response.status_code = status_code
         mock_response.raise_for_status = Mock(
-            side_effect=requests.HTTPError('Error', response=mock_response)
+            side_effect=requests.HTTPError("Error", response=mock_response)
         )
         return mock_response
 

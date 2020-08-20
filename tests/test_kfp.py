@@ -25,50 +25,50 @@ from mlrun import NewTask, new_function
 
 
 run_spec = NewTask(
-    params={'p1': 5},
+    params={"p1": 5},
     out_path=out_path,
-    outputs=['model.txt', 'chart.html', 'iteration_results'],
-).set_label('tests', 'kfp')
+    outputs=["model.txt", "chart.html", "iteration_results"],
+).set_label("tests", "kfp")
 
 
-def my_job(context, p1=1, p2='a-string'):
+def my_job(context, p1=1, p2="a-string"):
 
     # access input metadata, values, files, and secrets (passwords)
-    print(f'Run: {context.name} (uid={context.uid})')
-    print(f'Params: p1={p1}, p2={p2}')
-    print('accesskey = {}'.format(context.get_secret('ACCESS_KEY')))
-    print('file\n{}\n'.format(context.get_input('infile.txt').get()))
+    print(f"Run: {context.name} (uid={context.uid})")
+    print(f"Params: p1={p1}, p2={p2}")
+    print("accesskey = {}".format(context.get_secret("ACCESS_KEY")))
+    print("file\n{}\n".format(context.get_input("infile.txt").get()))
 
     # RUN some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)
-    context.log_result('accuracy', p1 * 2)
-    context.log_result('loss', p1 * 3)
+    context.log_result("accuracy", p1 * 2)
+    context.log_result("loss", p1 * 3)
 
     # log various types of artifacts (file, web page, table), will be
     # versioned and visible in the UI
-    context.log_artifact('model', body=b'abc is 123', local_path='model.txt')
+    context.log_artifact("model", body=b"abc is 123", local_path="model.txt")
     context.log_artifact(
-        'results', local_path='results.html', body=b'<b> Some HTML <b>'
+        "results", local_path="results.html", body=b"<b> Some HTML <b>"
     )
 
     # create a chart output (will show in the pipelines UI)
-    chart = ChartArtifact('chart')
-    chart.header = ['Epoch', 'Accuracy', 'Loss']
+    chart = ChartArtifact("chart")
+    chart.header = ["Epoch", "Accuracy", "Loss"]
     for i in range(1, 8):
         chart.add_row([i, i / 20 + 0.75, 0.30 - i / 20])
     context.log_artifact(chart)
 
     raw_data = {
-        'first_name': ['Jason', 'Molly', 'Tina', 'Jake', 'Amy'],
-        'last_name': ['Miller', 'Jacobson', 'Ali', 'Milner', 'Cooze'],
-        'age': [42, 52, 36, 24, 73],
-        'postTestScore': [25, 94, 57, 62, 70],
+        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+        "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+        "age": [42, 52, 36, 24, 73],
+        "postTestScore": [25, 94, 57, 62, 70],
     }
     df = pd.DataFrame(
-        raw_data, columns=['first_name', 'last_name', 'age', 'postTestScore']
+        raw_data, columns=["first_name", "last_name", "age", "postTestScore"]
     )
-    context.log_dataset('mydf', df=df)
+    context.log_dataset("mydf", df=df)
 
 
 def test_kfp_run():
@@ -79,11 +79,11 @@ def test_kfp_run():
     result = new_function(kfp=True).run(spec, handler=my_job)
     print(result.status.artifacts)
     alist = listdir(tmpdir)
-    expected = ['chart.html', 'model.txt', 'results.html']
+    expected = ["chart.html", "model.txt", "results.html"]
     for a in expected:
-        assert a in alist, 'artifact {} was not generated'.format(a)
-    assert result.output('accuracy') == 10, 'failed to run'
-    assert result.status.state == 'completed', 'wrong state ({}) {}'.format(
+        assert a in alist, "artifact {} was not generated".format(a)
+    assert result.output("accuracy") == 10, "failed to run"
+    assert result.status.state == "completed", "wrong state ({}) {}".format(
         result.status.state, result.status.error
     )
 
@@ -92,19 +92,19 @@ def test_kfp_hyper():
     tmpdir = mktemp()
     spec = run_spec.copy()
     spec.spec.output_path = tmpdir
-    spec.with_hyper_params({'p1': [1, 2, 3]}, selector='min.loss')
+    spec.with_hyper_params({"p1": [1, 2, 3]}, selector="min.loss")
     print(tmpdir)
     result = new_function(kfp=True).run(spec, handler=my_job)
     alist = listdir(tmpdir)
     print(alist)
-    print(listdir('/tmp'))
-    res_file = tmpdir + '/' + 'iteration_results.csv'
+    print(listdir("/tmp"))
+    res_file = tmpdir + "/" + "iteration_results.csv"
     with open(res_file) as fp:
         count = 0
         for row in csv.DictReader(fp):
             print(yaml.dump(row))
             count += 1
-    assert count == 3, 'didnt see expected iterations file output'
-    assert result.status.state == 'completed', 'wrong state ({}) {}'.format(
+    assert count == 3, "didnt see expected iterations file output"
+    assert result.status.state == "completed", "wrong state ({}) {}".format(
         result.status.state, result.status.error
     )

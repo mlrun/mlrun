@@ -18,41 +18,41 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestJobs(TestMLRunSystem):
     def custom_setup(self):
-        code_path = str(self.assets_path / 'jobs_function.py')
+        code_path = str(self.assets_path / "jobs_function.py")
 
-        self._logger.debug('Creating trainer job')
+        self._logger.debug("Creating trainer job")
         self._trainer = code_to_function(
-            name='my-trainer', kind='job', filename=code_path
+            name="my-trainer", kind="job", filename=code_path
         )
 
-        self._trainer.spec.build.commands.append('pip install pandas')
-        self._trainer.spec.build.base_image = 'mlrun/mlrun'
+        self._trainer.spec.build.commands.append("pip install pandas")
+        self._trainer.spec.build.base_image = "mlrun/mlrun"
         self._trainer.spec.command = code_path
         self._trainer.apply(mount_v3io())
 
-        self._logger.debug('Deploying trainer')
+        self._logger.debug("Deploying trainer")
         self._trainer.deploy()
 
     def test_run_training_job(self):
-        output_path = str(self.results_path / '{{run.uid}}')
+        output_path = str(self.results_path / "{{run.uid}}")
 
-        self._logger.debug('Creating base task')
-        base_task = NewTask(artifact_path=output_path).set_label('stage', 'dev')
+        self._logger.debug("Creating base task")
+        base_task = NewTask(artifact_path=output_path).set_label("stage", "dev")
 
         # run our training task, with hyper params, and select the one with max accuracy
-        self._logger.debug('Running task with hyper params')
+        self._logger.debug("Running task with hyper params")
         train_task = NewTask(
-            name='my-training', handler='training', params={'p1': 9}, base=base_task
+            name="my-training", handler="training", params={"p1": 9}, base=base_task
         )
         train_run = self._trainer.run(train_task)
 
         # running validation, use the model result from the previous step
-        self._logger.debug('Running validation using the model from the previous step')
-        model = train_run.outputs['mymodel']
-        self._trainer.run(base_task, handler='validation', inputs={'model': model})
+        self._logger.debug("Running validation using the model from the previous step")
+        model = train_run.outputs["mymodel"]
+        self._trainer.run(base_task, handler="validation", inputs={"model": model})
 
     def test_run_kubeflow_pipeline(self):
-        @kfp.dsl.pipeline(name='job test', description='demonstrating mlrun usage')
+        @kfp.dsl.pipeline(name="job test", description="demonstrating mlrun usage")
         def job_pipeline(p1: int = 9) -> None:
             """Define our pipeline.
 
@@ -60,70 +60,70 @@ class TestJobs(TestMLRunSystem):
             """
 
             train = self._trainer.as_step(
-                handler='training', params={'p1': p1}, outputs=['mymodel']
+                handler="training", params={"p1": p1}, outputs=["mymodel"]
             )
 
             self._trainer.as_step(
-                handler='validation',
-                inputs={'model': train.outputs['mymodel']},
-                outputs=['validation'],
+                handler="validation",
+                inputs={"model": train.outputs["mymodel"]},
+                outputs=["validation"],
             )
 
-        kfp.compiler.Compiler().compile(job_pipeline, 'jobpipe.yaml')
-        artifact_path = 'v3io:///users/admin/kfp/{{workflow.uid}}/'
-        arguments = {'p1': 8}
+        kfp.compiler.Compiler().compile(job_pipeline, "jobpipe.yaml")
+        artifact_path = "v3io:///users/admin/kfp/{{workflow.uid}}/"
+        arguments = {"p1": 8}
         workflow_run_id = run_pipeline(
-            job_pipeline, arguments, experiment='my-job', artifact_path=artifact_path
+            job_pipeline, arguments, experiment="my-job", artifact_path=artifact_path
         )
 
         wait_for_pipeline_completion(workflow_run_id)
         db = get_run_db().connect()
-        runs = db.list_runs(project='default', labels=f'workflow={workflow_run_id}')
+        runs = db.list_runs(project="default", labels=f"workflow={workflow_run_id}")
         assert len(runs) == 2
 
         validation_run = runs[0]
         training_run = runs[1]
         self._verify_run_metadata(
-            training_run['metadata'],
-            uid=training_run['metadata']['uid'],
-            name='my-trainer-training',
-            project='default',
+            training_run["metadata"],
+            uid=training_run["metadata"]["uid"],
+            name="my-trainer-training",
+            project="default",
             labels={
-                'v3io_user': self._test_env['V3IO_USERNAME'],
-                'owner': self._test_env['V3IO_USERNAME'],
-                'kind': 'job',
-                'category': 'tests',
+                "v3io_user": self._test_env["V3IO_USERNAME"],
+                "owner": self._test_env["V3IO_USERNAME"],
+                "kind": "job",
+                "category": "tests",
             },
         )
         self._verify_run_metadata(
-            validation_run['metadata'],
-            uid=validation_run['metadata']['uid'],
-            name='my-trainer-validation',
-            project='default',
+            validation_run["metadata"],
+            uid=validation_run["metadata"]["uid"],
+            name="my-trainer-validation",
+            project="default",
             labels={
-                'v3io_user': self._test_env['V3IO_USERNAME'],
-                'owner': self._test_env['V3IO_USERNAME'],
-                'kind': 'job',
+                "v3io_user": self._test_env["V3IO_USERNAME"],
+                "owner": self._test_env["V3IO_USERNAME"],
+                "kind": "job",
             },
         )
         self._verify_run_spec(
-            training_run['spec'],
-            parameters={'p1': 8},
-            outputs=['mymodel', 'run_id'],
-            output_path=f'v3io:///users/admin/kfp/{workflow_run_id}/',
+            training_run["spec"],
+            parameters={"p1": 8},
+            outputs=["mymodel", "run_id"],
+            output_path=f"v3io:///users/admin/kfp/{workflow_run_id}/",
             inputs={},
             data_stores=[],
         )
         self._verify_run_spec(
-            validation_run['spec'],
+            validation_run["spec"],
             parameters={},
-            outputs=['validation', 'run_id'],
-            output_path=f'v3io:///users/admin/kfp/{workflow_run_id}/',
+            outputs=["validation", "run_id"],
+            output_path=f"v3io:///users/admin/kfp/{workflow_run_id}/",
             inputs={
-                'model': f'store://default/my-trainer-training_mymodel#{workflow_run_id}',
+                "model": f"store://default/my-trainer-training_mymodel#{workflow_run_id}",
             },
             data_stores=[],
         )
 
         # remove compiled jobpipe.yaml file
-        os.remove('jobpipe.yaml')
+        os.remove("jobpipe.yaml")

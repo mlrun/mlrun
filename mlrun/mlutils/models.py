@@ -87,10 +87,10 @@ def gen_sklearn_model(model_pkg, skparams):
         model_config = get_class_fit(model_pkg)
 
     for k, v in skparams:
-        if k.startswith('CLASS_'):
-            model_config['CLASS'][k[6:]] = v
-        if k.startswith('FIT_'):
-            model_config['FIT'][k[4:]] = v
+        if k.startswith("CLASS_"):
+            model_config["CLASS"][k[6:]] = v
+        if k.startswith("FIT_"):
+            model_config["FIT"][k[4:]] = v
 
     return model_config
 
@@ -142,7 +142,7 @@ def eval_class_model(
     # CONFUSION MATRIX
     gcf_clear(plt)
     cmd = metrics.plot_confusion_matrix(
-        model, xtest, ytest, normalize='all', cmap=plt.cm.Blues
+        model, xtest, ytest, normalize="all", cmap=plt.cm.Blues
     )
     model_metrics["plots"].append(PlotArtifact("confusion-matrix", body=cmd.figure_))
 
@@ -167,10 +167,10 @@ def eval_class_model(
             ytest_b, yprob, average="micro"
         )
         ap_micro = avg_prec["micro"]
-        model_metrics.update({'precision-micro-avg-classes': ap_micro})
+        model_metrics.update({"precision-micro-avg-classes": ap_micro})
 
         gcf_clear(plt)
-        colors = cycle(['navy', 'turquoise', 'darkorange', 'cornflowerblue', 'teal'])
+        colors = cycle(["navy", "turquoise", "darkorange", "cornflowerblue", "teal"])
         plt.figure(figsize=(7, 8))
         f_scores = np.linspace(0.2, 0.8, num=4)
         lines = []
@@ -178,27 +178,27 @@ def eval_class_model(
         for f_score in f_scores:
             x = np.linspace(0.01, 1)
             y = f_score * x / (2 * x - f_score)
-            (l,) = plt.plot(x[y >= 0], y[y >= 0], color='gray', alpha=0.2)
-            plt.annotate('f1={0:0.1f}'.format(f_score), xy=(0.9, y[45] + 0.02))
+            (l,) = plt.plot(x[y >= 0], y[y >= 0], color="gray", alpha=0.2)
+            plt.annotate("f1={0:0.1f}".format(f_score), xy=(0.9, y[45] + 0.02))
 
         lines.append(l)
-        labels.append('iso-f1 curves')
-        (l,) = plt.plot(recall["micro"], precision["micro"], color='gold', lw=10)
+        labels.append("iso-f1 curves")
+        (l,) = plt.plot(recall["micro"], precision["micro"], color="gold", lw=10)
         lines.append(l)
-        labels.append(f'micro-average precision-recall (area = {ap_micro:0.2f})')
+        labels.append(f"micro-average precision-recall (area = {ap_micro:0.2f})")
 
         for i, color in zip(range(n_classes), colors):
             (l,) = plt.plot(recall[i], precision[i], color=color, lw=2)
             lines.append(l)
-            labels.append(f'precision-recall for class {i} (area = {avg_prec[i]:0.2f})')
+            labels.append(f"precision-recall for class {i} (area = {avg_prec[i]:0.2f})")
 
         fig = plt.gcf()
         fig.subplots_adjust(bottom=0.25)
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.05])
-        plt.xlabel('recall')
-        plt.ylabel('precision')
-        plt.title('precision recall - multiclass')
+        plt.xlabel("recall")
+        plt.ylabel("precision")
+        plt.title("precision recall - multiclass")
         plt.legend(lines, labels, loc=(0, -0.38), prop=dict(size=10))
         model_metrics["plots"].append(
             PlotArtifact("precision-recall-multiclass", body=plt.gcf())
@@ -240,40 +240,40 @@ def eval_class_model(
         plt.plot(
             fpr["micro"],
             tpr["micro"],
-            label='micro-average ROC curve (area = {0:0.2f})'
-            ''.format(roc_auc["micro"]),
-            color='deeppink',
-            linestyle=':',
+            label="micro-average ROC curve (area = {0:0.2f})"
+            "".format(roc_auc["micro"]),
+            color="deeppink",
+            linestyle=":",
             linewidth=4,
         )
 
         plt.plot(
             fpr["macro"],
             tpr["macro"],
-            label='macro-average ROC curve (area = {0:0.2f})'
-            ''.format(roc_auc["macro"]),
-            color='navy',
-            linestyle=':',
+            label="macro-average ROC curve (area = {0:0.2f})"
+            "".format(roc_auc["macro"]),
+            color="navy",
+            linestyle=":",
             linewidth=4,
         )
 
-        colors = cycle(['aqua', 'darkorange', 'cornflowerblue'])
+        colors = cycle(["aqua", "darkorange", "cornflowerblue"])
         for i, color in zip(range(n_classes), colors):
             plt.plot(
                 fpr[i],
                 tpr[i],
                 color=color,
                 lw=2,
-                label='ROC curve of class {0} (area = {1:0.2f})'
-                ''.format(i, roc_auc[i]),
+                label="ROC curve of class {0} (area = {1:0.2f})"
+                "".format(i, roc_auc[i]),
             )
 
-        plt.plot([0, 1], [0, 1], 'k--', lw=2)
+        plt.plot([0, 1], [0, 1], "k--", lw=2)
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('receiver operating characteristic - multiclass')
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("receiver operating characteristic - multiclass")
         plt.legend(loc="lower right")
         model_metrics["plots"].append(PlotArtifact("roc-multiclass", body=plt.gcf()))
         # AUC multiclass
@@ -291,8 +291,8 @@ def eval_class_model(
         # others (todo - macro, micro...)
         model_metrics.update(
             {
-                "f1-score": metrics.f1_score(ytest, ypred, average='macro'),
-                "recall_score": metrics.recall_score(ytest, ypred, average='macro'),
+                "f1-score": metrics.f1_score(ytest, ypred, average="macro"),
+                "recall_score": metrics.recall_score(ytest, ypred, average="macro"),
             }
         )
     else:
@@ -324,7 +324,7 @@ def eval_model_v2(
     pcurve_names: List[str] = ["my classifier"],
     plots_artifact_path: str = "",
     pred_params: dict = {},
-    cmap='Blues',
+    cmap="Blues",
 ):
     """generate predictions and validation stats
 
@@ -346,7 +346,7 @@ def eval_model_v2(
     import numpy as np
 
     def df_blob(df):
-        return bytes(df.to_csv(index=False), encoding='utf-8')
+        return bytes(df.to_csv(index=False), encoding="utf-8")
 
     if isinstance(ytest, np.ndarray):
         unique_labels = np.unique(ytest)
@@ -363,7 +363,7 @@ def eval_model_v2(
     is_multiclass = True if n_classes > 2 else False
 
     # INIT DICT...OR SOME OTHER COLLECTOR THAT CAN BE ACCESSED
-    plots_path = plots_artifact_path or context.artifact_subpath('plots')
+    plots_path = plots_artifact_path or context.artifact_subpath("plots")
     extra_data = {}
 
     ypred = model.predict(xtest, **pred_params)
@@ -379,7 +379,7 @@ def eval_model_v2(
         yprob = model.predict_proba(xtest, **pred_params)
         if not is_multiclass:
             fraction_of_positives, mean_predicted_value = calibration_curve(
-                ytest, yprob[:, -1], n_bins=pcurve_bins, strategy='uniform'
+                ytest, yprob[:, -1], n_bins=pcurve_bins, strategy="uniform"
             )
             cmd = plot_calibration_curve(ytest, [yprob], pcurve_names)
             calibration = context.log_artifact(
@@ -391,31 +391,31 @@ def eval_model_v2(
                 artifact_path=plots_path,
                 db_key=False,
             )
-            extra_data['probability calibration'] = calibration
+            extra_data["probability calibration"] = calibration
 
     # CONFUSION MATRIX
-    cm = confusion_matrix(ytest, ypred, normalize='all')
+    cm = confusion_matrix(ytest, ypred, normalize="all")
     df = pd.DataFrame(data=cm)
-    extra_data['confusion matrix table.csv'] = df_blob(df)
+    extra_data["confusion matrix table.csv"] = df_blob(df)
 
     cmd = metrics.plot_confusion_matrix(
         model,
         xtest,
         ytest,
-        normalize='all',
-        values_format='.2g',
+        normalize="all",
+        values_format=".2g",
         cmap=plt.get_cmap(cmap),
     )
     confusion = context.log_artifact(
         PlotArtifact(
             "confusion-matrix",
             body=cmd.figure_,
-            title='Confusion Matrix - Normalized Plot',
+            title="Confusion Matrix - Normalized Plot",
         ),
         artifact_path=plots_path,
         db_key=False,
     )
-    extra_data['confusion matrix'] = confusion
+    extra_data["confusion matrix"] = confusion
 
     # LEARNING CURVES
     if hasattr(model, "evals_result"):
@@ -442,42 +442,42 @@ def eval_model_v2(
                 )
 
         if learning_curves_df:
-            extra_data['learning curve table.csv'] = df_blob(learning_curves_df)
+            extra_data["learning curve table.csv"] = df_blob(learning_curves_df)
 
             _, ax = plt.subplots()
-            plt.xlabel('# training examples')
-            plt.ylabel('error rate')
-            plt.title('learning curve - error')
-            ax.plot(learning_curves_df["train_error"], label='train')
-            ax.plot(learning_curves_df["valid_error"], label='valid')
+            plt.xlabel("# training examples")
+            plt.ylabel("error rate")
+            plt.title("learning curve - error")
+            ax.plot(learning_curves_df["train_error"], label="train")
+            ax.plot(learning_curves_df["valid_error"], label="valid")
             learning = context.log_artifact(
                 PlotArtifact(
-                    "learning-curve", body=plt.gcf(), title='Learning Curve - erreur'
+                    "learning-curve", body=plt.gcf(), title="Learning Curve - erreur"
                 ),
                 artifact_path=plots_path,
                 db_key=False,
             )
-            extra_data['learning curve'] = learning
+            extra_data["learning curve"] = learning
 
     # FEATURE IMPORTANCES
     if hasattr(model, "feature_importances_"):
         (fi_plot, fi_tbl) = feature_importances(model, xtest.columns)
-        extra_data['feature importances'] = context.log_artifact(
+        extra_data["feature importances"] = context.log_artifact(
             fi_plot, db_key=False, artifact_path=plots_path
         )
-        extra_data['feature importances table.csv'] = df_blob(fi_tbl)
+        extra_data["feature importances table.csv"] = df_blob(fi_tbl)
 
     # AUC - ROC - PR CURVES
     if is_multiclass:
         lb = LabelBinarizer()
         ytest_b = lb.fit_transform(ytest)
 
-        extra_data['precision_recall_multi'] = context.log_artifact(
+        extra_data["precision_recall_multi"] = context.log_artifact(
             precision_recall_multi(ytest_b, yprob, unique_labels),
             artifact_path=plots_path,
             db_key=False,
         )
-        extra_data['roc_multi'] = context.log_artifact(
+        extra_data["roc_multi"] = context.log_artifact(
             roc_multi(ytest_b, yprob, unique_labels),
             artifact_path=plots_path,
             db_key=False,
@@ -501,12 +501,12 @@ def eval_model_v2(
 
     else:
         yprob_pos = yprob[:, 1]
-        extra_data['precision_recall_bin'] = context.log_artifact(
+        extra_data["precision_recall_bin"] = context.log_artifact(
             precision_recall_bin(model, xtest, ytest, yprob_pos),
             artifact_path=plots_path,
             db_key=False,
         )
-        extra_data['roc_bin'] = context.log_artifact(
+        extra_data["roc_bin"] = context.log_artifact(
             roc_bin(ytest, yprob_pos, clear=True),
             artifact_path=plots_path,
             db_key=False,

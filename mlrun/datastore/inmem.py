@@ -17,19 +17,19 @@ from .base import DataStore, FileStats
 
 class InMemoryStore(DataStore):
     def __init__(self):
-        super().__init__(None, 'memory', 'memory', '')
+        super().__init__(None, "memory", "memory", "")
         self._items = {}
 
     @property
     def url(self):
-        return 'memory://'
+        return "memory://"
 
     def _secret(self, key):
         return None
 
     def _get_item(self, key):
         if key not in self._items:
-            raise ValueError(f'item {key} not found in memory store')
+            raise ValueError(f"item {key} not found in memory store")
         return self._items[key]
 
     def get(self, key, size=None, offset=0):
@@ -43,7 +43,7 @@ class InMemoryStore(DataStore):
             self._items[key] = data
 
     def upload(self, key, src_path):
-        with open(src_path, 'rb') as fp:
+        with open(src_path, "rb") as fp:
             self._items[key] = fp.read()
 
     def stat(self, key):
@@ -52,5 +52,5 @@ class InMemoryStore(DataStore):
     def listdir(self, key):
         return []
 
-    def as_df(self, key, columns=None, df_module=None, format='', **kwargs):
+    def as_df(self, key, columns=None, df_module=None, format="", **kwargs):
         return self._get_item(key)

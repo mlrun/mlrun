@@ -18,45 +18,45 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestDask(TestMLRunSystem):
     def custom_setup(self):
-        self._logger.debug('Creating dask function')
+        self._logger.debug("Creating dask function")
         self.dask_function = code_to_function(
-            'mydask', kind='dask', filename=str(self.assets_path / 'dask_function.py'),
+            "mydask", kind="dask", filename=str(self.assets_path / "dask_function.py"),
         ).apply(mount_v3io())
 
-        self.dask_function.spec.image = 'mlrun/ml-models'
+        self.dask_function.spec.image = "mlrun/ml-models"
         self.dask_function.spec.remote = True
         self.dask_function.spec.replicas = 1
-        self.dask_function.spec.service_type = 'NodePort'
-        self.dask_function.spec.command = str(self.assets_path / 'dask_function.py')
+        self.dask_function.spec.service_type = "NodePort"
+        self.dask_function.spec.command = str(self.assets_path / "dask_function.py")
 
     def test_dask(self):
-        run_object = self.dask_function.run(handler='main', params={'x': 12})
-        self._logger.debug('Finished running task', run_object=run_object.to_dict())
+        run_object = self.dask_function.run(handler="main", params={"x": 12})
+        self._logger.debug("Finished running task", run_object=run_object.to_dict())
 
         run_uid = run_object.uid()
 
         assert run_uid is not None
         self._verify_run_metadata(
-            run_object.to_dict()['metadata'],
+            run_object.to_dict()["metadata"],
             uid=run_uid,
-            name='mydask-main',
-            project='default',
+            name="mydask-main",
+            project="default",
             labels={
-                'v3io_user': self._test_env['V3IO_USERNAME'],
-                'owner': self._test_env['V3IO_USERNAME'],
+                "v3io_user": self._test_env["V3IO_USERNAME"],
+                "owner": self._test_env["V3IO_USERNAME"],
             },
         )
         self._verify_run_spec(
-            run_object.to_dict()['spec'],
-            parameters={'x': 12},
+            run_object.to_dict()["spec"],
+            parameters={"x": 12},
             outputs=[],
-            output_path='',
+            output_path="",
             secret_sources=[],
             data_stores=[],
             scrape_metrics=False,
         )
 
-        assert run_object.state() == 'completed'
+        assert run_object.state() == "completed"
 
     def test_run_pipeline(self):
         @kfp.dsl.pipeline(name="dask_pipeline")
@@ -64,13 +64,13 @@ class TestDask(TestMLRunSystem):
 
             # use_db option will use a function (DB) pointer instead of adding the function spec to the YAML
             self.dask_function.as_step(
-                NewTask(handler='main', name='dask_pipeline', params={'x': x, 'y': y}),
+                NewTask(handler="main", name="dask_pipeline", params={"x": x, "y": y}),
                 use_db=True,
             )
 
-        kfp.compiler.Compiler().compile(dask_pipe, 'daskpipe.yaml', type_check=False)
-        arguments = {'x': 4, 'y': -5}
-        artifact_path = '/User/test'
+        kfp.compiler.Compiler().compile(dask_pipe, "daskpipe.yaml", type_check=False)
+        arguments = {"x": 4, "y": -5}
+        artifact_path = "/User/test"
         workflow_run_id = run_pipeline(
             dask_pipe,
             arguments,
@@ -81,28 +81,28 @@ class TestDask(TestMLRunSystem):
 
         wait_for_pipeline_completion(workflow_run_id)
         db = get_run_db().connect()
-        runs = db.list_runs(project='default', labels=f'workflow={workflow_run_id}')
+        runs = db.list_runs(project="default", labels=f"workflow={workflow_run_id}")
         assert len(runs) == 1
 
         run = runs[0]
-        run_uid = run['metadata']['uid']
+        run_uid = run["metadata"]["uid"]
         self._verify_run_metadata(
-            run['metadata'],
+            run["metadata"],
             uid=run_uid,
-            name='mydask-main',
-            project='default',
+            name="mydask-main",
+            project="default",
             labels={
-                'v3io_user': self._test_env['V3IO_USERNAME'],
-                'owner': self._test_env['V3IO_USERNAME'],
+                "v3io_user": self._test_env["V3IO_USERNAME"],
+                "owner": self._test_env["V3IO_USERNAME"],
             },
         )
         self._verify_run_spec(
-            run['spec'],
-            parameters={'x': 4, 'y': -5},
-            outputs=['run_id'],
-            output_path='/User/test',
+            run["spec"],
+            parameters={"x": 4, "y": -5},
+            outputs=["run_id"],
+            output_path="/User/test",
             data_stores=[],
         )
 
         # remove compiled dask.yaml file
-        os.remove('daskpipe.yaml')
+        os.remove("daskpipe.yaml")

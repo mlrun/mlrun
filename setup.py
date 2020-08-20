@@ -19,16 +19,16 @@ except ImportError:
 
 
 def version():
-    with open('mlrun/__init__.py') as fp:
+    with open("mlrun/__init__.py") as fp:
         for line in fp:
-            if '__version__' in line:
-                _, version = line.split('=')
-                return version.replace("'", '').strip()
+            if "__version__" in line:
+                _, version = line.split("=")
+                return version.replace("'", "").strip()
 
 
 def is_ignored(line):
     line = line.strip()
-    return (not line) or (line[0] == '#')
+    return (not line) or (line[0] == "#")
 
 
 def load_deps(path):
@@ -37,64 +37,64 @@ def load_deps(path):
         return [line.strip() for line in fp if not is_ignored(line)]
 
 
-with open('README.md') as fp:
+with open("README.md") as fp:
     long_desc = fp.read()
 
-install_requires = list(load_deps('requirements.txt'))
-tests_require = list(load_deps('dev-requirements.txt'))
-api_deps = list(load_deps('dockerfiles/mlrun-api/requirements.txt'))
+install_requires = list(load_deps("requirements.txt"))
+tests_require = list(load_deps("dev-requirements.txt"))
+api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
 
 setup(
-    name='mlrun',
+    name="mlrun",
     version=version(),
-    description='Tracking and config of machine learning runs',
+    description="Tracking and config of machine learning runs",
     long_description=long_desc,
-    long_description_content_type='text/markdown',
-    author='Yaron Haviv',
-    author_email='yaronh@iguazio.com',
-    license='MIT',
-    url='https://github.com/mlrun/mlrun',
+    long_description_content_type="text/markdown",
+    author="Yaron Haviv",
+    author_email="yaronh@iguazio.com",
+    license="MIT",
+    url="https://github.com/mlrun/mlrun",
     packages=[
-        'mlrun',
-        'mlrun.runtimes',
-        'mlrun.runtimes.mpijob',
-        'mlrun.db',
-        'mlrun.mlutils',
-        'mlrun.platforms',
-        'mlrun.projects',
-        'mlrun.artifacts',
-        'mlrun.utils',
-        'mlrun.datastore',
-        'mlrun.api',
-        'mlrun.api.api',
-        'mlrun.api.api.endpoints',
-        'mlrun.api.db',
-        'mlrun.api.db.sqldb',
-        'mlrun.api.db.filedb',
-        'mlrun.api.schemas',
-        'mlrun.api.crud',
-        'mlrun.api.utils',
-        'mlrun.api.utils.singletons',
+        "mlrun",
+        "mlrun.runtimes",
+        "mlrun.runtimes.mpijob",
+        "mlrun.db",
+        "mlrun.mlutils",
+        "mlrun.platforms",
+        "mlrun.projects",
+        "mlrun.artifacts",
+        "mlrun.utils",
+        "mlrun.datastore",
+        "mlrun.api",
+        "mlrun.api.api",
+        "mlrun.api.api.endpoints",
+        "mlrun.api.db",
+        "mlrun.api.db.sqldb",
+        "mlrun.api.db.filedb",
+        "mlrun.api.schemas",
+        "mlrun.api.crud",
+        "mlrun.api.utils",
+        "mlrun.api.utils.singletons",
     ],
     install_requires=install_requires,
-    extras_require={'api': api_deps},
+    extras_require={"api": api_deps},
     classifiers=[
-        'Development Status :: 4 - Beta',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache Software License',
-        'Operating System :: POSIX :: Linux',
-        'Operating System :: Microsoft :: Windows',
-        'Operating System :: MacOS',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python',
-        'Topic :: Software Development :: Libraries :: Python Modules',
-        'Topic :: Software Development :: Libraries',
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: POSIX :: Linux",
+        "Operating System :: Microsoft :: Windows",
+        "Operating System :: MacOS",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Software Development :: Libraries",
     ],
     tests_require=tests_require,
     zip_safe=False,
     include_package_data=True,
-    entry_points={'console_scripts': ['mlrun=mlrun.__main__:main']},
+    entry_points={"console_scripts": ["mlrun=mlrun.__main__:main"]},
 )

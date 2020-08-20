@@ -18,7 +18,7 @@ import os
 from .iguazio import mount_v3io
 
 
-def mount_pvc(pvc_name, volume_name='pipeline', volume_mount_path='/mnt/pipeline'):
+def mount_pvc(pvc_name, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):
     """
         Modifier function to apply to a Container Op to simplify volume, volume mount addition and
         enable better reuse of volumes, volume claims across container ops.
@@ -40,7 +40,7 @@ def mount_pvc(pvc_name, volume_name='pipeline', volume_mount_path='/mnt/pipeline
     return _mount_pvc
 
 
-def auto_mount(pvc_name='', volume_mount_path='', volume_name=None):
+def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
     """choose the mount based on env variables and params
 
     volume will be selected by the following order:
@@ -52,24 +52,24 @@ def auto_mount(pvc_name='', volume_mount_path='', volume_name=None):
         return mount_pvc(
             pvc_name=pvc_name,
             volume_mount_path=volume_mount_path,
-            volume_name=volume_name or 'pvc',
+            volume_name=volume_name or "pvc",
         )
-    if 'V3IO_ACCESS_KEY' in os.environ:
-        return mount_v3io(name=volume_name or 'v3io')
-    if 'MLRUN_PVC_MOUNT' in os.environ:
-        mount = os.environ.get('MLRUN_PVC_MOUNT')
-        items = mount.split(':')
+    if "V3IO_ACCESS_KEY" in os.environ:
+        return mount_v3io(name=volume_name or "v3io")
+    if "MLRUN_PVC_MOUNT" in os.environ:
+        mount = os.environ.get("MLRUN_PVC_MOUNT")
+        items = mount.split(":")
         if len(items) != 2:
-            raise ValueError('MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>')
+            raise ValueError("MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>")
         return mount_pvc(
             pvc_name=items[0],
             volume_mount_path=items[1],
-            volume_name=volume_name or 'pvc',
+            volume_name=volume_name or "pvc",
         )
-    raise ValueError('failed to auto mount, need to set env vars')
+    raise ValueError("failed to auto mount, need to set env vars")
 
 
-def mount_secret(secret_name, mount_path, volume_name='secret', items=None):
+def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
     """Modifier function to mount kubernetes secret as files(s)
 
      :param secret_name:  k8s secret name

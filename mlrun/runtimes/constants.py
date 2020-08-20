@@ -1,6 +1,6 @@
 class PodPhases:
-    succeeded = 'Succeeded'
-    failed = 'Failed'
+    succeeded = "Succeeded"
+    failed = "Failed"
 
     @staticmethod
     def stable_phases():
@@ -16,7 +16,7 @@ class PodPhases:
     @staticmethod
     def pod_phase_to_run_state(pod_phase):
         if pod_phase not in PodPhases.all():
-            raise ValueError(f'Invalid pod phase: {pod_phase}')
+            raise ValueError(f"Invalid pod phase: {pod_phase}")
         return {
             PodPhases.succeeded: RunStates.completed,
             PodPhases.failed: RunStates.error,
@@ -24,8 +24,8 @@ class PodPhases:
 
 
 class MPIJobCRDVersions(object):
-    v1 = 'v1'
-    v1alpha1 = 'v1alpha1'
+    v1 = "v1"
+    v1alpha1 = "v1alpha1"
 
     @staticmethod
     def all():
@@ -37,8 +37,8 @@ class MPIJobCRDVersions(object):
 
 
 class RunStates(object):
-    completed = 'completed'
-    error = 'error'
+    completed = "completed"
+    error = "error"
 
     @staticmethod
     def all():

@@ -41,7 +41,7 @@ async def http_status_error_handler(
     status_code = exc.response.status_code
     error_message = repr(exc)
     logger.warning(
-        'Request handling returned error status',
+        "Request handling returned error status",
         error_message=error_message,
         status_code=status_code,
     )
@@ -75,12 +75,12 @@ async def _initialize_singletons():
 
 
 def _start_periodic_cleanup():
-    logger.info('Starting periodic runtimes cleanup')
+    logger.info("Starting periodic runtimes cleanup")
     run_function_periodically(int(config.runtimes_cleanup_interval), _cleanup_runtimes)
 
 
 def _cleanup_runtimes():
-    logger.debug('Cleaning runtimes')
+    logger.debug("Cleaning runtimes")
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():
@@ -93,12 +93,12 @@ def _cleanup_runtimes():
 def main():
     init_data()
     uvicorn.run(
-        'mlrun.api.main:app',
-        host='0.0.0.0',
+        "mlrun.api.main:app",
+        host="0.0.0.0",
         port=config.httpdb.port,
         debug=config.httpdb.debug,
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

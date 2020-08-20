@@ -22,11 +22,11 @@ from .base import DataStore, FileStats
 
 
 class AzureBlobStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=''):
+    def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
 
-        con_string = self._secret('AZURE_STORAGE_CONNECTION_STRING') or os.getenv(
-            'AZURE_STORAGE_CONNECTION_STRING'
+        con_string = self._secret("AZURE_STORAGE_CONNECTION_STRING") or os.getenv(
+            "AZURE_STORAGE_CONNECTION_STRING"
         )
         if con_string:
             self.bsc = BlobServiceClient.from_connection_string(con_string)
@@ -34,7 +34,7 @@ class AzureBlobStore(DataStore):
     def upload(self, key, src_path):
         # Need to strip leading / from key
         blob_client = self.bsc.get_blob_client(container=self.endpoint, blob=key[1:])
-        with open(src_path, 'rb') as data:
+        with open(src_path, "rb") as data:
             blob_client.upload_blob(data, overwrite=True)
 
     def get(self, key, size=None, offset=0):
@@ -55,8 +55,8 @@ class AzureBlobStore(DataStore):
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):
-        if key and not key.endswith('/'):
-            key = key[1:] + '/'
+        if key and not key.endswith("/"):
+            key = key[1:] + "/"
 
         key_length = len(key)
         container_client = self.bsc.get_container_client(self.endpoint)

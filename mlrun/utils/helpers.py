@@ -33,8 +33,8 @@ from .logger import create_logger
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
 
-hub_prefix = 'hub://'
-DB_SCHEMA = 'store'
+hub_prefix = "hub://"
+DB_SCHEMA = "store"
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -59,18 +59,18 @@ if is_ipython:
 
 
 class run_keys:
-    input_path = 'input_path'
-    output_path = 'output_path'
-    inputs = 'inputs'
-    artifacts = 'artifacts'
-    outputs = 'outputs'
-    data_stores = 'data_stores'
-    secrets = 'secret_sources'
+    input_path = "input_path"
+    output_path = "output_path"
+    inputs = "inputs"
+    artifacts = "artifacts"
+    outputs = "outputs"
+    data_stores = "data_stores"
+    secrets = "secret_sources"
 
 
 def verify_field_regex(field_name, field_value, patterns):
     logger.debug(
-        'Validating field against patterns',
+        "Validating field against patterns",
         field_name=field_name,
         field_value=field_value,
         pattern=patterns,
@@ -79,13 +79,13 @@ def verify_field_regex(field_name, field_value, patterns):
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             logger.warn(
-                'Field is malformed. Does not match required pattern)',
+                "Field is malformed. Does not match required pattern)",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
             )
             raise ValueError(
-                f'Field {field_name} is malformed. Does not match required pattern: {pattern}'
+                f"Field {field_name} is malformed. Does not match required pattern: {pattern}"
             )
 
 
@@ -96,14 +96,14 @@ def now_date():
 def to_date_str(d):
     if d:
         return d.isoformat()
-    return ''
+    return ""
 
 
 def normalize_name(name):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
-    name = re.sub(r'\s+', '-', name)
-    name = name.replace('_', '-')
+    name = re.sub(r"\s+", "-", name)
+    name = name.replace("_", "-")
     return name.lower()
 
 
@@ -112,7 +112,7 @@ class LogBatchWriter:
         self.batch = batch
         self.maxtime = maxtime
         self.start_time = datetime.now()
-        self.buffer = ''
+        self.buffer = ""
         self.func = func
 
     def write(self, data):
@@ -124,7 +124,7 @@ class LogBatchWriter:
 
     def flush(self):
         self.func(self.buffer)
-        self.buffer = ''
+        self.buffer = ""
         self.start_time = datetime.now()
 
 
@@ -134,7 +134,7 @@ def get_in(obj, keys, default=None):
     1
     """
     if isinstance(keys, str):
-        keys = keys.split('.')
+        keys = keys.split(".")
 
     for key in keys:
         if not obj or key not in obj:
@@ -144,7 +144,7 @@ def get_in(obj, keys, default=None):
 
 
 def update_in(obj, key, value, append=False, replace=True):
-    parts = key.split('.') if isinstance(key, str) else key
+    parts = key.split(".") if isinstance(key, str) else key
     for part in parts[:-1]:
         sub = obj.get(part, missing)
         if sub is missing:
@@ -174,18 +174,18 @@ def match_labels(labels, conditions):
     def splitter(verb, text):
         items = text.split(verb)
         if len(items) != 2:
-            raise ValueError('illegal condition - {}'.format(text))
-        return labels.get(items[0].strip(), ''), items[1].strip()
+            raise ValueError("illegal condition - {}".format(text))
+        return labels.get(items[0].strip(), ""), items[1].strip()
 
     for condition in conditions:
-        if '~=' in condition:
-            l, val = splitter('~=', condition)
+        if "~=" in condition:
+            l, val = splitter("~=", condition)
             match = match and val in l
-        elif '!=' in condition:
-            l, val = splitter('!=', condition)
+        elif "!=" in condition:
+            l, val = splitter("!=", condition)
             match = match and val != l
-        elif '=' in condition:
-            l, val = splitter('=', condition)
+        elif "=" in condition:
+            l, val = splitter("=", condition)
             match = match and val == l
         else:
             match = match and (condition.strip() in labels)
@@ -198,7 +198,7 @@ def match_value(value, obj, key):
     return get_in(obj, key, _missing) == value
 
 
-def flatten(df, col, prefix=''):
+def flatten(df, col, prefix=""):
     params = []
     for r in df[col]:
         if r:
@@ -207,7 +207,7 @@ def flatten(df, col, prefix=''):
                     params += [k]
     params
     for p in params:
-        df[prefix + p] = df[col].apply(lambda x: x.get(p, '') if x else '')
+        df[prefix + p] = df[col].apply(lambda x: x.get(p, "") if x else "")
     df.drop(col, axis=1, inplace=True)
     return df
 
@@ -215,12 +215,12 @@ def flatten(df, col, prefix=''):
 def list2dict(lines: list):
     out = {}
     for line in lines:
-        i = line.find('=')
+        i = line.find("=")
         if i == -1:
             continue
         key, value = line[:i].strip(), line[i + 1 :].strip()
         if key is None:
-            raise ValueError('cannot find key in line (key=value)')
+            raise ValueError("cannot find key in line (key=value)")
         value = path.expandvars(value)
         out[key] = value
     return out
@@ -229,10 +229,10 @@ def list2dict(lines: list):
 def dict_to_list(struct: dict):
     if not struct:
         return []
-    return ['{}={}'.format(k, v) for k, v in struct.items()]
+    return ["{}={}".format(k, v) for k, v in struct.items()]
 
 
-def dict_to_str(struct: dict, sep=','):
+def dict_to_str(struct: dict, sep=","):
     return sep.join(dict_to_list(struct))
 
 
@@ -253,7 +253,7 @@ def date_representer(dumper, data):
         value = str(data)
     else:
         value = data.isoformat()
-    return dumper.represent_scalar('tag:yaml.org,2002:timestamp', value)
+    return dumper.represent_scalar("tag:yaml.org,2002:timestamp", value)
 
 
 yaml.add_representer(np.int64, int_representer, Dumper=yaml.SafeDumper)
@@ -270,7 +270,7 @@ def dict_to_yaml(struct):
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as e:
         raise ValueError(
-            'error: data result cannot be serialized to YAML' ', {} '.format(e)
+            "error: data result cannot be serialized to YAML" ", {} ".format(e)
         )
     return data
 
@@ -294,34 +294,34 @@ def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
 
 
-def uxjoin(base, local_path, key='', iter=None, is_dir=False):
-    if is_dir and (not local_path or local_path in ['.', './']):
-        local_path = ''
+def uxjoin(base, local_path, key="", iter=None, is_dir=False):
+    if is_dir and (not local_path or local_path in [".", "./"]):
+        local_path = ""
     elif not local_path:
         local_path = key
 
     if iter:
         local_path = path.join(str(iter), local_path)
 
-    if base and not base.endswith('/'):
-        base += '/'
-    return '{}{}'.format(base or '', local_path)
+    if base and not base.endswith("/"):
+        base += "/"
+    return "{}{}".format(base or "", local_path)
 
 
 def parse_function_uri(uri):
-    project = ''
-    tag = ''
-    hash_key = ''
-    if '/' in uri:
-        loc = uri.find('/')
+    project = ""
+    tag = ""
+    hash_key = ""
+    if "/" in uri:
+        loc = uri.find("/")
         project = uri[:loc]
         uri = uri[loc + 1 :]
-    if ':' in uri:
-        loc = uri.find(':')
+    if ":" in uri:
+        loc = uri.find(":")
         tag = uri[loc + 1 :]
         uri = uri[:loc]
-    if '@' in uri:
-        loc = uri.find('@')
+    if "@" in uri:
+        loc = uri.find("@")
         hash_key = uri[loc + 1 :]
         uri = uri[:loc]
 
@@ -332,9 +332,9 @@ def extend_hub_uri(uri):
     if not uri.startswith(hub_prefix):
         return uri
     name = uri[len(hub_prefix) :]
-    tag = 'master'
-    if ':' in name:
-        loc = name.find(':')
+    tag = "master"
+    if ":" in name:
+        loc = name.find(":")
         tag = name[loc + 1 :]
         name = name[:loc]
     return config.hub_url.format(name=name, tag=tag)
@@ -345,39 +345,39 @@ def gen_md_table(header, rows=None):
 
     def gen_list(items=None):
         items = [] if items is None else items
-        out = '|'
+        out = "|"
         for i in items:
-            out += ' {} |'.format(i)
+            out += " {} |".format(i)
         return out
 
-    out = gen_list(header) + '\n' + gen_list(len(header) * ['---']) + '\n'
+    out = gen_list(header) + "\n" + gen_list(len(header) * ["---"]) + "\n"
     for r in rows:
-        out += gen_list(r) + '\n'
+        out += gen_list(r) + "\n"
     return out
 
 
 def gen_html_table(header, rows=None):
     rows = [] if rows is None else rows
 
-    style = '''
+    style = """
 <style type="text/css">
 .tg  {border-collapse:collapse;border-spacing:0;}
 .tg td{border-style:solid;border-width:1px;padding:6px 4px;}
 .tg th{font-weight:normal;border-style:solid;border-width:1px;padding:6px 4px;}
 </style>
-'''
+"""
 
-    def gen_list(items=None, tag='td'):
+    def gen_list(items=None, tag="td"):
         items = [] if items is None else items
-        out = ''
+        out = ""
         for item in items:
-            out += '<{}>{}</{}>'.format(tag, item, tag)
+            out += "<{}>{}</{}>".format(tag, item, tag)
         return out
 
-    out = '<tr>' + gen_list(header, 'th') + '</tr>\n'
+    out = "<tr>" + gen_list(header, "th") + "</tr>\n"
     for r in rows:
-        out += '<tr>' + gen_list(r, 'td') + '</tr>\n'
-    return style + '<table class="tg">\n' + out + '</table>\n\n'
+        out += "<tr>" + gen_list(r, "td") + "</tr>\n"
+    return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
 def new_pipe_meta(artifact_path=None, ttl=None, *args):
@@ -387,7 +387,7 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
         from kubernetes import client as k8s_client
 
         task.add_env_variable(
-            k8s_client.V1EnvVar(name='MLRUN_ARTIFACT_PATH', value=artifact_path)
+            k8s_client.V1EnvVar(name="MLRUN_ARTIFACT_PATH", value=artifact_path)
         )
         return task
 
@@ -406,57 +406,57 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 def tag_image(base: str):
     ver = config.images_tag or config.version
     if ver and (
-        base == 'mlrun/mlrun' or (base.startswith('mlrun/ml-') and ':' not in base)
+        base == "mlrun/mlrun" or (base.startswith("mlrun/ml-") and ":" not in base)
     ):
-        base += ':' + ver
+        base += ":" + ver
     return base
 
 
 def get_artifact_target(item: dict, project=None):
-    kind = item.get('kind')
-    if kind in ['dataset', 'model'] and item.get('db_key'):
-        return '{}://{}/{}#{}'.format(
+    kind = item.get("kind")
+    if kind in ["dataset", "model"] and item.get("db_key"):
+        return "{}://{}/{}#{}".format(
             DB_SCHEMA,
-            project or item.get('project'),
-            item.get('db_key'),
-            item.get('tree'),
+            project or item.get("project"),
+            item.get("db_key"),
+            item.get("tree"),
         )
-    return item.get('target_path')
+    return item.get("target_path")
 
 
 def pr_comment(repo: str, issue: int, message: str, token=None):
-    token = token or environ.get('GITHUB_TOKEN')
+    token = token or environ.get("GITHUB_TOKEN")
     headers = {
-        'Accept': 'application/vnd.github.v3+json',
-        'Authorization': f'token {token}',
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": f"token {token}",
     }
-    url = f'https://api.github.com/repos/{repo}/issues/{issue}/comments'
+    url = f"https://api.github.com/repos/{repo}/issues/{issue}/comments"
 
     resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
     if not resp.ok:
-        errmsg = f'bad pr comment resp!!\n{resp.text}'
+        errmsg = f"bad pr comment resp!!\n{resp.text}"
         raise IOError(errmsg)
-    return resp.json()['id']
+    return resp.json()["id"]
 
 
-def fill_function_hash(function_dict, tag=''):
+def fill_function_hash(function_dict, tag=""):
 
     # remove tag, hash, date from calculation
-    function_dict.setdefault('metadata', {})
-    tag = tag or function_dict['metadata'].get('tag')
-    status = function_dict.setdefault('status', {})
-    function_dict['metadata']['tag'] = ''
-    function_dict['metadata']['hash'] = ''
-    function_dict['status'] = None
-    function_dict['metadata']['updated'] = None
+    function_dict.setdefault("metadata", {})
+    tag = tag or function_dict["metadata"].get("tag")
+    status = function_dict.setdefault("status", {})
+    function_dict["metadata"]["tag"] = ""
+    function_dict["metadata"]["hash"] = ""
+    function_dict["status"] = None
+    function_dict["metadata"]["updated"] = None
 
     data = json.dumps(function_dict, sort_keys=True).encode()
     h = hashlib.sha1()
     h.update(data)
     hashkey = h.hexdigest()
-    function_dict['metadata']['tag'] = tag
-    function_dict['metadata']['hash'] = hashkey
-    function_dict['status'] = status
+    function_dict["metadata"]["tag"] = tag
+    function_dict["metadata"]["hash"] = hashkey
+    function_dict["status"] = status
     return hashkey
 
 
@@ -514,9 +514,9 @@ def retry_until_successful(
 class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False):
         self._hooks = []
-        self._html = ''
+        self._html = ""
         self.with_ipython = with_ipython
-        if with_slack and 'SLACK_WEBHOOK' in environ:
+        if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
 
     def push(self, message, runs):
@@ -524,7 +524,7 @@ class RunNotifications:
             try:
                 h(message, runs)
             except Exception as e:
-                logger.warning(f'failed to push notification, {e}')
+                logger.warning(f"failed to push notification, {e}")
         if self.with_ipython and is_ipython:
             import IPython
 
@@ -534,8 +534,8 @@ class RunNotifications:
         if self._html:
             return self._html
 
-        html = '<h2>Run Results</h2>' + message
-        html += '<br>click the hyper links below to see detailed results<br>'
+        html = "<h2>Run Results</h2>" + message
+        html += "<br>click the hyper links below to see detailed results<br>"
         html += runs.show(display=False, short=True)
         self._html = html
         return html
@@ -544,74 +544,74 @@ class RunNotifications:
         def _print(message, runs):
             table = []
             for r in runs:
-                state = r['status'].get('state', '')
-                if state == 'error':
-                    result = r['status'].get('error', '')
+                state = r["status"].get("state", "")
+                if state == "error":
+                    result = r["status"].get("error", "")
                 else:
-                    result = dict_to_str(r['status'].get('results', {}))
+                    result = dict_to_str(r["status"].get("results", {}))
 
                 table.append(
                     [
                         state,
-                        r['metadata']['name'],
-                        '..' + r['metadata']['uid'][-6:],
+                        r["metadata"]["name"],
+                        ".." + r["metadata"]["uid"][-6:],
                         result,
                     ]
                 )
             print(
                 message
-                + '\n'
-                + tabulate(table, headers=['status', 'name', 'uid', 'results'])
+                + "\n"
+                + tabulate(table, headers=["status", "name", "uid", "results"])
             )
 
         self._hooks.append(_print)
         return self
 
-    def slack(self, webhook=''):
-        emoji = {'completed': ':smiley:', 'running': ':man-running:', 'error': ':x:'}
+    def slack(self, webhook=""):
+        emoji = {"completed": ":smiley:", "running": ":man-running:", "error": ":x:"}
 
-        template = '{}/projects/{}/jobs/{}/info'
+        template = "{}/projects/{}/jobs/{}/info"
 
-        webhook = webhook or environ.get('SLACK_WEBHOOK')
+        webhook = webhook or environ.get("SLACK_WEBHOOK")
         if not webhook:
-            raise ValueError('Slack webhook is not set')
+            raise ValueError("Slack webhook is not set")
 
         def row(text):
-            return {'type': 'mrkdwn', 'text': text}
+            return {"type": "mrkdwn", "text": text}
 
         def _slack(message, runs):
-            fields = [row('*Runs*'), row('*Results*')]
+            fields = [row("*Runs*"), row("*Results*")]
             for r in runs:
-                meta = r['metadata']
+                meta = r["metadata"]
                 if config.ui_url:
                     url = template.format(
-                        config.ui_url, meta.get('project'), meta.get('uid')
+                        config.ui_url, meta.get("project"), meta.get("uid")
                     )
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:
                     line = meta.get("name")
-                state = r['status'].get('state', '')
+                state = r["status"].get("state", "")
                 line = f'{emoji.get(state, ":question:")}  {line}'
 
                 fields.append(row(line))
-                if state == 'error':
-                    result = '*{}*'.format(r['status'].get('error', ''))
+                if state == "error":
+                    result = "*{}*".format(r["status"].get("error", ""))
                 else:
-                    result = dict_to_str(r['status'].get('results', {}), ', ')
-                fields.append(row(result or 'None'))
+                    result = dict_to_str(r["status"].get("results", {}), ", ")
+                fields.append(row(result or "None"))
 
             data = {
-                'blocks': [
+                "blocks": [
                     {"type": "section", "text": {"type": "mrkdwn", "text": message}}
                 ]
             }
 
             for i in range(0, len(fields), 8):
-                data['blocks'].append({"type": "section", "fields": fields[i : i + 8]})
+                data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
             response = requests.post(
                 webhook,
                 data=json.dumps(data),
-                headers={'Content-Type': 'application/json'},
+                headers={"Content-Type": "application/json"},
             )
             response.raise_for_status()
 
@@ -621,8 +621,8 @@ class RunNotifications:
     def git_comment(self, git_repo=None, git_issue=None, token=None):
         def _comment(message, runs):
             pr_comment(
-                git_repo or self._get_param('git_repo'),
-                git_issue or self._get_param('git_issue'),
+                git_repo or self._get_param("git_repo"),
+                git_issue or self._get_param("git_issue"),
                 self._get_html(message, runs),
                 token=token,
             )

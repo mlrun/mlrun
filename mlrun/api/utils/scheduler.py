@@ -24,7 +24,7 @@ class Scheduler:
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
 
     async def start(self, db_session: Session):
-        logger.info('Starting scheduler')
+        logger.info("Starting scheduler")
         self._scheduler.start()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
@@ -34,10 +34,10 @@ class Scheduler:
         try:
             self._reload_schedules(db_session)
         except Exception as exc:
-            logger.warning('Failed reloading schedules', exc=exc)
+            logger.warning("Failed reloading schedules", exc=exc)
 
     async def stop(self):
-        logger.info('Stopping scheduler')
+        logger.info("Stopping scheduler")
         self._scheduler.shutdown()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
@@ -58,7 +58,7 @@ class Scheduler:
         self._validate_cron_trigger(cron_trigger)
 
         logger.debug(
-            'Creating schedule',
+            "Creating schedule",
             project=project,
             name=name,
             kind=kind,
@@ -75,7 +75,7 @@ class Scheduler:
     def list_schedules(
         self, db_session: Session, project: str = None, kind: str = None
     ) -> schemas.SchedulesOutput:
-        logger.debug('Getting schedules', project=project, kind=kind)
+        logger.debug("Getting schedules", project=project, kind=kind)
         db_schedules = get_db().list_schedules(db_session, project, kind)
         schedules = []
         for db_schedule in db_schedules:
@@ -86,12 +86,12 @@ class Scheduler:
     def get_schedule(
         self, db_session: Session, project: str, name: str
     ) -> schemas.ScheduleOutput:
-        logger.debug('Getting schedule', project=project, name=name)
+        logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         return self._transform_db_schedule_to_schedule(db_schedule)
 
     def delete_schedule(self, db_session: Session, project: str, name: str):
-        logger.debug('Deleting schedule', project=project, name=name)
+        logger.debug("Deleting schedule", project=project, name=name)
         job_id = self._resolve_job_id(project, name)
         self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
@@ -105,7 +105,7 @@ class Scheduler:
         """
         Enforce no more then one job per min_allowed_interval
         """
-        logger.debug('Validating cron trigger')
+        logger.debug("Validating cron trigger")
         apscheduler_cron_trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
             cron_trigger
         )
@@ -136,15 +136,15 @@ class Scheduler:
                 seconds=min_allowed_interval_seconds
             ):
                 logger.warn(
-                    'Cron trigger too frequent. Rejecting',
+                    "Cron trigger too frequent. Rejecting",
                     cron_trigger=cron_trigger,
                     next_run_time=next_run_time,
                     second_next_run_time=second_next_run_time,
                     delta=second_next_run_time - next_run_time,
                 )
                 raise ValueError(
-                    f'Cron trigger too frequent. no more then one job '
-                    f'per {self._min_allowed_interval} is allowed'
+                    f"Cron trigger too frequent. no more then one job "
+                    f"per {self._min_allowed_interval} is allowed"
                 )
 
     def _create_schedule_in_scheduler(
@@ -157,7 +157,7 @@ class Scheduler:
         cron_trigger: schemas.ScheduleCronTrigger,
     ):
         job_id = self._resolve_job_id(project, name)
-        logger.debug('Adding schedule to scheduler', job_id=job_id)
+        logger.debug("Adding schedule to scheduler", job_id=job_id)
         function, args, kwargs = self._resolve_job_function(
             db_session, kind, scheduled_object
         )
@@ -172,7 +172,7 @@ class Scheduler:
         )
 
     def _reload_schedules(self, db_session: Session):
-        logger.info('Reloading schedules')
+        logger.info("Reloading schedules")
         db_schedules = get_db().list_schedules(db_session)
         for db_schedule in db_schedules:
             # don't let one failure fail the rest
@@ -187,7 +187,7 @@ class Scheduler:
                 )
             except Exception as exc:
                 logger.warn(
-                    'Failed rescheduling job. Continuing',
+                    "Failed rescheduling job. Continuing",
                     exc=str(exc),
                     db_schedule=db_schedule,
                 )
@@ -218,11 +218,11 @@ class Scheduler:
             # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
             # endless scheduling loop
             edited_scheduled_object = copy.deepcopy(scheduled_object)
-            edited_scheduled_object.pop('schedule', None)
+            edited_scheduled_object.pop("schedule", None)
 
             # removing the uid from the task metadata so that a new uid will be generated for every run
             # otherwise all jobs will have the same uid
-            edited_scheduled_object.get('task', {}).get('metadata', {}).pop('uid', None)
+            edited_scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
 
             return submit, [db_session, edited_scheduled_object], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:

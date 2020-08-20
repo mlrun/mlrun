@@ -48,7 +48,7 @@ async def store_function(
         versioned=versioned,
     )
     return {
-        'hash_key': hash_key,
+        "hash_key": hash_key,
     }
 
 
@@ -73,7 +73,7 @@ def list_functions(
     project: str = config.default_project,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     funcs = get_db().list_functions(db_session, name, project, tag, labels)

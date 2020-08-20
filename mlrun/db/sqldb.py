@@ -39,22 +39,22 @@ class SQLDB(RunDBInterface):
         self.db = SQLAPIDB(self.dsn, self.projects)
         return self
 
-    def store_log(self, uid, project='', body=b'', append=False):
+    def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(
             self.db.store_log, self.session, uid, project, body, append
         )
 
-    def get_log(self, uid, project='', offset=0, size=0):
+    def get_log(self, uid, project="", offset=0, size=0):
         return self._transform_db_error(
             self.db.get_log, self.session, uid, project, offset, size
         )
 
-    def store_run(self, struct, uid, project='', iter=0):
+    def store_run(self, struct, uid, project="", iter=0):
         return self._transform_db_error(
             self.db.store_run, self.session, struct, uid, project, iter
         )
 
-    def update_run(self, updates: dict, uid, project='', iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0):
         return self._transform_db_error(
             self.db.update_run, self.session, updates, uid, project, iter
         )
@@ -98,12 +98,12 @@ class SQLDB(RunDBInterface):
             self.db.del_runs, self.session, name, project, labels, state, days_ago
         )
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         return self._transform_db_error(
             self.db.store_artifact, self.session, key, artifact, uid, iter, tag, project
         )
 
-    def read_artifact(self, key, tag='', iter=None, project=''):
+    def read_artifact(self, key, tag="", iter=None, project=""):
         return self._transform_db_error(
             self.db.read_artifact, self.session, key, tag, iter, project
         )
@@ -122,17 +122,17 @@ class SQLDB(RunDBInterface):
             until,
         )
 
-    def del_artifact(self, key, tag='', project=''):
+    def del_artifact(self, key, tag="", project=""):
         return self._transform_db_error(
             self.db.del_artifact, self.session, key, tag, project
         )
 
-    def del_artifacts(self, name='', project='', tag='', labels=None):
+    def del_artifacts(self, name="", project="", tag="", labels=None):
         return self._transform_db_error(
             self.db.del_artifacts, self.session, name, project, tag, labels
         )
 
-    def store_function(self, function, name, project='', tag='', versioned=False):
+    def store_function(self, function, name, project="", tag="", versioned=False):
         return self._transform_db_error(
             self.db.store_function,
             self.session,
@@ -143,7 +143,7 @@ class SQLDB(RunDBInterface):
             versioned,
         )
 
-    def get_function(self, name, project='', tag='', hash_key=''):
+    def get_function(self, name, project="", tag="", hash_key=""):
         return self._transform_db_error(
             self.db.get_function, self.session, name, project, tag, hash_key
         )

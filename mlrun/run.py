@@ -56,11 +56,11 @@ from .utils import (
 
 
 class RunStatuses(object):
-    succeeded = 'Succeeded'
-    failed = 'Failed'
-    skipped = 'Skipped'
-    error = 'Error'
-    running = 'Running'
+    succeeded = "Succeeded"
+    failed = "Failed"
+    skipped = "Skipped"
+    error = "Error"
+    running = "Running"
 
     @staticmethod
     def all():
@@ -92,17 +92,17 @@ class RunStatuses(object):
 
 def run_local(
     task=None,
-    command='',
-    name: str = '',
+    command="",
+    name: str = "",
     args: list = None,
     workdir=None,
-    project: str = '',
-    tag: str = '',
+    project: str = "",
+    tag: str = "",
     secrets=None,
     handler=None,
     params: dict = None,
     inputs: dict = None,
-    artifact_path: str = '',
+    artifact_path: str = "",
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -144,8 +144,8 @@ def run_local(
     command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
-        handler = handler or get_in(runtime, 'spec.default_handler', '')
-        meta = BaseMetadata.from_dict(runtime['metadata'])
+        handler = handler or get_in(runtime, "spec.default_handler", "")
+        meta = BaseMetadata.from_dict(runtime["metadata"])
         meta.name = name or meta.name
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
@@ -165,7 +165,7 @@ def run_local(
     )
 
 
-def function_to_module(code='', workdir=None, secrets=None):
+def function_to_module(code="", workdir=None, secrets=None):
     """Load code, notebook or mlrun function as .py module
     this function can import a local/remote py file or notebook
     or load an mlrun function object as a module, you can use this
@@ -197,7 +197,7 @@ def function_to_module(code='', workdir=None, secrets=None):
     """
     command, runtime = _load_func_code(code, workdir, secrets=secrets)
     if not command:
-        raise ValueError('nothing to run, specify command or function')
+        raise ValueError("nothing to run, specify command or function")
 
     path = Path(command)
     mod_name = path.name
@@ -205,65 +205,65 @@ def function_to_module(code='', workdir=None, secrets=None):
         mod_name = mod_name[: -len(path.suffix)]
     spec = imputil.spec_from_file_location(mod_name, command)
     if spec is None:
-        raise OSError(f'cannot import from {command!r}')
+        raise OSError(f"cannot import from {command!r}")
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
     return mod
 
 
-def _load_func_code(command='', workdir=None, secrets=None, name='name'):
-    is_obj = hasattr(command, 'to_dict')
-    suffix = '' if is_obj else Path(command).suffix
+def _load_func_code(command="", workdir=None, secrets=None, name="name"):
+    is_obj = hasattr(command, "to_dict")
+    suffix = "" if is_obj else Path(command).suffix
     runtime = None
-    if is_obj or suffix == '.yaml':
+    if is_obj or suffix == ".yaml":
         is_remote = False
         if is_obj:
             runtime = command.to_dict()
         else:
-            is_remote = '://' in command
+            is_remote = "://" in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
 
-        command = get_in(runtime, 'spec.command', '')
-        code = get_in(runtime, 'spec.build.functionSourceCode')
+        command = get_in(runtime, "spec.command", "")
+        code = get_in(runtime, "spec.build.functionSourceCode")
 
         if code:
-            fpath = mktemp('.py')
-            code = b64decode(code).decode('utf-8')
+            fpath = mktemp(".py")
+            code = b64decode(code).decode("utf-8")
             command = fpath
-            with open(fpath, 'w') as fp:
+            with open(fpath, "w") as fp:
                 fp.write(code)
         elif command and not is_remote:
-            command = path.join(workdir or '', command)
+            command = path.join(workdir or "", command)
             if not path.isfile(command):
-                raise OSError('command file {} not found'.format(command))
+                raise OSError("command file {} not found".format(command))
 
         else:
-            raise RuntimeError('cannot run, command={}'.format(command))
+            raise RuntimeError("cannot run, command={}".format(command))
 
-    elif command == '':
+    elif command == "":
         pass
 
-    elif suffix == '.ipynb':
-        fpath = mktemp('.py')
-        code_to_function(name, filename=command, kind='local', code_output=fpath)
+    elif suffix == ".ipynb":
+        fpath = mktemp(".py")
+        code_to_function(name, filename=command, kind="local", code_output=fpath)
         command = fpath
 
-    elif suffix == '.py':
-        if '://' in command:
-            fpath = mktemp('.py')
+    elif suffix == ".py":
+        if "://" in command:
+            fpath = mktemp(".py")
             download_object(command, fpath, secrets)
             command = fpath
 
     else:
-        raise ValueError('unsupported suffix: {}'.format(suffix))
+        raise ValueError("unsupported suffix: {}".format(suffix))
 
     return command, runtime
 
 
 def get_or_create_ctx(
-    name: str, event=None, spec=None, with_env: bool = True, rundb: str = ''
+    name: str, event=None, spec=None, with_env: bool = True, rundb: str = ""
 ):
     """ called from within the user program to obtain a run context
 
@@ -313,11 +313,11 @@ def get_or_create_ctx(
     if global_context.get() and not spec and not event:
         return global_context.get()
 
-    if 'global_mlrun_context' in globals() and not spec and not event:
-        return globals().get('global_mlrun_context')
+    if "global_mlrun_context" in globals() and not spec and not event:
+        return globals().get("global_mlrun_context")
 
     newspec = {}
-    config = environ.get('MLRUN_EXEC_CONFIG')
+    config = environ.get("MLRUN_EXEC_CONFIG")
     if event:
         newspec = event.body
 
@@ -336,13 +336,13 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
 
-    update_in(newspec, 'metadata.name', name, replace=False)
+    update_in(newspec, "metadata.name", name, replace=False)
     autocommit = False
-    tmp = environ.get('MLRUN_META_TMPFILE')
-    out = rundb or mlconf.dbpath or environ.get('MLRUN_DBPATH')
+    tmp = environ.get("MLRUN_META_TMPFILE")
+    out = rundb or mlconf.dbpath or environ.get("MLRUN_DBPATH")
     if out:
         autocommit = True
-        logger.info('logging run results to: {}'.format(out))
+        logger.info("logging run results to: {}".format(out))
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
@@ -350,7 +350,7 @@ def get_or_create_ctx(
     return ctx
 
 
-def import_function(url='', secrets=None, db=''):
+def import_function(url="", secrets=None, db=""):
     """Create function object from DB or local/remote YAML file
 
     Reading from a file or remote URL (http(s), s3, git, v3io, ..)
@@ -361,13 +361,13 @@ def import_function(url='', secrets=None, db=''):
     :param db: optional, mlrun api/db path
     :returns: function object
     """
-    if url.startswith('db://'):
+    if url.startswith("db://"):
         url = url[5:]
         project, name, tag, hash_key = parse_function_uri(url)
         db = get_run_db(db or get_or_set_dburl()).connect(secrets)
         runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:
-            raise KeyError('function {}:{} not found in the DB'.format(name, tag))
+            raise KeyError("function {}:{} not found in the DB".format(name, tag))
         return new_function(runtime=runtime)
 
     url = extend_hub_uri(url)
@@ -379,55 +379,55 @@ def import_function_to_dict(url, secrets=None):
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
     runtime = yaml.load(obj, Loader=yaml.FullLoader)
-    remote = '://' in url
+    remote = "://" in url
 
-    code = get_in(runtime, 'spec.build.functionSourceCode')
-    update_in(runtime, 'metadata.build.code_origin', url)
-    cmd = code_file = get_in(runtime, 'spec.command', '')
-    if ' ' in cmd:
-        code_file = cmd[: cmd.find(' ')]
-    if runtime['kind'] in ['', 'local']:
+    code = get_in(runtime, "spec.build.functionSourceCode")
+    update_in(runtime, "metadata.build.code_origin", url)
+    cmd = code_file = get_in(runtime, "spec.command", "")
+    if " " in cmd:
+        code_file = cmd[: cmd.find(" ")]
+    if runtime["kind"] in ["", "local"]:
         if code:
-            fpath = mktemp('.py')
-            code = b64decode(code).decode('utf-8')
-            update_in(runtime, 'spec.command', fpath)
-            with open(fpath, 'w') as fp:
+            fpath = mktemp(".py")
+            code = b64decode(code).decode("utf-8")
+            update_in(runtime, "spec.command", fpath)
+            with open(fpath, "w") as fp:
                 fp.write(code)
         elif remote and cmd:
-            if cmd.startswith('/'):
-                raise ValueError('exec path (spec.command) must be relative')
-            url = url[: url.rfind('/') + 1] + code_file
+            if cmd.startswith("/"):
+                raise ValueError("exec path (spec.command) must be relative")
+            url = url[: url.rfind("/") + 1] + code_file
             code = get_object(url, secrets)
             dir = path.dirname(code_file)
             if dir:
                 makedirs(dir, exist_ok=True)
-            with open(code_file, 'wb') as fp:
+            with open(code_file, "wb") as fp:
                 fp.write(code)
         elif cmd:
             if not path.isfile(code_file):
                 # look for the file in a relative path to the yaml
-                slash = url.rfind('/')
-                if slash >= 0 and path.isfile(url[: url.rfind('/') + 1] + code_file):
+                slash = url.rfind("/")
+                if slash >= 0 and path.isfile(url[: url.rfind("/") + 1] + code_file):
                     raise ValueError(
-                        'exec file spec.command={}'.format(code_file)
-                        + ' is relative, change working dir'
+                        "exec file spec.command={}".format(code_file)
+                        + " is relative, change working dir"
                     )
                 raise ValueError(
-                    'no file in exec path (spec.command={})'.format(code_file)
+                    "no file in exec path (spec.command={})".format(code_file)
                 )
         else:
-            raise ValueError('command or code not specified in function spec')
+            raise ValueError("command or code not specified in function spec")
 
     return runtime
 
 
 def new_function(
-    name: str = '',
-    project: str = '',
-    tag: str = '',
-    kind: str = '',
-    command: str = '',
-    image: str = '',
+    name: str = "",
+    project: str = "",
+    tag: str = "",
+    kind: str = "",
+    command: str = "",
+    image: str = "",
     args: list = None,
     runtime=None,
     mode=None,
@@ -458,21 +458,21 @@ def new_function(
     :return: function object
     """
     kind, runtime = _process_runtime(command, runtime, kind)
-    command = get_in(runtime, 'spec.command', command)
-    name = name or get_in(runtime, 'metadata.name', '')
+    command = get_in(runtime, "spec.command", command)
+    name = name or get_in(runtime, "metadata.name", "")
 
     if not kind and not command:
         runner = HandlerRuntime()
     else:
-        if kind in ['', 'local'] and command:
+        if kind in ["", "local"] and command:
             runner = LocalRuntime.from_dict(runtime)
         elif kind in RuntimeKinds.all():
             runner = get_runtime_class(kind).from_dict(runtime)
         else:
             raise Exception(
-                'unsupported runtime ({}) or missing command, '.format(kind)
-                + 'supported runtimes: {}'.format(
-                    ','.join(RuntimeKinds.all() + ['local'])
+                "unsupported runtime ({}) or missing command, ".format(kind)
+                + "supported runtimes: {}".format(
+                    ",".join(RuntimeKinds.all() + ["local"])
                 )
             )
 
@@ -481,7 +481,7 @@ def new_function(
         if command and kind not in [RuntimeKinds.remote]:
             name, _ = path.splitext(path.basename(command))
         else:
-            name = 'mlrun-' + uuid.uuid4().hex[0:6]
+            name = "mlrun-" + uuid.uuid4().hex[0:6]
     runner.metadata.name = name
     runner.metadata.project = (
         runner.metadata.project or project or mlconf.default_project
@@ -489,10 +489,10 @@ def new_function(
     if tag:
         runner.metadata.tag = tag
     if image:
-        if kind in ['', 'handler', 'local']:
+        if kind in ["", "handler", "local"]:
             raise ValueError(
-                'image should only be set with containerized '
-                'runtimes (job, mpijob, spark, ..), set kind=..'
+                "image should only be set with containerized "
+                "runtimes (job, mpijob, spark, ..), set kind=.."
             )
         runner.spec.image = image
     if args:
@@ -504,47 +504,47 @@ def new_function(
 
 
 def _process_runtime(command, runtime, kind):
-    if runtime and hasattr(runtime, 'to_dict'):
+    if runtime and hasattr(runtime, "to_dict"):
         runtime = runtime.to_dict()
     if runtime and isinstance(runtime, dict):
-        kind = kind or runtime.get('kind', '')
-        command = command or get_in(runtime, 'spec.command', '')
-    if '://' in command and command.startswith('http'):
+        kind = kind or runtime.get("kind", "")
+        command = command or get_in(runtime, "spec.command", "")
+    if "://" in command and command.startswith("http"):
         kind = kind or RuntimeKinds.remote
     if not runtime:
         runtime = {}
-    update_in(runtime, 'spec.command', command)
-    runtime['kind'] = kind
+    update_in(runtime, "spec.command", command)
+    runtime["kind"] = kind
     if kind != RuntimeKinds.remote:
         parse_command(runtime, command)
     else:
-        update_in(runtime, 'spec.function_kind', 'mlrun')
+        update_in(runtime, "spec.function_kind", "mlrun")
     return kind, runtime
 
 
 def parse_command(runtime, url):
-    idx = url.find('#')
+    idx = url.find("#")
     if idx > -1:
-        update_in(runtime, 'spec.image', url[:idx])
+        update_in(runtime, "spec.image", url[:idx])
         url = url[idx + 1 :]
 
     if url:
         arg_list = url.split()
-        update_in(runtime, 'spec.command', arg_list[0])
-        update_in(runtime, 'spec.args', arg_list[1:])
+        update_in(runtime, "spec.command", arg_list[0])
+        update_in(runtime, "spec.args", arg_list[1:])
 
 
 def code_to_function(
-    name: str = '',
-    project: str = '',
-    tag: str = '',
-    filename: str = '',
-    handler: str = '',
-    kind: str = '',
+    name: str = "",
+    project: str = "",
+    tag: str = "",
+    filename: str = "",
+    handler: str = "",
+    kind: str = "",
     image: str = None,
-    code_output='',
+    code_output="",
     embed_code=True,
-    description='',
+    description="",
     categories: list = None,
     labels: dict = None,
     with_doc=True,
@@ -572,11 +572,11 @@ def code_to_function(
     """
     filebase, _ = path.splitext(path.basename(filename))
 
-    def add_name(origin, name=''):
-        name = filename or (name + '.ipynb')
+    def add_name(origin, name=""):
+        name = filename or (name + ".ipynb")
         if not origin:
             return name
-        return '{}:{}'.format(origin, name)
+        return "{}:{}".format(origin, name)
 
     def update_meta(fn):
         fn.spec.description = description
@@ -588,100 +588,100 @@ def code_to_function(
     if (
         not embed_code
         and not code_output
-        and (not filename or filename.endswith('.ipynb'))
+        and (not filename or filename.endswith(".ipynb"))
     ):
         raise ValueError(
-            'a valid code file must be specified '
-            'when not using the embed_code option'
+            "a valid code file must be specified "
+            "when not using the embed_code option"
         )
 
-    subkind = kind[kind.find(':') + 1 :] if kind.startswith('nuclio:') else None
+    subkind = kind[kind.find(":") + 1 :] if kind.startswith("nuclio:") else None
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(
-        filename, name=name, handler=handler or 'handler', kind=subkind
+        filename, name=name, handler=handler or "handler", kind=subkind
     )
-    spec_kind = get_in(spec, 'kind', '')
-    if spec_kind not in ['', 'Function']:
+    spec_kind = get_in(spec, "kind", "")
+    if spec_kind not in ["", "Function"]:
         kind = spec_kind.lower()
 
         # if its a nuclio subkind, redo nb parsing
-        if kind.startswith('nuclio:'):
-            subkind = kind[kind.find(':') + 1 :]
+        if kind.startswith("nuclio:"):
+            subkind = kind[kind.find(":") + 1 :]
             name, spec, code = build_file(
-                filename, name=name, handler=handler or 'handler', kind=subkind
+                filename, name=name, handler=handler or "handler", kind=subkind
             )
 
     if code_output:
-        if code_output == '.':
-            code_output = name + '.py'
-        if filename == '' or filename.endswith('.ipynb'):
-            with open(code_output, 'w') as fp:
+        if code_output == ".":
+            code_output = name + ".py"
+        if filename == "" or filename.endswith(".ipynb"):
+            with open(code_output, "w") as fp:
                 fp.write(code)
         else:
-            raise ValueError('code_output option is only used with notebooks')
+            raise ValueError("code_output option is only used with notebooks")
 
-    if kind.startswith('nuclio'):
+    if kind.startswith("nuclio"):
         r = RemoteRuntime()
         r.spec.function_kind = subkind
         if embed_code:
-            update_in(spec, 'kind', 'Function')
+            update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
             if with_doc:
                 handlers = find_handlers(code)
-                r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
+                r.spec.entry_points = {h["name"]: as_func(h) for h in handlers}
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
 
         if not name:
-            raise ValueError('name must be specified')
+            raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
         update_meta(r)
         return r
 
-    if kind is None or kind in ['', 'Function']:
-        raise ValueError('please specify the function kind')
-    elif kind in ['local']:
+    if kind is None or kind in ["", "Function"]:
+        raise ValueError("please specify the function kind")
+    elif kind in ["local"]:
         r = LocalRuntime()
     elif kind in RuntimeKinds.all():
         r = get_runtime_class(kind)()
     else:
-        raise ValueError('unsupported runtime ({})'.format(kind))
+        raise ValueError("unsupported runtime ({})".format(kind))
 
     name, spec, code = build_file(filename, name=name)
 
     if not name:
-        raise ValueError('name must be specified')
-    h = get_in(spec, 'spec.handler', '').split(':')
+        raise ValueError("name must be specified")
+    h = get_in(spec, "spec.handler", "").split(":")
     r.handler = h[0] if len(h) <= 1 else h[1]
-    r.metadata = get_in(spec, 'spec.metadata')
+    r.metadata = get_in(spec, "spec.metadata")
     r.metadata.name = name
-    r.spec.image = get_in(spec, 'spec.image', image)
+    r.spec.image = get_in(spec, "spec.image", image)
     build = r.spec.build
     build.code_origin = code_origin
-    build.base_image = get_in(spec, 'spec.build.baseImage')
-    build.commands = get_in(spec, 'spec.build.commands')
+    build.base_image = get_in(spec, "spec.build.baseImage")
+    build.commands = get_in(spec, "spec.build.commands")
     if embed_code:
-        build.functionSourceCode = get_in(spec, 'spec.build.functionSourceCode')
+        build.functionSourceCode = get_in(spec, "spec.build.functionSourceCode")
     else:
         if code_output:
             r.spec.command = code_output
         else:
             r.spec.command = filename
 
-    build.image = get_in(spec, 'spec.build.image')
-    build.secret = get_in(spec, 'spec.build.secret')
-    if r.kind != 'local':
-        r.spec.env = get_in(spec, 'spec.env')
-        for vol in get_in(spec, 'spec.volumes', []):
-            r.spec.volumes.append(vol.get('volume'))
-            r.spec.volume_mounts.append(vol.get('volumeMount'))
+    build.image = get_in(spec, "spec.build.image")
+    build.secret = get_in(spec, "spec.build.secret")
+    if r.kind != "local":
+        r.spec.env = get_in(spec, "spec.env")
+        for vol in get_in(spec, "spec.volumes", []):
+            r.spec.volumes.append(vol.get("volume"))
+            r.spec.volume_mounts.append(vol.get("volumeMount"))
 
     if with_doc:
         handlers = find_handlers(code)
-        r.spec.entry_points = {h['name']: as_func(h) for h in handlers}
+        r.spec.entry_points = {h["name"]: as_func(h) for h in handlers}
     r.spec.default_handler = handler
     update_meta(r)
     return r
@@ -719,27 +719,27 @@ def run_pipeline(
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
 
     artifact_path = artifact_path or mlconf.artifact_path
-    if artifact_path and '{{run.uid}}' in artifact_path:
-        artifact_path.replace('{{run.uid}}', '{{workflow.uid}}')
-    if artifact_path and '{{run.project}}' in artifact_path:
+    if artifact_path and "{{run.uid}}" in artifact_path:
+        artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")
+    if artifact_path and "{{run.project}}" in artifact_path:
         if not project:
             raise ValueError(
-                'project name must be specified with this'
-                + f' artifact_path template {artifact_path}'
+                "project name must be specified with this"
+                + f" artifact_path template {artifact_path}"
             )
-        artifact_path.replace('{{run.project}}', project)
+        artifact_path.replace("{{run.project}}", project)
     if not artifact_path:
-        raise ValueError('artifact path was not specified')
+        raise ValueError("artifact path was not specified")
 
     namespace = namespace or mlconf.namespace
     arguments = arguments or {}
 
     if remote or url:
         mldb = get_run_db(url).connect()
-        if mldb.kind != 'http':
+        if mldb.kind != "http":
             raise ValueError(
-                'run pipeline require access to remote api-service'
-                ', please set the dbpath url'
+                "run pipeline require access to remote api-service"
+                ", please set the dbpath url"
             )
         id = mldb.submit_pipeline(
             pipeline,
@@ -769,7 +769,7 @@ def run_pipeline(
             )
 
         id = run_result.run_id
-    logger.info('Pipeline run id={}, check UI or DB for progress'.format(id))
+    logger.info("Pipeline run id={}, check UI or DB for progress".format(id))
     return id
 
 
@@ -804,20 +804,20 @@ def wait_for_pipeline_completion(
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
-            status = resp['run']['status']
+            status = resp["run"]["status"]
             if status not in RunStatuses.stable_statuses():
 
                 # TODO: think of nicer liveness indication and make it re-usable
                 # log '.' each retry as a liveness indication
-                logger.debug('.')
-                raise RuntimeError('pipeline run has not completed yet')
+                logger.debug(".")
+                raise RuntimeError("pipeline run has not completed yet")
 
             return resp
 
-        if mldb.kind != 'http':
+        if mldb.kind != "http":
             raise ValueError(
-                'get pipeline require access to remote api-service'
-                ', please set the dbpath url'
+                "get pipeline require access to remote api-service"
+                ", please set the dbpath url"
             )
 
         resp = retry_until_successful(
@@ -835,7 +835,7 @@ def wait_for_pipeline_completion(
         if resp:
             resp = resp.to_dict()
 
-    status = resp['run']['status'] if resp else 'unknown'
+    status = resp["run"]["status"] if resp else "unknown"
     if expected_statuses:
         if status not in expected_statuses:
             raise RuntimeError(f"run status {status} not in expected statuses")
@@ -862,10 +862,10 @@ def get_pipeline(run_id, namespace=None):
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     if remote:
         mldb = get_run_db().connect()
-        if mldb.kind != 'http':
+        if mldb.kind != "http":
             raise ValueError(
-                'get pipeline require access to remote api-service'
-                ', please set the dbpath url'
+                "get pipeline require access to remote api-service"
+                ", please set the dbpath url"
             )
 
         resp = mldb.get_pipeline(run_id, namespace=namespace)
@@ -881,9 +881,9 @@ def get_pipeline(run_id, namespace=None):
 
 def list_piplines(
     full=False,
-    page_token='',
+    page_token="",
     page_size=10,
-    sort_by='',
+    sort_by="",
     experiment_id=None,
     namespace=None,
 ):
@@ -903,14 +903,14 @@ def list_piplines(
                     for k, v in run.to_dict().items()
                     if k
                     in [
-                        'id',
-                        'name',
-                        'status',
-                        'error',
-                        'created_at',
-                        'scheduled_at',
-                        'finished_at',
-                        'description',
+                        "id",
+                        "name",
+                        "status",
+                        "error",
+                        "created_at",
+                        "scheduled_at",
+                        "finished_at",
+                        "description",
                     ]
                 }
             )
@@ -919,22 +919,22 @@ def list_piplines(
 
 
 def as_func(handler):
-    ret = clean(handler['return'])
+    ret = clean(handler["return"])
     return FunctionEntrypoint(
-        name=handler['name'],
-        doc=handler['doc'],
-        parameters=[clean(p) for p in handler['params']],
+        name=handler["name"],
+        doc=handler["doc"],
+        parameters=[clean(p) for p in handler["params"]],
         outputs=[ret] if ret else None,
-        lineno=handler['lineno'],
+        lineno=handler["lineno"],
     ).to_dict()
 
 
 def clean(struct: dict):
     if not struct:
         return None
-    if 'default' in struct:
-        struct['default'] = py_eval(struct['default'])
-    return {k: v for k, v in struct.items() if v or k == 'default'}
+    if "default" in struct:
+        struct["default"] = py_eval(struct["default"])
+    return {k: v for k, v in struct.items() if v or k == "default"}
 
 
 def py_eval(data):

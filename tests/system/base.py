@@ -8,25 +8,25 @@ from mlrun import get_run_db, mlconf
 from mlrun.utils import create_logger
 
 
-logger = create_logger(level='debug', name='test')
+logger = create_logger(level="debug", name="test")
 
 
 class TestMLRunSystem:
 
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
-    env_file_path = root_path / 'tests' / 'system' / 'env.yml'
-    results_path = root_path / 'tests' / 'test_results' / 'system'
+    env_file_path = root_path / "tests" / "system" / "env.yml"
+    results_path = root_path / "tests" / "test_results" / "system"
     mandatory_env_vars = [
-        'MLRUN_DBPATH',
-        'V3IO_API',
-        'V3IO_USERNAME',
-        'V3IO_ACCESS_KEY',
+        "MLRUN_DBPATH",
+        "V3IO_API",
+        "V3IO_USERNAME",
+        "V3IO_ACCESS_KEY",
     ]
 
     def setup_method(self, method):
         self._logger = logger
         self._logger.info(
-            f'Setting up test {self.__class__.__name__}::{method.__name__}'
+            f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
         self._test_env = {}
         self._old_env = {}
@@ -35,17 +35,17 @@ class TestMLRunSystem:
         # the dbpath is already configured on the test startup before this stage
         # so even though we set the env var, we still need to directly configure
         # it in mlconf.
-        mlconf.dbpath = self._test_env['MLRUN_DBPATH']
+        mlconf.dbpath = self._test_env["MLRUN_DBPATH"]
 
         self.custom_setup()
 
         self._logger.info(
-            f'Finished setting up test {self.__class__.__name__}::{method.__name__}'
+            f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
     def teardown_method(self, method):
         self._logger.info(
-            f'Tearing down test {self.__class__.__name__}::{method.__name__}'
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
         )
 
         self.custom_teardown()
@@ -53,11 +53,11 @@ class TestMLRunSystem:
         self._teardown_env()
         db = get_run_db()
 
-        self._logger.debug('Removing test data from database')
+        self._logger.debug("Removing test data from database")
         db.del_runs()
-        db.del_artifacts(tag='*')
+        db.del_artifacts(tag="*")
         self._logger.info(
-            f'Finished tearing down test {self.__class__.__name__}::{method.__name__}'
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )
 
     def custom_setup(self):
@@ -80,15 +80,15 @@ class TestMLRunSystem:
 
         return pytest.mark.skipif(
             not configured,
-            reason=f'This is a system test, add the needed environment variables {*cls.mandatory_env_vars,} '
-            'in tests/system/env.yml to run it',
+            reason=f"This is a system test, add the needed environment variables {*cls.mandatory_env_vars,} "
+            "in tests/system/env.yml to run it",
         )(test)
 
     @property
     def assets_path(self):
         return (
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / 'assets'
+            / "assets"
         )
 
     @classmethod
@@ -97,7 +97,7 @@ class TestMLRunSystem:
             return yaml.safe_load(f)
 
     def _setup_env(self, env: dict):
-        self._logger.debug('Setting up test environment')
+        self._logger.debug("Setting up test environment")
         self._test_env.update(env)
 
         # save old env vars for returning them on teardown
@@ -109,7 +109,7 @@ class TestMLRunSystem:
                 os.environ[env_var] = value
 
     def _teardown_env(self):
-        self._logger.debug('Tearing down test environment')
+        self._logger.debug("Tearing down test environment")
         for env_var in self._test_env:
             del os.environ[env_var]
         os.environ.update(self._old_env)
@@ -126,23 +126,23 @@ class TestMLRunSystem:
         data_stores: list = None,
         scrape_metrics: bool = None,
     ):
-        self._logger.debug('Verifying run spec', spec=run_spec)
+        self._logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
-            assert run_spec['parameters'] == parameters
+            assert run_spec["parameters"] == parameters
         if inputs:
-            assert run_spec['inputs'] == inputs
+            assert run_spec["inputs"] == inputs
         if outputs:
-            assert run_spec['outputs'] == outputs
+            assert run_spec["outputs"] == outputs
         if output_path:
-            assert run_spec['output_path'] == output_path
+            assert run_spec["output_path"] == output_path
         if function:
-            assert run_spec['function'] == function
+            assert run_spec["function"] == function
         if secret_sources:
-            assert run_spec['secret_sources'] == secret_sources
+            assert run_spec["secret_sources"] == secret_sources
         if data_stores:
-            assert run_spec['data_stores'] == data_stores
+            assert run_spec["data_stores"] == data_stores
         if scrape_metrics is not None:
-            assert run_spec['scrape_metrics'] == scrape_metrics
+            assert run_spec["scrape_metrics"] == scrape_metrics
 
     def _verify_run_metadata(
         self,
@@ -153,19 +153,19 @@ class TestMLRunSystem:
         labels: dict = None,
         iteration: int = None,
     ):
-        self._logger.debug('Verifying run metadata', spec=run_metadata)
+        self._logger.debug("Verifying run metadata", spec=run_metadata)
         if uid:
-            assert run_metadata['uid'] == uid
+            assert run_metadata["uid"] == uid
         if name:
-            assert run_metadata['name'] == name
+            assert run_metadata["name"] == name
         if project:
-            assert run_metadata['project'] == project
+            assert run_metadata["project"] == project
         if iteration:
-            assert run_metadata['iteration'] == project
+            assert run_metadata["iteration"] == project
         if labels:
             for label, label_value in labels.items():
-                assert label in run_metadata['labels']
-                assert run_metadata['labels'][label] == label_value
+                assert label in run_metadata["labels"]
+                assert run_metadata["labels"][label] == label_value
 
     def _verify_run_outputs(
         self,
@@ -179,19 +179,19 @@ class TestMLRunSystem:
         best_iteration: int = None,
         iteration_results: bool = False,
     ):
-        self._logger.debug('Verifying run outputs', spec=run_outputs)
-        iterpath = str(best_iteration) if best_iteration else ''
-        assert run_outputs['model'] == str(output_path / iterpath / 'model.txt')
-        assert run_outputs['html_result'] == str(output_path / iterpath / 'result.html')
-        assert run_outputs['chart'] == str(output_path / iterpath / 'chart.html')
-        assert run_outputs['mydf'] == f'store://{project}/{name}_mydf#{uid}'
+        self._logger.debug("Verifying run outputs", spec=run_outputs)
+        iterpath = str(best_iteration) if best_iteration else ""
+        assert run_outputs["model"] == str(output_path / iterpath / "model.txt")
+        assert run_outputs["html_result"] == str(output_path / iterpath / "result.html")
+        assert run_outputs["chart"] == str(output_path / iterpath / "chart.html")
+        assert run_outputs["mydf"] == f"store://{project}/{name}_mydf#{uid}"
         if accuracy:
-            assert run_outputs['accuracy'] == accuracy
+            assert run_outputs["accuracy"] == accuracy
         if loss:
-            assert run_outputs['loss'] == loss
+            assert run_outputs["loss"] == loss
         if best_iteration:
-            assert run_outputs['best_iteration'] == best_iteration
+            assert run_outputs["best_iteration"] == best_iteration
         if iteration_results:
-            assert run_outputs['iteration_results'] == str(
-                output_path / 'iteration_results.csv'
+            assert run_outputs["iteration_results"] == str(
+                output_path / "iteration_results.csv"
             )

@@ -26,7 +26,7 @@ def test_regular(make_stream_logger):
 
 def test_log_level(make_stream_logger):
     stream, test_logger = make_stream_logger
-    test_logger.set_logger_level('INFO')
+    test_logger.set_logger_level("INFO")
     test_logger.debug("SomeText")
     assert "SomeText" not in stream.getvalue()
 

@@ -91,7 +91,7 @@ def list_runs(
     project: str = None,
     name: str = None,
     uid: str = None,
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     state: str = None,
     last: int = 0,
     sort: bool = True,
@@ -119,7 +119,7 @@ def list_runs(
 def del_runs(
     project: str = None,
     name: str = None,
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     state: str = None,
     days_ago: int = 0,
     db_session: Session = Depends(deps.get_db_session),

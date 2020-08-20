@@ -99,12 +99,12 @@ class KubeResourceSpec(FunctionSpec):
 
 
 class KubeResource(BaseRuntime):
-    kind = 'job'
+    kind = "job"
     _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
-        self._cop = ContainerOp('name', 'image')
+        self._cop = ContainerOp("name", "image")
         self.verbose = False
 
     @property
@@ -113,21 +113,21 @@ class KubeResource(BaseRuntime):
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', KubeResourceSpec)
+        self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude, strip=strip)
         api = client.ApiClient()
         struct = api.sanitize_for_serialization(struct)
         if strip:
-            spec = struct['spec']
-            for attr in ['volumes', 'volume_mounts']:
+            spec = struct["spec"]
+            for attr in ["volumes", "volume_mounts"]:
                 if attr in spec:
                     del spec[attr]
-            if 'env' in spec and spec['env']:
-                for ev in spec['env']:
-                    if ev['name'].startswith('V3IO_'):
-                        ev['value'] = ''
+            if "env" in spec and spec["env"]:
+                for ev in spec["env"]:
+                    if ev["name"].startswith("V3IO_"):
+                        ev["value"] = ""
         return struct
 
     def apply(self, modify):
@@ -162,28 +162,28 @@ class KubeResource(BaseRuntime):
             self.set_env(name, value)
         return self
 
-    def gpus(self, gpus, gpu_type='nvidia.com/gpu'):
-        update_in(self.spec.resources, ['limits', gpu_type], gpus)
+    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
+        update_in(self.spec.resources, ["limits", gpu_type], gpus)
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
         limits = {}
         if gpus:
             limits[gpu_type] = gpus
         if mem:
-            limits['memory'] = mem
+            limits["memory"] = mem
         if cpu:
-            limits['cpu'] = cpu
-        update_in(self.spec.resources, 'limits', limits)
+            limits["cpu"] = cpu
+        update_in(self.spec.resources, "limits", limits)
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
         requests = {}
         if mem:
-            requests['memory'] = mem
+            requests["memory"] = mem
         if cpu:
-            requests['cpu'] = cpu
-        update_in(self.spec.resources, 'requests', requests)
+            requests["cpu"] = cpu
+        update_in(self.spec.resources, "requests", requests)
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
@@ -191,12 +191,12 @@ class KubeResource(BaseRuntime):
         labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
         new_meta = client.V1ObjectMeta(namespace=namespace, labels=labels)
 
-        name = runobj.metadata.name or 'mlrun'
-        norm_name = '{}-'.format(normalize_name(name))
+        name = runobj.metadata.name or "mlrun"
+        norm_name = "{}-".format(normalize_name(name))
         if unique:
             norm_name += uuid.uuid4().hex[:8]
             new_meta.name = norm_name
-            runobj.set_label('mlrun/job', norm_name)
+            runobj.set_label("mlrun/job", norm_name)
         else:
             new_meta.generate_name = norm_name
         return new_meta
@@ -204,6 +204,6 @@ class KubeResource(BaseRuntime):
     def copy(self):
         self._cop = None
         fn = deepcopy(self)
-        self._cop = ContainerOp('name', 'image')
-        fn._cop = ContainerOp('name', 'image')
+        self._cop = ContainerOp("name", "image")
+        fn._cop = ContainerOp("name", "image")
         return fn

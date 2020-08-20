@@ -8,13 +8,13 @@ from mlrun.platforms import add_or_refresh_credentials
 
 
 def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
-    username = 'username'
-    password = 'password'
-    control_session = 'control_session'
-    api_url = 'https://dashboard.default-tenant.app.hedingber-28-1.iguazio-cd2.com'
+    username = "username"
+    password = "password"
+    control_session = "control_session"
+    api_url = "https://dashboard.default-tenant.app.hedingber-28-1.iguazio-cd2.com"
     env = os.environ
-    env['V3IO_USERNAME'] = username
-    env['V3IO_PASSWORD'] = password
+    env["V3IO_USERNAME"] = username
+    env["V3IO_PASSWORD"] = password
 
     def mock_get(*args, **kwargs):
         not_found_response_mock = Mock()
@@ -30,7 +30,7 @@ def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
             successful_response_mock = Mock()
             successful_response_mock.ok = True
             successful_response_mock.json.return_value = {
-                'data': {'id': control_session}
+                "data": {"id": control_session}
             }
             return successful_response_mock
 
@@ -46,12 +46,12 @@ def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
 
 
 def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
-    username = 'username'
-    access_key = 'access_key'
-    api_url = 'https://dashboard.default-tenant.app.hedingber-210-1.iguazio-cd2.com'
+    username = "username"
+    access_key = "access_key"
+    api_url = "https://dashboard.default-tenant.app.hedingber-210-1.iguazio-cd2.com"
     env = os.environ
-    env['V3IO_USERNAME'] = username
-    env['V3IO_ACCESS_KEY'] = access_key
+    env["V3IO_USERNAME"] = username
+    env["V3IO_ACCESS_KEY"] = access_key
 
     def mock_get(*args, **kwargs):
         ok_response_mock = Mock()

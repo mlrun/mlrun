@@ -35,17 +35,17 @@ class FileStats:
         self.content_type = content_type
 
     def __repr__(self):
-        return f'FileStats(size={self.size}, modified={self.modified}, type={self.content_type})'
+        return f"FileStats(size={self.size}, modified={self.modified}, type={self.content_type})"
 
 
 class DataStore:
-    def __init__(self, parent, name, kind, endpoint=''):
+    def __init__(self, parent, name, kind, endpoint=""):
         self._parent = parent
         self.kind = kind
         self.name = name
         self.endpoint = endpoint
-        self.subpath = ''
-        self.secret_pfx = ''
+        self.subpath = ""
+        self.secret_pfx = ""
         self.options = {}
         self.from_spec = False
 
@@ -59,15 +59,15 @@ class DataStore:
 
     @staticmethod
     def uri_to_kfp(endpoint, subpath):
-        raise ValueError('data store doesnt support KFP URLs')
+        raise ValueError("data store doesnt support KFP URLs")
 
     @staticmethod
     def uri_to_ipython(endpoint, subpath):
-        return ''
+        return ""
 
     def _join(self, key):
         if self.subpath:
-            return '{}/{}'.format(self.subpath, key)
+            return "{}/{}".format(self.subpath, key)
         return key
 
     def _secret(self, key):
@@ -75,13 +75,13 @@ class DataStore:
 
     @property
     def url(self):
-        return '{}://{}'.format(self.kind, self.endpoint)
+        return "{}://{}".format(self.kind, self.endpoint)
 
     def get(self, key, size=None, offset=0):
         pass
 
-    def query(self, key, query='', **kwargs):
-        raise ValueError('data store doesnt support structured queries')
+    def query(self, key, query="", **kwargs):
+        raise ValueError("data store doesnt support structured queries")
 
     def put(self, key, data, append=False):
         pass
@@ -90,13 +90,13 @@ class DataStore:
         pass
 
     def listdir(self, key):
-        raise ValueError('data store doesnt support listdir')
+        raise ValueError("data store doesnt support listdir")
 
     def download(self, key, target_path):
         data = self.get(key)
-        mode = 'wb'
+        mode = "wb"
         if isinstance(data, str):
-            mode = 'w'
+            mode = "w"
         with open(target_path, mode) as fp:
             fp.write(data)
             fp.close()
@@ -104,23 +104,23 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def as_df(self, key, columns=None, df_module=None, format='', **kwargs):
+    def as_df(self, key, columns=None, df_module=None, format="", **kwargs):
         df_module = df_module or pd
-        if key.endswith(".csv") or format == 'csv':
+        if key.endswith(".csv") or format == "csv":
             if columns:
-                kwargs['usecols'] = columns
+                kwargs["usecols"] = columns
             reader = df_module.read_csv
-        elif key.endswith(".parquet") or key.endswith(".pq") or format == 'parquet':
+        elif key.endswith(".parquet") or key.endswith(".pq") or format == "parquet":
             if columns:
-                kwargs['columns'] = columns
+                kwargs["columns"] = columns
             reader = df_module.read_parquet
-        elif key.endswith(".json") or format == 'json':
+        elif key.endswith(".json") or format == "json":
             reader = df_module.read_json
 
         else:
             raise Exception(f"file type unhandled {key}")
 
-        if self.kind == 'file':
+        if self.kind == "file":
             return reader(self._join(key), **kwargs)
 
         tmp = mktemp()
@@ -131,10 +131,10 @@ class DataStore:
 
     def to_dict(self):
         return {
-            'name': self.name,
-            'url': '{}://{}/{}'.format(self.kind, self.endpoint, self.subpath),
-            'secret_pfx': self.secret_pfx,
-            'options': self.options,
+            "name": self.name,
+            "url": "{}://{}/{}".format(self.kind, self.endpoint, self.subpath),
+            "secret_pfx": self.secret_pfx,
+            "options": self.options,
         }
 
 
@@ -146,7 +146,7 @@ class DataItem:
         key: str,
         store: DataStore,
         subpath: str,
-        url: str = '',
+        url: str = "",
         meta=None,
         artifact_url=None,
     ):
@@ -156,7 +156,7 @@ class DataItem:
         self._path = subpath
         self._meta = meta
         self._artifact_url = artifact_url
-        self._local_path = ''
+        self._local_path = ""
 
     @property
     def key(self):
@@ -220,18 +220,18 @@ class DataItem:
 
     def local(self):
         """get the local path of the file, download to tmp first if its a remote object"""
-        if self.kind == 'file':
+        if self.kind == "file":
             return self._path
         if self._local_path:
             return self._local_path
 
-        dot = self._path.rfind('.')
+        dot = self._path.rfind(".")
         self._local_path = mktemp() if dot == -1 else mktemp(self._path[dot:])
-        logger.info('downloading {} to local tmp'.format(self.url))
+        logger.info("downloading {} to local tmp".format(self.url))
         self.download(self._local_path)
         return self._local_path
 
-    def as_df(self, columns=None, df_module=None, format='', **kwargs):
+    def as_df(self, columns=None, df_module=None, format="", **kwargs):
         """return a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select
@@ -250,25 +250,25 @@ class DataItem:
 
 
 def get_range(size, offset):
-    byterange = 'bytes={}-'.format(offset)
+    byterange = "bytes={}-".format(offset)
     if size:
-        byterange = range + '{}'.format(offset + size)
+        byterange = range + "{}".format(offset + size)
     return byterange
 
 
 def basic_auth_header(user, password):
-    username = user.encode('latin1')
-    password = password.encode('latin1')
-    base = b64encode(b':'.join((username, password))).strip()
-    authstr = 'Basic ' + base.decode('ascii')
-    return {'Authorization': authstr}
+    username = user.encode("latin1")
+    password = password.encode("latin1")
+    base = b64encode(b":".join((username, password))).strip()
+    authstr = "Basic " + base.decode("ascii")
+    return {"Authorization": authstr}
 
 
 def http_get(url, headers=None, auth=None):
     try:
         response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
-        raise OSError('error: cannot connect to {}: {}'.format(url, e))
+        raise OSError("error: cannot connect to {}: {}".format(url, e))
 
     mlrun.errors.raise_for_status(response)
 
@@ -279,7 +279,7 @@ def http_head(url, headers=None, auth=None):
     try:
         response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as e:
-        raise OSError('error: cannot connect to {}: {}'.format(url, e))
+        raise OSError("error: cannot connect to {}: {}".format(url, e))
 
     mlrun.errors.raise_for_status(response)
 
@@ -292,26 +292,26 @@ def http_put(url, data, headers=None, auth=None):
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as e:
-        raise OSError('error: cannot connect to {}: {}'.format(url, e))
+        raise OSError("error: cannot connect to {}: {}".format(url, e))
 
     mlrun.errors.raise_for_status(response)
 
 
 def http_upload(url, file_path, headers=None, auth=None):
-    with open(file_path, 'rb') as data:
+    with open(file_path, "rb") as data:
         http_put(url, data, headers, auth)
 
 
 class HttpStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=''):
+    def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
         self.auth = None
 
     def upload(self, key, src_path):
-        raise ValueError('unimplemented')
+        raise ValueError("unimplemented")
 
     def put(self, key, data, append=False):
-        raise ValueError('unimplemented')
+        raise ValueError("unimplemented")
 
     def get(self, key, size=None, offset=0):
         data = http_get(self.url + self._join(key), None, self.auth)

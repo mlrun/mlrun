@@ -91,7 +91,7 @@ def list_artifacts(
     project: str = config.default_project,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = get_db().list_artifacts(db_session, name, project, tag, labels)
@@ -106,7 +106,7 @@ def del_artifacts(
     project: str = "",
     name: str = "",
     tag: str = "",
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_db().del_artifacts(db_session, name, project, tag, labels)

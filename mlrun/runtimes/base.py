@@ -63,7 +63,7 @@ class FunctionStatus(ModelObj):
 
 
 class EntrypointParam(ModelObj):
-    def __init__(self, name='', type=None, default=None, doc=''):
+    def __init__(self, name="", type=None, default=None, doc=""):
         self.name = name
         self.type = type
         self.default = default
@@ -71,7 +71,7 @@ class EntrypointParam(ModelObj):
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, name='', doc='', parameters=None, outputs=None, lineno=-1):
+    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
         self.name = name
         self.doc = doc
         self.parameters = [] if parameters is None else parameters
@@ -94,12 +94,12 @@ class FunctionSpec(ModelObj):
         pythonpath=None,
     ):
 
-        self.command = command or ''
-        self.image = image or ''
+        self.command = command or ""
+        self.image = image or ""
         self.mode = mode
         self.args = args or []
         self.rundb = None
-        self.description = description or ''
+        self.description = description or ""
         self.workdir = workdir
         self.pythonpath = pythonpath
 
@@ -115,14 +115,14 @@ class FunctionSpec(ModelObj):
 
     @build.setter
     def build(self, build):
-        self._build = self._verify_dict(build, 'build', ImageBuilder)
+        self._build = self._verify_dict(build, "build", ImageBuilder)
 
 
 class BaseRuntime(ModelObj):
-    kind = 'base'
+    kind = "base"
     _is_nested = False
     _is_remote = False
-    _dict_fields = ['kind', 'metadata', 'spec', 'status']
+    _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -151,7 +151,7 @@ class BaseRuntime(ModelObj):
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, 'metadata', BaseMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", BaseMetadata)
 
     @property
     def spec(self) -> FunctionSpec:
@@ -159,7 +159,7 @@ class BaseRuntime(ModelObj):
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', FunctionSpec)
+        self._spec = self._verify_dict(spec, "spec", FunctionSpec)
 
     @property
     def status(self) -> FunctionStatus:
@@ -167,7 +167,7 @@ class BaseRuntime(ModelObj):
 
     @status.setter
     def status(self, status):
-        self._status = self._verify_dict(status, 'status', FunctionStatus)
+        self._status = self._verify_dict(status, "status", FunctionStatus)
 
     def _get_k8s(self):
         return get_k8s_helper()
@@ -182,7 +182,7 @@ class BaseRuntime(ModelObj):
 
     def _is_remote_api(self):
         db = self._get_db()
-        if db and db.kind == 'http':
+        if db and db.kind == "http":
             return True
         return False
 
@@ -192,19 +192,19 @@ class BaseRuntime(ModelObj):
             and not self.kfp
             and not self._is_api_server
             and self._get_db()
-            and self._get_db().kind == 'http'
+            and self._get_db().kind == "http"
         ):
             return True
         return False
 
     def _function_uri(self, tag=None, hash_key=None):
-        url = '{}/{}'.format(self.metadata.project, self.metadata.name)
+        url = "{}/{}".format(self.metadata.project, self.metadata.name)
 
         # prioritize hash key over tag
         if hash_key:
-            url += '@{}'.format(hash_key)
+            url += "@{}".format(hash_key)
         elif tag or self.metadata.tag:
-            url += ':{}'.format(tag or self.metadata.tag)
+            url += ":{}".format(tag or self.metadata.tag)
         return url
 
     def _get_db(self):
@@ -218,13 +218,13 @@ class BaseRuntime(ModelObj):
         self,
         runspec: RunObject = None,
         handler=None,
-        name: str = '',
-        project: str = '',
+        name: str = "",
+        project: str = "",
         params: dict = None,
         inputs: dict = None,
-        out_path: str = '',
-        workdir: str = '',
-        artifact_path: str = '',
+        out_path: str = "",
+        workdir: str = "",
+        artifact_path: str = "",
         watch: bool = True,
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
         verbose=None,
@@ -258,8 +258,8 @@ class BaseRuntime(ModelObj):
                 runspec = literal_eval(runspec)
             if not isinstance(runspec, (dict, RunTemplate, RunObject)):
                 raise ValueError(
-                    'task/runspec is not a valid task object,'
-                    ' type={}'.format(type(runspec))
+                    "task/runspec is not a valid task object,"
+                    " type={}".format(type(runspec))
                 )
 
         if isinstance(runspec, RunTemplate):
@@ -268,17 +268,17 @@ class BaseRuntime(ModelObj):
             runspec = RunObject.from_dict(runspec)
 
         runspec.spec.handler = (
-            handler or runspec.spec.handler or self.spec.default_handler or ''
+            handler or runspec.spec.handler or self.spec.default_handler or ""
         )
-        if runspec.spec.handler and self.kind not in ['handler', 'dask']:
+        if runspec.spec.handler and self.kind not in ["handler", "dask"]:
             runspec.spec.handler = runspec.spec.handler_name
 
         def_name = self.metadata.name
         if runspec.spec.handler_name:
-            def_name += '-' + runspec.spec.handler_name
+            def_name += "-" + runspec.spec.handler_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         verify_field_regex(
-            'run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name
+            "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
         )
         runspec.metadata.project = (
             project
@@ -296,10 +296,10 @@ class BaseRuntime(ModelObj):
         )
 
         spec = runspec.spec
-        if self.spec.mode and self.spec.mode == 'noctx':
+        if self.spec.mode and self.spec.mode == "noctx":
             params = spec.parameters or {}
             for k, v in params.items():
-                self.spec.args += ['--{}'.format(k), str(v)]
+                self.spec.args += ["--{}".format(k), str(v)]
 
         if spec.secret_sources:
             self._secrets = SecretsStore.from_list(spec.secret_sources)
@@ -310,20 +310,20 @@ class BaseRuntime(ModelObj):
         runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
-                '{{run.uid}}', meta.uid
+                "{{run.uid}}", meta.uid
             )
             runspec.spec.output_path = runspec.spec.output_path.replace(
-                '{{run.project}}', runspec.metadata.project
+                "{{run.project}}", runspec.metadata.project
             )
         if is_local(runspec.spec.output_path):
             logger.warning(
-                'artifact path is not defined or is local,'
-                ' artifacts will not be visible in the UI'
+                "artifact path is not defined or is local,"
+                " artifacts will not be visible in the UI"
             )
-            if self.kind not in ['', 'local', 'handler', 'dask']:
+            if self.kind not in ["", "local", "handler", "dask"]:
                 raise ValueError(
-                    'absolute artifact_path must be specified'
-                    ' when running remote tasks'
+                    "absolute artifact_path must be specified"
+                    " when running remote tasks"
                 )
         db = self._get_db()
 
@@ -333,25 +333,25 @@ class BaseRuntime(ModelObj):
             )
 
         if self.verbose:
-            logger.info('runspec:\n{}'.format(runspec.to_yaml()))
+            logger.info("runspec:\n{}".format(runspec.to_yaml()))
 
-        if 'V3IO_USERNAME' in environ and 'v3io_user' not in meta.labels:
-            meta.labels['v3io_user'] = environ.get('V3IO_USERNAME')
+        if "V3IO_USERNAME" in environ and "v3io_user" not in meta.labels:
+            meta.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
-            dbstr = 'self' if self._is_api_server else self.spec.rundb
+            dbstr = "self" if self._is_api_server else self.spec.rundb
             logger.info(
-                'starting run {} uid={}  -> {}'.format(meta.name, meta.uid, dbstr)
+                "starting run {} uid={}  -> {}".format(meta.name, meta.uid, dbstr)
             )
-            meta.labels['kind'] = self.kind
-            if 'owner' not in meta.labels:
-                meta.labels['owner'] = environ.get('V3IO_USERNAME', getpass.getuser())
+            meta.labels["kind"] = self.kind
+            if "owner" not in meta.labels:
+                meta.labels["owner"] = environ.get("V3IO_USERNAME", getpass.getuser())
             if runspec.spec.output_path:
                 runspec.spec.output_path = runspec.spec.output_path.replace(
-                    '{{run.user}}', meta.labels['owner']
+                    "{{run.user}}", meta.labels["owner"]
                 )
 
-            if db and self.kind != 'handler':
+            if db and self.kind != "handler":
                 struct = self.to_dict()
                 hash_key = db.store_function(
                     struct, self.metadata.name, self.metadata.project, versioned=True
@@ -365,18 +365,18 @@ class BaseRuntime(ModelObj):
             try:
                 resp = db.submit_job(runspec, schedule=schedule)
                 if schedule:
-                    logger.info('task scheduled, {}'.format(resp))
+                    logger.info("task scheduled, {}".format(resp))
                     return
 
                 if resp:
-                    txt = get_in(resp, 'status.status_text')
+                    txt = get_in(resp, "status.status_text")
                     if txt:
                         logger.info(txt)
                 if watch:
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:
-                logger.error('got remote run err, {}'.format(err))
+                logger.error("got remote run err, {}".format(err))
                 result = None
                 # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
                 # but there's no run in case of schedule)
@@ -389,7 +389,7 @@ class BaseRuntime(ModelObj):
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning(
-                'warning!, Api url not set, ' 'trying to exec remote runtime locally'
+                "warning!, Api url not set, " "trying to exec remote runtime locally"
             )
 
         execution = MLClientCtx.from_dict(runspec.to_dict(), db, autocommit=False)
@@ -411,10 +411,10 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(runspec, execution)
-                if watch and self.kind not in ['', 'handler', 'local']:
+                if watch and self.kind not in ["", "handler", "local"]:
                     state = runspec.logs(True, self._get_db())
-                    if state != 'succeeded':
-                        logger.warning('run ended with state {}'.format(state))
+                    if state != "succeeded":
+                        logger.warning("run ended with state {}".format(state))
                 result = self._post_run(resp, task=runspec)
             except RunError as err:
                 last_err = err
@@ -437,28 +437,28 @@ class BaseRuntime(ModelObj):
         if result:
             results_tbl.append(result)
         else:
-            logger.info('no returned result (job may still be in progress)')
+            logger.info("no returned result (job may still be in progress)")
             results_tbl.append(runspec.to_dict())
         if is_ipython and config.ipython_widget:
             results_tbl.show()
 
             uid = runspec.metadata.uid
             proj = (
-                '--project {}'.format(runspec.metadata.project)
+                "--project {}".format(runspec.metadata.project)
                 if runspec.metadata.project
-                else ''
+                else ""
             )
             print(
-                'to track results use .show() or .logs() or in CLI: \n'
-                '!mlrun get run {} {} , !mlrun logs {} {}'.format(uid, proj, uid, proj)
+                "to track results use .show() or .logs() or in CLI: \n"
+                "!mlrun get run {} {} , !mlrun logs {} {}".format(uid, proj, uid, proj)
             )
 
         if result:
             run = RunObject.from_dict(result)
-            logger.info('run executed, status={}'.format(run.status.state))
-            if run.status.state == 'error':
+            logger.info("run executed, status={}".format(run.status.state))
+            if run.status.state == "error":
                 if self._is_remote and not self.is_child:
-                    print('runtime error: {}'.format(run.status.error))
+                    print("runtime error: {}".format(run.status.error))
                 raise RunError(run.status.error)
             return run
 
@@ -477,31 +477,31 @@ class BaseRuntime(ModelObj):
             return task.to_dict()
 
     def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
-        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
+        extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
-            extra_env['MLRUN_LOG_LEVEL'] = 'debug'
+            extra_env["MLRUN_LOG_LEVEL"] = "debug"
         if self.spec.pythonpath:
-            extra_env['PYTHONPATH'] = self.spec.pythonpath
+            extra_env["PYTHONPATH"] = self.spec.pythonpath
         args = []
         command = self.spec.command
         code = (
-            self.spec.build.functionSourceCode if hasattr(self.spec, 'build') else None
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
 
-        if (code or runobj.spec.handler) and self.spec.mode == 'pass':
+        if (code or runobj.spec.handler) and self.spec.mode == "pass":
             raise ValueError('cannot use "pass" mode with code or handler')
 
         if code:
-            extra_env['MLRUN_EXEC_CODE'] = code
+            extra_env["MLRUN_EXEC_CODE"] = code
 
         if with_mlrun:
-            args = ['run', '--name', runobj.metadata.name, '--from-env']
+            args = ["run", "--name", runobj.metadata.name, "--from-env"]
             if not code:
                 args += [command]
-            command = 'mlrun'
+            command = "mlrun"
 
         if runobj.spec.handler:
-            args += ['--handler', runobj.spec.handler]
+            args += ["--handler", runobj.spec.handler]
         if self.spec.args:
             args += self.spec.args
         return command, args, extra_env
@@ -517,7 +517,7 @@ class BaseRuntime(ModelObj):
                 resp = self._run(task, execution)
                 resp = self._post_run(resp, task=task)
             except RunError as err:
-                task.status.state = 'error'
+                task.status.state = "error"
                 task.status.error = str(err)
                 resp = self._post_run(task=task, err=err)
             results.append(resp)
@@ -532,9 +532,9 @@ class BaseRuntime(ModelObj):
 
     def _store_run_dict(self, rundict: dict):
         if self._get_db() and rundict:
-            project = get_in(rundict, 'metadata.project', '')
-            uid = get_in(rundict, 'metadata.uid')
-            iter = get_in(rundict, 'metadata.iteration', 0)
+            project = get_in(rundict, "metadata.project", "")
+            uid = get_in(rundict, "metadata.uid")
+            iter = get_in(rundict, "metadata.iteration", 0)
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
     def _post_run(self, resp: dict = None, task: RunObject = None, err=None) -> dict:
@@ -549,70 +549,70 @@ class BaseRuntime(ModelObj):
                 return task.to_dict()
 
             if task.status.status_text:
-                update_in(resp, 'status.status_text', task.status.status_text)
+                update_in(resp, "status.status_text", task.status.status_text)
 
         if resp is None:
             return None
 
         if not isinstance(resp, dict):
-            raise ValueError('post_run called with type {}'.format(type(resp)))
+            raise ValueError("post_run called with type {}".format(type(resp)))
 
         updates = None
-        last_state = get_in(resp, 'status.state', '')
-        if last_state == 'error' or err:
-            updates = {'status.last_update': now_date().isoformat()}
-            updates['status.state'] = 'error'
-            update_in(resp, 'status.state', 'error')
+        last_state = get_in(resp, "status.state", "")
+        if last_state == "error" or err:
+            updates = {"status.last_update": now_date().isoformat()}
+            updates["status.state"] = "error"
+            update_in(resp, "status.state", "error")
             if err:
-                update_in(resp, 'status.error', str(err))
-            err = get_in(resp, 'status.error')
+                update_in(resp, "status.error", str(err))
+            err = get_in(resp, "status.error")
             if err:
-                updates['status.error'] = str(err)
-        elif not was_none and last_state != 'completed':
-            updates = {'status.last_update': now_date().isoformat()}
-            updates['status.state'] = 'completed'
-            update_in(resp, 'status.state', 'completed')
+                updates["status.error"] = str(err)
+        elif not was_none and last_state != "completed":
+            updates = {"status.last_update": now_date().isoformat()}
+            updates["status.state"] = "completed"
+            update_in(resp, "status.state", "completed")
 
         if self._get_db() and updates:
-            project = get_in(resp, 'metadata.project')
-            uid = get_in(resp, 'metadata.uid')
-            iter = get_in(resp, 'metadata.iteration', 0)
+            project = get_in(resp, "metadata.project")
+            uid = get_in(resp, "metadata.uid")
+            iter = get_in(resp, "metadata.iteration", 0)
             self._get_db().update_run(updates, uid, project, iter=iter)
 
         return resp
 
     def _force_handler(self, handler):
         if not handler:
-            raise RunError('handler must be provided for {} runtime'.format(self.kind))
+            raise RunError("handler must be provided for {} runtime".format(self.kind))
 
     def full_image_path(self, image=None):
-        image = image or self.spec.image or ''
+        image = image or self.spec.image or ""
 
         image = tag_image(image)
-        if not image.startswith('.'):
+        if not image.startswith("."):
             return image
-        if 'DEFAULT_DOCKER_REGISTRY' in environ:
-            return '{}/{}'.format(environ.get('DEFAULT_DOCKER_REGISTRY'), image[1:])
-        if 'IGZ_NAMESPACE_DOMAIN' in environ:
-            return 'docker-registry.{}:80/{}'.format(
-                environ.get('IGZ_NAMESPACE_DOMAIN'), image[1:]
+        if "DEFAULT_DOCKER_REGISTRY" in environ:
+            return "{}/{}".format(environ.get("DEFAULT_DOCKER_REGISTRY"), image[1:])
+        if "IGZ_NAMESPACE_DOMAIN" in environ:
+            return "docker-registry.{}:80/{}".format(
+                environ.get("IGZ_NAMESPACE_DOMAIN"), image[1:]
             )
-        raise RunError('local container registry is not defined')
+        raise RunError("local container registry is not defined")
 
     def as_step(
         self,
         runspec: RunObject = None,
         handler=None,
-        name: str = '',
-        project: str = '',
+        name: str = "",
+        project: str = "",
         params: dict = None,
         hyperparams=None,
-        selector='',
+        selector="",
         inputs: dict = None,
         outputs: dict = None,
-        workdir: str = '',
-        artifact_path: str = '',
-        image: str = '',
+        workdir: str = "",
+        artifact_path: str = "",
+        image: str = "",
         labels: dict = None,
         use_db=True,
         verbose=None,
@@ -643,13 +643,13 @@ class BaseRuntime(ModelObj):
 
         if use_db:
             hash_key = self.save(versioned=True, refresh=True)
-            url = 'db://' + self._function_uri(hash_key=hash_key)
+            url = "db://" + self._function_uri(hash_key=hash_key)
         else:
             url = None
 
         if runspec is not None:
             verify_field_regex(
-                'run.metadata.name', runspec.metadata.name, mlrun.utils.regex.run_name
+                "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
             )
 
         return mlrun_op(
@@ -671,48 +671,48 @@ class BaseRuntime(ModelObj):
             verbose=verbose,
         )
 
-    def export(self, target='', format='.yaml', secrets=None, strip=True):
+    def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to
         ./function.yaml)"""
-        if self.kind == 'handler':
+        if self.kind == "handler":
             raise ValueError(
-                'cannot export local handler function, use '
-                + 'code_to_function() to serialize your function'
+                "cannot export local handler function, use "
+                + "code_to_function() to serialize your function"
             )
         calc_hash(self)
         struct = self.to_dict(strip=strip)
-        if format == '.yaml':
+        if format == ".yaml":
             data = dict_to_yaml(struct)
         else:
             data = dict_to_json(struct)
         stores = store_manager.set(secrets)
-        target = target or 'function.yaml'
+        target = target or "function.yaml"
         datastore, subpath = stores.get_or_create_store(target)
         datastore.put(subpath, data)
-        logger.info('function spec saved to path: {}'.format(target))
+        logger.info("function spec saved to path: {}".format(target))
         return self
 
-    def save(self, tag='', versioned=False, refresh=False):
+    def save(self, tag="", versioned=False, refresh=False):
         db = self._get_db()
         if not db:
-            logger.error('database connection is not configured')
-            return ''
+            logger.error("database connection is not configured")
+            return ""
 
         if refresh and self._is_remote_api():
             try:
                 meta = self.metadata
                 db_func = db.get_function(meta.name, meta.project, meta.tag)
-                if db_func and 'status' in db_func:
-                    self.status = db_func['status']
-                    if self.status.state and self.status.state == 'ready':
-                        self.spec.image = get_in(db_func, 'spec.image', self.spec.image)
+                if db_func and "status" in db_func:
+                    self.status = db_func["status"]
+                    if self.status.state and self.status.state == "ready":
+                        self.spec.image = get_in(db_func, "spec.image", self.spec.image)
             except Exception:
                 pass
 
         tag = tag or self.metadata.tag
 
         obj = self.to_dict()
-        logger.debug('saving function: {}, tag: {}'.format(self.metadata.name, tag))
+        logger.debug("saving function: {}, tag: {}".format(self.metadata.name, tag))
         hash_key = db.store_function(
             obj, self.metadata.name, self.metadata.project, tag, versioned
         )
@@ -721,35 +721,35 @@ class BaseRuntime(ModelObj):
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)
         if strip:
-            if 'status' in struct:
-                del struct['status']
+            if "status" in struct:
+                del struct["status"]
         return struct
 
     def doc(self):
-        print('function:', self.metadata.name)
+        print("function:", self.metadata.name)
         print(self.spec.description)
         if self.spec.default_handler:
-            print('default handler:', self.spec.default_handler)
+            print("default handler:", self.spec.default_handler)
         if self.spec.entry_points:
-            print('entry points:')
+            print("entry points:")
             for name, entry in self.spec.entry_points.items():
-                print('  {}: {}'.format(name, entry.get('doc', '')))
-                params = entry.get('parameters')
+                print("  {}: {}".format(name, entry.get("doc", "")))
+                params = entry.get("parameters")
                 if params:
                     for p in params:
-                        line = p['name']
-                        if 'type' in p:
-                            line += '({})'.format(p['type'])
-                        line += '  - ' + p.get('doc', '')
-                        if 'default' in p:
-                            line += ', default={}'.format(p['default'])
-                        print('    ' + line)
+                        line = p["name"]
+                        if "type" in p:
+                            line += "({})".format(p["type"])
+                        line += "  - " + p.get("doc", "")
+                        if "default" in p:
+                            line += ", default={}".format(p["default"])
+                        print("    " + line)
 
 
 def is_local(url):
     if not url:
         return True
-    return '://' not in url and not url.startswith('/')
+    return "://" not in url and not url.startswith("/")
 
 
 class BaseRuntimeHandler(ABC):
@@ -808,7 +808,7 @@ class BaseRuntimeHandler(ABC):
     ):
         object_label_selector = self._get_object_label_selector(object_id)
         if label_selector:
-            label_selector = ','.join([object_label_selector, label_selector])
+            label_selector = ",".join([object_label_selector, label_selector])
         else:
             label_selector = object_label_selector
         self.delete_resources(db, db_session, label_selector, force, grace_period)
@@ -865,7 +865,7 @@ class BaseRuntimeHandler(ABC):
         if not in_transient_state:
             desired_run_state = PodPhases.pod_phase_to_run_state(pod.status.phase)
             for container_status in pod.status.container_statuses:
-                if hasattr(container_status.state, 'terminated'):
+                if hasattr(container_status.state, "terminated"):
                     datetime.now().replace()
                     container_completion_time = (
                         container_status.state.terminated.finished_at
@@ -885,7 +885,7 @@ class BaseRuntimeHandler(ABC):
         """
         Override this to add a default label selector
         """
-        return ''
+        return ""
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:
@@ -893,7 +893,7 @@ class BaseRuntimeHandler(ABC):
         Override this if the runtime has CRD resources. this should return the CRD info:
         crd group, crd version, crd plural
         """
-        return '', '', ''
+        return "", "", ""
 
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:
@@ -936,7 +936,7 @@ class BaseRuntimeHandler(ABC):
         default_label_selector = self._get_default_label_selector()
 
         if label_selector:
-            label_selector = ','.join([default_label_selector, label_selector])
+            label_selector = ",".join([default_label_selector, label_selector])
         else:
             label_selector = default_label_selector
 
@@ -987,7 +987,7 @@ class BaseRuntimeHandler(ABC):
                     except Exception as exc:
                         # Don't prevent the deletion for failure in the pre deletion run actions
                         logger.warning(
-                            'Failure in pod run pre-deletion actions. Continuing',
+                            "Failure in pod run pre-deletion actions. Continuing",
                             exc=repr(exc),
                             pod_name=pod.metadata.name,
                         )
@@ -995,7 +995,7 @@ class BaseRuntimeHandler(ABC):
                 self._delete_pod(namespace, pod)
             except Exception as exc:
                 logger.warning(
-                    f'Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing'
+                    f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
 
     def _delete_crd_resources(
@@ -1022,7 +1022,7 @@ class BaseRuntimeHandler(ABC):
             if e.status != 404:
                 raise
         else:
-            for crd_object in crd_objects['items']:
+            for crd_object in crd_objects["items"]:
                 # best effort - don't let one failure in pod deletion to cut the whole operation
                 try:
                     if force:
@@ -1056,9 +1056,9 @@ class BaseRuntimeHandler(ABC):
                         except Exception as exc:
                             # Don't prevent the deletion for failure in the pre deletion run actions
                             logger.warning(
-                                'Failure in crd object run pre-deletion actions. Continuing',
+                                "Failure in crd object run pre-deletion actions. Continuing",
                                 exc=str(exc),
-                                crd_object_name=crd_object['metadata']['name'],
+                                crd_object_name=crd_object["metadata"]["name"],
                             )
 
                     self._delete_crd(
@@ -1066,9 +1066,9 @@ class BaseRuntimeHandler(ABC):
                     )
                 except Exception:
                     exc = traceback.format_exc()
-                    crd_object_name = crd_object['metadata']['name']
+                    crd_object_name = crd_object["metadata"]["name"]
                     logger.warning(
-                        f'Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing'
+                        f"Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing"
                     )
 
     def _pre_deletion_runtime_resource_run_actions(
@@ -1083,10 +1083,10 @@ class BaseRuntimeHandler(ABC):
         # if cannot resolve related run nothing to do
         if not uid:
             logger.warning(
-                'Could not resolve run uid from runtime resource. Skipping pre-deletion actions',
+                "Could not resolve run uid from runtime resource. Skipping pre-deletion actions",
                 runtime_resource=runtime_resource,
             )
-            raise ValueError('Could not resolve run uid from runtime resource')
+            raise ValueError("Could not resolve run uid from runtime resource")
 
         self._ensure_runtime_resource_run_status_updated(
             db, db_session, project, uid, desired_run_state
@@ -1114,11 +1114,11 @@ class BaseRuntimeHandler(ABC):
 
         run = db.read_run(db_session, uid, project)
         last_update = None
-        last_update_str = run.get('status', {}).get('last_update')
+        last_update_str = run.get("status", {}).get("last_update")
         if last_update_str is not None:
             last_update = datetime.fromisoformat(last_update_str)
 
-        if run.get('status', {}).get('state') not in RunStates.stable_states():
+        if run.get("status", {}).get("state") not in RunStates.stable_states():
             return True, last_update
 
         return False, last_update
@@ -1139,7 +1139,7 @@ class BaseRuntimeHandler(ABC):
             log_mtime_datetime = datetime.fromtimestamp(log_mtime, timezone.utc)
             now = datetime.now(timezone.utc)
             run = db.read_run(db_session, uid, project)
-            last_update_str = run.get('status', {}).get('last_update', now)
+            last_update_str = run.get("status", {}).get("last_update", now)
             last_update = datetime.fromisoformat(last_update_str)
 
             # this function is used to verify that logs collected from runtime resources before deleting them
@@ -1150,7 +1150,7 @@ class BaseRuntimeHandler(ABC):
                 store_log = True
 
         if store_log:
-            logger.info('Storing runtime resource log before deletion')
+            logger.info("Storing runtime resource log before deletion")
             logs_from_k8s, _ = crud.Logs.get_log(
                 db_session, project, uid, source=LogSources.K8S
             )
@@ -1166,9 +1166,9 @@ class BaseRuntimeHandler(ABC):
     ):
         run = db.read_run(db_session, uid, project)
 
-        current_run_state = run.get('status', {}).get('state')
+        current_run_state = run.get("status", {}).get("state")
         logger.debug(
-            'Checking whether need to update run status',
+            "Checking whether need to update run status",
             desired_run_state=desired_run_state,
             current_run_state=current_run_state,
         )
@@ -1181,25 +1181,25 @@ class BaseRuntimeHandler(ABC):
                 update_run = False
 
         if update_run:
-            logger.info('Updating run status')
-            run.setdefault('status', {})['state'] = desired_run_state
-            run.setdefault('status', {})['last_update'] = now_date().isoformat()
+            logger.info("Updating run status")
+            run.setdefault("status", {})["state"] = desired_run_state
+            run.setdefault("status", {})["last_update"] = now_date().isoformat()
             db.store_run(db_session, run, uid, project)
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
         project = (
-            runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/project')
+            runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/project")
         )
         if not project:
             project = config.default_project
-        uid = runtime_resource.get('metadata', {}).get('labels', {}).get('mlrun/uid')
+        uid = runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/uid")
         return project, uid
 
     @staticmethod
     def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):
         k8s_helper = get_k8s_helper()
-        name = crd_object['metadata']['name']
+        name = crd_object["metadata"]["name"]
         try:
             k8s_helper.crdapi.delete_namespaced_custom_object(
                 crd_group,
@@ -1238,9 +1238,9 @@ class BaseRuntimeHandler(ABC):
             pod_dict = pod.to_dict()
             pod_resources.append(
                 {
-                    'name': pod_dict['metadata']['name'],
-                    'labels': pod_dict['metadata']['labels'],
-                    'status': pod_dict['status'],
+                    "name": pod_dict["metadata"]["name"],
+                    "labels": pod_dict["metadata"]["labels"],
+                    "status": pod_dict["status"],
                 }
             )
         return pod_resources
@@ -1248,12 +1248,12 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _build_crd_resources(custom_objects) -> List:
         crd_resources = []
-        for custom_object in custom_objects['items']:
+        for custom_object in custom_objects["items"]:
             crd_resources.append(
                 {
-                    'name': custom_object['metadata']['name'],
-                    'labels': custom_object['metadata']['labels'],
-                    'status': custom_object['status'],
+                    "name": custom_object["metadata"]["name"],
+                    "labels": custom_object["metadata"]["labels"],
+                    "status": custom_object["status"],
                 }
             )
         return crd_resources
@@ -1267,6 +1267,6 @@ class BaseRuntimeHandler(ABC):
         if pod_resources is None:
             pod_resources = []
         return {
-            'crd_resources': crd_resources,
-            'pod_resources': pod_resources,
+            "crd_resources": crd_resources,
+            "pod_resources": pod_resources,
         }

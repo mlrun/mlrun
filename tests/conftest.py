@@ -28,30 +28,30 @@ from mlrun.api.db.sqldb.db import run_time_fmt
 from mlrun.api.db.sqldb.models import Base
 
 here = Path(__file__).absolute().parent
-results = here / 'test_results'
-is_ci = 'CI' in environ
+results = here / "test_results"
+is_ci = "CI" in environ
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
-Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
-environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
-print(f'KFP: {results}/kfp/')
+Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
+environ["KFPMETA_OUT_DIR"] = f"{results}/kfp/"
+print(f"KFP: {results}/kfp/")
 
-rundb_path = f'{results}/rundb'
-out_path = f'{results}/out'
+rundb_path = f"{results}/rundb"
+out_path = f"{results}/out"
 root_path = str(Path(here).parent)
-examples_path = Path(here).parent.joinpath('examples')
-environ['PYTHONPATH'] = root_path
-environ['MLRUN_DBPATH'] = rundb_path
-environ['MLRUN_httpdb__dirpath'] = rundb_path
+examples_path = Path(here).parent.joinpath("examples")
+environ["PYTHONPATH"] = root_path
+environ["MLRUN_DBPATH"] = rundb_path
+environ["MLRUN_httpdb__dirpath"] = rundb_path
 
 
 def check_docker():
-    if not platform.startswith('linux'):
+    if not platform.startswith("linux"):
         return False
 
-    with open('/proc/1/cgroup') as fp:
+    with open("/proc/1/cgroup") as fp:
         for line in fp:
-            if '/docker/' in line:
+            if "/docker/" in line:
                 return True
     return False
 
@@ -65,17 +65,17 @@ from mlrun import RunObject, RunTemplate  # noqa
 def tag_test(spec: RunTemplate, name) -> RunTemplate:
     spec = spec.copy()
     spec.metadata.name = name
-    spec.metadata.labels['test'] = name
+    spec.metadata.labels["test"] = name
     return spec
 
 
 def has_secrets():
-    return Path('secrets.txt').is_file()
+    return Path("secrets.txt").is_file()
 
 
 def verify_state(result: RunObject):
     state = result.status.state
-    assert state == 'completed', 'wrong state ({}) {}'.format(
+    assert state == "completed", "wrong state ({}) {}".format(
         state, result.status.error
     )
 
@@ -99,11 +99,11 @@ def run_now():
 
 def new_run(state, labels, uid=None, **kw):
     obj = {
-        'metadata': {'labels': labels},
-        'status': {'state': state, 'start_time': run_now()},
+        "metadata": {"labels": labels},
+        "status": {"state": state, "start_time": run_now()},
     }
     if uid:
-        obj['metadata']['uid'] = uid
+        obj["metadata"]["uid"] = uid
     obj.update(kw)
     return obj
 

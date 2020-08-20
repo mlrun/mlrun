@@ -17,10 +17,10 @@ import time
 
 
 def noctx_job():
-    print('im running')
-    print('args:', sys.argv)
+    print("im running")
+    print("args:", sys.argv)
     time.sleep(0.1)
-    print('finish')
+    print("finish")
 
 
 if __name__ == "__main__":

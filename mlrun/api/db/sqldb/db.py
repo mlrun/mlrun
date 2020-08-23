@@ -1,3 +1,4 @@
+import pytz
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
@@ -712,4 +713,13 @@ class SQLDB(DBInterface):
         db_schedule: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(db_schedule)
+        SQLDB._add_utc_timezone(schedule, 'creation_time')
         return schedule
+
+    @staticmethod
+    def _add_utc_timezone(obj, attribute_name):
+        """
+        sqlalchemy losing timezone information with sqlite so we're returning it
+        https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
+        """
+        setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))

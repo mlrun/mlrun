@@ -1,3 +1,4 @@
+import pytz
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
@@ -85,7 +86,7 @@ class SQLDB(DBInterface):
                 project=project,
                 iteration=iter,
                 state=run_state(struct),
-                start_time=run_start_time(struct) or datetime.now(),
+                start_time=run_start_time(struct) or datetime.now(timezone.utc),
             )
         labels = run_labels(struct)
         update_labels(run, labels)
@@ -162,7 +163,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         query = self._find_runs(session, None, project, labels, state)
         if days_ago:
-            since = datetime.now() - timedelta(days=days_ago)
+            since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
         for run in query:  # Can not use query.delete with join
             session.delete(run)
@@ -382,7 +383,7 @@ class SQLDB(DBInterface):
             project=project,
             name=name,
             kind=kind.value,
-            creation_time=datetime.now(),
+            creation_time=datetime.now(timezone.utc),
             # these are properties of the object that map manually (using getters and setters) to other column of the
             # table and therefore Pycharm yells that they're unexpected
             scheduled_object=scheduled_object,
@@ -712,4 +713,13 @@ class SQLDB(DBInterface):
         db_schedule: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(db_schedule)
+        SQLDB._add_utc_timezone(schedule, 'creation_time')
         return schedule
+
+    @staticmethod
+    def _add_utc_timezone(obj, attribute_name):
+        """
+        sqlalchemy losing timezone information with sqlite so we're returning it
+        https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
+        """
+        setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))

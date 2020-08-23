@@ -145,6 +145,29 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
 
 
 @pytest.mark.asyncio
+async def test_get_schedule_datetime_fields_timezone(db: Session, scheduler: Scheduler):
+    cron_trigger = schemas.ScheduleCronTrigger(minute='*/10')
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+    assert schedule.creation_time.tzinfo is not None
+    assert schedule.next_run_time.tzinfo is not None
+
+    schedules = scheduler.list_schedules(db, project)
+    assert len(schedules.schedules) == 1
+    assert schedules.schedules[0].creation_time.tzinfo is not None
+    assert schedules.schedules[0].next_run_time.tzinfo is not None
+
+
+@pytest.mark.asyncio
 async def test_get_schedule(db: Session, scheduler: Scheduler):
     cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"

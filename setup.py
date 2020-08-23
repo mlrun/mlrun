@@ -23,7 +23,7 @@ def version():
         for line in fp:
             if "__version__" in line:
                 _, version = line.split("=")
-                return version.replace("'", "").strip()
+                return version.replace("\"", "").strip()
 
 
 def is_ignored(line):

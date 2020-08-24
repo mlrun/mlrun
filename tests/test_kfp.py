@@ -13,19 +13,19 @@
 # limitations under the License.
 
 import csv
-import os
-import pytest
 import json
-from tempfile import TemporaryDirectory
-import pandas as pd
+import os
 from pathlib import Path
-from mlrun.utils import logger
+from tempfile import TemporaryDirectory
 
+import pandas as pd
+import pytest
 import yaml
 
-from mlrun.artifacts import ChartArtifact
-from mlrun import NewTask, new_function
 import mlrun.kfpops
+from mlrun import NewTask, new_function
+from mlrun.artifacts import ChartArtifact
+from mlrun.utils import logger
 
 model_body = "abc is 123"
 results_body = "<b> Some HTML <b>"
@@ -37,7 +37,9 @@ def my_job(context, p1=1, p2="a-string"):
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}")
     print("accesskey = {}".format(context.get_secret("ACCESS_KEY")))
-    print("file\n{}\n".format(context.get_input("./assets/test_kfp_input_file.txt").get()))
+    print(
+        "file\n{}\n".format(context.get_input("./assets/test_kfp_input_file.txt").get())
+    )
 
     # RUN some useful code e.g. ML training, data prep, etc.
 
@@ -48,9 +50,7 @@ def my_job(context, p1=1, p2="a-string"):
     # log various types of artifacts (file, web page, table), will be
     # versioned and visible in the UI
     context.log_artifact("model", body=model_body, local_path="model.txt")
-    context.log_artifact(
-        "results", local_path="results.html", body=results_body
-    )
+    context.log_artifact("results", local_path="results.html", body=results_body)
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact("chart")
@@ -74,15 +74,19 @@ def my_job(context, p1=1, p2="a-string"):
 @pytest.fixture
 def kfp_dirs(monkeypatch):
     with TemporaryDirectory() as tmpdir:
-        meta_dir = Path(tmpdir) / 'meta'
-        artifacts_dir = Path(tmpdir) / 'artifacts'
-        output_dir = Path(tmpdir) / 'output'
+        meta_dir = Path(tmpdir) / "meta"
+        artifacts_dir = Path(tmpdir) / "artifacts"
+        output_dir = Path(tmpdir) / "output"
         for path in [meta_dir, artifacts_dir, output_dir]:
             os.mkdir(path)
-        logger.info('Created temp paths for kfp test', meta_dir=meta_dir, artifacts_dir=artifacts_dir,
-                    output_dir=output_dir)
-        monkeypatch.setattr(mlrun.kfpops, 'KFPMETA_DIR', str(meta_dir))
-        monkeypatch.setattr(mlrun.kfpops, 'KFP_ARTIFACTS_DIR', str(artifacts_dir))
+        logger.info(
+            "Created temp paths for kfp test",
+            meta_dir=meta_dir,
+            artifacts_dir=artifacts_dir,
+            output_dir=output_dir,
+        )
+        monkeypatch.setattr(mlrun.kfpops, "KFPMETA_DIR", str(meta_dir))
+        monkeypatch.setattr(mlrun.kfpops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
         yield (str(meta_dir), str(artifacts_dir), str(output_dir))
 
 
@@ -122,7 +126,7 @@ def _assert_output_dir(output_dir, iterations=1):
     for iteration in range(1, iterations):
         iteration_output_dir = output_dir
         if iterations > 1:
-            iteration_output_dir = output_dir + f'/{iteration}'
+            iteration_output_dir = output_dir + f"/{iteration}"
         _assert_iteration_output_dir_files(iteration_output_dir)
     if iterations > 1:
         iteration_results_file = output_dir + "/iteration_results.csv"
@@ -135,21 +139,21 @@ def _assert_output_dir(output_dir, iterations=1):
 
 
 def _assert_iteration_output_dir_files(output_dir):
-    with open(output_dir + '/model.txt') as model_file:
+    with open(output_dir + "/model.txt") as model_file:
         contents = model_file.read()
         assert contents == model_body
-    with open(output_dir + '/results.html') as results_file:
+    with open(output_dir + "/results.html") as results_file:
         contents = results_file.read()
         assert contents == results_body
-    assert os.path.exists(output_dir + '/chart.html')
-    assert os.path.exists(output_dir + '/mydf.csv')
+    assert os.path.exists(output_dir + "/chart.html")
+    assert os.path.exists(output_dir + "/mydf.csv")
 
 
 def _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss):
-    with open(artifacts_dir + '/accuracy') as accuracy_file:
+    with open(artifacts_dir + "/accuracy") as accuracy_file:
         accuracy = accuracy_file.read()
         assert str(expected_accuracy) == accuracy
-    with open(artifacts_dir + '/loss') as loss_file:
+    with open(artifacts_dir + "/loss") as loss_file:
         loss = loss_file.read()
         assert str(expected_loss) == loss
 
@@ -160,35 +164,28 @@ def _assert_meta_dir(meta_dir, expected_accuracy, expected_loss, best_iteration=
 
 
 def _assert_ui_metadata_file_existence(meta_dir):
-    assert os.path.exists(meta_dir + '/mlpipeline-ui-metadata.json')
+    assert os.path.exists(meta_dir + "/mlpipeline-ui-metadata.json")
 
 
-def _assert_metrics_file(meta_dir, expected_accuracy, expected_loss, best_iteration=None):
+def _assert_metrics_file(
+    meta_dir, expected_accuracy, expected_loss, best_iteration=None
+):
     expected_data = {
-        'metrics': [
-            {
-                'name': 'accuracy',
-                'numberValue': expected_accuracy,
-            },
-            {
-                'name': 'loss',
-                'numberValue': expected_loss,
-            },
+        "metrics": [
+            {"name": "accuracy", "numberValue": expected_accuracy,},
+            {"name": "loss", "numberValue": expected_loss,},
         ]
     }
     if best_iteration is not None:
-        expected_data['metrics'].insert(0, {
-            'name': 'best_iteration',
-            'numberValue': best_iteration,
-        })
-    with open(meta_dir+'/mlpipeline-metrics.json') as metrics_file:
+        expected_data["metrics"].insert(
+            0, {"name": "best_iteration", "numberValue": best_iteration,}
+        )
+    with open(meta_dir + "/mlpipeline-metrics.json") as metrics_file:
         data = json.load(metrics_file)
         assert data == expected_data
 
 
 def _generate_task(p1, out_path):
     return NewTask(
-        params={"p1": p1},
-        out_path=out_path,
-        outputs=["accuracy", "loss"],
+        params={"p1": p1}, out_path=out_path, outputs=["accuracy", "loss"],
     ).set_label("tests", "kfp")

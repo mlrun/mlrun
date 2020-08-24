@@ -13,22 +13,23 @@
 # limitations under the License.
 
 import csv
-from os import listdir
-from tempfile import mktemp
-import pandas as pd
+import json
+import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
+import pandas as pd
+import pytest
 import yaml
 
-from tests.conftest import out_path
-from mlrun.artifacts import ChartArtifact
+import mlrun.kfpops
 from mlrun import NewTask, new_function
+from mlrun.artifacts import ChartArtifact
+from mlrun.utils import logger
 
-
-run_spec = NewTask(
-    params={"p1": 5},
-    out_path=out_path,
-    outputs=["model.txt", "chart.html", "iteration_results"],
-).set_label("tests", "kfp")
+model_body = "abc is 123"
+results_body = "<b> Some HTML <b>"
+tests_dir = Path(__file__).absolute().parent
 
 
 def my_job(context, p1=1, p2="a-string"):
@@ -37,7 +38,11 @@ def my_job(context, p1=1, p2="a-string"):
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}")
     print("accesskey = {}".format(context.get_secret("ACCESS_KEY")))
-    print("file\n{}\n".format(context.get_input("infile.txt").get()))
+    print(
+        "file\n{}\n".format(
+            context.get_input(str(tests_dir) + "/assets/test_kfp_input_file.txt").get()
+        )
+    )
 
     # RUN some useful code e.g. ML training, data prep, etc.
 
@@ -47,10 +52,8 @@ def my_job(context, p1=1, p2="a-string"):
 
     # log various types of artifacts (file, web page, table), will be
     # versioned and visible in the UI
-    context.log_artifact("model", body=b"abc is 123", local_path="model.txt")
-    context.log_artifact(
-        "results", local_path="results.html", body=b"<b> Some HTML <b>"
-    )
+    context.log_artifact("model", body=model_body, local_path="model.txt")
+    context.log_artifact("results", local_path="results.html", body=results_body)
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact("chart")
@@ -71,40 +74,121 @@ def my_job(context, p1=1, p2="a-string"):
     context.log_dataset("mydf", df=df)
 
 
-def test_kfp_run():
-    tmpdir = mktemp()
-    spec = run_spec.copy()
-    spec.spec.output_path = tmpdir
-    print(tmpdir)
-    result = new_function(kfp=True).run(spec, handler=my_job)
-    print(result.status.artifacts)
-    alist = listdir(tmpdir)
-    expected = ["chart.html", "model.txt", "results.html"]
-    for a in expected:
-        assert a in alist, "artifact {} was not generated".format(a)
-    assert result.output("accuracy") == 10, "failed to run"
-    assert result.status.state == "completed", "wrong state ({}) {}".format(
-        result.status.state, result.status.error
-    )
+@pytest.fixture
+def kfp_dirs(monkeypatch):
+    with TemporaryDirectory() as tmpdir:
+        meta_dir = Path(tmpdir) / "meta"
+        artifacts_dir = Path(tmpdir) / "artifacts"
+        output_dir = Path(tmpdir) / "output"
+        for path in [meta_dir, artifacts_dir, output_dir]:
+            os.mkdir(path)
+        logger.info(
+            "Created temp paths for kfp test",
+            meta_dir=meta_dir,
+            artifacts_dir=artifacts_dir,
+            output_dir=output_dir,
+        )
+        monkeypatch.setattr(mlrun.kfpops, "KFPMETA_DIR", str(meta_dir))
+        monkeypatch.setattr(mlrun.kfpops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
+        yield (str(meta_dir), str(artifacts_dir), str(output_dir))
 
 
-def test_kfp_hyper():
-    tmpdir = mktemp()
-    spec = run_spec.copy()
-    spec.spec.output_path = tmpdir
-    spec.with_hyper_params({"p1": [1, 2, 3]}, selector="min.loss")
-    print(tmpdir)
-    result = new_function(kfp=True).run(spec, handler=my_job)
-    alist = listdir(tmpdir)
-    print(alist)
-    print(listdir("/tmp"))
-    res_file = tmpdir + "/" + "iteration_results.csv"
-    with open(res_file) as fp:
-        count = 0
-        for row in csv.DictReader(fp):
-            print(yaml.dump(row))
-            count += 1
-    assert count == 3, "didnt see expected iterations file output"
-    assert result.status.state == "completed", "wrong state ({}) {}".format(
-        result.status.state, result.status.error
-    )
+def test_kfp_function_run(kfp_dirs):
+    meta_dir, artifacts_dir, output_dir = kfp_dirs
+    p1 = 5
+    expected_accuracy = 2 * p1
+    expected_loss = 3 * p1
+    task = _generate_task(p1, output_dir)
+    result = new_function(kfp=True).run(task, handler=my_job)
+    _assert_meta_dir(meta_dir, expected_accuracy, expected_loss)
+    _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss)
+    _assert_output_dir(output_dir)
+    assert result.output("accuracy") == expected_accuracy
+    assert result.output("loss") == expected_loss
+    assert result.status.state == "completed"
+
+
+def test_kfp_function_run_with_hyper_params(kfp_dirs):
+    meta_dir, artifacts_dir, output_dir = kfp_dirs
+    p1 = [1, 2, 3]
+    task = _generate_task(p1, output_dir)
+    task.with_hyper_params({"p1": p1}, selector="min.loss")
+    best_iteration = 1  # loss is 3 * p1, so min loss will be when p1=1
+    expected_accuracy = 2 * p1[best_iteration - 1]
+    expected_loss = 3 * p1[best_iteration - 1]
+    result = new_function(kfp=True).run(task, handler=my_job)
+    _assert_meta_dir(meta_dir, expected_accuracy, expected_loss, best_iteration)
+    _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss)
+    _assert_output_dir(output_dir, iterations=len(p1))
+    assert result.output("accuracy") == expected_accuracy
+    assert result.output("loss") == expected_loss
+    assert result.status.state == "completed"
+
+
+def _assert_output_dir(output_dir, iterations=1):
+    for iteration in range(1, iterations):
+        iteration_output_dir = output_dir
+        if iterations > 1:
+            iteration_output_dir = output_dir + f"/{iteration}"
+        _assert_iteration_output_dir_files(iteration_output_dir)
+    if iterations > 1:
+        iteration_results_file = output_dir + "/iteration_results.csv"
+        with open(iteration_results_file) as file:
+            count = 0
+            for row in csv.DictReader(file):
+                print(yaml.dump(row))
+                count += 1
+        assert count == 3, "didnt see expected iterations file output"
+
+
+def _assert_iteration_output_dir_files(output_dir):
+    with open(output_dir + "/model.txt") as model_file:
+        contents = model_file.read()
+        assert contents == model_body
+    with open(output_dir + "/results.html") as results_file:
+        contents = results_file.read()
+        assert contents == results_body
+    assert os.path.exists(output_dir + "/chart.html")
+    assert os.path.exists(output_dir + "/mydf.csv")
+
+
+def _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss):
+    with open(artifacts_dir + "/accuracy") as accuracy_file:
+        accuracy = accuracy_file.read()
+        assert str(expected_accuracy) == accuracy
+    with open(artifacts_dir + "/loss") as loss_file:
+        loss = loss_file.read()
+        assert str(expected_loss) == loss
+
+
+def _assert_meta_dir(meta_dir, expected_accuracy, expected_loss, best_iteration=None):
+    _assert_metrics_file(meta_dir, expected_accuracy, expected_loss, best_iteration)
+    _assert_ui_metadata_file_existence(meta_dir)
+
+
+def _assert_ui_metadata_file_existence(meta_dir):
+    assert os.path.exists(meta_dir + "/mlpipeline-ui-metadata.json")
+
+
+def _assert_metrics_file(
+    meta_dir, expected_accuracy, expected_loss, best_iteration=None
+):
+    expected_data = {
+        "metrics": [
+            {"name": "accuracy", "numberValue": expected_accuracy},
+            {"name": "loss", "numberValue": expected_loss},
+        ]
+    }
+    if best_iteration is not None:
+        expected_data["metrics"].insert(
+            0, {"name": "best_iteration", "numberValue": best_iteration}
+        )
+    with open(meta_dir + "/mlpipeline-metrics.json") as metrics_file:
+        data = json.load(metrics_file)
+        assert data == expected_data
+
+
+def _generate_task(p1, out_path):
+    return NewTask(
+        params={"p1": p1}, out_path=out_path, outputs=["accuracy", "loss"],
+    ).set_label("tests", "kfp")

@@ -713,7 +713,7 @@ class SQLDB(DBInterface):
         db_schedule: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(db_schedule)
-        SQLDB._add_utc_timezone(schedule, 'creation_time')
+        SQLDB._add_utc_timezone(schedule, "creation_time")
         return schedule
 
     @staticmethod

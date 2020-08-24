@@ -146,7 +146,7 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
 
 @pytest.mark.asyncio
 async def test_get_schedule_datetime_fields_timezone(db: Session, scheduler: Scheduler):
-    cron_trigger = schemas.ScheduleCronTrigger(minute='*/10')
+    cron_trigger = schemas.ScheduleCronTrigger(minute="*/10")
     schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(

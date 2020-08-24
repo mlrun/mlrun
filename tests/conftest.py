@@ -24,9 +24,6 @@ from urllib.request import URLError, urlopen
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from mlrun.api.db.sqldb.db import run_time_fmt
-from mlrun.api.db.sqldb.models import Base
-
 here = Path(__file__).absolute().parent
 results = here / "test_results"
 is_ci = "CI" in environ
@@ -34,6 +31,7 @@ is_ci = "CI" in environ
 shutil.rmtree(results, ignore_errors=True, onerror=None)
 Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
 environ["KFPMETA_OUT_DIR"] = f"{results}/kfp/"
+environ["KFP_ARTIFACTS_DIR"] = f"{results}/kfp/"
 print(f"KFP: {results}/kfp/")
 
 rundb_path = f"{results}/rundb"
@@ -43,6 +41,10 @@ examples_path = Path(here).parent.joinpath("examples")
 environ["PYTHONPATH"] = root_path
 environ["MLRUN_DBPATH"] = rundb_path
 environ["MLRUN_httpdb__dirpath"] = rundb_path
+
+# import package stuff after setting env vars so it will take effect
+from mlrun.api.db.sqldb.db import run_time_fmt  # noqa: E402
+from mlrun.api.db.sqldb.models import Base  # noqa: E402
 
 
 def check_docker():

@@ -20,7 +20,8 @@ from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
 
-KFPMETA_DIR = environ.get("KFPMETA_OUT_DIR", "/")
+KFPMETA_DIR = environ.get("KFPMETA_OUT_DIR", "")
+KFP_ARTIFACTS_DIR = environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 
 
 def is_num(v):
@@ -37,7 +38,7 @@ def write_kfpmeta(struct):
             {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
         ],
     }
-    with open(KFPMETA_DIR + "mlpipeline-metrics.json", "w") as f:
+    with open(KFPMETA_DIR + "/mlpipeline-metrics.json", "w") as f:
         json.dump(metrics, f)
 
     struct = deepcopy(struct)
@@ -57,10 +58,12 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            logger.info("writing artifact output: /tmp/{} = {}".format(key, val))
-            with open("/tmp/{}".format(key), "w") as fp:
-                fp.write(val)
-        except Exception:
+            path = f"{KFP_ARTIFACTS_DIR}/{key}"
+            logger.info("writing artifact output", path=path, val=val)
+            with open(path, "w") as fp:
+                fp.write(str(val))
+        except Exception as exc:
+            logger.warning("Failed writing to temp file. Ignoring", exc=repr(exc))
             pass
 
     text = "# Run Report\n"
@@ -73,7 +76,7 @@ def write_kfpmeta(struct):
         "outputs": output_artifacts
         + [{"type": "markdown", "storage": "inline", "source": text}]
     }
-    with open(KFPMETA_DIR + "mlpipeline-ui-metadata.json", "w") as f:
+    with open(KFPMETA_DIR + "/mlpipeline-ui-metadata.json", "w") as f:
         json.dump(metadata, f)
 
 

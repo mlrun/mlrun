@@ -50,12 +50,12 @@ class TestMLRunSystem:
 
         self.custom_teardown()
 
-        self._teardown_env()
-        db = get_run_db()
-
         self._logger.debug("Removing test data from database")
+        db = get_run_db()
         db.del_runs()
         db.del_artifacts(tag="*")
+
+        self._teardown_env()
         self._logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )

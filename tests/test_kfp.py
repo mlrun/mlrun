@@ -172,13 +172,13 @@ def _assert_metrics_file(
 ):
     expected_data = {
         "metrics": [
-            {"name": "accuracy", "numberValue": expected_accuracy,},
-            {"name": "loss", "numberValue": expected_loss,},
+            {"name": "accuracy", "numberValue": expected_accuracy},
+            {"name": "loss", "numberValue": expected_loss},
         ]
     }
     if best_iteration is not None:
         expected_data["metrics"].insert(
-            0, {"name": "best_iteration", "numberValue": best_iteration,}
+            0, {"name": "best_iteration", "numberValue": best_iteration}
         )
     with open(meta_dir + "/mlpipeline-metrics.json") as metrics_file:
         data = json.load(metrics_file)

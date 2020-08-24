@@ -30,7 +30,7 @@ def get_files(
             err="illegal path prefix or schema",
         )
 
-    logger.debug('Got get files request', path=objpath)
+    logger.debug("Got get files request", path=objpath)
 
     secrets = get_secrets(request)
     body = None
@@ -69,7 +69,7 @@ def get_filestat(request: Request, schema: str = "", path: str = "", user: str =
             HTTPStatus.NOT_FOUND.value, path=path, err="illegal path prefix or schema"
         )
 
-    logger.debug('Got get filestat request', path=path)
+    logger.debug("Got get filestat request", path=path)
 
     secrets = get_secrets(request)
     stat = None

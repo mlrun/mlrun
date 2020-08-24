@@ -57,29 +57,29 @@ class K8sHelper:
             config.load_incluster_config()
             self.running_inside_kubernetes_cluster = True
             if log:
-                logger.info('using in-cluster config.')
+                logger.info("using in-cluster config.")
         except Exception:
             try:
                 config.load_kube_config(self.config_file)
                 if log:
-                    logger.info('using local kubernetes config.')
+                    logger.info("using local kubernetes config.")
             except Exception:
                 raise RuntimeError(
-                    'cannot find local kubernetes config file,'
-                    ' place it in ~/.kube/config or specify it in '
-                    'KUBECONFIG env var'
+                    "cannot find local kubernetes config file,"
+                    " place it in ~/.kube/config or specify it in "
+                    "KUBECONFIG env var"
                 )
 
     def is_running_inside_kubernetes_cluster(self):
         return self.running_inside_kubernetes_cluster
 
-    def list_pods(self, namespace=None, selector='', states=None):
+    def list_pods(self, namespace=None, selector="", states=None):
         try:
             resp = self.v1api.list_namespaced_pod(
                 self.resolve_namespace(namespace), watch=False, label_selector=selector
             )
         except ApiException as e:
-            logger.error('failed to list pods: {}'.format(e))
+            logger.error("failed to list pods: {}".format(e))
             raise e
 
         items = []
@@ -88,25 +88,25 @@ class K8sHelper:
                 items.append(i)
         return items
 
-    def clean_pods(self, namespace=None, selector='', states=None):
+    def clean_pods(self, namespace=None, selector="", states=None):
         if not selector and not states:
-            raise ValueError('labels selector or states list must be specified')
+            raise ValueError("labels selector or states list must be specified")
         items = self.list_pods(namespace, selector, states)
         for item in items:
             self.del_pod(item.metadata.name, item.metadata.namespace)
 
     def create_pod(self, pod):
-        if 'pod' in dir(pod):
+        if "pod" in dir(pod):
             pod = pod.pod
         pod.metadata.namespace = self.resolve_namespace(pod.metadata.namespace)
         try:
             resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
         except ApiException as e:
-            logger.error('spec:\n{}'.format(pod.spec))
-            logger.error('failed to create pod: {}'.format(e))
+            logger.error("spec:\n{}".format(pod.spec))
+            logger.error("failed to create pod: {}".format(e))
             raise e
 
-        logger.info(f'Pod {resp.metadata.name} created')
+        logger.info(f"Pod {resp.metadata.name} created")
         return resp.metadata.name, resp.metadata.namespace
 
     def del_pod(self, name, namespace=None):
@@ -115,13 +115,13 @@ class K8sHelper:
                 name,
                 self.resolve_namespace(namespace),
                 grace_period_seconds=0,
-                propagation_policy='Background',
+                propagation_policy="Background",
             )
             return api_response
         except ApiException as e:
             # ignore error if pod is already removed
             if e.status != 404:
-                logger.error('failed to delete pod: {}'.format(e))
+                logger.error("failed to delete pod: {}".format(e))
             raise e
 
     def get_pod(self, name, namespace=None):
@@ -132,7 +132,7 @@ class K8sHelper:
             return api_response
         except ApiException as e:
             if e.status != 404:
-                logger.error('failed to get pod: {}'.format(e))
+                logger.error("failed to get pod: {}".format(e))
                 raise e
             return None
 
@@ -145,7 +145,7 @@ class K8sHelper:
                 name=name, namespace=self.resolve_namespace(namespace)
             )
         except ApiException as e:
-            logger.error('failed to get pod logs: {}'.format(e))
+            logger.error("failed to get pod logs: {}".format(e))
             raise e
 
         return resp
@@ -153,8 +153,8 @@ class K8sHelper:
     def run_job(self, pod, timeout=600):
         pod_name, namespace = self.create_pod(pod)
         if not pod_name:
-            logger.error('failed to create pod')
-            return 'error'
+            logger.error("failed to create pod")
+            return "error"
         return self.watch(pod_name, namespace, timeout)
 
     def watch(self, pod_name, namespace=None, timeout=600, writer=None):
@@ -164,49 +164,49 @@ class K8sHelper:
             try:
                 pod = self.get_pod(pod_name, namespace)
                 if not pod:
-                    return 'error'
+                    return "error"
                 status = pod.status.phase.lower()
-                if status in ['running', 'completed', 'succeeded']:
-                    print('')
+                if status in ["running", "completed", "succeeded"]:
+                    print("")
                     break
-                if status == 'failed':
-                    return 'failed'
+                if status == "failed":
+                    return "failed"
                 elapsed_time = (datetime.now() - start_time).seconds
                 if elapsed_time > timeout:
-                    return 'timeout'
+                    return "timeout"
                 time.sleep(2)
-                stdout.write('.')
-                if status != 'pending':
-                    logger.warning(f'pod state in loop is {status}')
+                stdout.write(".")
+                if status != "pending":
+                    logger.warning(f"pod state in loop is {status}")
             except ApiException as e:
-                logger.error('failed waiting for pod: {}\n'.format(str(e)))
-                return 'error'
+                logger.error("failed waiting for pod: {}\n".format(str(e)))
+                return "error"
         outputs = self.v1api.read_namespaced_pod_log(
             name=pod_name, namespace=namespace, follow=True, _preload_content=False
         )
         for out in outputs:
-            print(out.decode('utf-8'), end='')
+            print(out.decode("utf-8"), end="")
             if writer:
                 writer.write(out)
 
         for i in range(5):
             pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
-            if pod_state != 'running':
+            if pod_state != "running":
                 break
-            logger.warning('pod still running, waiting 2 sec')
+            logger.warning("pod still running, waiting 2 sec")
             time.sleep(2)
 
-        if pod_state == 'failed':
-            logger.error('pod exited with error')
+        if pod_state == "failed":
+            logger.error("pod exited with error")
         if writer:
             writer.flush()
         return pod_state
 
-    def create_cfgmap(self, name, data, namespace='', labels=None):
+    def create_cfgmap(self, name, data, namespace="", labels=None):
         body = client.api_client.V1ConfigMap()
         namespace = self.resolve_namespace(namespace)
         body.data = data
-        if name.endswith('*'):
+        if name.endswith("*"):
             body.metadata = client.V1ObjectMeta(
                 generate_name=name[:-1], namespace=namespace, labels=labels
             )
@@ -217,10 +217,10 @@ class K8sHelper:
         try:
             resp = self.v1api.create_namespaced_config_map(namespace, body)
         except ApiException as e:
-            logger.error('failed to create configmap: {}'.format(e))
+            logger.error("failed to create configmap: {}".format(e))
             raise e
 
-        logger.info(f'ConfigMap {resp.metadata.name} created')
+        logger.info(f"ConfigMap {resp.metadata.name} created")
         return resp.metadata.name
 
     def del_cfgmap(self, name, namespace=None):
@@ -229,23 +229,23 @@ class K8sHelper:
                 name,
                 self.resolve_namespace(namespace),
                 grace_period_seconds=0,
-                propagation_policy='Background',
+                propagation_policy="Background",
             )
 
             return api_response
         except ApiException as e:
             # ignore error if ConfigMap is already removed
             if e.status != 404:
-                logger.error('failed to delete ConfigMap: {}'.format(e))
+                logger.error("failed to delete ConfigMap: {}".format(e))
             raise e
 
-    def list_cfgmap(self, namespace=None, selector=''):
+    def list_cfgmap(self, namespace=None, selector=""):
         try:
             resp = self.v1api.list_namespaced_config_map(
                 self.resolve_namespace(namespace), watch=False, label_selector=selector
             )
         except ApiException as e:
-            logger.error('failed to list ConfigMaps: {}'.format(e))
+            logger.error("failed to list ConfigMaps: {}".format(e))
             raise e
 
         items = []
@@ -253,21 +253,21 @@ class K8sHelper:
             items.append(i)
         return items
 
-    def get_logger_pods(self, uid, namespace=''):
+    def get_logger_pods(self, uid, namespace=""):
         namespace = self.resolve_namespace(namespace)
-        selector = 'mlrun/class,mlrun/uid={}'.format(uid)
+        selector = "mlrun/class,mlrun/uid={}".format(uid)
         pods = self.list_pods(selector=selector, namespace=namespace)
         if not pods:
-            logger.error('no pod matches that uid', uid=uid)
+            logger.error("no pod matches that uid", uid=uid)
             return
 
-        kind = pods[0].metadata.labels.get('mlrun/class')
+        kind = pods[0].metadata.labels.get("mlrun/class")
         results = {}
         for p in pods:
             if (
-                (kind not in ['spark', 'mpijob'])
-                or (p.metadata.labels.get('spark-role', '') == 'driver')
-                or (p.metadata.labels.get('mpi_role_type', '') == 'launcher')
+                (kind not in ["spark", "mpijob"])
+                or (p.metadata.labels.get("spark-role", "") == "driver")
+                or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
             ):
                 results[p.metadata.name] = p.status.phase
 
@@ -277,15 +277,15 @@ class K8sHelper:
 class BasePod:
     def __init__(
         self,
-        task_name='',
+        task_name="",
         image=None,
         command=None,
         args=None,
-        namespace='',
-        kind='job',
+        namespace="",
+        kind="job",
     ):
         self.namespace = namespace
-        self.name = ''
+        self.name = ""
         self.task_name = task_name
         self.image = image
         self.command = command
@@ -293,7 +293,7 @@ class BasePod:
         self._volumes = []
         self._mounts = []
         self.env = None
-        self._labels = {'mlrun/task-name': task_name, 'mlrun/class': kind}
+        self._labels = {"mlrun/task-name": task_name, "mlrun/class": kind}
         self._annotations = {}
         self._init_container = None
 
@@ -313,7 +313,7 @@ class BasePod:
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
         self._init_container = client.V1Container(
-            name='init', image=image, env=env, command=command, args=args
+            name="init", image=image, env=env, command=command, args=args
         )
 
     def add_label(self, key, value):
@@ -328,14 +328,14 @@ class BasePod:
         )
         self._volumes.append(volume)
 
-    def mount_empty(self, name='empty', mount_path='/empty'):
+    def mount_empty(self, name="empty", mount_path="/empty"):
         self.add_volume(
             client.V1Volume(name=name, empty_dir=client.V1EmptyDirVolumeSource()),
             mount_path=mount_path,
         )
 
     def mount_v3io(
-        self, name='v3io', remote='~/', mount_path='/User', access_key='', user=''
+        self, name="v3io", remote="~/", mount_path="/User", access_key="", user=""
     ):
         self.add_volume(
             v3io_to_vol(name, remote, access_key, user),
@@ -343,7 +343,7 @@ class BasePod:
             name=name,
         )
 
-    def mount_cfgmap(self, name, path='/config'):
+    def mount_cfgmap(self, name, path="/config"):
         self.add_volume(
             client.V1Volume(
                 name=name, config_map=client.V1ConfigMapVolumeSource(name=name)
@@ -351,7 +351,7 @@ class BasePod:
             mount_path=path,
         )
 
-    def mount_secret(self, name, path='/secret', items=None):
+    def mount_secret(self, name, path="/secret", items=None):
         self.add_volume(
             client.V1Volume(
                 name=name,
@@ -369,7 +369,7 @@ class BasePod:
         else:
             env = self.env
         container = client.V1Container(
-            name='base',
+            name="base",
             image=self.image,
             env=env,
             command=self.command,
@@ -378,7 +378,7 @@ class BasePod:
         )
 
         pod_spec = client.V1PodSpec(
-            containers=[container], restart_policy='Never', volumes=self._volumes
+            containers=[container], restart_policy="Never", volumes=self._volumes
         )
 
         if self._init_container:
@@ -387,7 +387,7 @@ class BasePod:
 
         pod = pod_obj(
             metadata=client.V1ObjectMeta(
-                generate_name=f'{self.task_name}-',
+                generate_name=f"{self.task_name}-",
                 namespace=self.namespace,
                 labels=self._labels,
                 annotations=self._annotations,

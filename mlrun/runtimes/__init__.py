@@ -35,12 +35,12 @@ from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
 
 class RuntimeKinds(object):
-    remote = 'remote'
-    nuclio = 'nuclio'
-    dask = 'dask'
-    job = 'job'
-    spark = 'spark'
-    mpijob = 'mpijob'
+    remote = "remote"
+    nuclio = "nuclio"
+    dask = "dask"
+    job = "job"
+    spark = "spark"
+    mpijob = "mpijob"
 
     @staticmethod
     def all():

@@ -22,10 +22,10 @@ from .sqldb import SQLDB
 from os import environ
 
 
-def get_or_set_dburl(default=''):
+def get_or_set_dburl(default=""):
     if not config.dbpath and default:
         config.dbpath = default
-        environ['MLRUN_DBPATH'] = default
+        environ["MLRUN_DBPATH"] = default
     return config.dbpath
 
 
@@ -38,31 +38,31 @@ def get_httpdb_kwargs(host, username, password):
     )
 
     return {
-        'user': username,
-        'password': password,
-        'token': token,
+        "user": username,
+        "password": password,
+        "token": token,
     }
 
 
-def get_run_db(url=''):
+def get_run_db(url=""):
     """Returns the runtime database"""
     if not url:
-        url = get_or_set_dburl('./')
+        url = get_or_set_dburl("./")
 
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme.lower()
     kwargs = {}
-    if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
+    if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
         cls = FileRunDB
-    elif scheme in ('http', 'https'):
+    elif scheme in ("http", "https"):
         cls = HTTPRunDB
         kwargs = get_httpdb_kwargs(
             parsed_url.hostname, parsed_url.username, parsed_url.password
         )
         endpoint = parsed_url.hostname
         if parsed_url.port:
-            endpoint += ':{}'.format(parsed_url.port)
-        url = f'{parsed_url.scheme}://{endpoint}{parsed_url.path}'
+            endpoint += ":{}".format(parsed_url.port)
+        url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
     else:
         cls = SQLDB
 

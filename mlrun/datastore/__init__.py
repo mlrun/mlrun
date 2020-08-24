@@ -22,7 +22,7 @@ store_manager = StoreManager()
 
 
 def set_in_memory_item(key, value):
-    item = store_manager.object(f'memory://{key}')
+    item = store_manager.object(f"memory://{key}")
     item.put(value)
     return item
 

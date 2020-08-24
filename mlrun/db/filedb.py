@@ -36,16 +36,16 @@ from ..utils import (
     fill_function_hash,
 )
 
-run_logs = 'runs'
-artifacts_dir = 'artifacts'
-functions_dir = 'functions'
-schedules_dir = 'schedules'
+run_logs = "runs"
+artifacts_dir = "artifacts"
+functions_dir = "functions"
+schedules_dir = "schedules"
 
 
 class FileRunDB(RunDBInterface):
-    kind = 'file'
+    kind = "file"
 
-    def __init__(self, dirpath='', format='.yaml'):
+    def __init__(self, dirpath="", format=".yaml"):
         self.format = format
         self.dirpath = dirpath
         self._datastore = None
@@ -57,39 +57,39 @@ class FileRunDB(RunDBInterface):
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
         return self
 
-    def store_log(self, uid, project='', body=None, append=False):
-        filepath = self._filepath(run_logs, project, uid, '') + '.log'
+    def store_log(self, uid, project="", body=None, append=False):
+        filepath = self._filepath(run_logs, project, uid, "") + ".log"
         makedirs(path.dirname(filepath), exist_ok=True)
-        mode = 'ab' if append else 'wb'
+        mode = "ab" if append else "wb"
         with open(filepath, mode) as fp:
             fp.write(body)
             fp.close()
 
-    def get_log(self, uid, project='', offset=0, size=0):
-        filepath = self._filepath(run_logs, project, uid, '') + '.log'
+    def get_log(self, uid, project="", offset=0, size=0):
+        filepath = self._filepath(run_logs, project, uid, "") + ".log"
         if pathlib.Path(filepath).is_file():
-            with open(filepath, 'rb') as fp:
+            with open(filepath, "rb") as fp:
                 if offset:
                     fp.seek(offset)
                 if not size:
                     size = 2 ** 18
-                return '', fp.read(size)
-        return '', None
+                return "", fp.read(size)
+        return "", None
 
     def _run_path(self, uid, iter):
         if iter:
-            return '{}-{}'.format(uid, iter)
+            return "{}-{}".format(uid, iter)
         return uid
 
-    def store_run(self, struct, uid, project='', iter=0):
+    def store_run(self, struct, uid, project="", iter=0):
         data = self._dumps(struct)
         filepath = (
-            self._filepath(run_logs, project, self._run_path(uid, iter), '')
+            self._filepath(run_logs, project, self._run_path(uid, iter), "")
             + self.format
         )
         self._datastore.put(filepath, data)
 
-    def update_run(self, updates: dict, uid, project='', iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0):
         run = self.read_run(uid, project, iter=iter)
         # TODO: Should we raise if run not found?
         if run and updates:
@@ -97,9 +97,9 @@ class FileRunDB(RunDBInterface):
                 update_in(run, key, val)
         self.store_run(run, uid, project, iter=iter)
 
-    def read_run(self, uid, project='', iter=0):
+    def read_run(self, uid, project="", iter=0):
         filepath = (
-            self._filepath(run_logs, project, self._run_path(uid, iter), '')
+            self._filepath(run_logs, project, self._run_path(uid, iter), "")
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
@@ -109,11 +109,11 @@ class FileRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name='',
+        name="",
         uid=None,
-        project='',
+        project="",
         labels=None,
-        state='',
+        state="",
         sort=True,
         last=1000,
         iter=False,
@@ -122,79 +122,79 @@ class FileRunDB(RunDBInterface):
         filepath = self._filepath(run_logs, project)
         results = RunList()
         if isinstance(labels, str):
-            labels = labels.split(',')
-        for run, _ in self._load_list(filepath, '*'):
+            labels = labels.split(",")
+        for run, _ in self._load_list(filepath, "*"):
             if (
-                match_value(name, run, 'metadata.name')
-                and match_labels(get_in(run, 'metadata.labels', {}), labels)
-                and match_value(state, run, 'status.state')
-                and match_value(uid, run, 'metadata.uid')
-                and (iter or get_in(run, 'metadata.iteration', 0) == 0)
+                match_value(name, run, "metadata.name")
+                and match_labels(get_in(run, "metadata.labels", {}), labels)
+                and match_value(state, run, "status.state")
+                and match_value(uid, run, "metadata.uid")
+                and (iter or get_in(run, "metadata.iteration", 0) == 0)
             ):
                 results.append(run)
 
         if sort or last:
             results.sort(
-                key=lambda i: get_in(i, ['status', 'start_time'], ''), reverse=True
+                key=lambda i: get_in(i, ["status", "start_time"], ""), reverse=True
             )
         if last and len(results) > last:
             return RunList(results[:last])
         return results
 
-    def del_run(self, uid, project='', iter=0):
+    def del_run(self, uid, project="", iter=0):
         filepath = (
-            self._filepath(run_logs, project, self._run_path(uid, iter), '')
+            self._filepath(run_logs, project, self._run_path(uid, iter), "")
             + self.format
         )
         self._safe_del(filepath)
 
-    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+    def del_runs(self, name="", project="", labels=None, state="", days_ago=0):
 
         labels = [] if labels is None else labels
         if not any([name, state, days_ago, labels]):
             raise RunDBError(
-                'filter is too wide, select name and/or state and/or days_ago'
+                "filter is too wide, select name and/or state and/or days_ago"
             )
 
         filepath = self._filepath(run_logs, project)
         if isinstance(labels, str):
-            labels = labels.split(',')
+            labels = labels.split(",")
 
         if days_ago:
             days_ago = datetime.now() - timedelta(days=days_ago)
 
         def date_before(run):
-            d = get_in(run, 'status.start_time', '')
+            d = get_in(run, "status.start_time", "")
             if not d:
                 return False
             return parse_time(d) < days_ago
 
-        for run, p in self._load_list(filepath, '*'):
+        for run, p in self._load_list(filepath, "*"):
             if (
-                match_value(name, run, 'metadata.name')
-                and match_labels(get_in(run, 'metadata.labels', {}), labels)
-                and match_value(state, run, 'status.state')
+                match_value(name, run, "metadata.name")
+                and match_labels(get_in(run, "metadata.labels", {}), labels)
+                and match_value(state, run, "status.state")
                 and (not days_ago or date_before(run))
             ):
                 self._safe_del(p)
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
-        if 'updated' not in artifact:
-            artifact['updated'] = datetime.now(timezone.utc).isoformat()
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        if "updated" not in artifact:
+            artifact["updated"] = datetime.now(timezone.utc).isoformat()
         data = self._dumps(artifact)
         if iter:
-            key = '{}-{}'.format(iter, key)
+            key = "{}-{}".format(iter, key)
         filepath = self._filepath(artifacts_dir, project, key, uid) + self.format
         self._datastore.put(filepath, data)
         filepath = (
-            self._filepath(artifacts_dir, project, key, tag or 'latest') + self.format
+            self._filepath(artifacts_dir, project, key, tag or "latest") + self.format
         )
         self._datastore.put(filepath, data)
 
-    def read_artifact(self, key, tag='', iter=None, project=''):
-        tag = tag or 'latest'
+    def read_artifact(self, key, tag="", iter=None, project=""):
+        tag = tag or "latest"
         if iter:
-            key = '{}-{}'.format(iter, key)
+            key = "{}-{}".format(iter, key)
         filepath = self._filepath(artifacts_dir, project, key, tag) + self.format
 
         if not pathlib.Path(filepath).is_file():
@@ -203,73 +203,73 @@ class FileRunDB(RunDBInterface):
         return self._loads(data)
 
     def list_artifacts(
-        self, name='', project='', tag='', labels=None, since=None, until=None
+        self, name="", project="", tag="", labels=None, since=None, until=None
     ):
         labels = [] if labels is None else labels
-        tag = tag or 'latest'
-        name = name or ''
-        logger.info(f'reading artifacts in {project} name/mask: {name} tag: {tag} ...')
+        tag = tag or "latest"
+        name = name or ""
+        logger.info(f"reading artifacts in {project} name/mask: {name} tag: {tag} ...")
         filepath = self._filepath(artifacts_dir, project, tag=tag)
         results = ArtifactList()
         results.tag = tag
         if isinstance(labels, str):
-            labels = labels.split(',')
-        if tag == '*':
-            mask = '**/*' + name
+            labels = labels.split(",")
+        if tag == "*":
+            mask = "**/*" + name
             if name:
-                mask += '*'
+                mask += "*"
         else:
-            mask = '**/*'
+            mask = "**/*"
 
         time_pred = make_time_pred(since, until)
         for artifact, p in self._load_list(filepath, mask):
-            if (name == '' or name in get_in(artifact, 'key', '')) and match_labels(
-                get_in(artifact, 'labels', {}), labels
+            if (name == "" or name in get_in(artifact, "key", "")) and match_labels(
+                get_in(artifact, "labels", {}), labels
             ):
                 if not time_pred(artifact):
                     continue
-                if 'artifacts/latest' in p:
-                    artifact['tree'] = 'latest'
+                if "artifacts/latest" in p:
+                    artifact["tree"] = "latest"
                 results.append(artifact)
 
         return results
 
-    def del_artifact(self, key, tag='', project=''):
-        tag = tag or 'latest'
+    def del_artifact(self, key, tag="", project=""):
+        tag = tag or "latest"
         filepath = self._filepath(artifacts_dir, project, key, tag) + self.format
         self._safe_del(filepath)
 
-    def del_artifacts(self, name='', project='', tag='', labels=None):
+    def del_artifacts(self, name="", project="", tag="", labels=None):
         labels = [] if labels is None else labels
-        tag = tag or 'latest'
+        tag = tag or "latest"
         filepath = self._filepath(artifacts_dir, project, tag=tag)
 
         if isinstance(labels, str):
-            labels = labels.split(',')
-        if tag == '*':
-            mask = '**/*' + name
+            labels = labels.split(",")
+        if tag == "*":
+            mask = "**/*" + name
             if name:
-                mask += '*'
+                mask += "*"
         else:
-            mask = '**/*'
+            mask = "**/*"
 
         for artifact, p in self._load_list(filepath, mask):
-            if (name == '' or name == get_in(artifact, 'key', '')) and match_labels(
-                get_in(artifact, 'labels', {}), labels
+            if (name == "" or name == get_in(artifact, "key", "")) and match_labels(
+                get_in(artifact, "labels", {}), labels
             ):
 
                 self._safe_del(p)
 
-    def store_function(self, function, name, project='', tag='', versioned=False):
-        tag = tag or get_in(function, 'metadata.tag') or 'latest'
+    def store_function(self, function, name, project="", tag="", versioned=False):
+        tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
-        update_in(function, 'metadata.updated', datetime.now(timezone.utc))
-        update_in(function, 'metadata.tag', '')
+        update_in(function, "metadata.updated", datetime.now(timezone.utc))
+        update_in(function, "metadata.tag", "")
         data = self._dumps(function)
         filepath = (
             path.join(
                 self.dirpath,
-                '{}/{}/{}/{}'.format(
+                "{}/{}/{}/{}".format(
                     functions_dir, project or config.default_project, name, tag
                 ),
             )
@@ -279,14 +279,14 @@ class FileRunDB(RunDBInterface):
         if versioned:
 
             # the "hash_key" version should not include the status
-            function['status'] = None
+            function["status"] = None
 
             # versioned means we want this function to be queryable by its hash key so save another file that the
             # hash key is the file name
             filepath = (
                 path.join(
                     self.dirpath,
-                    '{}/{}/{}/{}'.format(
+                    "{}/{}/{}/{}".format(
                         functions_dir, project or config.default_project, name, hash_key
                     ),
                 )
@@ -296,13 +296,13 @@ class FileRunDB(RunDBInterface):
             self._datastore.put(filepath, data)
         return hash_key
 
-    def get_function(self, name, project='', tag='', hash_key=''):
-        tag = tag or 'latest'
+    def get_function(self, name, project="", tag="", hash_key=""):
+        tag = tag or "latest"
         file_name = hash_key or tag
         filepath = (
             path.join(
                 self.dirpath,
-                '{}/{}/{}/{}'.format(
+                "{}/{}/{}/{}".format(
                     functions_dir, project or config.default_project, name, file_name
                 ),
             )
@@ -314,15 +314,15 @@ class FileRunDB(RunDBInterface):
         parsed_data = self._loads(data)
 
         # tag should be filled only when queried by tag
-        parsed_data['metadata']['tag'] = '' if hash_key else tag
+        parsed_data["metadata"]["tag"] = "" if hash_key else tag
         return parsed_data
 
-    def list_functions(self, name, project='', tag='', labels=None):
+    def list_functions(self, name, project="", tag="", labels=None):
         labels = labels or []
-        logger.info(f'reading functions in {project} name/mask: {name} tag: {tag} ...')
+        logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")
         filepath = path.join(
             self.dirpath,
-            '{}/{}/'.format(functions_dir, project or config.default_project),
+            "{}/{}/".format(functions_dir, project or config.default_project),
         )
 
         # function name -> tag name -> function dict
@@ -332,13 +332,13 @@ class FileRunDB(RunDBInterface):
         # function name -> hash keys set
         function_with_tag_hash_keys = {}
         if isinstance(labels, str):
-            labels = labels.split(',')
-        mask = '**/*'
+            labels = labels.split(",")
+        mask = "**/*"
         if name:
-            filepath = '{}{}/'.format(filepath, name)
-            mask = '*'
+            filepath = "{}{}/".format(filepath, name)
+            mask = "*"
         for func, fullname in self._load_list(filepath, mask):
-            if match_labels(get_in(func, 'metadata.labels', {}), labels):
+            if match_labels(get_in(func, "metadata.labels", {}), labels):
                 file_name, _ = path.splitext(path.basename(fullname))
                 function_name = path.basename(path.dirname(fullname))
                 target_dict = functions_with_tag_filename
@@ -346,13 +346,13 @@ class FileRunDB(RunDBInterface):
                 tag_name = file_name
                 # Heuristic - if tag length if bigger than 20 it's probably a hash key
                 if len(tag_name) > 20:  # hash vs tags
-                    tag_name = ''
+                    tag_name = ""
                     target_dict = functions_with_hash_key_filename
                 else:
                     function_with_tag_hash_keys.setdefault(function_name, set()).add(
-                        func['metadata']['hash']
+                        func["metadata"]["hash"]
                     )
-                update_in(func, 'metadata.tag', tag_name)
+                update_in(func, "metadata.tag", tag_name)
                 target_dict.setdefault(function_name, {})[file_name] = func
 
         # clean duplicated function e.g. function that was saved both in a hash key filename and tag filename
@@ -383,20 +383,20 @@ class FileRunDB(RunDBInterface):
 
         return results
 
-    def _filepath(self, table, project, key='', tag=''):
-        if tag == '*':
-            tag = ''
+    def _filepath(self, table, project, key="", tag=""):
+        if tag == "*":
+            tag = ""
         if tag:
-            key = '/' + key
+            key = "/" + key
         project = project or config.default_project
-        return path.join(self.dirpath, '{}/{}/{}{}'.format(table, project, tag, key))
+        return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
 
     def list_projects(self):
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
             return []
         return [
-            {'name': d} for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
+            {"name": d} for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
         ]
 
     @property
@@ -405,12 +405,12 @@ class FileRunDB(RunDBInterface):
 
     def store_schedule(self, data):
         sched_id = 1 + sum(1 for _ in scandir(self.schedules_dir))
-        fname = path.join(self.schedules_dir, '{}{}'.format(sched_id, self.format),)
-        with open(fname, 'w') as out:
+        fname = path.join(self.schedules_dir, "{}{}".format(sched_id, self.format),)
+        with open(fname, "w") as out:
             out.write(self._dumps(data))
 
     def list_schedules(self):
-        pattern = '*{}'.format(self.format)
+        pattern = "*{}".format(self.format)
         for p in pathlib.Path(self.schedules_dir).glob(pattern):
             with p.open() as fp:
                 yield self._loads(fp.read())
@@ -418,14 +418,14 @@ class FileRunDB(RunDBInterface):
         return []
 
     _encodings = {
-        '.yaml': ('to_yaml', dict_to_yaml),
-        '.json': ('to_json', dict_to_json),
+        ".yaml": ("to_yaml", dict_to_yaml),
+        ".json": ("to_json", dict_to_json),
     }
 
     def _dumps(self, obj):
         meth_name, enc_fn = self._encodings.get(self.format, (None, None))
         if meth_name is None:
-            raise ValueError(f'unsupported format - {self.format}')
+            raise ValueError(f"unsupported format - {self.format}")
 
         meth = getattr(obj, meth_name, None)
         if meth:
@@ -434,7 +434,7 @@ class FileRunDB(RunDBInterface):
         return enc_fn(obj)
 
     def _loads(self, data):
-        if self.format == '.yaml':
+        if self.format == ".yaml":
             return yaml.load(data, Loader=yaml.FullLoader)
         else:
             return json.loads(data)
@@ -442,7 +442,7 @@ class FileRunDB(RunDBInterface):
     def _load_list(self, dirpath, mask):
         for p in pathlib.Path(dirpath).glob(mask + self.format):
             if p.is_file():
-                if '.ipynb_checkpoints' in p.parts:
+                if ".ipynb_checkpoints" in p.parts:
                     continue
                 data = self._loads(p.read_text())
                 if data:
@@ -452,7 +452,7 @@ class FileRunDB(RunDBInterface):
         if path.isfile(filepath):
             remove(filepath)
         else:
-            raise RunDBError(f'run file is not found or valid ({filepath})')
+            raise RunDBError(f"run file is not found or valid ({filepath})")
 
 
 def make_time_pred(since, until):
@@ -468,7 +468,7 @@ def make_time_pred(since, until):
         until = until.replace(tzinfo=timezone.utc)
 
     def pred(artifact):
-        val = artifact.get('updated')
+        val = artifact.get("updated")
         if not val:
             return True
         t = parse_time(val).replace(tzinfo=timezone.utc)

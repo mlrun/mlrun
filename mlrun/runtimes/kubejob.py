@@ -30,26 +30,26 @@ from ..utils import logger, get_in
 
 
 class KubejobRuntime(KubeResource):
-    kind = 'job'
+    kind = "job"
     _is_nested = True
 
     _is_remote = True
 
-    def with_code(self, from_file='', body=None):
-        if (not body and not from_file) or (from_file and from_file.endswith('.ipynb')):
+    def with_code(self, from_file="", body=None):
+        if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
 
             name, spec, code = build_file(from_file)
             self.spec.build.functionSourceCode = get_in(
-                spec, 'spec.build.functionSourceCode'
+                spec, "spec.build.functionSourceCode"
             )
             return self
 
         if from_file:
             with open(from_file) as fp:
                 body = fp.read()
-        self.spec.build.functionSourceCode = b64encode(body.encode('utf-8')).decode(
-            'utf-8'
+        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
+            "utf-8"
         )
         return self
 
@@ -67,18 +67,18 @@ class KubejobRuntime(KubeResource):
 
         if self.spec.image:
             return True
-        if self.status.state and self.status.state == 'ready':
+        if self.status.state and self.status.state == "ready":
             return True
         return False
 
     def build_config(
-        self, image='', base_image=None, commands: list = None, secret=None, source=None
+        self, image="", base_image=None, commands: list = None, secret=None, source=None
     ):
         if image:
             self.spec.build.image = image
         if commands:
             if not isinstance(commands, list):
-                raise ValueError('commands must be a string list')
+                raise ValueError("commands must be a string list")
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands
         if secret:
@@ -89,46 +89,46 @@ class KubejobRuntime(KubeResource):
             self.spec.build.source = source
 
     def build(self, **kw):
-        raise ValueError('.build() is deprecated, use .deploy() instead')
+        raise ValueError(".build() is deprecated, use .deploy() instead")
 
     def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
-            self.status.state = 'ready'
+            self.status.state = "ready"
             return True
 
         build = self.spec.build
         if not build.source and not build.commands and not with_mlrun:
             if not self.spec.image:
                 raise ValueError(
-                    'noting to build and image is not specified, '
-                    'please set the function image or build args'
+                    "noting to build and image is not specified, "
+                    "please set the function image or build args"
                 )
-            self.status.state = 'ready'
+            self.status.state = "ready"
             return True
 
         if not build.source and not build.commands and with_mlrun:
             logger.info(
-                'running build to add mlrun package, set '
-                'with_mlrun=False to skip if its already in the image'
+                "running build to add mlrun package, set "
+                "with_mlrun=False to skip if its already in the image"
             )
 
         self.spec.build.image = self.spec.build.image or default_image_name(self)
-        self.status.state = ''
+        self.status.state = ""
 
         if self._is_remote_api() and not is_kfp:
             db = self._get_db()
             logger.info(
-                'starting remote build, image: {}'.format(self.spec.build.image)
+                "starting remote build, image: {}".format(self.spec.build.image)
             )
             data = db.remote_builder(self, with_mlrun)
-            self.status = data['data'].get('status', None)
-            self.spec.image = get_in(data, 'data.spec.image')
-            ready = data.get('ready', False)
+            self.status = data["data"].get("status", None)
+            self.spec.image = get_in(data, "data.spec.image")
+            ready = data.get("ready", False)
             if watch:
                 state = self._build_watch(watch)
-                ready = state == 'ready'
+                ready = state == "ready"
                 self.status.state = state
         else:
             self.save(versioned=False)
@@ -143,17 +143,17 @@ class KubejobRuntime(KubeResource):
         try:
             text = db.get_builder_status(self, 0, logs=logs)
         except RunDBError:
-            raise ValueError('function or build process not found')
+            raise ValueError("function or build process not found")
 
         if text:
             print(text.decode())
         if watch:
-            while self.status.state in ['pending', 'running']:
+            while self.status.state in ["pending", "running"]:
                 offset += len(text)
                 time.sleep(2)
                 text = db.get_builder_status(self, offset, logs=logs)
                 if text:
-                    print(text.decode(), end='')
+                    print(text.decode(), end="")
 
         return self.status.state
 
@@ -163,7 +163,7 @@ class KubejobRuntime(KubeResource):
 
         else:
             pod = self.status.build_pod
-            if not self.status.state == 'ready' and pod:
+            if not self.status.state == "ready" and pod:
                 k8s = self._get_k8s()
                 status = k8s.get_pod_status(pod)
                 if logs:
@@ -174,20 +174,20 @@ class KubejobRuntime(KubeResource):
                         if resp:
                             print(resp.encode())
 
-                if status == 'succeeded':
+                if status == "succeeded":
                     self.status.build_pod = None
-                    self.status.state = 'ready'
-                    logger.info('build completed successfully')
-                    return 'ready'
-                if status in ['failed', 'error']:
+                    self.status.state = "ready"
+                    logger.info("build completed successfully")
+                    return "ready"
+                if status in ["failed", "error"]:
                     self.status.state = status
                     logger.error(
-                        ' build {}, watch the build pod logs: {}'.format(status, pod)
+                        " build {}, watch the build pod logs: {}".format(status, pod)
                     )
                     return status
 
                 logger.info(
-                    'builder status is: {}, wait for it to complete'.format(status)
+                    "builder status is: {}, wait for it to complete".format(status)
                 )
             return None
 
@@ -196,12 +196,12 @@ class KubejobRuntime(KubeResource):
         image=None,
         base_image=None,
         commands: list = None,
-        secret_name='',
+        secret_name="",
         with_mlrun=True,
         skip_deployed=False,
     ):
 
-        name = 'deploy_{}'.format(self.metadata.name or 'function')
+        name = "deploy_{}".format(self.metadata.name or "function")
         return build_op(
             name,
             self,
@@ -215,9 +215,9 @@ class KubejobRuntime(KubeResource):
 
     def _run(self, runobj: RunObject, execution):
 
-        with_mlrun = (not self.spec.mode) or (self.spec.mode != 'pass')
+        with_mlrun = (not self.spec.mode) or (self.spec.mode != "pass")
         command, args, extra_env = self._get_cmd_args(runobj, with_mlrun)
-        extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
+        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
@@ -237,10 +237,10 @@ class KubejobRuntime(KubeResource):
             writer = AsyncLogWriter(self._db_conn, runobj)
             status = k8s.watch(pod_name, namespace, writer=writer)
 
-            if status in ['failed', 'error']:
-                raise RunError(f'pod exited with {status}, check logs')
+            if status in ["failed", "error"]:
+                raise RunError(f"pod exited with {status}, check logs")
         else:
-            txt = 'Job is running in the background, pod: {}'.format(pod_name)
+            txt = "Job is running in the background, pod: {}".format(pod_name)
             logger.info(txt)
             runobj.status.status_text = txt
 
@@ -249,7 +249,7 @@ class KubejobRuntime(KubeResource):
 
 def func_to_pod(image, runtime, extra_env, command, args, workdir):
     container = client.V1Container(
-        name='base',
+        name="base",
         image=image,
         env=extra_env + runtime.spec.env,
         command=[command],
@@ -262,7 +262,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
     pod_spec = client.V1PodSpec(
         containers=[container],
-        restart_policy='Never',
+        restart_policy="Never",
         volumes=runtime.spec.volumes,
         service_account=runtime.spec.service_account,
     )
@@ -282,8 +282,8 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f'mlrun/uid={object_id}'
+        return f"mlrun/uid={object_id}"
 
     @staticmethod
     def _get_default_label_selector() -> str:
-        return 'mlrun/class in (build, job)'
+        return "mlrun/class in (build, job)"

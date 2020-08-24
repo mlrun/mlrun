@@ -28,14 +28,14 @@ class JSONFormatter(logging.Formatter):
         self._json_encoder = json.JSONEncoder()
 
     def format(self, record):
-        record_with = getattr(record, 'with', {})
+        record_with = getattr(record, "with", {})
         if record.exc_info:
             record_with.update(exc_info=format_exception(*record.exc_info))
         record_fields = {
-            'datetime': self.formatTime(record, self.datefmt),
-            'level': record.levelname.lower(),
-            'message': record.getMessage(),
-            'with': record_with,
+            "datetime": self.formatTime(record, self.datefmt),
+            "level": record.levelname.lower(),
+            "message": record.getMessage(),
+            "with": record_with,
         }
 
         return self._json_encoder.encode(record_fields)
@@ -46,15 +46,15 @@ class HumanReadableFormatter(logging.Formatter):
         super(HumanReadableFormatter, self).__init__()
 
     def format(self, record):
-        record_with = getattr(record, 'with', {})
+        record_with = getattr(record, "with", {})
         if record.exc_info:
             record_with.update(exc_info=format_exception(*record.exc_info))
-        more = f': {record_with}' if record_with else ''
-        return f'> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage()}{more}'
+        more = f": {record_with}" if record_with else ""
+        return f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage()}{more}"
 
 
 class Logger(object):
-    def __init__(self, level, name='mlrun', propagate=True):
+    def __init__(self, level, name="mlrun", propagate=True):
         self._logger = logging.getLogger(name)
         self._logger.propagate = propagate
         self._logger.setLevel(level)
@@ -68,7 +68,7 @@ class Logger(object):
         # check if there's a handler by this name
         if handler_name in self._handlers:
             # log that we're removing it
-            self.info('Replacing logger output', handler_name=handler_name)
+            self.info("Replacing logger output", handler_name=handler_name)
 
             self._logger.removeHandler(self._handlers[handler_name])
 
@@ -124,7 +124,7 @@ class Logger(object):
 
         if kw_args:
             self._logger.log(
-                level, message, *args, exc_info=exc_info, extra={'with': kw_args}
+                level, message, *args, exc_info=exc_info, extra={"with": kw_args}
             )
             return
 
@@ -132,8 +132,8 @@ class Logger(object):
 
 
 class FormatterKinds(Enum):
-    HUMAN = 'human'
-    JSON = 'json'
+    HUMAN = "human"
+    JSON = "json"
 
 
 def _create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Formatter:
@@ -149,7 +149,7 @@ def create_logger(
     name: str = "mlrun",
     stream=stdout,
 ):
-    level = level or config.log_level or 'info'
+    level = level or config.log_level or "info"
 
     level = logging.getLevelName(level.upper())
 

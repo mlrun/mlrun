@@ -41,7 +41,7 @@ class MLModelServer:
     def get_param(self, key: str, default=None):
         return self._params.get(key, default)
 
-    def get_model(self, suffix=''):
+    def get_model(self, suffix=""):
         model_file, self.model_spec, extra_dataitems = get_model(self.model_dir, suffix)
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():
@@ -50,7 +50,7 @@ class MLModelServer:
 
     def load(self):
         if not self.ready and not self.model:
-            raise ValueError('please specify a load method or a model object')
+            raise ValueError("please specify a load method or a model object")
 
     def preprocess(self, request: Dict) -> Dict:
         return request
@@ -66,8 +66,8 @@ class MLModelServer:
 
 
 def nuclio_serving_init(context, data):
-    model_prefix = 'SERVING_MODEL_'
-    params_prefix = 'SERVING_PARAMS'
+    model_prefix = "SERVING_MODEL_"
+    params_prefix = "SERVING_PARAMS"
 
     # Initialize models from environment variables
     # Using the {model_prefix}_{model_name} = {model_path} syntax
@@ -76,7 +76,7 @@ def nuclio_serving_init(context, data):
         for k, v in os.environ.items()
         if k.startswith(model_prefix)
     }
-    model_class = os.environ.get('MODEL_CLASS', 'MLModelServer')
+    model_class = os.environ.get("MODEL_CLASS", "MLModelServer")
     fhandler = data[model_class]
     models = {
         name: fhandler(name=name, model_dir=path) for name, path in model_paths.items()
@@ -88,7 +88,7 @@ def nuclio_serving_init(context, data):
 
     for name, model in models.items():
         if params:
-            setattr(model, '_params', deepcopy(params))
+            setattr(model, "_params", deepcopy(params))
         if not model.ready:
             model.load()
             model.ready = True
@@ -99,23 +99,23 @@ def nuclio_serving_init(context, data):
         "SERVING_MODEL_{model_name} = model_path"
     )
 
-    context.logger.info(f'Loaded {list(models.keys())}')
+    context.logger.info(f"Loaded {list(models.keys())}")
 
     # Initialize route handlers
     hostname = socket.gethostname()
     server_context = _ServerInfo(context, hostname, model_class)
     predictor = PredictHandler(models).with_context(server_context)
     explainer = ExplainHandler(models).with_context(server_context)
-    router = {'predict': predictor.post, 'explain': explainer.post}
+    router = {"predict": predictor.post, "explain": explainer.post}
 
     # Define handle
-    setattr(context, 'mlrun_handler', nuclio_serving_handler)
-    setattr(context, 'models', models)
-    setattr(context, 'router', router)
+    setattr(context, "mlrun_handler", nuclio_serving_handler)
+    setattr(context, "models", models)
+    setattr(context, "router", router)
 
 
 err_string = (
-    'Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}'
+    "Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}"
 )
 
 
@@ -123,22 +123,22 @@ def nuclio_serving_handler(context, event):
 
     # check if valid route & model
     try:
-        if hasattr(event, 'trigger') and event.trigger.kind != 'http':
+        if hasattr(event, "trigger") and event.trigger.kind != "http":
             # non http triggers (i.e. stream) are directed to the first model
             # todo: take model name and action from json is specified
             model_name = next(iter(context.models))
-            route = 'predict'
+            route = "predict"
         else:
-            model_name, route = event.path.strip('/').split('/')
+            model_name, route = event.path.strip("/").split("/")
         route = context.router[route]
     except Exception:
         return context.Response(
             body=err_string.format(
                 event.path,
-                '|'.join(context.router.keys()),
-                '|'.join(context.models.keys()),
+                "|".join(context.router.keys()),
+                "|".join(context.models.keys()),
             ),
-            content_type='text/plain',
+            content_type="text/plain",
             status_code=404,
         )
 
@@ -152,15 +152,15 @@ class _ServerInfo:
         self.model_class = model_class
         self.hostname = hostname
         self.output_stream = None
-        out_stream = os.environ.get('INFERENCE_STREAM', '')
-        self.stream_sample = int(os.environ.get('INFERENCE_STREAM_SAMPLE', '1'))
-        self.stream_batch = int(os.environ.get('INFERENCE_STREAM_BATCH', '1'))
+        out_stream = os.environ.get("INFERENCE_STREAM", "")
+        self.stream_sample = int(os.environ.get("INFERENCE_STREAM_SAMPLE", "1"))
+        self.stream_batch = int(os.environ.get("INFERENCE_STREAM_BATCH", "1"))
         if out_stream:
             self.output_stream = OutputStream(out_stream)
 
 
 class HTTPHandler:
-    kind = ''
+    kind = ""
 
     def __init__(self, models: Dict, server: _ServerInfo = None):
         self.models = models
@@ -180,32 +180,32 @@ class HTTPHandler:
         if not model.ready:
             model.load()
             model.ready = True
-        setattr(model, 'context', self.srvinfo.context)
+        setattr(model, "context", self.srvinfo.context)
         return model
 
     def parse_event(self, event):
-        parsed_event = {'instances': []}
+        parsed_event = {"instances": []}
         try:
             if not isinstance(event.body, dict):
                 body = json.loads(event.body)
             else:
                 body = event.body
-            self.context.logger.info(f'event.body: {event.body}')
-            if 'data_url' in body:
+            self.context.logger.info(f"event.body: {event.body}")
+            if "data_url" in body:
                 # Get data from URL
-                url = body['data_url']
-                self.context.logger.debug_with('downloading data', url=url)
+                url = body["data_url"]
+                self.context.logger.debug_with("downloading data", url=url)
                 data = urlopen(url).read()
                 sample = BytesIO(data)
-                parsed_event['instances'].append(sample)
+                parsed_event["instances"].append(sample)
             else:
                 parsed_event = body
 
         except Exception as e:
-            if event.content_type.startswith('image/'):
+            if event.content_type.startswith("image/"):
                 sample = BytesIO(event.body)
-                parsed_event['instances'].append(sample)
-                parsed_event['content_type'] = event.content_type
+                parsed_event["instances"].append(sample)
+                parsed_event["content_type"] = event.content_type
             else:
                 raise Exception("Unrecognized request format: %s" % e)
 
@@ -213,24 +213,24 @@ class HTTPHandler:
 
     def validate(self, request):
         if "instances" not in request:
-            raise Exception("Expected key \"instances\" in request body")
+            raise Exception('Expected key "instances" in request body')
 
         if not isinstance(request["instances"], list):
-            raise Exception("Expected \"instances\" to be a list")
+            raise Exception('Expected "instances" to be a list')
 
         return request
 
     def push_to_stream(self, start, request, resp, model):
         def base_data():
             data = {
-                'op': self.kind,
-                'class': self.srvinfo.model_class,
-                'worker': self.srvinfo.worker,
-                'model': model.name,
-                'host': self.srvinfo.hostname,
+                "op": self.kind,
+                "class": self.srvinfo.model_class,
+                "worker": self.srvinfo.worker,
+                "model": model.name,
+                "host": self.srvinfo.hostname,
             }
-            if getattr(model, 'labels', None):
-                data['labels'] = model.labels
+            if getattr(model, "labels", None):
+                data["labels"] = model.labels
             return data
 
         self._sample_iter = (self._sample_iter + 1) % self.srvinfo.stream_sample
@@ -245,33 +245,33 @@ class HTTPHandler:
 
                 if self._batch_iter == 0:
                     data = base_data()
-                    data['headers'] = ['request', 'resp', 'when', 'microsec', 'metrics']
-                    data['values'] = self._batch
+                    data["headers"] = ["request", "resp", "when", "microsec", "metrics"]
+                    data["values"] = self._batch
                     self.srvinfo.output_stream.push([data])
             else:
                 data = base_data()
-                data['request'] = request
-                data['resp'] = resp
-                data['when'] = str(start)
-                data['microsec'] = microsec
-                if getattr(model, 'metrics', None):
-                    data['metrics'] = model.metrics
+                data["request"] = request
+                data["resp"] = resp
+                data["when"] = str(start)
+                data["microsec"] = microsec
+                if getattr(model, "metrics", None):
+                    data["metrics"] = model.metrics
                 self.srvinfo.output_stream.push([data])
 
 
 class PredictHandler(HTTPHandler):
-    kind = 'predict'
+    kind = "predict"
 
     def post(self, context, name: str, event):
         if name not in self.models:
             return context.Response(
-                body=f'Model with name {name} does not exist, please try to list the models',
-                content_type='text/plain',
+                body=f"Model with name {name} does not exist, please try to list the models",
+                content_type="text/plain",
                 status_code=404,
             )
 
         model = self.get_model_class(name)
-        context.logger.debug('event: {}'.format(type(event.body)))
+        context.logger.debug("event: {}".format(type(event.body)))
         start = datetime.now()
         body = self.parse_event(event)
         request = model.preprocess(body)
@@ -281,18 +281,18 @@ class PredictHandler(HTTPHandler):
         self.push_to_stream(start, request, response, model)
 
         return context.Response(
-            body=json.dumps(response), content_type='application/json', status_code=200
+            body=json.dumps(response), content_type="application/json", status_code=200
         )
 
 
 class ExplainHandler(HTTPHandler):
-    kind = 'explain'
+    kind = "explain"
 
     def post(self, context, name: str, event):
         if name not in self.models:
             return context.Response(
-                body=f'Model with name {name} does not exist, please try to list the models',
-                content_type='text/plain',
+                body=f"Model with name {name} does not exist, please try to list the models",
+                content_type="text/plain",
                 status_code=404,
             )
 
@@ -302,7 +302,7 @@ class ExplainHandler(HTTPHandler):
         except json.decoder.JSONDecodeError as e:
             return context.Response(
                 body="Unrecognized request format: %s" % e,
-                content_type='text/plain',
+                content_type="text/plain",
                 status_code=400,
             )
 
@@ -314,5 +314,5 @@ class ExplainHandler(HTTPHandler):
         self.push_to_stream(start, request, response, model)
 
         return context.Response(
-            body=json.dumps(response), content_type='application/json', status_code=200
+            body=json.dumps(response), content_type="application/json", status_code=200
         )

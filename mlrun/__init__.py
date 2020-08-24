@@ -23,7 +23,7 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__version__ = '0.5.1'
+__version__ = "0.5.2-rc1"
 
 from .run import (
     get_or_create_ctx,
@@ -53,14 +53,14 @@ def get_version():
     return __version__
 
 
-if 'IGZ_NAMESPACE_DOMAIN' in environ:
-    igz_domain = environ['IGZ_NAMESPACE_DOMAIN']
-    kfp_ep = 'https://dashboard.{}/pipelines'.format(igz_domain)
-    environ['KF_PIPELINES_UI_ENDPOINT'] = kfp_ep
+if "IGZ_NAMESPACE_DOMAIN" in environ:
+    igz_domain = environ["IGZ_NAMESPACE_DOMAIN"]
+    kfp_ep = "https://dashboard.{}/pipelines".format(igz_domain)
+    environ["KF_PIPELINES_UI_ENDPOINT"] = kfp_ep
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
-def set_environment(api_path: str = None, artifact_path: str = '', project: str = ''):
+def set_environment(api_path: str = None, artifact_path: str = "", project: str = ""):
     """set and test default config for: api path, artifact_path and project
 
     this function will try and read the configuration from the environment/api
@@ -76,23 +76,23 @@ def set_environment(api_path: str = None, artifact_path: str = '', project: str 
     """
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:
-        raise ValueError('DB/API path was not detected, please specify its address')
+        raise ValueError("DB/API path was not detected, please specify its address")
 
     # check connectivity and load remote defaults
     get_run_db().connect()
     if api_path:
-        environ['MLRUN_DBPATH'] = mlconf.dbpath
+        environ["MLRUN_DBPATH"] = mlconf.dbpath
 
     mlconf.default_project = project or mlconf.default_project
 
     if not mlconf.artifact_path and not artifact_path:
-        raise ValueError('please specify a valid artifact_path')
+        raise ValueError("please specify a valid artifact_path")
 
-    if artifact_path.startswith('./'):
+    if artifact_path.startswith("./"):
         artifact_path = path.abspath(artifact_path)
-    elif not artifact_path.startswith('/') and '://' not in artifact_path:
+    elif not artifact_path.startswith("/") and "://" not in artifact_path:
         raise ValueError(
-            'artifact_path must refer to an absolute path' ' or a valid url'
+            "artifact_path must refer to an absolute path" " or a valid url"
         )
     mlconf.artifact_path = artifact_path or mlconf.artifact_path
     return mlconf.artifact_path

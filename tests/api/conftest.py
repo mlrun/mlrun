@@ -18,7 +18,7 @@ def db() -> Generator:
     """
     db_file = NamedTemporaryFile(suffix="-mlrun.db")
     logger.info(f"Created temp db file: {db_file.name}")
-    config.httpdb.db_type = 'sqldb'
+    config.httpdb.db_type = "sqldb"
     config.httpdb.dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
 
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db

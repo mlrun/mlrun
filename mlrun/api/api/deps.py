@@ -19,8 +19,8 @@ def get_db_session() -> Generator[Session, None, None]:
 
 
 class AuthVerifier:
-    _basic_prefix = 'Basic '
-    _bearer_prefix = 'Bearer '
+    _basic_prefix = "Basic "
+    _bearer_prefix = "Bearer "
 
     def __init__(self, request: Request):
         self.username = None
@@ -29,7 +29,7 @@ class AuthVerifier:
 
         cfg = config.httpdb
 
-        header = request.headers.get('Authorization', '')
+        header = request.headers.get("Authorization", "")
         if self._basic_auth_required(cfg):
             if not header.startswith(self._basic_prefix):
                 log_and_raise(
@@ -66,4 +66,4 @@ class AuthVerifier:
         """
         b64value = header[len(AuthVerifier._basic_prefix) :]
         value = b64decode(b64value).decode()
-        return value.split(':', 1)
+        return value.split(":", 1)

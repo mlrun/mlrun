@@ -19,8 +19,8 @@ from .base import DataStore, FileStats
 
 
 class FileStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=''):
-        super().__init__(parent, name, 'file', endpoint)
+    def __init__(self, parent, schema, name, endpoint=""):
+        super().__init__(parent, name, "file", endpoint)
 
     @property
     def url(self):
@@ -30,7 +30,7 @@ class FileStore(DataStore):
         return path.join(self.subpath, key)
 
     def get(self, key, size=None, offset=0):
-        with open(self._join(key), 'rb') as fp:
+        with open(self._join(key), "rb") as fp:
             if offset:
                 fp.seek(offset)
             if not size:
@@ -41,9 +41,9 @@ class FileStore(DataStore):
         dir = path.dirname(self._join(key))
         if dir:
             makedirs(dir, exist_ok=True)
-        mode = 'a' if append else 'w'
+        mode = "a" if append else "w"
         if isinstance(data, bytes):
-            mode = mode + 'b'
+            mode = mode + "b"
         with open(self._join(key), mode) as fp:
             fp.write(data)
             fp.close()

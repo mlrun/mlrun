@@ -31,52 +31,52 @@ from ..platforms.iguazio import mount_v3io, mount_v3iod
 from ..utils import update_in, logger, get_in
 
 igz_deps = {
-    'jars': [
-        '/spark/v3io-libs/v3io-hcfs_2.11.jar',
-        '/spark/v3io-libs/v3io-spark2-streaming_2.11.jar',
-        '/spark/v3io-libs/v3io-spark2-object-dataframe_2.11.jar',
-        '/igz/java/libs/scala-library-2.11.12.jar',
+    "jars": [
+        "/spark/v3io-libs/v3io-hcfs_2.11.jar",
+        "/spark/v3io-libs/v3io-spark2-streaming_2.11.jar",
+        "/spark/v3io-libs/v3io-spark2-object-dataframe_2.11.jar",
+        "/igz/java/libs/scala-library-2.11.12.jar",
     ],
-    'files': ['/igz/java/libs/v3io-pyspark.zip'],
+    "files": ["/igz/java/libs/v3io-pyspark.zip"],
 }
 
-allowed_types = ['Python', 'Scala', 'Java', 'R']
+allowed_types = ["Python", "Scala", "Java", "R"]
 
 _sparkjob_template = {
-    'apiVersion': 'sparkoperator.k8s.io/v1beta2',
-    'kind': 'SparkApplication',
-    'metadata': {'name': '', 'namespace': 'default-tenant'},
-    'spec': {
-        'mode': 'cluster',
-        'image': '',
-        'imagePullPolicy': 'IfNotPresent',
-        'mainApplicationFile': '',
-        'sparkVersion': '2.4.0',
-        'restartPolicy': {
-            'type': 'OnFailure',
-            'onFailureRetries': 3,
-            'onFailureRetryInterval': 10,
-            'onSubmissionFailureRetries': 5,
-            'onSubmissionFailureRetryInterval': 20,
+    "apiVersion": "sparkoperator.k8s.io/v1beta2",
+    "kind": "SparkApplication",
+    "metadata": {"name": "", "namespace": "default-tenant"},
+    "spec": {
+        "mode": "cluster",
+        "image": "",
+        "imagePullPolicy": "IfNotPresent",
+        "mainApplicationFile": "",
+        "sparkVersion": "2.4.0",
+        "restartPolicy": {
+            "type": "OnFailure",
+            "onFailureRetries": 3,
+            "onFailureRetryInterval": 10,
+            "onSubmissionFailureRetries": 5,
+            "onSubmissionFailureRetryInterval": 20,
         },
-        'deps': {},
-        'volumes': [],
-        'serviceAccount': 'sparkapp',
-        'driver': {
-            'cores': 1,
-            'coreLimit': '1200m',
-            'memory': '512m',
-            'labels': {},
-            'volumeMounts': [],
-            'env': [],
+        "deps": {},
+        "volumes": [],
+        "serviceAccount": "sparkapp",
+        "driver": {
+            "cores": 1,
+            "coreLimit": "1200m",
+            "memory": "512m",
+            "labels": {},
+            "volumeMounts": [],
+            "env": [],
         },
-        'executor': {
-            'cores': 0,
-            'instances': 0,
-            'memory': '',
-            'labels': {},
-            'volumeMounts': [],
-            'env': [],
+        "executor": {
+            "cores": 0,
+            "instances": 0,
+            "memory": "",
+            "labels": {},
+            "volumeMounts": [],
+            "env": [],
         },
     },
 }
@@ -131,11 +131,11 @@ class SparkJobSpec(KubeResourceSpec):
 
 
 class SparkRuntime(KubejobRuntime):
-    group = 'sparkoperator.k8s.io'
-    version = 'v1beta2'
-    apiVersion = group + '/' + version
-    kind = 'spark'
-    plural = 'sparkapplications'
+    group = "sparkoperator.k8s.io"
+    version = "v1beta2"
+    apiVersion = group + "/" + version
+    kind = "spark"
+    plural = "sparkapplications"
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         if runobj.metadata.iteration:
@@ -143,71 +143,71 @@ class SparkRuntime(KubejobRuntime):
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runobj, True)
         pod_labels = deepcopy(meta.labels)
-        pod_labels['mlrun/job'] = meta.name
-        job_type = self.spec.job_type or 'Python'
-        update_in(job, 'spec.type', job_type)
-        if self.spec.job_type == 'Python':
-            update_in(job, 'spec.pythonVersion', self.spec.python_version or '3')
+        pod_labels["mlrun/job"] = meta.name
+        job_type = self.spec.job_type or "Python"
+        update_in(job, "spec.type", job_type)
+        if self.spec.job_type == "Python":
+            update_in(job, "spec.pythonVersion", self.spec.python_version or "3")
         if self.spec.main_class:
-            update_in(job, 'spec.mainClass', self.spec.main_class)
+            update_in(job, "spec.mainClass", self.spec.main_class)
         if self.spec.spark_version:
-            update_in(job, 'spec.sparkVersion', self.spec.spark_version)
-        update_in(job, 'metadata', meta.to_dict())
-        update_in(job, 'spec.driver.labels', pod_labels)
-        update_in(job, 'spec.executor.labels', pod_labels)
-        update_in(job, 'spec.executor.instances', self.spec.replicas or 1)
+            update_in(job, "spec.sparkVersion", self.spec.spark_version)
+        update_in(job, "metadata", meta.to_dict())
+        update_in(job, "spec.driver.labels", pod_labels)
+        update_in(job, "spec.executor.labels", pod_labels)
+        update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
-            update_in(job, 'spec.image', self.spec.image)
-        update_in(job, 'spec.volumes', self.spec.volumes)
+            update_in(job, "spec.image", self.spec.image)
+        update_in(job, "spec.volumes", self.spec.volumes)
 
-        extra_env = {'MLRUN_EXEC_CONFIG': runobj.to_json()}
+        extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
-            extra_env['MLRUN_LOG_LEVEL'] = 'debug'
-        extra_env = [{'name': k, 'value': v} for k, v in extra_env.items()]
+            extra_env["MLRUN_LOG_LEVEL"] = "debug"
+        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
 
-        update_in(job, 'spec.driver.env', extra_env + self.spec.env)
-        update_in(job, 'spec.executor.env', extra_env + self.spec.env)
-        update_in(job, 'spec.driver.volumeMounts', self.spec.volume_mounts)
-        update_in(job, 'spec.executor.volumeMounts', self.spec.volume_mounts)
-        update_in(job, 'spec.deps', self.spec.deps)
-        if 'requests' in self.spec.resources:
-            if 'cpu' in self.spec.resources['requests']:
+        update_in(job, "spec.driver.env", extra_env + self.spec.env)
+        update_in(job, "spec.executor.env", extra_env + self.spec.env)
+        update_in(job, "spec.driver.volumeMounts", self.spec.volume_mounts)
+        update_in(job, "spec.executor.volumeMounts", self.spec.volume_mounts)
+        update_in(job, "spec.deps", self.spec.deps)
+        if "requests" in self.spec.resources:
+            if "cpu" in self.spec.resources["requests"]:
                 update_in(
-                    job, 'spec.executor.cores', self.spec.resources['requests']['cpu']
+                    job, "spec.executor.cores", self.spec.resources["requests"]["cpu"]
                 )
-        if 'limits' in self.spec.resources:
-            if 'cpu' in self.spec.resources['limits']:
+        if "limits" in self.spec.resources:
+            if "cpu" in self.spec.resources["limits"]:
                 update_in(
-                    job, 'spec.executor.coreLimit', self.spec.resources['limits']['cpu']
+                    job, "spec.executor.coreLimit", self.spec.resources["limits"]["cpu"]
                 )
-            if 'memory' in self.spec.resources['limits']:
+            if "memory" in self.spec.resources["limits"]:
                 update_in(
-                    job, 'spec.executor.memory', self.spec.resources['limits']['memory']
+                    job, "spec.executor.memory", self.spec.resources["limits"]["memory"]
                 )
         if self.spec.command:
-            update_in(job, 'spec.mainApplicationFile', self.spec.command)
-        update_in(job, 'spec.arguments', self.spec.args)
+            update_in(job, "spec.mainApplicationFile", self.spec.command)
+        update_in(job, "spec.arguments", self.spec.args)
         resp = self._submit_job(job, meta.namespace)
         # name = get_in(resp, 'metadata.name', 'unknown')
 
-        state = get_in(resp, 'status.applicationState.state', 'SUBMITTED')
-        logger.info('SparkJob {} state={}'.format(meta.name, 'STARTING'))
+        state = get_in(resp, "status.applicationState.state", "SUBMITTED")
+        logger.info("SparkJob {} state={}".format(meta.name, "STARTING"))
         while state not in ["RUNNING", "COMPLETED", "FAILED"]:
             resp = self.get_job(meta.name, meta.namespace)
-            state = get_in(resp, 'status.applicationState.state')
+            state = get_in(resp, "status.applicationState.state")
             time.sleep(1)
 
         if state == "FAILED":
-            logger.error('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
+            logger.error("SparkJob {} state={}".format(meta.name, state or "unknown"))
             execution.set_state(
-                'error',
-                'SparkJob {} finished with state {}'.format(
-                    meta.name, state or 'unknown'
+                "error",
+                "SparkJob {} finished with state {}".format(
+                    meta.name, state or "unknown"
                 ),
             )
 
         if resp:
-            logger.info('SparkJob {} state={}'.format(meta.name, state or 'unknown'))
+            logger.info("SparkJob {} state={}".format(meta.name, state or "unknown"))
             if state:
                 driver, status = self._get_driver(meta.name, meta.namespace)
                 execution.set_hostname(driver)
@@ -215,32 +215,32 @@ class SparkRuntime(KubejobRuntime):
                 if self.kfp:
                     status = self._get_k8s().watch(driver, meta.namespace)
                     logger.info(
-                        'SparkJob {} finished with state {}'.format(meta.name, status)
+                        "SparkJob {} finished with state {}".format(meta.name, status)
                     )
-                    if status == 'succeeded':
-                        execution.set_state('completed')
+                    if status == "succeeded":
+                        execution.set_state("completed")
                     else:
                         execution.set_state(
-                            'error',
-                            'SparkJob {} finished with state {}'.format(
+                            "error",
+                            "SparkJob {} finished with state {}".format(
                                 meta.name, status
                             ),
                         )
                 else:
                     logger.info(
-                        'SparkJob {} driver pod {} state {}'.format(
+                        "SparkJob {} driver pod {} state {}".format(
                             meta.name, driver, status
                         )
                     )
-                    logger.info('use .watch({}) to see logs'.format(meta.name))
+                    logger.info("use .watch({}) to see logs".format(meta.name))
             else:
                 logger.error(
-                    'SparkJob status unknown or failed, check pods: {}'.format(
+                    "SparkJob status unknown or failed, check pods: {}".format(
                         self.get_pods(meta.name, meta.namespace)
                     )
                 )
                 execution.set_state(
-                    'error', 'SparkJob {} finished with unknown state'.format(meta.name)
+                    "error", "SparkJob {} finished with unknown state".format(meta.name)
                 )
 
         return None
@@ -256,11 +256,11 @@ class SparkRuntime(KubejobRuntime):
                 plural=SparkRuntime.plural,
                 body=job,
             )
-            name = get_in(resp, 'metadata.name', 'unknown')
-            logger.info('SparkJob {} created'.format(name))
+            name = get_in(resp, "metadata.name", "unknown")
+            logger.info("SparkJob {} created".format(name))
             return resp
         except ApiException as e:
-            crd = '{}/{}/{}'.format(
+            crd = "{}/{}/{}".format(
                 SparkRuntime.group, SparkRuntime.version, SparkRuntime.plural
             )
             logger.error("Exception when creating SparkJob ({}): {}".format(crd, e))
@@ -284,34 +284,34 @@ class SparkRuntime(KubejobRuntime):
     def _update_igz_jars(self, deps=igz_deps):
         if not self.spec.deps:
             self.spec.deps = {}
-        if 'jars' in deps:
-            if 'jars' not in self.spec.deps:
-                self.spec.deps['jars'] = []
-            self.spec.deps['jars'] += deps['jars']
-        if 'files' in deps:
-            if 'files' not in self.spec.deps:
-                self.spec.deps['files'] = []
-            self.spec.deps['files'] += deps['files']
+        if "jars" in deps:
+            if "jars" not in self.spec.deps:
+                self.spec.deps["jars"] = []
+            self.spec.deps["jars"] += deps["jars"]
+        if "files" in deps:
+            if "files" not in self.spec.deps:
+                self.spec.deps["files"] = []
+            self.spec.deps["files"] += deps["files"]
 
     def with_igz_spark(self):
         self._update_igz_jars()
-        self.apply(mount_v3io(name='v3io-fuse', remote='/', mount_path='/v3io'))
+        self.apply(mount_v3io(name="v3io-fuse", remote="/", mount_path="/v3io"))
         self.apply(
             mount_v3iod(
-                namespace='default-tenant',
-                v3io_config_configmap='spark-operator-v3io-config',
-                v3io_auth_secret='spark-operator-v3io-auth',
+                namespace="default-tenant",
+                v3io_config_configmap="spark-operator-v3io-config",
+                v3io_auth_secret="spark-operator-v3io-auth",
             )
         )
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
-        selector = 'mlrun/class=spark'
+        selector = "mlrun/class=spark"
         if name:
-            selector += ',sparkoperator.k8s.io/app-name={}'.format(name)
+            selector += ",sparkoperator.k8s.io/app-name={}".format(name)
         if driver:
-            selector += ',spark-role=driver'
+            selector += ",spark-role=driver"
         pods = k8s.list_pods(selector=selector, namespace=namespace)
         if pods:
             return {p.metadata.name: p.status.phase for p in pods}
@@ -319,7 +319,7 @@ class SparkRuntime(KubejobRuntime):
     def _get_driver(self, name, namespace=None):
         pods = self.get_pods(name, namespace, driver=True)
         if not pods:
-            logger.error('no pod matches that job name')
+            logger.error("no pod matches that job name")
             return
         _ = self._get_k8s()
         return list(pods.items())[0]
@@ -330,7 +330,7 @@ class SparkRuntime(KubejobRuntime):
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', SparkJobSpec)
+        self._spec = self._verify_dict(spec, "spec", SparkJobSpec)
 
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
@@ -339,19 +339,19 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
-        state = crd_object.get('status', {}).get('applicationState', {}).get('state')
-        in_transient_state = state not in ['COMPLETED', 'FAILED']
+        state = crd_object.get("status", {}).get("applicationState", {}).get("state")
+        in_transient_state = state not in ["COMPLETED", "FAILED"]
         desired_run_state = None
         completion_time = None
         if not in_transient_state:
             completion_time = datetime.fromisoformat(
-                crd_object.get('status', {})
-                .get('terminationTime')
-                .replace('Z', '+00:00')
+                crd_object.get("status", {})
+                .get("terminationTime")
+                .replace("Z", "+00:00")
             )
             desired_run_state = {
-                'COMPLETED': RunStates.completed,
-                'FAILED': RunStates.error,
+                "COMPLETED": RunStates.completed,
+                "FAILED": RunStates.error,
             }[state]
         return in_transient_state, completion_time, desired_run_state
 
@@ -361,11 +361,11 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f'mlrun/uid={object_id}'
+        return f"mlrun/uid={object_id}"
 
     @staticmethod
     def _get_default_label_selector() -> str:
-        return 'mlrun/class=spark'
+        return "mlrun/class=spark"
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

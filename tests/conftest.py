@@ -31,6 +31,7 @@ is_ci = "CI" in environ
 shutil.rmtree(results, ignore_errors=True, onerror=None)
 Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
 environ["KFPMETA_OUT_DIR"] = f"{results}/kfp/"
+environ["KFP_ARTIFACTS_DIR"] = f"{results}/kfp/"
 print(f"KFP: {results}/kfp/")
 
 rundb_path = f"{results}/rundb"

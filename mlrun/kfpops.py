@@ -59,8 +59,9 @@ def write_kfpmeta(struct):
         try:
             logger.info("writing artifact output: /tmp/{} = {}".format(key, val))
             with open("/tmp/{}".format(key), "w") as fp:
-                fp.write(val)
-        except Exception:
+                fp.write(str(val))
+        except Exception as exc:
+            logger.warning('Failed writing to temp file. Ignoring', exc=repr(exc))
             pass
 
     text = "# Run Report\n"

@@ -29,6 +29,7 @@ from mlrun.utils import logger
 
 model_body = "abc is 123"
 results_body = "<b> Some HTML <b>"
+tests_dir = Path(__file__).absolute().parent
 
 
 def my_job(context, p1=1, p2="a-string"):
@@ -38,7 +39,9 @@ def my_job(context, p1=1, p2="a-string"):
     print(f"Params: p1={p1}, p2={p2}")
     print("accesskey = {}".format(context.get_secret("ACCESS_KEY")))
     print(
-        "file\n{}\n".format(context.get_input("./assets/test_kfp_input_file.txt").get())
+        "file\n{}\n".format(
+            context.get_input(str(tests_dir) + "/assets/test_kfp_input_file.txt").get()
+        )
     )
 
     # RUN some useful code e.g. ML training, data prep, etc.

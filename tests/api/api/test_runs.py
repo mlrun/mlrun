@@ -7,6 +7,11 @@ from mlrun.api.utils.singletons.db import get_db
 
 
 def test_run_with_nan_in_body(db: Session, client: TestClient, monkeypatch) -> None:
+    """
+    This test wouldn't pass if we were using FastAPI default JSONResponse which uses json.dumps to serialize jsons
+    It passes only because we changed to use fastapi.responses.ORJSONResponse by default which uses orjson.dumps
+    which do handles float("Nan")
+    """
     run_with_nan_float = {
         "status": {"artifacts": [{"preview": [[0.0, float("Nan"), 1.3]]}]},
     }

@@ -29,6 +29,7 @@ app = fastapi.FastAPI(
     openapi_url="/api/openapi.json",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
+    default_response_class=fastapi.responses.ORJSONResponse,
 )
 
 app.include_router(api_router, prefix="/api")

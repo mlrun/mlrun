@@ -8,15 +8,7 @@ from mlrun.api.utils.singletons.db import get_db
 
 def test_run_with_nan_in_body(db: Session, client: TestClient, monkeypatch) -> None:
     run_with_nan_float = {
-        "status": {
-            "artifacts": [
-                {
-                    "preview": [
-                        [0.0, float("Nan"), 1.3],
-                    ],
-                },
-            ],
-        },
+        "status": {"artifacts": [{"preview": [[0.0, float("Nan"), 1.3]]}]},
     }
     uid = "some-uid"
     project = "some-project"

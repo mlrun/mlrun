@@ -132,7 +132,11 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_schedules(
-        self, session, project: str = None, name: str = None, kind: schemas.ScheduleKinds = None
+        self,
+        session,
+        project: str = None,
+        name: str = None,
+        kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         pass
 

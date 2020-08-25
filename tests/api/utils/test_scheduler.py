@@ -237,50 +237,23 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 @pytest.mark.asyncio
 async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
     cases = [
-        {
-            'name': 'some_prefix-mlrun',
-            'should_find': True,
-        },
-        {
-            'name': 'some_prefix-mlrun-some_suffix',
-            'should_find': True,
-        },
-        {
-            'name': 'mlrun-some_suffix',
-            'should_find': True,
-        },
-        {
-            'name': 'mlrun',
-            'should_find': True,
-        },
-        {
-            'name': 'MLRun',
-            'should_find': True,
-        },
-        {
-            'name': 'bla-MLRun-bla',
-            'should_find': True,
-        },
-        {
-            'name': 'mlun',
-            'should_find': False,
-        },
-        {
-            'name': 'mlurn',
-            'should_find': False,
-        },
-        {
-            'name': 'mluRn',
-            'should_find': False,
-        },
+        {"name": "some_prefix-mlrun", "should_find": True},
+        {"name": "some_prefix-mlrun-some_suffix", "should_find": True},
+        {"name": "mlrun-some_suffix", "should_find": True},
+        {"name": "mlrun", "should_find": True},
+        {"name": "MLRun", "should_find": True},
+        {"name": "bla-MLRun-bla", "should_find": True},
+        {"name": "mlun", "should_find": False},
+        {"name": "mlurn", "should_find": False},
+        {"name": "mluRn", "should_find": False},
     ]
 
     cron_trigger = schemas.ScheduleCronTrigger(minute="*/10")
     project = config.default_project
     expected_schedule_names = []
     for case in cases:
-        name = case['name']
-        should_find = case['should_find']
+        name = case["name"]
+        should_find = case["should_find"]
         scheduler.create_schedule(
             db,
             project,
@@ -292,7 +265,7 @@ async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
         if should_find:
             expected_schedule_names.append(name)
 
-    schedules = scheduler.list_schedules(db, project, 'mlrun')
+    schedules = scheduler.list_schedules(db, project, "mlrun")
     assert len(schedules.schedules) == len(expected_schedule_names)
     for schedule in schedules.schedules:
         assert schedule.name in expected_schedule_names

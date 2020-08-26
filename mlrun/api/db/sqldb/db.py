@@ -400,13 +400,19 @@ class SQLDB(DBInterface):
         self._upsert(session, schedule)
 
     def list_schedules(
-        self, session: Session, project: str = None, kind: schemas.ScheduleKinds = None,
+        self,
+        session: Session,
+        project: str = None,
+        name: str = None,
+        kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
-        logger.debug("Getting schedules from db", project=project, kind=kind)
-        db_schedules = self._query(session, Schedule, project=project, kind=kind)
+        logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
+        query = self._query(session, Schedule, project=project, kind=kind)
+        if name is not None:
+            query = query.filter(Schedule.name.ilike(f"%{name}%"))
         schedules = [
             self._transform_schedule_model_to_scheme(db_schedule)
-            for db_schedule in db_schedules
+            for db_schedule in query
         ]
         return schedules
 

@@ -20,7 +20,7 @@ def list_runtimes(label_selector: str = None):
     for kind in RuntimeKinds.runtime_with_handlers():
         runtime_handler = get_runtime_handler(kind)
         resources = runtime_handler.list_resources(label_selector)
-        runtimes.append({'kind': kind, 'resources': resources})
+        runtimes.append({"kind": kind, "resources": resources})
     return runtimes
 
 
@@ -28,13 +28,13 @@ def list_runtimes(label_selector: str = None):
 def get_runtime(kind: str, label_selector: str = None):
     if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, kind=kind, err='Invalid runtime kind'
+            HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
         )
     runtime_handler = get_runtime_handler(kind)
     resources = runtime_handler.list_resources(label_selector)
     return {
-        'kind': kind,
-        'resources': resources,
+        "kind": kind,
+        "resources": resources,
     }
 
 
@@ -63,7 +63,7 @@ def delete_runtime(
 ):
     if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, kind=kind, err='Invalid runtime kind'
+            HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
         )
     runtime_handler = get_runtime_handler(kind)
     runtime_handler.delete_resources(
@@ -84,7 +84,7 @@ def delete_runtime_object(
 ):
     if kind not in RuntimeKinds.runtime_with_handlers():
         log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, kind=kind, err='Invalid runtime kind'
+            HTTPStatus.BAD_REQUEST.value, kind=kind, err="Invalid runtime kind"
         )
     runtime_handler = get_runtime_handler(kind)
     runtime_handler.delete_runtime_object_resources(

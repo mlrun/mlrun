@@ -14,7 +14,7 @@ from mlrun.utils import logger
 @pytest.fixture()
 async def scheduler(db: Session) -> Generator:
     logger.info("Creating scheduler")
-    config.httpdb.scheduling.min_allowed_interval = '0'
+    config.httpdb.scheduling.min_allowed_interval = "0"
     scheduler = Scheduler()
     await scheduler.start(db)
     yield scheduler
@@ -42,9 +42,9 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     expected_call_counter = 5
     now_plus_5_seconds = now + timedelta(seconds=expected_call_counter)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second='*/1', start_time=now, end_time=now_plus_5_seconds
+        second="*/1", start_time=now, end_time=now_plus_5_seconds
     )
-    schedule_name = 'schedule-name'
+    schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(
         db,
@@ -62,22 +62,22 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 async def test_create_schedule_success_cron_trigger_validation(
     db: Session, scheduler: Scheduler
 ):
-    scheduler._min_allowed_interval = '10 minutes'
+    scheduler._min_allowed_interval = "10 minutes"
     cases = [
-        {'second': '1', 'minute': '19'},
-        {'second': '30', 'minute': '9,19'},
-        {'minute': '*/10'},
-        {'minute': '20-40/10'},
-        {'hour': '1'},
-        {'year': '1999'},
-        {'year': '2050'},
+        {"second": "1", "minute": "19"},
+        {"second": "30", "minute": "9,19"},
+        {"minute": "*/10"},
+        {"minute": "20-40/10"},
+        {"hour": "1"},
+        {"year": "1999"},
+        {"year": "2050"},
     ]
     for index, case in enumerate(cases):
         cron_trigger = schemas.ScheduleCronTrigger(**case)
         scheduler.create_schedule(
             db,
-            'project',
-            f'schedule-name-{index}',
+            "project",
+            f"schedule-name-{index}",
             schemas.ScheduleKinds.local_function,
             do_nothing,
             cron_trigger,
@@ -88,33 +88,33 @@ async def test_create_schedule_success_cron_trigger_validation(
 async def test_create_schedule_failure_too_frequent_cron_trigger(
     db: Session, scheduler: Scheduler
 ):
-    scheduler._min_allowed_interval = '10 minutes'
+    scheduler._min_allowed_interval = "10 minutes"
     cases = [
-        {'second': '*'},
-        {'second': '1,2'},
-        {'second': '*/30'},
-        {'second': '30-35'},
-        {'second': '30-40/5'},
-        {'minute': '*'},
-        {'minute': '*'},
-        {'minute': '*/5'},
-        {'minute': '43-59'},
-        {'minute': '30-50/6'},
-        {'minute': '1,3,5'},
-        {'minute': '11,22,33,44,55,59'},
+        {"second": "*"},
+        {"second": "1,2"},
+        {"second": "*/30"},
+        {"second": "30-35"},
+        {"second": "30-40/5"},
+        {"minute": "*"},
+        {"minute": "*"},
+        {"minute": "*/5"},
+        {"minute": "43-59"},
+        {"minute": "30-50/6"},
+        {"minute": "1,3,5"},
+        {"minute": "11,22,33,44,55,59"},
     ]
     for case in cases:
         cron_trigger = schemas.ScheduleCronTrigger(**case)
         with pytest.raises(ValueError) as excinfo:
             scheduler.create_schedule(
                 db,
-                'project',
-                'schedule-name',
+                "project",
+                "schedule-name",
                 schemas.ScheduleKinds.local_function,
                 do_nothing,
                 cron_trigger,
             )
-        assert 'Cron trigger too frequent. no more then one job' in str(excinfo.value)
+        assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -128,8 +128,8 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
     between the two will be 15 minutes, more then 10 minutes so it will pass validation, although it actually runs
     every minute.
     """
-    scheduler._min_allowed_interval = '10 minutes'
-    cron_trigger = schemas.ScheduleCronTrigger(minute='0-45')
+    scheduler._min_allowed_interval = "10 minutes"
+    cron_trigger = schemas.ScheduleCronTrigger(minute="0-45")
     now = datetime(
         year=2020,
         month=2,
@@ -141,13 +141,36 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
     )
     with pytest.raises(ValueError) as excinfo:
         scheduler._validate_cron_trigger(cron_trigger, now)
-    assert 'Cron trigger too frequent. no more then one job' in str(excinfo.value)
+    assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_get_schedule_datetime_fields_timezone(db: Session, scheduler: Scheduler):
+    cron_trigger = schemas.ScheduleCronTrigger(minute="*/10")
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+    assert schedule.creation_time.tzinfo is not None
+    assert schedule.next_run_time.tzinfo is not None
+
+    schedules = scheduler.list_schedules(db, project)
+    assert len(schedules.schedules) == 1
+    assert schedules.schedules[0].creation_time.tzinfo is not None
+    assert schedules.schedules[0].next_run_time.tzinfo is not None
 
 
 @pytest.mark.asyncio
 async def test_get_schedule(db: Session, scheduler: Scheduler):
-    cron_trigger = schemas.ScheduleCronTrigger(year='1999')
-    schedule_name = 'schedule-name'
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(
         db,
@@ -170,8 +193,8 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
     )
 
     year = 2050
-    cron_trigger_2 = schemas.ScheduleCronTrigger(year=year, timezone='utc')
-    schedule_name_2 = 'schedule-name-2'
+    cron_trigger_2 = schemas.ScheduleCronTrigger(year=year, timezone="utc")
+    schedule_name_2 = "schedule-name-2"
     scheduler.create_schedule(
         db,
         project,
@@ -212,9 +235,47 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
+async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
+    cases = [
+        {"name": "some_prefix-mlrun", "should_find": True},
+        {"name": "some_prefix-mlrun-some_suffix", "should_find": True},
+        {"name": "mlrun-some_suffix", "should_find": True},
+        {"name": "mlrun", "should_find": True},
+        {"name": "MLRun", "should_find": True},
+        {"name": "bla-MLRun-bla", "should_find": True},
+        {"name": "mlun", "should_find": False},
+        {"name": "mlurn", "should_find": False},
+        {"name": "mluRn", "should_find": False},
+    ]
+
+    cron_trigger = schemas.ScheduleCronTrigger(minute="*/10")
+    project = config.default_project
+    expected_schedule_names = []
+    for case in cases:
+        name = case["name"]
+        should_find = case["should_find"]
+        scheduler.create_schedule(
+            db,
+            project,
+            name,
+            schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+        )
+        if should_find:
+            expected_schedule_names.append(name)
+
+    schedules = scheduler.list_schedules(db, project, "mlrun")
+    assert len(schedules.schedules) == len(expected_schedule_names)
+    for schedule in schedules.schedules:
+        assert schedule.name in expected_schedule_names
+        expected_schedule_names.remove(schedule.name)
+
+
+@pytest.mark.asyncio
 async def test_delete_schedule(db: Session, scheduler: Scheduler):
-    cron_trigger = schemas.ScheduleCronTrigger(year='1999')
-    schedule_name = 'schedule-name'
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(
         db,
@@ -241,9 +302,9 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     now = datetime.now()
     now_plus_2_seconds = now + timedelta(seconds=2)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second='*/1', start_time=now, end_time=now_plus_2_seconds
+        second="*/1", start_time=now, end_time=now_plus_2_seconds
     )
-    schedule_name = 'schedule-name'
+    schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(
         db,

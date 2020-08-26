@@ -115,8 +115,8 @@ def submit(db_session: Session, data):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
             get_scheduler().create_schedule(
                 db_session,
-                task['metadata']['project'],
-                task['metadata']['name'],
+                task["metadata"]["project"],
+                task["metadata"]["name"],
                 schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
@@ -124,8 +124,8 @@ def submit(db_session: Session, data):
 
             response = {
                 "schedule": schedule,
-                "project": task['metadata']['project'],
-                "name": task['metadata']['name'],
+                "project": task["metadata"]["project"],
+                "name": task["metadata"]["name"],
             }
         else:
             run = fn.run(task, watch=False)

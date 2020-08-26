@@ -24,54 +24,54 @@ import yaml
 here = Path(__file__).absolute().parent
 root = here.parent
 # Need to be in root for docker context
-tmp_dockerfile = Path(root / 'Dockerfile.mlrun-test-nb')
-with (here / 'Dockerfile.test-nb').open() as fp:
+tmp_dockerfile = Path(root / "Dockerfile.mlrun-test-nb")
+with (here / "Dockerfile.test-nb").open() as fp:
     dockerfile_template = fp.read()
-docker_tag = 'mlrun/test-notebook'
+docker_tag = "mlrun/test-notebook"
 
 
 def iter_notebooks():
-    cfg_file = here / 'notebooks.yml'
+    cfg_file = here / "notebooks.yml"
     with cfg_file.open() as fp:
         configs = yaml.safe_load(fp)
 
     for config in configs:
-        if 'env' not in config:
-            config['env'] = {}
-        yield pytest.param(config, id=config['nb'])
+        if "env" not in config:
+            config["env"] = {}
+        yield pytest.param(config, id=config["nb"])
 
 
 def args_from_env(env):
     env = ChainMap(env, environ)
     args, cmd = [], []
     for name in env:
-        if not name.startswith('MLRUN_'):
+        if not name.startswith("MLRUN_"):
             continue
         value = env[name]
-        args.append(f'ARG {name}')
-        cmd.extend(['--build-arg', f'{name}={value}'])
+        args.append(f"ARG {name}")
+        cmd.extend(["--build-arg", f"{name}={value}"])
 
-    args = '\n'.join(args)
+    args = "\n".join(args)
     return args, cmd
 
 
-@pytest.mark.parametrize('notebook', iter_notebooks())
+@pytest.mark.parametrize("notebook", iter_notebooks())
 def test_notebook(notebook):
     path = f'./examples/{notebook["nb"]}'
-    args, args_cmd = args_from_env(notebook['env'])
+    args, args_cmd = args_from_env(notebook["env"])
     deps = []
-    for dep in notebook.get('pip', []):
-        deps.append(f'RUN python -m pip install {dep}')
-    pip = '\n'.join(deps)
+    for dep in notebook.get("pip", []):
+        deps.append(f"RUN python -m pip install {dep}")
+    pip = "\n".join(deps)
 
     code = dockerfile_template.format(notebook=path, args=args, pip=pip)
-    with tmp_dockerfile.open('w') as out:
+    with tmp_dockerfile.open("w") as out:
         out.write(code)
 
     cmd = (
-        ['docker', 'build', '--file', str(tmp_dockerfile), '--tag', docker_tag]
+        ["docker", "build", "--file", str(tmp_dockerfile), "--tag", docker_tag]
         + args_cmd
-        + ['.']
+        + ["."]
     )
     out = run(cmd, cwd=root)
-    assert out.returncode == 0, 'cannot build'
+    assert out.returncode == 0, "cannot build"

@@ -56,7 +56,7 @@ endif
 	find . \( ! -regex '.*/\..*' \) -a \( -iname \*.md -o -iname \*.txt -o -iname \*.yaml -o -iname \*.yml \)  \
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
 	sed -i ''  \
-	-e "s/__version__[[:space:]]=[[:space:]]'$(MLRUN_OLD_VERSION_ESCAPED)'/__version__ = '$(MLRUN_NEW_VERSION)'/g"  \
+	-e 's/__version__[[:space:]]=[[:space:]]"$(MLRUN_OLD_VERSION_ESCAPED)"/__version__ = "$(MLRUN_NEW_VERSION)"/g'  \
 	 ./mlrun/__init__.py
 
 .PHONY: build
@@ -331,7 +331,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt
 fmt: ## Format the code (using black)
 	@echo "Running black fmt..."
-	python -m black --skip-string-normalization .
+	python -m black .
 
 .PHONY: lint
 lint: flake8 fmt-check ## Run lint on the code
@@ -339,7 +339,7 @@ lint: flake8 fmt-check ## Run lint on the code
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)
 	@echo "Running black fmt check..."
-	python -m black --skip-string-normalization --check --diff -S .
+	python -m black --check --diff -S .
 
 .PHONY: flake8
 flake8: ## Run flake8 lint

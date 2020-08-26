@@ -27,4 +27,4 @@ RUN pip install \
     -r dev-requirements.txt
 COPY . .
 ENV PYTHONPATH=/mlrun
-RUN python setup.py install
+RUN python -m pip install .

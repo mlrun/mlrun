@@ -1,6 +1,8 @@
+import fastapi
 import uvicorn
-from fastapi import FastAPI
+from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.errors
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.initial_data import init_data
@@ -18,7 +20,7 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
 from mlrun.utils import logger
 
-app = FastAPI(
+app = fastapi.FastAPI(
     title="MLRun",
     description="Machine Learning automation and tracking",
     version=config.version,
@@ -27,9 +29,26 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
+    default_response_class=fastapi.responses.ORJSONResponse,
 )
 
 app.include_router(api_router, prefix="/api")
+
+
+@app.exception_handler(mlrun.errors.MLRunHTTPStatusError)
+async def http_status_error_handler(
+    request: fastapi.Request, exc: mlrun.errors.MLRunHTTPStatusError
+):
+    status_code = exc.response.status_code
+    error_message = repr(exc)
+    logger.warning(
+        "Request handling returned error status",
+        error_message=error_message,
+        status_code=status_code,
+    )
+    return await http_exception_handler(
+        request, fastapi.HTTPException(status_code=status_code, detail=error_message)
+    )
 
 
 @app.on_event("startup")
@@ -57,12 +76,12 @@ async def _initialize_singletons():
 
 
 def _start_periodic_cleanup():
-    logger.info('Starting periodic runtimes cleanup')
+    logger.info("Starting periodic runtimes cleanup")
     run_function_periodically(int(config.runtimes_cleanup_interval), _cleanup_runtimes)
 
 
 def _cleanup_runtimes():
-    logger.debug('Cleaning runtimes')
+    logger.debug("Cleaning runtimes")
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():
@@ -75,12 +94,12 @@ def _cleanup_runtimes():
 def main():
     init_data()
     uvicorn.run(
-        'mlrun.api.main:app',
-        host='0.0.0.0',
+        "mlrun.api.main:app",
+        host="0.0.0.0",
         port=config.httpdb.port,
         debug=config.httpdb.debug,
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

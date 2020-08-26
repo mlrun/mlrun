@@ -21,40 +21,40 @@ class RunDBError(Exception):
 
 
 class RunDBInterface(ABC):
-    kind = ''
+    kind = ""
 
     @abstractmethod
     def connect(self, secrets=None):
         return self
 
     @abstractmethod
-    def store_log(self, uid, project='', body=None, append=False):
+    def store_log(self, uid, project="", body=None, append=False):
         pass
 
     @abstractmethod
-    def get_log(self, uid, project='', offset=0, size=0):
+    def get_log(self, uid, project="", offset=0, size=0):
         pass
 
     @abstractmethod
-    def store_run(self, struct, uid, project='', iter=0):
+    def store_run(self, struct, uid, project="", iter=0):
         pass
 
     @abstractmethod
-    def update_run(self, updates: dict, uid, project='', iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
     @abstractmethod
-    def read_run(self, uid, project='', iter=0):
+    def read_run(self, uid, project="", iter=0):
         pass
 
     @abstractmethod
     def list_runs(
         self,
-        name='',
+        name="",
         uid=None,
-        project='',
+        project="",
         labels=None,
-        state='',
+        state="",
         sort=True,
         last=0,
         iter=False,
@@ -62,52 +62,52 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_run(self, uid, project='', iter=0):
+    def del_run(self, uid, project="", iter=0):
         pass
 
     @abstractmethod
-    def del_runs(self, name='', project='', labels=None, state='', days_ago=0):
+    def del_runs(self, name="", project="", labels=None, state="", days_ago=0):
         pass
 
     @abstractmethod
-    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag='', iter=None, project=''):
+    def read_artifact(self, key, tag="", iter=None, project=""):
         pass
 
     @abstractmethod
     def list_artifacts(
-        self, name='', project='', tag='', labels=None, since=None, until=None
+        self, name="", project="", tag="", labels=None, since=None, until=None
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, key, tag='', project=''):
+    def del_artifact(self, key, tag="", project=""):
         pass
 
     @abstractmethod
-    def del_artifacts(self, name='', project='', tag='', labels=None):
+    def del_artifacts(self, name="", project="", tag="", labels=None):
         pass
 
     # TODO: Make these abstract once filedb implements them
-    def store_metric(self, uid, project='', keyvals=None, timestamp=None, labels=None):
-        warnings.warn('store_metric not implemented yet')
+    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
+        warnings.warn("store_metric not implemented yet")
 
-    def read_metric(self, keys, project='', query=''):
-        warnings.warn('store_metric not implemented yet')
+    def read_metric(self, keys, project="", query=""):
+        warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
-    def store_function(self, function, name, project='', tag='', versioned=False):
+    def store_function(self, function, name, project="", tag="", versioned=False):
         pass
 
     @abstractmethod
-    def get_function(self, name, project='', tag='', hash_key=''):
+    def get_function(self, name, project="", tag="", hash_key=""):
         pass
 
     @abstractmethod
-    def list_functions(self, name, project='', tag='', labels=None):
+    def list_functions(self, name, project="", tag="", labels=None):
         pass
 
     def list_projects(self):

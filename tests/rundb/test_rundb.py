@@ -31,11 +31,11 @@ def test_list_runs():
 
     db = get_db()
     runs = db.list_runs()
-    assert runs, 'empty runs result'
+    assert runs, "empty runs result"
 
     html = runs.show(display=False)
 
-    with open(f'{results}/runs.html', 'w') as fp:
+    with open(f"{results}/runs.html", "w") as fp:
         fp.write(html)
 
 
@@ -46,9 +46,9 @@ def test_list_artifacts():
 
     db = get_db()
     artifacts = db.list_artifacts()
-    assert artifacts, 'empty artifacts result'
+    assert artifacts, "empty artifacts result"
 
     html = artifacts.show(display=False)
 
-    with open('{}/artifacts.html'.format(results), 'w') as fp:
+    with open("{}/artifacts.html".format(results), "w") as fp:
         fp.write(html)

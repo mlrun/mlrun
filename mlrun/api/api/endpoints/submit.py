@@ -19,7 +19,7 @@ router = APIRouter()
 @router.post("/submit_job/")
 async def submit_job(
     request: Request,
-    username: Optional[str] = Header(None, alias='x-remote-user'),
+    username: Optional[str] = Header(None, alias="x-remote-user"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
@@ -31,11 +31,11 @@ async def submit_job(
     # enrich job task with the username from the request header
     if username:
         # if task is missing, we don't want to create one
-        if 'task' in data:
-            labels = data['task'].setdefault('metadata', {}).setdefault('labels', {})
+        if "task" in data:
+            labels = data["task"].setdefault("metadata", {}).setdefault("labels", {})
             # TODO: remove this duplication
-            labels.setdefault('v3io_user', username)
-            labels.setdefault('owner', username)
+            labels.setdefault("v3io_user", username)
+            labels.setdefault("owner", username)
 
     logger.info("submit_job: {}".format(data))
     response = await run_in_threadpool(submit, db_session, data)

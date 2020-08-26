@@ -1,3 +1,4 @@
+import pytz
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
@@ -85,7 +86,7 @@ class SQLDB(DBInterface):
                 project=project,
                 iteration=iter,
                 state=run_state(struct),
-                start_time=run_start_time(struct) or datetime.now(),
+                start_time=run_start_time(struct) or datetime.now(timezone.utc),
             )
         labels = run_labels(struct)
         update_labels(run, labels)
@@ -119,7 +120,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise mlrun.errors.NotFoundError(f"Run {uid}:{project} not found")
+            raise mlrun.errors.MLRunNotFoundError(f"Run {uid}:{project} not found")
         return run.struct
 
     def list_runs(
@@ -162,7 +163,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         query = self._find_runs(session, None, project, labels, state)
         if days_ago:
-            since = datetime.now() - timedelta(days=days_ago)
+            since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
         for run in query:  # Can not use query.delete with join
             session.delete(run)
@@ -186,7 +187,7 @@ class SQLDB(DBInterface):
         update_labels(art, labels)
         art.struct = artifact
         self._upsert(session, art)
-        tag = tag or 'latest'
+        tag = tag or "latest"
         self.tag_objects(session, [art], project, tag)
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
@@ -282,7 +283,7 @@ class SQLDB(DBInterface):
         if versioned:
             uid = hash_key
         else:
-            uid = f'unversioned-{tag}'
+            uid = f"unversioned-{tag}"
 
         updated = datetime.now(timezone.utc)
         update_in(function, "metadata.updated", updated)
@@ -317,11 +318,11 @@ class SQLDB(DBInterface):
 
             # If queried by hash key remove status
             if hash_key:
-                function['status'] = None
+                function["status"] = None
 
             # If connected to a tag add it to metadata
             if tag_function_uid:
-                function['metadata']['tag'] = computed_tag
+                function["metadata"]["tag"] = computed_tag
             return function
 
     def list_functions(self, session, name, project=None, tag=None, labels=None):
@@ -337,18 +338,18 @@ class SQLDB(DBInterface):
                 if len(function_tags) == 0:
 
                     # function status should be added only to tagged functions
-                    function_dict['status'] = None
+                    function_dict["status"] = None
                     funcs.append(function_dict)
                 elif len(function_tags) == 1:
-                    function_dict['metadata']['tag'] = function_tags[0]
+                    function_dict["metadata"]["tag"] = function_tags[0]
                     funcs.append(function_dict)
                 else:
                     for function_tag in function_tags:
                         function_dict_copy = deepcopy(function_dict)
-                        function_dict_copy['metadata']['tag'] = function_tag
+                        function_dict_copy["metadata"]["tag"] = function_tag
                         funcs.append(function_dict_copy)
             else:
-                function_dict['metadata']['tag'] = tag
+                function_dict["metadata"]["tag"] = tag
                 funcs.append(function_dict)
         return funcs
 
@@ -382,7 +383,7 @@ class SQLDB(DBInterface):
             project=project,
             name=name,
             kind=kind.value,
-            creation_time=datetime.now(),
+            creation_time=datetime.now(timezone.utc),
             # these are properties of the object that map manually (using getters and setters) to other column of the
             # table and therefore Pycharm yells that they're unexpected
             scheduled_object=scheduled_object,
@@ -390,7 +391,7 @@ class SQLDB(DBInterface):
         )
 
         logger.debug(
-            'Saving schedule to db',
+            "Saving schedule to db",
             project=project,
             name=name,
             kind=kind,
@@ -399,27 +400,33 @@ class SQLDB(DBInterface):
         self._upsert(session, schedule)
 
     def list_schedules(
-        self, session: Session, project: str = None, kind: schemas.ScheduleKinds = None,
+        self,
+        session: Session,
+        project: str = None,
+        name: str = None,
+        kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
-        logger.debug('Getting schedules from db', project=project, kind=kind)
-        db_schedules = self._query(session, Schedule, project=project, kind=kind)
+        logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
+        query = self._query(session, Schedule, project=project, kind=kind)
+        if name is not None:
+            query = query.filter(Schedule.name.ilike(f"%{name}%"))
         schedules = [
             self._transform_schedule_model_to_scheme(db_schedule)
-            for db_schedule in db_schedules
+            for db_schedule in query
         ]
         return schedules
 
     def get_schedule(
         self, session: Session, project: str, name: str
     ) -> schemas.ScheduleRecord:
-        logger.debug('Getting schedule from db', project=project, name=name)
+        logger.debug("Getting schedule from db", project=project, name=name)
         query = self._query(session, Schedule, project=project, name=name)
         db_schedule = query.one_or_none()
         schedule = self._transform_schedule_model_to_scheme(db_schedule)
         return schedule
 
     def delete_schedule(self, session: Session, project: str, name: str):
-        logger.debug('Removing schedule from db', project=project, name=name)
+        logger.debug("Removing schedule from db", project=project, name=name)
         self._delete(session, Schedule, project=project, name=name)
 
     def tag_objects(self, session, objs, project: str, name: str):
@@ -712,4 +719,13 @@ class SQLDB(DBInterface):
         db_schedule: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(db_schedule)
+        SQLDB._add_utc_timezone(schedule, "creation_time")
         return schedule
+
+    @staticmethod
+    def _add_utc_timezone(obj, attribute_name):
+        """
+        sqlalchemy losing timezone information with sqlite so we're returning it
+        https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
+        """
+        setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))

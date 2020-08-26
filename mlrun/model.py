@@ -27,16 +27,16 @@ class ModelObj:
     @staticmethod
     def _verify_list(param, name):
         if not isinstance(param, list):
-            raise ValueError(f'parameter {name} must be a list')
+            raise ValueError(f"parameter {name} must be a list")
 
     @staticmethod
     def _verify_dict(param, name, new_type=None):
         if (
             param is not None
             and not isinstance(param, dict)
-            and not hasattr(param, 'to_dict')
+            and not hasattr(param, "to_dict")
         ):
-            raise ValueError(f'parameter {name} must be a dict or object')
+            raise ValueError(f"parameter {name} must be a dict or object")
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
         return param
@@ -50,7 +50,7 @@ class ModelObj:
             if not exclude or t not in exclude:
                 val = getattr(self, t, None)
                 if val is not None and not (isinstance(val, dict) and not val):
-                    if hasattr(val, 'to_dict'):
+                    if hasattr(val, "to_dict"):
                         val = val.to_dict()
                         if val:
                             struct[t] = val
@@ -78,7 +78,7 @@ class ModelObj:
         return dict_to_json(self.to_dict())
 
     def to_str(self):
-        return '{}'.format(self.to_dict())
+        return "{}".format(self.to_dict())
 
     def __str__(self):
         return str(self.to_dict())
@@ -126,7 +126,7 @@ class ImageBuilder(ModelObj):
         registry=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
-        self.codeEntryType = ''  #: codeEntryType
+        self.codeEntryType = ""  #: codeEntryType
         self.source = source  #: course
         self.code_origin = code_origin  #: code_origin
         self.image = image  #: image
@@ -204,9 +204,9 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=['handler'])
+        struct = super().to_dict(fields, exclude=["handler"])
         if self.handler and isinstance(self.handler, str):
-            struct['handler'] = self.handler
+            struct["handler"] = self.handler
         return struct
 
     @property
@@ -215,7 +215,7 @@ class RunSpec(ModelObj):
 
     @inputs.setter
     def inputs(self, inputs):
-        self._inputs = self._verify_dict(inputs, 'inputs')
+        self._inputs = self._verify_dict(inputs, "inputs")
 
     @property
     def outputs(self):
@@ -223,7 +223,7 @@ class RunSpec(ModelObj):
 
     @outputs.setter
     def outputs(self, outputs):
-        self._verify_list(outputs, 'outputs')
+        self._verify_list(outputs, "outputs")
         self._outputs = outputs
 
     @property
@@ -232,7 +232,7 @@ class RunSpec(ModelObj):
 
     @secret_sources.setter
     def secret_sources(self, secret_sources):
-        self._verify_list(secret_sources, 'secret_sources')
+        self._verify_list(secret_sources, "secret_sources")
         self._secret_sources = secret_sources
 
     @property
@@ -241,7 +241,7 @@ class RunSpec(ModelObj):
 
     @data_stores.setter
     def data_stores(self, data_stores):
-        self._verify_list(data_stores, 'data_stores')
+        self._verify_list(data_stores, "data_stores")
         self._data_stores = data_stores
 
     @property
@@ -251,7 +251,7 @@ class RunSpec(ModelObj):
                 return self.handler.__name__
             else:
                 return str(self.handler)
-        return ''
+        return ""
 
 
 class RunStatus(ModelObj):
@@ -270,7 +270,7 @@ class RunStatus(ModelObj):
         last_update=None,
         iterations=None,
     ):
-        self.state = state or 'created'
+        self.state = state or "created"
         self.status_text = status_text
         self.error = error
         self.host = host
@@ -297,7 +297,7 @@ class RunTemplate(ModelObj):
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', RunSpec)
+        self._spec = self._verify_dict(spec, "spec", RunSpec)
 
     @property
     def metadata(self) -> RunMetadata:
@@ -305,7 +305,7 @@ class RunTemplate(ModelObj):
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, 'metadata', RunMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", RunMetadata)
 
     def with_params(self, **kwargs):
         self.spec.parameters = kwargs
@@ -343,7 +343,7 @@ class RunTemplate(ModelObj):
 
         :returns: project object
         """
-        self.spec.secret_sources.append({'kind': kind, 'source': source})
+        self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
     def set_label(self, key, value):
@@ -351,7 +351,7 @@ class RunTemplate(ModelObj):
         return self
 
     def to_env(self):
-        environ['MLRUN_EXEC_CONFIG'] = self.to_json()
+        environ["MLRUN_EXEC_CONFIG"] = self.to_json()
 
 
 class RunObject(RunTemplate):
@@ -377,7 +377,7 @@ class RunObject(RunTemplate):
 
     @status.setter
     def status(self, status):
-        self._status = self._verify_dict(status, 'status', RunStatus)
+        self._status = self._verify_dict(status, "status", RunStatus)
 
     def output(self, key):
         if self.status.results and key in self.status.results:
@@ -394,13 +394,13 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                outputs[a['key']] = get_artifact_target(a, self.metadata.project)
+                outputs[a["key"]] = get_artifact_target(a, self.metadata.project)
         return outputs
 
     def artifact(self, key):
         if self.status.artifacts:
             for a in self.status.artifacts:
-                if a['key'] == key:
+                if a["key"] == key:
                     return a
         return None
 
@@ -415,7 +415,7 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            return get_in(run, 'status.state', 'unknown')
+            return get_in(run, "status.state", "unknown")
 
     def show(self):
         db = get_run_db().connect()
@@ -425,10 +425,10 @@ class RunObject(RunTemplate):
         if not db:
             db = get_run_db().connect()
         if not db:
-            print('DB is not configured, cannot show logs')
+            print("DB is not configured, cannot show logs")
             return None
 
-        if db.kind == 'http':
+        if db.kind == "http":
             state = db.watch_log(self.metadata.uid, self.metadata.project, watch=watch)
         else:
             state, text = db.get_log(self.metadata.uid, self.metadata.project)
@@ -436,7 +436,7 @@ class RunObject(RunTemplate):
                 print(text.decode())
 
         if state:
-            print('final state: {}'.format(state))
+            print("final state: {}".format(state))
         return state
 
 

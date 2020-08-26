@@ -32,31 +32,31 @@ from .base import (
 )
 
 
-V3IO_LOCAL_ROOT = 'v3io'
+V3IO_LOCAL_ROOT = "v3io"
 
 
 class V3ioStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=''):
+    def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
-        self.endpoint = self.endpoint or environ.get('V3IO_API', 'v3io-webapi:8081')
+        self.endpoint = self.endpoint or environ.get("V3IO_API", "v3io-webapi:8081")
 
-        token = self._secret('V3IO_ACCESS_KEY') or environ.get('V3IO_ACCESS_KEY')
-        username = self._secret('V3IO_USERNAME') or environ.get('V3IO_USERNAME')
-        password = self._secret('V3IO_PASSWORD') or environ.get('V3IO_PASSWORD')
+        token = self._secret("V3IO_ACCESS_KEY") or environ.get("V3IO_ACCESS_KEY")
+        username = self._secret("V3IO_USERNAME") or environ.get("V3IO_USERNAME")
+        password = self._secret("V3IO_PASSWORD") or environ.get("V3IO_PASSWORD")
 
         self.headers = None
-        self.secure = self.kind == 'v3ios'
-        if self.endpoint.startswith('https://'):
-            self.endpoint = self.endpoint[len('https://') :]
+        self.secure = self.kind == "v3ios"
+        if self.endpoint.startswith("https://"):
+            self.endpoint = self.endpoint[len("https://") :]
             self.secure = True
-        elif self.endpoint.startswith('http://'):
-            self.endpoint = self.endpoint[len('http://') :]
+        elif self.endpoint.startswith("http://"):
+            self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
 
         self.auth = None
         self.token = token
         if token:
-            self.headers = {'X-v3io-session-key': token}
+            self.headers = {"X-v3io-session-key": token}
         elif username and password:
             self.headers = basic_auth_header(username, password)
 
@@ -66,8 +66,8 @@ class V3ioStore(DataStore):
 
     @property
     def url(self):
-        schema = 'https' if self.secure else 'http'
-        return '{}://{}'.format(schema, self.endpoint)
+        schema = "https" if self.secure else "http"
+        return "{}://{}".format(schema, self.endpoint)
 
     def upload(self, key, src_path):
         http_upload(self.url + self._join(key), src_path, self.headers, None)
@@ -76,7 +76,7 @@ class V3ioStore(DataStore):
         headers = self.headers
         if size or offset:
             headers = deepcopy(headers)
-            headers['Range'] = get_range(size, offset)
+            headers["Range"] = get_range(size, offset)
         return http_get(self.url + self._join(key), headers)
 
     def put(self, key, data, append=False):
@@ -84,8 +84,8 @@ class V3ioStore(DataStore):
 
     def stat(self, key):
         head = http_head(self.url + self._join(key), self.headers)
-        size = int(head.get('Content-Length', '0'))
-        datestr = head.get('Last-Modified', '0')
+        size = int(head.get("Content-Length", "0"))
+        datestr = head.get("Last-Modified", "0")
         modified = time.mktime(
             datetime.strptime(datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple()
         )
@@ -93,11 +93,11 @@ class V3ioStore(DataStore):
 
     def listdir(self, key):
         v3io_client = v3io.dataplane.Client(
-            endpoint=self.url, access_key=self.token, transport_kind='requests'
+            endpoint=self.url, access_key=self.token, transport_kind="requests"
         )
         container, subpath = split_path(self._join(key))
-        if not subpath.endswith('/'):
-            subpath += '/'
+        if not subpath.endswith("/"):
+            subpath += "/"
 
         # without the trailing slash
         subpath_length = len(subpath) - 1
@@ -110,9 +110,9 @@ class V3ioStore(DataStore):
                 directories_only=False,
             )
         except RuntimeError as exc:
-            if 'Permission denied' in str(exc):
-                raise mlrun.errors.AccessDeniedError(
-                    f'Access denied to path: {key}'
+            if "Permission denied" in str(exc):
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    f"Access denied to path: {key}"
                 ) from exc
             raise
 

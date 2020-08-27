@@ -448,10 +448,10 @@ def deploy_op(
 
 def add_env(env=None):
     """
-        Modifier function to add env vars from dict
-        Usage:
-            train = train_op(...)
-            train.apply(add_env({'MY_ENV':'123'}))
+    Modifier function to add env vars from dict
+    Usage:
+        train = train_op(...)
+        train.apply(add_env({'MY_ENV':'123'}))
     """
 
     env = {} if env is None else env

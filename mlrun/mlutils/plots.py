@@ -162,8 +162,7 @@ def confusion_matrix(model, xtest, ytest, cmap="Blues"):
 
 
 def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
-    """
-    """
+    """"""
     n_classes = len(labels)
 
     precision = dict()
@@ -221,8 +220,7 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
 
 
 def roc_multi(ytest_b, yprob, labels):
-    """
-    """
+    """"""
     n_classes = len(labels)
 
     # Compute ROC curve and ROC area for each class
@@ -295,8 +293,7 @@ def roc_multi(ytest_b, yprob, labels):
 
 
 def roc_bin(ytest, yprob, clear: bool = False):
-    """
-    """
+    """"""
     # ROC plot
     if clear:
         gcf_clear(plt)
@@ -313,8 +310,7 @@ def roc_bin(ytest, yprob, clear: bool = False):
 
 
 def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
-    """
-    """
+    """"""
     if clear:
         gcf_clear(plt)
     disp = metrics.plot_precision_recall_curve(model, xtest, ytest)

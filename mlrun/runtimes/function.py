@@ -452,7 +452,11 @@ class RemoteRuntime(KubeResource):
             for run in runs:
                 self.store_run(run)
                 run.spec.secret_sources = secrets or []
-                tasks.append(asyncio.ensure_future(submit(session, url, run, headers),))
+                tasks.append(
+                    asyncio.ensure_future(
+                        submit(session, url, run, headers),
+                    )
+                )
 
             for status, resp, logs, run in await asyncio.gather(*tasks):
 

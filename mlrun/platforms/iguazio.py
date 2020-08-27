@@ -41,7 +41,10 @@ def xcp_op(
         args = ["-r"] + args
 
     return dsl.ContainerOp(
-        name="xcp", image="yhaviv/invoke", command=["xcp"], arguments=args,
+        name="xcp",
+        image="yhaviv/invoke",
+        command=["xcp"],
+        arguments=args,
     )
 
 
@@ -49,10 +52,10 @@ def mount_v3io(
     name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None
 ):
     """
-        Modifier function to apply to a Container Op to volume mount a v3io path
-        Usage:
-            train = train_op(...)
-            train.apply(mount_v3io(container='users', sub_path='/iguazio', mount_path='/data'))
+    Modifier function to apply to a Container Op to volume mount a v3io path
+    Usage:
+        train = train_op(...)
+        train.apply(mount_v3io(container='users', sub_path='/iguazio', mount_path='/data'))
     """
 
     def _mount_v3io(task):
@@ -153,10 +156,10 @@ def mount_v3iod(
 
 def v3io_cred(api="", user="", access_key=""):
     """
-        Modifier function to copy local v3io env vars to task
-        Usage:
-            train = train_op(...)
-            train.apply(use_v3io_cred())
+    Modifier function to copy local v3io env vars to task
+    Usage:
+        train = train_op(...)
+        train.apply(use_v3io_cred())
     """
 
     def _use_v3io_cred(task):

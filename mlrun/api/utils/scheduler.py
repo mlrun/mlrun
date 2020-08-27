@@ -110,8 +110,10 @@ class Scheduler:
         Enforce no more then one job per min_allowed_interval
         """
         logger.debug("Validating cron trigger")
-        apscheduler_cron_trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
-            cron_trigger
+        apscheduler_cron_trigger = (
+            self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+                cron_trigger
+            )
         )
         now = now or datetime.now(apscheduler_cron_trigger.timezone)
         next_run_time = None

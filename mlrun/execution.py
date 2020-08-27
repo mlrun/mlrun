@@ -331,7 +331,7 @@ class MLClientCtx(object):
 
     def get_input(self, key: str, url: str = ""):
         """get an input data object, data objects have methods such as
-         .get(), .download(), .url, .. to access the actual data"""
+        .get(), .download(), .url, .. to access the actual data"""
         if key not in self._inputs:
             return self._set_input(key, url)
         else:

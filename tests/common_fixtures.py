@@ -10,7 +10,6 @@ import v3io.dataplane
 import mlrun.k8s_utils
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.config import config
-from mlrun.k8s_utils import get_k8s_helper
 from tests.conftest import init_sqldb
 
 
@@ -23,14 +22,17 @@ def k8s_helper_mock(monkeypatch):
         def is_running_inside_kubernetes_cluster(self):
             return False
 
-    monkeypatch.setattr(mlrun.k8s_utils, "K8sHelper", K8sHelperMock)
+    # remember the real one
+    real_k8s_helper = mlrun.k8s_utils._k8s
 
-    # call get_k8s_helper so that the mock instance will get into cache
-    k8s_helper_mock_instance = get_k8s_helper()
+    # set it to the mock
+    k8s_helper_mock_instance = K8sHelperMock()
+    mlrun.k8s_utils._k8s = k8s_helper_mock_instance
 
     yield k8s_helper_mock_instance
 
-    k8s_helper_mock_instance.reset_mock()
+    # set it to real one
+    mlrun.k8s_utils._k8s = real_k8s_helper
 
 
 session_maker: Callable

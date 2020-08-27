@@ -14,22 +14,23 @@ class TestDemo(TestMLRunSystem):
             artifact_path="/User/data",
             project=self.project_name,
         )
-        self._artifact_path = os.path.join(
+
+        # specifically for each workflow, this combines the artifact path above with a
+        # unique path made from the workflow uid.
+        self._workflow_artifact_path = os.path.join(
             mlrun.mlconf.artifact_path, "pipeline/{{workflow.uid}}"
         )
         self._demo_project = self.create_demo_project()
 
         self._logger.debug(
-            "Project Ready",
+            "Created demo project",
             project_name=self.project_name,
             project=self._demo_project.to_dict(),
         )
 
     def custom_teardown(self):
-        db = mlrun.get_run_db()
-
-        db.del_runs(project=self.project_name, labels={"kind": "job"})
-        db.del_artifacts(tag="*", project=self.project_name)
+        self._run_db.del_runs(project=self.project_name, labels={"kind": "job"})
+        self._run_db.del_artifacts(tag="*", project=self.project_name)
 
     def create_demo_project(self) -> mlrun.projects.MlrunProject:
         raise NotImplementedError
@@ -39,13 +40,14 @@ class TestDemo(TestMLRunSystem):
         run_id = self._demo_project.run(
             "main",
             arguments=arguments,
-            artifact_path=self._artifact_path,
+            artifact_path=self._workflow_artifact_path,
             dirty=True,
             watch=True,
         )
 
-        db = mlrun.get_run_db().connect()
-        runs = db.list_runs(project=self.project_name, labels=f"workflow={run_id}")
+        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
+        self._run_db = mlrun.db.get_run_db()
+        runs = self._run_db.list_runs(project=self.project_name, labels=f"workflow={run_id}")
 
         self._logger.debug("Completed Runs", runs=runs)
 

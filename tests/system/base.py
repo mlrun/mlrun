@@ -32,6 +32,8 @@ class TestMLRunSystem:
         self._old_env = {}
         self._setup_env(self._get_env_from_file())
 
+        self._run_db = get_run_db()
+
         # the dbpath is already configured on the test startup before this stage
         # so even though we set the env var, we still need to directly configure
         # it in mlconf.
@@ -51,9 +53,8 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        db = get_run_db()
-        db.del_runs()
-        db.del_artifacts(tag="*")
+        self._run_db.del_runs(days_ago=1)
+        self._run_db.del_artifacts(tag="*")
 
         self._teardown_env()
         self._logger.info(

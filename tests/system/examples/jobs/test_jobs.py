@@ -8,7 +8,6 @@ from mlrun import (
     NewTask,
     run_pipeline,
     wait_for_pipeline_completion,
-    get_run_db,
 )
 from mlrun.platforms.other import mount_v3io
 
@@ -77,8 +76,7 @@ class TestJobs(TestMLRunSystem):
         )
 
         wait_for_pipeline_completion(workflow_run_id)
-        db = get_run_db().connect()
-        runs = db.list_runs(project="default", labels=f"workflow={workflow_run_id}")
+        runs = self._run_db.list_runs(project="default", labels=f"workflow={workflow_run_id}")
         assert len(runs) == 2
 
         validation_run = runs[0]

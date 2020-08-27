@@ -1,4 +1,4 @@
-from mlrun import get_run_db, run_local, NewTask
+from mlrun import run_local, NewTask
 
 from tests.system.base import TestMLRunSystem
 
@@ -7,7 +7,6 @@ from tests.system.base import TestMLRunSystem
 class TestDB(TestMLRunSystem):
     def custom_setup(self):
         self._logger.debug("Connecting to database")
-        self._deb = get_run_db().connect()
 
         self._logger.debug("Creating dummy task for db queries")
 
@@ -30,7 +29,7 @@ class TestDB(TestMLRunSystem):
         self._run_uid = run_object.uid()
 
     def test_db_commands(self):
-        runs = self._deb.list_runs()
+        runs = self._run_db.list_runs()
         assert len(runs) == 1
 
         self._verify_run_metadata(
@@ -55,7 +54,7 @@ class TestDB(TestMLRunSystem):
             data_stores=[],
         )
 
-        artifacts = self._deb.list_artifacts()
+        artifacts = self._run_db.list_artifacts()
         assert len(artifacts) == 4
         for artifact_key in ["chart", "html_result", "model", "mydf"]:
             artifact_exists = False
@@ -65,7 +64,7 @@ class TestDB(TestMLRunSystem):
                     break
             assert artifact_exists
 
-        runtimes = self._deb.list_runtimes()
+        runtimes = self._run_db.list_runtimes()
         assert len(runtimes) == 4
         for runtime_kind in ["dask", "job", "spark", "mpijob"]:
             runtime_exists = False

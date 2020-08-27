@@ -7,7 +7,7 @@ from tests.system.demos.base import TestDemo
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-class TestHorovodTSv2(TestDemo):
+class TestHorovodTFv2(TestDemo):
 
     project_name = "horovod-project"
 
@@ -76,6 +76,6 @@ class TestHorovodTSv2(TestDemo):
             runs_amount=3,
             arguments={
                 "model_name": "cat_vs_dog_tfv2",
-                "images_dir": self._artifact_path + "/images",
+                "images_dir": self._workflow_artifact_path + "/images",
             },
         )

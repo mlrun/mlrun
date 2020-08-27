@@ -9,7 +9,6 @@ from mlrun import (
     NewTask,
     run_pipeline,
     wait_for_pipeline_completion,
-    get_run_db,
 )
 
 from tests.system.base import TestMLRunSystem
@@ -82,8 +81,7 @@ class TestDask(TestMLRunSystem):
         )
 
         wait_for_pipeline_completion(workflow_run_id)
-        db = get_run_db().connect()
-        runs = db.list_runs(project="default", labels=f"workflow={workflow_run_id}")
+        runs = self._run_db.list_runs(project="default", labels=f"workflow={workflow_run_id}")
         assert len(runs) == 1
 
         run = runs[0]

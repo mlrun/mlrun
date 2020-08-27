@@ -115,12 +115,12 @@ class TestMLRunSystem:
         os.environ.update(self._old_env)
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:
-        v3io_user = self._test_env['V3IO_USERNAME']
+        v3io_user = self._test_env["V3IO_USERNAME"]
         prefixes = {
-            'remote': f'v3io:///users/{v3io_user}',
-            'local': '/User',
+            "remote": f"v3io:///users/{v3io_user}",
+            "local": "/User",
         }
-        prefix = prefixes['remote'] if remote else prefixes['local']
+        prefix = prefixes["remote"] if remote else prefixes["local"]
         return prefix + str(path)
 
     def _verify_run_spec(

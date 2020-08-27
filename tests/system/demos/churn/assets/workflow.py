@@ -81,10 +81,10 @@ def kfpipeline():
             "sample": -1,
             "event_column": "labels",
             "strata_cols": [
-                'InternetService',
-                'StreamingMovies',
-                'StreamingTV',
-                'PhoneService',
+                "InternetService",
+                "StreamingMovies",
+                "StreamingTV",
+                "PhoneService",
             ],
             "encode_cols": {"Contract": "Contract", "PaymentMethod": "Payment"},
             # outputs

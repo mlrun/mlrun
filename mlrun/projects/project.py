@@ -517,12 +517,12 @@ class MlrunProject(ModelObj):
     def push(self, branch, message=None, update=True, remote=None, add: list = None):
         """update spec and push updates to remote git repo
 
-         :param branch:  target git branch
-         :param message: git commit message
-         :param update:  update files (git add update=True)
-         :param remote:  git remote, default to origin
-         :param add:     list of files to add
-         """
+        :param branch:  target git branch
+        :param message: git commit message
+        :param update:  update files (git add update=True)
+        :param remote:  git remote, default to origin
+        :param add:     list of files to add
+        """
         repo = self.repo
         if not repo:
             raise ValueError("git repo is not set/defined")

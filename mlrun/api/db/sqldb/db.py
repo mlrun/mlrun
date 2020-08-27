@@ -289,7 +289,11 @@ class SQLDB(DBInterface):
         update_in(function, "metadata.updated", updated)
         fn = self._get_function(session, name, project, uid)
         if not fn:
-            fn = Function(name=name, project=project, uid=uid,)
+            fn = Function(
+                name=name,
+                project=project,
+                uid=uid,
+            )
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
@@ -640,7 +644,10 @@ class SQLDB(DBInterface):
                 Artifact.key,
                 func.max(Artifact.updated),
             )
-            .group_by(Artifact.project, Artifact.key.label("key"),)
+            .group_by(
+                Artifact.project,
+                Artifact.key.label("key"),
+            )
             .subquery("max_key")
         )
 

@@ -20,11 +20,11 @@ from .iguazio import mount_v3io
 
 def mount_pvc(pvc_name, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):
     """
-        Modifier function to apply to a Container Op to simplify volume, volume mount addition and
-        enable better reuse of volumes, volume claims across container ops.
-        Usage:
-            train = train_op(...)
-            train.apply(mount_pvc('claim-name', 'pipeline', '/mnt/pipeline'))
+    Modifier function to apply to a Container Op to simplify volume, volume mount addition and
+    enable better reuse of volumes, volume claims across container ops.
+    Usage:
+        train = train_op(...)
+        train.apply(mount_pvc('claim-name', 'pipeline', '/mnt/pipeline'))
     """
 
     def _mount_pvc(task):
@@ -72,17 +72,17 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
 def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
     """Modifier function to mount kubernetes secret as files(s)
 
-     :param secret_name:  k8s secret name
-     :param mount_path:   path to mount inside the container
-     :param volume_name:  unique volume name
-     :param items:        If unspecified, each key-value pair in the Data field
-                          of the referenced Secret will be projected into the
-                          volume as a file whose name is the key and content is
-                          the value.
-                          If specified, the listed keys will be projected into
-                          the specified paths, and unlisted keys will not be
-                          present.
-     """
+    :param secret_name:  k8s secret name
+    :param mount_path:   path to mount inside the container
+    :param volume_name:  unique volume name
+    :param items:        If unspecified, each key-value pair in the Data field
+                         of the referenced Secret will be projected into the
+                         volume as a file whose name is the key and content is
+                         the value.
+                         If specified, the listed keys will be projected into
+                         the specified paths, and unlisted keys will not be
+                         present.
+    """
 
     def _mount_secret(task):
         from kubernetes import client as k8s_client

@@ -355,7 +355,10 @@ class BasePod:
         self.add_volume(
             client.V1Volume(
                 name=name,
-                secret=client.V1SecretVolumeSource(secret_name=name, items=items,),
+                secret=client.V1SecretVolumeSource(
+                    secret_name=name,
+                    items=items,
+                ),
             ),
             mount_path=path,
         )

@@ -43,8 +43,8 @@ class PlotArtifact(Artifact):
             )
 
     def get_body(self):
-        """ Convert Matplotlib figure 'fig' into a <img> tag for HTML use
-        using base64 encoding. """
+        """Convert Matplotlib figure 'fig' into a <img> tag for HTML use
+        using base64 encoding."""
         if isinstance(self._body, bytes):
             data = self._body
         else:

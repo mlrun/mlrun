@@ -405,7 +405,10 @@ class FileRunDB(RunDBInterface):
 
     def store_schedule(self, data):
         sched_id = 1 + sum(1 for _ in scandir(self.schedules_dir))
-        fname = path.join(self.schedules_dir, "{}{}".format(sched_id, self.format),)
+        fname = path.join(
+            self.schedules_dir,
+            "{}{}".format(sched_id, self.format),
+        )
         with open(fname, "w") as out:
             out.write(self._dumps(data))
 

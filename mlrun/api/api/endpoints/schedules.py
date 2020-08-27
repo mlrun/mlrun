@@ -41,7 +41,9 @@ def list_schedules(
     "/projects/{project}/schedules/{name}", response_model=schemas.ScheduleOutput
 )
 def get_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().get_schedule(db_session, project, name)
 
@@ -50,7 +52,9 @@ def get_schedule(
     "/projects/{project}/schedules/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 def delete_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     get_scheduler().delete_schedule(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

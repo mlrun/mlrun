@@ -265,7 +265,7 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
 def get_or_create_ctx(
     name: str, event=None, spec=None, with_env: bool = True, rundb: str = ""
 ):
-    """ called from within the user program to obtain a run context
+    """called from within the user program to obtain a run context
 
     the run context is an interface for receiving parameters, data and logging
     run results, the run context is read from the event, spec, or environment

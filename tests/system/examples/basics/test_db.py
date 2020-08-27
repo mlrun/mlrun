@@ -1,4 +1,4 @@
-from mlrun import run_local, NewTask
+from mlrun import get_run_db, run_local, NewTask
 
 from tests.system.base import TestMLRunSystem
 
@@ -29,6 +29,9 @@ class TestDB(TestMLRunSystem):
         self._run_uid = run_object.uid()
 
     def test_db_commands(self):
+
+        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
+        self._run_db = get_run_db()
         runs = self._run_db.list_runs()
         assert len(runs) == 1
 

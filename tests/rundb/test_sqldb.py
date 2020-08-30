@@ -16,41 +16,14 @@
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import Callable
-from typing import Generator
 from unittest.mock import Mock
 
 import pytest
-from tests.conftest import new_run, init_sqldb
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import _tagged
-
-session_maker: Callable
-
-
-@pytest.fixture
-def db():
-    global session_maker
-    dsn = "sqlite:///:memory:?check_same_thread=false"
-    try:
-        session_maker = init_sqldb(dsn)
-        db_session = session_maker()
-        db = SQLDB(dsn)
-        db.initialize(db_session)
-    finally:
-        db_session.close()
-    return db
-
-
-@pytest.fixture()
-def db_session() -> Generator:
-    try:
-        db_session = session_maker()
-        yield db_session
-    finally:
-        db_session.close()
+from tests.conftest import new_run
 
 
 @contextmanager

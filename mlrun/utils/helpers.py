@@ -331,12 +331,15 @@ def parse_function_uri(uri):
 def extend_hub_uri(uri):
     if not uri.startswith(hub_prefix):
         return uri
-    name = uri[len(hub_prefix) :]
+    name = uri[len(hub_prefix):]
     tag = "master"
     if ":" in name:
         loc = name.find(":")
-        tag = name[loc + 1 :]
+        tag = name[loc + 1:]
         name = name[:loc]
+
+    # hub function directory name are with underscores instead of hyphens
+    name = name.replace('-', '_')
     return config.hub_url.format(name=name, tag=tag)
 
 

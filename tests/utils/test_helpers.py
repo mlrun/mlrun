@@ -44,28 +44,31 @@ def test_run_name_regex():
 
 def test_extend_hub_uri():
     cases = [
-        {"input": "http://no-hub-prefix", "expected_output": "http://no-hub-prefix"},
         {
-            "input": "hub://function_name",
+            "input_uri": "http://no-hub-prefix",
+            "expected_output": "http://no-hub-prefix",
+        },
+        {
+            "input_uri": "hub://function_name",
             "expected_output": "https://raw.githubusercontent.com/mlrun/functions/master/function_name/function.yaml",
         },
         {
-            "input": "hub://function_name:development",
+            "input_uri": "hub://function_name:development",
             "expected_output": "https://raw.githubusercontent.com/mlrun/functions/development/function_name/function.ya"
             "ml",
         },
         {
-            "input": "hub://function-name",
+            "input_uri": "hub://function-name",
             "expected_output": "https://raw.githubusercontent.com/mlrun/functions/master/function_name/function.yaml",
         },
         {
-            "input": "hub://function-name:development",
+            "input_uri": "hub://function-name:development",
             "expected_output": "https://raw.githubusercontent.com/mlrun/functions/development/function_name/function.ya"
             "ml",
         },
     ]
     for case in cases:
-        input = case["input"]
+        input_uri = case["input_uri"]
         expected_output = case["expected_output"]
-        output = extend_hub_uri(input)
+        output = extend_hub_uri(input_uri)
         assert expected_output == output

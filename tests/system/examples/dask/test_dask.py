@@ -82,8 +82,12 @@ class TestDask(TestMLRunSystem):
         )
 
         wait_for_pipeline_completion(workflow_run_id)
-        db = get_run_db().connect()
-        runs = db.list_runs(project="default", labels=f"workflow={workflow_run_id}")
+
+        # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
+        self._run_db = get_run_db()
+        runs = self._run_db.list_runs(
+            project="default", labels=f"workflow={workflow_run_id}"
+        )
         assert len(runs) == 1
 
         run = runs[0]

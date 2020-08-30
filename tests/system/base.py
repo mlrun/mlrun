@@ -32,6 +32,8 @@ class TestMLRunSystem:
         self._old_env = {}
         self._setup_env(self._get_env_from_file())
 
+        self._run_db = get_run_db()
+
         # the dbpath is already configured on the test startup before this stage
         # so even though we set the env var, we still need to directly configure
         # it in mlconf.
@@ -51,9 +53,8 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        db = get_run_db()
-        db.del_runs()
-        db.del_artifacts(tag="*")
+        self._run_db.del_runs(days_ago=1)
+        self._run_db.del_artifacts(tag="*")
 
         self._teardown_env()
         self._logger.info(
@@ -113,6 +114,15 @@ class TestMLRunSystem:
         for env_var in self._test_env:
             del os.environ[env_var]
         os.environ.update(self._old_env)
+
+    def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:
+        v3io_user = self._test_env["V3IO_USERNAME"]
+        prefixes = {
+            "remote": f"v3io:///users/{v3io_user}",
+            "local": "/User",
+        }
+        prefix = prefixes["remote"] if remote else prefixes["local"]
+        return prefix + str(path)
 
     def _verify_run_spec(
         self,

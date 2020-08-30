@@ -1095,10 +1095,7 @@ class BaseRuntimeHandler(ABC):
         self._ensure_runtime_resource_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_transient_state(
-        self,
-        db: DBInterface,
-        db_session: Session,
-        runtime_resource: Dict,
+        self, db: DBInterface, db_session: Session, runtime_resource: Dict,
     ) -> Tuple[bool, Optional[datetime]]:
         """
         A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime

@@ -41,10 +41,7 @@ def xcp_op(
         args = ["-r"] + args
 
     return dsl.ContainerOp(
-        name="xcp",
-        image="yhaviv/invoke",
-        command=["xcp"],
-        arguments=args,
+        name="xcp", image="yhaviv/invoke", command=["xcp"], arguments=args,
     )
 
 

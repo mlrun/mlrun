@@ -82,16 +82,9 @@ def _assert_runtime_handler_list_resources(
 def _assert_list_resources_response(
     resources, expected_crds=None, expected_pods=None, expected_services=None
 ):
-    if expected_crds is None:
-        expected_crds = []
-    else:
-        expected_crds = expected_crds["items"]
-    if expected_pods is None:
-        expected_pods = []
-    if expected_services is None:
-        expected_services = []
-    else:
-        expected_services = expected_services.items
+    expected_crds = expected_crds or []
+    expected_pods = expected_pods or []
+    expected_services = expected_services or []
     assert len(resources["crd_resources"]) == len(expected_crds)
     for index, crd in enumerate(expected_crds):
         assert resources["crd_resources"][index]["name"] == crd["metadata"]["name"]
@@ -133,7 +126,7 @@ def _mock_list_crds(k8s_helper_mock, crd_dicts):
         "items": crd_dicts,
     }
     k8s_helper_mock.crdapi.list_namespaced_custom_object.return_value = crds
-    return crds
+    return crd_dicts
 
 
 def _mock_list_services(k8s_helper_mock, service_dicts):
@@ -146,7 +139,7 @@ def _mock_list_services(k8s_helper_mock, service_dicts):
     services_mock = unittest.mock.Mock()
     services_mock.items = service_mocks
     k8s_helper_mock.v1api.list_namespaced_service.return_value = services_mock
-    return services_mock
+    return service_mocks
 
 
 def _mock_list_kubejob_pods(k8s_helper_mock):

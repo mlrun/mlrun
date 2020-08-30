@@ -59,10 +59,7 @@ def dict_to_artifact(struct: dict):
 
 class ArtifactManager:
     def __init__(
-        self,
-        stores: StoreManager,
-        db: RunDBInterface = None,
-        calc_hash=True,
+        self, stores: StoreManager, db: RunDBInterface = None, calc_hash=True,
     ):
         self.calc_hash = calc_hash
 

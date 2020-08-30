@@ -11,8 +11,7 @@ class TestDemo(TestMLRunSystem):
 
     def custom_setup(self):
         mlrun.set_environment(
-            artifact_path="/User/data",
-            project=self.project_name,
+            artifact_path="/User/data", project=self.project_name,
         )
 
         # specifically for each workflow, this combines the artifact path above with a

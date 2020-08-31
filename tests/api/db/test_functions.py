@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from mlrun.api.db.base import DBInterface
 import mlrun.errors
+from mlrun.api.db.base import DBInterface
 from tests.api.db.conftest import dbs
 
 

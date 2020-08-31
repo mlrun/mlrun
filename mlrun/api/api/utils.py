@@ -78,7 +78,9 @@ def _parse_submit_job_body(db_session: Session, data):
             function = import_function(url=function_url)
         else:
             project, name, tag, hash_key = parse_function_uri(function_url)
-            function_record = get_db().get_function(db_session, name, project, tag, hash_key)
+            function_record = get_db().get_function(
+                db_session, name, project, tag, hash_key
+            )
             if not function_record:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,

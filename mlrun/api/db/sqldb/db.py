@@ -1,8 +1,8 @@
-import pytz
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
+import pytz
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -309,6 +309,8 @@ class SQLDB(DBInterface):
             tag_function_uid = self._resolve_tag_function_uid(
                 session, Function, project, name, computed_tag
             )
+            if tag_function_uid is None:
+                raise mlrun.errors.MLRunNotFoundError(f"Function tag not found {project}/{name}:{tag}")
             uid = tag_function_uid
         if uid:
             query = query.filter(Function.uid == uid)
@@ -324,6 +326,8 @@ class SQLDB(DBInterface):
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
             return function
+        else:
+            raise mlrun.errors.MLRunNotFoundError(f"Function not found {project}/{name}:{tag}@{hash_key}")
 
     def list_functions(self, session, name, project=None, tag=None, labels=None):
         project = project or config.default_project

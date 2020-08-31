@@ -56,7 +56,7 @@ def get_run_db_instance(db_session: Session):
     return run_db
 
 
-def submit(db_session: Session, data):
+def _parse_submit_job_body(db_session: Session, data):
     task = data.get("task")
     function = data.get("function")
     url = data.get("functionUrl")
@@ -71,39 +71,43 @@ def submit(db_session: Session, data):
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
     # remote/container runtime)
 
-    response = None
-    try:
-        if function and not url:
-            fn = new_function(runtime=function)
+    if function and not url:
+        fn = new_function(runtime=function)
+    else:
+        if "://" in url:
+            fn = import_function(url=url)
         else:
-            if "://" in url:
-                fn = import_function(url=url)
-            else:
-                project, name, tag, hash_key = parse_function_uri(url)
-                runtime = get_db().get_function(
-                    db_session, name, project, tag, hash_key
+            project, name, tag, hash_key = parse_function_uri(url)
+            runtime = get_db().get_function(
+                db_session, name, project, tag, hash_key
+            )
+            if not runtime:
+                log_and_raise(
+                    HTTPStatus.NOT_FOUND.value,
+                    reason="runtime error: function {} not found".format(url),
                 )
-                if not runtime:
-                    log_and_raise(
-                        HTTPStatus.NOT_FOUND.value,
-                        reason="runtime error: function {} not found".format(url),
-                    )
-                fn = new_function(runtime=runtime)
+            fn = new_function(runtime=runtime)
 
-            if function:
-                fn2 = new_function(runtime=function)
-                for attr in [
-                    "volumes",
-                    "volume_mounts",
-                    "env",
-                    "resources",
-                    "image_pull_policy",
-                    "replicas",
-                ]:
-                    val = getattr(fn2.spec, attr, None)
-                    if val:
-                        setattr(fn.spec, attr, val)
+        if function:
+            fn2 = new_function(runtime=function)
+            for attr in [
+                "volumes",
+                "volume_mounts",
+                "env",
+                "resources",
+                "image_pull_policy",
+                "replicas",
+            ]:
+                val = getattr(fn2.spec, attr, None)
+                if val:
+                    setattr(fn.spec, attr, val)
 
+    return fn, task
+
+
+def submit(db_session: Session, data):
+    try:
+        fn, task = _parse_submit_job_body(db_session, data)
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
         logger.info("func:\n{}".format(fn.to_yaml()))

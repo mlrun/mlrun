@@ -21,6 +21,7 @@ LABEL org="iguazio.com"
 RUN apt-get update && apt-get install -y \
   gcc \
   git-core \
+  sqlite3 \
   vim
 
 RUN python -m pip install --upgrade --no-cache pip

@@ -82,10 +82,8 @@ def test_store_function_not_versioned(db: DBInterface, db_session: Session):
     assert function_result_1["metadata"]["tag"] == "latest"
 
     # not versioned so not queryable by hash key
-    function_result_2 = db.get_function(
-        db_session, function_name_1, hash_key=function_hash_key
-    )
-    assert function_result_2 is None
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(db_session, function_name_1, hash_key=function_hash_key)
 
     function_2 = {"bla": "blabla", "bla2": "blabla2"}
     db.store_function(db_session, function_2, function_name_1, versioned=False)

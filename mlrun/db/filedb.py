@@ -309,7 +309,7 @@ class FileRunDB(RunDBInterface):
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
-            return None
+            raise mlrun.errors.MLRunNotFoundError(f"Function not found {project}/{name}:{tag}@{hash_key}")
         data = self._datastore.get(filepath)
         parsed_data = self._loads(data)
 

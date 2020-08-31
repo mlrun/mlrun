@@ -78,9 +78,7 @@ def _parse_submit_job_body(db_session: Session, data):
             fn = import_function(url=url)
         else:
             project, name, tag, hash_key = parse_function_uri(url)
-            runtime = get_db().get_function(
-                db_session, name, project, tag, hash_key
-            )
+            runtime = get_db().get_function(db_session, name, project, tag, hash_key)
             if not runtime:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,

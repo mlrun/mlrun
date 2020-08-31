@@ -89,7 +89,7 @@ def _parse_submit_job_body(db_session: Session, data):
             fn = new_function(runtime=runtime)
 
         if function:
-            fn2 = new_function(runtime=function)
+            fn2 = new_function(runtime=function, kind=fn.kind)
             for attr in [
                 "volumes",
                 "volume_mounts",

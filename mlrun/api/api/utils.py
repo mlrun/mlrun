@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session
 
+import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
@@ -141,6 +142,8 @@ def submit(db_session: Session, data):
 
     except HTTPException:
         logger.error(traceback.format_exc())
+        raise
+    except mlrun.errors.MLRunHTTPStatusError:
         raise
     except Exception as err:
         logger.error(traceback.format_exc())

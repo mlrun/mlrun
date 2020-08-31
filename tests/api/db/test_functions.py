@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
+import mlrun.errors
 from tests.api.db.conftest import dbs
 
 
@@ -136,6 +137,21 @@ def test_get_function_by_tag(db: DBInterface, db_session: Session):
     # function not queried by tag shouldn't have status
     assert function_queried_by_tag["status"] is not None
     assert function_queried_by_hash_key["status"] is None
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
+)
+def test_get_function_not_found(db: DBInterface, db_session: Session):
+    function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
+    function_name_1 = "function_name_1"
+    db.store_function(db_session, function_1, function_name_1, versioned=True)
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(db_session, function_name_1, tag="inexistent_tag")
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(db_session, function_name_1, hash_key="inexistent_hash_key")
 
 
 @pytest.mark.parametrize(

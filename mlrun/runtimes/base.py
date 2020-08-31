@@ -198,7 +198,12 @@ class BaseRuntime(ModelObj):
         return False
 
     def _function_uri(self, tag=None, hash_key=None):
-        return generate_function_uri(self.metadata.project, self.metadata.name, tag=tag or self.metadata.tag, hash_key=hash_key)
+        return generate_function_uri(
+            self.metadata.project,
+            self.metadata.name,
+            tag=tag or self.metadata.tag,
+            hash_key=hash_key,
+        )
 
     def _get_db(self):
         if not self._db_conn:

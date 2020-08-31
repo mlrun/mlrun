@@ -311,9 +311,7 @@ class FileRunDB(RunDBInterface):
         )
         if not pathlib.Path(filepath).is_file():
             function_uri = generate_function_uri(project, name, tag, hash_key)
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Function not found {function_uri}"
-            )
+            raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
         data = self._datastore.get(filepath)
         parsed_data = self._loads(data)
 

@@ -58,11 +58,11 @@ def get_run_db_instance(db_session: Session):
 
 def _parse_submit_job_body(db_session: Session, data):
     task = data.get("task")
-    function = data.get("function")
-    url = data.get("functionUrl")
-    if not url and task:
-        url = get_in(task, "spec.function")
-    if not (function or url) or not task:
+    function_dict = data.get("function")
+    function_url = data.get("functionUrl")
+    if not function_url and task:
+        function_url = get_in(task, "spec.function")
+    if not (function_dict or function_url) or not task:
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason="bad JSON, need to include function/url and task objects",
@@ -71,24 +71,27 @@ def _parse_submit_job_body(db_session: Session, data):
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
     # remote/container runtime)
 
-    if function and not url:
-        fn = new_function(runtime=function)
+    if function_dict and not function_url:
+        function = new_function(runtime=function_dict)
     else:
-        if "://" in url:
-            fn = import_function(url=url)
+        if "://" in function_url:
+            function = import_function(url=function_url)
         else:
-            project, name, tag, hash_key = parse_function_uri(url)
-            runtime = get_db().get_function(db_session, name, project, tag, hash_key)
-            if not runtime:
+            project, name, tag, hash_key = parse_function_uri(function_url)
+            function_record = get_db().get_function(db_session, name, project, tag, hash_key)
+            if not function_record:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,
-                    reason="runtime error: function {} not found".format(url),
+                    reason="runtime error: function {} not found".format(function_url),
                 )
-            fn = new_function(runtime=runtime)
+            function = new_function(runtime=function_record)
 
-        if function:
-            fn2 = new_function(runtime=function, kind=fn.kind)
-            for attr in [
+        if function_dict:
+            # The purpose of the function dict is to enable the user to override configurations of the existing function
+            # without modifying it - to do that we're creating a function object from the request function dict and
+            # assign values from it to the main function object
+            override_function = new_function(runtime=function_dict, kind=function.kind)
+            for attribute in [
                 "volumes",
                 "volume_mounts",
                 "env",
@@ -96,11 +99,11 @@ def _parse_submit_job_body(db_session: Session, data):
                 "image_pull_policy",
                 "replicas",
             ]:
-                val = getattr(fn2.spec, attr, None)
-                if val:
-                    setattr(fn.spec, attr, val)
+                value = getattr(override_function.spec, attribute, None)
+                if value:
+                    setattr(function.spec, attribute, value)
 
-    return fn, task
+    return function, task
 
 
 def submit(db_session: Session, data):

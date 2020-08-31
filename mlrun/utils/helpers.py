@@ -337,6 +337,9 @@ def extend_hub_uri(uri):
         loc = name.find(":")
         tag = name[loc + 1 :]
         name = name[:loc]
+
+    # hub function directory name are with underscores instead of hyphens
+    name = name.replace("-", "_")
     return config.hub_url.format(name=name, tag=tag)
 
 

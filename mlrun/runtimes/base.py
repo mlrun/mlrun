@@ -31,7 +31,7 @@ import mlrun.utils.regex
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
-from mlrun.utils.helpers import verify_field_regex
+from mlrun.utils.helpers import verify_field_regex, generate_function_uri
 from .constants import PodPhases, RunStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
@@ -198,14 +198,7 @@ class BaseRuntime(ModelObj):
         return False
 
     def _function_uri(self, tag=None, hash_key=None):
-        url = "{}/{}".format(self.metadata.project, self.metadata.name)
-
-        # prioritize hash key over tag
-        if hash_key:
-            url += "@{}".format(hash_key)
-        elif tag or self.metadata.tag:
-            url += ":{}".format(tag or self.metadata.tag)
-        return url
+        return generate_function_uri(self.metadata.project, self.metadata.name, tag=tag or self.metadata.tag, hash_key=hash_key)
 
     def _get_db(self):
         if not self._db_conn:

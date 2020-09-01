@@ -4,7 +4,7 @@ import pytest
 import sys
 import yaml
 
-from mlrun import get_run_db, mlconf
+from mlrun import get_run_db, mlconf, set_environment
 from mlrun.utils import create_logger
 
 
@@ -13,6 +13,7 @@ logger = create_logger(level="debug", name="test")
 
 class TestMLRunSystem:
 
+    project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
@@ -38,6 +39,10 @@ class TestMLRunSystem:
         # so even though we set the env var, we still need to directly configure
         # it in mlconf.
         mlconf.dbpath = self._test_env["MLRUN_DBPATH"]
+
+        set_environment(
+            artifact_path="/User/data", project=self.project_name,
+        )
 
         self.custom_setup()
 

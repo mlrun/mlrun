@@ -7,12 +7,7 @@ from tests.system.base import TestMLRunSystem
 
 class TestDemo(TestMLRunSystem):
 
-    project_name = ""
-
     def custom_setup(self):
-        mlrun.set_environment(
-            artifact_path="/User/data", project=self.project_name,
-        )
 
         # specifically for each workflow, this combines the artifact path above with a
         # unique path made from the workflow uid.

@@ -58,7 +58,7 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        self._run_db.del_runs(days_ago=1)
+        self._run_db.del_runs(project=self.project_name, days_ago=1)
         self._run_db.del_artifacts(tag="*")
 
         self._teardown_env()

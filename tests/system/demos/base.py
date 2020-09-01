@@ -6,7 +6,6 @@ from tests.system.base import TestMLRunSystem
 
 
 class TestDemo(TestMLRunSystem):
-
     def custom_setup(self):
 
         # specifically for each workflow, this combines the artifact path above with a

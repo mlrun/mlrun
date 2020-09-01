@@ -1,0 +1,33 @@
+name: Build
+
+on:
+  push:
+    branches:
+    - build_actions
+#    - development
+#    - '[0-9]+.[0-9]+.x'
+
+jobs:
+  build-images:
+    name: Build image - ${{ matrix.image-name }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image-name: [mlrun, api]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build image
+#      if: steps.cache-dev-deps.outputs.cache-hit != 'true'
+      run: |
+        export GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
+        MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" make ${{ matrix.image-name }}
+#    - uses: actions/cache@v1
+#      id: cache-dev-deps
+#      with:
+#        path: .venv
+#        key: venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
+#        restore-keys: |
+#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-
+#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-
+#          venv-dev-${{ runner.os }}-py-
+#          venv-dev-${{ runner.os }}-

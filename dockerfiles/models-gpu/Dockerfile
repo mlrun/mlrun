@@ -25,6 +25,7 @@ ENV PATH /opt/conda/bin:$PATH
 SHELL ["/bin/bash", "-cu"]
 
 RUN apt-get update && \
+    apt-mark hold libcublas-dev libcublas10 && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         build-essential \

@@ -20,8 +20,10 @@ MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
 MLRUN_MLUTILS_GITHUB_TAG ?= development
 MLRUN_CACHE_DATE ?= $(shell date +%s)
-# empty by default, can be set to something like "tag-name" which will cause adding the --cache-from flag to docker
-# build command with value has the same image name with the given tag
+# empty by default, can be set to something like "tag-name" which will cause to:
+# 1. docker pull the same image with the given tag (cache image) before the build
+# 2. add the --cache-from falg to the docker build
+# 3. docker tag and push (also) the (updated) cache image
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
 
 
@@ -30,7 +32,6 @@ MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION
 MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION))
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
-
 
 .PHONY: help
 help: ## Display available commands

@@ -27,7 +27,7 @@ jobs:
     - name: Enable docker buildkit
       run: echo "::set-env name=DOCKER_BUILDKIT::1"
     - name: Build and push image
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" MLRUN_ADD_DOCKER_CACHE_FROM=unstable-"$PREVIOUS_GIT_HASH" make push-${{ matrix.image-name }}
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" MLRUN_DOCKER_CACHE_FROM_TAG=unstable-"$PREVIOUS_GIT_HASH" make push-${{ matrix.image-name }}
       # log out at the end cause we're using caching docker stuff
     - name: Docker logout
       run: docker logout ghcr.io

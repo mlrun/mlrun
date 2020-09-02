@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-#        image-name: [mlrun, api, base, base-legacy, models, models-legacy, models-gpu, models-gpu-legacy]
         image-name:
         - mlrun
         - api
@@ -26,6 +25,10 @@ jobs:
 #        - models-gpu-legacy
     steps:
     - uses: actions/checkout@v2
+    # since github-actions gives us 14G only, and fill it up with some garbage
+    # we will free up some space for us (~2GB)
+    - name: Freeing some disk space
+      run: docker system prune --all --force
     - name: Docker login
       run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
     - name: Set GIT_HASH env var

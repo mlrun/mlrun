@@ -1,9 +1,9 @@
 import click
 import json
-import yaml
 import paramiko
 import pathlib
 import requests
+import yaml
 
 import mlrun.utils
 

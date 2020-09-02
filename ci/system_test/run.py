@@ -11,11 +11,16 @@ import mlrun.utils
 logger = mlrun.utils.create_logger(level="debug", name="ci")
 
 
-class SystemTestCIRunner(object):
-    class Constants(object):
+class SystemTestCIRunner:
+    class Constants:
         ssh_username = "iguazio"
-        mlrun_code_path = pathlib.Path("/home/iguazio/")
-        system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
+
+        ci_dir_name = "mlrun-ci"
+        homedir = pathlib.Path("/home/iguazio/")
+        workdir = homedir / ci_dir_name
+        mlrun_code_path = workdir / "mlrun"
+        system_tests_env_yaml = mlrun_code_path / "tests" / "system" / "env.yml"
+
         git_url = "https://github.com/mlrun/mlrun.git"
         provctl_releases = (
             "https://api.github.com/repos/iguazio/provazio/releases/latest"
@@ -44,8 +49,6 @@ class SystemTestCIRunner(object):
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_key = github_access_key
 
-        self._clean_up_files = []
-
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_API": v3io_api,
@@ -64,31 +67,46 @@ class SystemTestCIRunner(object):
         )
 
     def run(self):
-        mlrun_path = self.Constants.mlrun_code_path / "mlrun"
-        self._prepare_test_env(mlrun_path)
-        provctl = self._download_povctl()
-        self._patch_mlrun(provctl)
 
-        self._run_command("cd", args=[str(mlrun_path), "&&", "make", "test-system"])
+        # for sanity clean up before starting the run
+        self.clean_up(close_ssh_client=False)
 
-    def clean_up(self):
+        self._prepare_test_env(self.Constants.mlrun_code_path)
+        provctl_path = self._download_povctl()
+        self._patch_mlrun(provctl_path)
+
+        self._run_command(
+            "make", args=["test-system"], workdir=self.Constants.mlrun_code_path
+        )
+
+    def clean_up(self, close_ssh_client: bool = True):
         self._logger.info("Cleaning up")
-        if len(self._clean_up_files) > 0:
-            self._run_command(f'rm -f {" ".join(self._clean_up_files)}')
+        self._run_command(
+            f'rm -rf {self.Constants.workdir}', workdir=self.Constants.homedir
+        )
 
-        self._ssh_client.close()
+        if close_ssh_client:
+            self._ssh_client.close()
 
     def _run_command(
         self,
         command: str,
         args: list = None,
+        workdir: str = None,
         stdin: str = None,
         live: bool = True,
         suppress_errors: bool = False,
     ) -> str:
+        workdir = workdir or self.Constants.workdir
+        stdout, stderr, exit_status = "", "", 0
         self._logger.debug(
-            "Running command on data cluster", command=command, args=args, stdin=stdin
+            "Running command on data cluster",
+            command=command,
+            args=args,
+            stdin=stdin,
+            workdir=workdir,
         )
+        command = f"cd {workdir}; " + command
         if args:
             command += " " + " ".join(args)
         try:
@@ -101,7 +119,6 @@ class SystemTestCIRunner(object):
                 stdin_stream.close()
 
             if live:
-                stdout = ""
                 while True:
                     line = stdout_stream.readline()
                     stdout += line
@@ -118,7 +135,12 @@ class SystemTestCIRunner(object):
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as e:
             self._logger.error(
-                "Failed running command on data cluster", command=command, error=e
+                "Failed running command on data cluster",
+                command=command,
+                error=e,
+                stdout=stdout,
+                stderr=stderr,
+                exit_status=exit_status,
             )
             raise
         else:
@@ -127,6 +149,7 @@ class SystemTestCIRunner(object):
                 command=command,
                 stdout=stdout,
                 stderr=stderr,
+                exit_status=exit_status,
             )
             return stdout
 
@@ -141,16 +164,17 @@ class SystemTestCIRunner(object):
             if asset["name"] == self.Constants.provctl_binary_format.format(
                 release_name=latest_provazio_release["name"]
             ):
+                self._logger.debug(
+                    "Got provactl release url",
+                    release=latest_provazio_release["name"],
+                    name=asset["name"],
+                    url=asset["url"],
+                )
                 return asset["name"], asset["url"]
 
         raise RuntimeError("provctl binary not found")
 
     def _prepare_test_env(self, mlrun_path):
-
-        # remove mlrun directory if exists
-        if self._run_command(f"ls -d {mlrun_path}", suppress_errors=True) != b"":
-            self._logger.debug("Removing previous mlrun code")
-            self._run_command("rm", args=["-rf", str(mlrun_path)])
 
         self._logger.debug("Cloning mlrun from github")
         self._run_command(
@@ -166,15 +190,17 @@ class SystemTestCIRunner(object):
 
     def _download_povctl(self):
         provctl, provctl_url = self._get_provctl_version_and_url()
-        self._clean_up_files.append(provctl)
         self._logger.debug("Downloading provctl to data node", provctl_url=provctl_url)
         self._run_command(
             "curl",
             args=[
-                "-vLJO",
-                "-H",
+                "--verbose",
+                "--location",
+                "--remote-header-name",
+                "--remote-name",
+                "--header",
                 '"Accept: application/octet-stream"',
-                "-H",
+                "--header",
                 f'"Authorization: token {self._github_access_key}"',
                 provctl_url,
             ],
@@ -182,7 +208,7 @@ class SystemTestCIRunner(object):
         self._run_command("chmod", args=["+x", provctl])
         return provctl
 
-    def _patch_mlrun(self, provctl):
+    def _patch_mlrun(self, provctl_path):
         self._logger.debug(
             "Creating mlrun patch archive", mlrun_version=self._mlrun_version
         )
@@ -193,7 +219,7 @@ class SystemTestCIRunner(object):
             repo_arg = f"--override-image-pull-repo {self._mlrun_repo}"
 
         self._run_command(
-            f"./{provctl}",
+            f"./{provctl_path}",
             args=[
                 "create-patch",
                 "appservice",
@@ -203,11 +229,10 @@ class SystemTestCIRunner(object):
                 mlrun_archive,
             ],
         )
-        self._clean_up_files.append(mlrun_archive)
 
-        self._logger.debug("Patching MLRun version", mlrun_version=self._mlrun_version)
+        self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(
-            f"./{provctl}",
+            f"./{provctl_path}",
             args=[
                 "--app-cluster-password",
                 self._app_cluster_ssh_password,
@@ -238,8 +263,8 @@ def main():
 @click.argument("mlrun-dbpath", type=str, required=True)
 @click.argument("v3io-api", type=str, required=True)
 @click.argument("v3io-username", type=str, required=True)
-@click.argument("v3io-password", type=str, required=True)
 @click.argument("v3io-access-key", type=str, required=True)
+@click.argument("v3io-password", type=str, required=False)
 def run(
     mlrun_version: str,
     mlrun_repo: str,

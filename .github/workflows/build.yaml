@@ -10,7 +10,7 @@ on:
 jobs:
   build-images:
     name: Build and push image - ${{ matrix.image-name }}
-    if: github.repository == 'hedingber/mlrun'
+    if: github.repository == 'mlrun/mlrun'
     runs-on: ubuntu-latest
     strategy:
       matrix:

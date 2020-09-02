@@ -111,7 +111,7 @@ class LocalRuntime(BaseRuntime):
             if self.spec.mode == "pass":
                 cmd = [self.spec.command]
             else:
-                cmd = [executable, self.spec.command]
+                cmd = [executable, '-u', self.spec.command]
 
             env = None
             if self.spec.pythonpath:
@@ -174,12 +174,12 @@ def run_exec(cmd, args, env=None, cwd=None):
     out = ""
     process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
     while True:
-        output = process.stdout.read().decode("utf-8")
-        if process.poll() is not None:
+        nextline = process.stdout.readline()
+        if not nextline and process.poll() is not None:
             break
-        if output:
-            out += output
-            print(output, end="")
+        print(nextline.decode("utf-8"), end='')
+        sys.stdout.flush()
+        out += nextline.decode("utf-8")
     code = process.poll()
 
     err = process.stderr.read().decode("utf-8") if code != 0 else ""

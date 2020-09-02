@@ -22,7 +22,7 @@ jobs:
       run: echo "::set-env name=GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
     - name: Enable docker buildkit
       run: echo "::set-env name=DOCKER_BUILDKIT::1"
-    - name: Build and push image
+    - name: Build and push imag
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" MLRUN_ADD_DOCKER_CACHE_FROM=true make push-${{ matrix.image-name }}
       # log out at the end cause we're using caching docker stuff
     - name: Docker logout

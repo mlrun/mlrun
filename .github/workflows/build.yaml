@@ -20,7 +20,7 @@ jobs:
         - base-legacy
         - models
         - models-legacy
-# The GPU images are too big (~17GB) GH action runner has only 14GB
+# The GPU images are too big (~24GB) GH action runner has only 14GB
 #        - models-gpu
 #        - models-gpu-legacy
     steps:

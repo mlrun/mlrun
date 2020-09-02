@@ -4,32 +4,24 @@ on:
   push:
     branches:
     - build_actions
-    - build_actions_2
 #    - development
 #    - '[0-9]+.[0-9]+.x'
 
 jobs:
   build-images:
-    name: Build image - ${{ matrix.image-name }}
+    name: Build and push image - ${{ matrix.image-name }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         image-name: [mlrun, api]
     steps:
     - uses: actions/checkout@v2
-    - name: Build image
-#      if: steps.cache-dev-deps.outputs.cache-hit != 'true'
-      run: |
-        echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
-        export GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" make push-${{ matrix.image-name }}
-#    - uses: actions/cache@v1
-#      id: cache-dev-deps
-#      with:
-#        path: .venv
-#        key: venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
-#        restore-keys: |
-#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-
-#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-
-#          venv-dev-${{ runner.os }}-py-
-#          venv-dev-${{ runner.os }}-
+    - name: Docker login
+      run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
+    - name: Set GIT_HASH env var
+      run: echo '::set-env name=SELECTED_COLOR::$(echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com -u $GITHUB_ACTOR --password-stdin)'
+    - name: Build and push image
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" MLRUN_ADD_DOCKER_CACHE_FROM=true make push-${{ matrix.image-name }}
+      # log out at the end cause we're using caching docker stuff
+    - name: Docker logout
+      run: docker logout ghcr.io

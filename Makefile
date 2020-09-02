@@ -20,6 +20,7 @@ MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
 MLRUN_MLUTILS_GITHUB_TAG ?= development
 MLRUN_CACHE_DATE ?= $(shell date +%s)
+MLRUN_ADD_DOCKER_CACHE_FROM ?= # empty (false) be default, setting it to anything will cause adding the --cache-from flag to docker build commands
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -189,19 +190,22 @@ push-models-gpu-legacy: models-gpu-legacy ## Push models gpu legacy docker image
 	docker push $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 
 
-MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
-DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME)
+MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
+MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
+MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_ADD_DOCKER_CACHE_FROM),--cache-from $(strip $(MLRUN_IMAGE_NAME)),)
+DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun
 mlrun: ## Build mlrun docker image
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--tag $(MLRUN_IMAGE_NAME) .
+		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-mlrun
 push-mlrun: mlrun ## Push mlrun docker image
-	docker push $(MLRUN_IMAGE_NAME)
+	docker push $(MLRUN_IMAGE_NAME_TAGGED)
 
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter:$(MLRUN_DOCKER_TAG)
@@ -235,19 +239,23 @@ push-serving: serving ## Push serving docker image
 	docker push $(MLRUN_SERVING_IMAGE_NAME)
 
 
-MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TAG)
-DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME)
+MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
+MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
+MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_ADD_DOCKER_CACHE_FROM),--cache-from $(strip $(MLRUN_API_IMAGE_NAME)),)
+DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: api
 api: ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--tag $(MLRUN_API_IMAGE_NAME) .
+		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-api
 push-api: api ## Push api docker image
-	docker push $(MLRUN_API_IMAGE_NAME)
+	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)
+
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 

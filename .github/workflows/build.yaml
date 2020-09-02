@@ -4,6 +4,7 @@ on:
   push:
     branches:
     - build_actions
+    - build_actions_2
 #    - development
 #    - '[0-9]+.[0-9]+.x'
 
@@ -19,8 +20,9 @@ jobs:
     - name: Build image
 #      if: steps.cache-dev-deps.outputs.cache-hit != 'true'
       run: |
+        echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
         export GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
-        MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" make ${{ matrix.image-name }}
+        MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" make push-${{ matrix.image-name }}
 #    - uses: actions/cache@v1
 #      id: cache-dev-deps
 #      with:

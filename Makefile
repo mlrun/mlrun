@@ -29,6 +29,8 @@ MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSIO
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 
+MLRUN_DOCKER_CACHE_ARG := $(if $(MLRUN_ADD_DOCKER_CACHE_FROM),--build-arg BUILDKIT_INLINE_CACHE=1,)
+
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -200,6 +202,7 @@ mlrun: ## Build mlrun docker image
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		$(MLRUN_DOCKER_CACHE_ARG) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 
@@ -249,6 +252,7 @@ api: ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		$(MLRUN_DOCKER_CACHE_ARG) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
 

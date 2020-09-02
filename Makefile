@@ -14,13 +14,15 @@
 
 MLRUN_DOCKER_TAG ?= unstable
 MLRUN_DOCKER_REPO ?= mlrun
-MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to something like "quay.io/"
+MLRUN_DOCKER_REGISTRY ?=  # empty by default (dockerhub), can be set to something like "quay.io/"
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
 MLRUN_MLUTILS_GITHUB_TAG ?= development
 MLRUN_CACHE_DATE ?= $(shell date +%s)
-MLRUN_ADD_DOCKER_CACHE_FROM ?= # empty (false) be default, setting it to anything will cause adding the --cache-from flag to docker build commands
+# empty by default, can be set to something like "tag-name" which will cause adding the --cache-from flag to docker
+# build command with value has the same image name with the given tag
+MLRUN_DOCKER_CACHE_FROM_TAG ?=
 
 
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -29,7 +31,7 @@ MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSIO
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 
-MLRUN_DOCKER_CACHE_ARG := $(if $(MLRUN_ADD_DOCKER_CACHE_FROM),--build-arg BUILDKIT_INLINE_CACHE=1,)
+MLRUN_DOCKER_CACHE_ARG := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),--build-arg BUILDKIT_INLINE_CACHE=1,)
 
 .PHONY: help
 help: ## Display available commands
@@ -194,7 +196,8 @@ push-models-gpu-legacy: models-gpu-legacy ## Push models gpu legacy docker image
 
 MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun
 MLRUN_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
-MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_ADD_DOCKER_CACHE_FROM),--cache-from $(strip $(MLRUN_IMAGE_NAME)),)
+MLRUN_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)
+MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun
@@ -244,7 +247,8 @@ push-serving: serving ## Push serving docker image
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
-MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_ADD_DOCKER_CACHE_FROM),--cache-from $(strip $(MLRUN_API_IMAGE_NAME)),)
+MLRUN_API_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)
+MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),--cache-from $(strip $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED)),)
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: api

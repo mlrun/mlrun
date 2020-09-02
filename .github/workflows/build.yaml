@@ -27,7 +27,7 @@ jobs:
       run: |
         export PREVIOUS_GIT_HASH=$(git rev-parse --short "$GITHUB_SHA^")
         echo "::set-env name=PREVIOUS_GIT_HASH::$PREVIOUS_GIT_HASH"
-#    - name: Enable docker buildkit
-#      run: echo "::set-env name=DOCKER_BUILDKIT::1"
+    - name: Enable docker buildkit
+      run: echo "::set-env name=DOCKER_BUILDKIT::1"
     - name: Build and push image
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" MLRUN_DOCKER_CACHE_FROM_TAG=unstable-"$PREVIOUS_GIT_HASH" make push-${{ matrix.image-name }}
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make push-${{ matrix.image-name }}

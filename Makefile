@@ -212,6 +212,8 @@ mlrun: ## Build mlrun docker image
 .PHONY: push-mlrun
 push-mlrun: mlrun ## Push mlrun docker image
 	docker push $(MLRUN_IMAGE_NAME_TAGGED)
+	docker tag $(MLRUN_IMAGE_NAME_TAGGED) $(MLRUN_CACHE_IMAGE_NAME_TAGGED)
+	docker push $(MLRUN_CACHE_IMAGE_NAME_TAGGED)
 
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter:$(MLRUN_DOCKER_TAG)
@@ -263,6 +265,8 @@ api: ## Build mlrun-api docker image
 .PHONY: push-api
 push-api: api ## Push api docker image
 	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)
+	docker tag $(MLRUN_API_IMAGE_NAME_TAGGED) $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED)
+	docker push $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED)
 
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)

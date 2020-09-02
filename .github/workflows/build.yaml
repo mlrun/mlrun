@@ -3,14 +3,13 @@ name: Build
 on:
   push:
     branches:
-    - build_actions
-#    - development
+    - development
 #    - '[0-9]+.[0-9]+.x'
 
 jobs:
   build-images:
     name: Build and push image - ${{ matrix.image-name }}
-    if: github.repository == 'hedingber/mlrun'
+    if: github.repository == 'mlrun/mlrun'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -21,6 +20,7 @@ jobs:
         - base-legacy
         - models
         - models-legacy
+# The GPU images are too big (~17GB) GH action runner has only 14GB
 #        - models-gpu
 #        - models-gpu-legacy
     steps:

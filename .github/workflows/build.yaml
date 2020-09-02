@@ -23,7 +23,9 @@ jobs:
     - name: Set GIT_HASH env var
       run: echo "::set-env name=GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
     - name: Set PREVIOUS_GIT_HASH env var
-      run: echo "::set-env name=PREVIOUS_GIT_HASH::$(git rev-parse --short ^$GITHUB_SHA)"
+      run: |
+        export PREVIOUS_GIT_HASH=$(git rev-parse --short "$GITHUB_SHA^")
+        echo "::set-env name=PREVIOUS_GIT_HASH::$PREVIOUS_GIT_HASH"
     - name: Enable docker buildkit
       run: echo "::set-env name=DOCKER_BUILDKIT::1"
     - name: Build and push image

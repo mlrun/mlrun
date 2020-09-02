@@ -19,7 +19,7 @@ jobs:
     - name: Docker login
       run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
     - name: Set GIT_HASH env var
-      run: echo "::set-env name=GIT_HASH::$(git rev-parse --short \"$GITHUB_SHA\")"
+      run: echo "::set-env name=GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
     - name: Build and push image
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_TAG=unstable-"$GIT_HASH" MLRUN_ADD_DOCKER_CACHE_FROM=true make push-${{ matrix.image-name }}
       # log out at the end cause we're using caching docker stuff

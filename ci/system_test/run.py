@@ -40,8 +40,8 @@ class SystemTestCIRunner:
         mlrun_dbpath: str,
         v3io_api: str,
         v3io_username: str,
-        v3io_password: str,
         v3io_access_key: str,
+        v3io_password: str = None,
     ):
         self._logger = logger
         self._mlrun_version = mlrun_version
@@ -55,9 +55,10 @@ class SystemTestCIRunner:
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_API": v3io_api,
             "V3IO_USERNAME": v3io_username,
-            "V3IO_PASSWORD": v3io_password,
             "V3IO_ACCESS_KEY": v3io_access_key,
         }
+        if v3io_password:
+            self._env_config["V3IO_PASSWORD"] = v3io_password
 
         self._logger.info("Connecting to data-cluster")
         self._ssh_client = paramiko.SSHClient()
@@ -84,7 +85,7 @@ class SystemTestCIRunner:
     def clean_up(self, close_ssh_client: bool = True):
         self._logger.info("Cleaning up")
         self._run_command(
-            f'rm -rf {self.Constants.workdir}', workdir=self.Constants.homedir
+            f"rm -rf {self.Constants.workdir}", workdir=self.Constants.homedir
         )
 
         if close_ssh_client:
@@ -103,7 +104,7 @@ class SystemTestCIRunner:
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
 
-        log_command_location = 'locally' if local else 'on data cluster'
+        log_command_location = "locally" if local else "on data cluster"
 
         self._logger.debug(
             f"Running command {log_command_location}",
@@ -206,11 +207,11 @@ class SystemTestCIRunner:
         )
 
         if stdin:
-            process.stdin.write(bytes(stdin, 'ascii'))
+            process.stdin.write(bytes(stdin, "ascii"))
             process.stdin.close()
 
         if live:
-            for line in iter(process.stdout.readline, b''):
+            for line in iter(process.stdout.readline, b""):
                 stdout += str(line)
                 sys.stdout.write(line.decode(sys.stdout.encoding))
         else:
@@ -246,6 +247,10 @@ class SystemTestCIRunner:
         raise RuntimeError("provctl binary not found")
 
     def _prepare_test_env(self):
+
+        self._run_command(
+            "mkdir", args=["-p", str(self.Constants.workdir)],
+        )
 
         self._logger.debug("Populating system tests env.yml")
         self._run_command(
@@ -331,7 +336,7 @@ def main():
 @click.argument("v3io-api", type=str, required=True)
 @click.argument("v3io-username", type=str, required=True)
 @click.argument("v3io-access-key", type=str, required=True)
-@click.argument("v3io-password", type=str, required=False)
+@click.argument("v3io-password", type=str, default=None, required=False)
 def run(
     mlrun_version: str,
     mlrun_repo: str,

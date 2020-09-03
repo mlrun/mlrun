@@ -117,7 +117,8 @@ class TestMLRunSystem:
     def _teardown_env(self):
         self._logger.debug("Tearing down test environment")
         for env_var in self._test_env:
-            del os.environ[env_var]
+            if env_var in os.environ:
+                del os.environ[env_var]
         os.environ.update(self._old_env)
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:

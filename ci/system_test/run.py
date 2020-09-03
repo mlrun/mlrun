@@ -3,6 +3,8 @@ import json
 import paramiko
 import pathlib
 import requests
+import subprocess
+import sys
 import yaml
 
 import mlrun.utils
@@ -19,7 +21,7 @@ class SystemTestCIRunner:
         homedir = pathlib.Path("/home/iguazio/")
         workdir = homedir / ci_dir_name
         mlrun_code_path = workdir / "mlrun"
-        system_tests_env_yaml = mlrun_code_path / "tests" / "system" / "env.yml"
+        system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
 
         git_url = "https://github.com/mlrun/mlrun.git"
         provctl_releases = (
@@ -71,12 +73,12 @@ class SystemTestCIRunner:
         # for sanity clean up before starting the run
         self.clean_up(close_ssh_client=False)
 
-        self._prepare_test_env(self.Constants.mlrun_code_path)
+        self._prepare_test_env()
         provctl_path = self._download_povctl()
         self._patch_mlrun(provctl_path)
 
         self._run_command(
-            "make", args=["test-system"], workdir=self.Constants.mlrun_code_path
+            "make", args=["test-system"], local=True,
         )
 
     def clean_up(self, close_ssh_client: bool = True):
@@ -96,46 +98,32 @@ class SystemTestCIRunner:
         stdin: str = None,
         live: bool = True,
         suppress_errors: bool = False,
+        local: bool = False,
     ) -> str:
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
+
+        log_command_location = 'locally' if local else 'on data cluster'
+
         self._logger.debug(
-            "Running command on data cluster",
+            f"Running command {log_command_location}",
             command=command,
             args=args,
             stdin=stdin,
             workdir=workdir,
         )
-        command = f"cd {workdir}; " + command
-        if args:
-            command += " " + " ".join(args)
         try:
-            stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-                command
-            )
-
-            if stdin:
-                stdin_stream.write(stdin)
-                stdin_stream.close()
-
-            if live:
-                while True:
-                    line = stdout_stream.readline()
-                    stdout += line
-                    if not line:
-                        break
-                    print(line, end="")
+            if local:
+                stdout, stderr, exit_status = self._run_command_locally(
+                    command, args, workdir, stdin, live, suppress_errors
+                )
             else:
-                stdout = stdout_stream.read()
-
-            stderr = stderr_stream.read()
-
-            exit_status = stdout_stream.channel.recv_exit_status()
-            if exit_status != 0 and not suppress_errors:
-                raise RuntimeError(f"Command failed with exit status: {exit_status}")
+                stdout, stderr, exit_status = self._run_command_remotely(
+                    command, args, workdir, stdin, live, suppress_errors
+                )
         except (paramiko.SSHException, RuntimeError) as e:
             self._logger.error(
-                "Failed running command on data cluster",
+                f"Failed running command {log_command_location}",
                 command=command,
                 error=e,
                 stdout=stdout,
@@ -145,13 +133,96 @@ class SystemTestCIRunner:
             raise
         else:
             self._logger.debug(
-                "Successfully ran command on data cluster",
+                f"Successfully ran command {log_command_location}",
                 command=command,
                 stdout=stdout,
                 stderr=stderr,
                 exit_status=exit_status,
             )
             return stdout
+
+    def _run_command_remotely(
+        self,
+        command: str,
+        args: list = None,
+        workdir: str = None,
+        stdin: str = None,
+        live: bool = True,
+        suppress_errors: bool = False,
+    ) -> (str, str, int):
+        workdir = workdir or self.Constants.workdir
+        stdout, stderr, exit_status = "", "", 0
+        command = f"cd {workdir}; " + command
+        if args:
+            command += " " + " ".join(args)
+
+        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
+            command
+        )
+
+        if stdin:
+            stdin_stream.write(stdin)
+            stdin_stream.close()
+
+        if live:
+            while True:
+                line = stdout_stream.readline()
+                stdout += line
+                if not line:
+                    break
+                print(line, end="")
+        else:
+            stdout = stdout_stream.read()
+
+        stderr = stderr_stream.read()
+
+        exit_status = stdout_stream.channel.recv_exit_status()
+        if exit_status != 0 and not suppress_errors:
+            raise RuntimeError(f"Command failed with exit status: {exit_status}")
+
+        return stdout, stderr, exit_status
+
+    def _run_command_locally(
+        self,
+        command: str,
+        args: list = None,
+        workdir: str = None,
+        stdin: str = None,
+        live: bool = True,
+        suppress_errors: bool = False,
+    ) -> (str, str, int):
+        stdout, stderr, exit_status = "", "", 0
+        if workdir:
+            command = f"cd {workdir}; " + command
+        if args:
+            command += " " + " ".join(args)
+
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            shell=True,
+        )
+
+        if stdin:
+            process.stdin.write(bytes(stdin, 'ascii'))
+            process.stdin.close()
+
+        if live:
+            for line in iter(process.stdout.readline, b''):
+                stdout += str(line)
+                sys.stdout.write(line.decode(sys.stdout.encoding))
+        else:
+            stdout = process.stdout.read()
+
+        stderr = process.stderr.read()
+
+        exit_status = process.wait()
+        if exit_status != 0 and not suppress_errors:
+            raise RuntimeError(f"Command failed with exit status: {exit_status}")
+
+        return stdout, stderr, exit_status
 
     def _get_provctl_version_and_url(self):
         response = requests.get(
@@ -174,18 +245,14 @@ class SystemTestCIRunner:
 
         raise RuntimeError("provctl binary not found")
 
-    def _prepare_test_env(self, mlrun_path):
-
-        self._logger.debug("Cloning mlrun from github")
-        self._run_command(
-            "git", args=["clone", self.Constants.git_url, str(mlrun_path)]
-        )
+    def _prepare_test_env(self):
 
         self._logger.debug("Populating system tests env.yml")
         self._run_command(
             "cat > ",
-            args=[str(mlrun_path / self.Constants.system_tests_env_yaml)],
+            args=[str(self.Constants.system_tests_env_yaml)],
             stdin=yaml.safe_dump(self._env_config),
+            local=True,
         )
 
     def _download_povctl(self):

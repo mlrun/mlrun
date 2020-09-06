@@ -58,11 +58,7 @@ RUN conda install -y -c plotly plotly-orca python=3.6
 RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-# plain vanilla tensorflow isn't compiled optimaly for the architectures
-# we are likely to encounter.  this should become an option:
-#RUN python -m pip install -U intel-tensorflow==1.15 keras pillow requests
-
-RUN conda install -n base -c anaconda tensorflow=1.15 keras
+RUN python -m pip install -U intel-tensorflow==1.15 keras
 
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install horovod

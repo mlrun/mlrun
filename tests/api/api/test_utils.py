@@ -54,10 +54,12 @@ def test_parse_submit_job_body(db: Session, client: TestClient):
                 "limits": {"cpu": "40m", "memory": "128Mi", "nvidia.com/gpu": "7"},
                 "requests": {"cpu": "15m", "memory": "86Mi"},
             },
-            "env": [{"name": "OLD_ENV_VAR_KEY", "value": "old-env-var-value"},
-                    {"name": "OVERRIDE_ENV_VAR_KEY", "value": "override-env-var-value"}],
+            "env": [
+                {"name": "OLD_ENV_VAR_KEY", "value": "old-env-var-value"},
+                {"name": "OVERRIDE_ENV_VAR_KEY", "value": "override-env-var-value"},
+            ],
             "image_pull_policy": "IfNotPresent",
-            "replicas": "1"
+            "replicas": "1",
         },
     }
 
@@ -101,8 +103,10 @@ def test_parse_submit_job_body(db: Session, client: TestClient):
                         "mountPath": "/secret/volume/mount/path",
                     },
                 ],
-                "env": [{"name": "OVERRIDE_ENV_VAR_KEY", "value": "new-env-var-value"},
-                        {"name": "NEW_ENV_VAR_KEY", "value": "env-var-value"}],
+                "env": [
+                    {"name": "OVERRIDE_ENV_VAR_KEY", "value": "new-env-var-value"},
+                    {"name": "NEW_ENV_VAR_KEY", "value": "env-var-value"},
+                ],
                 "resources": {
                     "limits": {"cpu": "250m", "memory": "64Mi", "nvidia.com/gpu": "2"},
                     "requests": {"cpu": "200m", "memory": "32Mi"},
@@ -116,30 +120,67 @@ def test_parse_submit_job_body(db: Session, client: TestClient):
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
-    assert parsed_function_object.spec.resources == submit_job_body["function"]["spec"]["resources"]
-    assert parsed_function_object.spec.image_pull_policy == submit_job_body["function"]["spec"]["image_pull_policy"]
-    assert parsed_function_object.spec.replicas == submit_job_body["function"]["spec"]["replicas"]
+    assert (
+        parsed_function_object.spec.resources
+        == submit_job_body["function"]["spec"]["resources"]
+    )
+    assert (
+        parsed_function_object.spec.image_pull_policy
+        == submit_job_body["function"]["spec"]["image_pull_policy"]
+    )
+    assert (
+        parsed_function_object.spec.replicas
+        == submit_job_body["function"]["spec"]["replicas"]
+    )
 
-    _assert_volumes_and_volume_mounts(parsed_function_object, submit_job_body, original_function)
+    _assert_volumes_and_volume_mounts(
+        parsed_function_object, submit_job_body, original_function
+    )
     _assert_env_vars(parsed_function_object, submit_job_body, original_function)
 
 
-def _assert_volumes_and_volume_mounts(parsed_function_object, submit_job_body, original_function):
+def _assert_volumes_and_volume_mounts(
+    parsed_function_object, submit_job_body, original_function
+):
     """
     expected volumes and volume mounts:
     0: old volume from original function (the first one there)
     1: volume that was in original function but was overridden with body (the first one in the body)
     2: new volume from the body (the second in the body)
     """
-    assert original_function["spec"]["volumes"][0] == parsed_function_object.spec.volumes[0]
-    assert original_function["spec"]["volumes"][1] != parsed_function_object.spec.volumes[1]
-    assert submit_job_body["function"]["spec"]["volumes"][0] == parsed_function_object.spec.volumes[1]
-    assert submit_job_body["function"]["spec"]["volumes"][1] == parsed_function_object.spec.volumes[2]
+    assert (
+        original_function["spec"]["volumes"][0]
+        == parsed_function_object.spec.volumes[0]
+    )
+    assert (
+        original_function["spec"]["volumes"][1]
+        != parsed_function_object.spec.volumes[1]
+    )
+    assert (
+        submit_job_body["function"]["spec"]["volumes"][0]
+        == parsed_function_object.spec.volumes[1]
+    )
+    assert (
+        submit_job_body["function"]["spec"]["volumes"][1]
+        == parsed_function_object.spec.volumes[2]
+    )
 
-    assert original_function["spec"]["volume_mounts"][0] == parsed_function_object.spec.volume_mounts[0]
-    assert original_function["spec"]["volume_mounts"][1] != parsed_function_object.spec.volume_mounts[1]
-    assert submit_job_body["function"]["spec"]["volume_mounts"][0] == parsed_function_object.spec.volume_mounts[1]
-    assert submit_job_body["function"]["spec"]["volume_mounts"][1] == parsed_function_object.spec.volume_mounts[2]
+    assert (
+        original_function["spec"]["volume_mounts"][0]
+        == parsed_function_object.spec.volume_mounts[0]
+    )
+    assert (
+        original_function["spec"]["volume_mounts"][1]
+        != parsed_function_object.spec.volume_mounts[1]
+    )
+    assert (
+        submit_job_body["function"]["spec"]["volume_mounts"][0]
+        == parsed_function_object.spec.volume_mounts[1]
+    )
+    assert (
+        submit_job_body["function"]["spec"]["volume_mounts"][1]
+        == parsed_function_object.spec.volume_mounts[2]
+    )
 
 
 def _assert_env_vars(parsed_function_object, submit_job_body, original_function):
@@ -149,13 +190,37 @@ def _assert_env_vars(parsed_function_object, submit_job_body, original_function)
     1: env var that was in original function but was overridden with body (the first one in the body)
     2: new env var from the body (the second in the body)
     """
-    assert original_function["spec"]["env"][0]["name"] == parsed_function_object.spec.env[0]['name']
-    assert original_function["spec"]["env"][0]["value"] == parsed_function_object.spec.env[0]['value']
+    assert (
+        original_function["spec"]["env"][0]["name"]
+        == parsed_function_object.spec.env[0]["name"]
+    )
+    assert (
+        original_function["spec"]["env"][0]["value"]
+        == parsed_function_object.spec.env[0]["value"]
+    )
 
-    assert original_function["spec"]["env"][1]["name"] == parsed_function_object.spec.env[1].name
-    assert submit_job_body["function"]["spec"]["env"][0]["name"] == parsed_function_object.spec.env[1].name
-    assert original_function["spec"]["env"][1]["value"] != parsed_function_object.spec.env[1].value
-    assert submit_job_body["function"]["spec"]["env"][0]["value"] == parsed_function_object.spec.env[1].value
+    assert (
+        original_function["spec"]["env"][1]["name"]
+        == parsed_function_object.spec.env[1].name
+    )
+    assert (
+        submit_job_body["function"]["spec"]["env"][0]["name"]
+        == parsed_function_object.spec.env[1].name
+    )
+    assert (
+        original_function["spec"]["env"][1]["value"]
+        != parsed_function_object.spec.env[1].value
+    )
+    assert (
+        submit_job_body["function"]["spec"]["env"][0]["value"]
+        == parsed_function_object.spec.env[1].value
+    )
 
-    assert submit_job_body["function"]["spec"]["env"][1]["name"] == parsed_function_object.spec.env[2].name
-    assert submit_job_body["function"]["spec"]["env"][1]["value"] == parsed_function_object.spec.env[2].value
+    assert (
+        submit_job_body["function"]["spec"]["env"][1]["name"]
+        == parsed_function_object.spec.env[2].name
+    )
+    assert (
+        submit_job_body["function"]["spec"]["env"][1]["value"]
+        == parsed_function_object.spec.env[2].value
+    )

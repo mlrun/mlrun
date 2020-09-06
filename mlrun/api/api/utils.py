@@ -110,6 +110,12 @@ def _parse_submit_job_body(db_session: Session, data):
                         function.spec.update_vols_and_mounts(override_value, [])
                     elif attribute == "volume_mounts":
                         function.spec.update_vols_and_mounts([], override_value)
+                    elif attribute == "resources":
+                        # don't override it there are limits and requests but both are empty
+                        if override_value.get("limits", {}) or override_value.get(
+                            "requests", {}
+                        ):
+                            setattr(function.spec, attribute, override_value)
                     else:
                         setattr(function.spec, attribute, override_value)
 

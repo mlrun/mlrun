@@ -65,8 +65,12 @@ def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
     assert (
-        parsed_function_object.spec.resources
-        == submit_job_body["function"]["spec"]["resources"]
+        DeepDiff(
+            parsed_function_object.spec.resources,
+            submit_job_body["function"]["spec"]["resources"],
+            ignore_order=True,
+        )
+        == {}
     )
     assert (
         parsed_function_object.spec.image_pull_policy
@@ -94,7 +98,7 @@ def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
             "spec": {"function": f"{project}/{function_name}:{function_tag}"},
             "metadata": {"name": task_name, "project": task_project},
         },
-        "function": {"spec": {"resources": {"limits": {}, "requests": {},},}},
+        "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _parse_submit_job_body(db, submit_job_body)
     assert parsed_function_object.metadata.name == function_name
@@ -208,52 +212,52 @@ def _assert_volumes_and_volume_mounts(
         != {}
     )
     assert (
-            DeepDiff(
-                submit_job_body["function"]["spec"]["volumes"][0],
-                parsed_function_object.spec.volumes[1],
-                ignore_order=True,
-            )
-            == {}
+        DeepDiff(
+            submit_job_body["function"]["spec"]["volumes"][0],
+            parsed_function_object.spec.volumes[1],
+            ignore_order=True,
+        )
+        == {}
     )
     assert (
-            DeepDiff(
-                submit_job_body["function"]["spec"]["volumes"][1],
-                parsed_function_object.spec.volumes[2],
-                ignore_order=True,
-            )
-            == {}
+        DeepDiff(
+            submit_job_body["function"]["spec"]["volumes"][1],
+            parsed_function_object.spec.volumes[2],
+            ignore_order=True,
+        )
+        == {}
     )
     assert (
-            DeepDiff(
-                original_function["spec"]["volume_mounts"][0],
-                parsed_function_object.spec.volume_mounts[0],
-                ignore_order=True,
-            )
-            == {}
+        DeepDiff(
+            original_function["spec"]["volume_mounts"][0],
+            parsed_function_object.spec.volume_mounts[0],
+            ignore_order=True,
+        )
+        == {}
     )
     assert (
-            DeepDiff(
-                original_function["spec"]["volume_mounts"][1],
-                parsed_function_object.spec.volume_mounts[1],
-                ignore_order=True,
-            )
-            != {}
+        DeepDiff(
+            original_function["spec"]["volume_mounts"][1],
+            parsed_function_object.spec.volume_mounts[1],
+            ignore_order=True,
+        )
+        != {}
     )
     assert (
-            DeepDiff(
-                submit_job_body["function"]["spec"]["volume_mounts"][0],
-                parsed_function_object.spec.volume_mounts[1],
-                ignore_order=True,
-            )
-            == {}
+        DeepDiff(
+            submit_job_body["function"]["spec"]["volume_mounts"][0],
+            parsed_function_object.spec.volume_mounts[1],
+            ignore_order=True,
+        )
+        == {}
     )
     assert (
-            DeepDiff(
-                submit_job_body["function"]["spec"]["volume_mounts"][1],
-                parsed_function_object.spec.volume_mounts[2],
-                ignore_order=True,
-            )
-            == {}
+        DeepDiff(
+            submit_job_body["function"]["spec"]["volume_mounts"][1],
+            parsed_function_object.spec.volume_mounts[2],
+            ignore_order=True,
+        )
+        == {}
     )
 
 

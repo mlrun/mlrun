@@ -111,7 +111,7 @@ class LocalRuntime(BaseRuntime):
             if self.spec.mode == "pass":
                 cmd = [self.spec.command]
             else:
-                cmd = [executable, '-u', self.spec.command]
+                cmd = [executable, "-u", self.spec.command]
 
             env = None
             if self.spec.pythonpath:
@@ -177,7 +177,7 @@ def run_exec(cmd, args, env=None, cwd=None):
         nextline = process.stdout.readline()
         if not nextline and process.poll() is not None:
             break
-        print(nextline.decode("utf-8"), end='')
+        print(nextline.decode("utf-8"), end="")
         sys.stdout.flush()
         out += nextline.decode("utf-8")
     code = process.poll()

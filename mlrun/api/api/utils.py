@@ -101,9 +101,23 @@ def _parse_submit_job_body(db_session: Session, data):
                 "image_pull_policy",
                 "replicas",
             ]:
-                value = getattr(override_function.spec, attribute, None)
-                if value:
-                    setattr(function.spec, attribute, value)
+                override_value = getattr(override_function.spec, attribute, None)
+                if override_value:
+                    if attribute == "env":
+                        for env_dict in override_value:
+                            function.set_env(env_dict["name"], env_dict["value"])
+                    elif attribute == "volumes":
+                        function.spec.update_vols_and_mounts(override_value, [])
+                    elif attribute == "volume_mounts":
+                        function.spec.update_vols_and_mounts([], override_value)
+                    elif attribute == "resources":
+                        # don't override it there are limits and requests but both are empty
+                        if override_value.get("limits", {}) or override_value.get(
+                            "requests", {}
+                        ):
+                            setattr(function.spec, attribute, override_value)
+                    else:
+                        setattr(function.spec, attribute, override_value)
 
     return function, task
 

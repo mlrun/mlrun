@@ -3,32 +3,39 @@ name: Build
 on:
   push:
     branches:
-    - development
+    - build_actions
+#    - development
 #    - '[0-9]+.[0-9]+.x'
 
 jobs:
   build-images:
     name: Build and push image - ${{ matrix.image-name }}
-    if: github.repository == 'mlrun/mlrun'
+    if: github.repository == 'hedingber/mlrun'
     runs-on: ubuntu-latest
     strategy:
       matrix:
         image-name:
-        - mlrun
-        - api
-        - base
-        - base-legacy
-        - models
-        - models-legacy
+#        - mlrun
+#        - api
+#        - base
+#        - base-legacy
+#        - models
+#        - models-legacy
 # The GPU images are too big (~24GB) GH action runner has only 14GB
-#        - models-gpu
+        - models-gpu
 #        - models-gpu-legacy
     steps:
     - uses: actions/checkout@v2
     # since github-actions gives us 14G only, and fill it up with some garbage
     # we will free up some space for us (~2GB)
-    - name: Freeing some disk space
-      run: docker system prune --all --force
+    - name: Free disk space
+      run: |
+        sudo swapoff -a
+        sudo rm -f /swapfile
+        sudo apt clean
+        docker rmi $(docker image ls -aq)
+        docker system prune --all --force
+        df -h
     - name: Docker login
       run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
     - name: Set GIT_HASH env var

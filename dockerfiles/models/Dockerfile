@@ -57,8 +57,6 @@ RUN conda clean -ayq
 RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-# plain vanilla tensorflow isn't compiled optimaly for the architectures
-# we are likely to encounter.  this should become an option:
 RUN python -m pip install -U intel-tensorflow
 
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \

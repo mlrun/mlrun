@@ -29,7 +29,7 @@ from ..execution import MLClientCtx
 from .base import BaseRuntime
 from .utils import log_std, global_context, RunError
 from sys import executable
-from subprocess import run, PIPE
+from subprocess import PIPE, Popen
 
 import importlib.util as imputil
 from io import StringIO
@@ -111,7 +111,7 @@ class LocalRuntime(BaseRuntime):
             if self.spec.mode == "pass":
                 cmd = [self.spec.command]
             else:
-                cmd = [executable, self.spec.command]
+                cmd = [executable, "-u", self.spec.command]
 
             env = None
             if self.spec.pythonpath:
@@ -125,7 +125,7 @@ class LocalRuntime(BaseRuntime):
                 env["MLRUN_LOG_LEVEL"] = "debug"
 
             sout, serr = run_exec(cmd, self.spec.args, env=env, cwd=self.spec.workdir)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
             try:
                 with open(tmp) as fp:
@@ -171,10 +171,19 @@ def load_module(file_name, handler):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
+    out = ""
+    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
+    while True:
+        nextline = process.stdout.readline()
+        if not nextline and process.poll() is not None:
+            break
+        print(nextline.decode("utf-8"), end="")
+        sys.stdout.flush()
+        out += nextline.decode("utf-8")
+    code = process.poll()
 
-    err = out.stderr.decode("utf-8") if out.returncode != 0 else ""
-    return out.stdout.decode("utf-8"), err
+    err = process.stderr.read().decode("utf-8") if code != 0 else ""
+    return out, err
 
 
 class _DupStdout(object):

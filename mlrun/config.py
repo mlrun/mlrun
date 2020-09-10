@@ -138,11 +138,16 @@ class Config:
 
     @property
     def kfp_image(self):
-        if not config.kfp_image:
+        """
+        When this configuration is not set we want to set it to mlrun/mlrun but we need to use the enrich_image method
+        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must calculate
+        this property value here (and not initalization) and import inside
+        """
+        if not self._kfp_image:
             # importing here to avoid circular dependency
             import mlrun.utils.helpers
             return mlrun.utils.helpers.enrich_image("mlrun/mlrun")
-        return config.kfp_image
+        return self._kfp_image
 
 
 # Global configuration
@@ -178,6 +183,11 @@ def _do_populate(env=None):
     data = read_env(env)
     if data:
         config.update(data)
+
+    # HACK to enable kfp_image property to both have dynamic default and to have use the value from dict/env like
+    # other configurations
+    config._cfg['_kfp_image'] = config._cfg['kfp_image']
+    del config._cfg['kfp_image']
 
 
 def _convert_str(value, typ):

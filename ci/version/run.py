@@ -4,9 +4,10 @@ import subprocess
 
 import click
 
-import mlrun.utils
+import logging
 
-logger = mlrun.utils.create_logger(level="debug", name="version")
+# not using mlrun.utils.logger cause I don't want this script to require you to install mlrun
+logger = logging.Logger(name="version", level="DEBUG")
 
 
 @click.group()
@@ -26,7 +27,7 @@ def run(
         version_info = {'git_commit': out[:-1].decode("utf-8")}
 
     except Exception as exc:
-        logger.warn('Failed to get version', exc=str(exc))
+        logger.warning('Failed to get version', exc_info=exc)
         version_info = {'git_commit': 'unknown'}
 
     version_info['version'] = mlrun_version
@@ -34,7 +35,7 @@ def run(
 
     root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent
     version_file_path = root / "version.json"
-    logger.info('Writing version file', version_info=version_info, version_file_path=str(version_file_path))
+    logger.info(f'Writing version info to file: {str(version_info)}')
     with open(version_file_path, 'w+') as version_file:
         json.dump(version_info, version_file, sort_keys=False, indent=2)
 

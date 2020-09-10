@@ -15,6 +15,7 @@
 include Dockerfile*
 include Makefile
 include README.md
+include version.json
 include *requirements.txt
 recursive-include examples *
 recursive-include hack *

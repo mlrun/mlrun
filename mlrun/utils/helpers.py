@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import hashlib
 import json
-import sys
 import re
+import sys
+import time
 from datetime import datetime, timezone
 from os import path, environ
 
@@ -27,8 +27,9 @@ from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-from ..config import config
+import mlrun.utils.version
 from .logger import create_logger
+from ..config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -406,13 +407,15 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def tag_image(base: str):
-    ver = config.images_tag or config.version
-    if ver and (
-        base == "mlrun/mlrun" or (base.startswith("mlrun/ml-") and ":" not in base)
-    ):
-        base += ":" + ver
-    return base
+def enrich_image(image: str):
+    tag = config.images_tag or mlrun.utils.version.get_version_info()['version']
+    registry = config.images_registry or mlrun.utils.version.get_version_info()['docker_registry']
+    if image.startswith("mlrun/") or "/mlrun/" in image:
+        if tag and ":" not in image:
+            image = f"{image}:{tag}"
+        if registry and "/mlrun/" not in image:
+            image = f"{registry}{image}"
+    return image
 
 
 def get_artifact_target(item: dict, project=None):

@@ -32,7 +32,7 @@ from ..platforms.iguazio import (
 )
 from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
-from ..utils import logger, update_in, get_in, tag_image
+from ..utils import logger, update_in, get_in, enrich_image
 from ..lists import RunList
 from ..model import RunObject
 from ..config import config as mlconf
@@ -323,7 +323,7 @@ class RemoteRuntime(KubeResource):
             update_in(config, "spec.volumes", self.spec.to_nuclio_vol())
             base_image = get_in(config, "spec.build.baseImage")
             if base_image:
-                update_in(config, "spec.build.baseImage", tag_image(base_image))
+                update_in(config, "spec.build.baseImage", enrich_image(base_image))
 
             logger.info("deploy started")
             name = get_fullname(config, self.metadata.name, project, tag)

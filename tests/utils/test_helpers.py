@@ -1,4 +1,5 @@
-from mlrun.utils.helpers import verify_field_regex, extend_hub_uri
+from mlrun.config import config
+from mlrun.utils.helpers import verify_field_regex, extend_hub_uri, enrich_image
 from mlrun.utils.regex import run_name
 
 
@@ -71,4 +72,56 @@ def test_extend_hub_uri():
         input_uri = case["input_uri"]
         expected_output = case["expected_output"]
         output = extend_hub_uri(input_uri)
+        assert expected_output == output
+
+
+def test_enrich_image():
+    cases = [
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "ghcr.io/mlrun/mlrun:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "mlrun/mlrun:some_tag",
+            "expected_output": "ghcr.io/mlrun/mlrun:some_tag",
+        },
+        {
+            "image": "quay.io/mlrun/mlrun",
+            "expected_output": "quay.io/mlrun/mlrun:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "quay.io/mlrun/mlrun:some_tag",
+            "expected_output": "quay.io/mlrun/mlrun:some_tag",
+        },
+        {
+            "image": "mlrun/ml-models",
+            "expected_output": "ghcr.io/mlrun/ml-models:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "mlrun/ml-models:some_tag",
+            "expected_output": "ghcr.io/mlrun/ml-models:some_tag",
+        },
+        {
+            "image": "quay.io/mlrun/ml-models",
+            "expected_output": "quay.io/mlrun/ml-models:0.5.2-unstable-adsf76s",
+        },
+        {
+            "image": "quay.io/mlrun/ml-models:some_tag",
+            "expected_output": "quay.io/mlrun/ml-models:some_tag",
+        },
+        {
+            "image": "fake_mlrun/ml-models",
+            "expected_output": "fake_mlrun/ml-models",
+        },
+        {
+            "image": "some_repo/some_image",
+            "expected_output": "some_repo/some_image",
+        },
+    ]
+    config.images_registry = 'ghcr.io/'
+    config.images_tag = '0.5.2-unstable-adsf76s'
+    for case in cases:
+        image = case["image"]
+        expected_output = case["expected_output"]
+        output = enrich_image(image)
         assert expected_output == output

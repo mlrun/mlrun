@@ -40,7 +40,7 @@ class TestDask(TestMLRunSystem):
             run_object.to_dict()["metadata"],
             uid=run_uid,
             name="mydask-main",
-            project="default",
+            project=self.project_name,
             labels={
                 "v3io_user": self._test_env["V3IO_USERNAME"],
                 "owner": self._test_env["V3IO_USERNAME"],
@@ -84,7 +84,7 @@ class TestDask(TestMLRunSystem):
         # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
         self._run_db = get_run_db()
         runs = self._run_db.list_runs(
-            project="default", labels=f"workflow={workflow_run_id}"
+            project=self.project_name, labels=f"workflow={workflow_run_id}"
         )
         assert len(runs) == 1
 
@@ -94,7 +94,7 @@ class TestDask(TestMLRunSystem):
             run["metadata"],
             uid=run_uid,
             name="mydask-main",
-            project="default",
+            project=self.project_name,
             labels={
                 "v3io_user": self._test_env["V3IO_USERNAME"],
                 "owner": self._test_env["V3IO_USERNAME"],

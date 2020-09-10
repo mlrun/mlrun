@@ -28,7 +28,7 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
-from . import __version__
+from . import get_version
 
 import yaml
 
@@ -229,10 +229,10 @@ def read_env(env=None, prefix=env_prefix):
             config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
 
     if not config.get("kfp_image"):
-        tag = __version__ or "latest"
+        tag = get_version() or "latest"
         config["kfp_image"] = "mlrun/mlrun:{}".format(tag)
 
-    config["version"] = __version__
+    config["version"] = get_version()
 
     return config
 

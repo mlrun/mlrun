@@ -19,11 +19,11 @@ except ImportError:
 
 
 def version():
-    with open("mlrun/__init__.py") as fp:
-        for line in fp:
-            if "__version__" in line:
-                _, version = line.split("=")
-                return version.replace('"', "").strip()
+    with open("version.json") as version_file:
+        for line in version_file:
+            if "\"version\"" in line:
+                # '  "version": "<version>",' -> ['  ', 'version', ': ', '<version>', ',']
+                return line.split("\"")[3]
 
 
 def is_ignored(line):

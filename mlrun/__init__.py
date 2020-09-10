@@ -23,8 +23,6 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__version__ = "0.5.2-rc2"
-
 from .run import (
     get_or_create_ctx,
     new_function,
@@ -47,6 +45,16 @@ from .datastore import DataItem
 from .execution import MLClientCtx
 
 from os import environ, path
+import json
+
+
+def _resolve_version_from_file():
+    with open("../version.json") as version_file:
+        version_info = json.load(version_file)
+        return version_info['version']
+
+
+__version__ = _resolve_version_from_file()
 
 
 def get_version():

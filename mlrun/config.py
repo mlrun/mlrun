@@ -130,6 +130,20 @@ class Config:
     def reload():
         _populate()
 
+    @property
+    def version(self):
+        # importing here to avoid circular dependency
+        import mlrun
+        return mlrun.get_version()
+
+    @property
+    def kfp_image(self):
+        if not config.kfp_image:
+            # importing here to avoid circular dependency
+            import mlrun.utils.helpers
+            return mlrun.utils.helpers.enrich_image("mlrun/mlrun")
+        return config.kfp_image
+
 
 # Global configuration
 config = Config(default_config)
@@ -226,12 +240,6 @@ def read_env(env=None, prefix=env_prefix):
     if uisvc and not config.get("ui_url"):
         if igz_domain:
             config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
-
-    if not config.get("kfp_image"):
-        tag = get_version() or "latest"
-        config["kfp_image"] = "mlrun/mlrun:{}".format(tag)
-
-    config["version"] = get_version()
 
     return config
 

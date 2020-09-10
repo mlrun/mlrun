@@ -28,8 +28,6 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
-from . import get_version
-
 import yaml
 
 env_prefix = "MLRUN_"
@@ -47,6 +45,7 @@ default_config = {
     "remote_host": "",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
+    "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "kaniko_version": "v0.19.0",  # kaniko builder version

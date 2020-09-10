@@ -1,5 +1,5 @@
 {
-  "git_commit": "7f214c673a1e1013bfc17d19283331e153b50f7a",
+  "git_commit": "$Id$",
   "version": "0.5.2",
   "docker_registry": "ghcr.io"
 }

@@ -1,5 +1,5 @@
 {
-  "git_commit": "371d101220facb88c5ec1494e0d1e023c550ee47",
-  "version": "0.5.2",
-  "docker_registry": "ghcr.io"
+  "git_commit": "",
+  "version": "unstable",
+  "docker_registry": ""
 }

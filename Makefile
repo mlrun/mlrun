@@ -59,6 +59,10 @@ endif
 	-e 's/__version__[[:space:]]=[[:space:]]"$(MLRUN_OLD_VERSION_ESCAPED)"/__version__ = "$(MLRUN_NEW_VERSION)"/g'  \
 	 ./mlrun/__init__.py
 
+.PHONY: update-version-file
+update-version-file: ## Update the version file
+	python ./ci/version/run.py run $(MLRUN_VERSION) $(OVERRIDE_MLRUN_DEFAULT_DOCKER_REGISTRY)
+
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
 	@echo Done.

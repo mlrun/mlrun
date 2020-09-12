@@ -67,7 +67,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./ci/version/run.py run $(MLRUN_VERSION) $(MLRUN_JOBS_DOCKER_REGISTRY)
+	python ./automation/version/run.py run $(MLRUN_VERSION) $(MLRUN_JOBS_DOCKER_REGISTRY)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

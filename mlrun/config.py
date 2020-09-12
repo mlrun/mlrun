@@ -134,6 +134,7 @@ class Config:
     def version(self):
         # importing here to avoid circular dependency
         import mlrun
+
         return mlrun.get_version()
 
     @property
@@ -146,6 +147,7 @@ class Config:
         if not self._kfp_image:
             # importing here to avoid circular dependency
             import mlrun.utils.helpers
+
             return mlrun.utils.helpers.enrich_image("mlrun/mlrun")
         return self._kfp_image
 
@@ -186,8 +188,8 @@ def _do_populate(env=None):
 
     # HACK to enable kfp_image property to both have dynamic default and to have use the value from dict/env like
     # other configurations
-    config._cfg['_kfp_image'] = config._cfg['kfp_image']
-    del config._cfg['kfp_image']
+    config._cfg["_kfp_image"] = config._cfg["kfp_image"]
+    del config._cfg["kfp_image"]
 
 
 def _convert_str(value, typ):

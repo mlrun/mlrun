@@ -21,9 +21,9 @@ except ImportError:
 def version():
     with open("version.json") as version_file:
         for line in version_file:
-            if "\"version\"" in line:
+            if '"version"' in line:
                 # '  "version": "<version>",' -> ['  ', 'version', ': ', '<version>', ',']
-                return line.split("\"")[3]
+                return line.split('"')[3]
 
 
 def is_ignored(line):

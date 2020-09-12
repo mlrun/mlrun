@@ -408,8 +408,11 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 
 
 def enrich_image(image: str):
-    tag = config.images_tag or mlrun.utils.version.get_version_info()['version']
-    registry = config.images_registry or mlrun.utils.version.get_version_info()['docker_registry']
+    tag = config.images_tag or mlrun.utils.version.get_version_info()["version"]
+    registry = (
+        config.images_registry
+        or mlrun.utils.version.get_version_info()["docker_registry"]
+    )
     if image.startswith("mlrun/") or "/mlrun/" in image:
         if tag and ":" not in image:
             image = f"{image}:{tag}"

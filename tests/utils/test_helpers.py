@@ -109,17 +109,11 @@ def test_enrich_image():
             "image": "quay.io/mlrun/ml-models:some_tag",
             "expected_output": "quay.io/mlrun/ml-models:some_tag",
         },
-        {
-            "image": "fake_mlrun/ml-models",
-            "expected_output": "fake_mlrun/ml-models",
-        },
-        {
-            "image": "some_repo/some_image",
-            "expected_output": "some_repo/some_image",
-        },
+        {"image": "fake_mlrun/ml-models", "expected_output": "fake_mlrun/ml-models"},
+        {"image": "some_repo/some_image", "expected_output": "some_repo/some_image"},
     ]
-    config.images_registry = 'ghcr.io/'
-    config.images_tag = '0.5.2-unstable-adsf76s'
+    config.images_registry = "ghcr.io/"
+    config.images_tag = "0.5.2-unstable-adsf76s"
     for case in cases:
         image = case["image"]
         expected_output = case["expected_output"]

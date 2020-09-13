@@ -50,6 +50,8 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
+    - name: Install automation scripts dependencies
+      run: pip install click
     - name: Run Dockerized tests
       run: make test-dockerized
 
@@ -62,6 +64,8 @@ jobs:
         uses: actions/setup-python@v1
         with:
           python-version: 3.7
+      - name: Install automation scripts dependencies
+        run: pip install click
       - name: Generate HTML docs
         run: make html-docs-dockerized
       - name: Upload generated docs

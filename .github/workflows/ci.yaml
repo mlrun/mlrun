@@ -51,7 +51,7 @@ jobs:
       with:
         python-version: 3.7
     - name: Install automation scripts dependencies
-      run: pip install click
+      run: pip install -r automation/requirements.txt
     - name: Run Dockerized tests
       run: make test-dockerized
 
@@ -65,7 +65,7 @@ jobs:
         with:
           python-version: 3.7
       - name: Install automation scripts dependencies
-        run: pip install click
+        run: pip install -r automation/requirements.txt
       - name: Generate HTML docs
         run: make html-docs-dockerized
       - name: Upload generated docs

@@ -6,7 +6,7 @@ import click
 
 import logging
 
-# not using mlrun.utils.logger cause I don't want this script to require you to install mlrun
+# not using mlrun.utils.logger to not require mlrun package
 logger = logging.Logger(name="version", level="DEBUG")
 
 

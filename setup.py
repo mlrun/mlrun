@@ -16,14 +16,16 @@ try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+import json
 
 
 def version():
     with open("version.json") as version_file:
-        for line in version_file:
-            if '"version"' in line:
-                # '  "version": "<version>",' -> ['  ', 'version', ': ', '<version>', ',']
-                return line.split('"')[3]
+        try:
+            version_metadata = json.load(version_file)
+            return version_metadata['version']
+        except (ValueError, KeyError):
+            return None
 
 
 def is_ignored(line):

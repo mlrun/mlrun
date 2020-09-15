@@ -24,6 +24,10 @@ from tests.conftest import (
 )
 from unittest.mock import Mock
 from mlrun import NewTask, get_run_db, new_function
+import os
+import requests
+import json
+from mlrun.utils import add_vault_project_secret, add_vault_user_secret
 
 
 def my_func(context, p1=1, p2="a-string"):
@@ -167,3 +171,38 @@ def test_local_no_context():
     print(state)
     print(log)
     assert log.find(", '--xyz', '789']") != -1, "params not detected in noctx"
+
+
+def test_vault_secrets():
+    from mlrun import mlconf, vault_config, code_to_function
+
+    mlconf.dbpath = 'http://localhost:64842'
+    vault_url = 'https://vault.default-tenant.app.saarc-vault.iguazio-cd2.com'
+    os.environ['MLRUN_VAULT_TOKEN'] = 's.0sUyGQHYE6Vk2IM2hmH4E65d'
+    os.environ['MLRUN_VAULT_URL'] = vault_url
+
+    # Set test secrets
+    add_vault_user_secret('admin', {'password': 'myNiceSecret!'})
+    add_vault_project_secret('default', {'path': '/just/a/path', 'github_key': 'aKey!!!'})
+
+    # Create function and set container configuration
+    func = code_to_function(filename="{}/vault_function.py".format(examples_path),
+                            handler='vault_func',
+                            kind='job')
+    func.spec.build.base_image = 'saarcoiguazio/mlrun:unstable'
+    func.spec.build.image = '.secret-image'
+    func.apply(vault_config(secret_name='vault-token', vault_url=vault_url))
+    func.deploy()
+
+    # Create context for the execution
+    spec = tag_test(base_spec, "test_local_runtime")
+    spec.with_secrets('vault', {"project": "default", "secrets": ["path", "github_key"]})
+    spec.with_secrets('vault', {"user": "admin", "secrets": ["password"]})
+    spec.with_params(name="password")
+
+    result = func.run(
+        spec, handler="vault_func"
+    )
+    result.show()
+
+    verify_state(result)

@@ -14,3 +14,4 @@
 
 from .helpers import *  # noqa
 from .logger import *  # noqa
+from .vault import * # noqa

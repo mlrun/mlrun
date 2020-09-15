@@ -178,6 +178,35 @@ def v3io_cred(api="", user="", access_key=""):
     return _use_v3io_cred
 
 
+def vault_config(secret_name,
+                 secret_key='token',
+                 vault_url=None,
+                 project="", user=""):
+    """
+    Modifier function to apply vault access tokens from a k8s secret
+    Usage:
+        train = train_op(...)
+        train.apply(vault_config(<secret name>,vault_url='<url>'))
+    """
+
+    def _set_vault_config(task):
+        from kubernetes import client as k8s_client
+        from os import environ
+
+        _vault_url = vault_url or environ.get("MLRUN_VAULT_URL")
+        return (
+            task.add_env_variable(k8s_client.V1EnvVar(name='MLRUN_VAULT_TOKEN',
+                                                      value_from=k8s_client.V1EnvVarSource(
+                                                          secret_key_ref=k8s_client.V1SecretKeySelector(
+                                                              name=secret_name, key=secret_key, optional=False
+                                                          )
+                                                      )))
+                .add_env_variable(k8s_client.V1EnvVar(name="MLRUN_VAULT_URL", value=_vault_url))
+        )
+
+    return _set_vault_config
+
+
 def split_path(mntpath=""):
     if mntpath[0] == "/":
         mntpath = mntpath[1:]

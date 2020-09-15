@@ -17,21 +17,29 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/mlrun-api:0.5.2
-        imagePullPolicy: Always
+        image: saarcoiguazio/mlrun-api:unstable
+        # image: mlrun/mlrun-api:unstable
+        imagePullPolicy: IfNotPresent
         env:
         - name: MLRUN_LOG_LEVEL
-          value: ERROR
+          value: DEBUG
         - name: MLRUN_HTTPDB__DB_TYPE
           value: sqldb
         - name: MLRUN_HTTPDB__DIRPATH
           value: "/mlrun/db"
         - name: DEFAULT_DOCKER_REGISTRY
-          value: "<set default registry url>"
-        - name: V3IO_ACCESS_KEY
-          value: <access-key>
+          value: 'saarcoiguazio'
         - name: V3IO_USERNAME
           value: admin
+        - name: MLRUN_VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-token
+              key: token
+        - name: MLRUN_VAULT_URL
+          value: 'https://vault.default-tenant.app.saarc-vault.iguazio-cd2.com'
+        - name: DEFAULT_DOCKER_SECRET
+          value: my-docker
         ports:
         - containerPort: 8080
         command: ["python", "-m", "mlrun", "db"]

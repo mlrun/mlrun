@@ -41,7 +41,7 @@ from .db import get_run_db
 from .model import RunTemplate, NewTask, RunObject
 from .config import config as mlconf
 from .runtimes import new_model_server
-from .platforms import mount_v3io, v3io_cred
+from .platforms import mount_v3io, v3io_cred, vault_config
 from .projects import load_project, new_project
 from .datastore import DataItem
 from .execution import MLClientCtx

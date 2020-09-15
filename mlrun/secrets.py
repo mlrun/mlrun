@@ -14,12 +14,17 @@
 
 from ast import literal_eval
 from .utils import list2dict
+from .utils import get_vault_secrets
 from os import environ
 
 
 class SecretsStore:
     def __init__(self):
         self._secrets = {}
+        # Hidden secrets' value must not be serialized. Only the keys can be. These secrets are retrieved externally,
+        # for example from Vault, and when adding their source they will be retrieved from the external source.
+        self._hidden_sources = []
+        self._hidden_secrets = {}
 
     @classmethod
     def from_list(cls, src_list: list):
@@ -54,12 +59,31 @@ class SecretsStore:
                 k = key.strip()
                 self._secrets[prefix + k] = environ.get(k)
 
+        elif kind == "vault":
+            if isinstance(source, str):
+                source = literal_eval(source)
+            if not isinstance(source, dict):
+                raise ValueError("vault secrets must be of type dict")
+
+            for key, value in get_vault_secrets(source["secrets"],
+                                                user=source.get("user"),
+                                                project=source.get("project")).items():
+                self._hidden_secrets[prefix + key] = value
+            self._hidden_sources.append({"kind": kind, "source": source})
+
     def get(self, key, default=None):
-        return self._secrets.get(key, default)
+        return self._secrets.get(key) or self._hidden_secrets.get(key) or default
 
     def items(self):
-        return self._secrets.copy().items()
+        res = self._secrets.copy()
+        if self._hidden_secrets:
+            res.update(self._hidden_secrets)
+        return res.items()
 
     def to_serial(self):
         # todo: use encryption
-        return [{"kind": "inline", "source": self._secrets.copy()}]
+        res = [{"kind": "inline", "source": self._secrets.copy()}]
+        if self._hidden_sources:
+            for src in self._hidden_sources.copy():
+                res.append(src)
+        return res

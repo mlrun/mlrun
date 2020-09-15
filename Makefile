@@ -15,10 +15,10 @@
 MLRUN_VERSION ?= unstable
 MLRUN_DOCKER_TAG ?= $(MLRUN_VERSION)
 MLRUN_DOCKER_REPO ?= mlrun
-# empty be default (dockerhub), can be set to something like "quay.io/".
+# empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
 MLRUN_DOCKER_REGISTRY ?=
-# empty be default (dockerhub), can be set to something like "quay.io/".
+# empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be baked in version.json to be used by mlrun api to know where to take jobs images from
 MLRUN_JOBS_DOCKER_REGISTRY ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-

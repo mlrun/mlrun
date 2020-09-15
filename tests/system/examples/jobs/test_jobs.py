@@ -81,7 +81,7 @@ class TestJobs(TestMLRunSystem):
         # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
         self._run_db = get_run_db()
         runs = self._run_db.list_runs(
-            project="default", labels=f"workflow={workflow_run_id}"
+            project=self.project_name, labels=f"workflow={workflow_run_id}"
         )
         assert len(runs) == 2
 
@@ -91,7 +91,7 @@ class TestJobs(TestMLRunSystem):
             training_run["metadata"],
             uid=training_run["metadata"]["uid"],
             name="my-trainer-training",
-            project="default",
+            project=self.project_name,
             labels={
                 "v3io_user": self._test_env["V3IO_USERNAME"],
                 "owner": self._test_env["V3IO_USERNAME"],
@@ -103,7 +103,7 @@ class TestJobs(TestMLRunSystem):
             validation_run["metadata"],
             uid=validation_run["metadata"]["uid"],
             name="my-trainer-validation",
-            project="default",
+            project=self.project_name,
             labels={
                 "v3io_user": self._test_env["V3IO_USERNAME"],
                 "owner": self._test_env["V3IO_USERNAME"],
@@ -124,7 +124,7 @@ class TestJobs(TestMLRunSystem):
             outputs=["validation", "run_id"],
             output_path=f"v3io:///users/admin/kfp/{workflow_run_id}/",
             inputs={
-                "model": f"store://default/my-trainer-training_mymodel#{workflow_run_id}",
+                "model": f"store://{self.project_name}/my-trainer-training_mymodel#{workflow_run_id}",
             },
             data_stores=[],
         )

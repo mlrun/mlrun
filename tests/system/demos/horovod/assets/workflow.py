@@ -77,7 +77,6 @@ def kfpipeline(
         },
         outputs=["model"],
     )
-    train.container.set_image_pull_policy("Always")
 
     # deploy the model using nuclio functions
     funcs["serving"].deploy_step(models={model_name: train.outputs["model"]})

@@ -18,9 +18,9 @@ def main():
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("mlrun-version", type=str, required=False, default="unstable")
 @click.argument(
-    "mlrun-docker-registry", type=str, required=False, default=""
-)  # empty represents docker hub
-def run(
+    "mlrun-docker-registry", type=str, required=False, default=""  # empty represents docker hub
+)
+def create(
     mlrun_version: str, mlrun_docker_registry: str,
 ):
     git_commit = "unknown"

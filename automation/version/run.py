@@ -50,22 +50,14 @@ def _run_command(
     if args:
         command += " " + " ".join(args)
 
-    process = subprocess.Popen(
+    process = subprocess.run(
         command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.PIPE,
         shell=True,
+        check=True,
+        encoding="utf-8",
     )
 
-    stdout = process.stdout.read()
-    stderr = process.stderr.read()
-
-    exit_status = process.wait()
-    if exit_status != 0 and not suppress_errors:
-        raise RuntimeError(f"Command failed with exit status: {exit_status}")
-
-    return stdout, stderr, exit_status
+    return process.stdout, process.stderr, process.returncode
 
 
 if __name__ == "__main__":

@@ -23,16 +23,19 @@ def main():
 def run(
     mlrun_version: str, mlrun_docker_registry: str,
 ):
+    git_commit = "unknown"
     try:
         out, _, _ = _run_command("git", args=["rev-parse", "HEAD"])
-        version_info = {"git_commit": out[:-1].decode("utf-8")}
+        git_commit = out[:-1].decode("utf-8")
 
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
-        version_info = {"git_commit": "unknown"}
 
-    version_info["version"] = mlrun_version
-    version_info["docker_registry"] = mlrun_docker_registry
+    version_info = {
+        "version": mlrun_version,
+        "git_commit": git_commit,
+        "docker_registry": mlrun_docker_registry,
+    }
 
     root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent
     version_file_path = root / "version.json"

@@ -37,8 +37,8 @@ def run(
         "docker_registry": mlrun_docker_registry,
     }
 
-    root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent
-    version_file_path = root / "version.json"
+    repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent
+    version_file_path = repo_root / "version.json"
     logger.info(f"Writing version info to file: {str(version_info)}")
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=False, indent=2)

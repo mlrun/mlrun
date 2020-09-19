@@ -27,7 +27,7 @@ from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-import mlrun.utils.version
+import mlrun.utils.version.version
 from .logger import create_logger
 from ..config import config
 
@@ -409,10 +409,7 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 
 def enrich_image(image: str):
     tag = config.images_tag or mlrun.utils.version.version.version_info["version"]
-    registry = (
-            config.images_registry
-            or mlrun.utils.version.version.version_info["docker_registry"]
-    )
+    registry = config.images_registry
     if image.startswith("mlrun/") or "/mlrun/" in image:
         if tag and ":" not in image:
             image = f"{image}:{tag}"

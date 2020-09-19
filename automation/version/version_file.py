@@ -17,11 +17,8 @@ def main():
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("mlrun-version", type=str, required=False, default="unstable")
-@click.argument(
-    "mlrun-docker-registry", type=str, required=False, default=""  # empty represents docker hub
-)
 def create(
-    mlrun_version: str, mlrun_docker_registry: str,
+    mlrun_version: str
 ):
     git_commit = "unknown"
     try:
@@ -34,7 +31,6 @@ def create(
     version_info = {
         "version": mlrun_version,
         "git_commit": git_commit,
-        "docker_registry": mlrun_docker_registry,
     }
 
     repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent

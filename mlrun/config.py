@@ -133,7 +133,7 @@ class Config:
     @property
     def version(self):
         # importing here to avoid circular dependency
-        import mlrun.utils.version
+        import mlrun.utils.version.version
 
         return mlrun.utils.version.version.version_info['version']
 

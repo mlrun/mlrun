@@ -18,9 +18,6 @@ MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
 MLRUN_DOCKER_REGISTRY ?=
-# empty by default (dockerhub), can be set to something like "quay.io/".
-# This will be baked in version.json to be used by mlrun api to know where to take jobs images from
-MLRUN_JOBS_DOCKER_REGISTRY ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
@@ -64,7 +61,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./automation/version/version_file.py create $(MLRUN_VERSION) $(MLRUN_JOBS_DOCKER_REGISTRY)
+	python ./automation/version/version_file.py create $(MLRUN_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

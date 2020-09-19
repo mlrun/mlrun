@@ -17,9 +17,7 @@ def main():
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("mlrun-version", type=str, required=False, default="unstable")
-def create(
-    mlrun_version: str
-):
+def create(mlrun_version: str):
     git_commit = "unknown"
     try:
         out, _, _ = _run_command("git", args=["rev-parse", "HEAD"])
@@ -47,11 +45,7 @@ def _run_command(
         command += " " + " ".join(args)
 
     process = subprocess.run(
-        command,
-        shell=True,
-        check=True,
-        capture_output=True,
-        encoding="utf-8",
+        command, shell=True, check=True, capture_output=True, encoding="utf-8",
     )
 
     return process.stdout, process.stderr, process.returncode

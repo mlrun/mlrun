@@ -23,7 +23,7 @@ def version():
     with open("mlrun/utils/version/version.json") as version_file:
         try:
             version_metadata = json.load(version_file)
-            return version_metadata['version']
+            return version_metadata["version"]
         except (ValueError, KeyError):
             return None
 

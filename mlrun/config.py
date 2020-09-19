@@ -135,7 +135,7 @@ class Config:
         # importing here to avoid circular dependency
         import mlrun.utils.version.version
 
-        return mlrun.utils.version.version.version_info['version']
+        return mlrun.utils.version.version.version_info["version"]
 
     @property
     def kfp_image(self):

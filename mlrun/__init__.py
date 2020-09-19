@@ -45,7 +45,7 @@ from .run import (
     wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server
-from .utils.version import version_info
+from .utils.version.version import version_info
 
 __version__ = version_info["version"]
 

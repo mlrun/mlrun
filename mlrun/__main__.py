@@ -47,7 +47,7 @@ from .utils import (
     pr_comment,
     RunNotifications,
 )
-from .utils.version import version_info
+from .utils.version.version import version_info
 
 
 @click.group()

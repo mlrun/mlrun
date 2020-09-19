@@ -26,7 +26,7 @@ def create(
     git_commit = "unknown"
     try:
         out, _, _ = _run_command("git", args=["rev-parse", "HEAD"])
-        git_commit = out[:-1].decode("utf-8")
+        git_commit = out.strip()
 
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
@@ -38,7 +38,7 @@ def create(
     }
 
     repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent
-    version_file_path = repo_root / "utils" / "version" / "version.json"
+    version_file_path = repo_root / "mlrun" / "utils" / "version" / "version.json"
     logger.info(f"Writing version info to file: {str(version_info)}")
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
@@ -54,6 +54,7 @@ def _run_command(
         command,
         shell=True,
         check=True,
+        capture_output=True,
         encoding="utf-8",
     )
 

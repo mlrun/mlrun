@@ -38,7 +38,7 @@ def create(
     }
 
     repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent
-    version_file_path = repo_root / "version.json"
+    version_file_path = repo_root / "utils" / "version" / "version.json"
     logger.info(f"Writing version info to file: {str(version_info)}")
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)

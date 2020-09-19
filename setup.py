@@ -20,7 +20,7 @@ import json
 
 
 def version():
-    with open("version.json") as version_file:
+    with open("mlrun/utils/version/version.json") as version_file:
         try:
             version_metadata = json.load(version_file)
             return version_metadata['version']
@@ -67,6 +67,7 @@ setup(
         "mlrun.projects",
         "mlrun.artifacts",
         "mlrun.utils",
+        "mlrun.utils.version",
         "mlrun.datastore",
         "mlrun.api",
         "mlrun.api.api",

@@ -7,6 +7,8 @@ import mlrun.utils.singleton
 
 class Version(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
+        # When installing un-released version (e.g. by doing pip install git+https://github.com/mlrun/mlrun@development)
+        # it won't have a version file, so adding some sane defaults
         self.version_info = {
             "git_commit": "unknown",
             "version": "unstable"

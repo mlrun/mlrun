@@ -28,6 +28,9 @@ def version():
             version_metadata = json.load(version_file)
             return version_metadata["version"]
         except (ValueError, KeyError):
+            # When installing un-released version (e.g. by doing
+            # pip install git+https://github.com/mlrun/mlrun@development)
+            # it won't have a version file, so adding some sane default
             logger.warning("Failed resolving version. Ignoring and using unstable")
             return "unstable"
 

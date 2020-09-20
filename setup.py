@@ -23,16 +23,16 @@ logger = logging.Logger(name="mlrun-setup", level="INFO")
 
 
 def version():
-    with open("mlrun/utils/version/version.json") as version_file:
-        try:
+    try:
+        with open("mlrun/utils/version/version.json") as version_file:
             version_metadata = json.load(version_file)
             return version_metadata["version"]
-        except (ValueError, KeyError):
-            # When installing un-released version (e.g. by doing
-            # pip install git+https://github.com/mlrun/mlrun@development)
-            # it won't have a version file, so adding some sane default
-            logger.warning("Failed resolving version. Ignoring and using unstable")
-            return "unstable"
+    except (ValueError, KeyError, FileNotFoundError):
+        # When installing un-released version (e.g. by doing
+        # pip install git+https://github.com/mlrun/mlrun@development)
+        # it won't have a version file, so adding some sane default
+        logger.warning("Failed resolving version. Ignoring and using unstable")
+        return "unstable"
 
 
 def is_ignored(line):

@@ -1,1 +1,1 @@
-from .version import Version
+from .version import Version  # noqa: F401

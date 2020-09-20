@@ -47,7 +47,7 @@ from .utils import (
     pr_comment,
     RunNotifications,
 )
-from .utils.version.version import version_info
+from .utils.version import Version
 
 
 @click.group()
@@ -253,7 +253,7 @@ def run(
     )
 
     if kfp or runobj.spec.verbose or verbose:
-        print("MLRun version: {}".format(str(version_info)))
+        print("MLRun version: {}".format(str(Version().get())))
         print("Runtime:")
         pprint(runtime)
         print("Run:")
@@ -587,7 +587,7 @@ def db(port, dirpath):
 @main.command()
 def version():
     """get mlrun version"""
-    print("MLRun version: {}".format(str(version_info)))
+    print("MLRun version: {}".format(str(Version().get())))
 
 
 @main.command()

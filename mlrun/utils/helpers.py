@@ -408,7 +408,7 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 
 
 def enrich_image_url(image_url: str) -> str:
-    tag = config.images_tag or mlrun.utils.version.version.version_info["version"]
+    tag = config.images_tag or mlrun.utils.version.Version().get()["version"]
     registry = config.images_registry
     if image_url.startswith("mlrun/") or "/mlrun/" in image_url:
         if tag and ":" not in image_url:

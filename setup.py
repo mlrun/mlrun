@@ -28,8 +28,8 @@ def version():
             version_metadata = json.load(version_file)
             return version_metadata["version"]
         except (ValueError, KeyError):
-            logger.warning("Failed resolving version. Ignoring")
-            return None
+            logger.warning("Failed resolving version. Ignoring and using unstable")
+            return "unstable"
 
 
 def is_ignored(line):

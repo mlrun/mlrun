@@ -21,3 +21,4 @@ model.txt
 result*.html
 tests/test_results/
 venv
+mlrun/utils/version/version.json

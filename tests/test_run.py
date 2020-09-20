@@ -62,7 +62,9 @@ s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 
 def test_noparams():
     # Since we're executing the function without inputs, it will try to use the input name as the file path
-    result = new_function().run(params={"input_name": str(input_file_path)}, handler=my_func)
+    result = new_function().run(
+        params={"input_name": str(input_file_path)}, handler=my_func
+    )
 
     assert result.output("accuracy") == 2, "failed to run"
     assert result.status.artifacts[0].get("key") == "chart", "failed to run"

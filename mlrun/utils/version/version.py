@@ -2,10 +2,10 @@ import importlib.resources
 import json
 
 import mlrun.utils
-import mlrun.utils.singleton
+from mlrun.utils.singleton import Singleton
 
 
-class Version(metaclass=mlrun.utils.singleton.Singleton):
+class Version(metaclass=Singleton):
     def __init__(self):
         # When installing un-released version (e.g. by doing pip install git+https://github.com/mlrun/mlrun@development)
         # it won't have a version file, so adding some sane defaults

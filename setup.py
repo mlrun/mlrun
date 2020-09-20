@@ -17,6 +17,9 @@ try:
 except ImportError:
     from distutils.core import setup
 import json
+import logging
+
+logger = logging.Logger(name="mlrun-setup", level="INFO")
 
 
 def version():
@@ -25,6 +28,7 @@ def version():
             version_metadata = json.load(version_file)
             return version_metadata["version"]
         except (ValueError, KeyError):
+            logger.warning("Failed resolving version. Ignoring")
             return None
 
 

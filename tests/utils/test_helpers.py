@@ -1,5 +1,5 @@
 from mlrun.config import config
-from mlrun.utils.helpers import verify_field_regex, extend_hub_uri, enrich_image
+from mlrun.utils.helpers import verify_field_regex, extend_hub_uri, enrich_image_url
 from mlrun.utils.regex import run_name
 
 
@@ -117,5 +117,5 @@ def test_enrich_image():
     for case in cases:
         image = case["image"]
         expected_output = case["expected_output"]
-        output = enrich_image(image)
+        output = enrich_image_url(image)
         assert expected_output == output

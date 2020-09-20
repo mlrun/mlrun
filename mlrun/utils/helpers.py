@@ -407,15 +407,15 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def enrich_image(image: str):
+def enrich_image_url(image_url: str) -> str:
     tag = config.images_tag or mlrun.utils.version.version.version_info["version"]
     registry = config.images_registry
-    if image.startswith("mlrun/") or "/mlrun/" in image:
-        if tag and ":" not in image:
-            image = f"{image}:{tag}"
-        if registry and "/mlrun/" not in image:
-            image = f"{registry}{image}"
-    return image
+    if image_url.startswith("mlrun/") or "/mlrun/" in image_url:
+        if tag and ":" not in image_url:
+            image_url = f"{image_url}:{tag}"
+        if registry and "/mlrun/" not in image_url:
+            image_url = f"{registry}{image_url}"
+    return image_url
 
 
 def get_artifact_target(item: dict, project=None):

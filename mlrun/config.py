@@ -148,7 +148,7 @@ class Config:
             # importing here to avoid circular dependency
             import mlrun.utils.helpers
 
-            return mlrun.utils.helpers.enrich_image("mlrun/mlrun")
+            return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
 
 

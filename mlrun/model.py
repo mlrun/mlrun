@@ -457,7 +457,30 @@ def NewTask(
     secrets=None,
     base=None,
 ):
-    """Create new task"""
+    """Creates a new task
+
+    :param name:            task name
+    :param project:         task project
+    :param handler          code entry-point/hanfler name
+    :param params:          input parameters (dict)
+    :param hyper_params:    dictionary of hyper parameters and list values, each
+                            hyper param holds a list of values, the run will be
+                            executed for every parameter combination (GridSearch)
+    :param param_file:      a csv file with parameter combinations, first row hold
+                            the parameter names, following rows hold param values
+    :param selector:        selection criteria for hyper params e.g. "max.accuracy"
+    :param tuning_strategy: selection strategy for hyper params e.g. list, grid, random
+    :param inputs:          dictionary of input objects + optional paths (if path is
+                            omitted the path will be the in_path/key.
+    :param outputs:         dictionary of input objects + optional paths (if path is
+                            omitted the path will be the out_path/key.
+    :param in_path:         default input path/url (prefix) for inputs
+    :param out_path:        default output path/url (prefix) for artifacts
+    :param artifact_path:   default artifact output path
+    :param secrets:         extra secrets specs, will be injected into the runtime
+                            e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
+    :param base:            task instance to use as a base instead of a fresh new task instance
+    """
 
     if base:
         run = deepcopy(base)

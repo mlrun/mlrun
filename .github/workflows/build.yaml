@@ -10,8 +10,11 @@ on:
 jobs:
   build-images:
     name: Build and push image - ${{ matrix.image-name }}
-    if: github.repository == 'hedingber/mlrun'
     runs-on: ubuntu-latest
+
+    # let's not run this on every fork, comment this out when developing periodic on your fork
+    if: github.repository.fork == false
+
     strategy:
       matrix:
         image-name:

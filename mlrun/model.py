@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import inspect
+import warnings
 from copy import deepcopy
 from os import environ
 
+from .config import config
 from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
-from .config import config
 
 
 class ModelObj:
@@ -441,6 +442,48 @@ class RunObject(RunTemplate):
 
 
 def NewTask(
+    name=None,
+    project=None,
+    handler=None,
+    params=None,
+    hyper_params=None,
+    param_file=None,
+    selector=None,
+    tuning_strategy=None,
+    inputs=None,
+    outputs=None,
+    in_path=None,
+    out_path=None,
+    artifact_path=None,
+    secrets=None,
+    base=None,
+):
+    """Creates a new task - see new_task
+    """
+    warnings.warn(
+        "NewTask is deprecated and will be removed in 0.6.0, use new_task instead",
+        FutureWarning
+    )
+    return new_task(
+        name,
+        project,
+        handler,
+        params,
+        hyper_params,
+        param_file,
+        selector,
+        tuning_strategy,
+        inputs,
+        outputs,
+        in_path,
+        out_path,
+        artifact_path,
+        secrets,
+        base,
+    )
+
+
+def new_task(
     name=None,
     project=None,
     handler=None,

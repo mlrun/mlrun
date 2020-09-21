@@ -86,17 +86,6 @@ chart_template = """
 
 class ChartArtifact(Artifact):
     kind = "chart"
-    _dict_fields = [
-        "key",
-        "kind",
-        "iter",
-        "tree",
-        "src_path",
-        "target_path",
-        "hash",
-        "description",
-        "viewer",
-    ]
 
     def __init__(
         self,

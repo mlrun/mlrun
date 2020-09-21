@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    branches:
+    - development
+#    - '[0-9]+.[0-9]+.x'
+
+jobs:
+  build-images:
+    name: Build and push image - ${{ matrix.image-name }}
+    runs-on: ubuntu-latest
+
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun'
+
+    strategy:
+      matrix:
+        image-name:
+        - mlrun
+        - api
+        - base
+        - base-legacy
+        - models
+        - models-legacy
+# The GPU images are too big (~24GB) GH action runner has only 14GB
+#        - models-gpu
+#        - models-gpu-legacy
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+    - name: Install automation scripts dependencies
+      run: pip install -r automation/requirements.txt
+    - name: Docker login
+      run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
+    - name: Set GIT_HASH env var
+      run: echo "::set-env name=GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
+    - name: Install curl and jq
+      run: sudo apt-get install curl jq
+    - name: Set LATEST_VERSION env var
+      run: echo "::set-env name=LATEST_VERSION::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
+    - name: Pull cache, build and push image
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_VERSION="$LATEST_VERSION"-"$GIT_HASH" MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make push-${{ matrix.image-name }}

@@ -140,9 +140,9 @@ class Config:
     @property
     def kfp_image(self):
         """
-        When this configuration is not set we want to set it to mlrun/mlrun but we need to use the enrich_image method
-        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must calculate
-        this property value here (and not initalization) and import inside
+        When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the enrich_image method.
+        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must import the
+        module inside this function (and not on initialization), and then calculate this property value here.
         """
         if not self._kfp_image:
             # importing here to avoid circular dependency

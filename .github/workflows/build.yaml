@@ -12,8 +12,8 @@ jobs:
     name: Build and push image - ${{ matrix.image-name }}
     runs-on: ubuntu-latest
 
-    # let's not run this on every fork, comment this out when developing periodic on your fork
-#    if: github.repository.fork == false
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'hedingber/mlrun'
 
     strategy:
       matrix:
@@ -29,10 +29,12 @@ jobs:
 #        - models-gpu-legacy
     steps:
     - uses: actions/checkout@v2
+    - name: Set up python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
     - name: Docker login
       run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
-    - name: Checking
-      run: echo ${{ github.repository.fork }}
     - name: Set GIT_HASH env var
       run: echo "::set-env name=GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
     - name: Install curl and jq

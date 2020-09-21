@@ -5,7 +5,7 @@ import kfp.compiler
 
 from mlrun import (
     code_to_function,
-    NewTask,
+    new_task,
     run_pipeline,
     wait_for_pipeline_completion,
     get_run_db,
@@ -37,11 +37,11 @@ class TestJobs(TestMLRunSystem):
         output_path = str(self.results_path / "{{run.uid}}")
 
         self._logger.debug("Creating base task")
-        base_task = NewTask(artifact_path=output_path).set_label("stage", "dev")
+        base_task = new_task(artifact_path=output_path).set_label("stage", "dev")
 
         # run our training task, with hyper params, and select the one with max accuracy
         self._logger.debug("Running task with hyper params")
-        train_task = NewTask(
+        train_task = new_task(
             name="my-training", handler="training", params={"p1": 9}, base=base_task
         )
         train_run = self._trainer.run(train_task)

@@ -81,8 +81,8 @@ def make_kaniko_pod(
     )
 
     if secret_name:
-        items = [{"key": ".dockerconfigjson", "path": ".docker/config.json"}]
-        kpod.mount_secret(secret_name, "/root/", items=items)
+        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
+        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
 
     if dockertext or inline_code or requirements:
         kpod.mount_empty()

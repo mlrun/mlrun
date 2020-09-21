@@ -186,7 +186,7 @@ def _do_populate(env=None):
     if data:
         config.update(data)
 
-    # HACK to enable kfp_image property to both have dynamic default and to have use the value from dict/env like
+    # HACK to enable kfp_image property to both have dynamic default and to use the value from dict/env like
     # other configurations
     config._cfg["_kfp_image"] = config._cfg["kfp_image"]
     del config._cfg["kfp_image"]

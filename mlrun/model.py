@@ -441,6 +441,7 @@ class RunObject(RunTemplate):
         return state
 
 
+# TODO: remove in 0.7.0
 def NewTask(
     name=None,
     project=None,
@@ -461,7 +462,7 @@ def NewTask(
     """Creates a new task - see new_task
     """
     warnings.warn(
-        "NewTask is deprecated and will be removed in 0.6.0, use new_task instead",
+        "NewTask is deprecated and will be removed in 0.7.0, use new_task instead",
         FutureWarning,
     )
     return new_task(

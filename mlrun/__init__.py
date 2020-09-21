@@ -23,8 +23,15 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__version__ = "0.5.2"
+from os import environ, path
 
+from .config import config as mlconf
+from .datastore import DataItem
+from .db import get_run_db
+from .execution import MLClientCtx
+from .model import RunTemplate, NewTask, RunObject
+from .platforms import mount_v3io, v3io_cred
+from .projects import load_project, new_project
 from .run import (
     get_or_create_ctx,
     new_function,
@@ -37,16 +44,10 @@ from .run import (
     get_pipeline,
     wait_for_pipeline_completion,
 )
-from .db import get_run_db
-from .model import RunTemplate, NewTask, RunObject
-from .config import config as mlconf
 from .runtimes import new_model_server
-from .platforms import mount_v3io, v3io_cred
-from .projects import load_project, new_project
-from .datastore import DataItem
-from .execution import MLClientCtx
+from .utils.version import Version
 
-from os import environ, path
+__version__ = Version().get()["version"]
 
 
 def get_version():

@@ -10,14 +10,14 @@ import yaml
 import mlrun.utils
 
 
-logger = mlrun.utils.create_logger(level="debug", name="ci")
+logger = mlrun.utils.create_logger(level="debug", name="automation")
 
 
 class SystemTestCIRunner:
     class Constants:
         ssh_username = "iguazio"
 
-        ci_dir_name = "mlrun-ci"
+        ci_dir_name = "mlrun-automation"
         homedir = pathlib.Path("/home/iguazio/")
         workdir = homedir / ci_dir_name
         mlrun_code_path = workdir / "mlrun"
@@ -366,7 +366,7 @@ def run(
     try:
         system_test_ci_runner.run()
     except Exception as e:
-        logger.error("Failed running system test ci", exception=e)
+        logger.error("Failed running system test automation", exception=e)
     finally:
         system_test_ci_runner.clean_up()
 

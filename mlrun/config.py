@@ -28,8 +28,6 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
-from . import __version__
-
 import yaml
 
 env_prefix = "MLRUN_"
@@ -47,6 +45,7 @@ default_config = {
     "remote_host": "",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
+    "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "kaniko_version": "v0.19.0",  # kaniko builder version
@@ -131,6 +130,27 @@ class Config:
     def reload():
         _populate()
 
+    @property
+    def version(self):
+        # importing here to avoid circular dependency
+        from mlrun.utils.version import Version
+
+        return Version().get()["version"]
+
+    @property
+    def kfp_image(self):
+        """
+        When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the enrich_image method.
+        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must import the
+        module inside this function (and not on initialization), and then calculate this property value here.
+        """
+        if not self._kfp_image:
+            # importing here to avoid circular dependency
+            import mlrun.utils.helpers
+
+            return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
+        return self._kfp_image
+
 
 # Global configuration
 config = Config(default_config)
@@ -165,6 +185,11 @@ def _do_populate(env=None):
     data = read_env(env)
     if data:
         config.update(data)
+
+    # HACK to enable kfp_image property to both have dynamic default and to use the value from dict/env like
+    # other configurations
+    config._cfg["_kfp_image"] = config._cfg["kfp_image"]
+    del config._cfg["kfp_image"]
 
 
 def _convert_str(value, typ):
@@ -227,12 +252,6 @@ def read_env(env=None, prefix=env_prefix):
     if uisvc and not config.get("ui_url"):
         if igz_domain:
             config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
-
-    if not config.get("kfp_image"):
-        tag = __version__ or "latest"
-        config["kfp_image"] = "mlrun/mlrun:{}".format(tag)
-
-    config["version"] = __version__
 
     return config
 

@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MLRUN_DOCKER_TAG ?= unstable
+MLRUN_VERSION ?= unstable
+MLRUN_DOCKER_TAG ?= $(MLRUN_VERSION)
 MLRUN_DOCKER_REPO ?= mlrun
-MLRUN_DOCKER_REGISTRY ?=  # empty be default (dockerhub), can be set to something like "quay.io/"
+# empty by default (dockerhub), can be set to something like "quay.io/".
+# This will be used to tag the images built using this makefile
+MLRUN_DOCKER_REGISTRY ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6
@@ -55,9 +58,10 @@ endif
 	echo $(MLRUN_OLD_VERSION_ESCAPED)
 	find . \( ! -regex '.*/\..*' \) -a \( -iname \*.md -o -iname \*.txt -o -iname \*.yaml -o -iname \*.yml \)  \
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
-	sed -i ''  \
-	-e 's/__version__[[:space:]]=[[:space:]]"$(MLRUN_OLD_VERSION_ESCAPED)"/__version__ = "$(MLRUN_NEW_VERSION)"/g'  \
-	 ./mlrun/__init__.py
+
+.PHONY: update-version-file
+update-version-file: ## Update the version file
+	python ./automation/version/version_file.py create $(MLRUN_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
@@ -95,7 +99,7 @@ MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NA
 DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME)
 
 .PHONY: base
-base: ## Build base docker image
+base: update-version-file ## Build base docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -112,7 +116,7 @@ MLRUN_LEGACY_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_I
 DEFAULT_IMAGES += $(MLRUN_LEGACY_BASE_IMAGE_NAME)
 
 .PHONY: base-legacy
-base-legacy: ## Build base legacy docker image
+base-legacy: update-version-file ## Build base legacy docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
@@ -129,7 +133,7 @@ MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_
 DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME)
 
 .PHONY: models
-models: ## Build models docker image
+models: update-version-file ## Build models docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
@@ -145,7 +149,7 @@ MLRUN_LEGACY_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER
 DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_IMAGE_NAME)
 
 .PHONY: models-legacy
-models-legacy: ## Build models legacy docker image
+models-legacy: update-version-file ## Build models legacy docker image
 	docker build \
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
@@ -161,7 +165,7 @@ MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IM
 DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME)
 
 .PHONY: models-gpu
-models-gpu: ## Build models-gpu docker image
+models-gpu: update-version-file ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
@@ -177,7 +181,7 @@ MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DO
 DEFAULT_IMAGES += $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME)
 
 .PHONY: models-gpu-legacy
-models-gpu-legacy: ## Build models-gpu legacy docker image
+models-gpu-legacy: update-version-file ## Build models-gpu legacy docker image
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
@@ -193,7 +197,7 @@ MLRUN_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun:$(MLRUN_DOCKER_TAG)
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME)
 
 .PHONY: mlrun
-mlrun: ## Build mlrun docker image
+mlrun: update-version-file ## Build mlrun docker image
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -208,7 +212,7 @@ MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter:$(MLRUN_DOCKER_
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME)
 
 .PHONY: jupyter
-jupyter: ## Build mlrun jupyter docker image
+jupyter: update-version-file ## Build mlrun jupyter docker image
 	docker build \
 		--file dockerfiles/jupyter/Dockerfile \
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
@@ -222,7 +226,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
 
 .PHONY: serving
-serving: ## Build serving docker image
+serving: update-version-file ## Build serving docker image
 	docker build \
 		--file dockerfiles/serving/Dockerfile \
 		--build-arg MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
@@ -239,7 +243,7 @@ MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api:$(MLRUN_DOCKER_TA
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME)
 
 .PHONY: api
-api: ## Build mlrun-api docker image
+api: update-version-file ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -252,7 +256,7 @@ push-api: api ## Push api docker image
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test
-build-test: ## Build test docker image
+build-test: update-version-file ## Build test docker image
 	docker build \
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -261,7 +265,7 @@ build-test: ## Build test docker image
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test-system
-build-test-system: ## Build system tests docker image
+build-test-system: update-version-file ## Build system tests docker image
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -272,7 +276,7 @@ push-test: build-test ## Push test docker image
 	docker push $(MLRUN_TEST_IMAGE_NAME)
 
 .PHONY: package-wheel
-package-wheel: clean ## Build python package wheel
+package-wheel: clean update-version-file ## Build python package wheel
 	python setup.py bdist_wheel
 
 .PHONY: publish-package

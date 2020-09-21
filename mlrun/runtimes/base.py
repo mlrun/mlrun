@@ -50,7 +50,7 @@ from ..utils import (
     logger,
     is_ipython,
     now_date,
-    tag_image,
+    enrich_image_url,
     dict_to_yaml,
     dict_to_json,
 )
@@ -586,7 +586,7 @@ class BaseRuntime(ModelObj):
     def full_image_path(self, image=None):
         image = image or self.spec.image or ""
 
-        image = tag_image(image)
+        image = enrich_image_url(image)
         if not image.startswith("."):
             return image
         if "DEFAULT_DOCKER_REGISTRY" in environ:

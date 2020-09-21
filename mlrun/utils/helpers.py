@@ -328,6 +328,17 @@ def parse_function_uri(uri):
     return project, uri, tag, hash_key
 
 
+def generate_function_uri(project, name, tag=None, hash_key=None):
+    uri = "{}/{}".format(project, name)
+
+    # prioritize hash key over tag
+    if hash_key:
+        uri += "@{}".format(hash_key)
+    elif tag:
+        uri += ":{}".format(tag)
+    return uri
+
+
 def extend_hub_uri(uri):
     if not uri.startswith(hub_prefix):
         return uri

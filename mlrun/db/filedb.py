@@ -34,6 +34,7 @@ from ..utils import (
     match_value,
     update_in,
     fill_function_hash,
+    generate_function_uri,
 )
 
 run_logs = "runs"
@@ -309,7 +310,8 @@ class FileRunDB(RunDBInterface):
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
-            return None
+            function_uri = generate_function_uri(project, name, tag, hash_key)
+            raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
         data = self._datastore.get(filepath)
         parsed_data = self._loads(data)
 

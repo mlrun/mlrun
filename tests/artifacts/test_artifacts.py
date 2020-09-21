@@ -12,7 +12,9 @@ def test_artifacts_export_required_fields():
     ]
 
     required_fields = [
-        "db_key"  # used as the identifier of the artifact
+        "key",
+        "kind",
+        "db_key",
     ]
 
     for artifact_class in artifact_classes:

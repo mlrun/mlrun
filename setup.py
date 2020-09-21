@@ -16,14 +16,23 @@ try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+import json
+import logging
+
+logger = logging.Logger(name="mlrun-setup", level="INFO")
 
 
 def version():
-    with open("mlrun/__init__.py") as fp:
-        for line in fp:
-            if "__version__" in line:
-                _, version = line.split("=")
-                return version.replace('"', "").strip()
+    try:
+        with open("mlrun/utils/version/version.json") as version_file:
+            version_metadata = json.load(version_file)
+            return version_metadata["version"]
+    except (ValueError, KeyError, FileNotFoundError):
+        # When installing un-released version (e.g. by doing
+        # pip install git+https://github.com/mlrun/mlrun@development)
+        # it won't have a version file, so adding some sane default
+        logger.warning("Failed resolving version. Ignoring and using unstable")
+        return "unstable"
 
 
 def is_ignored(line):
@@ -65,6 +74,7 @@ setup(
         "mlrun.projects",
         "mlrun.artifacts",
         "mlrun.utils",
+        "mlrun.utils.version",
         "mlrun.datastore",
         "mlrun.api",
         "mlrun.api.api",

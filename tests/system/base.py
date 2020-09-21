@@ -4,7 +4,7 @@ import pytest
 import sys
 import yaml
 
-from mlrun import get_run_db, mlconf
+from mlrun import get_run_db, mlconf, set_environment
 from mlrun.utils import create_logger
 
 
@@ -13,6 +13,7 @@ logger = create_logger(level="debug", name="test")
 
 class TestMLRunSystem:
 
+    project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
@@ -39,6 +40,10 @@ class TestMLRunSystem:
         # it in mlconf.
         mlconf.dbpath = self._test_env["MLRUN_DBPATH"]
 
+        set_environment(
+            artifact_path="/User/data", project=self.project_name,
+        )
+
         self.custom_setup()
 
         self._logger.info(
@@ -53,8 +58,8 @@ class TestMLRunSystem:
         self.custom_teardown()
 
         self._logger.debug("Removing test data from database")
-        self._run_db.del_runs(days_ago=1)
-        self._run_db.del_artifacts(tag="*")
+        self._run_db.del_runs(project=self.project_name, days_ago=1)
+        self._run_db.del_artifacts(project=self.project_name, tag="*")
 
         self._teardown_env()
         self._logger.info(
@@ -112,7 +117,8 @@ class TestMLRunSystem:
     def _teardown_env(self):
         self._logger.debug("Tearing down test environment")
         for env_var in self._test_env:
-            del os.environ[env_var]
+            if env_var in os.environ:
+                del os.environ[env_var]
         os.environ.update(self._old_env)
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:

@@ -1,8 +1,8 @@
-import pytz
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
+import pytz
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -29,7 +29,13 @@ from mlrun.api.db.sqldb.models import (
 )
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
-from mlrun.utils import get_in, update_in, logger, fill_function_hash
+from mlrun.utils import (
+    get_in,
+    update_in,
+    logger,
+    fill_function_hash,
+    generate_function_uri,
+)
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -309,6 +315,11 @@ class SQLDB(DBInterface):
             tag_function_uid = self._resolve_tag_function_uid(
                 session, Function, project, name, computed_tag
             )
+            if tag_function_uid is None:
+                function_uri = generate_function_uri(project, name, tag)
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Function tag not found {function_uri}"
+                )
             uid = tag_function_uid
         if uid:
             query = query.filter(Function.uid == uid)
@@ -324,6 +335,9 @@ class SQLDB(DBInterface):
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
             return function
+        else:
+            function_uri = generate_function_uri(project, name, tag, hash_key)
+            raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
 
     def list_functions(self, session, name, project=None, tag=None, labels=None):
         project = project or config.default_project

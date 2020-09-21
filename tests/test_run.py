@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytest
+import pathlib
 import pandas as pd
 from tests.conftest import (
     examples_path,
@@ -26,10 +27,10 @@ from unittest.mock import Mock
 from mlrun import NewTask, get_run_db, new_function
 
 
-def my_func(context, p1=1, p2="a-string"):
+def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}\n")
-    print("file\n{}\n".format(context.get_input("infile.txt").get()))
+    print("file\n{}\n".format(context.get_input(input_name).get()))
 
     context.log_result("accuracy", p1 * 2)
     context.logger.info("some info")
@@ -50,14 +51,20 @@ def my_func(context, p1=1, p2="a-string"):
 
 
 base_spec = NewTask(params={"p1": 8}, out_path=out_path)
-base_spec.spec.inputs = {"infile.txt": "infile.txt"}
+
+repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent
+input_file_path = repo_root / "tests" / "assets" / "test_run_input_file.txt"
+base_spec.spec.inputs = {"infile.txt": str(input_file_path)}
 
 s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
 s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 
 
 def test_noparams():
-    result = new_function().run(handler=my_func)
+    # Since we're executing the function without inputs, it will try to use the input name as the file path
+    result = new_function().run(
+        params={"input_name": str(input_file_path)}, handler=my_func
+    )
 
     assert result.output("accuracy") == 2, "failed to run"
     assert result.status.artifacts[0].get("key") == "chart", "failed to run"

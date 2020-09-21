@@ -5,6 +5,9 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestDB(TestMLRunSystem):
+
+    project_name = "db-system-test-project"
+
     def custom_setup(self):
         self._logger.debug("Connecting to database")
 
@@ -32,14 +35,14 @@ class TestDB(TestMLRunSystem):
 
         # TODO: understand why a single db instantiation isn't enough, and fix the bug in the db
         self._run_db = get_run_db()
-        runs = self._run_db.list_runs()
+        runs = self._run_db.list_runs(project=self.project_name)
         assert len(runs) == 1
 
         self._verify_run_metadata(
             runs[0]["metadata"],
             uid=self._run_uid,
             name="demo",
-            project="default",
+            project=self.project_name,
             labels={
                 "v3io_user": self._test_env["V3IO_USERNAME"],
                 "kind": "",
@@ -57,7 +60,7 @@ class TestDB(TestMLRunSystem):
             data_stores=[],
         )
 
-        artifacts = self._run_db.list_artifacts()
+        artifacts = self._run_db.list_artifacts(project=self.project_name)
         assert len(artifacts) == 4
         for artifact_key in ["chart", "html_result", "model", "mydf"]:
             artifact_exists = False

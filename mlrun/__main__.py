@@ -22,21 +22,20 @@ from os import environ, path
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
+
 import click
 import yaml
 from tabulate import tabulate
 
-
-from .projects import load_project
-from .secrets import SecretsStore
-from . import get_version
-from .config import config as mlconf
 from .builder import upload_tarball
+from .config import config as mlconf
 from .db import get_run_db
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
+from .projects import load_project
 from .run import new_function, import_function_to_dict, import_function, get_object
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds
+from .secrets import SecretsStore
 from .utils import (
     list2dict,
     logger,
@@ -48,6 +47,7 @@ from .utils import (
     pr_comment,
     RunNotifications,
 )
+from .utils.version import Version
 
 
 @click.group()
@@ -253,7 +253,7 @@ def run(
     )
 
     if kfp or runobj.spec.verbose or verbose:
-        print("MLRun version: {}".format(get_version()))
+        print("MLRun version: {}".format(str(Version().get())))
         print("Runtime:")
         pprint(runtime)
         print("Run:")
@@ -587,7 +587,7 @@ def db(port, dirpath):
 @main.command()
 def version():
     """get mlrun version"""
-    print("MLRun version: {}".format(get_version()))
+    print("MLRun version: {}".format(str(Version().get())))
 
 
 @main.command()

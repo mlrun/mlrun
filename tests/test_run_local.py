@@ -19,9 +19,9 @@ from tests.conftest import (
     tag_test,
     verify_state,
 )
-from mlrun import NewTask, run_local, code_to_function
+from mlrun import new_task, run_local, code_to_function
 
-base_spec = NewTask(params={"p1": 8}, out_path=out_path)
+base_spec = new_task(params={"p1": 8}, out_path=out_path)
 base_spec.spec.inputs = {"infile.txt": "infile.txt"}
 
 

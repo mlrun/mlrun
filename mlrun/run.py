@@ -108,7 +108,7 @@ def run_local(
 
     e.g.:
            # define a task
-           task = NewTask(params={'p1': 8}, out_path=out_path)
+           task = new_task(params={'p1': 8}, out_path=out_path)
            # run
            run = run_local(spec, command='src/training.py', workdir='src')
 
@@ -176,7 +176,7 @@ def function_to_module(code="", workdir=None, secrets=None):
     example:
 
         mod = mlrun.function_to_module('./examples/training.py')
-        task = mlrun.NewTask(inputs={'infile.txt': '../examples/infile.txt'})
+        task = mlrun.new_task(inputs={'infile.txt': '../examples/infile.txt'})
         context = mlrun.get_or_create_ctx('myfunc', spec=task)
         mod.my_job(context, p1=1, p2='x')
         print(context.to_yaml())

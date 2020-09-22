@@ -23,7 +23,7 @@ import pytest
 import yaml
 
 import mlrun.kfpops
-from mlrun import NewTask, new_function
+from mlrun import new_task, new_function
 from mlrun.artifacts import ChartArtifact
 from mlrun.utils import logger
 
@@ -189,6 +189,6 @@ def _assert_metrics_file(
 
 
 def _generate_task(p1, out_path):
-    return NewTask(
+    return new_task(
         params={"p1": p1}, out_path=out_path, outputs=["accuracy", "loss"],
     ).set_label("tests", "kfp")

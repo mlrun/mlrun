@@ -40,9 +40,7 @@ def create(mlrun_version: str):
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 
 
-def _run_command(
-    command: str, args: list = None,
-) -> (str, str, int):
+def _run_command(command: str, args: list = None,) -> (str, str, int):
     if args:
         command += " " + " ".join(args)
 

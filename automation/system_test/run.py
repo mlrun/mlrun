@@ -42,8 +42,10 @@ class SystemTestCIRunner:
         v3io_username: str,
         v3io_access_key: str,
         v3io_password: str = None,
+        debug: bool = False
     ):
         self._logger = logger
+        self._debug = debug
         self._mlrun_version = mlrun_version
         self._mlrun_repo = mlrun_repo
         self._data_cluster_ip = data_cluster_ip
@@ -61,13 +63,14 @@ class SystemTestCIRunner:
             self._env_config["V3IO_PASSWORD"] = v3io_password
 
         self._logger.info("Connecting to data-cluster")
-        self._ssh_client = paramiko.SSHClient()
-        self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
-        self._ssh_client.connect(
-            data_cluster_ip,
-            username=self.Constants.ssh_username,
-            password=data_cluster_ssh_password,
-        )
+        if not self._debug:
+            self._ssh_client = paramiko.SSHClient()
+            self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
+            self._ssh_client.connect(
+                data_cluster_ip,
+                username=self.Constants.ssh_username,
+                password=data_cluster_ssh_password,
+            )
 
     def run(self):
 
@@ -75,6 +78,10 @@ class SystemTestCIRunner:
         self.clean_up(close_ssh_client=False)
 
         self._prepare_test_env()
+
+        if self._mlrun_repo:
+            self._override_k8s_mlrun_registry()
+
         provctl_path = self._download_povctl()
         self._patch_mlrun(provctl_path)
 
@@ -88,7 +95,7 @@ class SystemTestCIRunner:
             f"rm -rf {self.Constants.workdir}", workdir=self.Constants.homedir
         )
 
-        if close_ssh_client:
+        if close_ssh_client and not self._debug:
             self._ssh_client.close()
 
     def _run_command(
@@ -113,6 +120,8 @@ class SystemTestCIRunner:
             stdin=stdin,
             workdir=workdir,
         )
+        if self._debug:
+            return ""
         try:
             if local:
                 stdout, stderr, exit_status = self._run_command_locally(
@@ -260,6 +269,25 @@ class SystemTestCIRunner:
             local=True,
         )
 
+    def _override_k8s_mlrun_registry(self):
+        mlrun_registry = self._mlrun_repo.split('/')[0]
+        override_mlrun_registry_manifest = {
+            'apiVersion': 'v1',
+            'data': {'MLRUN_IMAGES_REGISTRY': f'{mlrun_registry}/'},
+            'kind': 'ConfigMap',
+            'metadata': {'name': 'mlrun-override-env', 'namespace': 'default-tenant'},
+        }
+        manifest_file_name = 'override_mlrun_registry.yml'
+        self._run_command(
+            "cat > ",
+            args=[manifest_file_name],
+            stdin=yaml.safe_dump(override_mlrun_registry_manifest),
+        )
+
+        self._run_command(
+            "kubectl", args=['apply', '-f', manifest_file_name],
+        )
+
     def _download_povctl(self):
         provctl, provctl_url = self._get_provctl_version_and_url()
         self._logger.debug("Downloading provctl to data node", provctl_url=provctl_url)
@@ -337,6 +365,9 @@ def main():
 @click.argument("v3io-username", type=str, required=True)
 @click.argument("v3io-access-key", type=str, required=True)
 @click.argument("v3io-password", type=str, default=None, required=False)
+@click.option(
+    "--debug", "-d", is_flag=True, help="Don't run the ci only show the commands that will be run"
+)
 def run(
     mlrun_version: str,
     mlrun_repo: str,
@@ -349,6 +380,7 @@ def run(
     v3io_username: str,
     v3io_password: str,
     v3io_access_key: str,
+    debug: bool,
 ):
     system_test_ci_runner = SystemTestCIRunner(
         mlrun_version,
@@ -362,6 +394,7 @@ def run(
         v3io_username,
         v3io_password,
         v3io_access_key,
+        debug,
     )
     try:
         system_test_ci_runner.run()

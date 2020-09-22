@@ -64,9 +64,18 @@ endif
 	find . \( ! -regex '.*/\..*' \) -a \( -iname \*.md -o -iname \*.txt -o -iname \*.yaml -o -iname \*.yml \)  \
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
 
+MLRUN_AUTOMATION_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/automation:$(MLRUN_DOCKER_TAG)
+
+.PHONY: automation
+automation: ## Build automation docker image
+	docker build \
+		--file dockerfiles/automation/Dockerfile \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--tag $(MLRUN_AUTOMATION_IMAGE_NAME) .
+
 .PHONY: update-version-file
-update-version-file: ## Update the version file
-	python ./automation/version/version_file.py create $(MLRUN_VERSION)
+update-version-file: automation ## Update the version file
+	docker run -t --rm -e "MLRUN_VERSION=$(MLRUN_VERSION)" -v $(PWD):/mlrun $(MLRUN_AUTOMATION_IMAGE_NAME)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

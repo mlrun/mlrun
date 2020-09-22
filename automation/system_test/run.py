@@ -42,7 +42,7 @@ class SystemTestCIRunner:
         v3io_username: str,
         v3io_access_key: str,
         v3io_password: str = None,
-        debug: bool = False
+        debug: bool = False,
     ):
         self._logger = logger
         self._debug = debug
@@ -366,7 +366,10 @@ def main():
 @click.argument("v3io-access-key", type=str, required=True)
 @click.argument("v3io-password", type=str, default=None, required=False)
 @click.option(
-    "--debug", "-d", is_flag=True, help="Don't run the ci only show the commands that will be run"
+    "--debug",
+    "-d",
+    is_flag=True,
+    help="Don't run the ci only show the commands that will be run",
 )
 def run(
     mlrun_version: str,

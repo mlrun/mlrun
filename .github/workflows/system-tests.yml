@@ -22,10 +22,31 @@ jobs:
     - name: Set MLRUN_GIT_HASH env var
       run: echo "::set-env name=MLRUN_GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
     - name: Set MLRUN_UI_GIT_HASH env var
-      run: echo "::set-env name=MLRUN_UI_GIT_HASH::$(git clone https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && cd mlrun-ui && git rev-parse --short HEAD && cd .. && rm -rf mlrun-ui)"
+      run: |
+        echo "::set-env name=MLRUN_UI_GIT_HASH::$( \
+          git clone https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          cd mlrun-ui && \
+          git rev-parse --short HEAD && \
+          cd .. && \
+          rm -rf mlrun-ui)"
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Set LATEST_VERSION env var
       run: echo "::set-env name=LATEST_VERSION::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
     - name: Run System Test CI Script
-      run: python automation/system_test/run.py run "$LATEST_VERSION-$MLRUN_GIT_HASH" ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_IP }} ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }} ${{ secrets.SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }} ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_KEY }} ${{ secrets.SYSTEM_TEST_MLRUN_DB_PATH }} ${{ secrets.SYSTEM_TEST_V3IO_API }} ${{ secrets.SYSTEM_TEST_V3IO_USERNAME }} ${{ secrets.SYSTEM_TEST_V3IO_ACCESS_KEY }} ${{ secrets.SYSTEM_TEST_V3IO_PASSWORD }} -mr ghcr.io/mlrun -omi "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},ghcr.io/mlrun/mlrun-ui:${LATEST_VERSION}-${MLRUN_UI_GIT_HASH}" -d
+      run: |
+        python automation/system_test/run.py run \
+          "$LATEST_VERSION-$MLRUN_GIT_HASH" \
+          ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }} \
+          ${{ secrets.SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }} \
+          ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_KEY }} \
+          ${{ secrets.SYSTEM_TEST_MLRUN_DB_PATH }} \
+          ${{ secrets.SYSTEM_TEST_V3IO_API }} \
+          ${{ secrets.SYSTEM_TEST_V3IO_USERNAME }} \
+          ${{ secrets.SYSTEM_TEST_V3IO_ACCESS_KEY }} \
+          ${{ secrets.SYSTEM_TEST_V3IO_PASSWORD }} \
+          --mlrun-repo ghcr.io/mlrun \
+          --override-mlrun-images \
+          "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},ghcr.io/mlrun/mlrun-ui:${LATEST_VERSION}-${MLRUN_UI_GIT_HASH}" \
+          -d

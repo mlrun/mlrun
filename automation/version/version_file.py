@@ -1,7 +1,8 @@
 import argparse
 import json
+import sys
 import logging
-import pathlib
+import os.path
 import subprocess
 
 # NOTE
@@ -25,7 +26,7 @@ def main():
 def create_or_update_version_file(mlrun_version):
     git_commit = "unknown"
     try:
-        out, _, _ = _run_command("git", args=["rev-parse", "HEAD"])
+        out = _run_command("git", args=["rev-parse", "HEAD"])
         git_commit = out.strip()
         logger.debug("Found git commit: {0}".format(git_commit))
 
@@ -37,22 +38,28 @@ def create_or_update_version_file(mlrun_version):
         "git_commit": git_commit,
     }
 
-    repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent.parent
-    version_file_path = repo_root / "mlrun" / "utils" / "version" / "version.json"
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    version_file_path = os.path.join(repo_root, "mlrun", "utils", "version", "version.json")
     logger.info("Writing version info to file: {0}".format(str(version_info)))
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 
 
-def _run_command(command, args = None,):
+def _run_command(command, args=None):
     if args:
         command += " " + " ".join(args)
 
-    process = subprocess.run(
-        command, shell=True, check=True, capture_output=True, encoding="utf-8",
-    )
+    if sys.version_info[0] >= 3:
+        process = subprocess.run(
+            command, shell=True, check=True, capture_output=True, encoding="utf-8",
+        )
+        output = process.stdout
+    else:
+        output = subprocess.check_output(
+            command, shell=True,
+        )
 
-    return process.stdout, process.stderr, process.returncode
+    return output
 
 
 if __name__ == "__main__":

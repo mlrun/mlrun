@@ -374,9 +374,8 @@ class SQLDB(DBInterface):
         return funcs
 
     def _delete_function_tags(self, session, project, function_name, commit=True):
-        query = (
-            session.query(Function.Tag)
-            .filter(Function.Tag.project == project, Function.Tag.obj_name == function_name)
+        query = session.query(Function.Tag).filter(
+            Function.Tag.project == project, Function.Tag.obj_name == function_name
         )
         for obj in query:
             session.delete(obj)
@@ -385,8 +384,9 @@ class SQLDB(DBInterface):
 
     def _delete_function_labels(self, session, project, function_name, commit=True):
         labels = (
-            session.query(Function.Label).join(Function).filter(Function.project == project,
-                                                                Function.name == function_name)
+            session.query(Function.Label)
+            .join(Function)
+            .filter(Function.project == project, Function.name == function_name)
         )
         for label in labels:
             session.delete(label)

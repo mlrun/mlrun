@@ -98,6 +98,9 @@ class FileDB(DBInterface):
             self.db.get_function, name, project, tag, hash_key
         )
 
+    def delete_function(self, session, project: str, name: str):
+        raise NotImplementedError()
+
     def list_functions(self, session, name, project="", tag="", labels=None):
         return self._transform_run_db_error(
             self.db.list_functions, name, project, tag, labels

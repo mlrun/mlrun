@@ -355,6 +355,13 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["func"]
 
+    def delete_function(self, name:str, project:str=""):
+        raise NotImplementedError()
+        project = project or default_project
+        path = f"projects/{project}/functions/{name}"
+        error_message = f"Failed deleting function {project}/{name}"
+        self.api_call("DELETE", path, error_message)
+
     def list_functions(self, name=None, project=None, tag=None, labels=None):
         params = {
             "project": project or default_project,

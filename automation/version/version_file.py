@@ -38,8 +38,12 @@ def create_or_update_version_file(mlrun_version):
         "git_commit": git_commit,
     }
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    version_file_path = os.path.join(repo_root, "mlrun", "utils", "version", "version.json")
+    repo_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    version_file_path = os.path.join(
+        repo_root, "mlrun", "utils", "version", "version.json"
+    )
     logger.info("Writing version info to file: {0}".format(str(version_info)))
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
@@ -55,9 +59,7 @@ def _run_command(command, args=None):
         )
         output = process.stdout
     else:
-        output = subprocess.check_output(
-            command, shell=True,
-        )
+        output = subprocess.check_output(command, shell=True,)
 
     return output
 

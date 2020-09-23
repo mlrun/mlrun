@@ -4,7 +4,10 @@ import logging
 import pathlib
 import subprocess
 
-# not using mlrun.utils.logger to not require mlrun package
+# NOTE
+# this script is being used in all build flows before building to add version information to the code
+# therefore it needs to be runnable in several environments - GH action, Jenkins, etc...
+# therefore this script should be kept python 2 and 3 compatible, and should not require external dependencies
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("version_file")
 

@@ -44,7 +44,7 @@ def create_or_update_version_file(mlrun_version):
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 
 
-def _run_command(command: str, args: list = None,) -> (str, str, int):
+def _run_command(command, args = None,):
     if args:
         command += " " + " ".join(args)
 

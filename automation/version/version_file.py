@@ -22,7 +22,7 @@ def main():
     create_or_update_version_file(args.mlrun_version)
 
 
-def create_or_update_version_file(mlrun_version: str):
+def create_or_update_version_file(mlrun_version):
     git_commit = "unknown"
     try:
         out, _, _ = _run_command("git", args=["rev-parse", "HEAD"])

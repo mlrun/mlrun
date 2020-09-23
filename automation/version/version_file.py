@@ -10,18 +10,13 @@ logger = logging.getLogger("version_file")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Create or update the version file')
+    parser = argparse.ArgumentParser(description="Create or update the version file")
 
-    parser.add_argument('--mlrun-version',
-                        type=str,
-                        required=False,
-                        default="unstable")
+    parser.add_argument("--mlrun-version", type=str, required=False, default="unstable")
 
     args = parser.parse_args()
 
-    mlrun_version = args.mlrun_version
-
-    create_or_update_version_file(mlrun_version)
+    create_or_update_version_file(args.mlrun_version)
 
 
 def create_or_update_version_file(mlrun_version: str):

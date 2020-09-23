@@ -11,9 +11,6 @@ jobs:
     name: Run System Tests
     runs-on: ubuntu-latest
 
-    # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'quaark/mlrun'
-
     steps:
     - uses: actions/checkout@v2
     - name: Set up python 3.7

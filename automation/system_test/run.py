@@ -87,9 +87,9 @@ class SystemTestCIRunner:
         provctl_path = self._download_povctl()
         self._patch_mlrun(provctl_path)
 
-        # self._run_command(
-        #     "make", args=["test-system"], local=True,
-        # )
+        self._run_command(
+            "make", args=["test-system"], local=True,
+        )
 
     def clean_up(self, close_ssh_client: bool = True):
         self._logger.info("Cleaning up")
@@ -364,7 +364,10 @@ def main():
     "--mlrun-repo", "-mr", default=None, help="Override default mlrun image repository."
 )
 @click.option(
-    "--override-mlrun-images", "-omi", default=None, help="Override default images (comma delimited list)."
+    "--override-mlrun-images",
+    "-omi",
+    default=None,
+    help="Override default images (comma delimited list).",
 )
 @click.argument("data-cluster-ip", type=str, required=True)
 @click.argument("data-cluster-ssh-password", type=str, required=True)

@@ -48,11 +48,14 @@ def xcp_op(
 def mount_v3io(
     name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None
 ):
-    """
-    Modifier function to apply to a Container Op to volume mount a v3io path
-    Usage:
-        train = train_op(...)
-        train.apply(mount_v3io(container='users', sub_path='/iguazio', mount_path='/data'))
+    """Modifier function to apply to a Container Op to volume mount a v3io path
+
+    :param name:            the volume name
+    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
+    :param mount_path:      the volume mount path
+    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
+    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
+    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     """
 
     def _mount_v3io(task):

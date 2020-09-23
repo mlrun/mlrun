@@ -33,6 +33,7 @@ class SystemTestCIRunner:
         self,
         mlrun_version: str,
         mlrun_repo: str,
+        override_mlrun_images: str,
         data_cluster_ip: str,
         data_cluster_ssh_password: str,
         app_cluster_ssh_password: str,
@@ -48,6 +49,7 @@ class SystemTestCIRunner:
         self._debug = debug
         self._mlrun_version = mlrun_version
         self._mlrun_repo = mlrun_repo
+        self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._app_cluster_ssh_password = app_cluster_ssh_password
@@ -85,9 +87,9 @@ class SystemTestCIRunner:
         provctl_path = self._download_povctl()
         self._patch_mlrun(provctl_path)
 
-        self._run_command(
-            "make", args=["test-system"], local=True,
-        )
+        # self._run_command(
+        #     "make", args=["test-system"], local=True,
+        # )
 
     def clean_up(self, close_ssh_client: bool = True):
         self._logger.info("Cleaning up")
@@ -318,12 +320,17 @@ class SystemTestCIRunner:
         if self._mlrun_repo:
             repo_arg = f"--override-image-pull-repo {self._mlrun_repo}"
 
+        override_image_arg = ""
+        if self._override_mlrun_images:
+            override_image_arg = f"--override-images {self._override_mlrun_images}"
+
         self._run_command(
             f"./{provctl_path}",
             args=[
                 "create-patch",
                 "appservice",
                 repo_arg,
+                override_image_arg,
                 "mlrun",
                 self._mlrun_version,
                 mlrun_archive,
@@ -356,6 +363,9 @@ def main():
 @click.option(
     "--mlrun-repo", "-mr", default=None, help="Override default mlrun image repository."
 )
+@click.option(
+    "--override-mlrun-images", "-omi", default=None, help="Override default images (comma delimited list)."
+)
 @click.argument("data-cluster-ip", type=str, required=True)
 @click.argument("data-cluster-ssh-password", type=str, required=True)
 @click.argument("app-cluster-ssh-password", type=str, required=True)
@@ -374,6 +384,7 @@ def main():
 def run(
     mlrun_version: str,
     mlrun_repo: str,
+    override_mlrun_images: str,
     data_cluster_ip: str,
     data_cluster_ssh_password: str,
     app_cluster_ssh_password: str,
@@ -388,6 +399,7 @@ def run(
     system_test_ci_runner = SystemTestCIRunner(
         mlrun_version,
         mlrun_repo,
+        override_mlrun_images,
         data_cluster_ip,
         data_cluster_ssh_password,
         app_cluster_ssh_password,

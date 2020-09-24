@@ -462,6 +462,11 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed deleting schedule {project}/{name}"
         self.api_call("DELETE", path, error_message)
 
+    def delete_project(self, name: str):
+        path = f"projects/{name}"
+        error_message = f"Failed deleting project {name}"
+        self.api_call("DELETE", path, error_message)
+
     def remote_builder(self, func, with_mlrun):
         try:
             req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}

@@ -206,10 +206,14 @@ def test_list_functions_multiple_tags(db: DBInterface, db_session: Session):
 )
 def test_delete_function(db: DBInterface, db_session: Session):
     labels = {
-        'name': 'value',
-        'name2': 'value2',
+        "name": "value",
+        "name2": "value2",
     }
-    function = {"bla": "blabla", "metadata": {"labels": labels}, "status": {"bla": "blabla"}}
+    function = {
+        "bla": "blabla",
+        "metadata": {"labels": labels},
+        "status": {"bla": "blabla"},
+    }
     function_name = "function_name_1"
     project = "bla"
     tags = ["some_tag", "some_tag2", "some_tag3"]
@@ -222,10 +226,12 @@ def test_delete_function(db: DBInterface, db_session: Session):
     # if not exploding then function exists
     for tag in tags:
         db.get_function(db_session, function_name, project, tag=tag)
-    db.get_function(
-        db_session, function_name, project, hash_key=function_hash_key
+    db.get_function(db_session, function_name, project, hash_key=function_hash_key)
+    number_of_tags = (
+        db_session.query(Function.Tag)
+        .filter_by(project=project, obj_name=function_name)
+        .count()
     )
-    number_of_tags = db_session.query(Function.Tag).filter_by(project=project, obj_name=function_name).count()
     number_of_labels = db_session.query(Function.Label).count()
 
     assert len(tags) == number_of_tags
@@ -237,12 +243,14 @@ def test_delete_function(db: DBInterface, db_session: Session):
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.get_function(db_session, function_name, project, tag=tag)
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.get_function(
-            db_session, function_name, project, hash_key=function_hash_key
-        )
+        db.get_function(db_session, function_name, project, hash_key=function_hash_key)
 
     # verifying tags and labels (different table) records were removed
-    number_of_tags = db_session.query(Function.Tag).filter_by(project=project, obj_name=function_name).count()
+    number_of_tags = (
+        db_session.query(Function.Tag)
+        .filter_by(project=project, obj_name=function_name)
+        .count()
+    )
     number_of_labels = db_session.query(Function.Label).count()
 
     assert number_of_tags == 0

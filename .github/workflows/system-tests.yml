@@ -3,9 +3,7 @@ name: System Tests
 on:
   push:
     branches:
-      - development
-      - mlrun-system-test-registry
-      - '[0-9]+.[0-9]+.x'
+      - '.+-system-tests'
 #  schedule:
 #
 #    # * is a special character in YAML so you have to quote this string
@@ -17,8 +15,8 @@ jobs:
     name: Run System Tests
     runs-on: ubuntu-latest
 
-#      # let's not run this on every fork, change to your fork when developing
-#      if: github.repository == 'mlrun/mlrun'
+      # let's not run this on every fork, change to your fork when developing
+      if: github.repository == 'mlrun/mlrun'
 
     steps:
     - uses: actions/checkout@v2

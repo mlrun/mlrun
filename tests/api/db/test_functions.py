@@ -201,6 +201,7 @@ def test_list_functions_multiple_tags(db: DBInterface, db_session: Session):
     assert len(tags) == 0
 
 
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
@@ -227,6 +228,7 @@ def test_delete_function(db: DBInterface, db_session: Session):
     for tag in tags:
         db.get_function(db_session, function_name, project, tag=tag)
     db.get_function(db_session, function_name, project, hash_key=function_hash_key)
+    assert len(tags) == len(db.list_functions(db_session, function_name, project))
     number_of_tags = (
         db_session.query(Function.Tag)
         .filter_by(project=project, obj_name=function_name)
@@ -244,6 +246,7 @@ def test_delete_function(db: DBInterface, db_session: Session):
             db.get_function(db_session, function_name, project, tag=tag)
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.get_function(db_session, function_name, project, hash_key=function_hash_key)
+    assert 0 == len(db.list_functions(db_session, function_name, project))
 
     # verifying tags and labels (different table) records were removed
     number_of_tags = (

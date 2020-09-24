@@ -339,6 +339,12 @@ class SQLDB(DBInterface):
             function_uri = generate_function_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
 
+    def delete_function(self, session: Session, project: str, name: str):
+        logger.debug("Removing function from db", project=project, name=name)
+        self._delete_function_tags(session, project, name, commit=False)
+        self._delete_function_labels(session, project, name, commit=False)
+        self._delete(session, Function, project=project, name=name)
+
     def list_functions(self, session, name, project=None, tag=None, labels=None):
         project = project or config.default_project
         uid = None
@@ -366,6 +372,26 @@ class SQLDB(DBInterface):
                 function_dict["metadata"]["tag"] = tag
                 funcs.append(function_dict)
         return funcs
+
+    def _delete_function_tags(self, session, project, function_name, commit=True):
+        query = session.query(Function.Tag).filter(
+            Function.Tag.project == project, Function.Tag.obj_name == function_name
+        )
+        for obj in query:
+            session.delete(obj)
+        if commit:
+            session.commit()
+
+    def _delete_function_labels(self, session, project, function_name, commit=True):
+        labels = (
+            session.query(Function.Label)
+            .join(Function)
+            .filter(Function.project == project, Function.name == function_name)
+        )
+        for label in labels:
+            session.delete(label)
+        if commit:
+            session.commit()
 
     def _list_function_tags(self, session, project, function_id):
         query = (
@@ -695,7 +721,7 @@ class SQLDB(DBInterface):
 
         return query
 
-    def _find_functions(self, session, name, project, uid, labels):
+    def _find_functions(self, session, name, project, uid=None, labels=None):
         query = self._query(session, Function, name=name, project=project)
         if uid:
             query = query.filter(Function.uid == uid)

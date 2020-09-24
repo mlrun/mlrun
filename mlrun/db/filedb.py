@@ -319,6 +319,9 @@ class FileRunDB(RunDBInterface):
         parsed_data["metadata"]["tag"] = "" if hash_key else tag
         return parsed_data
 
+    def delete_function(self, name: str, project: str = ""):
+        raise NotImplementedError()
+
     def list_functions(self, name, project="", tag="", labels=None):
         labels = labels or []
         logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")

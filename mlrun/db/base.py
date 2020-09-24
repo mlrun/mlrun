@@ -107,6 +107,10 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_function(self, name: str, project: str = ""):
+        pass
+
+    @abstractmethod
     def list_functions(self, name, project="", tag="", labels=None):
         pass
 

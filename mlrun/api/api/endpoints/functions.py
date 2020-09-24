@@ -67,6 +67,16 @@ def get_function(
     }
 
 
+@router.delete(
+    "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
+)
+def delete_function(
+    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+):
+    get_db().delete_function(db_session, name, project)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
 # curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
 @router.get("/funcs")
 def list_functions(

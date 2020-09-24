@@ -115,6 +115,10 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_function(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
     def list_functions(self, session, name, project="", tag="", labels=None):
         pass
 

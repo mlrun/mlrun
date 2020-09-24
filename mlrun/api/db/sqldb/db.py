@@ -26,6 +26,7 @@ from mlrun.api.db.sqldb.models import (
     User,
     Project,
     _tagged,
+    _labeled,
 )
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
@@ -81,6 +82,15 @@ class SQLDB(DBInterface):
             return None, None
         end = None if size == 0 else offset + size
         return "", log.body[offset:end]
+
+    def delete_log(self, session: Session, project: str, uid:str):
+        project = project or config.default_project
+        self._delete(session, Log, project=project, uid=uid)
+
+    def _delete_logs(self, session: Session, project: str):
+        logger.debug("Removing logs from db", project=project)
+        for log in self._query(session, Log, project=project):
+            self.delete_log(session, project, log.uid)
 
     def store_run(self, session, struct, uid, project="", iter=0):
         project = project or config.default_project
@@ -263,7 +273,7 @@ class SQLDB(DBInterface):
 
         self._delete(session, Artifact, **kw)
 
-    def del_artifacts(self, session, name="", project="", tag="", labels=None):
+    def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
         for obj in self._find_artifacts(session, project, tag, labels, None, None):
             session.delete(obj)
@@ -344,6 +354,18 @@ class SQLDB(DBInterface):
         self._delete_function_tags(session, project, name, commit=False)
         self._delete_function_labels(session, project, name, commit=False)
         self._delete(session, Function, project=project, name=name)
+
+    def _delete_functions(self, session: Session, project: str):
+        for function in self._query(session, Function, project=project):
+            self.delete_function(session, project, function.name)
+
+    def _delete_resources_tags(self, session: Session, project: str):
+        for tagged_class in _tagged:
+            self._delete(session, tagged_class, project=project)
+
+    def _delete_resources_labels(self, session: Session, project: str):
+        for labeled_class in _labeled:
+            self._delete(session, labeled_class, project=project)
 
     def list_functions(self, session, name, project=None, tag=None, labels=None):
         project = project or config.default_project
@@ -469,6 +491,11 @@ class SQLDB(DBInterface):
         logger.debug("Removing schedule from db", project=project, name=name)
         self._delete(session, Schedule, project=project, name=name)
 
+    def _delete_schedules(self, session: Session, project: str):
+        logger.debug("Removing schedules from db", project=project)
+        for schedule in self.list_schedules(session, project=project):
+            self.delete_schedule(session, project, schedule.name)
+
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.
 
@@ -570,6 +597,19 @@ class SQLDB(DBInterface):
             return self._query(session, Project).get(project_id)
 
         return self._query(session, Project, name=name).one_or_none()
+
+    def delete_project(self, session, name: str):
+        self.del_artifacts(session, project=name)
+        self._delete_logs(session, name)
+        self.del_runs(session, project=name)
+        self._delete_schedules(session, name)
+        self._delete_functions(session, name)
+
+        # resources deletion should remove their tags and labels as well, but doing another try in case there are
+        # orphan resources
+        self._delete_resources_tags(session, name)
+        self._delete_resources_labels(session, name)
+        self._delete(session, Project, name=name)
 
     def list_projects(self, session, owner=None):
         return self._query(session, Project, owner=owner)

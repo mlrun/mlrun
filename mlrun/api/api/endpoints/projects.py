@@ -1,6 +1,7 @@
 from operator import attrgetter
+from http import HTTPStatus
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -47,6 +48,16 @@ def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
     return {
         "project": project,
     }
+
+
+@router.delete(
+    "/projects/{name}", status_code=HTTPStatus.NO_CONTENT.value
+)
+def delete_project(
+    name: str, db_session: Session = Depends(deps.get_db_session),
+):
+    get_db().delete_project(db_session, name)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 # curl http://localhost:8080/projects?full=true

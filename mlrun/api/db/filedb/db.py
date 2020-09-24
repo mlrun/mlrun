@@ -109,8 +109,20 @@ class FileDB(DBInterface):
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
-    def list_projects(self, session):
+    def list_projects(self, session, owner=None):
         return self._transform_run_db_error(self.db.list_projects)
+
+    def add_project(self, session, project: dict):
+        raise NotImplementedError()
+
+    def update_project(self, session, name, data: dict):
+        raise NotImplementedError()
+
+    def get_project(self, session, name=None, project_id=None):
+        raise NotImplementedError()
+
+    def delete_project(self, session, name: str):
+        raise NotImplementedError()
 
     def list_artifact_tags(self, session, project):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)

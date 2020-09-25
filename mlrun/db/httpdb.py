@@ -356,7 +356,6 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["func"]
 
     def delete_function(self, name: str, project: str = ""):
-        raise NotImplementedError()
         project = project or default_project
         path = f"projects/{project}/functions/{name}"
         error_message = f"Failed deleting function {project}/{name}"
@@ -461,6 +460,11 @@ class HTTPRunDB(RunDBInterface):
         project = project or default_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed deleting schedule {project}/{name}"
+        self.api_call("DELETE", path, error_message)
+
+    def delete_project(self, name: str):
+        path = f"projects/{name}"
+        error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 
     def remote_builder(self, func, with_mlrun):

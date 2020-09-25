@@ -404,6 +404,9 @@ class FileRunDB(RunDBInterface):
             {"name": d} for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
         ]
 
+    def delete_project(self, name: str):
+        raise NotImplementedError()
+
     @property
     def schedules_dir(self):
         return path.join(self.dirpath, schedules_dir)

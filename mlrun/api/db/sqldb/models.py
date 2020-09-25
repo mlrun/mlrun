@@ -228,4 +228,6 @@ with warnings.catch_warnings():
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]
+_labeled = [cls for cls in Base.__subclasses__() if hasattr(cls, "Label")]
+_classes = [cls for cls in Base.__subclasses__()]
 _table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}

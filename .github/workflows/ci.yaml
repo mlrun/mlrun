@@ -44,7 +44,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Run Dockerized tests
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_REPO=hedingber MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make test-dockerized
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make test-dockerized
 
   docs:
     name: Build Project Documentation
@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Generate HTML docs
-        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_REPO=hedingber MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make html-docs-dockerized
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make html-docs-dockerized
       - name: Upload generated docs
         uses: actions/upload-artifact@v2
         with:

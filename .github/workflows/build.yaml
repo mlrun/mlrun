@@ -31,6 +31,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Docker login
       run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
+    - name: Set MLRUN_DOCKER_REPO env var
+      run: echo "::set-env name=MLRUN_DOCKER_REPO::$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')"
     - name: Set GIT_HASH env var
       run: echo "::set-env name=GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
     - name: Install curl and jq
@@ -42,7 +44,7 @@ jobs:
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
       # to use and run much faster
       if: matrix.image-name != test
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_VERSION="$LATEST_VERSION"-"$GIT_HASH" MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make push-${{ matrix.image-name }}
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_REPO="$MLRUN_DOCKER_REPO" MLRUN_VERSION="$LATEST_VERSION"-"$GIT_HASH" MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make push-${{ matrix.image-name }}
     - name: Pull cache, build and push test image
       if: matrix.image-name == test
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_VERSION=unstable-cache MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make push-${{ matrix.image-name }}
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_REPO="$MLRUN_DOCKER_REPO" MLRUN_VERSION=unstable-cache MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make push-${{ matrix.image-name }}

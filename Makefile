@@ -323,14 +323,26 @@ push-api: api ## Push api docker image
 	$(MLRUN_API_CACHE_IMAGE_PUSH_COMMAND)
 
 
-MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test:$(MLRUN_DOCKER_TAG)
+MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
+MLRUN_TEST_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
+MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_TEST_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)
+MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),--cache-from $(strip $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docker pull $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(MLRUN_DOCKER_CACHE_FROM_TAG),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
 build-test: update-version-file ## Build test docker image
+	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--tag $(MLRUN_TEST_IMAGE_NAME) .
+		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
+
+.PHONY: push-test
+push-test: build-test ## Push test docker image
+	docker push $(MLRUN_TEST_IMAGE_NAME_TAGGED)
+	$(MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND)
 
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
@@ -340,10 +352,6 @@ build-test-system: update-version-file ## Build system tests docker image
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
-
-.PHONY: push-test
-push-test: build-test ## Push test docker image
-	docker push $(MLRUN_TEST_IMAGE_NAME)
 
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
@@ -372,7 +380,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME) make test
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
 test: clean ## Run mlrun tests
@@ -399,7 +407,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 	docker run \
 		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \
-		$(MLRUN_TEST_IMAGE_NAME) \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		make html-docs
 
 .PHONY: fmt

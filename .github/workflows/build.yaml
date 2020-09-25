@@ -3,7 +3,8 @@ name: Build
 on:
   push:
     branches:
-    - development
+    - improve_ci_runtime
+#    - development
 #    - '[0-9]+.[0-9]+.x'
 
 jobs:
@@ -12,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'mlrun/mlrun'
+    if: github.repository == 'hedingber/mlrun'
 
     strategy:
       matrix:

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'hedingber/mlrun'
+    if: github.repository == 'Hedingber/mlrun'
 
     strategy:
       matrix:

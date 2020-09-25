@@ -264,6 +264,8 @@ class SQLDB(DBInterface):
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
+        self._delete_artifact_tags(session, project, key, tag, commit=False)
+        self._delete_artifact_labels(session, project, key, commit=False)
         kw = {
             "key": key,
             "project": project,
@@ -273,11 +275,36 @@ class SQLDB(DBInterface):
 
         self._delete(session, Artifact, **kw)
 
+    def _delete_artifact_tags(self, session, project, artifact_key, tag_name="", commit=True):
+        query = (
+            session.query(Artifact.Tag)
+                .join(Artifact)
+                .filter(Artifact.project == project, Artifact.key == artifact_key)
+        )
+        if tag_name:
+            query = query.filter(Artifact.Tag.name == tag_name)
+        for tag in query:
+            session.delete(tag)
+        if commit:
+            session.commit()
+
+    def _delete_artifact_labels(self, session, project, artifact_key, tag_name="", commit=True):
+        query = (
+            session.query(Artifact.Label)
+                .join(Artifact)
+                .filter(Artifact.project == project, Artifact.key == artifact_key)
+        )
+        if tag_name:
+            query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag_name)
+        for label in query:
+            session.delete(label)
+        if commit:
+            session.commit()
+
     def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
         for obj in self._find_artifacts(session, project, tag, labels, None, None):
-            session.delete(obj)
-        session.commit()
+            self.del_artifact(session, obj.key, "", project)
 
     def store_function(
         self, session, function, name, project="", tag="", versioned=False

@@ -37,6 +37,7 @@ jobs:
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
+
   tests:
     name: Run Dockerized Tests
     runs-on: ubuntu-latest

@@ -354,10 +354,6 @@ build-test-system: update-version-file ## Build system tests docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 
-.PHONY: push-test
-push-test: build-test ## Push test docker image
-	docker push $(MLRUN_TEST_IMAGE_NAME)
-
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
 	python setup.py bdist_wheel
@@ -385,7 +381,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME) make test
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
 test: clean ## Run mlrun tests
@@ -412,7 +408,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 	docker run \
 		--rm \
 		-v $(PWD)/docs/_build:/mlrun/docs/_build \
-		$(MLRUN_TEST_IMAGE_NAME) \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		make html-docs
 
 .PHONY: fmt

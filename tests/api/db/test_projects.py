@@ -24,30 +24,38 @@ def test_delete_project(db: DBInterface, db_session: Session):
     project_to_remove = "project_to_remove"
     _create_resources_of_all_kinds(db, db_session, project_to_keep)
     _create_resources_of_all_kinds(db, db_session, project_to_remove)
-    project_to_keep_table_name_records_count_map_before_project_removal = _assert_resources_in_project(db, db_session, project_to_keep)
+    project_to_keep_table_name_records_count_map_before_project_removal = _assert_resources_in_project(
+        db, db_session, project_to_keep
+    )
     _assert_resources_in_project(db, db_session, project_to_remove)
     db.delete_project(db_session, project_to_remove)
-    project_to_keep_table_name_records_count_map_after_project_removal = _assert_resources_in_project(db, db_session, project_to_keep)
-    _assert_resources_in_project(db, db_session, project_to_remove, assert_no_resources=True)
+    project_to_keep_table_name_records_count_map_after_project_removal = _assert_resources_in_project(
+        db, db_session, project_to_keep
+    )
+    _assert_resources_in_project(
+        db, db_session, project_to_remove, assert_no_resources=True
+    )
     assert (
-            deepdiff.DeepDiff(
-                project_to_keep_table_name_records_count_map_before_project_removal,
-                project_to_keep_table_name_records_count_map_after_project_removal,
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            project_to_keep_table_name_records_count_map_before_project_removal,
+            project_to_keep_table_name_records_count_map_after_project_removal,
+            ignore_order=True,
+        )
+        == {}
     )
 
 
-def _assert_resources_in_project(db: DBInterface, db_session: Session, project: str, assert_no_resources: bool = False) -> typing.Dict:
+def _assert_resources_in_project(
+    db: DBInterface,
+    db_session: Session,
+    project: str,
+    assert_no_resources: bool = False,
+) -> typing.Dict:
     table_name_records_count_map = {}
     for cls in _classes:
         # User support is not really implemented or in use
         # Run tags support is not really implemented or in use
-        if (
-            cls.__name__ != "User"
-            and cls.__tablename__ != "runs_tags"
-        ):
+        if cls.__name__ != "User" and cls.__tablename__ != "runs_tags":
             number_of_cls_records = 0
             # Label doesn't have project attribute
             # Project (obviously) doesn't have project attribute
@@ -79,13 +87,11 @@ def _assert_resources_in_project(db: DBInterface, db_session: Session, project: 
                     )
             else:
                 number_of_cls_records = (
-                    db_session.query(Project)
-                        .filter(Project.name == project)
-                        .count()
+                    db_session.query(Project).filter(Project.name == project).count()
                 )
             if assert_no_resources:
                 assert (
-                        number_of_cls_records == 0
+                    number_of_cls_records == 0
                 ), f"Table {cls.__tablename__} records were found"
             else:
                 assert (

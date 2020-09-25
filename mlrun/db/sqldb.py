@@ -194,9 +194,7 @@ class SQLDB(RunDBInterface):
         )
 
     def delete_project(self, name: str):
-        return self._transform_db_error(
-            self.db.delete_project, self.session, name
-        )
+        return self._transform_db_error(self.db.delete_project, self.session, name)
 
     def get_project(self, name=None, project_id=None):
         return self._transform_db_error(

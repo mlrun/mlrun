@@ -83,7 +83,7 @@ class SQLDB(DBInterface):
         end = None if size == 0 else offset + size
         return "", log.body[offset:end]
 
-    def delete_log(self, session: Session, project: str, uid:str):
+    def delete_log(self, session: Session, project: str, uid: str):
         project = project or config.default_project
         self._delete(session, Log, project=project, uid=uid)
 
@@ -275,11 +275,13 @@ class SQLDB(DBInterface):
 
         self._delete(session, Artifact, **kw)
 
-    def _delete_artifact_tags(self, session, project, artifact_key, tag_name="", commit=True):
+    def _delete_artifact_tags(
+        self, session, project, artifact_key, tag_name="", commit=True
+    ):
         query = (
             session.query(Artifact.Tag)
-                .join(Artifact)
-                .filter(Artifact.project == project, Artifact.key == artifact_key)
+            .join(Artifact)
+            .filter(Artifact.project == project, Artifact.key == artifact_key)
         )
         if tag_name:
             query = query.filter(Artifact.Tag.name == tag_name)
@@ -288,11 +290,13 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def _delete_artifact_labels(self, session, project, artifact_key, tag_name="", commit=True):
+    def _delete_artifact_labels(
+        self, session, project, artifact_key, tag_name="", commit=True
+    ):
         query = (
             session.query(Artifact.Label)
-                .join(Artifact)
-                .filter(Artifact.project == project, Artifact.key == artifact_key)
+            .join(Artifact)
+            .filter(Artifact.project == project, Artifact.key == artifact_key)
         )
         if tag_name:
             query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag_name)

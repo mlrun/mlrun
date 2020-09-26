@@ -463,7 +463,7 @@ def NewTask(
     """
     warnings.warn(
         "NewTask is deprecated and will be removed in 0.7.0, use new_task instead",
-        FutureWarning,
+        PendingDeprecationWarning,
     )
     return new_task(
         name,

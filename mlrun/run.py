@@ -929,7 +929,9 @@ def as_func(handler):
 
 def update_function_entry_points(function, code):
     handlers = find_handlers(code)
-    function.spec.entry_points = {handler["name"]: as_func(handler) for handler in handlers}
+    function.spec.entry_points = {
+        handler["name"]: as_func(handler) for handler in handlers
+    }
 
 
 def clean(struct: dict):

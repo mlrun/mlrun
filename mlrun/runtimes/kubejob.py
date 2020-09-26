@@ -18,9 +18,9 @@ from base64 import b64encode
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
-from mlrun.run import update_function_entry_points
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
+from .funcdoc import update_function_entry_points
 from .pod import KubeResource
 from .utils import AsyncLogWriter, default_image_name
 from ..builder import build_runtime

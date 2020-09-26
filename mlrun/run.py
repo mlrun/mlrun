@@ -628,8 +628,7 @@ def code_to_function(
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
             if with_doc:
-                handlers = find_handlers(code)
-                r.spec.entry_points = {h["name"]: as_func(h) for h in handlers}
+                update_function_entry_points(r, code)
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -680,8 +679,7 @@ def code_to_function(
             r.spec.volume_mounts.append(vol.get("volumeMount"))
 
     if with_doc:
-        handlers = find_handlers(code)
-        r.spec.entry_points = {h["name"]: as_func(h) for h in handlers}
+        update_function_entry_points(r, code)
     r.spec.default_handler = handler
     update_meta(r)
     return r
@@ -927,6 +925,11 @@ def as_func(handler):
         outputs=[ret] if ret else None,
         lineno=handler["lineno"],
     ).to_dict()
+
+
+def update_function_entry_points(function, code):
+    handlers = find_handlers(code)
+    function.spec.entry_points = {handler["name"]: as_func(handler) for handler in handlers}
 
 
 def clean(struct: dict):

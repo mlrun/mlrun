@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
+import importlib.util as imputil
 import json
 import socket
+import typing
 import uuid
-from ast import literal_eval
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -26,14 +26,11 @@ from tempfile import mktemp
 import yaml
 from kfp import Client
 from nuclio import build_file
-import importlib.util as imputil
 
-from .utils import retry_until_successful
 from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
-from .funcdoc import find_handlers
 from .k8s_utils import get_k8s_helper
 from .model import RunObject, BaseMetadata, RunTemplate
 from .runtimes import (
@@ -43,7 +40,7 @@ from .runtimes import (
     RuntimeKinds,
     get_runtime_class,
 )
-from .runtimes.base import FunctionEntrypoint
+from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     get_in,
@@ -53,6 +50,7 @@ from .utils import (
     new_pipe_meta,
     extend_hub_uri,
 )
+from .utils import retry_until_successful
 
 
 class RunStatuses(object):
@@ -628,8 +626,7 @@ def code_to_function(
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
             if with_doc:
-                handlers = find_handlers(code)
-                r.spec.entry_points = {h["name"]: as_func(h) for h in handlers}
+                update_function_entry_points(r, code)
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
@@ -680,8 +677,7 @@ def code_to_function(
             r.spec.volume_mounts.append(vol.get("volumeMount"))
 
     if with_doc:
-        handlers = find_handlers(code)
-        r.spec.entry_points = {h["name"]: as_func(h) for h in handlers}
+        update_function_entry_points(r, code)
     r.spec.default_handler = handler
     update_meta(r)
     return r
@@ -916,33 +912,6 @@ def list_piplines(
             )
 
     return resp.total_size, resp.next_page_token, runs
-
-
-def as_func(handler):
-    ret = clean(handler["return"])
-    return FunctionEntrypoint(
-        name=handler["name"],
-        doc=handler["doc"],
-        parameters=[clean(p) for p in handler["params"]],
-        outputs=[ret] if ret else None,
-        lineno=handler["lineno"],
-    ).to_dict()
-
-
-def clean(struct: dict):
-    if not struct:
-        return None
-    if "default" in struct:
-        struct["default"] = py_eval(struct["default"])
-    return {k: v for k, v in struct.items() if v or k == "default"}
-
-
-def py_eval(data):
-    try:
-        value = literal_eval(data)
-        return value
-    except (SyntaxError, ValueError):
-        return data
 
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):

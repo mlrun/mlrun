@@ -167,6 +167,7 @@ def main():
         host="0.0.0.0",
         port=config.httpdb.port,
         debug=config.httpdb.debug,
+        access_log=False,
     )
 
 

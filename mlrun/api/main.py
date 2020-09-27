@@ -1,6 +1,13 @@
+import uuid
+
 import fastapi
 import uvicorn
 from fastapi.exception_handlers import http_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from uvicorn.protocols.utils import (
+    get_client_addr,
+    get_path_with_query_string,
+)
 
 import mlrun.errors
 from mlrun.api.api.api import api_router
@@ -49,6 +56,68 @@ async def http_status_error_handler(
     return await http_exception_handler(
         request, fastapi.HTTPException(status_code=status_code, detail=error_message)
     )
+
+
+@app.middleware("http")
+async def log_request_response(request: fastapi.Request, call_next):
+    request_id = uuid.uuid4()
+    silent_logging_paths = [
+        "healthz",
+    ]
+    path_with_query_string = get_path_with_query_string(request.scope)
+    if not any(
+        silent_logging_path in path_with_query_string
+        for silent_logging_path in silent_logging_paths
+    ):
+        logger.info(
+            "Received request",
+            method=request.method,
+            client_address=get_client_addr(request.scope),
+            http_version=request.scope["http_version"],
+            request_id=request_id,
+            uri=path_with_query_string,
+        )
+    try:
+        response = await call_next(request)
+
+    # Using StarletteHTTPException because
+    # https://fastapi.tiangolo.com/tutorial/handling-errors/#fastapis-httpexception-vs-starlettes-httpexception
+    except StarletteHTTPException as exc:
+        logger.warning(
+            "Request handling returned error status. Sending response",
+            status_code=exc.status_code,
+            request_id=request_id,
+            uri=path_with_query_string,
+            method=request.method,
+        )
+        raise
+    except Exception:
+        logger.warning(
+            "Request handling failed. Sending response",
+            # TODO: find a better solution
+            # Basically any exception that not inherits from StarletteHTTPException will return a 500 status code
+            # UNLESS a special exception handler was added for that exception, in this case this exception handler runs
+            # after this middleware and if it will change the response code this 500 won't be true.
+            # currently I can't find a way to execute code after all custom exception handlers
+            status_code=500,
+            request_id=request_id,
+            uri=path_with_query_string,
+            method=request.method,
+        )
+        raise
+    else:
+        if not any(
+            silent_logging_path in path_with_query_string
+            for silent_logging_path in silent_logging_paths
+        ):
+            logger.info(
+                "Sending response",
+                status_code=response.status_code,
+                request_id=request_id,
+                uri=path_with_query_string,
+                method=request.method,
+            )
+        return response
 
 
 @app.on_event("startup")

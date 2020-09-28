@@ -1,14 +1,15 @@
-from fastapi.exception_handlers import http_exception_handler
-import pydantic
-
-from fastapi.testclient import TestClient
-from http import HTTPStatus
-from sqlalchemy.orm import Session
-from mlrun.api.main import app
-import fastapi
-from mlrun.utils import logger
-import pytest
 import typing
+from http import HTTPStatus
+
+import fastapi
+import pydantic
+import pytest
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from mlrun.api.main import app
+from mlrun.utils import logger
 
 
 class HandledException1(Exception):
@@ -24,9 +25,7 @@ class UnhandledException(Exception):
 
 
 @app.exception_handler(HandledException1)
-async def handler_returning_response(
-    request: fastapi.Request, exc: HandledException1
-):
+async def handler_returning_response(request: fastapi.Request, exc: HandledException1):
     logger.warning("Handler caught HandledException1 exception, returning 204 response")
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -35,10 +34,13 @@ async def handler_returning_response(
 async def handler_returning_http_exception(
     request: fastapi.Request, exc: HandledException2
 ):
-    logger.warning("Handler caught HandledException2 exception, returning HTTPException with 401")
+    logger.warning(
+        "Handler caught HandledException2 exception, returning HTTPException with 401"
+    )
     return await http_exception_handler(
         request, fastapi.HTTPException(status_code=HTTPStatus.UNAUTHORIZED.value)
     )
+
 
 test_router = fastapi.APIRouter()
 
@@ -51,13 +53,17 @@ def success():
 
 @test_router.get("/handled_exception_1")
 def handled_exception_1():
-    logger.info("handled_exception_1 endpoint received request, raising handled exception 1")
+    logger.info(
+        "handled_exception_1 endpoint received request, raising handled exception 1"
+    )
     raise HandledException1("handled exception 1")
 
 
 @test_router.get("/handled_exception_2")
 def handled_exception_2():
-    logger.info("handled_exception_2 endpoint received request, raising handled exception 2")
+    logger.info(
+        "handled_exception_2 endpoint received request, raising handled exception 2"
+    )
     raise HandledException2("handled exception 2")
 
 

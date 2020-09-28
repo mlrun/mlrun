@@ -4,7 +4,6 @@ import fastapi
 import uvicorn
 import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import mlrun.errors
 from mlrun.api.api.api import api_router

@@ -249,6 +249,16 @@ def read_env(env=None, prefix=env_prefix):
     ):
         config["httpdb"]["dsn"] = "sqlite:////mlrun/db/mlrun.db?check_same_thread=false"
 
+    # "disabled" is the helm chart default value, we don't want that value to be set cause when this value is set we
+    # use it in calls to the Nuclio package, and when the Nuclio package receives a value it simply uses it, and
+    # obviously "disabled" is not the right address.. when the Nuclio package doesn't receive a value it doing "best
+    # effort" to try and determine the URL, we want this "best effort" so overriding the "disabled" value
+    if (
+            config.get("nuclio_dashboard_url")
+            == "disabled"
+    ):
+        config["nuclio_dashboard_url"] = ""
+
     if uisvc and not config.get("ui_url"):
         if igz_domain:
             config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)

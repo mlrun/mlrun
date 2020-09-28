@@ -257,7 +257,7 @@ class SQLDB(DBInterface):
         arts = ArtifactList(
             obj.struct
             for obj in self._find_artifacts(
-                session, project, uids, labels, since, until
+                session, project, uids, labels, since, until, name
             )
         )
         return arts
@@ -307,7 +307,7 @@ class SQLDB(DBInterface):
 
     def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
-        for obj in self._find_artifacts(session, project, tag, labels, None, None):
+        for obj in self._find_artifacts(session, project, tag, labels, name=name):
             self.del_artifact(session, obj.key, "", project)
 
     def store_function(
@@ -765,7 +765,9 @@ class SQLDB(DBInterface):
             ),
         )
 
-    def _find_artifacts(self, session, project, uids, labels, since, until):
+    def _find_artifacts(
+        self, session, project, uids, labels=None, since=None, until=None, name=None
+    ):
         """
         TODO: refactor this method
         basically uids should be list of strings (representing uids), but we also handle two special cases (mainly for
@@ -789,6 +791,9 @@ class SQLDB(DBInterface):
             query = query.filter(
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
+
+        if name is not None:
+            query = query.filter(Artifact.key.ilike(f"%{name}%"))
 
         return query
 

@@ -253,10 +253,7 @@ def read_env(env=None, prefix=env_prefix):
     # use it in calls to the Nuclio package, and when the Nuclio package receives a value it simply uses it, and
     # obviously "disabled" is not the right address.. when the Nuclio package doesn't receive a value it doing "best
     # effort" to try and determine the URL, we want this "best effort" so overriding the "disabled" value
-    if (
-            config.get("nuclio_dashboard_url")
-            == "disabled"
-    ):
+    if config.get("nuclio_dashboard_url") == "disabled":
         config["nuclio_dashboard_url"] = ""
 
     if uisvc and not config.get("ui_url"):

@@ -54,7 +54,7 @@ async def http_status_error_handler(
     )
 
 
-def get_client_addr(scope):
+def get_client_address(scope):
     # uvicorn expects this to be a tuple while starlette test client sets it to be a list
     if isinstance(scope.get("client"), list):
         scope["client"] = tuple(scope.get("client"))
@@ -77,7 +77,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         logger.debug(
             "Received request",
             method=request.method,
-            client_address=get_client_addr(request.scope),
+            client_address=get_client_address(request.scope),
             http_version=request.scope["http_version"],
             request_id=request_id,
             uri=path_with_query_string,

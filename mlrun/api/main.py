@@ -85,28 +85,13 @@ async def log_request_response(request: fastapi.Request, call_next):
         )
     try:
         response = await call_next(request)
-
-    # Using StarletteHTTPException because
-    # https://fastapi.tiangolo.com/tutorial/handling-errors/#fastapis-httpexception-vs-starlettes-httpexception
-    except StarletteHTTPException as exc:
-        logger.warning(
-            "Request handling returned error status. Sending response",
-            status_code=exc.status_code,
-            request_id=request_id,
-            uri=path_with_query_string,
-            method=request.method,
-        )
-        raise
     except Exception:
         logger.warning(
             "Request handling failed. Sending response",
-            # TODO: When finding a better solution for this turn off access logs (access_log=False in uvicorn.run call)
-            # Basically any exception that not inherits from StarletteHTTPException will return a 500 status code
-            # UNLESS a special exception handler was added for that exception, in this case this exception handler runs
-            # after this middleware and if it will change the response code this 500 won't be true.
-            # currently I can't find a way to execute code after all custom exception handlers so logging unknown status
-            # code and configuring the access log to only print in case of an error
-            status_code="unknown",
+            # User middleware (like this one) runs after the exception handling middleware, the only thing running after
+            # it is Starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
+            # and transforming it to 500 response. therefore we can statically assign status code to 500
+            status_code=500,
             request_id=request_id,
             uri=path_with_query_string,
             method=request.method,
@@ -169,16 +154,12 @@ def _cleanup_runtimes():
 
 def main():
     init_data()
-    logging_config = uvicorn.config.LOGGING_CONFIG
-    logging_config["handlers"]["access"][
-        "class"
-    ] = "mlrun.api.utils.logger.StatusFilterStreamHandler"
     uvicorn.run(
         "mlrun.api.main:app",
         host="0.0.0.0",
         port=config.httpdb.port,
         debug=config.httpdb.debug,
-        log_config=logging_config,
+        access_log=False,
     )
 
 

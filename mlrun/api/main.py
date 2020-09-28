@@ -59,12 +59,12 @@ def get_client_addr(scope):
     # uvicorn expects this to be a tuple while starlette test client sets it to be a list
     if isinstance(scope.get("client"), list):
         scope["client"] = tuple(scope.get("client"))
-    uvicorn.protocols.utils.get_client_addr(scope)
+    return uvicorn.protocols.utils.get_client_addr(scope)
 
 
 @app.middleware("http")
 async def log_request_response(request: fastapi.Request, call_next):
-    request_id = uuid.uuid4()
+    request_id = str(uuid.uuid4())
     silent_logging_paths = [
         "healthz",
     ]

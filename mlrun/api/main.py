@@ -100,7 +100,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     except Exception:
         logger.warning(
             "Request handling failed. Sending response",
-            # TODO: find a better solution
+            # TODO: When finding a better solution for this turn off access logs (access_log=False in uvicorn.run call)
             # Basically any exception that not inherits from StarletteHTTPException will return a 500 status code
             # UNLESS a special exception handler was added for that exception, in this case this exception handler runs
             # after this middleware and if it will change the response code this 500 won't be true.
@@ -173,7 +173,6 @@ def main():
         host="0.0.0.0",
         port=config.httpdb.port,
         debug=config.httpdb.debug,
-        access_log=False,
     )
 
 

@@ -167,7 +167,7 @@ You run the task on a "job" function, and print the result output (in this case,
 For more information and examples, see the [**examples/mlrun_basics.ipynb**](examples/mlrun_basics.ipynb) notebook.
 ```python
 # Create a task and set its attributes
-task = new_task(handler=handler, name='demo', params={'p1': 5})
+task = NewTask(handler=handler, name='demo', params={'p1': 5})
 task.with_secrets('file', 'secrets.txt').set_label('type', 'demo')
 
 run = new_function(command='myfile.py', kind='job').run(task)
@@ -361,7 +361,7 @@ For example, the following code demonstrates how to use hyperparameters to run t
          "gamma":     [0.0, 0.1, 0.2, 0.3],
          }
 
-    task = new_task(handler=xgb_train, out_path='/User/mlrun/data').with_hyper_params(parameters, 'max.accuracy')
+    task = NewTask(handler=xgb_train, out_path='/User/mlrun/data').with_hyper_params(parameters, 'max.accuracy')
     run = run_local(task)
 ```
 
@@ -377,7 +377,7 @@ mlrun run --name train_hyper -x p1="[3,7,5]" -x p2="[5,2,9]" --out-path '/User/m
 You can also use a parameters file if you want to control the parameter combinations or if the parameters are more complex.
 The following code from the example [**mlrun_basics.ipynb**](examples/mlrun_basics.ipynb) notebook demonstrates how to run a task that uses a CSV parameters file (**params.csv** in the current directory):
 ```python
-    task = new_task(handler=xgb_train).with_param_file('params.csv', 'max.accuracy')
+    task = NewTask(handler=xgb_train).with_param_file('params.csv', 'max.accuracy')
     run = run_local(task)
 ```
 

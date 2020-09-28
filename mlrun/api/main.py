@@ -75,7 +75,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         silent_logging_path in path_with_query_string
         for silent_logging_path in silent_logging_paths
     ):
-        logger.info(
+        logger.debug(
             "Received request",
             method=request.method,
             client_address=get_client_addr(request.scope),
@@ -102,7 +102,7 @@ async def log_request_response(request: fastapi.Request, call_next):
             silent_logging_path in path_with_query_string
             for silent_logging_path in silent_logging_paths
         ):
-            logger.info(
+            logger.debug(
                 "Sending response",
                 status_code=response.status_code,
                 request_id=request_id,

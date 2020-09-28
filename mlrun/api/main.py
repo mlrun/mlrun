@@ -104,8 +104,9 @@ async def log_request_response(request: fastapi.Request, call_next):
             # Basically any exception that not inherits from StarletteHTTPException will return a 500 status code
             # UNLESS a special exception handler was added for that exception, in this case this exception handler runs
             # after this middleware and if it will change the response code this 500 won't be true.
-            # currently I can't find a way to execute code after all custom exception handlers
-            status_code=500,
+            # currently I can't find a way to execute code after all custom exception handlers so logging unknown status
+            # code and configuring the access log to only print in case of an error
+            status_code='unknown',
             request_id=request_id,
             uri=path_with_query_string,
             method=request.method,
@@ -168,11 +169,14 @@ def _cleanup_runtimes():
 
 def main():
     init_data()
+    logging_config = uvicorn.config.LOGGING_CONFIG
+    logging_config['handlers']['access']['class'] = 'mlrun.api.utils.logger.StatusFilterStreamHandler'
     uvicorn.run(
         "mlrun.api.main:app",
         host="0.0.0.0",
         port=config.httpdb.port,
         debug=config.httpdb.debug,
+        log_config=logging_config,
     )
 
 

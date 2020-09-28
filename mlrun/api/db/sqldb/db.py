@@ -765,7 +765,9 @@ class SQLDB(DBInterface):
             ),
         )
 
-    def _find_artifacts(self, session, project, uids, labels=None, since=None, until=None, name=None):
+    def _find_artifacts(
+        self, session, project, uids, labels=None, since=None, until=None, name=None
+    ):
         """
         TODO: refactor this method
         basically uids should be list of strings (representing uids), but we also handle two special cases (mainly for

@@ -68,7 +68,9 @@ async def log_request_response(request: fastapi.Request, call_next):
     silent_logging_paths = [
         "healthz",
     ]
-    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(request.scope)
+    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
+        request.scope
+    )
     if not any(
         silent_logging_path in path_with_query_string
         for silent_logging_path in silent_logging_paths

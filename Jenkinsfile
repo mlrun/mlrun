@@ -20,10 +20,12 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
             withCredentials([
                     string(credentialsId: git_deploy_user_token, variable: 'GIT_TOKEN')
             ]) {
-                mlrun_github = new Githubc(git_project_user, git_project, GIT_TOKEN)
-                echo "TESTTTTTTT"
-                println(mlrun_github.getReleaseId('v0.5.2'))
-
+                stage("run some tests...") {
+                    mlrun_github = new Githubc(git_project_user, git_project, GIT_TOKEN)
+                    echo "TESTTTTTTT"
+                    println(mlrun_github.getReleaseId('v0.5.2'))
+                }
+                
             }
         }
     }

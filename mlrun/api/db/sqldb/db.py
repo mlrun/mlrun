@@ -249,6 +249,7 @@ class SQLDB(DBInterface):
         labels=None,
         since=None,
         until=None,
+        kind=None,
     ):
         project = project or config.default_project
 
@@ -259,13 +260,13 @@ class SQLDB(DBInterface):
         if tag:
             uids = self._resolve_tag(session, Artifact, project, tag)
 
-        arts = ArtifactList(
-            obj.struct
-            for obj in self._find_artifacts(
-                session, project, uids, labels, since, until, name
+        artifacts = ArtifactList(
+            artifact.struct
+            for artifact in self._find_artifacts(
+                session, project, uids, labels, since, until, name, kind
             )
         )
-        return arts
+        return artifacts
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
@@ -312,8 +313,8 @@ class SQLDB(DBInterface):
 
     def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
-        for obj in self._find_artifacts(session, project, tag, labels, name=name):
-            self.del_artifact(session, obj.key, "", project)
+        for artifact in self._find_artifacts(session, project, tag, labels, name=name):
+            self.del_artifact(session, artifact.key, "", project)
 
     def store_function(
         self, session, function, name, project="", tag="", versioned=False
@@ -818,7 +819,7 @@ class SQLDB(DBInterface):
         )
 
     def _find_artifacts(
-        self, session, project, uids, labels=None, since=None, until=None, name=None
+        self, session, project, uids, labels=None, since=None, until=None, name=None, kind=None,
     ):
         """
         TODO: refactor this method
@@ -847,7 +848,21 @@ class SQLDB(DBInterface):
         if name is not None:
             query = query.filter(Artifact.key.ilike(f"%{name}%"))
 
-        return query
+        if kind:
+            # see docstring of _post_query_runs_filter for why we're filtering it manually
+            filtered_artifacts = []
+            for artifact in query:
+                artifact_json = artifact.struct
+                if (
+                    artifact_json
+                    and isinstance(artifact_json, dict)
+                    and kind in artifact_json.get("metadata", {}).get("kind")
+                ):
+                    filtered_artifacts.append(artifact)
+            return filtered_artifacts
+
+        else:
+            return query.all()
 
     def _find_functions(self, session, name, project, uid=None, labels=None):
         query = self._query(session, Function, name=name, project=project)

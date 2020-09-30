@@ -83,7 +83,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, session, name="", project="", tag="", labels=None, since=None, until=None
+        self, session, name="", project="", tag="", labels=None, since=None, until=None, kind=None
     ):
         pass
 

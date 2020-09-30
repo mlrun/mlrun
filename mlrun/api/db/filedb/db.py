@@ -72,7 +72,7 @@ class FileDB(DBInterface):
         )
 
     def list_artifacts(
-        self, session, name="", project="", tag="", labels=None, since=None, until=None
+        self, session, name="", project="", tag="", labels=None, since=None, until=None, kind=None
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until

@@ -819,7 +819,15 @@ class SQLDB(DBInterface):
         )
 
     def _find_artifacts(
-        self, session, project, uids, labels=None, since=None, until=None, name=None, kind=None,
+        self,
+        session,
+        project,
+        uids,
+        labels=None,
+        since=None,
+        until=None,
+        name=None,
+        kind=None,
     ):
         """
         TODO: refactor this method

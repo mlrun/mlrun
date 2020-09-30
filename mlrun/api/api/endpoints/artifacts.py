@@ -95,7 +95,9 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    artifacts = get_db().list_artifacts(db_session, name, project, tag, labels, kind=kind)
+    artifacts = get_db().list_artifacts(
+        db_session, name, project, tag, labels, kind=kind
+    )
     return {
         "artifacts": artifacts,
     }

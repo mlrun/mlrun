@@ -47,8 +47,16 @@ def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     artifact_kind_1 = ChartArtifact.kind
     artifact_name_2 = "artifact_name_2"
     artifact_kind_2 = PlotArtifact.kind
-    artifact_1 = {"metadata": {"name": artifact_name_1}, 'kind': artifact_kind_1, "status": {"bla": "blabla"}}
-    artifact_2 = {"metadata": {"name": artifact_name_2}, 'kind': artifact_kind_2, "status": {"bla": "blabla"}}
+    artifact_1 = {
+        "metadata": {"name": artifact_name_1},
+        "kind": artifact_kind_1,
+        "status": {"bla": "blabla"},
+    }
+    artifact_2 = {
+        "metadata": {"name": artifact_name_2},
+        "kind": artifact_kind_2,
+        "status": {"bla": "blabla"},
+    }
     uid = "artifact_uid"
 
     db.store_artifact(

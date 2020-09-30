@@ -105,6 +105,9 @@ class SQLDB(DBInterface):
                 start_time=run_start_time(struct) or datetime.now(timezone.utc),
             )
         labels = run_labels(struct)
+        new_state = run_state(struct)
+        if new_state:
+            run.state = new_state
         update_labels(run, labels)
         run.struct = struct
         self._upsert(session, run, ignore=True)
@@ -151,9 +154,8 @@ class SQLDB(DBInterface):
         last=0,
         iter=False,
     ):
-        # FIXME: Run has no "name"
         project = project or config.default_project
-        query = self._find_runs(session, uid, project, labels, state)
+        query = self._find_runs(session, uid, project, labels)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
@@ -161,8 +163,10 @@ class SQLDB(DBInterface):
         if not iter:
             query = query.filter(Run.iteration == 0)
 
+        filtered_runs = self._post_query_runs_filter(query, name, state)
+
         runs = RunList()
-        for run in query:
+        for run in filtered_runs:
             runs.append(run.struct)
 
         return runs
@@ -177,11 +181,12 @@ class SQLDB(DBInterface):
     ):
         # FIXME: Run has no `name`
         project = project or config.default_project
-        query = self._find_runs(session, None, project, labels, state)
+        query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
-        for run in query:  # Can not use query.delete with join
+        filtered_runs = self._post_query_runs_filter(query, name, state)
+        for run in filtered_runs:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
 
@@ -737,10 +742,50 @@ class SQLDB(DBInterface):
             if not ignore:
                 raise DBError(f"duplicate {cls} - {err}") from err
 
-    def _find_runs(self, session, uid, project, labels, state):
+    def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
-        query = self._query(session, Run, uid=uid, project=project, state=state)
+        query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
+
+    def _post_query_runs_filter(self, query, name=None, state=None):
+        """
+        This function is hacky and exists to cover on bugs we had with how we save our data in the DB
+        We're doing it the hacky way since:
+        1. SQLDB is about to be replaced
+        2. Schema + Data migration are complicated and as long we can avoid them, we prefer to (also because of 1)
+        name - the name is only saved in the json itself, therefore we can't use the SQL query filter and have to filter
+        it ourselves
+        state - the state is saved in a column, but, there was a bug in which the state was only getting updated in the
+        json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
+        column
+        """
+        if not name and not state:
+            return query.all()
+
+        filtered_runs = []
+        for run in query:
+            run_json = run.struct
+            if name:
+                if not run_json or not isinstance(run_json, dict) \
+                        or name not in run_json.get('metadata', {}).get('name'):
+                    continue
+            if state:
+                record_state = run.state
+                json_state = None
+                if run_json and isinstance(run_json, dict) and run_json.get('status', {}).get('state'):
+                    json_state = run_json.get('status', {}).get('state')
+                if not record_state and not json_state:
+                    continue
+                # json_state has precedence over record state
+                if json_state:
+                    if state not in json_state:
+                        continue
+                else:
+                    if state not in record_state:
+                        continue
+            filtered_runs.append(run)
+
+        return filtered_runs
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)

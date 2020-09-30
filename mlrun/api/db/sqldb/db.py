@@ -766,14 +766,21 @@ class SQLDB(DBInterface):
         for run in query:
             run_json = run.struct
             if name:
-                if not run_json or not isinstance(run_json, dict) \
-                        or name not in run_json.get('metadata', {}).get('name'):
+                if (
+                    not run_json
+                    or not isinstance(run_json, dict)
+                    or name not in run_json.get("metadata", {}).get("name")
+                ):
                     continue
             if state:
                 record_state = run.state
                 json_state = None
-                if run_json and isinstance(run_json, dict) and run_json.get('status', {}).get('state'):
-                    json_state = run_json.get('status', {}).get('state')
+                if (
+                    run_json
+                    and isinstance(run_json, dict)
+                    and run_json.get("status", {}).get("state")
+                ):
+                    json_state = run_json.get("status", {}).get("state")
                 if not record_state and not json_state:
                     continue
                 # json_state has precedence over record state

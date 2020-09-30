@@ -856,7 +856,7 @@ class SQLDB(DBInterface):
                 if (
                     artifact_json
                     and isinstance(artifact_json, dict)
-                    and kind in artifact_json.get("metadata", {}).get("kind")
+                    and kind in artifact_json.get("kind")
                 ):
                     filtered_artifacts.append(artifact)
             return filtered_artifacts

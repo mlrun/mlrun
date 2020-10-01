@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - '.+-system-tests'
+      - mlrun-system-test-registry
 #  schedule:
 #
 #    # * is a special character in YAML so you have to quote this string
@@ -16,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
       # let's not run this on every fork, change to your fork when developing
-      if: github.repository == 'mlrun/mlrun'
+#      if: github.repository == 'mlrun/mlrun'
 
     steps:
     - uses: actions/checkout@v2

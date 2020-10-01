@@ -19,7 +19,8 @@ except ImportError:
 import json
 import logging
 
-logger = logging.Logger(name="mlrun-setup", level="INFO")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("mlrun-setup")
 
 
 def version():

@@ -1,5 +1,8 @@
+import uuid
+
 import fastapi
 import uvicorn
+import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.errors
@@ -51,6 +54,63 @@ async def http_status_error_handler(
     )
 
 
+def get_client_address(scope):
+    # uvicorn expects this to be a tuple while starlette test client sets it to be a list
+    if isinstance(scope.get("client"), list):
+        scope["client"] = tuple(scope.get("client"))
+    return uvicorn.protocols.utils.get_client_addr(scope)
+
+
+@app.middleware("http")
+async def log_request_response(request: fastapi.Request, call_next):
+    request_id = str(uuid.uuid4())
+    silent_logging_paths = [
+        "healthz",
+    ]
+    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
+        request.scope
+    )
+    if not any(
+        silent_logging_path in path_with_query_string
+        for silent_logging_path in silent_logging_paths
+    ):
+        logger.debug(
+            "Received request",
+            method=request.method,
+            client_address=get_client_address(request.scope),
+            http_version=request.scope["http_version"],
+            request_id=request_id,
+            uri=path_with_query_string,
+        )
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.warning(
+            "Request handling failed. Sending response",
+            # User middleware (like this one) runs after the exception handling middleware, the only thing running after
+            # it is Starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
+            # and transforming it to 500 response. therefore we can statically assign status code to 500
+            status_code=500,
+            request_id=request_id,
+            uri=path_with_query_string,
+            method=request.method,
+        )
+        raise
+    else:
+        if not any(
+            silent_logging_path in path_with_query_string
+            for silent_logging_path in silent_logging_paths
+        ):
+            logger.debug(
+                "Sending response",
+                status_code=response.status_code,
+                request_id=request_id,
+                uri=path_with_query_string,
+                method=request.method,
+            )
+        return response
+
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("configuration dump", dumped_config=config.dump_yaml())
@@ -98,6 +158,7 @@ def main():
         host="0.0.0.0",
         port=config.httpdb.port,
         debug=config.httpdb.debug,
+        access_log=False,
     )
 
 

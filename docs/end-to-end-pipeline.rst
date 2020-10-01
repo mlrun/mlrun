@@ -85,7 +85,7 @@ git tracking on that
 .. code:: ipython3
 
     from os import path
-    from mlrun import run_local, NewTask, mlconf, import_function, mount_v3io
+    from mlrun import run_local, mlconf, import_function, mount_v3io
     mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
     
     # specify artifacts target location

@@ -24,50 +24,35 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-#    - uses: actions/cache@v1
-#      id: cache-dev-deps
-#      with:
-#        path: .venv
-#        key: venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
-#        restore-keys: |
-#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-
-#          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-
-#          venv-dev-${{ runner.os }}-py-
-#          venv-dev-${{ runner.os }}-
+    - uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/dev-requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
     - name: Install dependencies
-#      if: steps.cache-dev-deps.outputs.cache-hit != 'true'
       run: |
         python -m pip install --upgrade pip
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
+
   tests:
     name: Run Dockerized Tests
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Set up python 3.7
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.7
-    - name: Install automation scripts dependencies
-      run: pip install -r automation/requirements.txt
     - name: Run Dockerized tests
-      run: make test-dockerized
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make test-dockerized
 
   docs:
     name: Build Project Documentation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Set up python 3.7
-        uses: actions/setup-python@v1
-        with:
-          python-version: 3.7
-      - name: Install automation scripts dependencies
-        run: pip install -r automation/requirements.txt
       - name: Generate HTML docs
-        run: make html-docs-dockerized
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make html-docs-dockerized
       - name: Upload generated docs
         uses: actions/upload-artifact@v2
         with:

@@ -18,8 +18,8 @@ from textwrap import dedent
 import pytest
 import yaml
 
+from mlrun.runtimes import funcdoc
 from tests.conftest import here
-from mlrun import funcdoc
 
 
 def load_rst_cases(name):

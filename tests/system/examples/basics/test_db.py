@@ -1,4 +1,4 @@
-from mlrun import get_run_db, run_local, NewTask
+from mlrun import get_run_db, run_local, new_task
 
 from tests.system.base import TestMLRunSystem
 
@@ -16,7 +16,7 @@ class TestDB(TestMLRunSystem):
         # {{run.uid}} will be substituted with the run id, so output will be written to different directories per run
         output_path = str(self.results_path / "{{run.uid}}")
         task = (
-            NewTask(name="demo", params={"p1": 5}, artifact_path=output_path)
+            new_task(name="demo", params={"p1": 5}, artifact_path=output_path)
             .with_secrets("file", self.assets_path / "secrets.txt")
             .set_label("type", "demo")
         )

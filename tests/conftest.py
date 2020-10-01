@@ -41,6 +41,7 @@ examples_path = Path(here).parent.joinpath("examples")
 environ["PYTHONPATH"] = root_path
 environ["MLRUN_DBPATH"] = rundb_path
 environ["MLRUN_httpdb__dirpath"] = rundb_path
+environ["MLRUN_log_level"] = "DEBUG"
 pytest_plugins = ["tests.common_fixtures"]
 
 # import package stuff after setting env vars so it will take effect

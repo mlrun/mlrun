@@ -91,10 +91,13 @@ def list_artifacts(
     project: str = config.default_project,
     name: str = None,
     tag: str = None,
+    kind: str = None,
     labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    artifacts = get_db().list_artifacts(db_session, name, project, tag, labels)
+    artifacts = get_db().list_artifacts(
+        db_session, name, project, tag, labels, kind=kind
+    )
     return {
         "artifacts": artifacts,
     }

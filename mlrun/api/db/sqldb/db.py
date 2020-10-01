@@ -26,6 +26,7 @@ from mlrun.api.db.sqldb.models import (
     User,
     Project,
     _tagged,
+    _labeled,
 )
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
@@ -82,6 +83,15 @@ class SQLDB(DBInterface):
         end = None if size == 0 else offset + size
         return "", log.body[offset:end]
 
+    def delete_log(self, session: Session, project: str, uid: str):
+        project = project or config.default_project
+        self._delete(session, Log, project=project, uid=uid)
+
+    def _delete_logs(self, session: Session, project: str):
+        logger.debug("Removing logs from db", project=project)
+        for log in self._query(session, Log, project=project):
+            self.delete_log(session, project, log.uid)
+
     def store_run(self, session, struct, uid, project="", iter=0):
         project = project or config.default_project
         self._ensure_project(session, project)
@@ -95,6 +105,9 @@ class SQLDB(DBInterface):
                 start_time=run_start_time(struct) or datetime.now(timezone.utc),
             )
         labels = run_labels(struct)
+        new_state = run_state(struct)
+        if new_state:
+            run.state = new_state
         update_labels(run, labels)
         run.struct = struct
         self._upsert(session, run, ignore=True)
@@ -141,9 +154,8 @@ class SQLDB(DBInterface):
         last=0,
         iter=False,
     ):
-        # FIXME: Run has no "name"
         project = project or config.default_project
-        query = self._find_runs(session, uid, project, labels, state)
+        query = self._find_runs(session, uid, project, labels)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
@@ -151,8 +163,10 @@ class SQLDB(DBInterface):
         if not iter:
             query = query.filter(Run.iteration == 0)
 
+        filtered_runs = self._post_query_runs_filter(query, name, state)
+
         runs = RunList()
-        for run in query:
+        for run in filtered_runs:
             runs.append(run.struct)
 
         return runs
@@ -167,11 +181,12 @@ class SQLDB(DBInterface):
     ):
         # FIXME: Run has no `name`
         project = project or config.default_project
-        query = self._find_runs(session, None, project, labels, state)
+        query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
-        for run in query:  # Can not use query.delete with join
+        filtered_runs = self._post_query_runs_filter(query, name, state)
+        for run in filtered_runs:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
 
@@ -234,6 +249,7 @@ class SQLDB(DBInterface):
         labels=None,
         since=None,
         until=None,
+        kind=None,
     ):
         project = project or config.default_project
 
@@ -244,16 +260,18 @@ class SQLDB(DBInterface):
         if tag:
             uids = self._resolve_tag(session, Artifact, project, tag)
 
-        arts = ArtifactList(
-            obj.struct
-            for obj in self._find_artifacts(
-                session, project, uids, labels, since, until
+        artifacts = ArtifactList(
+            artifact.struct
+            for artifact in self._find_artifacts(
+                session, project, uids, labels, since, until, name, kind
             )
         )
-        return arts
+        return artifacts
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
+        self._delete_artifact_tags(session, project, key, tag, commit=False)
+        self._delete_artifact_labels(session, project, key, commit=False)
         kw = {
             "key": key,
             "project": project,
@@ -263,11 +281,40 @@ class SQLDB(DBInterface):
 
         self._delete(session, Artifact, **kw)
 
-    def del_artifacts(self, session, name="", project="", tag="", labels=None):
+    def _delete_artifact_tags(
+        self, session, project, artifact_key, tag_name="", commit=True
+    ):
+        query = (
+            session.query(Artifact.Tag)
+            .join(Artifact)
+            .filter(Artifact.project == project, Artifact.key == artifact_key)
+        )
+        if tag_name:
+            query = query.filter(Artifact.Tag.name == tag_name)
+        for tag in query:
+            session.delete(tag)
+        if commit:
+            session.commit()
+
+    def _delete_artifact_labels(
+        self, session, project, artifact_key, tag_name="", commit=True
+    ):
+        query = (
+            session.query(Artifact.Label)
+            .join(Artifact)
+            .filter(Artifact.project == project, Artifact.key == artifact_key)
+        )
+        if tag_name:
+            query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag_name)
+        for label in query:
+            session.delete(label)
+        if commit:
+            session.commit()
+
+    def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
-        for obj in self._find_artifacts(session, project, tag, labels, None, None):
-            session.delete(obj)
-        session.commit()
+        for artifact in self._find_artifacts(session, project, tag, labels, name=name):
+            self.del_artifact(session, artifact.key, "", project)
 
     def store_function(
         self, session, function, name, project="", tag="", versioned=False
@@ -339,6 +386,24 @@ class SQLDB(DBInterface):
             function_uri = generate_function_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
 
+    def delete_function(self, session: Session, project: str, name: str):
+        logger.debug("Removing function from db", project=project, name=name)
+        self._delete_function_tags(session, project, name, commit=False)
+        self._delete_function_labels(session, project, name, commit=False)
+        self._delete(session, Function, project=project, name=name)
+
+    def _delete_functions(self, session: Session, project: str):
+        for function in self._query(session, Function, project=project):
+            self.delete_function(session, project, function.name)
+
+    def _delete_resources_tags(self, session: Session, project: str):
+        for tagged_class in _tagged:
+            self._delete(session, tagged_class, project=project)
+
+    def _delete_resources_labels(self, session: Session, project: str):
+        for labeled_class in _labeled:
+            self._delete(session, labeled_class, project=project)
+
     def list_functions(self, session, name, project=None, tag=None, labels=None):
         project = project or config.default_project
         uid = None
@@ -366,6 +431,26 @@ class SQLDB(DBInterface):
                 function_dict["metadata"]["tag"] = tag
                 funcs.append(function_dict)
         return funcs
+
+    def _delete_function_tags(self, session, project, function_name, commit=True):
+        query = session.query(Function.Tag).filter(
+            Function.Tag.project == project, Function.Tag.obj_name == function_name
+        )
+        for obj in query:
+            session.delete(obj)
+        if commit:
+            session.commit()
+
+    def _delete_function_labels(self, session, project, function_name, commit=True):
+        labels = (
+            session.query(Function.Label)
+            .join(Function)
+            .filter(Function.project == project, Function.name == function_name)
+        )
+        for label in labels:
+            session.delete(label)
+        if commit:
+            session.commit()
 
     def _list_function_tags(self, session, project, function_id):
         query = (
@@ -442,6 +527,11 @@ class SQLDB(DBInterface):
     def delete_schedule(self, session: Session, project: str, name: str):
         logger.debug("Removing schedule from db", project=project, name=name)
         self._delete(session, Schedule, project=project, name=name)
+
+    def _delete_schedules(self, session: Session, project: str):
+        logger.debug("Removing schedules from db", project=project)
+        for schedule in self.list_schedules(session, project=project):
+            self.delete_schedule(session, project, schedule.name)
 
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.
@@ -545,6 +635,19 @@ class SQLDB(DBInterface):
 
         return self._query(session, Project, name=name).one_or_none()
 
+    def delete_project(self, session, name: str):
+        self.del_artifacts(session, project=name)
+        self._delete_logs(session, name)
+        self.del_runs(session, project=name)
+        self._delete_schedules(session, name)
+        self._delete_functions(session, name)
+
+        # resources deletion should remove their tags and labels as well, but doing another try in case there are
+        # orphan resources
+        self._delete_resources_tags(session, name)
+        self._delete_resources_labels(session, name)
+        self._delete(session, Project, name=name)
+
     def list_projects(self, session, owner=None):
         return self._query(session, Project, owner=owner)
 
@@ -640,10 +743,57 @@ class SQLDB(DBInterface):
             if not ignore:
                 raise DBError(f"duplicate {cls} - {err}") from err
 
-    def _find_runs(self, session, uid, project, labels, state):
+    def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
-        query = self._query(session, Run, uid=uid, project=project, state=state)
+        query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
+
+    def _post_query_runs_filter(self, query, name=None, state=None):
+        """
+        This function is hacky and exists to cover on bugs we had with how we save our data in the DB
+        We're doing it the hacky way since:
+        1. SQLDB is about to be replaced
+        2. Schema + Data migration are complicated and as long we can avoid them, we prefer to (also because of 1)
+        name - the name is only saved in the json itself, therefore we can't use the SQL query filter and have to filter
+        it ourselves
+        state - the state is saved in a column, but, there was a bug in which the state was only getting updated in the
+        json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
+        column
+        """
+        if not name and not state:
+            return query.all()
+
+        filtered_runs = []
+        for run in query:
+            run_json = run.struct
+            if name:
+                if (
+                    not run_json
+                    or not isinstance(run_json, dict)
+                    or name not in run_json.get("metadata", {}).get("name")
+                ):
+                    continue
+            if state:
+                record_state = run.state
+                json_state = None
+                if (
+                    run_json
+                    and isinstance(run_json, dict)
+                    and run_json.get("status", {}).get("state")
+                ):
+                    json_state = run_json.get("status", {}).get("state")
+                if not record_state and not json_state:
+                    continue
+                # json_state has precedence over record state
+                if json_state:
+                    if state not in json_state:
+                        continue
+                else:
+                    if state not in record_state:
+                        continue
+            filtered_runs.append(run)
+
+        return filtered_runs
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
@@ -668,7 +818,17 @@ class SQLDB(DBInterface):
             ),
         )
 
-    def _find_artifacts(self, session, project, uids, labels, since, until):
+    def _find_artifacts(
+        self,
+        session,
+        project,
+        uids,
+        labels=None,
+        since=None,
+        until=None,
+        name=None,
+        kind=None,
+    ):
         """
         TODO: refactor this method
         basically uids should be list of strings (representing uids), but we also handle two special cases (mainly for
@@ -693,9 +853,26 @@ class SQLDB(DBInterface):
                 and_(Artifact.updated >= since, Artifact.updated <= until)
             )
 
-        return query
+        if name is not None:
+            query = query.filter(Artifact.key.ilike(f"%{name}%"))
 
-    def _find_functions(self, session, name, project, uid, labels):
+        if kind:
+            # see docstring of _post_query_runs_filter for why we're filtering it manually
+            filtered_artifacts = []
+            for artifact in query:
+                artifact_json = artifact.struct
+                if (
+                    artifact_json
+                    and isinstance(artifact_json, dict)
+                    and kind in artifact_json.get("kind")
+                ):
+                    filtered_artifacts.append(artifact)
+            return filtered_artifacts
+
+        else:
+            return query.all()
+
+    def _find_functions(self, session, name, project, uid=None, labels=None):
         query = self._query(session, Function, name=name, project=project)
         if uid:
             query = query.filter(Function.uid == uid)

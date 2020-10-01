@@ -24,7 +24,7 @@ from tests.conftest import (
     verify_state,
 )
 from unittest.mock import Mock
-from mlrun import NewTask, get_run_db, new_function
+from mlrun import new_task, get_run_db, new_function
 
 
 def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
@@ -50,7 +50,7 @@ def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
     context.log_dataset("mydf", df=df)
 
 
-base_spec = NewTask(params={"p1": 8}, out_path=out_path)
+base_spec = new_task(params={"p1": 8}, out_path=out_path)
 
 repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent
 input_file_path = repo_root / "tests" / "assets" / "test_run_input_file.txt"

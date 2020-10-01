@@ -19,7 +19,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-p
                     string(credentialsId: git_deploy_user_token, variable: 'GIT_TOKEN')
             ]) {
                 github.release(git_deploy_user, git_project, git_project_user, git_project_upstream_user, true, GIT_TOKEN) {
-                    container('docker-cmd') {
+                    container('docker-python') {
                         stage("build ${git_project}/api in dood") {
                             dir("${github.BUILD_FOLDER}/src/github.com/${git_project_upstream_user}/${git_project}") {
                                 println(common.shellc("MLRUN_VERSION=${github.DOCKER_TAG_VERSION} make api"))

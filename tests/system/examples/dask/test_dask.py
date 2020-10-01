@@ -6,7 +6,7 @@ import kfp.compiler
 from mlrun import (
     code_to_function,
     mount_v3io,
-    NewTask,
+    new_task,
     run_pipeline,
     wait_for_pipeline_completion,
     get_run_db,
@@ -64,7 +64,7 @@ class TestDask(TestMLRunSystem):
 
             # use_db option will use a function (DB) pointer instead of adding the function spec to the YAML
             self.dask_function.as_step(
-                NewTask(handler="main", name="dask_pipeline", params={"x": x, "y": y}),
+                new_task(handler="main", name="dask_pipeline", params={"x": x, "y": y}),
                 use_db=True,
             )
 

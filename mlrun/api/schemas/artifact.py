@@ -12,6 +12,7 @@ class ArtifactCategories(str, enum.Enum):
         # import here to prevent import cycle
         import mlrun.artifacts.dataset
         import mlrun.artifacts.model
+
         if self.value == ArtifactCategories.model.value:
             return [mlrun.artifacts.model.ModelArtifact.kind], False
         if self.value == ArtifactCategories.dataset.value:

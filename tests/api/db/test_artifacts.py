@@ -110,7 +110,9 @@ def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_3
 
-    artifacts = db.list_artifacts(db_session, category=schemas.ArtifactCategories.dataset)
+    artifacts = db.list_artifacts(
+        db_session, category=schemas.ArtifactCategories.dataset
+    )
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_4
 

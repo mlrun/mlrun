@@ -92,6 +92,7 @@ class DBInterface(ABC):
         since=None,
         until=None,
         kind=None,
+        category: schemas.ArtifactCategories = None,
     ):
         pass
 

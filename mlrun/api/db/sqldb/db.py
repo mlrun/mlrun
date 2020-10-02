@@ -250,6 +250,7 @@ class SQLDB(DBInterface):
         since=None,
         until=None,
         kind=None,
+        category: schemas.ArtifactCategories = None,
     ):
         project = project or config.default_project
 
@@ -263,7 +264,7 @@ class SQLDB(DBInterface):
         artifacts = ArtifactList(
             artifact.struct
             for artifact in self._find_artifacts(
-                session, project, uids, labels, since, until, name, kind
+                session, project, uids, labels, since, until, name, kind, category
             )
         )
         return artifacts
@@ -828,6 +829,7 @@ class SQLDB(DBInterface):
         until=None,
         name=None,
         kind=None,
+        category: schemas.ArtifactCategories = None,
     ):
         """
         TODO: refactor this method
@@ -836,6 +838,10 @@ class SQLDB(DBInterface):
         1. uids == "*" - in which we don't care about uids we just don't add any filter for this column
         1. uids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
         """
+        if category and kind:
+            message = "Category and Kind filters can't be given together"
+            logger.warning(message, kind=kind, category=category)
+            raise ValueError(message)
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
         if uids != "*":
@@ -857,20 +863,48 @@ class SQLDB(DBInterface):
             query = query.filter(Artifact.key.ilike(f"%{name}%"))
 
         if kind:
-            # see docstring of _post_query_runs_filter for why we're filtering it manually
-            filtered_artifacts = []
-            for artifact in query:
-                artifact_json = artifact.struct
-                if (
-                    artifact_json
-                    and isinstance(artifact_json, dict)
-                    and kind in artifact_json.get("kind")
-                ):
-                    filtered_artifacts.append(artifact)
-            return filtered_artifacts
+            return self._filter_artifacts_by_kinds(query, [kind])
+
+        elif category:
+            return self._filter_artifacts_by_category(query, category)
 
         else:
             return query.all()
+
+    def _filter_artifacts_by_category(
+        self, artifacts, category: schemas.ArtifactCategories
+    ):
+        kinds, exclude = category.to_kinds_filter()
+        return self._filter_artifacts_by_kinds(artifacts, kinds, exclude)
+
+    def _filter_artifacts_by_kinds(
+        self, artifacts, kinds: List[str], exclude: bool = False
+    ):
+        """
+        :param kinds - list of kinds to filter by
+        :param exclude - if true then the filter will be "all except" - get all artifacts excluding the ones who have
+         any of the given kinds
+        """
+        # see docstring of _post_query_runs_filter for why we're filtering it manually
+        filtered_artifacts = []
+        for artifact in artifacts:
+            artifact_json = artifact.struct
+            if (
+                artifact_json
+                and isinstance(artifact_json, dict)
+                and (
+                    (
+                        not exclude
+                        and any([kind == artifact_json.get("kind") for kind in kinds])
+                    )
+                    or (
+                        exclude
+                        and all([kind != artifact_json.get("kind") for kind in kinds])
+                    )
+                )
+            ):
+                filtered_artifacts.append(artifact)
+        return filtered_artifacts
 
     def _find_functions(self, session, name, project, uid=None, labels=None):
         query = self._query(session, Function, name=name, project=project)

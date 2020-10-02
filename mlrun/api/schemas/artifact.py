@@ -16,4 +16,10 @@ class ArtifactCategories(str, enum.Enum):
         if self.value == ArtifactCategories.dataset.value:
             return [mlrun.artifacts.dataset.DatasetArtifact.kind], False
         if self.value == ArtifactCategories.other.value:
-            return [mlrun.artifacts.model.ModelArtifact.kind, mlrun.artifacts.dataset.DatasetArtifact.kind], True
+            return (
+                [
+                    mlrun.artifacts.model.ModelArtifact.kind,
+                    mlrun.artifacts.dataset.DatasetArtifact.kind,
+                ],
+                True,
+            )

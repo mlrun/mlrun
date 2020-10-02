@@ -871,11 +871,15 @@ class SQLDB(DBInterface):
         else:
             return query.all()
 
-    def _filter_artifacts_by_category(self, artifacts, category: schemas.ArtifactCategories):
+    def _filter_artifacts_by_category(
+        self, artifacts, category: schemas.ArtifactCategories
+    ):
         kinds, exclude = category.to_kinds_filter()
         return self._filter_artifacts_by_kinds(artifacts, kinds, exclude)
 
-    def _filter_artifacts_by_kinds(self, artifacts, kinds: List[str], exclude: bool = False):
+    def _filter_artifacts_by_kinds(
+        self, artifacts, kinds: List[str], exclude: bool = False
+    ):
         """
         :param kinds - list of kinds to filter by
         :param exclude - if true then the filter will be "all except" - get all artifacts excluding the ones who have
@@ -886,10 +890,18 @@ class SQLDB(DBInterface):
         for artifact in artifacts:
             artifact_json = artifact.struct
             if (
-                    artifact_json
-                    and isinstance(artifact_json, dict)
-                    and ((not exclude and any([kind == artifact_json.get("kind") for kind in kinds])) or
-                         (exclude and all([kind != artifact_json.get("kind") for kind in kinds])))
+                artifact_json
+                and isinstance(artifact_json, dict)
+                and (
+                    (
+                        not exclude
+                        and any([kind == artifact_json.get("kind") for kind in kinds])
+                    )
+                    or (
+                        exclude
+                        and all([kind != artifact_json.get("kind") for kind in kinds])
+                    )
+                )
             ):
                 filtered_artifacts.append(artifact)
         return filtered_artifacts

@@ -46,6 +46,10 @@ jobs:
           git rev-parse --short HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
+    # hack: override MLRUN_UI_GIT_HASH to last working commit to pick up ghcr.io/mlrun/mlrun-ui:0.5.2-2a532ed
+    - name: Override MLRUN_UI_GIT_HASH env var
+      run: |
+        echo "::set-env name=MLRUN_UI_GIT_HASH::2a532ed"
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Set LATEST_VERSION env var
@@ -57,8 +61,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Run System Test CI Script
-
-      # hacking latest stable mlrun-ui (not by hash) since latest dev is broken
       run: |
         python automation/system_test/run.py run \
           "$LATEST_VERSION-$MLRUN_GIT_HASH" \
@@ -73,4 +75,4 @@ jobs:
           ${{ secrets.SYSTEM_TEST_PASSWORD }} \
           --mlrun-repo ghcr.io/mlrun \
           --override-mlrun-images \
-          "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},quay.io/mlrun/mlrun-ui:${LATEST_VERSION}"
+          "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},ghcr.io/mlrun/mlrun-ui:${LATEST_VERSION}-${MLRUN_UI_GIT_HASH}"

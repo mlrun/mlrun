@@ -32,7 +32,7 @@ jobs:
       run: |
         echo "::set-env name=MLRUN_GIT_HASH::$( \
           cd /tmp && \
-          git clone --single-branch --branch 0.5.x https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
           git rev-parse --short HEAD && \
           cd .. && \
@@ -41,7 +41,7 @@ jobs:
       run: |
         echo "::set-env name=MLRUN_UI_GIT_HASH::$( \
           cd /tmp && \
-          git clone --single-branch --branch 0.5.x https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short HEAD && \
           cd .. && \
@@ -57,6 +57,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Run System Test CI Script
+
+      # hacking latest stable mlrun-ui (removed -${MLRUN_UI_GIT_HASH} suffix) since latest dev is broken
       run: |
         python automation/system_test/run.py run \
           "$LATEST_VERSION-$MLRUN_GIT_HASH" \
@@ -71,4 +73,4 @@ jobs:
           ${{ secrets.SYSTEM_TEST_PASSWORD }} \
           --mlrun-repo ghcr.io/mlrun \
           --override-mlrun-images \
-          "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},ghcr.io/mlrun/mlrun-ui:${LATEST_VERSION}-${MLRUN_UI_GIT_HASH}"
+          "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},ghcr.io/mlrun/mlrun-ui:${LATEST_VERSION}"

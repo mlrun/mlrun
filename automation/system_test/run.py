@@ -416,8 +416,9 @@ def run(
     )
     try:
         system_test_ci_runner.run()
-    except Exception as e:
-        logger.error("Failed running system test automation", exception=e)
+    except Exception as exc:
+        logger.error("Failed running system test automation", exc=exc)
+        raise
     finally:
         system_test_ci_runner.clean_up()
 

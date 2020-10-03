@@ -329,7 +329,6 @@ class SystemTestCIRunner:
         self._run_command(
             f"./{provctl_path}",
             args=[
-                "--verbose",
                 f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
                 "create-patch",
                 "appservice",
@@ -345,7 +344,6 @@ class SystemTestCIRunner:
         self._run_command(
             f"./{provctl_path}",
             args=[
-                "--verbose",
                 f"--logger-file-path={str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log",
                 "--app-cluster-password",
                 self._app_cluster_ssh_password,

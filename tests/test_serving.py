@@ -3,8 +3,8 @@ import os
 import sys
 import uuid
 
-from mlrun.runtimes.serving.server import v2_serving_init
-from mlrun.runtimes.serving.v2_serving import V2ModelServer
+from mlrun.serving.server import v2_serving_init
+from mlrun.serving import V2ModelServer
 from mlrun.utils import create_logger
 
 

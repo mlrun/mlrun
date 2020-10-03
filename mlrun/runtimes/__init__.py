@@ -27,7 +27,8 @@ from .mpijob import (
 )  # noqa
 from .constants import MPIJobCRDVersions
 from .nuclio import nuclio_init_hook
-from .serving import MLModelServer, V2ModelServer  # noqa
+# for legacy imports (MLModelServer moved from here to /serving)
+from ..serving import MLModelServer  # noqa
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 

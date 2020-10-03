@@ -69,7 +69,7 @@ setup(
         "mlrun",
         "mlrun.runtimes",
         "mlrun.runtimes.mpijob",
-        "mlrun.runtimes.serving",
+        "mlrun.serving",
         "mlrun.db",
         "mlrun.mlutils",
         "mlrun.platforms",

@@ -49,7 +49,7 @@ jobs:
     # hack: override MLRUN_UI_GIT_HASH to last working commit to pick up ghcr.io/mlrun/mlrun-ui:0.5.2-2a532ed
     - name: Override MLRUN_UI_GIT_HASH env var
       run: |
-        echo "::set-env name=MLRUN_UI_GIT_HASH::2a532ed"
+        echo "::set-env name=MLRUN_UI_GIT_HASH::9c9669f"
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Set LATEST_VERSION env var

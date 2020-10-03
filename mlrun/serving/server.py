@@ -15,10 +15,11 @@ import json
 import os
 import socket
 
-from mlrun.model import ModelObj
-from mlrun.platforms.iguazio import OutputStream
+from ..model import ModelObj
+from ..platforms.iguazio import OutputStream
 from .routers import ModelRouter
 from .v2_serving import HttpTransport
+from ..utils import create_class
 
 
 class _ServerContext:
@@ -60,10 +61,11 @@ class ModelServerHost(ModelObj):
                 class_name = model["model_class"]
                 model_path = model["model_path"]
                 kwargs = model.get("params", {})
+                handler = model.get("handler", "do_event")
                 class_object = get_class(class_name, namespace)
                 model_object = class_object(context, name, model_path, **kwargs)
                 model_object.post_init()
-                self._models_handlers[name] = model_object.do_event
+                self._models_handlers[name] = getattr(model_object, handler)
 
         if self.router_class:
             router_class = get_class(self.router_class, namespace)
@@ -76,7 +78,12 @@ def get_class(class_name, namespace):
     if class_name in namespace:
         class_object = namespace[class_name]
         return class_object
-    raise ImportError(f"state init failed, class {class_name} not found")
+
+    try:
+        class_object = create_class(class_name)
+    except (ImportError, ValueError) as e:
+        raise ImportError(f"state init failed, class {class_name} not found")
+    return class_object
 
 
 def v2_serving_init(context, namespace=None):

@@ -147,6 +147,6 @@ class ModelRouter(BaseModelRouter):
             f"router run model {name}, body={event.body}, op={subpath}"
         )
         event.path = subpath
-        response = child(event, subpath=subpath)
+        response = child(event)
         event.body = response.body if response else None
         return event

@@ -84,7 +84,7 @@ class SystemTestCIRunner:
         if self._mlrun_repo:
             self._override_k8s_mlrun_registry()
 
-        provctl_path = self._download_povctl()
+        provctl_path = self._download_provctl()
         self._patch_mlrun(provctl_path)
 
         self._run_command(
@@ -94,7 +94,7 @@ class SystemTestCIRunner:
     def clean_up(self, close_ssh_client: bool = True):
         self._logger.info("Cleaning up")
         self._run_command(
-            f"rm -rf {self.Constants.workdir}", workdir=self.Constants.homedir
+            f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir)
         )
 
         if close_ssh_client and not self._debug:
@@ -110,7 +110,7 @@ class SystemTestCIRunner:
         suppress_errors: bool = False,
         local: bool = False,
     ) -> str:
-        workdir = workdir or self.Constants.workdir
+        workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
 
         log_command_location = "locally" if local else "on data cluster"
@@ -194,8 +194,8 @@ class SystemTestCIRunner:
 
         return stdout, stderr, exit_status
 
+    @staticmethod
     def _run_command_locally(
-        self,
         command: str,
         args: list = None,
         workdir: str = None,
@@ -248,7 +248,7 @@ class SystemTestCIRunner:
                 release_name=latest_provazio_release["name"]
             ):
                 self._logger.debug(
-                    "Got provactl release url",
+                    "Got provctl release url",
                     release=latest_provazio_release["name"],
                     name=asset["name"],
                     url=asset["url"],
@@ -290,7 +290,7 @@ class SystemTestCIRunner:
             "kubectl", args=['apply', '-f', manifest_file_name],
         )
 
-    def _download_povctl(self):
+    def _download_provctl(self):
         provctl, provctl_url = self._get_provctl_version_and_url()
         self._logger.debug("Downloading provctl to data node", provctl_url=provctl_url)
         self._run_command(

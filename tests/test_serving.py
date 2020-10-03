@@ -3,7 +3,8 @@ import os
 import sys
 import uuid
 
-from mlrun.runtimes.serving import V2ModelServer, v2_serving_init
+from mlrun.runtimes.serving.server import v2_serving_init
+from mlrun.runtimes.serving.v2_serving import V2ModelServer
 from mlrun.utils import create_logger
 
 
@@ -73,4 +74,6 @@ def test_v2_serving():
     v2_serving_init(ctx, globals())
 
     e = Event('{"data": [5]}', path="/v2/models/m1/infer")
-    print("resp:", ctx.mlrun_handler(ctx, e))
+    resp = ctx.mlrun_handler(ctx, e)
+    print("resp:", resp)
+    assert resp.body == '500', f"wrong model response {resp.body}"

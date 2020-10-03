@@ -18,7 +18,8 @@ import socket
 from ..db import get_or_set_dburl
 from ..model import RunTemplate
 from ..execution import MLClientCtx
-from .serving import nuclio_serving_init, v2_serving_init
+from .serving.v1_serving import nuclio_serving_init
+from .serving.server import v2_serving_init
 from .local import get_func_arg
 
 

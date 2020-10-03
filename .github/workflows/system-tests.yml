@@ -28,13 +28,14 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && python setup.py develop
     - name: Set MLRUN_GIT_HASH env var
-      run: echo "::set-env name=MLRUN_GIT_HASH::$( \
-        cd /tmp && \
-        git clone https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-        cd mlrun-upstream && \
-        git rev-parse --short HEAD && \
-        cd .. && \
-        rm -rf mlrun-upstream)"
+      run: |
+        echo "::set-env name=MLRUN_GIT_HASH::$( \
+          cd /tmp && \
+          git clone https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          cd mlrun-upstream && \
+          git rev-parse --short HEAD && \
+          cd .. && \
+          rm -rf mlrun-upstream)"
     - name: Set MLRUN_UI_GIT_HASH env var
       run: |
         echo "::set-env name=MLRUN_UI_GIT_HASH::$( \

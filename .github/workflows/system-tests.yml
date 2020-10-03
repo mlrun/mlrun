@@ -31,7 +31,7 @@ jobs:
       run: |
         echo "::set-env name=MLRUN_GIT_HASH::$( \
           cd /tmp && \
-          git clone https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
           git rev-parse --short HEAD && \
           cd .. && \
@@ -40,7 +40,7 @@ jobs:
       run: |
         echo "::set-env name=MLRUN_UI_GIT_HASH::$( \
           cd /tmp && \
-          git clone https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short HEAD && \
           cd .. && \

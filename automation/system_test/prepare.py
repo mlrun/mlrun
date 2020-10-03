@@ -14,7 +14,7 @@ import mlrun.utils
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 
 
-class SystemTestCIRunner:
+class SystemTestPreparer:
     class Constants:
         ssh_username = "iguazio"
 
@@ -65,7 +65,7 @@ class SystemTestCIRunner:
         if password:
             self._env_config["V3IO_PASSWORD"] = password
 
-        self._logger.info("Connecting to data-cluster")
+        self._logger.info("Connecting to data-cluster", data_cluster_ip=data_cluster_ip)
         if not self._debug:
             self._ssh_client = paramiko.SSHClient()
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
@@ -78,7 +78,7 @@ class SystemTestCIRunner:
     def run(self):
 
         # for sanity clean up before starting the run
-        self.clean_up(close_ssh_client=False)
+        self.clean_up_remote_workdir(close_ssh_client=False)
 
         self._prepare_test_env()
 
@@ -88,12 +88,8 @@ class SystemTestCIRunner:
         provctl_path = self._download_provctl()
         self._patch_mlrun(provctl_path)
 
-        self._run_command(
-            "make", args=["test-system"], local=True,
-        )
-
-    def clean_up(self, close_ssh_client: bool = True):
-        self._logger.info("Cleaning up")
+    def clean_up_remote_workdir(self, close_ssh_client: bool = True):
+        self._logger.info("Cleaning up remote workdir", workdir=str(self.Constants.homedir))
         self._run_command(
             f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir)
         )
@@ -403,7 +399,7 @@ def run(
     password: str,
     debug: bool,
 ):
-    system_test_ci_runner = SystemTestCIRunner(
+    system_test_preparer = SystemTestPreparer(
         mlrun_version,
         mlrun_repo,
         override_mlrun_images,
@@ -419,12 +415,12 @@ def run(
         debug,
     )
     try:
-        system_test_ci_runner.run()
+        system_test_preparer.run()
     except Exception as exc:
         logger.error("Failed running system test automation", exc=exc)
         raise
-    finally:
-        system_test_ci_runner.clean_up()
+    # finally:
+    #     system_test_preparer.clean_up_remote_workdir()
 
 
 if __name__ == "__main__":

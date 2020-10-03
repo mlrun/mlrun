@@ -13,7 +13,7 @@ on:
 
 jobs:
   run-system-tests-ci:
-    timeout-minutes: 120
+    timeout-minutes: 60
     name: Run System Tests
     runs-on: ubuntu-latest
 
@@ -60,9 +60,9 @@ jobs:
         poll-interval-seconds: 20s
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Run System Test CI Script
+    - name: Prepare System Test env.yaml and system
       run: |
-        python automation/system_test/run.py run \
+        python automation/system_test/prepare.py run \
           "$LATEST_VERSION-$MLRUN_GIT_HASH" \
           ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_IP }} \
           ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }} \
@@ -76,3 +76,6 @@ jobs:
           --mlrun-repo ghcr.io/mlrun \
           --override-mlrun-images \
           "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},ghcr.io/mlrun/mlrun-ui:${LATEST_VERSION}-${MLRUN_UI_GIT_HASH}"
+
+    - name: Run System Tests
+      run: make test-system

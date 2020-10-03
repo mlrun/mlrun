@@ -372,12 +372,12 @@ def main():
 @click.argument("data-cluster-ip", type=str, required=True)
 @click.argument("data-cluster-ssh-password", type=str, required=True)
 @click.argument("app-cluster-ssh-password", type=str, required=True)
-@click.argument("github-access-key", type=str, required=True)
+@click.argument("github-access-token", type=str, required=True)
 @click.argument("mlrun-dbpath", type=str, required=True)
-@click.argument("v3io-api", type=str, required=True)
-@click.argument("v3io-username", type=str, required=True)
-@click.argument("v3io-access-key", type=str, required=True)
-@click.argument("v3io-password", type=str, default=None, required=False)
+@click.argument("webapi-direct-url", type=str, required=True)
+@click.argument("username", type=str, required=True)
+@click.argument("access-key", type=str, required=True)
+@click.argument("password", type=str, default=None, required=False)
 @click.option(
     "--debug",
     "-d",

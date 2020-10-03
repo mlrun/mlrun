@@ -18,6 +18,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
+from mlrun.runtimes import get_runtime_handler
 from mlrun.utils import get_in, logger, parse_function_uri
 
 
@@ -127,23 +128,26 @@ def _parse_submit_job_body(db_session: Session, data):
 
 
 async def submit_job(db_session: Session, data):
-    run_started, response = await run_in_threadpool(_submit_job, db_session, data)
-    if run_started:
+    function_kind, run_uid, response = await run_in_threadpool(_submit_job, db_session, data)
+    if run_uid:
         # monitor in the background
-        asyncio.create_task(run_in_threadpool(_monitor_job))
+        asyncio.create_task(run_in_threadpool(_monitor_job, function_kind, run_uid))
     return response
 
 
-def _monitor_job():
-    pass
+def _monitor_job(function_kind: str, run_uid: str):
+    runtime_handler = get_runtime_handler(function_kind)
+    runtime_handler.monitor_run(run_uid)
 
 
-def _submit_job(db_session: Session, data) -> typing.Tuple[bool, typing.Dict]:
+def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, typing.Dict]:
     """
     :return: Tuple with:
-        1. bool determining whether the run was started execution (false when it was scheduled)
+        1. str of the kind of the function of the job
+        1. str of the uid of the run that was started execution (None when it was scheduled)
         2. dict of the response info
     """
+    run_uid = None
     try:
         fn, task = _parse_submit_job_body(db_session, data)
         run_db = get_run_db_instance(db_session)
@@ -171,6 +175,7 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[bool, typing.Dict]:
             }
         else:
             run = fn.run(task, watch=False)
+            run_uid = run.metadata.uid
             if run:
                 response = run.to_dict()
 
@@ -186,6 +191,6 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[bool, typing.Dict]:
         )
 
     logger.info("response: %s", response)
-    return {
+    return fn.kind, run_uid, {
         "data": response,
     }

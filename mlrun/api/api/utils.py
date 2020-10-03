@@ -1,9 +1,12 @@
+import asyncio
 import traceback
+import typing
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
 from fastapi import HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.errors
@@ -123,7 +126,24 @@ def _parse_submit_job_body(db_session: Session, data):
     return function, task
 
 
-def submit(db_session: Session, data):
+async def submit_job(db_session: Session, data):
+    run_started, response = await run_in_threadpool(_submit_job, db_session, data)
+    if run_started:
+        # monitor in the background
+        asyncio.create_task(run_in_threadpool(_monitor_job))
+    return response
+
+
+def _monitor_job():
+    pass
+
+
+def _submit_job(db_session: Session, data) -> typing.Tuple[bool, typing.Dict]:
+    """
+    :return: Tuple with:
+        1. bool determining whether the run was started execution (false when it was scheduled)
+        2. dict of the response info
+    """
     try:
         fn, task = _parse_submit_job_body(db_session, data)
         run_db = get_run_db_instance(db_session)

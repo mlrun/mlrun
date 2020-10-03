@@ -2,11 +2,10 @@ from http import HTTPStatus
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, Header
-from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 from mlrun.api.api import deps
-from mlrun.api.api.utils import log_and_raise, submit
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -26,7 +25,7 @@ async def submit_job(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     # enrich job task with the username from the request header
     if username:
@@ -38,5 +37,5 @@ async def submit_job(
             labels.setdefault("owner", username)
 
     logger.info("submit_job: {}".format(data))
-    response = await run_in_threadpool(submit, db_session, data)
+    response = await mlrun.api.api.utils.submit_job(db_session, data)
     return response

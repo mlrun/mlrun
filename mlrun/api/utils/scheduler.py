@@ -217,7 +217,7 @@ class Scheduler:
 
         if scheduled_kind == schemas.ScheduleKinds.job:
             # import here to avoid circular imports
-            from mlrun.api.api.utils import submit
+            from mlrun.api.api.utils import submit_job
 
             # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
             # endless scheduling loop
@@ -228,7 +228,7 @@ class Scheduler:
             # otherwise all jobs will have the same uid
             edited_scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
 
-            return submit, [db_session, edited_scheduled_object], {}
+            return submit_job, [db_session, edited_scheduled_object], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, None, None
 

@@ -29,6 +29,7 @@ jobs:
       run: pip install -r automation/requirements.txt && python setup.py develop
     - name: Set MLRUN_GIT_HASH env var
       run: echo "::set-env name=MLRUN_GIT_HASH::$( \
+        cd /tmp && \
         git clone https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
         cd mlrun-upstream && \
         git rev-parse --short HEAD && \
@@ -37,6 +38,7 @@ jobs:
     - name: Set MLRUN_UI_GIT_HASH env var
       run: |
         echo "::set-env name=MLRUN_UI_GIT_HASH::$( \
+          cd /tmp && \
           git clone https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short HEAD && \

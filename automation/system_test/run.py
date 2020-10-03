@@ -37,12 +37,12 @@ class SystemTestCIRunner:
         data_cluster_ip: str,
         data_cluster_ssh_password: str,
         app_cluster_ssh_password: str,
-        github_access_key: str,
+        github_access_token: str,
         mlrun_dbpath: str,
-        v3io_api: str,
-        v3io_username: str,
-        v3io_access_key: str,
-        v3io_password: str = None,
+        webapi_direct_http: str,
+        username: str,
+        access_key: str,
+        password: str = None,
         debug: bool = False,
     ):
         self._logger = logger
@@ -53,16 +53,16 @@ class SystemTestCIRunner:
         self._data_cluster_ip = data_cluster_ip
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._app_cluster_ssh_password = app_cluster_ssh_password
-        self._github_access_key = github_access_key
+        self._github_access_token = github_access_token
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
-            "V3IO_API": v3io_api,
-            "V3IO_USERNAME": v3io_username,
-            "V3IO_ACCESS_KEY": v3io_access_key,
+            "V3IO_API": webapi_direct_http,
+            "V3IO_USERNAME": username,
+            "V3IO_ACCESS_KEY": access_key,
         }
-        if v3io_password:
-            self._env_config["V3IO_PASSWORD"] = v3io_password
+        if password:
+            self._env_config["V3IO_PASSWORD"] = password
 
         self._logger.info("Connecting to data-cluster")
         if not self._debug:
@@ -239,7 +239,7 @@ class SystemTestCIRunner:
     def _get_provctl_version_and_url(self):
         response = requests.get(
             self.Constants.provctl_releases,
-            params={"access_token": self._github_access_key},
+            params={"access_token": self._github_access_token},
         )
         response.raise_for_status()
         latest_provazio_release = json.loads(response.content)
@@ -303,7 +303,7 @@ class SystemTestCIRunner:
                 "--header",
                 '"Accept: application/octet-stream"',
                 "--header",
-                f'"Authorization: token {self._github_access_key}"',
+                f'"Authorization: token {self._github_access_token}"',
                 provctl_url,
             ],
         )
@@ -391,12 +391,12 @@ def run(
     data_cluster_ip: str,
     data_cluster_ssh_password: str,
     app_cluster_ssh_password: str,
-    github_access_key: str,
+    github_access_token: str,
     mlrun_dbpath: str,
-    v3io_api: str,
-    v3io_username: str,
-    v3io_password: str,
-    v3io_access_key: str,
+    webapi_direct_url: str,
+    username: str,
+    password: str,
+    access_key: str,
     debug: bool,
 ):
     system_test_ci_runner = SystemTestCIRunner(
@@ -406,12 +406,12 @@ def run(
         data_cluster_ip,
         data_cluster_ssh_password,
         app_cluster_ssh_password,
-        github_access_key,
+        github_access_token,
         mlrun_dbpath,
-        v3io_api,
-        v3io_username,
-        v3io_password,
-        v3io_access_key,
+        webapi_direct_url,
+        username,
+        password,
+        access_key,
         debug,
     )
     try:

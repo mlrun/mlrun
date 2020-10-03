@@ -76,4 +76,4 @@ def test_v2_serving():
     e = Event('{"data": [5]}', path="/v2/models/m1/infer")
     resp = ctx.mlrun_handler(ctx, e)
     print("resp:", resp)
-    assert resp.body == '500', f"wrong model response {resp.body}"
+    assert resp.body == "500", f"wrong model response {resp.body}"

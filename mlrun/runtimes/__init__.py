@@ -14,8 +14,6 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from mlrun.config import config
-from mlrun.k8s_utils import get_k8s_helper
 from .base import RunError, BaseRuntime, BaseRuntimeHandler  # noqa
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime, new_model_server  # noqa
@@ -29,7 +27,7 @@ from .mpijob import (
 )  # noqa
 from .constants import MPIJobCRDVersions
 from .nuclio import nuclio_init_hook
-from .serving import MLModelServer
+from .serving import MLModelServer, V2ModelServer  # noqa
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 

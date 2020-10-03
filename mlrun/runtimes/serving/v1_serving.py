@@ -21,8 +21,8 @@ from typing import Dict
 from urllib.request import urlopen
 from datetime import datetime
 
-from ..artifacts import get_model, ModelArtifact
-from ..platforms.iguazio import OutputStream
+from mlrun.artifacts import get_model, ModelArtifact
+from mlrun.platforms.iguazio import OutputStream
 
 
 class MLModelServer:

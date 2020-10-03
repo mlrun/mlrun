@@ -18,13 +18,15 @@ import socket
 from ..db import get_or_set_dburl
 from ..model import RunTemplate
 from ..execution import MLClientCtx
-from .serving import nuclio_serving_init
+from .serving import nuclio_serving_init, v2_serving_init
 from .local import get_func_arg
 
 
 def nuclio_init_hook(context, data, kind):
     if kind == "serving":
         nuclio_serving_init(context, data)
+    if kind == "v2serving":
+        v2_serving_init(context, data)
     elif kind in ["mlrun", "jobs"]:
         nuclio_jobs_init(context, data)
     else:

@@ -23,7 +23,7 @@ from tests.conftest import (
     verify_state,
 )
 from unittest.mock import Mock
-from mlrun import NewTask, get_run_db, new_function
+from mlrun import NewTask, get_run_db, new_function, run_local
 import os
 import requests
 import json
@@ -174,35 +174,38 @@ def test_local_no_context():
 
 
 def test_vault_secrets():
-    from mlrun import mlconf, vault_config, code_to_function
+        from mlrun import mlconf, code_to_function, new_project
 
-    mlconf.dbpath = 'http://localhost:64842'
-    vault_url = 'https://vault.default-tenant.app.saarc-vault.iguazio-cd2.com'
-    os.environ['MLRUN_VAULT_TOKEN'] = 's.0sUyGQHYE6Vk2IM2hmH4E65d'
-    os.environ['MLRUN_VAULT_URL'] = vault_url
+        # Set test secrets and configurations
+        mlconf.dbpath = 'http://localhost:52003'
+        mlconf.vault_url = 'http://localhost:8200'
+        os.environ['MLRUN_VAULT_ROLE'] = 'user:saarc'
+        add_vault_user_secret('admin', {'password': 'myVeryNiceSecret!'})
+        add_vault_project_secret('default', {'path': '/just/a/path/again', 'github_key': 'defaultKey!!!'})
 
-    # Set test secrets
-    add_vault_user_secret('admin', {'password': 'myNiceSecret!'})
-    add_vault_project_secret('default', {'path': '/just/a/path', 'github_key': 'aKey!!!'})
+        proj = new_project('proj1', init_vault=True)
+        proj.create_vault_secrets({'aws_key': '1234567890', 'github_key': 'proj1Key!!!'})
 
-    # Create function and set container configuration
-    func = code_to_function(filename="{}/vault_function.py".format(examples_path),
-                            handler='vault_func',
-                            kind='job')
-    func.spec.build.base_image = 'saarcoiguazio/mlrun:unstable'
-    func.spec.build.image = '.secret-image'
-    func.apply(vault_config(secret_name='vault-token', vault_url=vault_url))
-    func.deploy()
+        # Create function and set container configuration
+        func = code_to_function(filename="{}/vault_function.py".format(examples_path),
+                                handler='vault_func',
+                                project=proj,
+                                kind='job')
 
-    # Create context for the execution
-    spec = tag_test(base_spec, "test_local_runtime")
-    spec.with_secrets('vault', {"project": "default", "secrets": ["path", "github_key"]})
-    spec.with_secrets('vault', {"user": "admin", "secrets": ["password"]})
-    spec.with_params(name="password")
+        func.spec.build.base_image = 'saarcoiguazio/mlrun:unstable'
+        func.spec.build.image = '.secret-image'
+        func.deploy()
 
-    result = func.run(
-        spec, handler="vault_func"
-    )
-    result.show()
+        # Create context for the execution
+        spec = tag_test(base_spec, "test_local_runtime")
+        spec.with_secrets('vault', {"user": "admin", "secrets": ["password"]})
+        spec.with_secrets('vault', {"project": "default", "secrets": ["path", "github_key"]})
+        spec.with_secrets('vault', {"project": "proj1", "secrets": ["aws_key", "github_key"]})
+        spec.with_params(secrets=['password', 'path', 'github_key', 'aws_key'])
 
-    verify_state(result)
+        result = func.run(
+            spec, handler="vault_func"
+        )
+        result.show()
+
+        verify_state(result)

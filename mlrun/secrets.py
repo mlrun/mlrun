@@ -14,7 +14,7 @@
 
 from ast import literal_eval
 from .utils import list2dict
-from .utils import get_vault_secrets
+from .utils import VaultStore
 from os import environ
 
 
@@ -25,6 +25,7 @@ class SecretsStore:
         # for example from Vault, and when adding their source they will be retrieved from the external source.
         self._hidden_sources = []
         self._hidden_secrets = {}
+        self.vault = VaultStore()
 
     @classmethod
     def from_list(cls, src_list: list):
@@ -65,9 +66,9 @@ class SecretsStore:
             if not isinstance(source, dict):
                 raise ValueError("vault secrets must be of type dict")
 
-            for key, value in get_vault_secrets(source["secrets"],
-                                                user=source.get("user"),
-                                                project=source.get("project")).items():
+            for key, value in self.vault.get_secrets(source["secrets"],
+                                                      user=source.get("user"),
+                                                      project=source.get("project")).items():
                 self._hidden_secrets[prefix + key] = value
             self._hidden_sources.append({"kind": kind, "source": source})
 

@@ -31,13 +31,10 @@ spec:
           value: 'saarcoiguazio'
         - name: V3IO_USERNAME
           value: admin
-        - name: MLRUN_VAULT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: vault-token
-              key: token
         - name: MLRUN_VAULT_URL
-          value: 'https://vault.default-tenant.app.saarc-vault.iguazio-cd2.com'
+          value: 'http://docker.for.mac.localhost:8200'
+        - name: MLRUN_VAULT_ROLE
+          value: 'user:admin'
         - name: DEFAULT_DOCKER_SECRET
           value: my-docker
         ports:

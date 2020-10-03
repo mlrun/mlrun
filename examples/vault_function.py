@@ -1,23 +1,12 @@
-def vault_func(context, name, value=None):
-    """Validate that a given secret exists
+def vault_func(context, secrets: list):
+    """Validate that given secrets exists
 
     :param context the MLRun context
-    :param name name of the secret
-    :param value expected value of the secret
+    :param secrets name of the secrets that we want to look at
     """
     context.logger.info("running function")
-    sec_value = context.get_secret(name)
-
-    context.logger.info("Secret value: {}".format(sec_value))
-
-    if sec_value is None or (value and sec_value != value):
-        return False
+    for sec_name in secrets:
+        sec_value = context.get_secret(sec_name)
+        context.logger.info("Secret name: {}, value: {}".format(sec_name, sec_value))
 
     return True
-
-
-def embedded_secret_func(context, value):
-    context.logger.info("running function")
-
-    sec_value = {{ Secret.password }}
-    return value == sec_value

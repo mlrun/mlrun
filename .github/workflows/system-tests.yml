@@ -28,15 +28,10 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && python setup.py develop
     - name: Set MLRUN_GIT_HASH env var
-      run: echo "::set-env name=MLRUN_GIT_HASH::$(git rev-parse --short $GITHUB_SHA)"
+      run: echo "::set-env name=MLRUN_GIT_HASH::ba066ca"
     - name: Set MLRUN_UI_GIT_HASH env var
       run: |
-        echo "::set-env name=MLRUN_UI_GIT_HASH::$( \
-          git clone https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-parse --short HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)"
+        echo "::set-env name=MLRUN_UI_GIT_HASH::991f09f"
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Set LATEST_VERSION env var

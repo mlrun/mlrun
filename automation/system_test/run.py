@@ -399,8 +399,8 @@ def run(
     mlrun_dbpath: str,
     webapi_direct_url: str,
     username: str,
-    password: str,
     access_key: str,
+    password: str,
     debug: bool,
 ):
     system_test_ci_runner = SystemTestCIRunner(
@@ -414,8 +414,8 @@ def run(
         mlrun_dbpath,
         webapi_direct_url,
         username,
-        password,
         access_key,
+        password,
         debug,
     )
     try:

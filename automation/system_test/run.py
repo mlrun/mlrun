@@ -6,6 +6,7 @@ import requests
 import subprocess
 import sys
 import yaml
+import time
 
 import mlrun.utils
 
@@ -311,6 +312,7 @@ class SystemTestCIRunner:
         return provctl
 
     def _patch_mlrun(self, provctl_path):
+        time_string = time.strftime("%Y%m%d-%H%M%S")
         self._logger.debug(
             "Creating mlrun patch archive", mlrun_version=self._mlrun_version
         )
@@ -327,6 +329,7 @@ class SystemTestCIRunner:
         self._run_command(
             f"./{provctl_path}",
             args=[
+                f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
                 "create-patch",
                 "appservice",
                 repo_arg,
@@ -341,6 +344,7 @@ class SystemTestCIRunner:
         self._run_command(
             f"./{provctl_path}",
             args=[
+                f"--logger-file-path={str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log",
                 "--app-cluster-password",
                 self._app_cluster_ssh_password,
                 "--data-cluster-password",

@@ -13,6 +13,7 @@ on:
 
 jobs:
   run-system-tests-ci:
+    timeout-minutes: 60
     name: Run System Tests
     runs-on: ubuntu-latest
 
@@ -49,6 +50,12 @@ jobs:
       run: sudo apt-get install curl jq
     - name: Set LATEST_VERSION env var
       run: echo "::set-env name=LATEST_VERSION::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
+    - name: Wait for existing runs to complete
+      uses: softprops/turnstyle@v1
+      with:
+        poll-interval-seconds: 20s
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Run System Test CI Script
       run: |
         python automation/system_test/run.py run \

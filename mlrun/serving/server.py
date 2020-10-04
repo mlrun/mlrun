@@ -14,6 +14,7 @@
 import json
 import os
 import socket
+import threading
 
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
@@ -62,9 +63,22 @@ class ModelServerHost(ModelObj):
                 model_path = model["model_path"]
                 kwargs = model.get("params", None) or {}
                 handler = model.get("handler", "do_event")
+                mode = model.get("load_mode", "sync")
                 class_object = get_class(class_name, namespace)
                 model_object = class_object(context, name, model_path, **kwargs)
-                model_object.post_init()
+                if mode == "sync":
+                    if not model_object.ready:
+                        model_object.load()
+                        model_object.ready = True
+                    context.logger.info(f"model {name} was loaded")
+                elif mode == "async":
+                    t = threading.Thread(target=model_object.async_load)
+                    t.start()
+                    context.logger.info(f"started async load for model {name}")
+                else:
+                    raise ValueError(
+                        f"unsupported model loading mode {mode} for model {name}"
+                    )
                 self._models_handlers[name] = getattr(model_object, handler)
 
         if self.router_class:
@@ -103,10 +117,17 @@ def v2_serving_init(context, namespace=None):
 
 
 def v2_serving_handler(context, event):
-    response = context.router.do_event(event)
-    body = response.body
+    try:
+        response = context.router.do_event(event)
+    except Exception as e:
+        return context.Response(body=str(e), content_type="text/plain", status_code=400)
 
-    if not isinstance(body, (str, bytes)):
+    body = response.body
+    if isinstance(body, context.Response):
+        return body
+
+    if body and not isinstance(body, (str, bytes)):
+        print(body)
         body = json.dumps(body)
         return context.Response(
             body=body, content_type="application/json", status_code=200

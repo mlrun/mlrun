@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import time
 from typing import Dict
 from datetime import datetime
 from requests.adapters import HTTPAdapter
@@ -30,6 +31,7 @@ class V2ModelServer:
             self.name, self.version = name.split(":", 1)
         self.context = context
         self.ready = False
+        self.loading = False
         self.model_dir = model_dir
         self.model_spec: ModelArtifact = None
         self._params = kwargs
@@ -43,7 +45,7 @@ class V2ModelServer:
             self.model = model
             self.ready = True
 
-    def post_init(self):
+    def async_load(self):
         if not self.ready:
             self.load()
             self.ready = True
@@ -81,18 +83,31 @@ class V2ModelServer:
         if not self.ready and not self.model:
             raise ValueError("please specify a load method or a model object")
 
+    def _check_readiness(self, event):
+        if self.ready:
+            return
+        if not event.trigger or event.trigger == "http":
+            raise RuntimeError(f"model {self.name} is not ready yet")
+        self.context.logger.info(f"waiting for model {self.name} to load")
+        for i in range(50):  # wait up to 4.5 minutes
+            time.sleep(5)
+            if self.ready:
+                return
+        raise RuntimeError(f"model {self.name} did not become ready")
+
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
         start = datetime.now()
         op = event.path.strip("/")
-        request = self.preprocess(event.body, op)
-        request = self.validate(request, op)
 
         if op == "predict" or op == "infer":
-            # predic operation
+            # predict operation
+            self._check_readiness(event)
+            request = self.preprocess(event.body, op)
+            request = self.validate(request, op)
             response = self.predict(request)
 
-        elif op == "ready":
+        elif op == "ready" and event.method == "GET":
             # get model health operation
             setattr(event, "terminated", True)
             if self.ready:
@@ -103,7 +118,7 @@ class V2ModelServer:
                 )
             return event
 
-        elif op == "":
+        elif op == "" and event.method == "GET":
             # get model metadata operation
             setattr(event, "terminated", True)
             event.body = {
@@ -119,13 +134,19 @@ class V2ModelServer:
 
         elif op == "explain":
             # explain operation
+            self._check_readiness(event)
+            request = self.preprocess(event.body, op)
+            request = self.validate(request, op)
             response = self.explain(request)
 
         elif hasattr(self, "op_" + op):
             # custom operation (child methods starting with "op_")
-            response = getattr(self, "op_" + op)(request)
+            response = getattr(self, "op_" + op)(event)
+            event.body = response
+            return event
+
         else:
-            raise ValueError(f"illegal model operation {op}")
+            raise ValueError(f"illegal model operation {op}, method={event.method}")
 
         response = self.postprocess(response)
         if self._model_logger:

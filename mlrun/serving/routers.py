@@ -74,9 +74,10 @@ class BaseModelRouter:
         """handle incoming events, event is nuclio event class"""
 
         event = self.preprocess(event)
-        event.body = self.parse_event(event)
-        urlpath = getattr(event, "path", "")
         method = event.method or "POST"
+        if event.body and method != "GET":
+            event.body = self.parse_event(event)
+        urlpath = getattr(event, "path", "")
 
         # if health check or "/" return Ok + metadata
         if method == "GET" and (
@@ -87,7 +88,7 @@ class BaseModelRouter:
             return event
 
         # check for legal path prefix
-        if urlpath and not urlpath.startswith(self.url_prefix):
+        if urlpath and not urlpath.startswith(self.url_prefix) and not urlpath == "/":
             raise ValueError(
                 f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
             )
@@ -110,7 +111,7 @@ class ModelRouter(BaseModelRouter):
     def _select_child(self, body, urlpath):
         subpath = None
         model = ""
-        if urlpath:
+        if urlpath and not urlpath == "/":
             # process the url <prefix>/<model>[/versions/<ver>]/operation
             subpath = ""
             urlpath = urlpath[len(self.url_prefix) :].strip("/")
@@ -124,13 +125,14 @@ class ModelRouter(BaseModelRouter):
             if len(segments) > 1:
                 subpath = "/".join(segments[1:])
 
-        model = model or body.get("model", list(self.routes.keys())[0])
-        subpath = body.get("operation", subpath)
+        if isinstance(body, dict):
+            model = model or body.get("model", list(self.routes.keys())[0])
+            subpath = body.get("operation", subpath)
         if subpath is None:
             subpath = "infer"
 
         if model not in self.routes:
-            models = "| ".join(self.routes.keys())
+            models = " | ".join(self.routes.keys())
             raise ValueError(f"model {model} doesnt exist, available models: {models}")
 
         return model, self.routes[model], subpath

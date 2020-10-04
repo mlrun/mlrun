@@ -77,21 +77,54 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def add_model(
-        self, name, model_class=None, model_path=None, model_url=None, parameters=None
+        self,
+        name,
+        model_class=None,
+        model_path=None,
+        model_url=None,
+        parameters=None,
+        load_mode=None,
+        handler=None,
     ):
+        """add ml model to the function
+
+        :param name:        model api name (or name:version), will determine the relative url/path
+        :param model_class: V2 Model python class name
+                            (can also module.submodule.class and it will be imported automatically)
+        :param model_path:  path to mlrun model artifact or model directory path
+        :param model_url:   url of a remote url serving that model (cannot be used with model_path)
+        :param parameters:  extra kwargs to pass to the model serving class __init__
+                            (can be read in the model using .get_param(key) method)
+        :param load_mode:   model loading mode: sync - during init, async - in the background
+        :param handler:     for advanced users!, override default class handler name (do_event)
+        """
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")
+        if model_path and not model_class:
+            raise ValueError("model_path must be provided with model_class")
+        if load_mode and load_mode not in ["sync", "async"]:
+            raise ValueError(f"illegal model loading mode {load_mode}")
 
         model = {
             "model_class": model_class,
             "model_path": model_path,
             "model_url": model_url,
             "params": parameters,
+            "load_mode": load_mode,
+            "handler": handler,
         }
+        model = {k: v for k, v in model.items() if v is not None}
         self.spec.models[name] = model
 
-    def deploy(self, dashboard="", project="", tag="", kind=None):
-        if not kind and not self.spec.base_spec:
+    def deploy(self, dashboard="", project="", tag=""):
+        """deploy model serving function to a local/remote cluster
+
+        :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
+        :param project:   optional, overide function specified project name
+        :param tag:       specify unique function tag (a different function service is created for every tag)
+        """
+        kind = None
+        if not self.spec.base_spec:
             kind = serving_subkind
         serving_spec = {
             "router_class": self.spec.router,

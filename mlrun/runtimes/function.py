@@ -112,19 +112,11 @@ class NuclioSpec(KubeResourceSpec):
             volume_mounts=volume_mounts,
             env=env,
             resources=resources,
+            entry_points=entry_points,
+            description=description,
             replicas=replicas,
             image_pull_policy=image_pull_policy,
             service_account=service_account,
-        )
-
-        super().__init__(
-            command=command,
-            args=args,
-            image=image,
-            mode=mode,
-            build=None,
-            entry_points=entry_points,
-            description=description,
         )
 
         self.base_spec = base_spec or ""

@@ -53,7 +53,7 @@ jobs:
     - name: Set MLRUN_VERSION env var
       run: echo "::set-env name=MLRUN_VERSION::$LATEST_VERSION-$MLRUN_GIT_HASH"
     - name: Set MLRUN_UI_VERSION env var
-      run: echo "::set-env name=MLRUN_VERSION::$LATEST_VERSION-$MLRUN_UI_GIT_HASH"
+      run: echo "::set-env name=MLRUN_UI_VERSION::$LATEST_VERSION-$MLRUN_UI_GIT_HASH"
     - name: Wait for existing runs to complete
       uses: softprops/turnstyle@v1
       with:

@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.session import create_session, close_session
 from mlrun.config import config
-from mlrun.utils import logger
 
 
 def get_db_session() -> Generator[Session, None, None]:

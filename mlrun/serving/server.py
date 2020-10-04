@@ -60,7 +60,7 @@ class ModelServerHost(ModelObj):
             else:
                 class_name = model["model_class"]
                 model_path = model["model_path"]
-                kwargs = model.get("params", {})
+                kwargs = model.get("params", None) or {}
                 handler = model.get("handler", "do_event")
                 class_object = get_class(class_name, namespace)
                 model_object = class_object(context, name, model_path, **kwargs)
@@ -71,7 +71,8 @@ class ModelServerHost(ModelObj):
             router_class = get_class(self.router_class, namespace)
         else:
             router_class = ModelRouter
-        self.router = router_class(context, self._models_handlers, **self.router_args)
+        router_args = self.router_args or {}
+        self.router = router_class(context, self._models_handlers, **router_args)
 
 
 def get_class(class_name, namespace):

@@ -13,6 +13,7 @@ import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.db.session import create_session, close_session
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
@@ -128,19 +129,26 @@ def _parse_submit_job_body(db_session: Session, data):
 
 
 async def submit_job(db_session: Session, data):
-    function_kind, run_uid, response = await run_in_threadpool(_submit_job, db_session, data)
+    project, function_kind, run_uid, response = await run_in_threadpool(_submit_job, db_session, data)
     if run_uid:
         # monitor in the background
-        asyncio.create_task(run_in_threadpool(_monitor_job, function_kind, run_uid))
+        asyncio.create_task(run_in_threadpool(_monitor_job, project, function_kind, run_uid))
     return response
 
 
-def _monitor_job(function_kind: str, run_uid: str):
+def _monitor_job(project: str, function_kind: str, run_uid: str):
+    """
+    This function is running in background, i.e. outside of the context of a request
+    therefore it should create its own db session
+    """
     runtime_handler = get_runtime_handler(function_kind)
-    runtime_handler.monitor_run(run_uid)
+    db = get_db()
+    db_session = create_session()
+    runtime_handler.monitor_run(db, db_session, project, run_uid)
+    close_session(db_session)
 
 
-def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, typing.Dict]:
+def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
         1. str of the kind of the function of the job
@@ -148,6 +156,7 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, typing.Dict
         2. dict of the response info
     """
     run_uid = None
+    project = None
     try:
         fn, task = _parse_submit_job_body(db_session, data)
         run_db = get_run_db_instance(db_session)
@@ -167,6 +176,7 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, typing.Dict
                 data,
                 cron_trigger,
             )
+            project = task["metadata"]["project"]
 
             response = {
                 "schedule": schedule,
@@ -176,6 +186,7 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, typing.Dict
         else:
             run = fn.run(task, watch=False)
             run_uid = run.metadata.uid
+            project = run.metadata.project
             if run:
                 response = run.to_dict()
 
@@ -191,6 +202,6 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, typing.Dict
         )
 
     logger.info("response: %s", response)
-    return fn.kind, run_uid, {
+    return project, fn.kind, run_uid, {
         "data": response,
     }

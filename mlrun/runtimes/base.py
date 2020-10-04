@@ -811,6 +811,12 @@ class BaseRuntimeHandler(ABC):
             label_selector = object_label_selector
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
+    def monitor_run(self, db: DBInterface,
+        db_session: Session,
+                    project: str,
+        run_uid: str):
+        pass
+
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None
     ) -> Dict:

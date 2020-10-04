@@ -91,7 +91,9 @@ class SystemTestPreparer:
         self._patch_mlrun(provctl_path)
 
     def clean_up_remote_workdir(self, close_ssh_client: bool = True):
-        self._logger.info("Cleaning up remote workdir", workdir=str(self.Constants.homedir))
+        self._logger.info(
+            "Cleaning up remote workdir", workdir=str(self.Constants.homedir)
+        )
         self._run_command(
             f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir)
         )
@@ -265,21 +267,18 @@ class SystemTestPreparer:
         filepath = str(self.Constants.system_tests_env_yaml)
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
         self._run_command(
-            "cat > ",
-            args=[filepath],
-            stdin=contents,
-            local=True,
+            "cat > ", args=[filepath], stdin=contents, local=True,
         )
 
     def _override_k8s_mlrun_registry(self):
-        mlrun_registry_override = self._override_image_registry.strip().strip('/') + '/'
+        mlrun_registry_override = self._override_image_registry.strip().strip("/") + "/"
         override_mlrun_registry_manifest = {
-            'apiVersion': 'v1',
-            'data': {'MLRUN_IMAGES_REGISTRY': f'{mlrun_registry_override}'},
-            'kind': 'ConfigMap',
-            'metadata': {'name': 'mlrun-override-env', 'namespace': 'default-tenant'},
+            "apiVersion": "v1",
+            "data": {"MLRUN_IMAGES_REGISTRY": f"{mlrun_registry_override}"},
+            "kind": "ConfigMap",
+            "metadata": {"name": "mlrun-override-env", "namespace": "default-tenant"},
         }
-        manifest_file_name = 'override_mlrun_registry.yml'
+        manifest_file_name = "override_mlrun_registry.yml"
         self._run_command(
             "cat > ",
             args=[manifest_file_name],
@@ -287,7 +286,7 @@ class SystemTestPreparer:
         )
 
         self._run_command(
-            "kubectl", args=['apply', '-f', manifest_file_name],
+            "kubectl", args=["apply", "-f", manifest_file_name],
         )
 
     def _download_provctl(self):
@@ -318,8 +317,14 @@ class SystemTestPreparer:
         mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
 
         repo_arg = ""
-        if self._mlrun_repo:
-            repo_arg = f"--override-image-pull-repo {self._mlrun_repo}"
+        if self._override_image_repo or self._override_image_registry:
+
+            # complete with defaults if something's missing
+            override_registry = (self._override_image_registry or "quay.io").strip("/")
+            override_repo = (self._override_image_repo or "mlrun").strip("/")
+
+            override_image_pull_repo = f"{override_registry}/{override_repo}"
+            repo_arg = f"--override-image-pull-repo {override_image_pull_repo}"
 
         override_image_arg = ""
         if self._override_mlrun_images:
@@ -364,10 +369,16 @@ def main():
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("mlrun-version", type=str, required=True)
 @click.option(
-    "--override-image-registry", "-mreg", default=None, help="Override default mlrun docker image registry."
+    "--override-image-registry",
+    "-mreg",
+    default=None,
+    help="Override default mlrun docker image registry.",
 )
 @click.option(
-    "--override-image-repo", "-mrep", default=None, help="Override default mlrun docker image repository name."
+    "--override-image-repo",
+    "-mrep",
+    default=None,
+    help="Override default mlrun docker image repository name.",
 )
 @click.option(
     "--override-mlrun-images",

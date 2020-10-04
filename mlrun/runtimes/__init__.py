@@ -27,6 +27,7 @@ from .mpijob import (
 )  # noqa
 from .constants import MPIJobCRDVersions
 from .nuclio import nuclio_init_hook
+from .serving import ServingRuntime
 
 # for legacy imports (MLModelServer moved from here to /serving)
 from ..serving import MLModelServer  # noqa
@@ -41,6 +42,7 @@ class RuntimeKinds(object):
     job = "job"
     spark = "spark"
     mpijob = "mpijob"
+    serving = "serving"
 
     @staticmethod
     def all():
@@ -108,6 +110,7 @@ def get_runtime_class(kind: str):
     kind_runtime_map = {
         RuntimeKinds.remote: RemoteRuntime,
         RuntimeKinds.nuclio: RemoteRuntime,
+        RuntimeKinds.serving: ServingRuntime,
         RuntimeKinds.dask: DaskCluster,
         RuntimeKinds.job: KubejobRuntime,
         RuntimeKinds.spark: SparkRuntime,

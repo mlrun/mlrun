@@ -38,9 +38,10 @@ from .runtimes import (
     LocalRuntime,
     RemoteRuntime,
     RuntimeKinds,
-    get_runtime_class,
+    get_runtime_class, ServingRuntime,
 )
 from .runtimes.funcdoc import update_function_entry_points
+from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     get_in,
@@ -619,9 +620,12 @@ def code_to_function(
         else:
             raise ValueError("code_output option is only used with notebooks")
 
-    if kind.startswith("nuclio"):
-        r = RemoteRuntime()
-        r.spec.function_kind = subkind
+    if kind.startswith("nuclio") or kind == "serving":
+        if kind == "serving" or subkind == serving_subkind:
+            r = ServingRuntime()
+        else:
+            r = RemoteRuntime()
+            r.spec.function_kind = subkind
         if embed_code:
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec

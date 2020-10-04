@@ -286,7 +286,7 @@ class RemoteRuntime(KubeResource):
 
         return self
 
-    def deploy(self, dashboard="", project="", tag="", kind=None):
+    def deploy(self, dashboard="", project="", tag="", kind=None, env: dict = None):
         def get_fullname(config, name, project, tag):
             if project:
                 name = "{}-{}".format(project, name)
@@ -297,6 +297,9 @@ class RemoteRuntime(KubeResource):
 
         self.set_config("metadata.labels.mlrun/class", self.kind)
         env_dict = {get_item_name(v): get_item_name(v, "value") for v in self.spec.env}
+        if env:
+            for name, value in env.items():
+                env_dict[name] = value
         spec = nuclio.ConfigSpec(env=env_dict, config=self.spec.config)
         spec.cmd = self.spec.build.commands or []
         project = project or self.metadata.project or "default"

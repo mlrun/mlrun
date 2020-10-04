@@ -34,7 +34,7 @@ class _ServerContext:
 
 
 class ModelServerHost(ModelObj):
-    _dict_fields = ["parameters", "models", "router_class", "router_args", "trace"]
+    _dict_fields = ["parameters", "models", "router_class", "router_args", "verbose"]
 
     def __init__(self):
         self.router_class = None
@@ -43,7 +43,7 @@ class ModelServerHost(ModelObj):
         self.parameters = {}
         self.models = {}
         self._models_handlers = {}
-        self.trace = False
+        self.verbose = False
 
     def add_root_params(self, params={}):
         for key, val in self.parameters.items():
@@ -82,7 +82,7 @@ def get_class(class_name, namespace):
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as e:
-        raise ImportError(f"state init failed, class {class_name} not found")
+        raise ImportError(f"state init failed, class {class_name} not found, {e}")
     return class_object
 
 

@@ -24,6 +24,34 @@ from mlrun.artifacts import ModelArtifact, get_model
 
 
 class V2ModelServer:
+    """base model serving class (v2), using similar API to KFServing v2 and Triton
+
+    The class is initialized automatically by the model server and can run locally
+    as part of a nuclio serverless function, or as part of a real-time pipeline
+
+    You need to implement two mandatory methods:
+      load()     - download the model file(s) and load the model into memory
+      predict()  - accept request payload and return prediction/inference results
+
+    there are additional optional methods you can override:
+      preprocess, validate, postprocess, and explain
+
+    minimal serving function example:
+
+        class MyClass(V2ModelServer):
+            def load(self):
+                # load and initialize the model and/or other elements
+                model_file, extra_data = self.get_model(suffix='.pkl')
+                self.model = load(open(model_file, "rb"))
+
+            def predict(self, request):
+                events = np.array(request['inputs'])
+                dmatrix = xgb.DMatrix(events)
+                result: xgb.DMatrix = self.model.predict(dmatrix)
+                return {"outputs": result.tolist()}
+
+    """
+
     def __init__(self, context, name: str, model_dir: str = None, model=None, **kwargs):
         self.name = name
         self.version = ""
@@ -31,7 +59,7 @@ class V2ModelServer:
             self.name, self.version = name.split(":", 1)
         self.context = context
         self.ready = False
-        self.loading = False
+        self.protocol = kwargs.get("protocol", "v2")
         self.model_dir = model_dir
         self.model_spec: ModelArtifact = None
         self._params = kwargs
@@ -46,9 +74,14 @@ class V2ModelServer:
             self.ready = True
 
     def async_load(self):
+        """async model loading, for internal use"""
         if not self.ready:
             self.load()
             self.ready = True
+
+    def post_init(self):
+        """reserved, init hook for pipeline"""
+        self.async_load()
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -66,7 +99,7 @@ class V2ModelServer:
         example:
             def load(self):
                 model_file, extra_data = self.get_model(suffix='.pkl')
-                model = load(open(model_file, "rb"))
+                self.model = load(open(model_file, "rb"))
                 categories = extra_data['categories'].as_df()
 
         :param  suffix:  optional, model file suffix (when the model_path is a directory)
@@ -104,6 +137,8 @@ class V2ModelServer:
             # predict operation
             self._check_readiness(event)
             request = self.preprocess(event.body, op)
+            if "id" not in request:
+                request["id"] = event.id
             request = self.validate(request, op)
             response = self.predict(request)
 
@@ -156,11 +191,12 @@ class V2ModelServer:
 
     def validate(self, request, operation):
         """validate the event body (after preprocess)"""
-        if "data" not in request:
-            raise Exception('Expected key "data" in request body')
+        if self.protocol == "v2":
+            if "inputs" not in request:
+                raise Exception('Expected key "inputs" in request body')
 
-        if not isinstance(request["data"], list):
-            raise Exception('Expected "data" to be a list')
+            if not isinstance(request["inputs"], list):
+                raise Exception('Expected "inputs" to be a list')
 
         return request
 

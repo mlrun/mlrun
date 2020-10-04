@@ -14,7 +14,7 @@
 
 import json
 from io import BytesIO
-from urllib.request import urlopen
+from ..run import get_object
 
 
 class BaseModelRouter:
@@ -29,9 +29,11 @@ class BaseModelRouter:
             self.routes[key] = child
         self.url_prefix = kwargs.get("url_prefix", "/v2/models")
         self.health_prefix = kwargs.get("health_prefix", "/v2/health")
+        self.protocol = kwargs.get("protocol", "v2")
+        self.inputs_key == "instances" if self.protocol == "v1" else "inputs"
 
     def parse_event(self, event):
-        parsed_event = {"data": []}
+        parsed_event = {}
         try:
             if not isinstance(event.body, dict):
                 body = json.loads(event.body)
@@ -41,9 +43,9 @@ class BaseModelRouter:
                 # Get data from URL
                 url = body["data_url"]
                 self.context.logger.debug_with("downloading data", url=url)
-                data = urlopen(url).read()
+                data = get_object(url)
                 sample = BytesIO(data)
-                parsed_event["data"].append(sample)
+                parsed_event[self.inputs_key] = [sample]
             else:
                 parsed_event = body
 
@@ -51,8 +53,7 @@ class BaseModelRouter:
             #  if images convert to bytes
             if getattr(event, "content_type", "").startswith("image/"):
                 sample = BytesIO(event.body)
-                parsed_event["data"].append(sample)
-                parsed_event["content_type"] = event.content_type
+                parsed_event[self.inputs_key] = [sample]
             else:
                 raise ValueError("Unrecognized request format: %s" % e)
 

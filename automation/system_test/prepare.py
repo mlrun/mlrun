@@ -259,12 +259,13 @@ class SystemTestPreparer:
         self._run_command(
             "mkdir", args=["-p", str(self.Constants.workdir)],
         )
-
-        self._logger.debug("Populating system tests env.yml")
+        contents = yaml.safe_dump(self._env_config)
+        filepath = str(self.Constants.system_tests_env_yaml)
+        self._logger.debug("Populating system tests env.yml", filepath=filepath)
         self._run_command(
             "cat > ",
-            args=[str(self.Constants.system_tests_env_yaml)],
-            stdin=yaml.safe_dump(self._env_config),
+            args=[filepath],
+            stdin=contents,
             local=True,
         )
 

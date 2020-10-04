@@ -57,7 +57,6 @@ class ServingSpec(NuclioSpec):
             function_kind=function_kind or serving_subkind,
             service_account=service_account,
             readiness_timeout=readiness_timeout,
-            build=None,
         )
 
         self.models = models

@@ -68,7 +68,7 @@ class MClass(V2ModelServer):
         return resp
 
 
-def test_v2_serving():
+def test_v2_server():
     os.environ["MODELSRV_SPEC_ENV"] = json.dumps(spec)
     ctx = MockContext()
     v2_serving_init(ctx, globals())

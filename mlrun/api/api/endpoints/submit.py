@@ -25,7 +25,9 @@ async def submit_job(
     try:
         data = await request.json()
     except ValueError:
-        mlrun.api.api.utils.log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     # enrich job task with the username from the request header
     if username:

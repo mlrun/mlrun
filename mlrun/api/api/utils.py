@@ -11,9 +11,9 @@ from sqlalchemy.orm import Session
 
 import mlrun.errors
 from mlrun.api import schemas
+from mlrun.api.db.session import create_session, close_session
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.db.session import create_session, close_session
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
@@ -129,10 +129,14 @@ def _parse_submit_job_body(db_session: Session, data):
 
 
 async def submit_job(db_session: Session, data):
-    project, function_kind, run_uid, response = await run_in_threadpool(_submit_job, db_session, data)
+    project, function_kind, run_uid, response = await run_in_threadpool(
+        _submit_job, db_session, data
+    )
     if run_uid:
         # monitor in the background
-        asyncio.create_task(run_in_threadpool(_monitor_job, project, function_kind, run_uid))
+        asyncio.create_task(
+            run_in_threadpool(_monitor_job, project, function_kind, run_uid)
+        )
     return response
 
 
@@ -202,6 +206,4 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing
         )
 
     logger.info("response: %s", response)
-    return project, fn.kind, run_uid, {
-        "data": response,
-    }
+    return project, fn.kind, run_uid, {"data": response}

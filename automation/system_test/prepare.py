@@ -33,7 +33,8 @@ class SystemTestPreparer:
     def __init__(
         self,
         mlrun_version: str,
-        mlrun_repo: str,
+        override_image_registry: str,
+        override_image_repo: str,
         override_mlrun_images: str,
         data_cluster_ip: str,
         data_cluster_ssh_password: str,
@@ -49,7 +50,8 @@ class SystemTestPreparer:
         self._logger = logger
         self._debug = debug
         self._mlrun_version = mlrun_version
-        self._mlrun_repo = mlrun_repo
+        self._override_image_registry = override_image_registry
+        self._override_image_repo = override_image_repo
         self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip
         self._data_cluster_ssh_password = data_cluster_ssh_password
@@ -82,7 +84,7 @@ class SystemTestPreparer:
 
         self._prepare_test_env()
 
-        if self._mlrun_repo:
+        if self._override_image_registry:
             self._override_k8s_mlrun_registry()
 
         provctl_path = self._download_provctl()
@@ -270,10 +272,10 @@ class SystemTestPreparer:
         )
 
     def _override_k8s_mlrun_registry(self):
-        mlrun_registry = self._mlrun_repo.split('/')[0]
+        mlrun_registry_override = self._override_image_registry.strip().strip('/') + '/'
         override_mlrun_registry_manifest = {
             'apiVersion': 'v1',
-            'data': {'MLRUN_IMAGES_REGISTRY': f'{mlrun_registry}/'},
+            'data': {'MLRUN_IMAGES_REGISTRY': f'{mlrun_registry_override}'},
             'kind': 'ConfigMap',
             'metadata': {'name': 'mlrun-override-env', 'namespace': 'default-tenant'},
         }
@@ -362,7 +364,10 @@ def main():
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("mlrun-version", type=str, required=True)
 @click.option(
-    "--mlrun-repo", "-mr", default=None, help="Override default mlrun image repository."
+    "--override-image-registry", "-mreg", default=None, help="Override default mlrun docker image registry."
+)
+@click.option(
+    "--override-image-repo", "-mrep", default=None, help="Override default mlrun docker image repository name."
 )
 @click.option(
     "--override-mlrun-images",
@@ -387,7 +392,8 @@ def main():
 )
 def run(
     mlrun_version: str,
-    mlrun_repo: str,
+    override_image_registry: str,
+    override_image_repo: str,
     override_mlrun_images: str,
     data_cluster_ip: str,
     data_cluster_ssh_password: str,
@@ -402,7 +408,8 @@ def run(
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_version,
-        mlrun_repo,
+        override_image_registry,
+        override_image_repo,
         override_mlrun_images,
         data_cluster_ip,
         data_cluster_ssh_password,

@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
+from mlrun.api.db.session import create_session, close_session
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 from mlrun.utils import logger
@@ -69,7 +70,7 @@ class Scheduler:
             db_session, project, name, kind, scheduled_object, cron_trigger
         )
         self._create_schedule_in_scheduler(
-            db_session, project, name, kind, scheduled_object, cron_trigger
+            project, name, kind, scheduled_object, cron_trigger
         )
 
     def list_schedules(
@@ -153,7 +154,6 @@ class Scheduler:
 
     def _create_schedule_in_scheduler(
         self,
-        db_session: Session,
         project: str,
         name: str,
         kind: schemas.ScheduleKinds,
@@ -162,9 +162,7 @@ class Scheduler:
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
-        function, args, kwargs = self._resolve_job_function(
-            db_session, kind, scheduled_object
-        )
+        function, args, kwargs = self._resolve_job_function(kind, scheduled_object)
         self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -182,7 +180,6 @@ class Scheduler:
             # don't let one failure fail the rest
             try:
                 self._create_schedule_in_scheduler(
-                    db_session,
                     db_schedule.project,
                     db_schedule.name,
                     db_schedule.kind,
@@ -206,29 +203,15 @@ class Scheduler:
         return schedule
 
     def _resolve_job_function(
-        self,
-        db_session: Session,
-        scheduled_kind: schemas.ScheduleKinds,
-        scheduled_object: Any,
+        self, scheduled_kind: schemas.ScheduleKinds, scheduled_object: Any,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
 
         if scheduled_kind == schemas.ScheduleKinds.job:
-            # import here to avoid circular imports
-            from mlrun.api.api.utils import submit
-
-            # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
-            # endless scheduling loop
-            edited_scheduled_object = copy.deepcopy(scheduled_object)
-            edited_scheduled_object.pop("schedule", None)
-
-            # removing the uid from the task metadata so that a new uid will be generated for every run
-            # otherwise all jobs will have the same uid
-            edited_scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
-
-            return submit, [db_session, edited_scheduled_object], {}
+            scheduled_object_copy = copy.deepcopy(scheduled_object)
+            return Scheduler.submit_job_wrapper, [scheduled_object_copy], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, None, None
 
@@ -242,6 +225,25 @@ class Scheduler:
         :return: returns the identifier that will be used inside the APScheduler
         """
         return self._job_id_separator.join([project, name])
+
+    @staticmethod
+    def submit_job_wrapper(scheduled_object):
+        # import here to avoid circular imports
+        from mlrun.api.api.utils import submit
+
+        # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
+        # endless scheduling loop
+        scheduled_object.pop("schedule", None)
+
+        # removing the uid from the task metadata so that a new uid will be generated for every run
+        # otherwise all jobs will have the same uid
+        scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
+
+        db_session = create_session()
+
+        submit(db_session, scheduled_object)
+
+        close_session(db_session)
 
     @staticmethod
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(

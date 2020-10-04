@@ -162,9 +162,7 @@ class Scheduler:
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
-        function, args, kwargs = self._resolve_job_function(
-            kind, scheduled_object
-        )
+        function, args, kwargs = self._resolve_job_function(kind, scheduled_object)
         self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -205,9 +203,7 @@ class Scheduler:
         return schedule
 
     def _resolve_job_function(
-        self,
-        scheduled_kind: schemas.ScheduleKinds,
-        scheduled_object: Any,
+        self, scheduled_kind: schemas.ScheduleKinds, scheduled_object: Any,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job

@@ -14,10 +14,10 @@ from mlrun.utils import logger
 def get_db_session() -> Generator[Session, None, None]:
     try:
         db_session = create_session()
-        logger.warning('Created session', session_id=db_session.hash_key)
+        logger.warning("Created session", session_id=db_session.hash_key)
         yield db_session
     finally:
-        logger.warning('Closing session', session_id=db_session.hash_key)
+        logger.warning("Closing session", session_id=db_session.hash_key)
         close_session(db_session)
 
 

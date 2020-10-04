@@ -38,7 +38,8 @@ from .runtimes import (
     LocalRuntime,
     RemoteRuntime,
     RuntimeKinds,
-    get_runtime_class, ServingRuntime,
+    get_runtime_class,
+    ServingRuntime,
 )
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind

@@ -28,13 +28,15 @@ class V2ModelServer:
 
     The class is initialized automatically by the model server and can run locally
     as part of a nuclio serverless function, or as part of a real-time pipeline
+    default model url is: /v2/models/<model>[/versions/<ver>]/operation
 
     You need to implement two mandatory methods:
       load()     - download the model file(s) and load the model into memory
       predict()  - accept request payload and return prediction/inference results
 
-    there are additional optional methods you can override:
-      preprocess, validate, postprocess, and explain
+    you can override additional methods : preprocess, validate, postprocess, explain
+    you can add custom api endpoint by adding method op_xx(event), will be invoked by
+    calling the <model-url>/xx (operation = xx)
 
     minimal serving function example:
 

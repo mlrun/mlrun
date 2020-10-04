@@ -14,7 +14,7 @@
 
 import json
 from io import BytesIO
-from ..run import get_object
+from mlrun.run import get_object
 
 
 class BaseModelRouter:

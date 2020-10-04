@@ -95,7 +95,7 @@ def v2_serving_init(context, namespace=None):
 
     setattr(context, "server", _ServerContext(server.parameters))
     setattr(context, "add_root_params", server.add_root_params)
-    setattr(context, "trace", server.trace)
+    setattr(context, "trace", server.verbose)
     server.init(context, namespace or globals())
     setattr(context, "router", server.router)
     setattr(context, "mlrun_handler", v2_serving_handler)

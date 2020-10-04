@@ -59,10 +59,10 @@ class ServingSpec(NuclioSpec):
             readiness_timeout=readiness_timeout,
         )
 
-        self.models = models
+        self.models = models or {}
         self.router = router
         self.router_args = router_args
-        self.parameters = parameters
+        self.parameters = parameters or {}
 
 
 class ServingRuntime(RemoteRuntime):
@@ -77,7 +77,7 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def add_model(
-        self, name, model_class, model_path=None, model_url=None, parameters=None
+        self, name, model_class=None, model_path=None, model_url=None, parameters=None
     ):
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")

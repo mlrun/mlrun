@@ -52,8 +52,9 @@ class Event(object):
         return f"Event(id={self.id}, body={self.body})"
 
 
-spec = {  # "router_class": "ModelRouter",
-    "models": {"m1": {"model_class": "MClass", "model_path": "", "params": {"z": 100}}}
+spec = {
+    "router_class": None,
+    "models": {"m1": {"model_class": "MClass", "model_path": "", "params": {"z": 100}}},
 }
 
 

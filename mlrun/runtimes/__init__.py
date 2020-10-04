@@ -16,7 +16,7 @@
 
 from .base import RunError, BaseRuntime, BaseRuntimeHandler  # noqa
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
-from .function import RemoteRuntime, new_model_server  # noqa
+from .function import RemoteRuntime, new_v1_model_server
 from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import (
@@ -27,12 +27,51 @@ from .mpijob import (
 )  # noqa
 from .constants import MPIJobCRDVersions
 from .nuclio import nuclio_init_hook
-from .serving import ServingRuntime
+from .serving import ServingRuntime, new_v2_model_server
 
 # for legacy imports (MLModelServer moved from here to /serving)
 from ..serving import MLModelServer  # noqa
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
+
+
+def new_model_server(
+    name,
+    model_class: str,
+    models: dict = None,
+    filename="",
+    protocol="",
+    image="",
+    endpoint="",
+    explainer=False,
+    workers=8,
+    canary=None,
+    handler=None,
+):
+    if protocol:
+        new_v2_model_server(
+            name,
+            model_class,
+            models=models,
+            filename=filename,
+            protocol=protocol,
+            image=image,
+            endpoint=endpoint,
+            workers=workers,
+            canary=canary,
+        )
+    else:
+        new_v1_model_server(
+            name,
+            model_class,
+            models=models,
+            filename=filename,
+            protocol=protocol,
+            image=image,
+            endpoint=endpoint,
+            workers=workers,
+            canary=canary,
+        )
 
 
 class RuntimeKinds(object):

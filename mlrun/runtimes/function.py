@@ -41,7 +41,7 @@ serving_handler = "handler"
 default_max_replicas = 4
 
 
-def new_model_server(
+def new_v1_model_server(
     name,
     model_class: str,
     models: dict = None,
@@ -49,10 +49,8 @@ def new_model_server(
     protocol="",
     image="",
     endpoint="",
-    explainer=False,
     workers=8,
     canary=None,
-    handler=None,
 ):
     f = RemoteRuntime()
     if not image:
@@ -60,20 +58,23 @@ def new_model_server(
             filename, name=name, handler=serving_handler, kind="serving"
         )
         f.spec.base_spec = spec
-    elif handler:
-        f.spec.function_handler = handler
 
     f.metadata.name = name
-    f.serving(
-        models,
-        model_class,
-        protocol,
-        image=image,
-        endpoint=endpoint,
-        explainer=explainer,
-        workers=workers,
-        canary=canary,
-    )
+
+    if models:
+        for k, v in models.items():
+            f.set_env("SERVING_MODEL_{}".format(k), v)
+
+    if protocol:
+        f.set_env("TRANSPORT_PROTOCOL", protocol)
+    if model_class:
+        f.set_env("MODEL_CLASS", model_class)
+    f.with_http(workers, host=endpoint, canary=canary)
+    f.spec.function_kind = "serving"
+
+    if image:
+        f.from_image(image)
+
     return f
 
 
@@ -115,13 +116,6 @@ class NuclioSpec(KubeResourceSpec):
             replicas=replicas,
             image_pull_policy=image_pull_policy,
             service_account=service_account,
-        )
-
-        super().__init__(
-            command=command,
-            args=args,
-            image=image,
-            mode=mode,
             build=None,
             entry_points=entry_points,
             description=description,
@@ -249,6 +243,17 @@ class RemoteRuntime(KubeResource):
         self.set_env("SERVING_MODEL_{}".format(key), model)
         return self
 
+    def from_image(self, image):
+        config = nuclio.config.new_config()
+        update_in(
+            config,
+            "spec.handler",
+            self.spec.function_handler or "main:{}".format("handler"),
+        )
+        update_in(config, "spec.image", image)
+        update_in(config, "spec.build.codeEntryType", "image")
+        self.spec.base_spec = config
+
     def serving(
         self,
         models: dict = None,
@@ -274,15 +279,7 @@ class RemoteRuntime(KubeResource):
         self.spec.function_kind = "serving"
 
         if image:
-            config = nuclio.config.new_config()
-            update_in(
-                config,
-                "spec.handler",
-                self.spec.function_handler or "main:{}".format(serving_handler),
-            )
-            update_in(config, "spec.image", image)
-            update_in(config, "spec.build.codeEntryType", "image")
-            self.spec.base_spec = config
+            self.from_image(image)
 
         return self
 

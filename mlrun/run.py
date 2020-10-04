@@ -585,6 +585,14 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels
 
+    def nuclio_kind():
+        is_nuclio = kind.startswith("nuclio:")
+        subkind = kind[kind.find(":") + 1 :] if is_nuclio else None
+        if kind == "serving":
+            is_nuclio = True
+            subkind = serving_subkind
+        return is_nuclio, subkind
+
     if (
         not embed_code
         and not code_output
@@ -595,7 +603,7 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
-    subkind = kind[kind.find(":") + 1 :] if kind.startswith("nuclio:") else None
+    is_nuclio, subkind = nuclio_kind()
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(
@@ -606,7 +614,8 @@ def code_to_function(
         kind = spec_kind.lower()
 
         # if its a nuclio subkind, redo nb parsing
-        if kind.startswith("nuclio:"):
+        is_nuclio, subkind = nuclio_kind()
+        if is_nuclio:
             subkind = kind[kind.find(":") + 1 :]
             name, spec, code = build_file(
                 filename, name=name, handler=handler or "handler", kind=subkind
@@ -621,8 +630,8 @@ def code_to_function(
         else:
             raise ValueError("code_output option is only used with notebooks")
 
-    if kind.startswith("nuclio") or kind == "serving":
-        if kind == "serving" or subkind == serving_subkind:
+    if is_nuclio:
+        if subkind == serving_subkind:
             r = ServingRuntime()
         else:
             r = RemoteRuntime()

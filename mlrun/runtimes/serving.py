@@ -1,8 +1,58 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
+import nuclio
+
 from .function import RemoteRuntime, NuclioSpec
 
-
 serving_subkind = "v2serving"
+
+
+def new_v2_model_server(
+    name,
+    model_class: str,
+    models: dict = None,
+    filename="",
+    protocol="",
+    image="",
+    endpoint="",
+    workers=8,
+    canary=None,
+):
+    f = ServingRuntime()
+    if not image:
+        name, spec, code = nuclio.build_file(
+            filename, name=name, handler="handler", kind=serving_subkind
+        )
+        f.spec.base_spec = spec
+
+    f.metadata.name = name
+    params = None
+    if protocol:
+        params = {"protocol": protocol}
+    if models:
+        for name, model_path in models.items():
+            f.add_model(
+                name, model_path=model_path, model_class=model_class, parameters=params
+            )
+
+    f.with_http(workers, host=endpoint, canary=canary)
+    if image:
+        f.from_image(image)
+
+    return f
 
 
 class ServingSpec(NuclioSpec):
@@ -54,7 +104,7 @@ class ServingSpec(NuclioSpec):
             no_cache=no_cache,
             source=source,
             image_pull_policy=image_pull_policy,
-            function_kind=function_kind or serving_subkind,
+            function_kind=serving_subkind,
             service_account=service_account,
             readiness_timeout=readiness_timeout,
         )

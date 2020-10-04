@@ -46,14 +46,14 @@ jobs:
           git rev-parse --short HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
-    # hack: override MLRUN_UI_GIT_HASH to last working commit to pick up ghcr.io/mlrun/mlrun-ui:0.5.2-2a532ed
-    - name: Override MLRUN_UI_GIT_HASH env var
-      run: |
-        echo "::set-env name=MLRUN_UI_GIT_HASH::9c9669f"
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Set LATEST_VERSION env var
       run: echo "::set-env name=LATEST_VERSION::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
+    - name: Set MLRUN_VERSION env var
+      run: echo "::set-env name=MLRUN_VERSION::$LATEST_VERSION-$MLRUN_GIT_HASH"
+    - name: Set MLRUN_UI_VERSION env var
+      run: echo "::set-env name=MLRUN_VERSION::$LATEST_VERSION-$MLRUN_UI_GIT_HASH"
     - name: Wait for existing runs to complete
       uses: softprops/turnstyle@v1
       with:
@@ -63,7 +63,7 @@ jobs:
     - name: Prepare System Test env.yaml and system
       run: |
         python automation/system_test/prepare.py run \
-          "$LATEST_VERSION-$MLRUN_GIT_HASH" \
+          ${MLRUN_VERSION} \
           ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_IP }} \
           ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }} \
           ${{ secrets.SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }} \
@@ -76,7 +76,7 @@ jobs:
           --override-image-registry ghcr.io/ \
           --override-image-repo mlrun \
           --override-mlrun-images \
-          "ghcr.io/mlrun/mlrun-api:${LATEST_VERSION}-${MLRUN_GIT_HASH},ghcr.io/mlrun/mlrun-ui:${LATEST_VERSION}-${MLRUN_UI_GIT_HASH}"
+          "ghcr.io/mlrun/mlrun-api:${MLRUN_VERSION},ghcr.io/mlrun/mlrun-ui:${MLRUN_UI_VERSION}"
 
     - name: Run System Tests
       run: make test-system

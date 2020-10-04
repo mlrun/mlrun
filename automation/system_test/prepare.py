@@ -370,13 +370,13 @@ def main():
 @click.argument("mlrun-version", type=str, required=True)
 @click.option(
     "--override-image-registry",
-    "-mreg",
+    "-oireg",
     default=None,
     help="Override default mlrun docker image registry.",
 )
 @click.option(
     "--override-image-repo",
-    "-mrep",
+    "-oirep",
     default=None,
     help="Override default mlrun docker image repository name.",
 )

@@ -8,13 +8,16 @@ from sqlalchemy.orm import Session
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.session import create_session, close_session
 from mlrun.config import config
+from mlrun.utils import logger
 
 
 def get_db_session() -> Generator[Session, None, None]:
     try:
         db_session = create_session()
+        logger.warning('Created session', session_id=db_session.hash_key)
         yield db_session
     finally:
+        logger.warning('Closing session', session_id=db_session.hash_key)
         close_session(db_session)
 
 

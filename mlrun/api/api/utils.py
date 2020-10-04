@@ -125,6 +125,7 @@ def _parse_submit_job_body(db_session: Session, data):
 
 def submit(db_session: Session, data):
     try:
+        logger.warning('Submitting job', session_id=db_session.hash_key)
         fn, task = _parse_submit_job_body(db_session, data)
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)

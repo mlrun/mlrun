@@ -177,16 +177,17 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
+        """
+        https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1/types.go#L29
+        https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
+        """
         launcher_status = (
             crd_object.get("status", {}).get("replicaStatuses", {}).get("Launcher", {})
         )
         # the launcher status also has running property, but it's empty for short period after the creation, so we're
         # checking transient state by negating the completion states
-        in_transient_state = not (
-            launcher_status.get("succeeded", 0) > 0
-            or launcher_status.get("failed", 0) > 0
-        )
-        desired_run_state = None
+        in_transient_state = crd_object.get('status', {}).get('completionTime', None) is None
+        desired_run_state = RunStates.running
         completion_time = None
         if not in_transient_state:
             completion_time = datetime.fromisoformat(
@@ -195,9 +196,9 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
                 .replace("Z", "+00:00")
             )
             desired_run_state = (
-                RunStates.completed
-                if launcher_status.get("succeeded", 0) > 0
-                else RunStates.error
+                RunStates.error
+                if launcher_status.get("failed", 0) > 0
+                else RunStates.completed
             )
         return in_transient_state, completion_time, desired_run_state
 

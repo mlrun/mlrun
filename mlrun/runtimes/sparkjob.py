@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
-from .base import RunError, RunStates
+from mlrun.runtimes.constants import SparkApplicationStates
+from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from ..execution import MLClientCtx
@@ -340,8 +341,8 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
-        in_transient_state = state not in ["COMPLETED", "FAILED"]
-        desired_run_state = None
+        in_transient_state = state not in SparkApplicationStates.stable_states()
+        desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(state)
         completion_time = None
         if not in_transient_state:
             completion_time = datetime.fromisoformat(
@@ -349,10 +350,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                 .get("terminationTime")
                 .replace("Z", "+00:00")
             )
-            desired_run_state = {
-                "COMPLETED": RunStates.completed,
-                "FAILED": RunStates.error,
-            }[state]
         return in_transient_state, completion_time, desired_run_state
 
     @staticmethod

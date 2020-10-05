@@ -50,7 +50,7 @@ class SystemTestPreparer:
         self._logger = logger
         self._debug = debug
         self._mlrun_version = mlrun_version
-        self._override_image_registry = override_image_registry
+        self._override_image_registry = override_image_registry.strip().strip("/") + "/"
         self._override_image_repo = override_image_repo
         self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip
@@ -58,11 +58,22 @@ class SystemTestPreparer:
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
 
+        self._override_full_image_repo_full = None
+
+        if self._override_image_repo or self._override_image_registry:
+
+            # complete with defaults if override is partial
+            override_registry = (self._override_image_registry or "quay.io").strip("/")
+            override_repo = (self._override_image_repo or "mlrun").strip("/")
+
+            self._override_full_image_repo_full = f"{override_registry}/{override_repo}"
+
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_API": webapi_direct_http,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
+            "MLRUN_IMAGES_REGISTRY": self._override_image_registry,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -317,14 +328,10 @@ class SystemTestPreparer:
         mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
 
         repo_arg = ""
-        if self._override_image_repo or self._override_image_registry:
-
-            # complete with defaults if something's missing
-            override_registry = (self._override_image_registry or "quay.io").strip("/")
-            override_repo = (self._override_image_repo or "mlrun").strip("/")
-
-            override_image_pull_repo = f"{override_registry}/{override_repo}"
-            repo_arg = f"--override-image-pull-repo {override_image_pull_repo}"
+        if self._override_full_image_repo_full:
+            repo_arg = (
+                f"--override-image-pull-repo {self._override_full_image_repo_full}"
+            )
 
         override_image_arg = ""
         if self._override_mlrun_images:

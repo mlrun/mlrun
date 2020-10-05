@@ -438,8 +438,6 @@ def run(
     except Exception as exc:
         logger.error("Failed running system test automation", exc=exc)
         raise
-    # finally:
-    #     system_test_preparer.clean_up_remote_workdir()
 
 
 if __name__ == "__main__":

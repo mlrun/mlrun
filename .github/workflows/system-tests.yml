@@ -73,7 +73,7 @@ jobs:
           ${{ secrets.SYSTEM_TEST_USERNAME }} \
           ${{ secrets.SYSTEM_TEST_ACCESS_KEY }} \
           ${{ secrets.SYSTEM_TEST_PASSWORD }} \
-          --override-image-registry ghcr.io/ \
+          --override-image-registry "ghcr.io/" \
           --override-image-repo mlrun \
           --override-mlrun-images \
           "ghcr.io/mlrun/mlrun-api:${MLRUN_VERSION},ghcr.io/mlrun/mlrun-ui:${MLRUN_UI_VERSION}"

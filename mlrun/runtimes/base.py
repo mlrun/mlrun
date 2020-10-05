@@ -1315,7 +1315,7 @@ class BaseRuntimeHandler(ABC):
                 update_run = False
 
         if update_run:
-            logger.info("Updating run status", run_status=desired_run_state)
+            logger.info("Updating run state", run_state=desired_run_state)
             run.setdefault("status", {})["state"] = desired_run_state
             run.setdefault("status", {})["last_update"] = now_date().isoformat()
             db.store_run(db_session, run, uid, project)

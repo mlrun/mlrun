@@ -17,8 +17,8 @@ jobs:
     name: Run System Tests
     runs-on: ubuntu-latest
 
-      # let's not run this on every fork, change to your fork when developing
-#      if: github.repository == 'mlrun/mlrun'
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'omesser/mlrun'
 
     steps:
     - uses: actions/checkout@v2

@@ -23,11 +23,13 @@ from os import environ
 from typing import Dict, List, Tuple, Union, Optional
 
 from kubernetes import client
+from kubernetes import watch
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.errors
 import mlrun.utils.regex
+import mlrun.utils.helpers
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
@@ -814,7 +816,26 @@ class BaseRuntimeHandler(ABC):
     def monitor_run(
         self, db: DBInterface, db_session: Session, project: str, run_uid: str
     ):
-        pass
+        # k8s_helper = get_k8s_helper()
+        # w = watch.Watch()
+        # for line in w.stream(k8s_helper.v1api.read_namespaced_pod_log, name= < pod - name >, namespace='<namespace>'):
+        #     log.info(line)
+
+        mlrun.utils.helpers.retry_until_successful(
+            5,
+            60 * 60 * 24,
+            logger,
+            False,
+            self._verify_run_finished_and_monitor_progress,
+            self,
+            db,
+            db_session,
+            project,
+            run_uid,
+        )
+
+        # if we're here run finished, do another last log collection
+        self._ensure_finished_runtime_resource_run_logs_collected(db, db_session, project, run_uid)
 
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None
@@ -847,7 +868,7 @@ class BaseRuntimeHandler(ABC):
         :return: Tuple with:
         1. bool determining whether the pod is in transient state
         2. datetime of when the pod got into stable state (only when the pod in stable state)
-        3. the desired run state matching the pod state (only when the pod in stable state)
+        3. the desired run state matching the crd object state
         """
         return False, None, None
 
@@ -858,15 +879,14 @@ class BaseRuntimeHandler(ABC):
         :return: Tuple with:
         1. bool determining whether the pod is in transient state
         2. datetime of when the pod got into stable state (only when the pod in stable state)
-        3. the desired run state matching the pod state (only when the pod in stable state)
+        3. the desired run state matching the pod state
         """
         # it is less likely that there will be new stable states, or the existing ones will change so better to
         # resolve whether it's a transient state by checking if it's not a stable state
         in_transient_state = pod.status.phase not in PodPhases.stable_phases()
-        desired_run_state = None
         completion_time = None
+        desired_run_state = PodPhases.pod_phase_to_run_state(pod.status.phase)
         if not in_transient_state:
-            desired_run_state = PodPhases.pod_phase_to_run_state(pod.status.phase)
             for container_status in pod.status.container_statuses:
                 if hasattr(container_status.state, "terminated"):
                     datetime.now().replace()
@@ -1095,7 +1115,7 @@ class BaseRuntimeHandler(ABC):
             db, db_session, project, uid, desired_run_state
         )
 
-        self._ensure_runtime_resource_run_logs_collected(db, db_session, project, uid)
+        self._ensure_finished_runtime_resource_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_transient_state(
         self, db: DBInterface, db_session: Session, runtime_resource: Dict,
@@ -1126,10 +1146,83 @@ class BaseRuntimeHandler(ABC):
 
         return False, last_update
 
+    def _verify_run_finished_and_monitor_progress(
+            self, db: DBInterface, db_session: Session, project: str, run_uid: str
+    ):
+        """
+        This function runs in a retry_until_successful and therefore need to raise if run didn't reach stable state
+        """
+        desired_run_state = self._resolve_run_state_representing_current_resource_state(db, db_session, project, run_uid)
+        updated_run_state = self._ensure_runtime_resource_run_status_updated(
+            db, db_session, project, run_uid, desired_run_state
+        )
+
+        # run finished no need to monitor anymore
+        if updated_run_state not in RunStates.stable_states():
+            raise Exception('run did not reach stable state yet')
+
+    def _resolve_run_state_representing_current_resource_state(
+            self, db: DBInterface, db_session: Session, project: str, run_uid: str
+    ) -> str:
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        if crd_group and crd_version and crd_plural:
+            crd_object = self._get_run_crd_object(project, run_uid)
+            (
+                _,
+                _,
+                desired_run_state,
+            ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
+        else:
+            pod = self._get_run_pod(project, run_uid)
+            (
+                _,
+                _,
+                desired_run_state,
+            ) = self._resolve_pod_status_info(db, db_session, pod)
+
+        return desired_run_state
+
+    def _get_run_crd_object(self, project: str, run_uid: str):
+        label_selector = self._get_run_label_selector(project, run_uid)
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace()
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(
+            crd_group,
+            crd_version,
+            namespace,
+            crd_plural,
+            label_selector=label_selector,
+        )
+        if not crd_objects or len(crd_objects["items"]) == 0:
+            raise RuntimeError("Run crd object could not be found")
+        if len(crd_objects["items"]) > 1:
+            logger.warning("Unexpectedly received more than one crd object for run. Best effort - using the first one")
+        return crd_objects["items"][0]
+
+    def _get_run_pod(self, project: str, run_uid: str):
+        label_selector = self._get_run_label_selector(project, run_uid)
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace()
+        pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
+        if len(pods.items) == 0:
+            raise RuntimeError("Run pod could not be found")
+        if len(pods.items) > 1:
+            logger.warning("Unexpectedly received more than one pod for run. Best effort - using the first one")
+        return pods.items[0]
+
     @staticmethod
-    def _ensure_runtime_resource_run_logs_collected(
+    def _get_run_label_selector(project: str, run_uid: str):
+        return f"mlrun/project={project},mlrun/uid={run_uid}"
+
+    @staticmethod
+    def _ensure_finished_runtime_resource_run_logs_collected(
         db: DBInterface, db_session: Session, project: str, uid: str
     ):
+        """
+        NOTE: This function logic based on the fact that the runtime resource was verified to reach stable state
+        therefore the naming FINISHED_runtime_resource
+        """
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
@@ -1166,7 +1259,7 @@ class BaseRuntimeHandler(ABC):
         project: str,
         uid: str,
         desired_run_state: str,
-    ):
+    ) -> str:
         run = db.read_run(db_session, uid, project)
 
         current_run_state = run.get("status", {}).get("state")
@@ -1176,11 +1269,13 @@ class BaseRuntimeHandler(ABC):
             current_run_state=current_run_state,
         )
         update_run = True
+        updated_run_state = desired_run_state
         if current_run_state:
             if current_run_state == desired_run_state:
                 update_run = False
             # if the current run state is stable and different then the desired - don't touch
             if current_run_state in RunStates.stable_states():
+                updated_run_state = current_run_state
                 update_run = False
 
         if update_run:
@@ -1188,6 +1283,8 @@ class BaseRuntimeHandler(ABC):
             run.setdefault("status", {})["state"] = desired_run_state
             run.setdefault("status", {})["last_update"] = now_date().isoformat()
             db.store_run(db_session, run, uid, project)
+
+        return updated_run_state
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:

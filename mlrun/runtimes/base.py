@@ -832,7 +832,7 @@ class BaseRuntimeHandler(ABC):
             interval,
             timeout,
             logger,
-            True, #CHANGE-ME
+            False,
             self._verify_run_reached_stable_state_and_monitor_progress,
             db,
             db_session,
@@ -840,12 +840,14 @@ class BaseRuntimeHandler(ABC):
             run_uid,
         )
 
-        logger.debug("Run reached stable state", project=project, run_uid=run_uid)
+        logger.debug(
+            "Run reached stable state, ensuring logs collected",
+            project=project,
+            run_uid=run_uid,
+        )
 
         # if we're here run finished, do another last log collection
-        self._ensure_finished_runtime_resource_run_logs_collected(
-            db, db_session, project, run_uid
-        )
+        self._ensure_finished_run_logs_collected(db, db_session, project, run_uid)
 
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None
@@ -1121,13 +1123,15 @@ class BaseRuntimeHandler(ABC):
             )
             raise ValueError("Could not resolve run uid from runtime resource")
 
-        self._ensure_runtime_resource_run_status_updated(
-            db, db_session, project, uid, desired_run_state
+        logger.info(
+            "About to cleanup runtime resources, pre-deletion actions will be performed",
+            project=project,
+            uid=uid,
         )
 
-        self._ensure_finished_runtime_resource_run_logs_collected(
-            db, db_session, project, uid
-        )
+        self._ensure_run_status_updated(db, db_session, project, uid, desired_run_state)
+
+        self._ensure_finished_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_transient_state(
         self, db: DBInterface, db_session: Session, runtime_resource: Dict,
@@ -1167,7 +1171,7 @@ class BaseRuntimeHandler(ABC):
         desired_run_state = self._resolve_run_state_representing_current_resource_state(
             db, db_session, project, run_uid
         )
-        updated_run_state = self._ensure_runtime_resource_run_status_updated(
+        updated_run_state = self._ensure_run_status_updated(
             db, db_session, project, run_uid, desired_run_state
         )
 
@@ -1242,7 +1246,7 @@ class BaseRuntimeHandler(ABC):
         return f"mlrun/project={project},mlrun/uid={run_uid}"
 
     @staticmethod
-    def _ensure_finished_runtime_resource_run_logs_collected(
+    def _ensure_finished_run_logs_collected(
         db: DBInterface, db_session: Session, project: str, uid: str
     ):
         """
@@ -1272,14 +1276,14 @@ class BaseRuntimeHandler(ABC):
                 store_log = True
 
         if store_log:
-            logger.info("Storing runtime resource log before deletion")
+            logger.info("Storing finished run logs", project=project, uid=uid)
             logs_from_k8s, _ = crud.Logs.get_log(
                 db_session, project, uid, source=LogSources.K8S
             )
             crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     @staticmethod
-    def _ensure_runtime_resource_run_status_updated(
+    def _ensure_run_status_updated(
         db: DBInterface,
         db_session: Session,
         project: str,

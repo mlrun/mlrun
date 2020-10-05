@@ -832,9 +832,8 @@ class BaseRuntimeHandler(ABC):
             interval,
             timeout,
             logger,
-            True,
+            True, #CHANGE-ME
             self._verify_run_reached_stable_state_and_monitor_progress,
-            self,
             db,
             db_session,
             project,

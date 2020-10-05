@@ -45,9 +45,7 @@ def new_v2_model_server(
         params = {"protocol": protocol}
     if models:
         for name, model_path in models.items():
-            f.add_model(
-                name, model_path=model_path, parameters=params
-            )
+            f.add_model(name, model_path=model_path, parameters=params)
 
     f.with_http(workers, host=endpoint, canary=canary)
     if image:

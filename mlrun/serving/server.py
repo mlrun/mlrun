@@ -35,7 +35,14 @@ class _ServerContext:
 
 
 class ModelServerHost(ModelObj):
-    _dict_fields = ["parameters", "models", "router_class", "router_args", "verbose", "load_mode"]
+    _dict_fields = [
+        "parameters",
+        "models",
+        "router_class",
+        "router_args",
+        "verbose",
+        "load_mode",
+    ]
 
     def __init__(self):
         self.router_class = None
@@ -54,7 +61,7 @@ class ModelServerHost(ModelObj):
         return params
 
     def init(self, context, namespace):
-        load_mode = self.load_mode or 'sync'
+        load_mode = self.load_mode or "sync"
         for name, model in self.models.items():
             model_url = model.get("model_url", None)
             if model_url:

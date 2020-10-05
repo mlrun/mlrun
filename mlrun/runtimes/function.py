@@ -116,7 +116,6 @@ class NuclioSpec(KubeResourceSpec):
             replicas=replicas,
             image_pull_policy=image_pull_policy,
             service_account=service_account,
-            build=None,
             entry_points=entry_points,
             description=description,
         )

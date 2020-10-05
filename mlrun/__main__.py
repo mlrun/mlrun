@@ -430,7 +430,7 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
         print("runtime parameter must be a dict, not {}".format(type(runtime)))
         exit(1)
 
-    if runtime and runtime['kind'] == 'serving':
+    if runtime and runtime["kind"] == "serving":
         f = ServingRuntime.from_dict(runtime)
         if model:
             models = list2dict(model)

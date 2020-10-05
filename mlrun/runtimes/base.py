@@ -821,7 +821,13 @@ class BaseRuntimeHandler(ABC):
         #     log.info(line)
         timeout = 60 * 60 * 24
         interval = 5
-        logger.debug("Starting run monitor loop", project=project, run_uid=run_uid, timeout=timeout, interval=interval)
+        logger.debug(
+            "Starting run monitor loop",
+            project=project,
+            run_uid=run_uid,
+            timeout=timeout,
+            interval=interval,
+        )
         mlrun.utils.helpers.retry_until_successful(
             interval,
             timeout,
@@ -1179,15 +1185,21 @@ class BaseRuntimeHandler(ABC):
             (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
                 db, db_session, crd_object
             )
-            logger.debug("REMOVE_ME - Found crd object run desired state", desired_run_state=desired_run_state,
-                         crd_object=crd_object)
+            logger.debug(
+                "REMOVE_ME - Found crd object run desired state",
+                desired_run_state=desired_run_state,
+                crd_object=crd_object,
+            )
         else:
             pod = self._get_run_pod(project, run_uid)
             (_, _, desired_run_state,) = self._resolve_pod_status_info(
                 db, db_session, pod
             )
-            logger.debug("REMOVE_ME - Found pod run desired state", desired_run_state=desired_run_state,
-                         pod=pod.to_dict())
+            logger.debug(
+                "REMOVE_ME - Found pod run desired state",
+                desired_run_state=desired_run_state,
+                pod=pod.to_dict(),
+            )
 
         return desired_run_state
 

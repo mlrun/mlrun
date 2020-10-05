@@ -145,7 +145,12 @@ def _monitor_job(project: str, function_kind: str, run_uid: str):
     This function is running in background, i.e. outside of the context of a request
     therefore it should create its own db session
     """
-    logger.info("Starting to monitor run", project=project, function_kind=function_kind, run_uid=run_uid)
+    logger.info(
+        "Starting to monitor run",
+        project=project,
+        function_kind=function_kind,
+        run_uid=run_uid,
+    )
     runtime_handler = get_runtime_handler(function_kind)
     db = get_db()
     db_session = create_session()

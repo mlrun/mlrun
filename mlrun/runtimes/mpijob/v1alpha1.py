@@ -132,7 +132,9 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
         # whether it's a transient state by checking if it's not a stable state
         in_transient_state = launcher_status not in MPIJobV1Alpha1States.stable_states()
-        desired_run_state = MPIJobV1Alpha1States.mpijob_state_to_run_state(launcher_status)
+        desired_run_state = MPIJobV1Alpha1States.mpijob_state_to_run_state(
+            launcher_status
+        )
         completion_time = None
         if not in_transient_state:
             completion_time = datetime.fromisoformat(

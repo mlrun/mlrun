@@ -342,7 +342,9 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         # whether it's a transient state by checking if it's not a stable state
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
         in_transient_state = state not in SparkApplicationStates.stable_states()
-        desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(state)
+        desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(
+            state
+        )
         completion_time = None
         if not in_transient_state:
             completion_time = datetime.fromisoformat(

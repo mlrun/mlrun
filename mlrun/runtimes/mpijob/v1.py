@@ -186,7 +186,9 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
         )
         # the launcher status also has running property, but it's empty for short period after the creation, so we're
         # checking transient state by negating the completion states
-        in_transient_state = crd_object.get('status', {}).get('completionTime', None) is None
+        in_transient_state = (
+            crd_object.get("status", {}).get("completionTime", None) is None
+        )
         desired_run_state = RunStates.running
         completion_time = None
         if not in_transient_state:

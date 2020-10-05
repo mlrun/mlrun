@@ -23,7 +23,6 @@ from os import environ
 from typing import Dict, List, Tuple, Union, Optional
 
 from kubernetes import client
-from kubernetes import watch
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -835,7 +834,9 @@ class BaseRuntimeHandler(ABC):
         )
 
         # if we're here run finished, do another last log collection
-        self._ensure_finished_runtime_resource_run_logs_collected(db, db_session, project, run_uid)
+        self._ensure_finished_runtime_resource_run_logs_collected(
+            db, db_session, project, run_uid
+        )
 
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None
@@ -1115,7 +1116,9 @@ class BaseRuntimeHandler(ABC):
             db, db_session, project, uid, desired_run_state
         )
 
-        self._ensure_finished_runtime_resource_run_logs_collected(db, db_session, project, uid)
+        self._ensure_finished_runtime_resource_run_logs_collected(
+            db, db_session, project, uid
+        )
 
     def _is_runtime_resource_run_in_transient_state(
         self, db: DBInterface, db_session: Session, runtime_resource: Dict,
@@ -1147,38 +1150,36 @@ class BaseRuntimeHandler(ABC):
         return False, last_update
 
     def _verify_run_finished_and_monitor_progress(
-            self, db: DBInterface, db_session: Session, project: str, run_uid: str
+        self, db: DBInterface, db_session: Session, project: str, run_uid: str
     ):
         """
         This function runs in a retry_until_successful and therefore need to raise if run didn't reach stable state
         """
-        desired_run_state = self._resolve_run_state_representing_current_resource_state(db, db_session, project, run_uid)
+        desired_run_state = self._resolve_run_state_representing_current_resource_state(
+            db, db_session, project, run_uid
+        )
         updated_run_state = self._ensure_runtime_resource_run_status_updated(
             db, db_session, project, run_uid, desired_run_state
         )
 
         # run finished no need to monitor anymore
         if updated_run_state not in RunStates.stable_states():
-            raise Exception('run did not reach stable state yet')
+            raise Exception("run did not reach stable state yet")
 
     def _resolve_run_state_representing_current_resource_state(
-            self, db: DBInterface, db_session: Session, project: str, run_uid: str
+        self, db: DBInterface, db_session: Session, project: str, run_uid: str
     ) -> str:
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             crd_object = self._get_run_crd_object(project, run_uid)
-            (
-                _,
-                _,
-                desired_run_state,
-            ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
+            (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
+                db, db_session, crd_object
+            )
         else:
             pod = self._get_run_pod(project, run_uid)
-            (
-                _,
-                _,
-                desired_run_state,
-            ) = self._resolve_pod_status_info(db, db_session, pod)
+            (_, _, desired_run_state,) = self._resolve_pod_status_info(
+                db, db_session, pod
+            )
 
         return desired_run_state
 
@@ -1197,18 +1198,24 @@ class BaseRuntimeHandler(ABC):
         if not crd_objects or len(crd_objects["items"]) == 0:
             raise RuntimeError("Run crd object could not be found")
         if len(crd_objects["items"]) > 1:
-            logger.warning("Unexpectedly received more than one crd object for run. Best effort - using the first one")
+            logger.warning(
+                "Unexpectedly received more than one crd object for run. Best effort - using the first one"
+            )
         return crd_objects["items"][0]
 
     def _get_run_pod(self, project: str, run_uid: str):
         label_selector = self._get_run_label_selector(project, run_uid)
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        pods = k8s_helper.v1api.list_namespaced_pod(namespace, label_selector=label_selector)
+        pods = k8s_helper.v1api.list_namespaced_pod(
+            namespace, label_selector=label_selector
+        )
         if len(pods.items) == 0:
             raise RuntimeError("Run pod could not be found")
         if len(pods.items) > 1:
-            logger.warning("Unexpectedly received more than one pod for run. Best effort - using the first one")
+            logger.warning(
+                "Unexpectedly received more than one pod for run. Best effort - using the first one"
+            )
         return pods.items[0]
 
     @staticmethod

@@ -2,6 +2,7 @@ class PodPhases:
     """
     https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
     """
+
     succeeded = "Succeeded"
     failed = "Failed"
     pending = "Pending"
@@ -22,7 +23,7 @@ class PodPhases:
             PodPhases.failed,
             PodPhases.pending,
             PodPhases.running,
-            PodPhases.unknown
+            PodPhases.unknown,
         ]
 
     @staticmethod
@@ -82,6 +83,7 @@ class SparkApplicationStates:
     """
     https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L321
     """
+
     completed = "COMPLETED"
     failed = "FAILED"
     submitted = "SUBMITTED"
@@ -118,7 +120,9 @@ class SparkApplicationStates:
     @staticmethod
     def spark_application_state_to_run_state(spark_application_state):
         if spark_application_state not in SparkApplicationStates.all():
-            raise ValueError(f"Invalid spark application state: {spark_application_state}")
+            raise ValueError(
+                f"Invalid spark application state: {spark_application_state}"
+            )
         return {
             SparkApplicationStates.completed: RunStates.completed,
             SparkApplicationStates.failed: RunStates.error,
@@ -137,6 +141,7 @@ class MPIJobV1Alpha1States:
     """
     https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1alpha1/types.go#L105
     """
+
     succeeded = "Succeeded"
     failed = "Failed"
     active = "Active"

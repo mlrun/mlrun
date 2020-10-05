@@ -1282,11 +1282,12 @@ class BaseRuntimeHandler(ABC):
                 store_log = True
 
         if store_log:
-            logger.info("Storing finished run logs", project=project, uid=uid)
             logs_from_k8s, _ = crud.Logs.get_log(
                 db_session, project, uid, source=LogSources.K8S
             )
-            crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
+            if logs_from_k8s:
+                logger.info("Storing finished run logs", project=project, uid=uid)
+                crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     @staticmethod
     def _ensure_run_status_updated(

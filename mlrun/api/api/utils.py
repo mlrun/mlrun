@@ -145,6 +145,7 @@ def _monitor_job(project: str, function_kind: str, run_uid: str):
     This function is running in background, i.e. outside of the context of a request
     therefore it should create its own db session
     """
+    logger.info("Starting to monitor run", project=project, function_kind=function_kind, run_uid=run_uid)
     runtime_handler = get_runtime_handler(function_kind)
     db = get_db()
     db_session = create_session()
@@ -155,9 +156,10 @@ def _monitor_job(project: str, function_kind: str, run_uid: str):
 def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
-        1. str of the kind of the function of the job
-        1. str of the uid of the run that was started execution (None when it was scheduled)
-        2. dict of the response info
+        1. str of the project of the job
+        2. str of the kind of the function of the job
+        3. str of the uid of the run that was started execution (None when it was scheduled)
+        4. dict of the response info
     """
     run_uid = None
     project = None
@@ -165,7 +167,7 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing
         fn, task = _parse_submit_job_body(db_session, data)
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
-        logger.info("func:\n{}".format(fn.to_yaml()))
+        logger.info("Submitting job", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
@@ -205,5 +207,5 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing
             HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
         )
 
-    logger.info("response: %s", response)
+    logger.info("Submit job succeeded, returning response", response=response)
     return project, fn.kind, run_uid, {"data": response}

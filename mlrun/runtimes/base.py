@@ -819,19 +819,23 @@ class BaseRuntimeHandler(ABC):
         # w = watch.Watch()
         # for line in w.stream(k8s_helper.v1api.read_namespaced_pod_log, name= < pod - name >, namespace='<namespace>'):
         #     log.info(line)
-
+        timeout = 60 * 60 * 24
+        interval = 5
+        logger.debug("Starting run monitor loop", project=project, run_uid=run_uid, timeout=timeout, interval=interval)
         mlrun.utils.helpers.retry_until_successful(
-            5,
-            60 * 60 * 24,
+            interval,
+            timeout,
             logger,
             False,
-            self._verify_run_finished_and_monitor_progress,
+            self._verify_run_reached_stable_state_and_monitor_progress,
             self,
             db,
             db_session,
             project,
             run_uid,
         )
+
+        logger.debug("Run reached stable state", project=project, run_uid=run_uid)
 
         # if we're here run finished, do another last log collection
         self._ensure_finished_runtime_resource_run_logs_collected(
@@ -1149,7 +1153,7 @@ class BaseRuntimeHandler(ABC):
 
         return False, last_update
 
-    def _verify_run_finished_and_monitor_progress(
+    def _verify_run_reached_stable_state_and_monitor_progress(
         self, db: DBInterface, db_session: Session, project: str, run_uid: str
     ):
         """
@@ -1175,11 +1179,15 @@ class BaseRuntimeHandler(ABC):
             (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
                 db, db_session, crd_object
             )
+            logger.debug("REMOVE_ME - Found crd object run desired state", desired_run_state=desired_run_state,
+                         crd_object=crd_object)
         else:
             pod = self._get_run_pod(project, run_uid)
             (_, _, desired_run_state,) = self._resolve_pod_status_info(
                 db, db_session, pod
             )
+            logger.debug("REMOVE_ME - Found pod run desired state", desired_run_state=desired_run_state,
+                         pod=pod.to_dict())
 
         return desired_run_state
 
@@ -1286,7 +1294,7 @@ class BaseRuntimeHandler(ABC):
                 update_run = False
 
         if update_run:
-            logger.info("Updating run status")
+            logger.info("Updating run status", run_status=desired_run_state)
             run.setdefault("status", {})["state"] = desired_run_state
             run.setdefault("status", {})["last_update"] = now_date().isoformat()
             db.store_run(db_session, run, uid, project)

@@ -73,7 +73,6 @@ class SystemTestPreparer:
             "V3IO_API": webapi_direct_http,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
-            "MLRUN_IMAGES_REGISTRY": self._override_image_registry,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password

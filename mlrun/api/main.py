@@ -176,7 +176,7 @@ def _resume_monitoring_runs():
                         # monitor in the background
                         asyncio.create_task(
                             fastapi.concurrency.run_in_threadpool(
-                                monitor_job, project, function_kind, run_uid
+                                monitor_job, project.name, function_kind, run_uid
                             )
                         )
                 except Exception as exc:

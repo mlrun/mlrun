@@ -75,7 +75,7 @@ jobs:
           --override-image-registry "ghcr.io/" \
           --override-image-repo mlrun \
           --override-mlrun-images \
-          "ghcr.io/mlrun/mlrun-api:${{ steps.mlrun_versions.outputs.mlrun }},ghcr.io/mlrun/mlrun-ui:${{ steps.mlrun_versions.outputs.ui }}}"
+          "ghcr.io/mlrun/mlrun-api:${{ steps.mlrun_versions.outputs.mlrun }},ghcr.io/mlrun/mlrun-ui:${{ steps.mlrun_versions.outputs.ui }}"
 
     - name: Run System Tests
       run: make test-system

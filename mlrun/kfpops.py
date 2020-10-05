@@ -437,10 +437,10 @@ def deploy_op(
             for key in ["model_path", "model_url", "model_class"]:
                 if key in m:
                     m[key] = str(m[key])  # verify we stringify pipeline params
-            if function.kind == 'serving':
+            if function.kind == "serving":
                 cmd += ["-m", json.dump(m)]
             else:
-                cmd += ["-m", "{}={}".format(m['name', m['model_path']])]
+                cmd += ["-m", "{}={}".format(m["name"], m["model_path"])]
 
     if env:
         for key, val in env.items():

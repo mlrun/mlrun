@@ -126,6 +126,8 @@ and aggregate the result), multi-armed-bandit, etc.
 You can use a pre-defined Router class, or write your own custom router. 
 Router can route to models on the same function or access models on a separate function.
 
+to specify the router class and class args set the `spec.router` and `spec.router_args` (dict).
+
 ## Creating Model Serving Function (Service)
 
 In order to provision a serving function we need to create an MLRun function of type `serving`
@@ -146,6 +148,10 @@ see [xgb_serving.ipynb](../../examples/xgb_serving.ipynb) notebook example.
 If we want to use multiple versions for the same model, we use `:` to seperate the name from the version, 
 e.g. if the name is`mymodel:v2` it means model name `mymodel` version `v2`.
 
+User should specify the `model_path` (url of the model artifact/dir) and the `model_class` name 
+(or class `module.submodule.class`), alternatively you can set the `model_url` for calling a 
+model which is served by another function (can be used for ensembles).
+
 the function object(fn) accepts many options, you can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 
 volume mounts, secrets, and any other Kubernetes resource through the `fn.spec` object or fn methods.
 
@@ -156,6 +162,8 @@ to deploy a model we can simply call:
 ```python
 fn.deploy()
 ```
+
+we can also deploy a model from within an ML pipeline (check the various demos for details).
 
 ## Model Server API
 

@@ -1,12 +1,15 @@
+import asyncio
 import uuid
 
 import fastapi
+import fastapi.concurrency
 import uvicorn
 import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.errors
 from mlrun.api.api.api import api_router
+from mlrun.api.api.utils import monitor_job
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
@@ -19,8 +22,8 @@ from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
 from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_scheduler
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
-from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes import get_runtime_handler
+from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
 
 app = fastapi.FastAPI(
@@ -120,6 +123,7 @@ async def startup_event():
     # periodic cleanup is not needed if we're not inside kubernetes cluster
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         _start_periodic_cleanup()
+        _resume_monitoring_runs()
 
 
 @app.on_event("shutdown")
@@ -138,6 +142,52 @@ async def _initialize_singletons():
 def _start_periodic_cleanup():
     logger.info("Starting periodic runtimes cleanup")
     run_function_periodically(int(config.runtimes_cleanup_interval), _cleanup_runtimes)
+
+
+def _resume_monitoring_runs():
+    logger.info("Resuming monitoring runs")
+    db_session = create_session()
+    try:
+        projects = get_db().list_projects(db_session)
+        for project in projects:
+            runs = get_db().list_runs(db_session, project=project.name)
+            for run in runs:
+                try:
+                    state = run.get("status", {}).get("state")
+                    if state not in RunStates.stable_states():
+                        run_uid = run.get("metadata", {}).get("uid")
+                        function_kind = (
+                            run.get("metadata", {}).get("labels", {}).get("kind")
+                        )
+                        if not function_kind:
+                            logger.warning(
+                                "Could not determine run function kind, can resume monitoring run. Continuing",
+                                project=project.name,
+                                function_kind=function_kind,
+                                run_uid=run_uid,
+                            )
+
+                        logger.debug(
+                            "Starting run monitoring in background",
+                            project=project.name,
+                            function_kind=function_kind,
+                            run_uid=run_uid,
+                        )
+                        # monitor in the background
+                        asyncio.create_task(
+                            fastapi.concurrency.run_in_threadpool(
+                                monitor_job, project, function_kind, run_uid
+                            )
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed resuming monitoring for run. Ignoring",
+                        project=project.name,
+                    )
+    except Exception as exc:
+        logger.warning("Failed resuming monitoring. Ignoring")
+    finally:
+        close_session(db_session)
 
 
 def _cleanup_runtimes():

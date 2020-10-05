@@ -819,7 +819,7 @@ class BaseRuntimeHandler(ABC):
         # w = watch.Watch()
         # for line in w.stream(k8s_helper.v1api.read_namespaced_pod_log, name= < pod - name >, namespace='<namespace>'):
         #     log.info(line)
-        timeout = 60 #* 60 * 24
+        timeout = 60  # * 60 * 24
         interval = 5
         logger.debug(
             "Starting run monitor loop",
@@ -841,7 +841,9 @@ class BaseRuntimeHandler(ABC):
                 run_uid,
             )
         except Exception as exc:
-            logger.warning("Run did not reach stable state in given timeout. Marking with error")
+            logger.warning(
+                "Run did not reach stable state in given timeout. Marking with error"
+            )
             self._ensure_run_status_updated(
                 db, db_session, project, run_uid, RunStates.error
             )

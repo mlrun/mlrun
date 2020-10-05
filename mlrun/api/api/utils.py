@@ -135,12 +135,12 @@ async def submit_job(db_session: Session, data):
     if run_uid:
         # monitor in the background
         asyncio.create_task(
-            run_in_threadpool(_monitor_job, project, function_kind, run_uid)
+            run_in_threadpool(monitor_job, project, function_kind, run_uid)
         )
     return response
 
 
-def _monitor_job(project: str, function_kind: str, run_uid: str):
+def monitor_job(project: str, function_kind: str, run_uid: str):
     """
     This function is running in background, i.e. outside of the context of a request
     therefore it should create its own db session
@@ -151,11 +151,21 @@ def _monitor_job(project: str, function_kind: str, run_uid: str):
         function_kind=function_kind,
         run_uid=run_uid,
     )
-    runtime_handler = get_runtime_handler(function_kind)
-    db = get_db()
-    db_session = create_session()
-    runtime_handler.monitor_run(db, db_session, project, run_uid)
-    close_session(db_session)
+    try:
+        runtime_handler = get_runtime_handler(function_kind)
+        db = get_db()
+        db_session = create_session()
+        runtime_handler.monitor_run(db, db_session, project, run_uid)
+        close_session(db_session)
+    except Exception as exc:
+        logger.warning("Run monitoring failed", exc=str(exc))
+
+    logger.info(
+        "Run monitoring finished successfully",
+        project=project,
+        function_kind=function_kind,
+        run_uid=run_uid,
+    )
 
 
 def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:

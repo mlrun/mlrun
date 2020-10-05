@@ -39,13 +39,14 @@ def new_v2_model_server(
         f.spec.base_spec = spec
 
     f.metadata.name = name
+    f.spec.default_class = model_class
     params = None
     if protocol:
         params = {"protocol": protocol}
     if models:
         for name, model_path in models.items():
             f.add_model(
-                name, model_path=model_path, model_class=model_class, parameters=params
+                name, model_path=model_path, parameters=params
             )
 
     f.with_http(workers, host=endpoint, canary=canary)
@@ -83,6 +84,8 @@ class ServingSpec(NuclioSpec):
         router=None,
         router_args=None,
         parameters=None,
+        default_class=None,
+        load_mode=None,
     ):
 
         super().__init__(
@@ -113,6 +116,8 @@ class ServingSpec(NuclioSpec):
         self.router = router
         self.router_args = router_args
         self.parameters = parameters or {}
+        self.default_class = default_class
+        self.load_mode = load_mode
 
 
 class ServingRuntime(RemoteRuntime):
@@ -129,19 +134,18 @@ class ServingRuntime(RemoteRuntime):
     def add_model(
         self,
         name,
-        model_class=None,
         model_path=None,
+        model_class=None,
         model_url=None,
         parameters=None,
-        load_mode=None,
         handler=None,
     ):
         """add ml model to the function
 
         :param name:        model api name (or name:version), will determine the relative url/path
+        :param model_path:  path to mlrun model artifact or model directory path
         :param model_class: V2 Model python class name
                             (can also module.submodule.class and it will be imported automatically)
-        :param model_path:  path to mlrun model artifact or model directory path
         :param model_url:   url of a remote url serving that model (cannot be used with model_path)
         :param parameters:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
@@ -152,15 +156,14 @@ class ServingRuntime(RemoteRuntime):
             raise ValueError("model_path or model_url must be provided")
         if model_path and not model_class:
             raise ValueError("model_path must be provided with model_class")
-        if load_mode and load_mode not in ["sync", "async"]:
-            raise ValueError(f"illegal model loading mode {load_mode}")
+        if model_path:
+            model_path = str(model_path)
 
         model = {
-            "model_class": model_class,
+            "model_class": model_class or self.spec.default_class,
             "model_path": model_path,
             "model_url": model_url,
             "params": parameters,
-            "load_mode": load_mode,
             "handler": handler,
         }
         model = {k: v for k, v in model.items() if v is not None}
@@ -173,6 +176,9 @@ class ServingRuntime(RemoteRuntime):
         :param project:   optional, overide function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         """
+        load_mode = self.spec.load_mode
+        if load_mode and load_mode not in ["sync", "async"]:
+            raise ValueError(f"illegal model loading mode {load_mode}")
         kind = None
         if not self.spec.base_spec:
             kind = serving_subkind
@@ -181,6 +187,7 @@ class ServingRuntime(RemoteRuntime):
             "router_args": self.spec.router_args,
             "models": self.spec.models,
             "parameters": self.spec.parameters,
+            "load_mode": load_mode,
         }
         env = {"MODELSRV_SPEC_ENV": json.dumps(serving_spec)}
         return super().deploy(dashboard, project, tag, kind, env)

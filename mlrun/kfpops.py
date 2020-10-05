@@ -412,14 +412,14 @@ def deploy_op(
     source="",
     dashboard="",
     project="",
-    models: dict = None,
+    models: list = None,
     env: dict = None,
     tag="",
     verbose=False,
 ):
     from kfp import dsl
 
-    models = {} if models is None else models
+    models = [] if models is None else models
     runtime = "{}".format(function.to_dict())
     cmd = ["python", "-m", "mlrun", "deploy", runtime]
     if source:
@@ -432,8 +432,12 @@ def deploy_op(
         cmd += ["--verbose"]
     if project:
         cmd += ["-p", project]
-    for m, val in models.items():
-        cmd += ["-m", "{}={}".format(m, val)]
+    for m in models:
+        if "model_path" in m:
+            m["model_path"] = str(m["model_path"])
+        if "model_url" in m:
+            m["model_url"] = str(m["model_url"])
+        cmd += ["-m", json.dump(m)]
     if env:
         for key, val in env.items():
             cmd += ["--env", "{}={}".format(key, val)]

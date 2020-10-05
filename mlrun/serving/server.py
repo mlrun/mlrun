@@ -35,7 +35,7 @@ class _ServerContext:
 
 
 class ModelServerHost(ModelObj):
-    _dict_fields = ["parameters", "models", "router_class", "router_args", "verbose"]
+    _dict_fields = ["parameters", "models", "router_class", "router_args", "verbose", "load_mode"]
 
     def __init__(self):
         self.router_class = None
@@ -45,6 +45,7 @@ class ModelServerHost(ModelObj):
         self.models = {}
         self._models_handlers = {}
         self.verbose = False
+        self.load_mode = None
 
     def add_root_params(self, params={}):
         for key, val in self.parameters.items():
@@ -53,6 +54,7 @@ class ModelServerHost(ModelObj):
         return params
 
     def init(self, context, namespace):
+        load_mode = self.load_mode or 'sync'
         for name, model in self.models.items():
             model_url = model.get("model_url", None)
             if model_url:
@@ -63,21 +65,20 @@ class ModelServerHost(ModelObj):
                 model_path = model["model_path"]
                 kwargs = model.get("params", None) or {}
                 handler = model.get("handler", "do_event")
-                mode = model.get("load_mode", "sync")
                 class_object = get_class(class_name, namespace)
                 model_object = class_object(context, name, model_path, **kwargs)
-                if mode == "sync":
+                if load_mode == "sync":
                     if not model_object.ready:
                         model_object.load()
                         model_object.ready = True
                     context.logger.info(f"model {name} was loaded")
-                elif mode == "async":
+                elif load_mode == "async":
                     t = threading.Thread(target=model_object.async_load)
                     t.start()
                     context.logger.info(f"started async load for model {name}")
                 else:
                     raise ValueError(
-                        f"unsupported model loading mode {mode} for model {name}"
+                        f"unsupported model loading mode {load_mode} for model {name}"
                     )
                 self._models_handlers[name] = getattr(model_object, handler)
 

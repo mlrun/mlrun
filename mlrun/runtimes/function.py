@@ -237,10 +237,10 @@ class RemoteRuntime(KubeResource):
         )
         return self
 
-    def add_model(self, key, model):
-        if model.startswith("v3io://"):
-            model = "/User/" + "/".join(model.split("/")[5:])
-        self.set_env("SERVING_MODEL_{}".format(key), model)
+    def add_model(self, name, model_path, **kw):
+        if model_path.startswith("v3io://"):
+            model = "/User/" + "/".join(model_path.split("/")[5:])
+        self.set_env("SERVING_MODEL_{}".format(name), model)
         return self
 
     def from_image(self, image):
@@ -376,6 +376,9 @@ class RemoteRuntime(KubeResource):
         models = {} if models is None else models
         name = "deploy_{}".format(self.metadata.name or "function")
         project = project or self.metadata.project
+        if models and isinstance(models, dict):
+            models = [{"name": k, "model_path": v} for k, v in models.items()]
+
         return deploy_op(
             name,
             self,

@@ -34,7 +34,7 @@ from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .projects import load_project
 from .run import new_function, import_function_to_dict, import_function, get_object
-from .runtimes import RemoteRuntime, RunError, RuntimeKinds
+from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
     list2dict,
@@ -430,21 +430,29 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
         print("runtime parameter must be a dict, not {}".format(type(runtime)))
         exit(1)
 
-    f = RemoteRuntime.from_dict(runtime)
+    if runtime and runtime['kind'] == 'serving':
+        f = ServingRuntime.from_dict(runtime)
+        if model:
+            models = list2dict(model)
+            for k, v in models.items():
+                f.add_model(k, v)
+    else:
+        f = RemoteRuntime.from_dict(runtime)
+        if kind:
+            f.spec.function_kind = kind
+    if model:
+        for m in model:
+            args = json.loads(m)
+            f.add_model(**args)
+
     f.spec.source = source
-    if kind:
-        f.spec.function_kind = kind
     if env:
         for k, v in list2dict(env).items():
             f.set_env(k, v)
     f.verbose = verbose
-    if model:
-        models = list2dict(model)
-        for k, v in models.items():
-            f.add_model(k, v)
 
     try:
-        addr = f.deploy(dashboard=dashboard, project=project, tag=tag, kind=kind)
+        addr = f.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
         print("deploy error: {}".format(err))
         exit(1)

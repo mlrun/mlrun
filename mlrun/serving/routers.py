@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import json
+import mlrun
+
 from io import BytesIO
-from mlrun.run import get_object
 
 
 class BaseModelRouter:
@@ -43,7 +44,7 @@ class BaseModelRouter:
                 # Get data from URL
                 url = body["data_url"]
                 self.context.logger.debug_with("downloading data", url=url)
-                data = get_object(url)
+                data = mlrun.get_object(url)
                 sample = BytesIO(data)
                 parsed_event[self.inputs_key] = [sample]
             else:

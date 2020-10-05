@@ -58,7 +58,7 @@ class SystemTestPreparer:
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
 
-        self._override_full_image_repo_full = None
+        self._override_full_image_repo = None
 
         if self._override_image_repo or self._override_image_registry:
 
@@ -66,7 +66,7 @@ class SystemTestPreparer:
             override_registry = (self._override_image_registry or "quay.io").strip("/")
             override_repo = (self._override_image_repo or "mlrun").strip("/")
 
-            self._override_full_image_repo_full = f"{override_registry}/{override_repo}"
+            self._override_full_image_repo = f"{override_registry}/{override_repo}"
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -327,9 +327,9 @@ class SystemTestPreparer:
         mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
 
         repo_arg = ""
-        if self._override_full_image_repo_full:
+        if self._override_full_image_repo:
             repo_arg = (
-                f"--override-image-pull-repo {self._override_full_image_repo_full}"
+                f"--override-image-pull-repo {self._override_full_image_repo}"
             )
 
         override_image_arg = ""

@@ -433,17 +433,17 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
     if runtime and runtime["kind"] == "serving":
         f = ServingRuntime.from_dict(runtime)
         if model:
-            models = list2dict(model)
-            for k, v in models.items():
-                f.add_model(k, v)
+            for m in model:
+                args = json.loads(m)
+                f.add_model(**args)
     else:
         f = RemoteRuntime.from_dict(runtime)
         if kind:
             f.spec.function_kind = kind
-    if model:
-        for m in model:
-            args = json.loads(m)
-            f.add_model(**args)
+        if model:
+            models = list2dict(model)
+            for k, v in models.items():
+                f.add_model(k, v)
 
     f.spec.source = source
     if env:

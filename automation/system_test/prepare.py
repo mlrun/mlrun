@@ -328,9 +328,7 @@ class SystemTestPreparer:
 
         repo_arg = ""
         if self._override_full_image_repo:
-            repo_arg = (
-                f"--override-image-pull-repo {self._override_full_image_repo}"
-            )
+            repo_arg = f"--override-image-pull-repo {self._override_full_image_repo}"
 
         override_image_arg = ""
         if self._override_mlrun_images:

@@ -40,7 +40,11 @@ def db() -> Generator:
 def client() -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
-        get_k8s().v1api = unittest.mock.Mock()
-        get_k8s().crdapi = unittest.mock.Mock()
+
+        # in case some test setup already mocked them, don't override it
+        if not hasattr(get_k8s(), "v1api"):
+            get_k8s().v1api = unittest.mock.Mock()
+        if not hasattr(get_k8s(), "crdapi"):
+            get_k8s().crdapi = unittest.mock.Mock()
         with TestClient(app) as c:
             yield c

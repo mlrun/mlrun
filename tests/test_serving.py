@@ -4,7 +4,8 @@ import sys
 import time
 import uuid
 
-from mlrun.serving.server import v2_serving_init
+from mlrun.runtimes import nuclio_init_hook
+from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.utils import create_logger
 
@@ -103,7 +104,7 @@ asyncspec = {
 def init_ctx():
     os.environ["MODELSRV_SPEC_ENV"] = json.dumps(spec)
     context = MockContext()
-    v2_serving_init(context, globals())
+    nuclio_init_hook(context, globals(), serving_subkind)
     return context
 
 
@@ -148,7 +149,7 @@ def test_v2_async_mode():
     # model loading is async
     os.environ["MODELSRV_SPEC_ENV"] = json.dumps(asyncspec)
     context = MockContext()
-    v2_serving_init(context, globals())
+    nuclio_init_hook(context, globals(), serving_subkind)
     context.logger.info("model initialized")
 
     e = Event("", path="/v2/models/m5/ready", method="GET")

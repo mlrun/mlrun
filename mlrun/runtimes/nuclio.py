@@ -27,7 +27,7 @@ from .local import get_func_arg
 def nuclio_init_hook(context, data, kind):
     if kind == "serving":
         nuclio_serving_init(context, data)
-    if kind == serving_subkind:
+    elif kind == serving_subkind:
         v2_serving_init(context, data)
     elif kind in ["mlrun", "jobs"]:
         nuclio_jobs_init(context, data)

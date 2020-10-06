@@ -94,7 +94,9 @@ class SQLDB(DBInterface):
 
     def store_run(self, session, struct, uid, project="", iter=0):
         project = project or config.default_project
-        logger.debug("Storing run to db", project=project, uid=uid, iter=iter, run=struct)
+        logger.debug(
+            "Storing run to db", project=project, uid=uid, iter=iter, run=struct
+        )
         self._ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:

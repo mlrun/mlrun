@@ -48,8 +48,13 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
 
     @staticmethod
     def _mock_list_resources_pods(k8s_helper_mock):
-        executor_pod_dict, driver_pod_dict = TestSparkjobRuntimeHandler._generate_pod_dicts()
-        mocked_responses = k8s_helper_mock.mock_list_pods([[executor_pod_dict, driver_pod_dict]])
+        (
+            executor_pod_dict,
+            driver_pod_dict,
+        ) = TestSparkjobRuntimeHandler._generate_pod_dicts()
+        mocked_responses = k8s_helper_mock.mock_list_pods(
+            [[executor_pod_dict, driver_pod_dict]]
+        )
         return mocked_responses[0]
 
     @staticmethod

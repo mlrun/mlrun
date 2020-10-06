@@ -131,16 +131,27 @@ class DictToObjectWrapper:
         - changing the values of the dict after initialization won't affect the class instance attribute values
         - changing the class instance attribute values after initialization won't affect dict
     """
+
     def __init__(self, dictionary):
         for key, value in dictionary.items():
             if isinstance(value, (list, tuple)):
-                setattr(self, key, [DictToObjectWrapper(item) if isinstance(item, dict) else item for item in value])
+                setattr(
+                    self,
+                    key,
+                    [
+                        DictToObjectWrapper(item) if isinstance(item, dict) else item
+                        for item in value
+                    ],
+                )
             else:
-                setattr(self, key, DictToObjectWrapper(value) if isinstance(value, dict) else value)
+                setattr(
+                    self,
+                    key,
+                    DictToObjectWrapper(value) if isinstance(value, dict) else value,
+                )
 
 
 class DictToK8sObjectWrapper(DictToObjectWrapper):
-
     def __init__(self, dictionary):
         self._should_never_ever_be_a_key_in_the_dictionary = dictionary
         super().__init__(dictionary)

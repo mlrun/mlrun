@@ -813,14 +813,18 @@ class BaseRuntimeHandler(ABC):
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_run(
-        self, db: DBInterface, db_session: Session, project: str, run_uid: str
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        run_uid: str,
+        interval: int = 5,
+        timeout: int = 60 * 60 * 24,
     ):
         # k8s_helper = get_k8s_helper()
         # w = watch.Watch()
         # for line in w.stream(k8s_helper.v1api.read_namespaced_pod_log, name= < pod - name >, namespace='<namespace>'):
         #     log.info(line)
-        timeout = 60 * 60 * 24
-        interval = 5
         logger.debug(
             "Starting run monitor loop",
             project=project,
@@ -1239,16 +1243,14 @@ class BaseRuntimeHandler(ABC):
         label_selector = self._get_run_label_selector(project, run_uid)
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        pods = k8s_helper.v1api.list_namespaced_pod(
-            namespace, label_selector=label_selector
-        )
-        if len(pods.items) == 0:
+        pods = k8s_helper.list_pods(namespace, selector=label_selector)
+        if len(pods) == 0:
             raise RuntimeError("Run pod could not be found")
-        if len(pods.items) > 1:
+        if len(pods) > 1:
             logger.warning(
                 "Unexpectedly received more than one pod for run. Best effort - using the first one"
             )
-        return pods.items[0]
+        return pods[0]
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):

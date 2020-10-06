@@ -15,8 +15,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
     @staticmethod
     def _mock_list_resources_pods(k8s_helper_mock):
-        scheduler_pod_dict, worker_pod_dict = TestDaskjobRuntimeHandler._generate_pod_dicts()
-        mocked_responses = k8s_helper_mock.mock_list_pods([[scheduler_pod_dict, worker_pod_dict]])
+        (
+            scheduler_pod_dict,
+            worker_pod_dict,
+        ) = TestDaskjobRuntimeHandler._generate_pod_dicts()
+        mocked_responses = k8s_helper_mock.mock_list_pods(
+            [[scheduler_pod_dict, worker_pod_dict]]
+        )
         return mocked_responses[0]
 
     @staticmethod

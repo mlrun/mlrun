@@ -201,4 +201,4 @@ def test_v2_health():
 def test_v2_mock():
     host = get_mock_server()
     host.add_model("my", model_class=MClass, model_path="", params={"z": 100})
-    print(host.test("/v2/models/my/infer", testdata))
+    print(host.test("my/infer", testdata))

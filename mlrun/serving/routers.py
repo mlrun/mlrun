@@ -148,7 +148,7 @@ class ModelRouter(BaseModelRouter):
             return event
 
         self.context.logger.debug(
-            f"router run model {name}, body={event.body}, op={subpath}"
+            f"router run model {name}, op={subpath}"
         )
         event.path = subpath
         response = child(event)

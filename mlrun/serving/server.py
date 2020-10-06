@@ -122,6 +122,8 @@ class ModelServerHost(ModelObj):
     def test(self, path, body, method="", content_type=None, silent=False):
         if not self.router:
             raise ValueError("no model or router was added, use .add_model()")
+        if not path.startswith('/'):
+            path = self.router.url_prefix + path
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type
         )

@@ -14,13 +14,16 @@
 import json
 import os
 import socket
+import sys
 import threading
+import traceback
+import uuid
 
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from .routers import ModelRouter
 from .v2_serving import HttpTransport
-from ..utils import create_class
+from ..utils import create_class, create_logger
 
 
 class _ServerContext:
@@ -46,6 +49,7 @@ class ModelServerHost(ModelObj):
 
     def __init__(self):
         self.router_class = None
+        self._router_class = None
         self.router_args = {}
         self.router = None
         self.parameters = {}
@@ -53,51 +57,82 @@ class ModelServerHost(ModelObj):
         self._models_handlers = {}
         self.verbose = False
         self.load_mode = None
+        self.context = None
 
     def add_root_params(self, params={}):
+        """for internal use"""
         for key, val in self.parameters.items():
             if key not in params:
                 params[key] = val
         return params
 
-    def init(self, context, namespace):
-        load_mode = self.load_mode or "sync"
+    def init(self, context, namespace, init_router=True):
+        """for internal use"""
+        self.context = context
+        self.load_mode = self.load_mode or "sync"
         for name, model in self.models.items():
-            model_url = model.get("model_url", None)
-            if model_url:
-                transport = HttpTransport(model_url)
-                self._models_handlers[name] = transport.do
-            else:
-                class_name = model["model_class"]
-                model_path = model["model_path"]
-                kwargs = model.get("params", None) or {}
-                handler = model.get("handler", "do_event")
-                class_object = get_class(class_name, namespace)
-                model_object = class_object(context, name, model_path, **kwargs)
-                if load_mode == "sync":
-                    if not model_object.ready:
-                        model_object.load()
-                        model_object.ready = True
-                    context.logger.info(f"model {name} was loaded")
-                elif load_mode == "async":
-                    t = threading.Thread(target=model_object.async_load)
-                    t.start()
-                    context.logger.info(f"started async load for model {name}")
-                else:
-                    raise ValueError(
-                        f"unsupported model loading mode {load_mode} for model {name}"
-                    )
-                self._models_handlers[name] = getattr(model_object, handler)
+            self._add_model(name, model, namespace)
 
         if self.router_class:
-            router_class = get_class(self.router_class, namespace)
+            self._router_class = get_class(self.router_class, namespace)
         else:
-            router_class = ModelRouter
+            self._router_class = ModelRouter
+        if init_router:
+            self._init_router()
+
+    def add_model(self, name, model_class, model_path, params=None, namespace=None):
+        model = {"model_class": model_class, "model_path": model_path, "params": params}
+        self._add_model(name, model, namespace)
+        self._init_router()
+
+    def _init_router(self):
         router_args = self.router_args or {}
-        self.router = router_class(context, self._models_handlers, **router_args)
+        self.router = self._router_class(
+            self.context, self._models_handlers, **router_args
+        )
+        setattr(self.context, "router", self.router)
+
+    def _add_model(self, name, model, namespace=None):
+        model_url = model.get("model_url", None)
+        if model_url:
+            transport = HttpTransport(model_url)
+            self._models_handlers[name] = transport.do
+        else:
+            class_name = model["model_class"]
+            model_path = model["model_path"]
+            kwargs = model.get("params", None) or {}
+            handler = model.get("handler", "do_event")
+            class_object = get_class(class_name, namespace)
+            model_object = class_object(self.context, name, model_path, **kwargs)
+            if self.load_mode == "sync":
+                if not model_object.ready:
+                    model_object.load()
+                    model_object.ready = True
+                self.context.logger.info(f"model {name} was loaded")
+            elif self.load_mode == "async":
+                t = threading.Thread(target=model_object.async_load)
+                t.start()
+                self.context.logger.info(f"started async load for model {name}")
+            else:
+                raise ValueError(
+                    f"unsupported model loading mode {self.load_mode} for model {name}"
+                )
+            self._models_handlers[name] = getattr(model_object, handler)
+
+    def test(self, path, body, method="", content_type=None, silent=False):
+        if not self.router:
+            raise ValueError("no model or router was added, use .add_model()")
+        event = MockEvent(
+            body=body, path=path, method=method, content_type=content_type
+        )
+        resp = v2_serving_handler(self.context, event)
+        if resp.status_code > 300 and not silent:
+            raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
 
 
 def get_class(class_name, namespace):
+    if isinstance(class_name, type):
+        return class_name
     if class_name in namespace:
         class_object = namespace[class_name]
         return class_object
@@ -128,6 +163,8 @@ def v2_serving_handler(context, event):
     try:
         response = context.router.do_event(event)
     except Exception as e:
+        if context.trace:
+            context.logger.error(traceback.format_exc())
         return context.Response(body=str(e), content_type="text/plain", status_code=400)
 
     body = response.body
@@ -141,3 +178,72 @@ def v2_serving_handler(context, event):
             body=body, content_type="application/json", status_code=200
         )
     return body
+
+
+def get_mock_server(
+    context=None,
+    router_class=None,
+    router_args={},
+    parameters={},
+    load_mode=None,
+    level="debug",
+):
+    if not context:
+        context = MockContext(level)
+    host = ModelServerHost()
+    host.router_class = router_class
+    host.router_args = router_args
+    host.parameters = parameters
+    host.load_mode = load_mode
+    host.verbose = level == "debug"
+    host.init(context, {}, init_router=False)
+
+    setattr(host.context, "server", _ServerContext(host.parameters))
+    setattr(host.context, "add_root_params", host.add_root_params)
+    setattr(host.context, "trace", host.verbose)
+    return host
+
+    # host.add_model('my', model_class=MClass, model_path='')
+    # print(host.test('/v2/models', ''))
+
+
+class MockEvent(object):
+    def __init__(
+        self, body=None, content_type=None, headers=None, method=None, path=None
+    ):
+        self.id = uuid.uuid4().hex
+        self.key = ""
+        self.body = body
+        self.time = None
+
+        # optional
+        self.headers = headers or {}
+        self.method = method
+        self.path = path or "/"
+        self.content_type = content_type
+        self.trigger = None
+
+    def __str__(self):
+        return f"Event(id={self.id}, body={self.body}, method={self.method}, path={self.path})"
+
+
+class Response(object):
+    def __init__(self, headers=None, body=None, content_type=None, status_code=200):
+        self.headers = headers or {}
+        self.body = body
+        self.status_code = status_code
+        self.content_type = content_type or "text/plain"
+
+    def __repr__(self):
+        cls = self.__class__.__name__
+        items = self.__dict__.items()
+        args = ("{}={!r}".format(key, value) for key, value in items)
+        return "{}({})".format(cls, ", ".join(args))
+
+
+class MockContext:
+    def __init__(self, level="debug"):
+        self.state = None
+        self.logger = create_logger(level, "human", "flow", sys.stdout)
+        self.worker_id = 0
+        self.Response = Response

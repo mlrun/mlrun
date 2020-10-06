@@ -820,10 +820,6 @@ class BaseRuntimeHandler(ABC):
         interval: int = 5,
         timeout: int = 60 * 60 * 24,
     ):
-        # k8s_helper = get_k8s_helper()
-        # w = watch.Watch()
-        # for line in w.stream(k8s_helper.v1api.read_namespaced_pod_log, name= < pod - name >, namespace='<namespace>'):
-        #     log.info(line)
         logger.debug(
             "Starting run monitor loop",
             project=project,
@@ -1187,7 +1183,6 @@ class BaseRuntimeHandler(ABC):
             db, db_session, project, run_uid, desired_run_state
         )
 
-        # run finished no need to monitor anymore
         if updated_run_state not in RunStates.stable_states():
             raise Exception("run did not reach stable state yet")
 
@@ -1200,20 +1195,10 @@ class BaseRuntimeHandler(ABC):
             (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
                 db, db_session, crd_object
             )
-            logger.debug(
-                "REMOVE_ME - Found crd object run desired state",
-                desired_run_state=desired_run_state,
-                crd_object=crd_object,
-            )
         else:
             pod = self._get_run_pod(project, run_uid)
             (_, _, desired_run_state,) = self._resolve_pod_status_info(
                 db, db_session, pod
-            )
-            logger.debug(
-                "REMOVE_ME - Found pod run desired state",
-                desired_run_state=desired_run_state,
-                pod=pod.to_dict(),
             )
 
         return desired_run_state

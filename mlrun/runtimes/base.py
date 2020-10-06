@@ -1316,16 +1316,18 @@ class BaseRuntimeHandler(ABC):
             )
         else:
             current_run_state = run.get("status", {}).get("state")
-            logger.debug(
-                "Checking whether need to update run status",
-                desired_run_state=desired_run_state,
-                current_run_state=current_run_state,
-            )
             if current_run_state:
                 if current_run_state == desired_run_state:
                     update_run = False
                 # if the current run state is stable and different then the desired - don't touch
                 if current_run_state in RunStates.stable_states():
+                    logger.warning(
+                        "Run is in different stable state than desired. Not changing",
+                        project=project,
+                        uid=uid,
+                        current_run_state=current_run_state,
+                        desired_run_state=desired_run_state,
+                    )
                     updated_run_state = current_run_state
                     update_run = False
 

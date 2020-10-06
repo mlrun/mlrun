@@ -10,4 +10,3 @@ kubernetes==10.0.0
 apscheduler~=3.6
 humanfriendly~=8.2
 orjson>=3,<4
-alembic~=1.4

@@ -184,7 +184,17 @@ class TestRuntimeHandlerBase:
         )
 
     @staticmethod
-    def _assert_run_logs(db: Session, project: str, uid: str, expected_log: str):
+    def _assert_run_logs(
+        db: Session,
+        project: str,
+        uid: str,
+        expected_log: str,
+        logger_pod_name: str = None,
+    ):
+        if logger_pod_name is not None:
+            get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
+                name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
+            )
         _, log = crud.Logs.get_log(db, project, uid, source=LogSources.PERSISTENCY)
         assert log == expected_log.encode()
 

@@ -59,7 +59,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(db, self.project, self.run_uid, log)
+        self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.completed_pod_dict["metadata"]["name"],
+        )
 
     def test_monitor_run_failed_pod(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
@@ -83,7 +89,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             expected_number_of_list_pods_calls, expected_label_selector
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        self._assert_run_logs(db, self.project, self.run_uid, log)
+        self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.failed_pod_dict["metadata"]["name"],
+        )
 
     def test_monitor_run_timeout_no_pods(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
@@ -131,7 +143,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(db, self.project, self.run_uid, log)
+        self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.failed_pod_dict["metadata"]["name"],
+        )
 
     def _mock_list_resources_pods(self):
         pod_dict = self._generate_pod_dict(self.project, self.run_uid)

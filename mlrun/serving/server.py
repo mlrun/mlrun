@@ -119,17 +119,20 @@ class ModelServerHost(ModelObj):
                 )
             self._models_handlers[name] = getattr(model_object, handler)
 
-    def test(self, path, body, method="", content_type=None, silent=False):
+    def test(
+        self, path, body, method="", content_type=None, silent=False, get_body=True
+    ):
         if not self.router:
             raise ValueError("no model or router was added, use .add_model()")
-        if not path.startswith('/'):
+        if not path.startswith("/"):
             path = self.router.url_prefix + path
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type
         )
-        resp = v2_serving_handler(self.context, event)
-        if resp.status_code > 300 and not silent:
+        resp = v2_serving_handler(self.context, event, get_body=get_body)
+        if hasattr(resp, "status_code") and resp.status_code > 300 and not silent:
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
+        return resp
 
 
 def get_class(class_name, namespace):
@@ -161,7 +164,7 @@ def v2_serving_init(context, namespace=None):
     setattr(context, "mlrun_handler", v2_serving_handler)
 
 
-def v2_serving_handler(context, event):
+def v2_serving_handler(context, event, get_body=False):
     try:
         response = context.router.do_event(event)
     except Exception as e:
@@ -170,11 +173,10 @@ def v2_serving_handler(context, event):
         return context.Response(body=str(e), content_type="text/plain", status_code=400)
 
     body = response.body
-    if isinstance(body, context.Response):
+    if isinstance(body, context.Response) or get_body:
         return body
 
     if body and not isinstance(body, (str, bytes)):
-        print(body)
         body = json.dumps(body)
         return context.Response(
             body=body, content_type="application/json", status_code=200
@@ -204,9 +206,6 @@ def get_mock_server(
     setattr(host.context, "add_root_params", host.add_root_params)
     setattr(host.context, "trace", host.verbose)
     return host
-
-    # host.add_model('my', model_class=MClass, model_path='')
-    # print(host.test('/v2/models', ''))
 
 
 class MockEvent(object):

@@ -1,18 +1,24 @@
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.runtimes import RuntimeKinds
-from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
+from mlrun.runtimes import get_runtime_handler
+from mlrun.runtimes.constants import RunStates
+from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
-    def test_list_resources(self, k8s_helper_mock):
-        pods = self._mock_list_resources_pods(k8s_helper_mock)
+    def test_list_resources(self, db: Session, client: TestClient):
+        pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.job, k8s_helper_mock, expected_pods=pods
+            RuntimeKinds.job, expected_pods=pods
         )
 
     @staticmethod
-    def _mock_list_resources_pods(k8s_helper_mock):
+    def _mock_list_resources_pods():
         pod_dict = TestKubejobRuntimeHandler._generate_pod_dict()
-        mocked_responses = k8s_helper_mock.mock_list_pods([[pod_dict]])
+        mocked_responses = TestKubejobRuntimeHandler._mock_list_pods([[pod_dict]])
         return mocked_responses[0]
 
     @staticmethod

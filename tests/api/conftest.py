@@ -2,13 +2,13 @@ from tempfile import NamedTemporaryFile
 from typing import Generator
 
 import pytest
+from fastapi.testclient import TestClient
 
 from mlrun.api.db.sqldb.session import create_session, _init_engine
 from mlrun.api.initial_data import init_data
+from mlrun.api.main import app
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
-from mlrun.api.main import app
-from fastapi.testclient import TestClient
 from mlrun.utils import logger
 
 

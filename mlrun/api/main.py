@@ -17,7 +17,6 @@ from mlrun.api.utils.periodic import (
     cancel_periodic_functions,
 )
 from mlrun.api.utils.singletons.db import get_db, initialize_db
-from mlrun.api.utils.singletons.k8s import initialize_k8s
 from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
 from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_scheduler
 from mlrun.config import config
@@ -135,7 +134,6 @@ async def shutdown_event():
 async def _initialize_singletons():
     initialize_db()
     await initialize_scheduler()
-    initialize_k8s()
     initialize_logs_dir()
 
 

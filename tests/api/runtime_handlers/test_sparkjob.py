@@ -3,15 +3,15 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
-    def test_list_sparkjob_resources(self, k8s_helper_mock):
-        crds = self._mock_list_sparkjob_crds(k8s_helper_mock)
-        pods = self._mock_list_resources_pods(k8s_helper_mock)
+    def test_list_sparkjob_resources(self):
+        crds = self._mock_list_sparkjob_crds()
+        pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.spark, k8s_helper_mock, expected_crds=crds, expected_pods=pods
+            RuntimeKinds.spark, expected_crds=crds, expected_pods=pods
         )
 
     @staticmethod
-    def _mock_list_sparkjob_crds(k8s_helper_mock):
+    def _mock_list_sparkjob_crds():
         crd_dict = {
             "metadata": {
                 "name": "my-spark-jdbc-2ea432f1",
@@ -44,15 +44,15 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 "terminationTime": None,
             },
         }
-        return TestSparkjobRuntimeHandler._mock_list_crds(k8s_helper_mock, [crd_dict])
+        return TestSparkjobRuntimeHandler._mock_list_crds([crd_dict])
 
     @staticmethod
-    def _mock_list_resources_pods(k8s_helper_mock):
+    def _mock_list_resources_pods():
         (
             executor_pod_dict,
             driver_pod_dict,
         ) = TestSparkjobRuntimeHandler._generate_pod_dicts()
-        mocked_responses = k8s_helper_mock.mock_list_pods(
+        mocked_responses = TestSparkjobRuntimeHandler._mock_list_pods(
             [[executor_pod_dict, driver_pod_dict]]
         )
         return mocked_responses[0]

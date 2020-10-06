@@ -1,50 +1,13 @@
 from http import HTTPStatus
-from typing import Callable, Generator, List, Dict
+from typing import Callable, Generator
 from unittest.mock import Mock
 
 import pytest
 import requests
 import v3io.dataplane
 
-
-import mlrun.k8s_utils
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.config import config
-from tests.conftest import init_sqldb, DictToK8sObjectWrapper
-
-
-@pytest.fixture
-def k8s_helper_mock(monkeypatch):
-    class K8sHelperMock(Mock):
-        def resolve_namespace(self, namespace=None):
-            return namespace or config.namespace
-
-        def is_running_inside_kubernetes_cluster(self):
-            return False
-
-        def mock_list_pods(self, pod_dicts_call_responses: List[List[Dict]]):
-            calls = []
-            for pod_dicts_call_response in pod_dicts_call_responses:
-                pods = []
-                for pod_dict in pod_dicts_call_response:
-                    pod = DictToK8sObjectWrapper(pod_dict)
-                    pods.append(pod)
-                calls.append(pods)
-            self.list_pods.side_effect = calls
-            return calls
-
-    # remember the real one
-    real_k8s_helper = mlrun.k8s_utils._k8s
-
-    # set it to the mock
-    k8s_helper_mock_instance = K8sHelperMock()
-    mlrun.k8s_utils._k8s = k8s_helper_mock_instance
-
-    yield k8s_helper_mock_instance
-
-    # set it to real one
-    mlrun.k8s_utils._k8s = real_k8s_helper
-
+from tests.conftest import init_sqldb
 
 session_maker: Callable
 

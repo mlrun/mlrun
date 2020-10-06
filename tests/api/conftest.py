@@ -7,6 +7,8 @@ from mlrun.api.db.sqldb.session import create_session, _init_engine
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
+from mlrun.api.main import app
+from fastapi.testclient import TestClient
 from mlrun.utils import logger
 
 
@@ -29,3 +31,9 @@ def db() -> Generator:
     yield create_session()
     logger.info(f"Removing temp db file: {db_file.name}")
     db_file.close()
+
+
+@pytest.fixture()
+def client() -> Generator:
+    with TestClient(app) as c:
+        yield c

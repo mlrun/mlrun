@@ -1,5 +1,5 @@
 from mlrun.runtimes import RuntimeKinds
-from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
+from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):

@@ -1,7 +1,7 @@
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import MPIJobCRDVersions
-from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
+from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):

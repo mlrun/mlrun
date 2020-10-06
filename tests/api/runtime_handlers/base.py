@@ -116,9 +116,7 @@ class TestRuntimeHandlerBase:
             for pod_dict in pod_dicts_call_response:
                 pod = DictToK8sObjectWrapper(pod_dict)
                 pods.append(pod)
-            calls.append(DictToK8sObjectWrapper({
-                'items': pods,
-            }))
+            calls.append(DictToK8sObjectWrapper({"items": pods}))
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
         return calls
 

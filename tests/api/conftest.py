@@ -1,3 +1,4 @@
+import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
@@ -9,6 +10,7 @@ from mlrun.api.db.sqldb.session import create_session, _init_engine
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import app
 from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -38,5 +40,7 @@ def db() -> Generator:
 def client() -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
+        get_k8s().v1api = unittest.mock.Mock()
+        get_k8s().crdapi = unittest.mock.Mock()
         with TestClient(app) as c:
             yield c

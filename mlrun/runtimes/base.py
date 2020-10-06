@@ -854,7 +854,7 @@ class BaseRuntimeHandler(ABC):
             run_uid=run_uid,
         )
 
-        # if we're here run finished, do another last log collection
+        # if we're here run finished, do log collection
         self._ensure_finished_run_logs_collected(db, db_session, project, run_uid)
 
     def _enrich_list_resources_response(

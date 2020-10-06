@@ -4,7 +4,7 @@ from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_list_resources(self, k8s_helper_mock):
-        pods = self._mock_list_daskjob_pods(k8s_helper_mock)
+        pods = self._mock_list_resources_pods(k8s_helper_mock)
         services = self._create_daskjob_service_mocks(k8s_helper_mock)
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.dask,
@@ -14,7 +14,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     @staticmethod
-    def _mock_list_daskjob_pods(k8s_helper_mock):
+    def _mock_list_resources_pods(k8s_helper_mock):
         scheduler_pod_dict, worker_pod_dict = TestDaskjobRuntimeHandler._generate_pod_dicts()
         mocked_responses = k8s_helper_mock.mock_list_pods([[scheduler_pod_dict, worker_pod_dict]])
         return mocked_responses[0]

@@ -4,13 +4,13 @@ from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def test_list_resources(self, k8s_helper_mock):
-        pods = self._mock_list_kubejob_pods(k8s_helper_mock)
+        pods = self._mock_list_resources_pods(k8s_helper_mock)
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.job, k8s_helper_mock, expected_pods=pods
         )
 
     @staticmethod
-    def _mock_list_kubejob_pods(k8s_helper_mock):
+    def _mock_list_resources_pods(k8s_helper_mock):
         pod_dict = TestKubejobRuntimeHandler._generate_pod_dict()
         mocked_responses = k8s_helper_mock.mock_list_pods([[pod_dict]])
         return mocked_responses[0]

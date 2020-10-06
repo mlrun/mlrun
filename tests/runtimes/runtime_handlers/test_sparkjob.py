@@ -5,7 +5,7 @@ from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_list_sparkjob_resources(self, k8s_helper_mock):
         crds = self._mock_list_sparkjob_crds(k8s_helper_mock)
-        pods = self._mock_list_sparkjob_pods(k8s_helper_mock)
+        pods = self._mock_list_resources_pods(k8s_helper_mock)
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.spark, k8s_helper_mock, expected_crds=crds, expected_pods=pods
         )
@@ -47,7 +47,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         return TestSparkjobRuntimeHandler._mock_list_crds(k8s_helper_mock, [crd_dict])
 
     @staticmethod
-    def _mock_list_sparkjob_pods(k8s_helper_mock):
+    def _mock_list_resources_pods(k8s_helper_mock):
         executor_pod_dict, driver_pod_dict = TestSparkjobRuntimeHandler._generate_pod_dicts()
         mocked_responses = k8s_helper_mock.mock_list_pods([[executor_pod_dict, driver_pod_dict]])
         return mocked_responses[0]

@@ -21,17 +21,21 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def test_monitor_run(self, db: Session, client: TestClient):
         project = "test_project"
         uid = "test_run_uid"
-        self._mock_monitor_run_pods()
+        expected_number_of_list_pods_calls = self._mock_monitor_run_pods()
         self._mock_monitor_run_logs()
         run = {"status": {"state": RunStates.created}}
         get_db().store_run(db, run, uid, project)
         runtime_handler = get_runtime_handler(RuntimeKinds.job)
+        expected_label_selector = runtime_handler._get_run_label_selector(project, uid)
         runtime_handler.monitor_run(get_db(), db, project, uid, interval=0)
-        # crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
-        # k8s_helper_mock.list_pods.assert_called_once_with(
-        #     k8s_helper_mock.resolve_namespace(),
-        #     selector=runtime_handler._get_default_label_selector(),
-        # )
+        TestKubejobRuntimeHandler._assert_list_namespaces_pods_calls(expected_number_of_list_pods_calls, expected_label_selector)
+
+    @staticmethod
+    def _assert_list_namespaces_pods_calls(number_of_calls: int, label_selector: str):
+        assert get_k8s().v1api.list_namespaced_pod.call_count == number_of_calls
+        get_k8s().v1api.list_namespaced_pod.assert_any_call(get_k8s().resolve_namespace(),
+                                                            label_selector=label_selector)
+
         # if expected_crds:
         #     k8s_helper_mock.crdapi.list_namespaced_custom_object.assert_called_once_with(
         #         crd_group,
@@ -55,7 +59,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     @staticmethod
     def _mock_list_resources_pods():
         pod_dict = TestKubejobRuntimeHandler._generate_pod_dict()
-        mocked_responses = TestKubejobRuntimeHandler._mock_list_pods([[pod_dict]])
+        mocked_responses = TestKubejobRuntimeHandler._mock_list_namespaces_pods([[pod_dict]])
         return mocked_responses[0]
 
     @staticmethod
@@ -75,15 +79,17 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             TestKubejobRuntimeHandler._get_completed_pod_status()
         )
 
-        TestKubejobRuntimeHandler._mock_list_pods(
-            [
+        calls = [
                 [pending_pod_dict],
                 [running_pod_dict],
                 [completed_pod_dict],
                 # additional time for the get_logger_pods
                 [completed_pod_dict],
             ]
-        )
+
+        TestKubejobRuntimeHandler._mock_list_namespaces_pods(calls)
+
+        return len(calls)
 
     @staticmethod
     def _generate_pod_dict(status=None):

@@ -109,15 +109,17 @@ class TestRuntimeHandlerBase:
                 )
 
     @staticmethod
-    def _mock_list_pods(pod_dicts_call_responses: List[List[Dict]]):
+    def _mock_list_namespaces_pods(pod_dicts_call_responses: List[List[Dict]]):
         calls = []
         for pod_dicts_call_response in pod_dicts_call_responses:
             pods = []
             for pod_dict in pod_dicts_call_response:
                 pod = DictToK8sObjectWrapper(pod_dict)
                 pods.append(pod)
-            calls.append(pods)
-        get_k8s().list_pods = unittest.mock.Mock(side_effect=calls)
+            calls.append(DictToK8sObjectWrapper({
+                'items': pods,
+            }))
+        get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
         return calls
 
     @staticmethod

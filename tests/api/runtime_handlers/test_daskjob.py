@@ -16,7 +16,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             scheduler_pod_dict,
             worker_pod_dict,
         ) = TestDaskjobRuntimeHandler._generate_pod_dicts()
-        mocked_responses = TestDaskjobRuntimeHandler._mock_list_pods(
+        mocked_responses = TestDaskjobRuntimeHandler._mock_list_namespaces_pods(
             [[scheduler_pod_dict, worker_pod_dict]]
         )
         return mocked_responses[0]

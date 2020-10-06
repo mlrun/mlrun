@@ -46,7 +46,7 @@ class Logs:
                 out = fp.read(size)
         elif source in [LogSources.AUTO, LogSources.K8S]:
             if get_k8s():
-                pods = get_k8s().get_logger_pods(uid)
+                pods = get_k8s().get_logger_pods(project, uid)
                 if pods:
                     pod, pod_phase = list(pods.items())[0]
                     if pod_phase != PodPhases.pending:

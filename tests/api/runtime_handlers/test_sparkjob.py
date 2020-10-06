@@ -55,7 +55,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         mocked_responses = TestSparkjobRuntimeHandler._mock_list_namespaces_pods(
             [[executor_pod_dict, driver_pod_dict]]
         )
-        return mocked_responses[0]
+        return mocked_responses[0].items
 
     @staticmethod
     def _generate_pod_dicts():

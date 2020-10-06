@@ -46,9 +46,9 @@ class TestRuntimeHandlerBase:
         runtime_handler = get_runtime_handler(runtime_kind)
         resources = runtime_handler.list_resources()
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
-        get_k8s().list_pods.assert_called_once_with(
+        get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
             get_k8s().resolve_namespace(),
-            selector=runtime_handler._get_default_label_selector(),
+            label_selector=runtime_handler._get_default_label_selector(),
         )
         if expected_crds:
             get_k8s().crdapi.list_namespaced_custom_object.assert_called_once_with(

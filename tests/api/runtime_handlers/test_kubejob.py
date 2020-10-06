@@ -170,7 +170,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         mocked_responses = TestKubejobRuntimeHandler._mock_list_namespaces_pods(
             [[pod_dict]]
         )
-        return mocked_responses[0]
+        return mocked_responses[0].items
 
     @staticmethod
     def _mock_monitor_run_logs(log):

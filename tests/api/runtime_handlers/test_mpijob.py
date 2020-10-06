@@ -15,7 +15,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         # there's currently a bug (fix was merged but not released https://github.com/kubeflow/mpi-operator/pull/271)
         # that causes mpijob's pods to not being labels with the given (MLRun's) labels - this prevents list resources
         # from finding the pods, so we're simulating the same thing here
-        get_k8s().list_pods = unittest.mock.Mock(return_value=[])
+        TestMPIjobRuntimeHandler._mock_list_namespaces_pods([[]])
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.mpijob, expected_crds=crds
         )

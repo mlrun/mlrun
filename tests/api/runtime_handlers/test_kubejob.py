@@ -14,8 +14,6 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.job)
-        self.project = "test_project"
-        self.run_uid = "test_run_uid"
 
         # initializing them here to save space in tests
         self.pending_pod_dict = TestKubejobRuntimeHandler._generate_pod_dict(

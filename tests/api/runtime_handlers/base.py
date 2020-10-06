@@ -21,6 +21,9 @@ class TestRuntimeHandlerBase:
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
+        self.project = "test_project"
+        self.run_uid = "test_run_uid"
+
         self.custom_setup()
 
         self._logger.info(
@@ -126,14 +129,14 @@ class TestRuntimeHandlerBase:
         return calls
 
     @staticmethod
-    def _mock_list_crds(crd_dicts):
-        crds = {
-            "items": crd_dicts,
-        }
+    def _mock_list_namespaced_crds(crd_dicts_call_responses: List[List[Dict]]):
+        calls = []
+        for crd_dicts_call_response in crd_dicts_call_responses:
+            calls.append({"items": crd_dicts_call_response})
         get_k8s().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
-            return_value=crds
+            side_effect=calls
         )
-        return crd_dicts
+        return calls
 
     @staticmethod
     def _mock_list_services(service_dicts):
@@ -161,6 +164,23 @@ class TestRuntimeHandlerBase:
         )
         get_k8s().v1api.list_namespaced_pod.assert_any_call(
             get_k8s().resolve_namespace(), label_selector=expected_label_selector
+        )
+
+    @staticmethod
+    def _assert_list_namespaced_crds_calls(
+        runtime_handler, expected_number_of_calls: int, expected_label_selector: str
+    ):
+        crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+        assert (
+            get_k8s().crdapi.list_namespaced_custom_object.call_count
+            == expected_number_of_calls
+        )
+        get_k8s().crdapi.list_namespaced_custom_object.assert_any_call(
+            crd_group,
+            crd_version,
+            get_k8s().resolve_namespace(),
+            crd_plural,
+            label_selector=expected_label_selector,
         )
 
     @staticmethod

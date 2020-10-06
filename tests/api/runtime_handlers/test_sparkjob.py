@@ -4,10 +4,12 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_list_sparkjob_resources(self):
-        crds = self._mock_list_sparkjob_crds()
+        mocked_responses = self._mock_list_sparkjob_crds()
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.spark, expected_crds=crds, expected_pods=pods
+            RuntimeKinds.spark,
+            expected_crds=mocked_responses[0]["items"],
+            expected_pods=pods,
         )
 
     @staticmethod
@@ -44,7 +46,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 "terminationTime": None,
             },
         }
-        return TestSparkjobRuntimeHandler._mock_list_crds([crd_dict])
+        return TestSparkjobRuntimeHandler._mock_list_namespaced_crds([[crd_dict]])
 
     @staticmethod
     def _mock_list_resources_pods():

@@ -158,5 +158,9 @@ class DictToK8sObjectWrapper(DictToObjectWrapper):
         self._should_never_ever_be_a_key_in_the_dictionary = dictionary
         super().__init__(dictionary)
 
+        # Some parts in k8s objects should remain dict
+        if dictionary.get("metadata", {}).get("labels") is not None:
+            self.metadata.labels = dictionary["metadata"]["labels"]
+
     def to_dict(self):
         return self._should_never_ever_be_a_key_in_the_dictionary

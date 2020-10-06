@@ -7,9 +7,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         pods = self._mock_list_resources_pods()
         services = self._create_daskjob_service_mocks()
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.dask,
-            expected_pods=pods,
-            expected_services=services,
+            RuntimeKinds.dask, expected_pods=pods, expected_services=services,
         )
 
     @staticmethod
@@ -209,6 +207,4 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
                 },
             },
         }
-        return TestDaskjobRuntimeHandler._mock_list_services(
-            [service_dict]
-        )
+        return TestDaskjobRuntimeHandler._mock_list_services([service_dict])

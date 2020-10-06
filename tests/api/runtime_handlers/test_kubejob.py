@@ -1,7 +1,10 @@
+import unittest.mock
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import RunStates
@@ -15,11 +18,72 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             RuntimeKinds.job, expected_pods=pods
         )
 
+    def test_monitor_run(self, db: Session, client: TestClient):
+        project = "test_project"
+        uid = "test_run_uid"
+        self._mock_monitor_run_pods()
+        self._mock_monitor_run_logs()
+        run = {"status": {"state": RunStates.created}}
+        get_db().store_run(db, run, uid, project)
+        runtime_handler = get_runtime_handler(RuntimeKinds.job)
+        runtime_handler.monitor_run(get_db(), db, project, uid, interval=0)
+        # crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+        # k8s_helper_mock.list_pods.assert_called_once_with(
+        #     k8s_helper_mock.resolve_namespace(),
+        #     selector=runtime_handler._get_default_label_selector(),
+        # )
+        # if expected_crds:
+        #     k8s_helper_mock.crdapi.list_namespaced_custom_object.assert_called_once_with(
+        #         crd_group,
+        #         crd_version,
+        #         k8s_helper_mock.resolve_namespace(),
+        #         crd_plural,
+        #         label_selector=runtime_handler._get_default_label_selector(),
+        #     )
+        # if expected_services:
+        #     k8s_helper_mock.v1api.list_namespaced_service.assert_called_once_with(
+        #         k8s_helper_mock.resolve_namespace(),
+        #         label_selector=runtime_handler._get_default_label_selector(),
+        #     )
+        # TestRuntimeHandlerBase._assert_list_resources_response(
+        #     resources,
+        #     expected_crds=expected_crds,
+        #     expected_pods=expected_pods,
+        #     expected_services=expected_services,
+        # )
+
     @staticmethod
     def _mock_list_resources_pods():
         pod_dict = TestKubejobRuntimeHandler._generate_pod_dict()
         mocked_responses = TestKubejobRuntimeHandler._mock_list_pods([[pod_dict]])
         return mocked_responses[0]
+
+    @staticmethod
+    def _mock_monitor_run_logs():
+        log = "Some log string"
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+
+    @staticmethod
+    def _mock_monitor_run_pods():
+        pending_pod_dict = TestKubejobRuntimeHandler._generate_pod_dict(
+            TestKubejobRuntimeHandler._get_pending_pod_status()
+        )
+        running_pod_dict = TestKubejobRuntimeHandler._generate_pod_dict(
+            TestKubejobRuntimeHandler._get_running_pod_status()
+        )
+        completed_pod_dict = TestKubejobRuntimeHandler._generate_pod_dict(
+            TestKubejobRuntimeHandler._get_completed_pod_status()
+        )
+
+        TestKubejobRuntimeHandler._mock_list_pods(
+            [
+                [pending_pod_dict],
+                [running_pod_dict],
+                [completed_pod_dict],
+                # additional time for the get_logger_pods
+                [completed_pod_dict],
+            ]
+        )
 
     @staticmethod
     def _generate_pod_dict(status=None):

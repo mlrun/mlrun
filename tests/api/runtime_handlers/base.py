@@ -41,10 +41,7 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_runtime_handler_list_resources(
-        runtime_kind,
-        expected_crds=None,
-        expected_pods=None,
-        expected_services=None,
+        runtime_kind, expected_crds=None, expected_pods=None, expected_services=None,
     ):
         runtime_handler = get_runtime_handler(runtime_kind)
         resources = runtime_handler.list_resources()
@@ -128,7 +125,9 @@ class TestRuntimeHandlerBase:
         crds = {
             "items": crd_dicts,
         }
-        get_k8s().crdapi.list_namespaced_custom_object = unittest.mock.Mock(return_value=crds)
+        get_k8s().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
+            return_value=crds
+        )
         return crd_dicts
 
     @staticmethod
@@ -143,5 +142,7 @@ class TestRuntimeHandlerBase:
             service_mocks.append(service_mock)
         services_mock = unittest.mock.Mock()
         services_mock.items = service_mocks
-        get_k8s().v1api.list_namespaced_service = unittest.mock.Mock(return_value=services_mock)
+        get_k8s().v1api.list_namespaced_service = unittest.mock.Mock(
+            return_value=services_mock
+        )
         return service_mocks

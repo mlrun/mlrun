@@ -1,3 +1,5 @@
+import os
+
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import create_session, close_session
 from mlrun.utils import logger
@@ -8,6 +10,9 @@ def init_data() -> None:
     logger.info("Creating initial data")
 
     # run migrations on existing DB or create it with alembic
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    cwd = os.getcwd()
+    os.chdir(dir_path)
     alembic.config.main(
         argv=[
             # raise error to exit on a failure
@@ -16,6 +21,7 @@ def init_data() -> None:
             "head",
         ]
     )
+    os.chdir(cwd)
 
     db_session = create_session()
     try:

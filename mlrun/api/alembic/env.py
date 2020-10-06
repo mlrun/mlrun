@@ -5,6 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
+from mlrun import mlconf
 from mlrun.api.db.sqldb import models
 
 
@@ -24,6 +25,10 @@ target_metadata = models.Base.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+# this will overwrite the ini-file sqlalchemy.url path
+# with the path given in the mlconf
+config.set_main_option('sqlalchemy.url', mlconf.httpdb.dsn)
 
 
 def run_migrations_offline():

@@ -17,19 +17,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # initializing them here to save space in tests
         self.active_crd_dict = self._generate_mpijob_crd(
-            self.project,
-            self.run_uid,
-            self._get_active_crd_status(),
+            self.project, self.run_uid, self._get_active_crd_status(),
         )
         self.succeeded_crd_dict = self._generate_mpijob_crd(
-            self.project,
-            self.run_uid,
-            self._get_succeeded_crd_status(),
+            self.project, self.run_uid, self._get_succeeded_crd_status(),
         )
         self.failed_crd_dict = self._generate_mpijob_crd(
-            self.project,
-            self.run_uid,
-            self._get_failed_crd_status(),
+            self.project, self.run_uid, self._get_failed_crd_status(),
         )
 
         # there's currently a bug (fix was merged but not released https://github.com/kubeflow/mpi-operator/pull/271)
@@ -38,9 +32,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaces_pods([[]])
 
     def test_list_mpijob_resources(self):
-        mocked_responses = self._mock_list_namespaced_crds(
-            [[self.succeeded_crd_dict]]
-        )
+        mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.mpijob, expected_crds=mocked_responses[0]["items"]
         )
@@ -86,9 +78,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             expected_number_of_list_crds_calls,
             expected_label_selector,
         )
-        self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.error
-        )
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(db, self.project, self.run_uid, "")
 
     @staticmethod

@@ -17,24 +17,16 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # initializing them here to save space in tests
         self.pending_pod_dict = self._generate_pod_dict(
-            self.project,
-            self.run_uid,
-            self._get_pending_pod_status(),
+            self.project, self.run_uid, self._get_pending_pod_status(),
         )
         self.running_pod_dict = self._generate_pod_dict(
-            self.project,
-            self.run_uid,
-            self._get_running_pod_status(),
+            self.project, self.run_uid, self._get_running_pod_status(),
         )
         self.completed_pod_dict = self._generate_pod_dict(
-            self.project,
-            self.run_uid,
-            self._get_completed_pod_status(),
+            self.project, self.run_uid, self._get_completed_pod_status(),
         )
         self.failed_pod_dict = self._generate_pod_dict(
-            self.project,
-            self.run_uid,
-            self._get_failed_pod_status(),
+            self.project, self.run_uid, self._get_failed_pod_status(),
         )
 
     def test_list_resources(self, db: Session, client: TestClient):
@@ -90,9 +82,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             expected_number_of_list_pods_calls, expected_label_selector
         )
-        self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.error
-        )
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(db, self.project, self.run_uid, log)
 
     def test_monitor_run_timeout_no_pods(self, db: Session, client: TestClient):
@@ -112,9 +102,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             expected_number_of_list_pods_calls, expected_label_selector
         )
-        self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.error
-        )
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(db, self.project, self.run_uid, "")
 
     def test_monitor_run_not_overriding_stable_state(
@@ -146,12 +134,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_logs(db, self.project, self.run_uid, log)
 
     def _mock_list_resources_pods(self):
-        pod_dict = self._generate_pod_dict(
-            self.project, self.run_uid
-        )
-        mocked_responses = self._mock_list_namespaces_pods(
-            [[pod_dict]]
-        )
+        pod_dict = self._generate_pod_dict(self.project, self.run_uid)
+        mocked_responses = self._mock_list_namespaces_pods([[pod_dict]])
         return mocked_responses[0].items
 
     @staticmethod

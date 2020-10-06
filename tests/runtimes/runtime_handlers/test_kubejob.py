@@ -11,6 +11,12 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     @staticmethod
     def _mock_list_kubejob_pods(k8s_helper_mock):
+        pod_dict = TestKubejobRuntimeHandler._generate_pod_dict()
+        mocked_responses = k8s_helper_mock.mock_list_pods([[pod_dict]])
+        return mocked_responses[0]
+
+    @staticmethod
+    def _generate_pod_dict():
         pod_dict = {
             "metadata": {
                 "name": "my-training-j7dtf",
@@ -102,4 +108,4 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-17T18:08:23+00:00",
             },
         }
-        return k8s_helper_mock.mock_list_pods([pod_dict])
+        return pod_dict

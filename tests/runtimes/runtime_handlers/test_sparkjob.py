@@ -48,6 +48,12 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
 
     @staticmethod
     def _mock_list_sparkjob_pods(k8s_helper_mock):
+        executor_pod_dict, driver_pod_dict = TestSparkjobRuntimeHandler._generate_pod_dicts()
+        mocked_responses = k8s_helper_mock.mock_list_pods([[executor_pod_dict, driver_pod_dict]])
+        return mocked_responses[0]
+
+    @staticmethod
+    def _generate_pod_dicts():
         executor_pod_dict = {
             "metadata": {
                 "name": "my-spark-jdbc-2ea432f1-1597760338437-exec-1",
@@ -220,4 +226,4 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-18T14:19:08+00:00",
             },
         }
-        return k8s_helper_mock.mock_list_pods([executor_pod_dict, driver_pod_dict])
+        return executor_pod_dict, driver_pod_dict

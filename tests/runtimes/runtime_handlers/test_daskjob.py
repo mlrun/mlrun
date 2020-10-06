@@ -15,6 +15,12 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
     @staticmethod
     def _mock_list_daskjob_pods(k8s_helper_mock):
+        scheduler_pod_dict, worker_pod_dict = TestDaskjobRuntimeHandler._generate_pod_dicts()
+        mocked_responses = k8s_helper_mock.mock_list_pods([[scheduler_pod_dict, worker_pod_dict]])
+        return mocked_responses[0]
+
+    @staticmethod
+    def _generate_pod_dicts():
         scheduler_pod_dict = {
             "metadata": {
                 "name": "mlrun-mydask-d7656bc1-0n4z9z",
@@ -179,7 +185,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-18T00:36:21+00:00",
             },
         }
-        return k8s_helper_mock.mock_list_pods([scheduler_pod_dict, worker_pod_dict])
+        return scheduler_pod_dict, worker_pod_dict
 
     @staticmethod
     def _create_daskjob_service_mocks(k8s_helper_mock):

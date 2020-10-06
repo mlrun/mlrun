@@ -1,6 +1,5 @@
 from http import HTTPStatus
-from typing import Callable
-from typing import Generator
+from typing import Callable, Generator, List, Dict
 from unittest.mock import Mock
 
 import pytest
@@ -23,13 +22,16 @@ def k8s_helper_mock(monkeypatch):
         def is_running_inside_kubernetes_cluster(self):
             return False
 
-        def mock_list_pods(self, pod_dicts):
-            pods = []
-            for pod_dict in pod_dicts:
-                pod = DictToK8sObjectWrapper(pod_dict)
-                pods.append(pod)
-            self.list_pods.return_value = pods
-            return pods
+        def mock_list_pods(self, pod_dicts_call_responses: List[List[Dict]]):
+            calls = []
+            for pod_dicts_call_response in pod_dicts_call_responses:
+                pods = []
+                for pod_dict in pod_dicts_call_response:
+                    pod = DictToK8sObjectWrapper(pod_dict)
+                    pods.append(pod)
+                calls.append(pods)
+            self.list_pods.side_effect = calls
+            return calls
 
     # remember the real one
     real_k8s_helper = mlrun.k8s_utils._k8s

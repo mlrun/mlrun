@@ -1308,7 +1308,12 @@ class BaseRuntimeHandler(ABC):
         try:
             run = db.read_run(db_session, uid, project)
         except mlrun.errors.MLRunNotFoundError:
-            logger.warning("Run not found. A new run with status only will be created", project=project, uid=uid, desired_run_state=desired_run_state)
+            logger.warning(
+                "Run not found. A new run with status only will be created",
+                project=project,
+                uid=uid,
+                desired_run_state=desired_run_state,
+            )
         else:
             current_run_state = run.get("status", {}).get("state")
             logger.debug(

@@ -120,54 +120,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     @staticmethod
     def _get_pending_pod_status():
         return {
-            "conditions": [
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "Initialized",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": "containers with unready status: [base]",
-                    "reason": "ContainersNotReady",
-                    "status": "False",
-                    "type": "Ready",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": "containers with unready status: [base]",
-                    "reason": "ContainersNotReady",
-                    "status": "False",
-                    "type": "ContainersReady",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "PodScheduled",
-                },
-            ],
             "container_statuses": [
                 {
-                    "container_id": None,
-                    "image": "docker-registry.default-tenant.app.hedingber-30-2.iguazio-cd2.com:80/mlrun/func-default-h"
-                    "edi-simple-func-latest",
-                    "image_id": "",
-                    "last_state": {
-                        "running": None,
-                        "terminated": None,
-                        "waiting": None,
-                    },
-                    "name": "base",
-                    "ready": False,
-                    "restart_count": 0,
                     "state": {
                         "running": None,
                         "terminated": None,
@@ -175,70 +129,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     },
                 }
             ],
-            "host_ip": "172.31.4.201",
-            "init_container_statuses": None,
-            "message": None,
-            "nominated_node_name": None,
             "phase": "Pending",
-            "pod_ip": None,
-            "qos_class": "BestEffort",
-            "reason": None,
-            "start_time": "2020-10-6T3:0:50+00:00",
         }
 
     @staticmethod
     def _get_running_pod_status():
         return {
-            "conditions": [
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "Initialized",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:52+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "Ready",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:52+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "ContainersReady",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "PodScheduled",
-                },
-            ],
             "container_statuses": [
                 {
-                    "container_id": "docker://94a90870a6432d3140da821b87ae91980d21af2c000988fcb8687640a5f29886",
-                    "image": "docker-registry.default-tenant.app.hedingber-30-2.iguazio-cd2.com:80/mlrun/func-default-h"
-                    "edi-simple-func-latest:latest",
-                    "image_id": "docker-pullable://docker-registry.default-tenant.app.hedingber-30-2.iguazio-cd2.com:80"
-                    "/mlrun/func-default-hedi-simple-func-latest@sha256:29a8b029b0b10b87a48c71a3161515d27f5"
-                    "65ec52f5cca04f01c1cde2e875152",
-                    "last_state": {
-                        "running": None,
-                        "terminated": None,
-                        "waiting": None,
-                    },
-                    "name": "base",
-                    "ready": True,
-                    "restart_count": 0,
                     "state": {
                         "running": {"started_at": "2020-10-6T3:0:51+00:00"},
                         "terminated": None,
@@ -246,70 +144,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     },
                 }
             ],
-            "host_ip": "172.31.4.201",
-            "init_container_statuses": None,
-            "message": None,
-            "nominated_node_name": None,
             "phase": "Running",
-            "pod_ip": "10.200.0.51",
-            "qos_class": "BestEffort",
-            "reason": None,
-            "start_time": "2020-10-6T3:0:50+00:00",
         }
 
     @staticmethod
     def _get_completed_pod_status():
         return {
-            "conditions": [
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": None,
-                    "reason": "PodCompleted",
-                    "status": "True",
-                    "type": "Initialized",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:1:8+00:00",
-                    "message": None,
-                    "reason": "PodCompleted",
-                    "status": "False",
-                    "type": "Ready",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:1:8+00:00",
-                    "message": None,
-                    "reason": "PodCompleted",
-                    "status": "False",
-                    "type": "ContainersReady",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T3:0:50+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "PodScheduled",
-                },
-            ],
             "container_statuses": [
                 {
-                    "container_id": "docker://94a90870a6432d3140da821b87ae91980d21af2c000988fcb8687640a5f29886",
-                    "image": "docker-registry.default-tenant.app.hedingber-30-2.iguazio-cd2.com:80/mlrun/func-default-h"
-                    "edi-simple-func-latest:latest",
-                    "image_id": "docker-pullable://docker-registry.default-tenant.app.hedingber-30-2.iguazio-cd2.com:80"
-                    "/mlrun/func-default-hedi-simple-func-latest@sha256:29a8b029b0b10b87a48c71a3161515d27f5"
-                    "65ec52f5cca04f01c1cde2e875152",
-                    "last_state": {
-                        "running": None,
-                        "terminated": None,
-                        "waiting": None,
-                    },
-                    "name": "base",
-                    "ready": False,
-                    "restart_count": 0,
                     "state": {
                         "running": None,
                         "terminated": {
@@ -325,70 +167,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     },
                 }
             ],
-            "host_ip": "172.31.4.201",
-            "init_container_statuses": None,
-            "message": None,
-            "nominated_node_name": None,
             "phase": "Succeeded",
-            "pod_ip": "10.200.0.51",
-            "qos_class": "BestEffort",
-            "reason": None,
-            "start_time": "2020-10-6T3:0:50+00:00",
         }
 
     @staticmethod
     def _get_failed_pod_status():
         return {
-            "conditions": [
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T2:59:34+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "Initialized",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T2:59:53+00:00",
-                    "message": "containers with unready status: [base]",
-                    "reason": "ContainersNotReady",
-                    "status": "False",
-                    "type": "Ready",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T2:59:53+00:00",
-                    "message": "containers with unready status: [base]",
-                    "reason": "ContainersNotReady",
-                    "status": "False",
-                    "type": "ContainersReady",
-                },
-                {
-                    "last_probe_time": None,
-                    "last_transition_time": "2020-10-6T2:59:34+00:00",
-                    "message": None,
-                    "reason": None,
-                    "status": "True",
-                    "type": "PodScheduled",
-                },
-            ],
             "container_statuses": [
                 {
-                    "container_id": "docker://ec259b0c68d9bc981964859ecac3d2da107b38da4fa7ca3df3c3eedb61bfb47e",
-                    "image": "docker-registry.default-tenant.app.hedingber-30-2.iguazio-cd2.com:80/mlrun/func-default-h"
-                    "edi-simple-func-latest:latest",
-                    "image_id": "docker-pullable://docker-registry.default-tenant.app.hedingber-30-2.iguazio-cd2.com:80"
-                    "/mlrun/func-default-hedi-simple-func-latest@sha256:29a8b029b0b10b87a48c71a3161515d27f5"
-                    "65ec52f5cca04f01c1cde2e875152",
-                    "last_state": {
-                        "running": None,
-                        "terminated": None,
-                        "waiting": None,
-                    },
-                    "name": "base",
-                    "ready": False,
-                    "restart_count": 0,
                     "state": {
                         "running": None,
                         "terminated": {
@@ -404,13 +190,5 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     },
                 }
             ],
-            "host_ip": "172.31.4.201",
-            "init_container_statuses": None,
-            "message": None,
-            "nominated_node_name": None,
             "phase": "Failed",
-            "pod_ip": "10.200.0.51",
-            "qos_class": "BestEffort",
-            "reason": None,
-            "start_time": "2020-10-6T2:59:34+00:00",
         }

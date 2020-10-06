@@ -1,6 +1,11 @@
 import unittest.mock
 from typing import List, Dict
 
+from sqlalchemy.orm import Session
+
+import mlrun.api.crud as crud
+from mlrun.api.constants import LogSources
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import get_runtime_handler
 from mlrun.utils import create_logger
@@ -146,3 +151,26 @@ class TestRuntimeHandlerBase:
             return_value=services_mock
         )
         return service_mocks
+
+    @staticmethod
+    def _assert_list_namespaced_pods_calls(
+        expected_number_of_calls: int, expected_label_selector: str
+    ):
+        assert (
+            get_k8s().v1api.list_namespaced_pod.call_count == expected_number_of_calls
+        )
+        get_k8s().v1api.list_namespaced_pod.assert_any_call(
+            get_k8s().resolve_namespace(), label_selector=expected_label_selector
+        )
+
+    @staticmethod
+    def _assert_run_logs(db: Session, project: str, uid: str, expected_log: str):
+        _, log = crud.Logs.get_log(db, project, uid, source=LogSources.PERSISTENCY)
+        assert log == expected_log.encode()
+
+    @staticmethod
+    def _assert_run_reached_state(
+        db: Session, project: str, uid: str, expected_state: str
+    ):
+        run = get_db().read_run(db, uid, project)
+        assert run["status"]["state"] == expected_state

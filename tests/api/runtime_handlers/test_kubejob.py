@@ -3,8 +3,6 @@ import unittest.mock
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud as crud
-from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import RuntimeKinds
@@ -58,14 +56,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         TestKubejobRuntimeHandler._mock_list_namespaces_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = "Some log string"
-        self._mock_monitor_run_logs(log)
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
         expected_label_selector = self.runtime_handler._get_run_label_selector(
             self.project, self.run_uid
         )
         self.runtime_handler.monitor_run(
             get_db(), db, self.project, self.run_uid, interval=0
         )
-        TestKubejobRuntimeHandler._assert_list_namespaces_pods_calls(
+        TestKubejobRuntimeHandler._assert_list_namespaced_pods_calls(
             expected_number_of_list_pods_calls, expected_label_selector
         )
         TestKubejobRuntimeHandler._assert_run_reached_state(
@@ -84,14 +82,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         TestKubejobRuntimeHandler._mock_list_namespaces_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = "Some log string"
-        self._mock_monitor_run_logs(log)
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
         expected_label_selector = self.runtime_handler._get_run_label_selector(
             self.project, self.run_uid
         )
         self.runtime_handler.monitor_run(
             get_db(), db, self.project, self.run_uid, interval=0
         )
-        TestKubejobRuntimeHandler._assert_list_namespaces_pods_calls(
+        TestKubejobRuntimeHandler._assert_list_namespaced_pods_calls(
             expected_number_of_list_pods_calls, expected_label_selector
         )
         TestKubejobRuntimeHandler._assert_run_reached_state(
@@ -113,7 +111,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.monitor_run(
             get_db(), db, self.project, self.run_uid, interval=1, timeout=1
         )
-        TestKubejobRuntimeHandler._assert_list_namespaces_pods_calls(
+        TestKubejobRuntimeHandler._assert_list_namespaced_pods_calls(
             expected_number_of_list_pods_calls, expected_label_selector
         )
         TestKubejobRuntimeHandler._assert_run_reached_state(
@@ -132,7 +130,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         TestKubejobRuntimeHandler._mock_list_namespaces_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = "Some log string"
-        self._mock_monitor_run_logs(log)
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
         run = {"status": {"state": RunStates.completed}}
         get_db().store_run(db, run, self.run_uid, self.project)
         expected_label_selector = self.runtime_handler._get_run_label_selector(
@@ -141,36 +139,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.monitor_run(
             get_db(), db, self.project, self.run_uid, interval=0
         )
-        TestKubejobRuntimeHandler._assert_list_namespaces_pods_calls(
+        TestKubejobRuntimeHandler._assert_list_namespaced_pods_calls(
             expected_number_of_list_pods_calls, expected_label_selector
         )
         TestKubejobRuntimeHandler._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
         TestKubejobRuntimeHandler._assert_run_logs(db, self.project, self.run_uid, log)
-
-    @staticmethod
-    def _assert_run_logs(db: Session, project: str, uid: str, expected_log: str):
-        _, log = crud.Logs.get_log(db, project, uid, source=LogSources.PERSISTENCY)
-        assert log == expected_log.encode()
-
-    @staticmethod
-    def _assert_run_reached_state(
-        db: Session, project: str, uid: str, expected_state: str
-    ):
-        run = get_db().read_run(db, uid, project)
-        assert run["status"]["state"] == expected_state
-
-    @staticmethod
-    def _assert_list_namespaces_pods_calls(
-        expected_number_of_calls: int, expected_label_selector: str
-    ):
-        assert (
-            get_k8s().v1api.list_namespaced_pod.call_count == expected_number_of_calls
-        )
-        get_k8s().v1api.list_namespaced_pod.assert_any_call(
-            get_k8s().resolve_namespace(), label_selector=expected_label_selector
-        )
 
     def _mock_list_resources_pods(self):
         pod_dict = TestKubejobRuntimeHandler._generate_pod_dict(
@@ -180,10 +155,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             [[pod_dict]]
         )
         return mocked_responses[0].items
-
-    @staticmethod
-    def _mock_monitor_run_logs(log):
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
 
     @staticmethod
     def _generate_pod_dict(project, uid, status=None):

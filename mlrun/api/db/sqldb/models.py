@@ -159,8 +159,28 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
 
+    class ScheduleLabel(Base):
+        __tablename__ = "schedules_v2_labels"
+        __table_args__ = (
+            UniqueConstraint(
+                "name",
+                "schedule_project",
+                "schedule_name",
+                name="_schedules_v2_labels_uc",
+            ),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        value = Column(String)
+        schedule_project = Column(Integer, ForeignKey("schedules_v2.project"))
+        schedule_name = Column(Integer, ForeignKey("schedules_v2.name"))
+
     class Schedule(Base):
         __tablename__ = "schedules_v2"
+
+        Label = ScheduleLabel
+
         project = Column(String, primary_key=True)
         name = Column(String, primary_key=True)
         kind = Column(String)

@@ -385,6 +385,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 .PHONY: test
 test: clean ## Run mlrun tests
 	python -m pytest -v \
+		--capture=no \
 		--disable-warnings \
 		-rf \
 		tests

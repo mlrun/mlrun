@@ -3,7 +3,6 @@ from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
-
     def test_list_resources(self, k8s_helper_mock):
         pods = self._mock_list_kubejob_pods(k8s_helper_mock)
         self._assert_runtime_handler_list_resources(
@@ -63,11 +62,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "container_statuses": [
                     {
                         "container_id": "docker://c00c36dc9a702508c76b6074f2c2fa3e569daaf13f5a72931804da04a6e96987",
-                        "image": "docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.com:80/mlrun/func-defaul"
-                                 "t-my-trainer-latest:latest",
-                        "image_id": "docker-pullable://docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.com"
-                                    ":80/mlrun/func-default-my-trainer-latest@sha256:d23c93a997fa5ab89d899bf1bf1cb97fa506"
-                                    "97a74c61927c1df3266340076efc",
+                        "image": "docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.com:80/mlrun/func-defa"
+                        "ult-my-trainer-latest:latest",
+                        "image_id": "docker-pullable://docker-registry.default-tenant.app.hedingber-210-1.iguazio-cd0.c"
+                        "om:80/mlrun/func-default-my-trainer-latest@sha256:d23c93a997fa5ab89d899bf1bf1cb97f"
+                        "a50697a74c61927c1df3266340076efc",
                         "last_state": {
                             "running": None,
                             "terminated": None,
@@ -79,7 +78,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                         "state": {
                             "running": None,
                             "terminated": {
-                                "container_id": "docker://c00c36dc9a702508c76b6074f2c2fa3e569daaf13f5a72931804da04a6e96987",
+                                "container_id": "docker://c00c36dc9a702508c76b6074f2c2fa3e569daaf13f5a72931804da04a6e96"
+                                "987",
                                 "exit_code": 0,
                                 "finished_at": "2020-08-17T18:08:47+00:00",
                                 "message": None,

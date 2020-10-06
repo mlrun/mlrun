@@ -182,10 +182,11 @@ def _resume_monitoring_runs():
                 except Exception as exc:
                     logger.warning(
                         "Failed resuming monitoring for run. Ignoring",
+                        exc=str(exc),
                         project=project.name,
                     )
     except Exception as exc:
-        logger.warning("Failed resuming monitoring. Ignoring")
+        logger.warning("Failed resuming monitoring. Ignoring", exc=str(exc))
     finally:
         close_session(db_session)
 

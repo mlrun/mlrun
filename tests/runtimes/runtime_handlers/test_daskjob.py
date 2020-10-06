@@ -3,7 +3,6 @@ from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
-
     def test_list_resources(self, k8s_helper_mock):
         pods = self._mock_list_daskjob_pods(k8s_helper_mock)
         services = self._create_daskjob_service_mocks(k8s_helper_mock)
@@ -70,8 +69,8 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
                     {
                         "container_id": "docker://c24d68d4c71d8f61bed56aaf424dc7ffb86a9f59d7710afaa1e28f47bd466a5e",
                         "image": "mlrun/ml-models:0.5.1",
-                        "image_id": "docker-pullable://mlrun/ml-models@sha256:07cc9e991dc603dbe100f4eae93d20f3ce53af1e6d4af"
-                                    "5191dbc66e6dfbce85b",
+                        "image_id": "docker-pullable://mlrun/ml-models@sha256:07cc9e991dc603dbe100f4eae93d20f3ce53af1e6"
+                        "d4af5191dbc66e6dfbce85b",
                         "last_state": {
                             "running": None,
                             "terminated": None,
@@ -152,8 +151,8 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
                     {
                         "container_id": "docker://18f75b15b9fbf0ed9136d9ec7f14cf1d62dbfa078877f89847fa346fe09ff574",
                         "image": "mlrun/ml-models:0.5.1",
-                        "image_id": "docker-pullable://mlrun/ml-models@sha256:07cc9e991dc603dbe100f4eae93d20f3ce53af1e6d4af"
-                                    "5191dbc66e6dfbce85b",
+                        "image_id": "docker-pullable://mlrun/ml-models@sha256:07cc9e991dc603dbe100f4eae93d20f3ce53af1e6"
+                        "d4af5191dbc66e6dfbce85b",
                         "last_state": {
                             "running": None,
                             "terminated": None,
@@ -180,7 +179,9 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-18T00:36:21+00:00",
             },
         }
-        return TestDaskjobRuntimeHandler._mock_list_pods(k8s_helper_mock, [scheduler_pod_dict, worker_pod_dict])
+        return TestDaskjobRuntimeHandler._mock_list_pods(
+            k8s_helper_mock, [scheduler_pod_dict, worker_pod_dict]
+        )
 
     @staticmethod
     def _create_daskjob_service_mocks(k8s_helper_mock):
@@ -200,4 +201,6 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
                 },
             },
         }
-        return TestDaskjobRuntimeHandler._mock_list_services(k8s_helper_mock, [service_dict])
+        return TestDaskjobRuntimeHandler._mock_list_services(
+            k8s_helper_mock, [service_dict]
+        )

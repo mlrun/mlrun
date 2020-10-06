@@ -3,7 +3,6 @@ from tests.runtimes.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
-
     def test_list_sparkjob_resources(self, k8s_helper_mock):
         crds = self._mock_list_sparkjob_crds(k8s_helper_mock)
         pods = self._mock_list_sparkjob_pods(k8s_helper_mock)
@@ -35,7 +34,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                     "webUIServiceName": "my-spark-jdbc-2ea432f1-ui-svc",
                 },
                 "executionAttempts": 2,
-                "executorState": {"my-spark-jdbc-2ea432f1-1597760338437-exec-1": "RUNNING"},
+                "executorState": {
+                    "my-spark-jdbc-2ea432f1-1597760338437-exec-1": "RUNNING"
+                },
                 "sparkApplicationId": "spark-12f88a73cb544ce298deba34947226a4",
                 "submissionAttempts": 1,
                 "submissionID": "44343f6b-42ca-41d4-b01a-66052cc5c919",
@@ -107,7 +108,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                         "container_id": "docker://de6c8574b113b1200bae56918e77b4f8f344f18741d8f53cdb5eab5c55f6c16a",
                         "image": "iguazio/spark-app:2.10_b59_20200813105414",
                         "image_id": "docker://sha256:251e43e69e8449dc45883ad4e5d3cf785068fa86852335d69e56b605c6bd03"
-                                    "0b",
+                        "0b",
                         "last_state": {
                             "running": None,
                             "terminated": None,
@@ -219,4 +220,6 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-18T14:19:08+00:00",
             },
         }
-        return TestSparkjobRuntimeHandler._mock_list_pods(k8s_helper_mock, [executor_pod_dict, driver_pod_dict])
+        return TestSparkjobRuntimeHandler._mock_list_pods(
+            k8s_helper_mock, [executor_pod_dict, driver_pod_dict]
+        )

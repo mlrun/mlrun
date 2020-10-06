@@ -842,7 +842,8 @@ class BaseRuntimeHandler(ABC):
             )
         except Exception as exc:
             logger.warning(
-                "Run did not reach stable state in given timeout. Marking with error"
+                "Run did not reach stable state in given timeout. Marking with error",
+                exc=str(exc),
             )
             self._ensure_run_status_updated(
                 db, db_session, project, run_uid, RunStates.error

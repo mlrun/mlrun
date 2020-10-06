@@ -147,9 +147,13 @@ def server_fixture():
         if process:
             process.terminate()
             stdout = process.stdout.read()
-            human_readable_stdout = stdout.decode("utf-8").replace('\\n', '\n').replace('\\t', '\t')
+            human_readable_stdout = (
+                stdout.decode("utf-8").replace("\\n", "\n").replace("\\t", "\t")
+            )
             stderr = process.stderr.read()
-            human_readable_stderr = stderr.decode("utf-8").replace('\\n', '\n').replace('\\t', '\t')
+            human_readable_stderr = (
+                stderr.decode("utf-8").replace("\\n", "\n").replace("\\t", "\t")
+            )
             print(f"Stdout from server {human_readable_stdout}")
             print(f"Stderr from server {human_readable_stderr}")
         if workdir:
@@ -181,7 +185,7 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
-    db.store_run({'asd': 'asd'}, uid, prj)
+    db.store_run({"asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
     state, data = db.get_log(uid, prj)

@@ -129,6 +129,19 @@ class ServingRuntime(RemoteRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
+    def set_router(self, router, **router_args):
+        """set the routing class and router arguments"""
+        self.spec.router = router
+        self.spec.router_args = router_args
+
+    def set_tracking(self, stream_path, batch=None, sample=None):
+        """set tracking log stream parameters"""
+        self.spec.parameters["log_stream"] = stream_path
+        if batch:
+            self.spec.parameters["log_stream_batch"] = batch
+        if sample:
+            self.spec.parameters["log_stream_sample"] = sample
+
     def add_model(
         self,
         name,
@@ -152,7 +165,7 @@ class ServingRuntime(RemoteRuntime):
         """
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")
-        if model_path and not model_class:
+        if model_path and not model_class and not self.spec.default_class:
             raise ValueError("model_path must be provided with model_class")
         if model_path:
             model_path = str(model_path)
@@ -166,6 +179,13 @@ class ServingRuntime(RemoteRuntime):
         }
         model = {k: v for k, v in model.items() if v is not None}
         self.spec.models[name] = model
+
+    def remove_models(self, *names):
+        """remove one, multiple, or all models from the spec (blank list for all)"""
+        if not names:
+            names = self.spec.models.keys()
+        for name in names:
+            del self.spec.models[name]
 
     def deploy(self, dashboard="", project="", tag=""):
         """deploy model serving function to a local/remote cluster

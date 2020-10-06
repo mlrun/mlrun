@@ -57,20 +57,38 @@ you can override additional methods : `preprocess`, `validate`, `postprocess`, `
 you can add custom api endpoint by adding method `op_xx(event)`, it can be invoked by
 calling the <model-url>/xx (operation = xx)
 
-minimal serving function example:
+**minimal sklearn serving function example:**
 
 ```python
-    class MyClass(V2ModelServer):
-        def load(self):
-            # load and initialize the model and/or other elements
-            model_file, extra_data = self.get_model(suffix='.pkl')
-            self.model = load(open(model_file, "rb"))
+from cloudpickle import load
+import numpy as np
+import mlrun
 
-        def predict(self, request):
-            events = np.array(request['inputs'])
-            dmatrix = xgb.DMatrix(events)
-            result: xgb.DMatrix = self.model.predict(dmatrix)
-            return {"outputs": result.tolist()}
+class ClassifierModel(mlrun.serving.V2ModelServer):
+    def load(self):
+        """load and initialize the model and/or other elements"""
+        model_file, extra_data = self.get_model('.pkl')
+        self.model = load(open(model_file, 'rb'))
+
+    def predict(self, body: dict) -> list:
+        """Generate model predictions from sample"""
+        feats = np.asarray(body['inputs'])
+        result: np.ndarray = self.model.predict(feats)
+        return result.tolist()
+```
+
+**To test the function locally use the mock server:**
+
+```python
+from mlrun.serving.server import get_mock_server
+
+models_path = '{model artifact/dir path}'
+server = get_mock_server()
+server.add_model("mymodel", model_class=ClassifierModel, model_path=models_path)
+
+from sklearn.datasets import load_iris
+x = load_iris()['data'].tolist()
+result = server.test("mymodel/infer", {"inputs": x})
 ```
 
 #### Load() method
@@ -126,7 +144,7 @@ and aggregate the result), multi-armed-bandit, etc.
 You can use a pre-defined Router class, or write your own custom router. 
 Router can route to models on the same function or access models on a separate function.
 
-to specify the router class and class args set the `spec.router` and `spec.router_args` (dict).
+to specify the router class and class args use `.set_router()` with your function.
 
 ## Creating Model Serving Function (Service)
 
@@ -146,7 +164,7 @@ see `.add_model()` docstring for help and parameters,
 see [xgb_serving.ipynb](../../examples/xgb_serving.ipynb) notebook example.
 
 If we want to use multiple versions for the same model, we use `:` to seperate the name from the version, 
-e.g. if the name is`mymodel:v2` it means model name `mymodel` version `v2`.
+e.g. if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
 User should specify the `model_path` (url of the model artifact/dir) and the `model_class` name 
 (or class `module.submodule.class`), alternatively you can set the `model_url` for calling a 
@@ -228,7 +246,6 @@ response structure:
       "model_name" : $string,
       "model_version" : $string #optional,
       "id" : $string,
-      "parameters" : $parameters #optional,
       "outputs" : [ $response_output, ... ]
     }
 
@@ -252,7 +269,6 @@ response structure:
       "model_name" : $string,
       "model_version" : $string #optional,
       "id" : $string,
-      "parameters" : $parameters #optional,
       "outputs" : [ $response_output, ... ]
     }
 
@@ -262,8 +278,12 @@ Model activities can be tracked into a real-time stream and time-series DB, the 
 used to create real-time dashboards and track model accuracy and drift. 
 to set the streaming option specify the following function spec attributes:
 
-* `spec.parameters["log_stream"]` - the v3io stream path (e.g. `v3io:///users/..`)
-* `spec.parameters["log_stream_sample"]` -  optional, sample every N requests
-* `spec.parameters["log_stream_batch"]` -  optional, send micro-batches every N requests
+to add tracking to your model add tracking parameters to your function:
+
+    fn.set_tracking(stream_path, batch, sample)
+
+* `stream_path` - the v3io stream path (e.g. `v3io:///users/..`)
+* `sample` -  optional, sample every N requests
+* `batch` -  optional, send micro-batches every N requests
 
 

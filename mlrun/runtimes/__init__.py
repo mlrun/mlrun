@@ -88,6 +88,7 @@ class RuntimeKinds(object):
         return [
             RuntimeKinds.remote,
             RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
             RuntimeKinds.dask,
             RuntimeKinds.job,
             RuntimeKinds.spark,

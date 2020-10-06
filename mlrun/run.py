@@ -585,7 +585,7 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels
 
-    def nuclio_kind():
+    def nuclio_kind(kind):
         is_nuclio = kind.startswith("nuclio:")
         subkind = kind[kind.find(":") + 1 :] if is_nuclio else None
         if kind == "serving":
@@ -603,18 +603,18 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
-    is_nuclio, subkind = nuclio_kind()
+    is_nuclio, subkind = nuclio_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(
         filename, name=name, handler=handler or "handler", kind=subkind
     )
     spec_kind = get_in(spec, "kind", "")
-    if spec_kind not in ["", "Function"]:
+    if not kind and spec_kind not in ["", "Function"]:
         kind = spec_kind.lower()
 
         # if its a nuclio subkind, redo nb parsing
-        is_nuclio, subkind = nuclio_kind()
+        is_nuclio, subkind = nuclio_kind(kind)
         if is_nuclio:
             subkind = kind[kind.find(":") + 1 :]
             name, spec, code = build_file(

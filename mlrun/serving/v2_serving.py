@@ -142,7 +142,14 @@ class V2ModelServer:
             if "id" not in request:
                 request["id"] = event.id
             request = self.validate(request, op)
-            response = self.predict(request)
+            outputs = self.predict(request)
+            response = {
+                "id": request["id"],
+                "model_name": self.name,
+                "outputs": outputs,
+            }
+            if self.version:
+                response["model_version"] = self.version
 
         elif op == "ready" and event.method == "GET":
             # get model health operation
@@ -174,7 +181,14 @@ class V2ModelServer:
             self._check_readiness(event)
             request = self.preprocess(event.body, op)
             request = self.validate(request, op)
-            response = self.explain(request)
+            outputs = self.explain(request)
+            response = {
+                "id": request["id"],
+                "model_name": self.name,
+                "outputs": outputs,
+            }
+            if self.version:
+                response["model_version"] = self.version
 
         elif hasattr(self, "op_" + op):
             # custom operation (child methods starting with "op_")

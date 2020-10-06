@@ -16,29 +16,29 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
 
         # initializing them here to save space in tests
-        self.active_crd_dict = TestMPIjobRuntimeHandler._generate_mpijob_crd(
+        self.active_crd_dict = self._generate_mpijob_crd(
             self.project,
             self.run_uid,
-            TestMPIjobRuntimeHandler._get_active_crd_status(),
+            self._get_active_crd_status(),
         )
-        self.succeeded_crd_dict = TestMPIjobRuntimeHandler._generate_mpijob_crd(
+        self.succeeded_crd_dict = self._generate_mpijob_crd(
             self.project,
             self.run_uid,
-            TestMPIjobRuntimeHandler._get_succeeded_crd_status(),
+            self._get_succeeded_crd_status(),
         )
-        self.failed_crd_dict = TestMPIjobRuntimeHandler._generate_mpijob_crd(
+        self.failed_crd_dict = self._generate_mpijob_crd(
             self.project,
             self.run_uid,
-            TestMPIjobRuntimeHandler._get_failed_crd_status(),
+            self._get_failed_crd_status(),
         )
 
         # there's currently a bug (fix was merged but not released https://github.com/kubeflow/mpi-operator/pull/271)
         # that causes mpijob's pods to not being labels with the given (MLRun's) labels - this prevents list resources
         # from finding the pods, so we're simulating the same thing here
-        TestMPIjobRuntimeHandler._mock_list_namespaces_pods([[]])
+        self._mock_list_namespaces_pods([[]])
 
     def test_list_mpijob_resources(self):
-        mocked_responses = TestMPIjobRuntimeHandler._mock_list_namespaced_crds(
+        mocked_responses = self._mock_list_namespaced_crds(
             [[self.succeeded_crd_dict]]
         )
         self._assert_runtime_handler_list_resources(
@@ -50,7 +50,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.active_crd_dict],
             [self.succeeded_crd_dict],
         ]
-        TestMPIjobRuntimeHandler._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         expected_label_selector = self.runtime_handler._get_run_label_selector(
             self.project, self.run_uid
@@ -58,22 +58,22 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.monitor_run(
             get_db(), db, self.project, self.run_uid, interval=0
         )
-        TestMPIjobRuntimeHandler._assert_list_namespaced_crds_calls(
+        self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             expected_number_of_list_crds_calls,
             expected_label_selector,
         )
-        TestMPIjobRuntimeHandler._assert_run_reached_state(
+        self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        TestMPIjobRuntimeHandler._assert_run_logs(db, self.project, self.run_uid, "")
+        self._assert_run_logs(db, self.project, self.run_uid, "")
 
     def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.active_crd_dict],
             [self.failed_crd_dict],
         ]
-        TestMPIjobRuntimeHandler._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         expected_label_selector = self.runtime_handler._get_run_label_selector(
             self.project, self.run_uid
@@ -81,15 +81,15 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.monitor_run(
             get_db(), db, self.project, self.run_uid, interval=0
         )
-        TestMPIjobRuntimeHandler._assert_list_namespaced_crds_calls(
+        self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             expected_number_of_list_crds_calls,
             expected_label_selector,
         )
-        TestMPIjobRuntimeHandler._assert_run_reached_state(
+        self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.error
         )
-        TestMPIjobRuntimeHandler._assert_run_logs(db, self.project, self.run_uid, "")
+        self._assert_run_logs(db, self.project, self.run_uid, "")
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):

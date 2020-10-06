@@ -190,7 +190,6 @@ class BaseRuntime(ModelObj):
     def _use_remote_api(self):
         if (
             self._is_remote
-            and not self.kfp
             and not self._is_api_server
             and self._get_db()
             and self._get_db().kind == "http"
@@ -371,7 +370,7 @@ class BaseRuntime(ModelObj):
                     txt = get_in(resp, "status.status_text")
                     if txt:
                         logger.info(txt)
-                if watch:
+                if watch or self.kfp:
                     runspec.logs(True, self._get_db())
                     resp = self._get_db_run(runspec)
             except Exception as err:

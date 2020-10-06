@@ -1,9 +1,10 @@
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
 
+from mlrun import mlconf
 from mlrun.api.db.sqldb.session import create_session, _init_engine
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import app
@@ -35,5 +36,7 @@ def db() -> Generator:
 
 @pytest.fixture()
 def client() -> Generator:
-    with TestClient(app) as c:
-        yield c
+    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+        mlconf.httpdb.logs_path = log_dir
+        with TestClient(app) as c:
+            yield c

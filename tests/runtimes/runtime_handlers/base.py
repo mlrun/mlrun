@@ -13,7 +13,6 @@ class TestRuntimeHandlerBase:
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
-        self._run_db = get_run_db()
 
         self.custom_setup()
 
@@ -110,16 +109,6 @@ class TestRuntimeHandlerBase:
                     resources["service_resources"][index]["labels"]
                     == service.metadata.labels
                 )
-
-    @staticmethod
-    def _mock_list_pods(k8s_helper_mock, pod_dicts):
-        pod_mocks = []
-        for pod_dict in pod_dicts:
-            pod_mock = unittest.mock.Mock()
-            pod_mock.to_dict.return_value = pod_dict
-            pod_mocks.append(pod_mock)
-        k8s_helper_mock.list_pods.return_value = pod_mocks
-        return pod_mocks
 
     @staticmethod
     def _mock_list_crds(k8s_helper_mock, crd_dicts):

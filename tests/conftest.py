@@ -116,3 +116,34 @@ def init_sqldb(dsn):
     engine = create_engine(dsn)
     Base.metadata.create_all(bind=engine)
     return sessionmaker(bind=engine)
+
+
+class DictToObjectWrapper:
+    """
+    This class enables to wrap dict in a object to enable attribute access. e.g.
+    >>> d = {'a': 1, 'b': {'c': 2}, 'd': ["hi", {'foo': "bar"}]}
+    >>> x.b.c
+    2
+    >>> x.d[1].foo
+    'bar'
+
+    Notes:
+        - changing the values of the dict after initialization won't affect the class instance attribute values
+        - changing the class instance attribute values after initialization won't affect dict
+    """
+    def __init__(self, dictionary):
+        for key, value in dictionary.items():
+            if isinstance(value, (list, tuple)):
+                setattr(self, key, [DictToObjectWrapper(item) if isinstance(item, dict) else item for item in value])
+            else:
+                setattr(self, key, DictToObjectWrapper(value) if isinstance(value, dict) else value)
+
+
+class DictToK8sObjectWrapper(DictToObjectWrapper):
+
+    def __init__(self, dictionary):
+        self._should_never_ever_be_a_key_in_the_dictionary = dictionary
+        super().__init__(dictionary)
+
+    def to_dict(self):
+        return self._should_never_ever_be_a_key_in_the_dictionary

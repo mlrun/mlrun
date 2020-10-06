@@ -220,6 +220,4 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-18T14:19:08+00:00",
             },
         }
-        return TestSparkjobRuntimeHandler._mock_list_pods(
-            k8s_helper_mock, [executor_pod_dict, driver_pod_dict]
-        )
+        return k8s_helper_mock.mock_list_pods([executor_pod_dict, driver_pod_dict])

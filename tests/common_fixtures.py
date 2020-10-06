@@ -7,10 +7,11 @@ import pytest
 import requests
 import v3io.dataplane
 
+
 import mlrun.k8s_utils
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.config import config
-from tests.conftest import init_sqldb
+from tests.conftest import init_sqldb, DictToK8sObjectWrapper
 
 
 @pytest.fixture
@@ -21,6 +22,14 @@ def k8s_helper_mock(monkeypatch):
 
         def is_running_inside_kubernetes_cluster(self):
             return False
+
+        def mock_list_pods(self, pod_dicts):
+            pods = []
+            for pod_dict in pod_dicts:
+                pod = DictToK8sObjectWrapper(pod_dict)
+                pods.append(pod)
+            self.list_pods.return_value = pods
+            return pods
 
     # remember the real one
     real_k8s_helper = mlrun.k8s_utils._k8s

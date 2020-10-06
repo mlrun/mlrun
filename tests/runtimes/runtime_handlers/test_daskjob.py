@@ -179,9 +179,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-18T00:36:21+00:00",
             },
         }
-        return TestDaskjobRuntimeHandler._mock_list_pods(
-            k8s_helper_mock, [scheduler_pod_dict, worker_pod_dict]
-        )
+        return k8s_helper_mock.mock_list_pods([scheduler_pod_dict, worker_pod_dict])
 
     @staticmethod
     def _create_daskjob_service_mocks(k8s_helper_mock):

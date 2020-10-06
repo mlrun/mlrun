@@ -102,4 +102,4 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "start_time": "2020-08-17T18:08:23+00:00",
             },
         }
-        return TestKubejobRuntimeHandler._mock_list_pods(k8s_helper_mock, [pod_dict])
+        return k8s_helper_mock.mock_list_pods([pod_dict])

@@ -1302,23 +1302,27 @@ class BaseRuntimeHandler(ABC):
         uid: str,
         desired_run_state: str,
     ) -> str:
-        run = db.read_run(db_session, uid, project)
-
-        current_run_state = run.get("status", {}).get("state")
-        logger.debug(
-            "Checking whether need to update run status",
-            desired_run_state=desired_run_state,
-            current_run_state=current_run_state,
-        )
+        run = {}
         update_run = True
         updated_run_state = desired_run_state
-        if current_run_state:
-            if current_run_state == desired_run_state:
-                update_run = False
-            # if the current run state is stable and different then the desired - don't touch
-            if current_run_state in RunStates.stable_states():
-                updated_run_state = current_run_state
-                update_run = False
+        try:
+            run = db.read_run(db_session, uid, project)
+        except mlrun.errors.MLRunNotFoundError:
+            logger.warning("Run not found. A new run with status only will be created", project=project, uid=uid, desired_run_state=desired_run_state)
+        else:
+            current_run_state = run.get("status", {}).get("state")
+            logger.debug(
+                "Checking whether need to update run status",
+                desired_run_state=desired_run_state,
+                current_run_state=current_run_state,
+            )
+            if current_run_state:
+                if current_run_state == desired_run_state:
+                    update_run = False
+                # if the current run state is stable and different then the desired - don't touch
+                if current_run_state in RunStates.stable_states():
+                    updated_run_state = current_run_state
+                    update_run = False
 
         if update_run:
             logger.info("Updating run state", run_state=desired_run_state)

@@ -255,7 +255,7 @@ class K8sHelper:
 
     def get_logger_pods(self, project, uid, namespace=""):
         namespace = self.resolve_namespace(namespace)
-        selector = f"mlrun/class,mlrun/uid={uid},mlrun/project={project}"
+        selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
         pods = self.list_pods(namespace, selector=selector)
         if not pods:
             logger.error("no pod matches that uid", uid=uid)

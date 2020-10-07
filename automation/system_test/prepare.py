@@ -327,8 +327,8 @@ class SystemTestPreparer:
         mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
 
         repo_arg = ""
-        if self._override_full_image_repo:
-            repo_arg = f"--override-image-pull-repo {self._override_full_image_repo}"
+        # if self._override_full_image_repo:
+        #     repo_arg = f"--override-image-pull-repo {self._override_full_image_repo}"
 
         override_image_arg = ""
         if self._override_mlrun_images:

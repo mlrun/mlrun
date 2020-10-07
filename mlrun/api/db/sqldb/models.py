@@ -164,7 +164,7 @@ with warnings.catch_warnings():
         __table_args__ = (
             UniqueConstraint(
                 "name",
-                "schedule_project",
+                "project",
                 "schedule_name",
                 name="_schedules_v2_labels_uc",
             ),
@@ -173,7 +173,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String)
         value = Column(String)
-        schedule_project = Column(Integer, ForeignKey("schedules_v2.project"))
+        project = Column(Integer, ForeignKey("schedules_v2.project"))
         schedule_name = Column(Integer, ForeignKey("schedules_v2.name"))
 
     class Schedule(Base):

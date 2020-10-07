@@ -70,7 +70,7 @@ jobs:
         fork_mlrun_hash=${{ steps.git_fork_info.outputs.mlrun_hash }} && \
         upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
         export mlrun_hash=${fork_mlrun_hash:-`echo $upstream_mlrun_hash`}
-        echo "::set-output name=mlrun_version::$(${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
+        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
         echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-${{ steps.git_upstream_info.outputs.ui_hash }}"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \

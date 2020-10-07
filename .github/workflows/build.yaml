@@ -10,7 +10,7 @@ on:
     inputs:
       docker_registry:
         description: 'Docker registry to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
-        required: false
+        required: true
         default: 'ghcr.io/'
       docker_repo:
         description: 'Docker repo to push images to (default: lowered github repository owner name)'

@@ -15,12 +15,12 @@ on:
     inputs:
       docker_registry:
         description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
-        required: false
+        required: true
         default: 'ghcr.io/'
       docker_repo:
         description: 'Docker repo to pull images from (default: mlrun)'
-        required: false
-        default: ''
+        required: true
+        default: 'mlrun'
 
 jobs:
   run-system-tests-ci:

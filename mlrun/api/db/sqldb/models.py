@@ -162,7 +162,7 @@ with warnings.catch_warnings():
     class Schedule(Base):
         __tablename__ = "schedules_v2"
         __table_args__ = (
-            UniqueConstraint("id", "project", "name", name="_schedules_v2_uc"),
+            UniqueConstraint("project", "name", name="_schedules_v2_uc"),
         )
 
         Label = make_label(__tablename__)

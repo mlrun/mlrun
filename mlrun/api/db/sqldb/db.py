@@ -490,7 +490,10 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
         )
 
-        labels = get_in(scheduled_object, "metadata.labels", {})
+        try:
+            labels = get_in(scheduled_object, "metadata.labels", {})
+        except TypeError:
+            labels = {}
         update_labels(schedule, labels)
 
         logger.debug(

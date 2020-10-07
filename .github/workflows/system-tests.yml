@@ -41,9 +41,9 @@ jobs:
       run: pip install -r automation/requirements.txt && python setup.py develop
     - name: Install curl and jq
       run: sudo apt-get install curl jq
-    - name: Extract git hash from mlrun fork
+    - name: Extract git hash from action mlrun version
       if: ${{ github.event_name == 'workflow_dispatch' }}
-      id: git_fork_info
+      id: git_action_info
       run: |
         echo "::set-output name=mlrun_hash::$(git rev-parse --short $GITHUB_SHA)"
     - name: Extract git hashes from upstream and latest version
@@ -67,9 +67,9 @@ jobs:
     - name: Set computed versions params
       id: computed_params
       run: |
-        fork_mlrun_hash=${{ steps.git_fork_info.outputs.mlrun_hash }} && \
+        action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
         upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
-        export mlrun_hash=${fork_mlrun_hash:-`echo $upstream_mlrun_hash`}
+        export mlrun_hash=${action_mlrun_hash:-`echo $upstream_mlrun_hash`}
         echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
         echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-${{ steps.git_upstream_info.outputs.ui_hash }}"
         echo "::set-output name=mlrun_docker_repo::$( \

@@ -14,11 +14,11 @@ on:
   workflow_dispatch:
     inputs:
       docker_registry:
-        description: 'Docker registry to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
+        description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
         required: false
         default: 'ghcr.io/'
       docker_repo:
-        description: 'Docker repo to push images to (default: lowered github repository owner name)'
+        description: 'Docker repo to pull images from (default: mlrun)'
         required: false
         default: ''
 

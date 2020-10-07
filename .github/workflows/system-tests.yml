@@ -22,7 +22,7 @@ on:
         required: true
         default: 'mlrun'
       test_code_from_action:
-        description: 'Test code will be taken from the action REF anyways, this determines whether the tested code will be taken from there or from upstream (default: false)'
+        description: 'Take tested code from action REF (default: false - take from upstream) (note that test code will be taken from the action REF anyways)'
         required: true
         default: 'false'
 

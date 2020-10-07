@@ -6,8 +6,16 @@ on:
     - development
 #    - '[0-9]+.[0-9]+.x'
 
-  workflow_dispatch: ~
-
+  workflow_dispatch:
+    inputs:
+      docker_registry:
+        description: 'Docker registry to push images to (default: ghcr.io/)'
+        required: false
+        default: 'ghcr.io/'
+      docker_repo:
+        description: 'Docker repo to push images to (default: lowered github repository owner name)'
+        required: false
+        default: ''
 jobs:
   build-images:
     name: Build and push image - ${{ matrix.image-name }}
@@ -42,7 +50,13 @@ jobs:
       id: computed_params
       run: |
         echo "::set-output name=mlrun_version::${{ steps.git_info.outputs.latest_version }}-${{ steps.git_info.outputs.mlrun_commit_hash }}"
-        echo "::set-output name=mlrun_docker_repo::$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')"
+        echo "::set-output name=mlrun_docker_repo::$( \
+          input_docker_repo=${{ github.event.inputs.docker_repo }} && \
+          default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
+          echo ${input_docker_repo:-`echo $default_docker_repo`})"
+        echo "::set-output name=mlrun_docker_registry::$( \
+          input_docker_registry=${{ github.event.inputs.docker_registry }} && \
+          echo ${input_docker_registry:-ghcr.io/})"
     - name: Docker login
       run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ secrets.CR_USERNAME }} --password-stdin
     - name: Pull cache, build and push image
@@ -51,7 +65,7 @@ jobs:
       # to use it and run much faster
       if: ${{ matrix.image-name != 'test' }}
       run: |
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+        MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registry }} \
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache \
@@ -59,7 +73,7 @@ jobs:
     - name: Pull cache, build and push test image
       if: ${{ matrix.image-name == 'test' }}
       run: |
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+        MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registry }} \
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=unstable-cache \
         MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache \

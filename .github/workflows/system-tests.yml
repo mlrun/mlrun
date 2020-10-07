@@ -21,6 +21,10 @@ on:
         description: 'Docker repo to pull images from (default: mlrun)'
         required: true
         default: 'mlrun'
+      test_code_from_action:
+        description: 'Test code will be taken from the action REF anyways, this determines whether the tested code will be taken from there or from upstream (default: false)'
+        required: true
+        default: 'false'
 
 jobs:
   run-system-tests-ci:
@@ -42,7 +46,7 @@ jobs:
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Extract git hash from action mlrun version
-      if: ${{ github.event_name == 'workflow_dispatch' }}
+      if: ${{ github.event.inputs.test_code_from_action == 'true' }}
       id: git_action_info
       run: |
         echo "::set-output name=mlrun_hash::$(git rev-parse --short $GITHUB_SHA)"

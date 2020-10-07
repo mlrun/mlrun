@@ -1,8 +1,8 @@
 """schedule labels
 
-Revision ID: bf1a9b79abf9
-Revises: 11f8dd2dc9fe
-Create Date: 2020-10-07 10:09:06.324628
+Revision ID: b68e8e897a28
+Revises: cf21882f938e
+Create Date: 2020-10-07 11:30:41.810844
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'bf1a9b79abf9'
-down_revision = '11f8dd2dc9fe'
+revision = 'b68e8e897a28'
+down_revision = 'cf21882f938e'
 branch_labels = None
 depends_on = None
 
@@ -23,14 +23,10 @@ def upgrade():
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(), nullable=True),
         sa.Column('value', sa.String(), nullable=True),
-        sa.Column('project', sa.Integer(), nullable=True),
-        sa.Column('schedule_name', sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(['project'], ['schedules_v2.project'],),
-        sa.ForeignKeyConstraint(['schedule_name'], ['schedules_v2.name'],),
+        sa.Column('parent', sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(['parent'], ['schedules_v2.id'],),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint(
-            'name', 'project', 'schedule_name', name='_schedules_v2_labels_uc'
-        ),
+        sa.UniqueConstraint('name', 'parent', name='_schedules_v2_labels_uc'),
     )
     # ### end Alembic commands ###
 

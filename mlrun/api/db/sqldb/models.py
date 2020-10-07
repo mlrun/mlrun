@@ -159,33 +159,24 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
 
-    class ScheduleLabel(Base):
-        __tablename__ = "schedules_v2_labels"
-        __table_args__ = (
-            UniqueConstraint(
-                "name", "project", "schedule_name", name="_schedules_v2_labels_uc",
-            ),
-        )
-
-        id = Column(Integer, primary_key=True)
-        name = Column(String)
-        value = Column(String)
-        project = Column(Integer, ForeignKey("schedules_v2.project"))
-        schedule_name = Column(Integer, ForeignKey("schedules_v2.name"))
-
     class Schedule(Base):
         __tablename__ = "schedules_v2"
+        __table_args__ = (
+            UniqueConstraint("id", "project", "name", name="_schedules_v2_uc"),
+        )
 
-        Label = ScheduleLabel
+        Label = make_label(__tablename__)
 
-        project = Column(String, primary_key=True)
-        name = Column(String, primary_key=True)
+        id = Column(Integer, primary_key=True)
+        project = Column(String, nullable=False)
+        name = Column(String, nullable=False)
         kind = Column(String)
         desired_state = Column(String)
         state = Column(String)
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
         struct = Column(BLOB)
+        labels = relationship(Label)
 
         @property
         def scheduled_object(self):

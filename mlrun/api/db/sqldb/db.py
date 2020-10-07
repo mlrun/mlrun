@@ -490,6 +490,9 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
         )
 
+        labels = get_in(scheduled_object, "metadata.labels", {})
+        update_labels(schedule, labels)
+
         logger.debug(
             "Saving schedule to db",
             project=project,

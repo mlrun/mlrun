@@ -163,10 +163,7 @@ with warnings.catch_warnings():
         __tablename__ = "schedules_v2_labels"
         __table_args__ = (
             UniqueConstraint(
-                "name",
-                "project",
-                "schedule_name",
-                name="_schedules_v2_labels_uc",
+                "name", "project", "schedule_name", name="_schedules_v2_labels_uc",
             ),
         )
 

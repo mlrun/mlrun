@@ -587,11 +587,10 @@ def code_to_function(
 
     def nuclio_kind(kind):
         is_nuclio = kind.startswith("nuclio:")
-        subkind = kind[kind.find(":") + 1:] if is_nuclio else None
+        subkind = kind[kind.find(":") + 1 :] if is_nuclio else None
         if kind == "serving":
             is_nuclio = True
             subkind = serving_subkind
-        print('kind:', kind, is_nuclio, subkind)
         return is_nuclio, subkind
 
     if (
@@ -617,7 +616,6 @@ def code_to_function(
         # if its a nuclio subkind, redo nb parsing
         is_nuclio, subkind = nuclio_kind(kind)
         if is_nuclio:
-            subkind = kind[kind.find(":") + 1 :]
             name, spec, code = build_file(
                 filename, name=name, handler=handler or "handler", kind=subkind
             )

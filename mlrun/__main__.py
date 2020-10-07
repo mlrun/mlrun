@@ -431,10 +431,12 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
         exit(1)
 
     if runtime and runtime["kind"] == "serving":
+        print("Deploy V2 model server")
         f = ServingRuntime.from_dict(runtime)
         if model:
             for m in model:
                 args = json.loads(m)
+                print("add model:", str(args))
                 f.add_model(**args)
     else:
         f = RemoteRuntime.from_dict(runtime)

@@ -39,9 +39,7 @@ def alembic_session(alembic_engine):
 
 
 @pytest.mark.alembic
-def test_schedule_id_column(
-    alembic_runner, alembic_session, alembic_config
-):
+def test_schedule_id_column(alembic_runner, alembic_session, alembic_config):
     alembic_runner.migrate_up_to("head")
 
     # schedule id migration revision

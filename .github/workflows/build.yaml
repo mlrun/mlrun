@@ -4,7 +4,6 @@ on:
   push:
     branches:
     - development
-    - action_fixes
 #    - '[0-9]+.[0-9]+.x'
 
   workflow_dispatch: ~
@@ -15,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'hedingber/mlrun'
+    if: github.repository == 'mlrun/mlrun'
 
     strategy:
       matrix:

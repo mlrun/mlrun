@@ -587,10 +587,11 @@ def code_to_function(
 
     def nuclio_kind(kind):
         is_nuclio = kind.startswith("nuclio:")
-        subkind = kind[kind.find(":") + 1 :] if is_nuclio else None
+        subkind = kind[kind.find(":") + 1:] if is_nuclio else None
         if kind == "serving":
             is_nuclio = True
             subkind = serving_subkind
+        print('kind:', kind, is_nuclio, subkind)
         return is_nuclio, subkind
 
     if (

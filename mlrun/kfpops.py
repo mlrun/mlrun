@@ -409,6 +409,7 @@ def mlrun_op(
 def deploy_op(
     name,
     function,
+    func_url=None,
     source="",
     dashboard="",
     project="",
@@ -419,8 +420,7 @@ def deploy_op(
 ):
     from kfp import dsl
 
-    runtime = "{}".format(function.to_dict())
-    cmd = ["python", "-m", "mlrun", "deploy", runtime]
+    cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
     if dashboard:
@@ -445,6 +445,13 @@ def deploy_op(
     if env:
         for key, val in env.items():
             cmd += ["--env", "{}={}".format(key, val)]
+
+    if func_url:
+        cmd += ["-f", func_url]
+    else:
+        runtime = "{}".format(function.to_dict())
+        cmd += [runtime]
+
     cop = dsl.ContainerOp(
         name=name,
         image=config.kfp_image,

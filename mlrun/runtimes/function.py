@@ -370,7 +370,14 @@ class RemoteRuntime(KubeResource):
         return self.spec.command
 
     def deploy_step(
-        self, dashboard="", project="", models=None, env=None, tag=None, verbose=None
+        self,
+        dashboard="",
+        project="",
+        models=None,
+        env=None,
+        tag=None,
+        verbose=None,
+        use_db=True,
     ):
         models = {} if models is None else models
         name = "deploy_{}".format(self.metadata.name or "function")
@@ -378,9 +385,16 @@ class RemoteRuntime(KubeResource):
         if models and isinstance(models, dict):
             models = [{"name": k, "model_path": v} for k, v in models.items()]
 
+        if use_db:
+            hash_key = self.save(versioned=True, refresh=True)
+            url = "db://" + self._function_uri(hash_key=hash_key)
+        else:
+            url = None
+
         return deploy_op(
             name,
             self,
+            func_url=url,
             dashboard=dashboard,
             project=project,
             models=models,

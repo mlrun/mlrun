@@ -431,7 +431,6 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
         if model:
             for m in model:
                 args = json.loads(m)
-                print("add model:", str(args))
                 f.add_model(**args)
     else:
         f = RemoteRuntime.from_dict(runtime)

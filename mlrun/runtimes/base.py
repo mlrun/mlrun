@@ -702,7 +702,11 @@ class BaseRuntime(ModelObj):
                 db_func = db.get_function(meta.name, meta.project, meta.tag)
                 if db_func and "status" in db_func:
                     self.status = db_func["status"]
-                    if self.status.state and self.status.state == "ready":
+                    if (
+                        self.status.state
+                        and self.status.state == "ready"
+                        and "nuclio_name" not in self.status
+                    ):
                         self.spec.image = get_in(db_func, "spec.image", self.spec.image)
             except Exception:
                 pass

@@ -59,8 +59,8 @@ jobs:
           echo ${input_docker_registry:-ghcr.io/})"
     - name: Docker login
       run: |
-        echo ${{ secrets.CR_PAT }} | \
-        docker login ${{ steps.computed_params.outputs.mlrun_docker_registry }} -u ${{ secrets.CR_USERNAME }} --password-stdin
+        echo ${{ secrets.DOCKER_REGISTRY_PASSWORD }} | \
+        docker login ${{ steps.computed_params.outputs.mlrun_docker_registry }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} --password-stdin
     - name: Pull cache, build and push image
 
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able

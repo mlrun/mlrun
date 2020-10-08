@@ -215,11 +215,12 @@ cmd = metrics.plot_confusion_matrix(model, xtest, ytest, normalize='all', values
 confusion_matrix = context.log_artifact(PlotArtifact('confusion-matrix', body=cmd.figure_), local_path='plots/confusion_matrix.html')
 ```
 
-You can use the `update_dataset_meta` function to associate the plot with the dataset by assigning the value of the `extra_data` parameter
+You can use the `update_dataset_meta` function to associate the plot with the dataset by assigning the value of the `extra_data` parameter:
 
 ``` python
-extra_data = {'confusion_matrix': confusion_matrix}
 from mlrun.artifacts import update_dataset_meta
+
+extra_data = {'confusion_matrix': confusion_matrix}
 update_dataset_meta(dataset, extra_data=extra_data)
 ```
 

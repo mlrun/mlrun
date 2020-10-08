@@ -17,7 +17,7 @@ import nuclio
 
 from .function import RemoteRuntime, NuclioSpec
 
-serving_subkind = "v2serving"
+serving_subkind = "serving_v2"
 
 
 def new_v2_model_server(
@@ -160,7 +160,6 @@ class ServingRuntime(RemoteRuntime):
         :param model_url:   url of a remote url serving that model (cannot be used with model_path)
         :param parameters:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
-        :param load_mode:   model loading mode: sync - during init, async - in the background
         :param handler:     for advanced users!, override default class handler name (do_event)
         """
         if not model_path and not model_url:

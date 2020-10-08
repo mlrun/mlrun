@@ -186,6 +186,8 @@ def run(
 
     if func_url:
         runtime = func_url_to_runtime(func_url)
+        if runtime is None:
+            exit(1)
         kind = get_in(runtime, "kind", "")
         if kind not in ["", "local", "dask"] and url:
             if path.isfile(url) and url.endswith(".py"):
@@ -414,6 +416,8 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
     """Deploy model or function"""
     if func_url:
         runtime = func_url_to_runtime(func_url)
+        if runtime is None:
+            exit(1)
     elif spec:
         runtime = py_eval(spec)
     else:
@@ -425,30 +429,30 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
     if verbose:
         pprint(runtime)
         pprint(model)
-    if runtime and runtime["kind"] == "serving":
-        print("Deploy V2 model server")
-        f = ServingRuntime.from_dict(runtime)
+    if runtime and runtime["kind"] == RuntimeKinds.serving:
+        print("Deploying V2 model server")
+        function = ServingRuntime.from_dict(runtime)
         if model:
-            for m in model:
-                args = json.loads(m)
-                f.add_model(**args)
+            for _model in model:
+                args = json.loads(_model)
+                function.add_model(**args)
     else:
-        f = RemoteRuntime.from_dict(runtime)
+        function = RemoteRuntime.from_dict(runtime)
         if kind:
-            f.spec.function_kind = kind
+            function.spec.function_kind = kind
         if model:
             models = list2dict(model)
             for k, v in models.items():
-                f.add_model(k, v)
+                function.add_model(k, v)
 
-    f.spec.source = source
+    function.spec.source = source
     if env:
         for k, v in list2dict(env).items():
-            f.set_env(k, v)
-    f.verbose = verbose
+            function.set_env(k, v)
+    function.verbose = verbose
 
     try:
-        addr = f.deploy(dashboard=dashboard, project=project, tag=tag)
+        addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
         print("deploy error: {}".format(err))
         exit(1)
@@ -457,7 +461,7 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
     with open("/tmp/output", "w") as fp:
         fp.write(addr)
     with open("/tmp/name", "w") as fp:
-        fp.write(f.status.nuclio_name)
+        fp.write(function.status.nuclio_name)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -898,12 +902,12 @@ def func_url_to_runtime(func_url):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
     except Exception as e:
-        print("function {} not found, {}".format(func_url, e))
-        exit(1)
+        logger.error("function {} not found, {}".format(func_url, e))
+        return None
 
     if not runtime:
-        print("function {} not found or is null".format(func_url))
-        exit(1)
+        logger.error("function {} not found or is null".format(func_url))
+        return None
 
     return runtime
 

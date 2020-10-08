@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .v1_serving import MLModelServer  # noqa
+from .v1_serving import MLModelServer, new_v1_model_server  # noqa
 from .v2_serving import V2ModelServer  # noqa
 from .routers import ModelRouter  # noqa

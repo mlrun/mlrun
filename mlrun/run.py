@@ -585,10 +585,10 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels
 
-    def nuclio_kind(kind):
-        is_nuclio = kind.startswith("nuclio:")
-        subkind = kind[kind.find(":") + 1 :] if is_nuclio else None
-        if kind == "serving":
+    def resolve_nuclio_subkind(kind):
+        is_nuclio = kind.startswith("nuclio")
+        subkind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
+        if kind == RuntimeKinds.serving:
             is_nuclio = True
             subkind = serving_subkind
         return is_nuclio, subkind
@@ -603,7 +603,7 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
-    is_nuclio, subkind = nuclio_kind(kind)
+    is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(
@@ -614,7 +614,7 @@ def code_to_function(
         kind = spec_kind.lower()
 
         # if its a nuclio subkind, redo nb parsing
-        is_nuclio, subkind = nuclio_kind(kind)
+        is_nuclio, subkind = resolve_nuclio_subkind(kind)
         if is_nuclio:
             name, spec, code = build_file(
                 filename, name=name, handler=handler or "handler", kind=subkind

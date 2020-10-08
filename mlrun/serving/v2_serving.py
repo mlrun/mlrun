@@ -16,9 +16,6 @@ import json
 import time
 from typing import Dict
 from datetime import datetime
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-import requests
 
 from mlrun.artifacts import ModelArtifact, get_model
 
@@ -284,43 +281,3 @@ class _ModelLogPusher:
                 if getattr(self.model, "metrics", None):
                     data["metrics"] = self.model.metrics
                 self.output_stream.push([data])
-
-
-http_adapter = HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-)
-
-
-class HttpTransport:
-    """class for calling remote models"""
-
-    def __init__(self, url):
-        self.url = url
-        self.format = "json"
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
-        self._session.mount("https://", http_adapter)
-
-    def do(self, event):
-        kwargs = {}
-        kwargs["headers"] = event.headers or {}
-        method = event.method or "POST"
-        if method != "GET":
-            if isinstance(event.body, (str, bytes)):
-                kwargs["data"] = event.body
-            else:
-                kwargs["json"] = event.body
-
-        url = self.url.strip("/") + event.path
-        try:
-            resp = self._session.request(method, url, verify=False, **kwargs)
-        except OSError as err:
-            raise OSError(f"error: cannot run function at url {url}, {err}")
-        if not resp.ok:
-            raise RuntimeError(f"bad function response {resp.text}")
-
-        data = resp.content
-        if self.format == "json" or resp.headers["content-type"] == "application/json":
-            data = json.loads(data)
-        event.body = data
-        return event

@@ -80,10 +80,10 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 **To test the function locally use the mock server:**
 
 ```python
-from mlrun.serving.server import get_mock_server
+from mlrun.serving.server import create_mock_server
 
 models_path = '{model artifact/dir path}'
-server = get_mock_server()
+server = create_mock_server()
 server.add_model("mymodel", model_class=ClassifierModel, model_path=models_path)
 
 from sklearn.datasets import load_iris
@@ -150,9 +150,9 @@ to specify the router class and class args use `.set_router()` with your functio
 
 In order to provision a serving function we need to create an MLRun function of type `serving`
 , this can be done by using the `code_to_function()` call from a notebook. We can also import 
-and existing serving function/template from the marketplace.
+an existing serving function/template from the marketplace.
 
-Example convert a notebook to a serving function and adding a model to it:
+Example (run inside a notebook): this code converts a notebook to a serving function and adding a model to it:
 
 ```python
 from mlrun import code_to_function

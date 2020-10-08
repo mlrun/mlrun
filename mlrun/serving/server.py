@@ -19,10 +19,13 @@ import threading
 import traceback
 import uuid
 
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+import requests
+
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from .routers import ModelRouter
-from .v2_serving import HttpTransport
 from ..utils import create_class, create_logger
 
 
@@ -80,6 +83,8 @@ class ModelServerHost(ModelObj):
         if init_router:
             self._init_router()
 
+        return v2_serving_handler
+
     def add_model(self, name, model_class, model_path, params=None, namespace=None):
         model = {"model_class": model_class, "model_path": model_path, "params": params}
         self._add_model(name, model, namespace)
@@ -95,7 +100,7 @@ class ModelServerHost(ModelObj):
     def _add_model(self, name, model, namespace=None):
         model_url = model.get("model_url", None)
         if model_url:
-            transport = HttpTransport(model_url)
+            transport = RemoteHttpHandler(model_url)
             self._models_handlers[name] = transport.do
         else:
             class_name = model["model_class"]
@@ -156,12 +161,16 @@ def v2_serving_init(context, namespace=None):
     spec = json.loads(data)
     server = ModelServerHost.from_dict(spec)
 
+    # enrich the context with classes and methods which will be used when
+    # initializing classes or handling the event
     setattr(context, "server", _ServerContext(server.parameters))
     setattr(context, "add_root_params", server.add_root_params)
     setattr(context, "trace", server.verbose)
-    server.init(context, namespace or globals())
+
+    serving_handler = server.init(context, namespace or globals())
     setattr(context, "router", server.router)
-    setattr(context, "mlrun_handler", v2_serving_handler)
+    # set the handler hook to point to our handler
+    setattr(context, "mlrun_handler", serving_handler)
 
 
 def v2_serving_handler(context, event, get_body=False):
@@ -184,7 +193,7 @@ def v2_serving_handler(context, event, get_body=False):
     return body
 
 
-def get_mock_server(
+def create_mock_server(
     context=None,
     router_class=None,
     router_args={},
@@ -248,3 +257,43 @@ class MockContext:
         self.logger = create_logger(level, "human", "flow", sys.stdout)
         self.worker_id = 0
         self.Response = Response
+
+
+http_adapter = HTTPAdapter(
+    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+)
+
+
+class RemoteHttpHandler:
+    """class for calling remote endpoints"""
+
+    def __init__(self, url):
+        self.url = url
+        self.format = "json"
+        self._session = requests.Session()
+        self._session.mount("http://", http_adapter)
+        self._session.mount("https://", http_adapter)
+
+    def do(self, event):
+        kwargs = {}
+        kwargs["headers"] = event.headers or {}
+        method = event.method or "POST"
+        if method != "GET":
+            if isinstance(event.body, (str, bytes)):
+                kwargs["data"] = event.body
+            else:
+                kwargs["json"] = event.body
+
+        url = self.url.strip("/") + event.path
+        try:
+            resp = self._session.request(method, url, verify=False, **kwargs)
+        except OSError as err:
+            raise OSError(f"error: cannot run function at url {url}, {err}")
+        if not resp.ok:
+            raise RuntimeError(f"bad function response {resp.text}")
+
+        data = resp.content
+        if self.format == "json" or resp.headers["content-type"] == "application/json":
+            data = json.loads(data)
+        event.body = data
+        return event

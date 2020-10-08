@@ -20,9 +20,50 @@ from io import BytesIO
 from typing import Dict
 from urllib.request import urlopen
 from datetime import datetime
+import nuclio
 
 from mlrun.artifacts import get_model, ModelArtifact
 from mlrun.platforms.iguazio import OutputStream
+from mlrun.runtimes import RemoteRuntime
+
+serving_handler = "handler"
+
+
+def new_v1_model_server(
+    name,
+    model_class: str,
+    models: dict = None,
+    filename="",
+    protocol="",
+    image="",
+    endpoint="",
+    workers=8,
+    canary=None,
+):
+    f = RemoteRuntime()
+    if not image:
+        name, spec, code = nuclio.build_file(
+            filename, name=name, handler=serving_handler, kind="serving"
+        )
+        f.spec.base_spec = spec
+
+    f.metadata.name = name
+
+    if models:
+        for k, v in models.items():
+            f.set_env("SERVING_MODEL_{}".format(k), v)
+
+    if protocol:
+        f.set_env("TRANSPORT_PROTOCOL", protocol)
+    if model_class:
+        f.set_env("MODEL_CLASS", model_class)
+    f.with_http(workers, host=endpoint, canary=canary)
+    f.spec.function_kind = "serving"
+
+    if image:
+        f.from_image(image)
+
+    return f
 
 
 class MLModelServer:

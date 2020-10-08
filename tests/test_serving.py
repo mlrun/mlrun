@@ -5,22 +5,38 @@ import time
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
-from mlrun.serving.server import MockEvent, MockContext, get_mock_server
+from mlrun.serving.server import MockEvent, MockContext, create_mock_server
 
 spec = {
     "router_class": None,
     "models": {
-        "m1": {"model_class": "MClass", "model_path": "", "params": {"z": 100}},
-        "m2": {"model_class": "MClass", "model_path": "", "params": {"z": 200}},
-        "m3:v1": {"model_class": "MClass", "model_path": "", "params": {"z": 300}},
-        "m3:v2": {"model_class": "MClass", "model_path": "", "params": {"z": 400}},
+        "m1": {
+            "model_class": "ModelTestingClass",
+            "model_path": "",
+            "params": {"z": 100},
+        },
+        "m2": {
+            "model_class": "ModelTestingClass",
+            "model_path": "",
+            "params": {"z": 200},
+        },
+        "m3:v1": {
+            "model_class": "ModelTestingClass",
+            "model_path": "",
+            "params": {"z": 300},
+        },
+        "m3:v2": {
+            "model_class": "ModelTestingClass",
+            "model_path": "",
+            "params": {"z": 400},
+        },
     },
 }
 
 testdata = '{"inputs": [5]}'
 
 
-class MClass(V2ModelServer):
+class ModelTestingClass(V2ModelServer):
     def load(self):
         print("loading")
 
@@ -38,7 +54,7 @@ class MClass(V2ModelServer):
         return event.body
 
 
-class AsyncMClass(V2ModelServer):
+class AsyncModelTestingClass(V2ModelServer):
     def load(self):
         print("loading..")
         time.sleep(4)
@@ -53,7 +69,11 @@ class AsyncMClass(V2ModelServer):
 asyncspec = {
     "router_class": None,
     "models": {
-        "m5": {"model_class": "AsyncMClass", "model_path": "", "load_mode": "async"},
+        "m5": {
+            "model_class": "AsyncModelTestingClass",
+            "model_path": "",
+            "load_mode": "async",
+        },
     },
 }
 
@@ -199,6 +219,8 @@ def test_v2_health():
 
 
 def test_v2_mock():
-    host = get_mock_server()
-    host.add_model("my", model_class=MClass, model_path="", params={"z": 100})
+    host = create_mock_server()
+    host.add_model(
+        "my", model_class=ModelTestingClass, model_path="", params={"z": 100}
+    )
     print(host.test("my/infer", testdata))

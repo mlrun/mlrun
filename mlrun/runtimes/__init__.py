@@ -16,7 +16,7 @@
 
 from .base import RunError, BaseRuntime, BaseRuntimeHandler  # noqa
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
-from .function import RemoteRuntime, new_v1_model_server
+from .function import RemoteRuntime
 from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import (
@@ -30,7 +30,7 @@ from .nuclio import nuclio_init_hook
 from .serving import ServingRuntime, new_v2_model_server
 
 # for legacy imports (MLModelServer moved from here to /serving)
-from ..serving import MLModelServer  # noqa
+from ..serving import MLModelServer, new_v1_model_server  # noqa
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 

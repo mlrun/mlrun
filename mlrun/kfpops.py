@@ -16,6 +16,7 @@ import json
 from copy import deepcopy
 from os import environ
 
+from .runtimes import RuntimeKinds
 from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
@@ -437,7 +438,7 @@ def deploy_op(
             for key in ["model_path", "model_url", "model_class"]:
                 if key in m:
                     m[key] = str(m[key])  # verify we stringify pipeline params
-            if function.kind == "serving":
+            if function.kind == RuntimeKinds.serving:
                 cmd += ["-m", json.dumps(m)]
             else:
                 cmd += ["-m", "{}={}".format(m["name"], m["model_path"])]
@@ -449,7 +450,7 @@ def deploy_op(
     if func_url:
         cmd += ["-f", func_url]
     else:
-        runtime = "{}".format(function.to_dict())
+        runtime = f"{function.to_dict()}"
         cmd += [runtime]
 
     cop = dsl.ContainerOp(

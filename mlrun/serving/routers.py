@@ -43,7 +43,7 @@ class BaseModelRouter:
             if "data_url" in body:
                 # Get data from URL
                 url = body["data_url"]
-                self.context.logger.debug_with("downloading data", url=url)
+                self.context.logger.debug("Downloading data", url=url)
                 data = mlrun.get_object(url)
                 sample = BytesIO(data)
                 parsed_event[self.inputs_key] = [sample]
@@ -95,9 +95,9 @@ class BaseModelRouter:
                 f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
             )
 
-        return self.postprocess(self._do(event))
+        return self.postprocess(self._handle_event(event))
 
-    def _do(self, event):
+    def _handle_event(self, event):
         return event
 
     def preprocess(self, event):
@@ -110,7 +110,7 @@ class BaseModelRouter:
 
 
 class ModelRouter(BaseModelRouter):
-    def _select_child(self, body, urlpath):
+    def _resolve_route(self, body, urlpath):
         subpath = None
         model = ""
         if urlpath and not urlpath == "/":
@@ -128,6 +128,8 @@ class ModelRouter(BaseModelRouter):
                 subpath = "/".join(segments[1:])
 
         if isinstance(body, dict):
+            # accepting route information from body as well
+            # to support streaming protocols (e.g. Kafka).
             model = model or body.get("model", list(self.routes.keys())[0])
             subpath = body.get("operation", subpath)
         if subpath is None:
@@ -139,9 +141,9 @@ class ModelRouter(BaseModelRouter):
 
         return model, self.routes[model], subpath
 
-    def _do(self, event):
-        name, child, subpath = self._select_child(event.body, event.path)
-        if not child:
+    def _handle_event(self, event):
+        name, route, subpath = self._resolve_route(event.body, event.path)
+        if not route:
             # if model wasn't specified return model list
             setattr(event, "terminated", True)
             event.body = {"models": list(self.routes.keys())}
@@ -149,6 +151,6 @@ class ModelRouter(BaseModelRouter):
 
         self.context.logger.debug(f"router run model {name}, op={subpath}")
         event.path = subpath
-        response = child(event)
+        response = route(event)
         event.body = response.body if response else None
         return event

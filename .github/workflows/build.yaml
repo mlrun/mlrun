@@ -13,7 +13,7 @@ on:
         required: true
         default: 'ghcr.io/'
       docker_repo:
-        description: 'Docker repo to push images to (default: lowered github repository owner name)'
+        description: 'Docker repo to push images to (default: lowercase github repository owner name)'
         required: false
         default: ''
 jobs:

@@ -58,16 +58,6 @@ class SystemTestPreparer:
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
 
-        self._override_full_image_repo = None
-
-        if self._override_image_repo or self._override_image_registry:
-
-            # complete with defaults if override is partial
-            override_registry = (self._override_image_registry or "quay.io").strip("/")
-            override_repo = (self._override_image_repo or "mlrun").strip("/")
-
-            self._override_full_image_repo = f"{override_registry}/{override_repo}"
-
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_API": webapi_direct_http,
@@ -326,10 +316,6 @@ class SystemTestPreparer:
         )
         mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
 
-        repo_arg = ""
-        if self._override_full_image_repo:
-            repo_arg = f"--override-image-pull-repo {self._override_full_image_repo}"
-
         override_image_arg = ""
         if self._override_mlrun_images:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
@@ -340,7 +326,6 @@ class SystemTestPreparer:
                 f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
                 "create-patch",
                 "appservice",
-                repo_arg,
                 override_image_arg,
                 "mlrun",
                 self._mlrun_version,

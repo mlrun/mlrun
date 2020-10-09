@@ -167,7 +167,7 @@ def _resume_monitoring_runs():
                             continue
 
                         logger.debug(
-                            "Starting run monitoring in background",
+                            "Launching monitoring in background task",
                             project=project.name,
                             function_kind=function_kind,
                             run_uid=run_uid,

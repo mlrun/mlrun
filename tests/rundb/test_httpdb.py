@@ -16,18 +16,18 @@ import codecs
 from collections import namedtuple
 from os import environ
 from pathlib import Path
-from shutil import rmtree
 from socket import socket
 from subprocess import Popen, run, PIPE, DEVNULL
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
+from shutil import rmtree
 
 import pytest
 
-from mlrun import RunObject
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
+from mlrun import RunObject
 from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
@@ -148,13 +148,9 @@ def server_fixture():
         if process:
             process.terminate()
             stdout = process.stdout.read()
-            human_readable_stdout = codecs.escape_decode(bytes(stdout, "utf-8"))[
-                0
-            ].decode("utf-8")
+            human_readable_stdout = codecs.escape_decode(bytes(stdout, "utf-8"))
             stderr = process.stderr.read()
-            human_readable_stderr = codecs.escape_decode(bytes(stderr, "utf-8"))[
-                0
-            ].decode("utf-8")
+            human_readable_stderr = codecs.escape_decode(bytes(stderr, "utf-8"))
             print(f"Stdout from server {human_readable_stdout}")
             print(f"Stderr from server {human_readable_stderr}")
         if workdir:

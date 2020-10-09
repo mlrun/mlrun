@@ -55,7 +55,7 @@ class V2ModelServer:
         self,
         context,
         name: str,
-        model_dir: str = None,
+        model_path: str = None,
         model=None,
         protocol=None,
         **class_args,
@@ -68,7 +68,7 @@ class V2ModelServer:
         self.ready = False
         self.error = ""
         self.protocol = protocol or "v2"
-        self.model_dir = model_dir
+        self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
         self._params = class_args
         self._model_logger = None
@@ -124,7 +124,7 @@ class V2ModelServer:
         :return (local) model file, extra dataitems dictionary
         """
         model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
-            self.model_dir, suffix
+            self.model_path, suffix
         )
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():

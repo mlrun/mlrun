@@ -159,13 +159,13 @@ def monitor_run(project: str, function_kind: str, run_uid: str):
         close_session(db_session)
     except Exception as exc:
         logger.warning("Run monitoring failed", exc=str(exc))
-
-    logger.info(
-        "Run monitoring finished successfully",
-        project=project,
-        function_kind=function_kind,
-        run_uid=run_uid,
-    )
+    else:
+        logger.info(
+            "Run monitoring finished successfully",
+            project=project,
+            function_kind=function_kind,
+            run_uid=run_uid,
+        )
 
 
 def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:

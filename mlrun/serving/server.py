@@ -123,6 +123,7 @@ class MiniRouterState(MiniTaskState):
 
     def init_object(self, context, namespace, mode):
         self.class_name = self.class_name or ModelRouter
+        self.class_args = self.class_args or {}
         self.class_args["routes"] = self._routes
         super().init_object(context, namespace, "skip")
         del self.class_args["routes"]

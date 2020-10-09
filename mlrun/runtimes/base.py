@@ -844,7 +844,7 @@ class BaseRuntimeHandler(ABC):
                 "Run did not reach stable state in given timeout. Marking with error",
                 exc=str(exc),
             )
-            self._ensure_run_status_updated(
+            self._ensure_run_state(
                 db, db_session, project, run_uid, RunStates.error
             )
 
@@ -1137,7 +1137,7 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
 
-        self._ensure_run_status_updated(db, db_session, project, uid, desired_run_state)
+        self._ensure_run_state(db, db_session, project, uid, desired_run_state)
 
         self._ensure_finished_run_logs_collected(db, db_session, project, uid)
 
@@ -1179,7 +1179,7 @@ class BaseRuntimeHandler(ABC):
         desired_run_state = self._resolve_run_state_representing_current_resource_state(
             db, db_session, project, run_uid
         )
-        updated_run_state = self._ensure_run_status_updated(
+        updated_run_state = self._ensure_run_state(
             db, db_session, project, run_uid, desired_run_state
         )
 
@@ -1219,7 +1219,7 @@ class BaseRuntimeHandler(ABC):
             raise RuntimeError("Run crd object could not be found")
         if len(crd_objects["items"]) > 1:
             logger.warning(
-                "Unexpectedly received more than one crd object for run. Best effort - using the first one"
+                "Received more than one crd record for run. Heuristically using the first one"
             )
         return crd_objects["items"][0]
 
@@ -1279,7 +1279,7 @@ class BaseRuntimeHandler(ABC):
                 crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     @staticmethod
-    def _ensure_run_status_updated(
+    def _ensure_run_state(
         db: DBInterface,
         db_session: Session,
         project: str,

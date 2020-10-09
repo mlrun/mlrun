@@ -14,7 +14,6 @@
 
 import json
 from copy import deepcopy
-
 import nuclio
 
 from .function import RemoteRuntime, NuclioSpec

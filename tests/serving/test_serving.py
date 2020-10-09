@@ -241,3 +241,4 @@ def test_v2_mock():
     host = create_mock_server()
     host.add_model("my", class_name=ModelTestingClass, model_path="", z=100)
     print(host.test("my/infer", testdata))
+    print(host.to_yaml())

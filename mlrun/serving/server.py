@@ -138,7 +138,7 @@ class MiniRouterState(MiniTaskState):
 
 # Model server host currently support a basic topology of single router + multiple
 # routes (models/tasks). it will be enhanced later to support more complex topologies
-class ModelServerHost:
+class ModelServerHost(ModelObj):
     def __init__(self, router=None, parameters=None, load_mode=None, verbose=False):
         self.router: MiniRouterState = router
         self.parameters = parameters or {}
@@ -148,15 +148,24 @@ class ModelServerHost:
         self._namespace = None
 
     @classmethod
-    def from_dict(cls, spec):
-        states = spec["states"]
+    def from_dict(cls, struct=None, fields=None):
+        states = struct["states"]
         router = list(states.values())[0]
         return cls(
             MiniRouterState.from_dict(router),
-            parameters=spec.get("parameters", None),
-            load_mode=spec.get("load_mode", None),
-            verbose=spec.get("verbose", None),
+            parameters=struct.get("parameters", None),
+            load_mode=struct.get("load_mode", None),
+            verbose=struct.get("verbose", None),
         )
+
+    def to_dict(self, fields=None, exclude=None):
+        return {
+            "version": "v2",
+            "parameters": self.parameters,
+            "states": {"router": self.router.to_dict()},
+            "load_mode": self.load_mode,
+            "verbose": self.verbose,
+        }
 
     def merge_root_params(self, params={}):
         """for internal use, enrich child states with root params"""

@@ -39,7 +39,7 @@ class Logs:
         data = get_db().read_run(db_session, uid, project)
         if not data:
             log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
-        run_state = get_in(data, "status.state", "")
+        run_state = data.get('status', {}).get('state', '')
         if log_file.exists() and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)

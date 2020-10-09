@@ -148,9 +148,13 @@ def server_fixture():
         if process:
             process.terminate()
             stdout = process.stdout.read()
-            human_readable_stdout = codecs.escape_decode(bytes(stdout, "utf-8"))
+            human_readable_stdout = codecs.escape_decode(bytes(stdout or "", "utf-8"))[
+                0
+            ].decode("utf-8")
             stderr = process.stderr.read()
-            human_readable_stderr = codecs.escape_decode(bytes(stderr, "utf-8"))
+            human_readable_stderr = codecs.escape_decode(bytes(stderr or "", "utf-8"))[
+                0
+            ].decode("utf-8")
             print(f"Stdout from server {human_readable_stdout}")
             print(f"Stderr from server {human_readable_stderr}")
         if workdir:

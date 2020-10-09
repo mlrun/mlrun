@@ -21,7 +21,7 @@ class Logs:
             fp.write(body)
 
     @staticmethod
-    def get_log(
+    def get_logs(
         db_session: Session,
         project: str,
         uid: str,

@@ -1271,7 +1271,7 @@ class BaseRuntimeHandler(ABC):
                 store_log = True
 
         if store_log:
-            _, logs_from_k8s = crud.Logs.get_log(
+            _, logs_from_k8s = crud.Logs.get_logs(
                 db_session, project, uid, source=LogSources.K8S
             )
             if logs_from_k8s:

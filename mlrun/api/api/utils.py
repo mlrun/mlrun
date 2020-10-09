@@ -173,7 +173,7 @@ def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typin
     :return: Tuple with:
         1. str of the project of the run
         2. str of the kind of the function of the run
-        3. str of the uid of the run that was started execution (None when it was scheduled)
+        3. str of the uid of the run that started execution (None when it was scheduled)
         4. dict of the response info
     """
     run_uid = None

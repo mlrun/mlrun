@@ -6,5 +6,4 @@ xgboost
 black<=19.10b0
 flake8
 pytest-asyncio~=0.14
-paramiko~=2.7
 deepdiff~=5.0

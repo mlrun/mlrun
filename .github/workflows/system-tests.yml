@@ -1,0 +1,110 @@
+name: System Tests
+
+on:
+  push:
+    branches:
+      - '.+-system-tests'
+
+  schedule:
+
+    # * is a special character in YAML so you have to quote this string
+    # Run the system tests every 3 hours
+    - cron:  '0 */3 * * *'
+
+  workflow_dispatch:
+    inputs:
+      docker_registry:
+        description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
+        required: true
+        default: 'ghcr.io/'
+      docker_repo:
+        description: 'Docker repo to pull images from (default: mlrun)'
+        required: true
+        default: 'mlrun'
+      test_code_from_action:
+        description: 'Take tested code from action REF (default: false - take from upstream) (note that test code will be taken from the action REF anyways)'
+        required: true
+        default: 'false'
+
+jobs:
+  run-system-tests-ci:
+    timeout-minutes: 60
+    name: Run System Tests
+    runs-on: ubuntu-latest
+
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+    - name: Install automation scripts dependencies and add mlrun to dev packages
+      run: pip install -r automation/requirements.txt && python setup.py develop
+    - name: Install curl and jq
+      run: sudo apt-get install curl jq
+    - name: Extract git hash from action mlrun version
+      if: ${{ github.event.inputs.test_code_from_action == 'true' }}
+      id: git_action_info
+      run: |
+        echo "::set-output name=mlrun_hash::$(git rev-parse --short $GITHUB_SHA)"
+    - name: Extract git hashes from upstream and latest version
+      id: git_upstream_info
+      run: |
+        echo "::set-output name=mlrun_hash::$( \
+          cd /tmp && \
+          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          cd mlrun-upstream && \
+          git rev-parse --short HEAD && \
+          cd .. && \
+          rm -rf mlrun-upstream)"
+        echo "::set-output name=ui_hash::$( \
+          cd /tmp && \
+          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          cd mlrun-ui && \
+          git rev-parse --short HEAD && \
+          cd .. && \
+          rm -rf mlrun-ui)"
+        echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
+    - name: Set computed versions params
+      id: computed_params
+      run: |
+        action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
+        upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
+        export mlrun_hash=${action_mlrun_hash:-`echo $upstream_mlrun_hash`}
+        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
+        echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-${{ steps.git_upstream_info.outputs.ui_hash }}"
+        echo "::set-output name=mlrun_docker_repo::$( \
+          input_docker_repo=${{ github.event.inputs.docker_repo }} && \
+          echo ${input_docker_repo:-mlrun})"
+        echo "::set-output name=mlrun_docker_registry::$( \
+          input_docker_registry=${{ github.event.inputs.docker_registry }} && \
+          echo ${input_docker_registry:-ghcr.io/})"
+    - name: Wait for existing runs to complete
+      uses: softprops/turnstyle@v1
+      with:
+        poll-interval-seconds: 20s
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Prepare System Test env.yaml and system
+      run: |
+        python automation/system_test/prepare.py run \
+          ${{ steps.computed_params.outputs.mlrun_version }} \
+          ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          ${{ secrets.SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }} \
+          ${{ secrets.SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }} \
+          ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }} \
+          ${{ secrets.SYSTEM_TEST_MLRUN_DB_PATH }} \
+          ${{ secrets.SYSTEM_TEST_WEBAPI_DIRECT_URL }} \
+          ${{ secrets.SYSTEM_TEST_USERNAME }} \
+          ${{ secrets.SYSTEM_TEST_ACCESS_KEY }} \
+          ${{ secrets.SYSTEM_TEST_PASSWORD }} \
+          --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
+          --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+          --override-mlrun-images \
+          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_version }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
+
+    - name: Run System Tests
+      run: make test-system

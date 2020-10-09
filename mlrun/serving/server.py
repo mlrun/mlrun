@@ -15,9 +15,9 @@ import json
 import os
 import socket
 import sys
-import threading
 import traceback
 import uuid
+from copy import deepcopy
 
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -40,97 +40,186 @@ class _ServerContext:
             self.output_stream = OutputStream(out_stream)
 
 
-class ModelServerHost(ModelObj):
-    _dict_fields = [
-        "parameters",
-        "models",
-        "router_class",
-        "router_args",
-        "verbose",
-        "load_mode",
-    ]
+_task_state_fields = ["kind", "class_name", "class_args", "handler"]
 
-    def __init__(self):
-        self.router_class = None
-        self._router_class = None
-        self.router_args = {}
-        self.router = None
-        self.parameters = {}
-        self.models = {}
-        self._models_handlers = {}
-        self.verbose = False
-        self.load_mode = None
+
+class MiniTaskState(ModelObj):
+    kind = "task"
+    _dict_fields = _task_state_fields
+
+    def __init__(self, name=None, class_name=None, class_args=None, handler=None):
+        self.name = name
+        self.class_name = class_name
+        self.class_args = class_args or {}
+        self.handler = handler
+        self._handler = None
+        self._object = None
         self.context = None
+        self._class_object = None
 
-    def add_root_params(self, params={}):
-        """for internal use"""
+    def init_object(self, context, namespace, mode):
+        if isinstance(self.class_name, type):
+            self._class_object = self.class_name
+            self.class_name = self.class_name.__name__
+
+        self.context = context
+        if not self._class_object:
+            if self.class_name == "$remote":
+                self._class_object = RemoteHttpHandler
+            else:
+                self._class_object = get_class(self.class_name, namespace)
+
+        if not self._object:
+            print(self.class_args)
+            self._object = self._class_object(context, self.name, **self.class_args)
+            self._handler = getattr(self._object, self.handler or "do_event")
+
+        if mode != "skip":
+            self._post_init(mode)
+
+    @property
+    def object(self):
+        return self._object
+
+    def _post_init(self, mode="sync"):
+        if self._object and hasattr(self._object, "post_init"):
+            self._object.post_init(mode)
+
+    def run(self, event, *args, **kwargs):
+        return self._handler(event, *args, **kwargs)
+
+
+class MiniRouterState(MiniTaskState):
+    kind = "router"
+    _dict_fields = _task_state_fields + ["routes"]
+
+    def __init__(
+        self, name=None, class_name=None, class_args=None, handler=None, routes=None
+    ):
+        super().__init__(name, class_name, class_args, handler)
+        self._routes = {}
+        self.routes = routes
+
+    @property
+    def routes(self):
+        return {name: route.to_dict() for name, route in self._routes.items()}
+
+    @routes.setter
+    def routes(self, routes: dict):
+        if not routes:
+            return
+        _routes = {}
+        for name, route in routes.items():
+            if isinstance(route, dict):
+                route = MiniTaskState.from_dict(route)
+            elif not hasattr(route, "to_dict"):
+                raise ValueError("route must be a dict or state object")
+            route.name = name
+            _routes[name] = route
+        self._routes = _routes
+
+    def add_route(self, route):
+        self._routes[route.name] = route
+
+    def init_object(self, context, namespace, mode):
+        self.class_name = self.class_name or ModelRouter
+        self.class_args["routes"] = self._routes
+        super().init_object(context, namespace, "skip")
+        del self.class_args["routes"]
+
+        for route in self._routes.values():
+            route.init_object(context, namespace, mode)
+
+        self._post_init(mode)
+
+    def __getitem__(self, name):
+        return self._routes[name]
+
+
+# Model server host currently support a basic topology of single router + multiple
+# routes (models/tasks). it will be enhanced later to support more complex topologies
+class ModelServerHost:
+    def __init__(self, router=None, parameters=None, load_mode=None, verbose=False):
+        self.router: MiniRouterState = router
+        self.parameters = parameters or {}
+        self.verbose = verbose
+        self.load_mode = load_mode or "sync"
+        self.context = None
+        self._namespace = None
+
+    @classmethod
+    def from_dict(cls, spec):
+        states = spec["states"]
+        router = list(states.values())[0]
+        return cls(
+            MiniRouterState.from_dict(router),
+            parameters=spec.get("parameters", None),
+            load_mode=spec.get("load_mode", None),
+            verbose=spec.get("verbose", None),
+        )
+
+    def merge_root_params(self, params={}):
+        """for internal use, enrich child states with root params"""
         for key, val in self.parameters.items():
             if key not in params:
                 params[key] = val
         return params
 
-    def init(self, context, namespace, init_router=True):
-        """for internal use"""
+    def init(self, context, namespace):
+        """for internal use, initialize all states (recursively)"""
         self.context = context
-        self.load_mode = self.load_mode or "sync"
-        for name, model in self.models.items():
-            self._add_model(name, model, namespace)
-
-        if self.router_class:
-            self._router_class = get_class(self.router_class, namespace)
-        else:
-            self._router_class = ModelRouter
-        if init_router:
-            self._init_router()
-
+        self.router.init_object(context, namespace, self.load_mode)
+        setattr(self.context, "root", self.router)
         return v2_serving_handler
 
-    def add_model(self, name, model_class, model_path, params=None, namespace=None):
-        model = {"model_class": model_class, "model_path": model_path, "params": params}
-        self._add_model(name, model, namespace)
-        self._init_router()
+    def add_model(
+        self, name, class_name, model_path, handler=None, namespace=None, **class_args
+    ):
+        """add child model/route to the server, will register, init and connect the child class
+        the local or global (module.submodule.class) class specified by the class_name
+        the context, name, model_path, and **class_args will be used to initialize that class
 
-    def _init_router(self):
-        router_args = self.router_args or {}
-        self.router = self._router_class(
-            self.context, self._models_handlers, **router_args
-        )
-        setattr(self.context, "router", self.router)
+        every event with "/{router.url_prefix}/{name}/.." or "{name}/.." will be routed to the class.
 
-    def _add_model(self, name, model, namespace=None):
-        model_url = model.get("model_url", None)
-        if model_url:
-            transport = RemoteHttpHandler(model_url)
-            self._models_handlers[name] = transport.do
-        else:
-            class_name = model["model_class"]
-            model_path = model["model_path"]
-            kwargs = model.get("params", None) or {}
-            handler = model.get("handler", "do_event")
-            class_object = get_class(class_name, namespace)
-            model_object = class_object(self.context, name, model_path, **kwargs)
-            if self.load_mode == "sync":
-                if not model_object.ready:
-                    model_object.load()
-                    model_object.ready = True
-                self.context.logger.info(f"model {name} was loaded")
-            elif self.load_mode == "async":
-                t = threading.Thread(target=model_object.async_load)
-                t.start()
-                self.context.logger.info(f"started async load for model {name}")
-            else:
-                raise ValueError(
-                    f"unsupported model loading mode {self.load_mode} for model {name}"
-                )
-            self._models_handlers[name] = getattr(model_object, handler)
+        keep the handler=None for model server classes, for custom classes you can specify the class handler
+        which will be invoked when traffic arrives to that route (class.{handler}(event))
+
+        :param name:        name (and url prefix) used for the route/model
+        :param class_name:  class object or name (str) or full path (module.submodule.class)
+        :param model_path:  path to mlrun model artifact or model directory file/object path
+        :param handler:     for advanced users!, override default class handler name (do_event)
+        :param namespace:   class search path when using string_name, for local use py globals()
+        :param class_args:  extra kwargs to pass to the model serving class __init__
+                            (can be read in the model using .get_param(key) method)
+        """
+        class_args = deepcopy(class_args)
+        class_args["model_path"] = model_path
+        route = MiniTaskState(name, class_name, class_args, handler)
+        route.init_object(self.context, namespace, "sync")
+        self.router.add_route(route)
 
     def test(
         self, path, body, method="", content_type=None, silent=False, get_body=True
     ):
+        """invoke a test event into the server to simulate/test server behaviour
+
+        e.g.:
+                host = create_mock_server()
+                host.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
+                print(host.test("my/infer", testdata))
+
+
+        :param path:     relative ({route-name}/..) or absolute (/{router.url_prefix}/{name}/..) path
+        :param body:     message body (dict or json str/bytes)
+        :param method:   optional, GET, POST, ..
+        :param content_type:  optional, http mime type
+        :param silent:   dont raise on error responses (when not 20X)
+        :param get_body: return the body (vs serialize response into json)
+        """
         if not self.router:
             raise ValueError("no model or router was added, use .add_model()")
         if not path.startswith("/"):
-            path = self.router.url_prefix + path
+            path = self.router.object.url_prefix + path
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type
         )
@@ -141,6 +230,7 @@ class ModelServerHost(ModelObj):
 
 
 def get_class(class_name, namespace):
+    """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name
     if class_name in namespace:
@@ -155,7 +245,7 @@ def get_class(class_name, namespace):
 
 
 def v2_serving_init(context, namespace=None):
-    data = os.environ.get("MODELSRV_SPEC_ENV", "")
+    data = os.environ.get("SERVING_SPEC_ENV", "")
     if not data:
         raise ValueError("failed to find spec env var")
     spec = json.loads(data)
@@ -164,20 +254,19 @@ def v2_serving_init(context, namespace=None):
     # enrich the context with classes and methods which will be used when
     # initializing classes or handling the event
     setattr(context, "server", _ServerContext(server.parameters))
-    setattr(context, "add_root_params", server.add_root_params)
-    setattr(context, "trace", server.verbose)
+    setattr(context, "merge_root_params", server.merge_root_params)
+    setattr(context, "verbose", server.verbose)
 
     serving_handler = server.init(context, namespace or globals())
-    setattr(context, "router", server.router)
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
 
 
 def v2_serving_handler(context, event, get_body=False):
     try:
-        response = context.router.do_event(event)
+        response = context.root.run(event)
     except Exception as e:
-        if context.trace:
+        if context.verbose:
             context.logger.error(traceback.format_exc())
         return context.Response(body=str(e), content_type="text/plain", status_code=400)
 
@@ -201,23 +290,29 @@ def create_mock_server(
     load_mode=None,
     level="debug",
 ):
+    """create serving emulator/tester for locally testing models and servers
+
+        Usage:
+                host = create_mock_server()
+                host.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
+                print(host.test("my/infer", testdata))
+    """
     if not context:
         context = MockContext(level)
-    host = ModelServerHost()
-    host.router_class = router_class
-    host.router_args = router_args
-    host.parameters = parameters
-    host.load_mode = load_mode
-    host.verbose = level == "debug"
-    host.init(context, {}, init_router=False)
+
+    router = MiniRouterState(class_name=router_class, class_args=router_args)
+    host = ModelServerHost(router, parameters, load_mode, verbose=level == "debug")
+    host.init(context, {})
 
     setattr(host.context, "server", _ServerContext(host.parameters))
-    setattr(host.context, "add_root_params", host.add_root_params)
-    setattr(host.context, "trace", host.verbose)
+    setattr(host.context, "merge_root_params", host.merge_root_params)
+    setattr(host.context, "verbose", host.verbose)
     return host
 
 
 class MockEvent(object):
+    """mock basic nuclio event object"""
+
     def __init__(
         self, body=None, content_type=None, headers=None, method=None, path=None
     ):
@@ -252,6 +347,8 @@ class Response(object):
 
 
 class MockContext:
+    """mock basic nuclio context object"""
+
     def __init__(self, level="debug"):
         self.state = None
         self.logger = create_logger(level, "human", "flow", sys.stdout)
@@ -274,7 +371,7 @@ class RemoteHttpHandler:
         self._session.mount("http://", http_adapter)
         self._session.mount("https://", http_adapter)
 
-    def do(self, event):
+    def do_event(self, event):
         kwargs = {}
         kwargs["headers"] = event.headers or {}
         method = event.method or "POST"

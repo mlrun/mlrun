@@ -21,17 +21,24 @@ from io import BytesIO
 class BaseModelRouter:
     """base model router class"""
 
-    def __init__(self, context, state, **kwargs):
+    def __init__(
+        self,
+        context,
+        name,
+        routes=None,
+        protocol=None,
+        url_prefix=None,
+        health_prefix=None,
+        **kwargs,
+    ):
+        self.name = name
         self.context = context
-        self.routes = {}
-        for key, child in state.items():
-            if hasattr(child, "run"):
-                child = child.run
-            self.routes[key] = child
-        self.url_prefix = kwargs.get("url_prefix", "/v2/models")
-        self.health_prefix = kwargs.get("health_prefix", "/v2/health")
-        self.protocol = kwargs.get("protocol", "v2")
+        self.routes = routes
+        self.protocol = protocol or "v2"
+        self.url_prefix = url_prefix or f"/{self.protocol}/models"
+        self.health_prefix = health_prefix or f"/{self.protocol}/health"
         self.inputs_key == "instances" if self.protocol == "v1" else "inputs"
+        self.kwargs = kwargs
 
     def parse_event(self, event):
         parsed_event = {}
@@ -60,11 +67,11 @@ class BaseModelRouter:
 
         return parsed_event
 
-    def post_init(self):
+    def post_init(self, mode="sync"):
         # Verify that models are loaded
-        assert (
-            len(self.routes) > 0
-        ), "No models were loaded!\n Please register child models"
+        # assert (
+        #     len(self.routes) > 0
+        # ), "No models were loaded!\n Please register child models"
         self.context.logger.info(f"Loaded {list(self.routes.keys())}")
 
     def get_metadata(self):
@@ -151,6 +158,6 @@ class ModelRouter(BaseModelRouter):
 
         self.context.logger.debug(f"router run model {name}, op={subpath}")
         event.path = subpath
-        response = route(event)
+        response = route.run(event)
         event.body = response.body if response else None
         return event

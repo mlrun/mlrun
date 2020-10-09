@@ -84,7 +84,7 @@ from mlrun.serving.server import create_mock_server
 
 models_path = '{model artifact/dir path}'
 server = create_mock_server()
-server.add_model("mymodel", model_class=ClassifierModel, model_path=models_path)
+server.add_model("mymodel", class_name=ClassifierModel, model_path=models_path)
 
 from sklearn.datasets import load_iris
 x = load_iris()['data'].tolist()
@@ -157,7 +157,7 @@ Example (run inside a notebook): this code converts a notebook to a serving func
 ```python
 from mlrun import code_to_function
 fn = code_to_function('my-function', kind='serving')
-fn.add_model('m1', model_path=<model-artifact/dir>, model_class='MyClass', parameters={"x": 100})
+fn.add_model('m1', model_path=<model-artifact/dir>, class_name='MyClass', parameters={"x": 100})
 ``` 
 
 see `.add_model()` docstring for help and parameters, 
@@ -166,7 +166,7 @@ see [xgb_serving.ipynb](../../examples/xgb_serving.ipynb) notebook example.
 If we want to use multiple versions for the same model, we use `:` to seperate the name from the version, 
 e.g. if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
-User should specify the `model_path` (url of the model artifact/dir) and the `model_class` name 
+User should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
 (or class `module.submodule.class`), alternatively you can set the `model_url` for calling a 
 model which is served by another function (can be used for ensembles).
 

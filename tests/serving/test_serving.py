@@ -7,32 +7,56 @@ from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.serving.server import MockEvent, MockContext, create_mock_server
 
-spec = {
-    "router_class": None,
-    "models": {
+router_spec = {
+    "kind": "router",
+    "class_name": None,
+    "routes": {
         "m1": {
-            "model_class": "ModelTestingClass",
-            "model_path": "",
-            "params": {"z": 100},
+            "class_name": "ModelTestingClass",
+            "class_args": {"model_path": "", "z": 100},
         },
         "m2": {
-            "model_class": "ModelTestingClass",
-            "model_path": "",
-            "params": {"z": 200},
+            "class_name": "ModelTestingClass",
+            "class_args": {"model_path": "", "z": 200},
         },
         "m3:v1": {
-            "model_class": "ModelTestingClass",
-            "model_path": "",
-            "params": {"z": 300},
+            "class_name": "ModelTestingClass",
+            "class_args": {"model_path": "", "z": 300},
         },
         "m3:v2": {
-            "model_class": "ModelTestingClass",
-            "model_path": "",
-            "params": {"z": 400},
+            "class_name": "ModelTestingClass",
+            "class_args": {"model_path": "", "z": 400},
         },
     },
 }
 
+
+def make_spec(router, mode="sync", params={}):
+    return {
+        "version": "v2",
+        "parameters": params,
+        "states": {"my-router": router},
+        "start_at": "my-router",
+        "load_mode": mode,
+        "verbose": True,
+    }
+
+
+asyncspec = make_spec(
+    {
+        "kind": "router",
+        "routes": {
+            "m5": {
+                "class_name": "AsyncModelTestingClass",
+                "class_args": {"model_path": ""},
+            },
+        },
+    },
+    "async",
+)
+
+
+spec = make_spec(router_spec)
 testdata = '{"inputs": [5]}'
 
 
@@ -66,20 +90,8 @@ class AsyncModelTestingClass(V2ModelServer):
         return resp
 
 
-asyncspec = {
-    "router_class": None,
-    "models": {
-        "m5": {
-            "model_class": "AsyncModelTestingClass",
-            "model_path": "",
-            "load_mode": "async",
-        },
-    },
-}
-
-
 def init_ctx():
-    os.environ["MODELSRV_SPEC_ENV"] = json.dumps(spec)
+    os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
     context = MockContext()
     nuclio_init_hook(context, globals(), serving_subkind)
     return context
@@ -98,9 +110,10 @@ def test_v2_get_models():
 
 def test_v2_infer():
     def run_model(url, expected):
-        e = MockEvent(testdata, path=f"/v2/models/{url}/infer")
-        resp = context.mlrun_handler(context, e)
-        assert resp.body == str(expected), f"wrong model response {resp.body}"
+        event = MockEvent(testdata, path=f"/v2/models/{url}/infer")
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == expected, f"wrong model response {data['outputs']}"
 
     context = init_ctx()
     run_model("m1", 500)
@@ -112,57 +125,63 @@ def test_v2_infer():
 def test_v2_stream_mode():
     # model and operation are specified inside the message body
     context = init_ctx()
-    e = MockEvent('{"model": "m2", "inputs": [5]}')
-    resp = context.mlrun_handler(context, e)
-    assert resp.body == str(1000), f"wrong model response {resp.body}"
-
-    e = MockEvent('{"model": "m3:v2", "operation": "explain", "inputs": [5]}', path="")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent('{"model": "m2", "inputs": [5]}')
+    resp = context.mlrun_handler(context, event)
     data = json.loads(resp.body)
-    assert data["explained"] == 5, f"wrong model response {resp.body}"
+    assert data["outputs"] == 1000, f"wrong model response {resp.body}"
+
+    event = MockEvent(
+        '{"model": "m3:v2", "operation": "explain", "inputs": [5]}', path=""
+    )
+    resp = context.mlrun_handler(context, event)
+    print(resp.body)
+    data = json.loads(resp.body)
+    assert data["outputs"]["explained"] == 5, f"wrong model response {data}"
 
 
 def test_v2_async_mode():
     # model loading is async
-    os.environ["MODELSRV_SPEC_ENV"] = json.dumps(asyncspec)
+    os.environ["SERVING_SPEC_ENV"] = json.dumps(asyncspec)
     context = MockContext()
     nuclio_init_hook(context, globals(), serving_subkind)
     context.logger.info("model initialized")
 
-    e = MockEvent("", path="/v2/models/m5/ready", method="GET")
-    resp = context.mlrun_handler(context, e)
+    context.logger.info("test not ready, should return err 408")
+    event = MockEvent("", path="/v2/models/m5/ready", method="GET")
+    resp = context.mlrun_handler(context, event)
     assert (
         resp.status_code == 408
     ), f"didnt get proper ready resp, expected 408, got {resp.status_code}"
 
-    e = MockEvent(testdata, path="/v2/models/m5/infer")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent(testdata, path="/v2/models/m5/infer")
+    resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
     print(resp)
     assert (
         resp.status_code != 200
     ), f"expected failure, got {resp.status_code} {resp.body}"
 
-    e = MockEvent('{"model": "m5", "inputs": [5]}')
-    e.trigger = "stream"
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent('{"model": "m5", "inputs": [5]}')
+    event.trigger = "stream"
+    resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
     print(resp)
-    assert resp.body == str(5), f"wrong model response {resp.body}"
+    data = json.loads(resp.body)
+    assert data["outputs"] == 5, f"wrong model response {data}"
 
 
 def test_v2_explain():
     context = init_ctx()
-    e = MockEvent(testdata, path="/v2/models/m1/explain")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent(testdata, path="/v2/models/m1/explain")
+    resp = context.mlrun_handler(context, event)
     data = json.loads(resp.body)
-    assert data["explained"] == 5, f"wrong explain response {resp.body}"
+    assert data["outputs"]["explained"] == 5, f"wrong explain response {resp.body}"
 
 
 def test_v2_get_modelmeta():
     def get_model(name, version, url):
-        e = MockEvent("", path=f"/v2/models/{url}", method="GET")
-        resp = context.mlrun_handler(context, e)
+        event = MockEvent("", path=f"/v2/models/{url}", method="GET")
+        resp = context.mlrun_handler(context, event)
         print(resp)
         data = json.loads(resp.body)
 
@@ -178,49 +197,47 @@ def test_v2_get_modelmeta():
 
 def test_v2_custom_handler():
     context = init_ctx()
-    e = MockEvent('{"test": "ok"}', path="/v2/models/m1/myop")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent('{"test": "ok"}', path="/v2/models/m1/myop")
+    resp = context.mlrun_handler(context, event)
     data = json.loads(resp.body)
     assert data["test"] == "ok", f"wrong custom op response {resp.body}"
 
 
 def test_v2_errors():
     context = init_ctx()
-    e = MockEvent('{"test": "ok"}', path="/v2/models/m1/xx")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent('{"test": "ok"}', path="/v2/models/m1/xx")
+    resp = context.mlrun_handler(context, event)
     # expected: 400, 'illegal model operation xx, method=None'
     assert resp.status_code == 400, f"didnt get proper handler error {resp.body}"
 
-    e = MockEvent('{"test": "ok"}', path="/v2/models/m5/xx")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent('{"test": "ok"}', path="/v2/models/m5/xx")
+    resp = context.mlrun_handler(context, event)
     # expected: 400, 'model m5 doesnt exist, available models: m1 | m2 | m3:v1 | m3:v2'
     assert resp.status_code == 400, f"didnt get proper model error {resp.body}"
 
 
 def test_v2_model_ready():
     context = init_ctx()
-    e = MockEvent("", path="/v2/models/m1/ready", method="GET")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent("", path="/v2/models/m1/ready", method="GET")
+    resp = context.mlrun_handler(context, event)
     assert resp.status_code == 200, f"didnt get proper ready resp {resp.body}"
 
 
 def test_v2_health():
     context = init_ctx()
-    e = MockEvent(None, path="/", method="GET")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent(None, path="/", method="GET")
+    resp = context.mlrun_handler(context, event)
     data = json.loads(resp.body)
     # expected: {'name': 'ModelRouter', 'version': 'v2', 'extensions': []}
     assert data["version"] == "v2", f"wrong health response {resp.body}"
 
-    e = MockEvent("", path="/v2/health", method="GET")
-    resp = context.mlrun_handler(context, e)
+    event = MockEvent("", path="/v2/health", method="GET")
+    resp = context.mlrun_handler(context, event)
     data = json.loads(resp.body)
     assert data["version"] == "v2", f"wrong health response {resp.body}"
 
 
 def test_v2_mock():
     host = create_mock_server()
-    host.add_model(
-        "my", model_class=ModelTestingClass, model_path="", params={"z": 100}
-    )
+    host.add_model("my", class_name=ModelTestingClass, model_path="", z=100)
     print(host.test("my/infer", testdata))

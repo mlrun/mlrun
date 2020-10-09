@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+from copy import deepcopy
+
 import nuclio
 
 from .function import RemoteRuntime, NuclioSpec
@@ -146,37 +148,48 @@ class ServingRuntime(RemoteRuntime):
         self,
         name,
         model_path=None,
-        model_class=None,
+        class_name=None,
         model_url=None,
-        parameters=None,
         handler=None,
+        **class_args,
     ):
-        """add ml model to the function
+        """add ml model and/or route to the function
+
+        Example, create a function (from the notebook), add a model class, and deploy:
+
+            fn = code_to_function(kind='serving')
+            fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
+            fn.deploy()
 
         :param name:        model api name (or name:version), will determine the relative url/path
-        :param model_path:  path to mlrun model artifact or model directory path
-        :param model_class: V2 Model python class name
+        :param model_path:  path to mlrun model artifact or model directory file/object path
+        :param class_name: V2 Model python class name
                             (can also module.submodule.class and it will be imported automatically)
-        :param model_url:   url of a remote url serving that model (cannot be used with model_path)
-        :param parameters:  extra kwargs to pass to the model serving class __init__
-                            (can be read in the model using .get_param(key) method)
+        :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
         :param handler:     for advanced users!, override default class handler name (do_event)
+        :param class_args:  extra kwargs to pass to the model serving class __init__
+                            (can be read in the model using .get_param(key) method)
         """
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")
-        if model_path and not model_class and not self.spec.default_class:
-            raise ValueError("model_path must be provided with model_class")
+        if model_path and not class_name and not self.spec.default_class:
+            raise ValueError("model_path must be provided with class_name")
         if model_path:
             model_path = str(model_path)
 
+        class_args = deepcopy(class_args)
+        if model_path:
+            class_args["model_path"] = model_path
+        if model_url:
+            class_name = "$remote"
+            class_args["url"] = model_url
+
         model = {
-            "model_class": model_class or self.spec.default_class,
-            "model_path": model_path,
-            "model_url": model_url,
-            "params": parameters,
-            "handler": handler,
+            "class_name": class_name or self.spec.default_class,
+            "class_args": class_args,
         }
-        model = {k: v for k, v in model.items() if v is not None}
+        if handler:
+            model["handler"] = handler
         self.spec.models[name] = model
 
     def remove_models(self, *names):
@@ -199,12 +212,22 @@ class ServingRuntime(RemoteRuntime):
         kind = None
         if not self.spec.base_spec:
             kind = serving_subkind
+
+        # we currently support a minimal topology of one router + multiple child routes/models
+        # in the future we will extend the support to a full graph, the spec is already built accordingly
         serving_spec = {
-            "router_class": self.spec.router,
-            "router_args": self.spec.router_args,
-            "models": self.spec.models,
+            "version": "v2",
             "parameters": self.spec.parameters,
+            "states": {
+                "router": {
+                    "kind": "router",
+                    "class_name": self.spec.router,
+                    "class_args": self.spec.router_args,
+                    "routes": self.spec.models,
+                }
+            },
             "load_mode": load_mode,
+            "verbose": self.verbose,
         }
-        env = {"MODELSRV_SPEC_ENV": json.dumps(serving_spec)}
+        env = {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
         return super().deploy(dashboard, project, tag, kind, env)

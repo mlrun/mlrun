@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
 import time
+import traceback
 from typing import Dict
 from datetime import datetime
 
-from mlrun.artifacts import ModelArtifact, get_model
+import mlrun
 
 
 class V2ModelServer:
@@ -50,19 +51,28 @@ class V2ModelServer:
 
     """
 
-    def __init__(self, context, name: str, model_dir: str = None, model=None, **kwargs):
+    def __init__(
+        self,
+        context,
+        name: str,
+        model_dir: str = None,
+        model=None,
+        protocol=None,
+        **class_args,
+    ):
         self.name = name
         self.version = ""
         if ":" in name:
             self.name, self.version = name.split(":", 1)
         self.context = context
         self.ready = False
-        self.protocol = kwargs.get("protocol", "v2")
+        self.error = ""
+        self.protocol = protocol or "v2"
         self.model_dir = model_dir
-        self.model_spec: ModelArtifact = None
-        self._params = kwargs
+        self.model_spec: mlrun.artifacts.ModelArtifact = None
+        self._params = class_args
         self._model_logger = None
-        self._params = context.add_root_params(self._params)
+        self._params = context.merge_root_params(self._params)
         self._model_logger = _ModelLogPusher(self, context)
 
         self.metrics = {}
@@ -71,15 +81,25 @@ class V2ModelServer:
             self.model = model
             self.ready = True
 
-    def async_load(self):
-        """async model loading, for internal use"""
-        if not self.ready:
+    def _load_wrapper(self):
+        try:
             self.load()
-            self.ready = True
+        except Exception as e:
+            self.error = e
+            self.context.logger.error(traceback.format_exc())
+            raise RuntimeError(f"failed to load model {self.name}, {e}")
+        self.ready = True
+        self.context.logger.info(f"model {self.name} was loaded")
 
-    def post_init(self):
-        """reserved, init hook for pipeline"""
-        self.async_load()
+    def post_init(self, mode="sync"):
+        """sync/async model loading, for internal use"""
+        if not self.ready:
+            if mode == "async":
+                t = threading.Thread(target=self._load_wrapper)
+                t.start()
+                self.context.logger.info(f"started async model loading for {self.name}")
+            else:
+                self._load_wrapper()
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -103,7 +123,9 @@ class V2ModelServer:
         :param  suffix:  optional, model file suffix (when the model_path is a directory)
         :return (local) model file, extra dataitems dictionary
         """
-        model_file, self.model_spec, extra_dataitems = get_model(self.model_dir, suffix)
+        model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
+            self.model_dir, suffix
+        )
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():
                 self._params[key] = value
@@ -124,7 +146,14 @@ class V2ModelServer:
             time.sleep(5)
             if self.ready:
                 return
-        raise RuntimeError(f"model {self.name} did not become ready")
+        raise RuntimeError(f"model {self.name} is not ready {self.error}")
+
+    def _prepare(self, event, op):
+        self._check_readiness(event)
+        request = self.preprocess(event.body, op)
+        if "id" not in request:
+            request["id"] = event.id
+        return self.validate(request, op)
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
@@ -133,11 +162,7 @@ class V2ModelServer:
 
         if op == "predict" or op == "infer":
             # predict operation
-            self._check_readiness(event)
-            request = self.preprocess(event.body, op)
-            if "id" not in request:
-                request["id"] = event.id
-            request = self.validate(request, op)
+            request = self._prepare(event, op)
             outputs = self.predict(request)
             response = {
                 "id": request["id"],
@@ -174,9 +199,7 @@ class V2ModelServer:
 
         elif op == "explain":
             # explain operation
-            self._check_readiness(event)
-            request = self.preprocess(event.body, op)
-            request = self.validate(request, op)
+            request = self._prepare(event, op)
             outputs = self.explain(request)
             response = {
                 "id": request["id"],

@@ -159,11 +159,12 @@ def _resume_monitoring_runs():
                         )
                         if not function_kind:
                             logger.warning(
-                                "Could not determine run function kind, can resume monitoring run. Continuing",
+                                "Could not determine run function kind, can not resume monitoring run. Continuing",
                                 project=project.name,
                                 function_kind=function_kind,
                                 run_uid=run_uid,
                             )
+                            continue
 
                         logger.debug(
                             "Starting run monitoring in background",

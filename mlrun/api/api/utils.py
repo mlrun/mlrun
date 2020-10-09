@@ -62,7 +62,7 @@ def get_run_db_instance(db_session: Session):
     return run_db
 
 
-def _parse_submit_job_body(db_session: Session, data):
+def _parse_submit_run_body(db_session: Session, data):
     task = data.get("task")
     function_dict = data.get("function")
     function_url = data.get("functionUrl")
@@ -128,19 +128,19 @@ def _parse_submit_job_body(db_session: Session, data):
     return function, task
 
 
-async def submit_job(db_session: Session, data):
+async def submit_task(db_session: Session, data):
     project, function_kind, run_uid, response = await run_in_threadpool(
-        _submit_job, db_session, data
+        _submit_task, db_session, data
     )
     if run_uid:
         # monitor in the background
         asyncio.create_task(
-            run_in_threadpool(monitor_job, project, function_kind, run_uid)
+            run_in_threadpool(monitor_run, project, function_kind, run_uid)
         )
     return response
 
 
-def monitor_job(project: str, function_kind: str, run_uid: str):
+def monitor_run(project: str, function_kind: str, run_uid: str):
     """
     This function is running in background, i.e. outside of the context of a request
     therefore it should create its own db session
@@ -168,21 +168,21 @@ def monitor_job(project: str, function_kind: str, run_uid: str):
     )
 
 
-def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
+def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
-        1. str of the project of the job
-        2. str of the kind of the function of the job
+        1. str of the project of the run
+        2. str of the kind of the function of the run
         3. str of the uid of the run that was started execution (None when it was scheduled)
         4. dict of the response info
     """
     run_uid = None
     project = None
     try:
-        fn, task = _parse_submit_job_body(db_session, data)
+        fn, task = _parse_submit_run_body(db_session, data)
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
-        logger.info("Submitting job", function=fn.to_dict(), task=task)
+        logger.info("Submitting task", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
@@ -222,5 +222,5 @@ def _submit_job(db_session: Session, data) -> typing.Tuple[str, str, str, typing
             HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
         )
 
-    logger.info("Submit job succeeded, returning response", response=response)
+    logger.info("Submit task succeeded, returning response", response=response)
     return project, fn.kind, run_uid, {"data": response}

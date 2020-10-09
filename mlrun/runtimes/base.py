@@ -361,7 +361,7 @@ class BaseRuntime(ModelObj):
             if self._secrets:
                 runspec.spec.secret_sources = self._secrets.to_serial()
             try:
-                resp = db.submit_job(runspec, schedule=schedule)
+                resp = db.submit_task(runspec, schedule=schedule)
                 if schedule:
                     logger.info("task scheduled, {}".format(resp))
                     return

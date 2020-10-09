@@ -9,7 +9,7 @@ from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.errors
 from mlrun.api.api.api import api_router
-from mlrun.api.api.utils import monitor_job
+from mlrun.api.api.utils import monitor_run
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
@@ -174,7 +174,7 @@ def _resume_monitoring_runs():
                         # monitor in the background
                         asyncio.create_task(
                             fastapi.concurrency.run_in_threadpool(
-                                monitor_job, project.name, function_kind, run_uid
+                                monitor_run, project.name, function_kind, run_uid
                             )
                         )
                 except Exception as exc:

@@ -39,5 +39,5 @@ async def submit_job(
             labels.setdefault("owner", username)
 
     logger.info("submit_job: {}".format(data))
-    response = await mlrun.api.api.utils.submit_job(db_session, data)
+    response = await mlrun.api.api.utils.submit_task(db_session, data)
     return response

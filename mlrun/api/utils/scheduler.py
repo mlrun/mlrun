@@ -211,7 +211,7 @@ class Scheduler:
 
         if scheduled_kind == schemas.ScheduleKinds.job:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
-            return Scheduler.submit_job_wrapper, [scheduled_object_copy], {}
+            return Scheduler.submit_task_wrapper, [scheduled_object_copy], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, None, None
 
@@ -227,21 +227,21 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
-    def submit_job_wrapper(scheduled_object):
+    def submit_task_wrapper(scheduled_object):
         # import here to avoid circular imports
-        from mlrun.api.api.utils import submit_job
+        from mlrun.api.api.utils import submit_task
 
-        # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
+        # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop
         scheduled_object.pop("schedule", None)
 
         # removing the uid from the task metadata so that a new uid will be generated for every run
-        # otherwise all jobs will have the same uid
+        # otherwise all runs will have the same uid
         scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
 
         db_session = create_session()
 
-        submit_job(db_session, scheduled_object)
+        submit_task(db_session, scheduled_object)
 
         close_session(db_session)
 

@@ -32,7 +32,7 @@ class Logs:
         """
         :return: Tuple with:
             1. str of the run state (so watchers will know whether to continue polling for logs)
-            2. str of the log itself
+            2. bytes of the logs themselves
         """
         out = b""
         log_file = log_path(project, uid)

@@ -1132,7 +1132,7 @@ class BaseRuntimeHandler(ABC):
             raise ValueError("Could not resolve run uid from runtime resource")
 
         logger.info(
-            "About to cleanup runtime resources, pre-deletion actions will be performed",
+            "Performing pre-deletion actions before cleaning up runtime resources",
             project=project,
             uid=uid,
         )

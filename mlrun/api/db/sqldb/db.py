@@ -92,10 +92,10 @@ class SQLDB(DBInterface):
         for log in self._query(session, Log, project=project):
             self.delete_log(session, project, log.uid)
 
-    def store_run(self, session, struct, uid, project="", iter=0):
+    def store_run(self, session, run_data, uid, project="", iter=0):
         project = project or config.default_project
         logger.debug(
-            "Storing run to db", project=project, uid=uid, iter=iter, run=struct
+            "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
         self._ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
@@ -104,15 +104,15 @@ class SQLDB(DBInterface):
                 uid=uid,
                 project=project,
                 iteration=iter,
-                state=run_state(struct),
-                start_time=run_start_time(struct) or datetime.now(timezone.utc),
+                state=run_state(run_data),
+                start_time=run_start_time(run_data) or datetime.now(timezone.utc),
             )
-        labels = run_labels(struct)
-        new_state = run_state(struct)
+        labels = run_labels(run_data)
+        new_state = run_state(run_data)
         if new_state:
             run.state = new_state
         update_labels(run, labels)
-        run.struct = struct
+        run.struct = run_data
         self._upsert(session, run, ignore=True)
 
     def update_run(self, session, updates: dict, uid, project="", iter=0):

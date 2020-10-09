@@ -222,5 +222,5 @@ def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typin
             HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
         )
 
-    logger.info("Submit task succeeded, returning response", response=response)
+    logger.info("Task submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

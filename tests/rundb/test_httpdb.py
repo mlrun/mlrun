@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import codecs
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -148,11 +149,11 @@ def server_fixture():
             process.terminate()
             stdout = process.stdout.read()
             human_readable_stdout = (
-                stdout.decode("utf-8").replace("\\n", "\n").replace("\\t", "\t")
+                codecs.escape_decode(bytes(stdout, "utf-8"))[0].decode("utf-8")
             )
             stderr = process.stderr.read()
             human_readable_stderr = (
-                stderr.decode("utf-8").replace("\\n", "\n").replace("\\t", "\t")
+                codecs.escape_decode(bytes(stderr, "utf-8"))[0].decode("utf-8")
             )
             print(f"Stdout from server {human_readable_stdout}")
             print(f"Stderr from server {human_readable_stderr}")

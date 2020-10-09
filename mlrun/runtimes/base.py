@@ -844,9 +844,7 @@ class BaseRuntimeHandler(ABC):
                 "Run did not reach stable state in given timeout. Marking with error",
                 exc=str(exc),
             )
-            self._ensure_run_state(
-                db, db_session, project, run_uid, RunStates.error
-            )
+            self._ensure_run_state(db, db_session, project, run_uid, RunStates.error)
 
         logger.debug(
             "Run reached stable state, ensuring logs collected",

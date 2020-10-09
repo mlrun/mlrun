@@ -8,7 +8,6 @@ from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes.constants import PodPhases
-from mlrun.utils import get_in
 
 
 class Logs:
@@ -39,7 +38,7 @@ class Logs:
         data = get_db().read_run(db_session, uid, project)
         if not data:
             log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
-        run_state = data.get('status', {}).get('state', '')
+        run_state = data.get("status", {}).get("state", "")
         if log_file.exists() and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)

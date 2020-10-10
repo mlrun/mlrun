@@ -100,9 +100,6 @@ class ServingRouterState(ServingTaskState):
         super().init_object(context, namespace, "skip")
         del self.class_args["routes"]
 
-        print(self._routes.items())
-        print(self.to_yaml())
-
         for route in self._routes.values():
             route.init_object(context, namespace, mode)
 

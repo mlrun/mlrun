@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from copy import deepcopy
+
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import requests
@@ -22,6 +24,18 @@ from ..utils import create_class
 
 
 _task_state_fields = ["kind", "class_name", "class_args", "handler"]
+
+
+def model_endpoint(class_name, model_path, handler=None, **class_args):
+    class_args = deepcopy(class_args)
+    class_args["model_path"] = model_path
+    return ServingTaskState(class_name, class_args, handler=handler)
+
+
+def remote_endpoint(url, **class_args):
+    class_args = deepcopy(class_args)
+    class_args["url"] = url
+    return ServingTaskState("$remote", class_args)
 
 
 class ServingTaskState(ModelObj):
@@ -89,9 +103,15 @@ class ServingRouterState(ServingTaskState):
     def routes(self, routes: dict):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
-    def add_route(self, name, route):
-        self._routes[name] = route
+    def add_route(self, key, route):
+        self._routes[key] = route
         return route
+
+    def clear_routes(self, *routes):
+        if not routes:
+            routes = self._routes.keys()
+        for key in routes:
+            del self._routes[key]
 
     def init_object(self, context, namespace, mode="sync"):
         self.class_name = self.class_name or ModelRouter

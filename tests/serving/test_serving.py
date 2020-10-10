@@ -25,12 +25,11 @@ router_object.routes = {
 }
 
 
-def make_spec(router, mode="sync", params={}):
+def make_spec(graph, mode="sync", params={}):
     return {
         "version": "v2",
         "parameters": params,
-        "router": router,
-        "start_at": "my-router",
+        "graph": graph,
         "load_mode": mode,
         "verbose": True,
     }

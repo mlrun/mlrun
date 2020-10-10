@@ -345,7 +345,7 @@ class RemoteRuntime(KubeResource):
         name = "deploy_{}".format(self.metadata.name or "function")
         project = project or self.metadata.project
         if models and isinstance(models, dict):
-            models = [{"name": k, "model_path": v} for k, v in models.items()]
+            models = [{"key": k, "model_path": v} for k, v in models.items()]
 
         if use_db:
             hash_key = self.save(versioned=True, refresh=True)

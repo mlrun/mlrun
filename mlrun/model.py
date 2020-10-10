@@ -116,6 +116,9 @@ class ObjectDict:
     def __setitem__(self, key, item):
         self._children[key] = self._get_child_object(item, key)
 
+    def __delitem__(self, key):
+        del self._children[key]
+
     def to_dict(self):
         return {k: v.to_dict() for k, v in self._children.items()}
 

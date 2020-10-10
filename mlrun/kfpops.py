@@ -441,7 +441,7 @@ def deploy_op(
             if function.kind == mlrun.runtimes.RuntimeKinds.serving:
                 cmd += ["-m", json.dumps(m)]
             else:
-                cmd += ["-m", "{}={}".format(m["name"], m["model_path"])]
+                cmd += ["-m", "{}={}".format(m["key"], m["model_path"])]
 
     if env:
         for key, val in env.items():

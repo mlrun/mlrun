@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import json
-from copy import deepcopy
 import nuclio
 
 from .function import RemoteRuntime, NuclioSpec
+from ..serving.server import create_mock_server
+from ..serving.states import ServingRouterState, remote_endpoint, model_endpoint
 
 serving_subkind = "serving_v2"
 
@@ -81,6 +82,7 @@ class ServingSpec(NuclioSpec):
         readiness_timeout=None,
         models=None,
         router=None,
+        graph=None,
         router_args=None,
         parameters=None,
         default_class=None,
@@ -113,6 +115,7 @@ class ServingSpec(NuclioSpec):
 
         self.models = models or {}
         self.router = router
+        self.graph: ServingRouterState = graph
         self.router_args = router_args
         self.parameters = parameters or {}
         self.default_class = default_class
@@ -130,6 +133,18 @@ class ServingRuntime(RemoteRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
+    def set_topology(
+        self, topology="router", class_name=None, exist_ok=False, **class_args
+    ):
+        """set the serving graph topology (router/flow/endpoint) and root class"""
+        if self.spec.graph and not exist_ok:
+            raise ValueError("graph topology is already set")
+
+        # currently we only support router topology
+        self.spec.graph = ServingRouterState(
+            class_name=class_name, class_args=class_args
+        )
+
     def set_router(self, router, **router_args):
         """set the routing class and router arguments"""
         self.spec.router = router
@@ -145,7 +160,7 @@ class ServingRuntime(RemoteRuntime):
 
     def add_model(
         self,
-        name,
+        key,
         model_path=None,
         class_name=None,
         model_url=None,
@@ -160,9 +175,9 @@ class ServingRuntime(RemoteRuntime):
             fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
             fn.deploy()
 
-        :param name:        model api name (or name:version), will determine the relative url/path
+        :param key:         model api key (or name:version), will determine the relative url/path
         :param model_path:  path to mlrun model artifact or model directory file/object path
-        :param class_name: V2 Model python class name
+        :param class_name:  V2 Model python class name
                             (can also module.submodule.class and it will be imported automatically)
         :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
         :param handler:     for advanced users!, override default class handler name (do_event)
@@ -171,32 +186,25 @@ class ServingRuntime(RemoteRuntime):
         """
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")
-        if model_path and not class_name and not self.spec.default_class:
+        class_name = class_name or self.spec.default_class
+        if model_path and not class_name:
             raise ValueError("model_path must be provided with class_name")
         if model_path:
             model_path = str(model_path)
 
-        class_args = deepcopy(class_args)
-        if model_path:
-            class_args["model_path"] = model_path
+        if not self.spec.graph:
+            self.set_topology()
+
         if model_url:
-            class_name = "$remote"
-            class_args["url"] = model_url
+            route = remote_endpoint(model_url, **class_args)
+        else:
+            route = model_endpoint(class_name, model_path, handler, **class_args)
+        self.spec.graph.add_route(key, route)
 
-        model = {
-            "class_name": class_name or self.spec.default_class,
-            "class_args": class_args,
-        }
-        if handler:
-            model["handler"] = handler
-        self.spec.models[name] = model
-
-    def remove_models(self, *names):
+    def remove_models(self, *keys):
         """remove one, multiple, or all models from the spec (blank list for all)"""
-        if not names:
-            names = self.spec.models.keys()
-        for name in names:
-            del self.spec.models[name]
+        if self.spec.graph:
+            self.spec.graph.clear_routes(*keys)
 
     def deploy(self, dashboard="", project="", tag=""):
         """deploy model serving function to a local/remote cluster
@@ -211,19 +219,30 @@ class ServingRuntime(RemoteRuntime):
         kind = None
         if not self.spec.base_spec:
             kind = serving_subkind
-
+        if not self.spec.graph:
+            raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
         # we currently support a minimal topology of one router + multiple child routes/models
         # in the future we will extend the support to a full graph, the spec is already built accordingly
         serving_spec = {
             "version": "v2",
             "parameters": self.spec.parameters,
-            "router": {
-                "class_name": self.spec.router,
-                "class_args": self.spec.router_args,
-                "routes": self.spec.models,
-            },
+            "graph": self.spec.graph.to_dict(),
             "load_mode": load_mode,
             "verbose": self.verbose,
         }
         env = {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
         return super().deploy(dashboard, project, tag, kind, env)
+
+    def mock_server(self, namespace=None, log_level="debug"):
+        """create mock server object for local testing/emulation
+
+        :param namespace: classes search namespace, use globals() for current notebook
+        :param log_level: log level (error | info | debug)
+        """
+        return create_mock_server(
+            parameters=self.spec.parameters,
+            load_mode=self.spec.load_mode,
+            graph=self.spec.graph,
+            namespace=namespace,
+            level=log_level,
+        )

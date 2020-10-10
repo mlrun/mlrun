@@ -40,13 +40,13 @@ class _ServerContext:
 # routes (models/tasks). it will be enhanced later to support more complex topologies
 class ModelServerHost(ModelObj):
     kind = "server"
-    # _dict_fields = ['router', 'parameters', 'load_mode', 'verbose']
+    # _dict_fields = ['graph', 'parameters', 'load_mode', 'verbose']
 
     def __init__(
-        self, router=None, parameters=None, load_mode=None, verbose=False, version=None
+        self, graph=None, parameters=None, load_mode=None, verbose=False, version=None
     ):
-        self._router = None
-        self.router: ServingRouterState = router
+        self._graph = None
+        self.graph: ServingRouterState = graph
         self.parameters = parameters or {}
         self.verbose = verbose
         self.load_mode = load_mode or "sync"
@@ -55,12 +55,12 @@ class ModelServerHost(ModelObj):
         self._namespace = None
 
     @property
-    def router(self) -> ServingRouterState:
-        return self._router
+    def graph(self) -> ServingRouterState:
+        return self._graph
 
-    @router.setter
-    def router(self, router):
-        self._router = self._verify_dict(router, "spec", ServingRouterState)
+    @graph.setter
+    def graph(self, graph):
+        self._graph = self._verify_dict(graph, "spec", ServingRouterState)
 
     def merge_root_params(self, params={}):
         """for internal use, enrich child states with root params"""
@@ -72,8 +72,8 @@ class ModelServerHost(ModelObj):
     def init(self, context, namespace):
         """for internal use, initialize all states (recursively)"""
         self.context = context
-        self.router.init_object(context, namespace, self.load_mode)
-        setattr(self.context, "root", self.router)
+        self.graph.init_object(context, namespace, self.load_mode)
+        setattr(self.context, "root", self.graph)
         return v2_serving_handler
 
     def add_model(
@@ -99,7 +99,7 @@ class ModelServerHost(ModelObj):
         class_args = deepcopy(class_args)
         class_args["model_path"] = model_path
         route = ServingTaskState(class_name, class_args, handler)
-        self.router.add_route(name, route).init_object(self.context, namespace)
+        self.graph.add_route(name, route).init_object(self.context, namespace)
 
     def test(
         self, path, body, method="", content_type=None, silent=False, get_body=True
@@ -119,10 +119,10 @@ class ModelServerHost(ModelObj):
         :param silent:   dont raise on error responses (when not 20X)
         :param get_body: return the body (vs serialize response into json)
         """
-        if not self.router:
+        if not self.graph:
             raise ValueError("no model or router was added, use .add_model()")
         if not path.startswith("/"):
-            path = self.router.object.url_prefix + path
+            path = self.graph.object.url_prefix + path
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type
         )
@@ -176,6 +176,8 @@ def create_mock_server(
     router_args={},
     parameters={},
     load_mode=None,
+    graph=None,
+    namespace=None,
     level="debug",
 ):
     """create serving emulator/tester for locally testing models and servers
@@ -188,9 +190,10 @@ def create_mock_server(
     if not context:
         context = MockContext(level)
 
-    router = ServingRouterState(class_name=router_class, class_args=router_args)
-    host = ModelServerHost(router, parameters, load_mode, verbose=level == "debug")
-    host.init(context, {})
+    if not graph:
+        graph = ServingRouterState(class_name=router_class, class_args=router_args)
+    host = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
+    host.init(context, namespace or {})
 
     setattr(host.context, "server", _ServerContext(host.parameters))
     setattr(host.context, "merge_root_params", host.merge_root_params)

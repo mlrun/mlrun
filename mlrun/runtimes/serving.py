@@ -217,13 +217,10 @@ class ServingRuntime(RemoteRuntime):
         serving_spec = {
             "version": "v2",
             "parameters": self.spec.parameters,
-            "states": {
-                "router": {
-                    "kind": "router",
-                    "class_name": self.spec.router,
-                    "class_args": self.spec.router_args,
-                    "routes": self.spec.models,
-                }
+            "router": {
+                "class_name": self.spec.router,
+                "class_args": self.spec.router_args,
+                "routes": self.spec.models,
             },
             "load_mode": load_mode,
             "verbose": self.verbose,

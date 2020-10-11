@@ -72,6 +72,12 @@ class ModelServerHost(ModelObj):
     def init(self, context, namespace):
         """for internal use, initialize all states (recursively)"""
         self.context = context
+        # enrich the context with classes and methods which will be used when
+        # initializing classes or handling the event
+        setattr(context, "server", _ServerContext(self.parameters))
+        setattr(context, "merge_root_params", self.merge_root_params)
+        setattr(context, "verbose", self.verbose)
+
         self.graph.init_object(context, namespace, self.load_mode)
         setattr(self.context, "root", self.graph)
         return v2_serving_handler
@@ -138,13 +144,6 @@ def v2_serving_init(context, namespace=None):
         raise ValueError("failed to find spec env var")
     spec = json.loads(data)
     server = ModelServerHost.from_dict(spec)
-
-    # enrich the context with classes and methods which will be used when
-    # initializing classes or handling the event
-    setattr(context, "server", _ServerContext(server.parameters))
-    setattr(context, "merge_root_params", server.merge_root_params)
-    setattr(context, "verbose", server.verbose)
-
     serving_handler = server.init(context, namespace or globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
@@ -194,10 +193,6 @@ def create_mock_server(
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
     host = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
     host.init(context, namespace or {})
-
-    setattr(host.context, "server", _ServerContext(host.parameters))
-    setattr(host.context, "merge_root_params", host.merge_root_params)
-    setattr(host.context, "verbose", host.verbose)
     return host
 
 

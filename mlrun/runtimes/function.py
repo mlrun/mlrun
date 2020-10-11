@@ -372,9 +372,16 @@ class RemoteRuntime(KubeResource):
         if "://" not in path:
             if not self.status.address:
                 raise ValueError("no function address, first run .deploy()")
-            path = os.path.join(self.status.address, path)
+            path = '"http://' + os.path.join(self.status.address, path)
+
+        kwargs = {}
+        if body:
+            if isinstance(body, (str, bytes)):
+                kwargs["data"] = body
+            else:
+                kwargs["json"] = body
         try:
-            resp = requests.request(method, path, headers=headers)
+            resp = requests.request(method, path, headers=headers, **kwargs)
         except OSError as err:
             raise OSError(f"error: cannot run function at url {path}, {err}")
         if not resp.ok:

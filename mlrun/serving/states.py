@@ -41,6 +41,7 @@ def remote_endpoint(url, **class_args):
 class ServingTaskState(ModelObj):
     kind = "task"
     _dict_fields = _task_state_fields
+    _default_class = ""
 
     def __init__(self, class_name=None, class_args=None, handler=None, name=None):
         self.name = name
@@ -52,17 +53,24 @@ class ServingTaskState(ModelObj):
         self.context = None
         self._class_object = None
 
+    def to_dict(self, fields=None, exclude=None):
+        data = super().to_dict(fields, exclude)
+        if isinstance(self.class_name, type):
+            data["class_name"] = self.class_name.__name__
+        return data
+
     def init_object(self, context, namespace, mode="sync"):
         if isinstance(self.class_name, type):
             self._class_object = self.class_name
-            self.class_name = self.class_name.__name__
 
         self.context = context
         if not self._class_object:
             if self.class_name == "$remote":
                 self._class_object = RemoteHttpHandler
             else:
-                self._class_object = get_class(self.class_name, namespace)
+                self._class_object = get_class(
+                    self.class_name or self._default_class, namespace
+                )
 
         if not self._object:
             print(self.class_args)
@@ -87,6 +95,7 @@ class ServingTaskState(ModelObj):
 class ServingRouterState(ServingTaskState):
     kind = "router"
     _dict_fields = _task_state_fields + ["routes"]
+    _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
         self, class_name=None, class_args=None, handler=None, routes=None, name=None

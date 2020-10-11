@@ -372,7 +372,7 @@ class RemoteRuntime(KubeResource):
         if "://" not in path:
             if not self.status.address:
                 raise ValueError("no function address, first run .deploy()")
-            path = '"http://' + os.path.join(self.status.address, path)
+            path = 'http://' + os.path.join(self.status.address, path)
 
         kwargs = {}
         if body:

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 from os import environ
 from urllib.parse import urlparse
 
@@ -365,6 +366,25 @@ class RemoteRuntime(KubeResource):
             verbose=verbose,
         )
 
+    def invoke(self, path, body=None, method=None, headers=None):
+        if not method:
+            method = "POST" if body else "GET"
+        if "://" not in path:
+            if not self.status.address:
+                raise ValueError("no function address, first run .deploy()")
+            path = os.path.join(self.status.address, path)
+        try:
+            resp = requests.request(method, path, headers=headers)
+        except OSError as err:
+            raise OSError(f"error: cannot run function at url {path}, {err}")
+        if not resp.ok:
+            raise RuntimeError(f"bad function response {resp.text}")
+
+        data = resp.content
+        if resp.headers["content-type"] == "application/json":
+            data = json.loads(data)
+        return data
+
     def _raise_mlrun(self):
         if self.spec.function_kind != "mlrun":
             raise RunError(
@@ -409,7 +429,7 @@ class RemoteRuntime(KubeResource):
             command = "{}/{}".format(command, runobj.spec.handler_name)
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            self.invoke_async(tasks, command, headers, secrets)
+            self._invoke_async(tasks, command, headers, secrets)
         )
 
         loop.run_until_complete(future)
@@ -422,7 +442,7 @@ class RemoteRuntime(KubeResource):
         self._store_run_dict(rundict)
         return rundict
 
-    async def invoke_async(self, runs, url, headers, secrets):
+    async def _invoke_async(self, runs, url, headers, secrets):
         results = RunList()
         tasks = []
 

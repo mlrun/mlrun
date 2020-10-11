@@ -70,9 +70,7 @@ class V2ModelServer:
         self.protocol = protocol or "v2"
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
-        self._params = class_args
-        self._model_logger = None
-        self._params = context.merge_root_params(self._params)
+        self._params = context.merge_root_params(class_args)
         self._model_logger = _ModelLogPusher(self, context)
 
         self.metrics = {}

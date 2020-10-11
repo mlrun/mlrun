@@ -13,10 +13,10 @@ which maximize the utilization of CPUs and GPUs, support 13 protocols
 and invocation methods (HTTP, Cron, Kafka, Kinesis, ..), and dynamic auto-scaling for http and streaming.
 
 MLRun Serving V2 is using the same protocol as KFServing V2 and Triton Serving framework, 
-but eliminate the operational overhead.
+but eliminate the operational overhead and provide additional functionality.
 
 #### In This Document
-- [Creating a Model](#creating-a-model)
+- [Creating a Model](#creating-and-serving-a-model)
 - [Writing a Simple Serving Class](#writing-a-simple-serving-class)
 - [Models, Routers And Graphs](#models-routers-and-graphs)
 - [Creating Model Serving Function (Service)](#creating-model-serving-function-service)
@@ -25,13 +25,14 @@ but eliminate the operational overhead.
 
 <b>You can find examples for serving functions ..TBD..</b>
 
-## Creating a Model
+## Creating And Serving A Model
 
 Models can be retrieved from MLRun model store or from various storage repositories
 (local file, NFS, S3, Azure blob, Iguazio v3io, ..). When using the model store it packs additional 
 information such ad metadata, parameters, metrics, extra files which can be used by the serving function.
 
-When you run MLRun training job you simply need to use `log_model()` to store the model with its metadata:
+When you run MLRun training job you can simply use `log_model()` (from within an MLRun function)
+to store the model with its metadata:
 
 ```python
     context.log_model('my-model', body=bytes(xgb_model.save_raw()), 
@@ -43,7 +44,24 @@ When you run MLRun training job you simply need to use `log_model()` to store th
 You can use pre baked training functions which will take training data + params and produce the model + charts for you, 
 [see example training function](https://github.com/mlrun/functions/blob/master/sklearn_classifier/sklearn_classifier.ipynb) for detailed usage.
 
-## Writing a Simple Serving Class
+Alternatively models can be specified by the URL of the model directory 
+(in NFS, s3, v3io, azure, .. e.g. s3://{bucket}/{model-dir}), note that credentials may need to 
+be added to the serving function via environment variables or secrets
+
+serving the model:
+
+in order to deploy a serving function you need to import or create the serving
+function definition, add the model to it and deploy:
+
+```python
+    import mlrun  
+    # load the sklearn model serving function and class  
+    fn = mlrun.import_function('hub://v2_model_server')
+    fn.add_model("mymodel", model_path={models-dir-url})
+    fn.deploy()
+```
+
+## Writing A Simple Serving Class
 
 The class is initialized automatically by the model server and can run locally
 as part of a nuclio serverless function, or as part of a real-time pipeline

@@ -232,7 +232,14 @@ class SparkRuntime(KubejobRuntime):
                             meta.name, driver, status
                         )
                     )
-                    logger.info("use .watch({}) to see logs".format(meta.name))
+                    resp = self.get_job(meta.name, meta.namespace)
+                    ui_ingress = (
+                        resp.get("status", {})
+                        .get("driverInfo", {})
+                        .get("webUIIngressAddress")
+                    )
+                    if ui_ingress:
+                        runobj.status.status_text = f"UI is available while the job is running: http://{ui_ingress}"
             else:
                 logger.error(
                     "SparkJob status unknown or failed, check pods: {}".format(

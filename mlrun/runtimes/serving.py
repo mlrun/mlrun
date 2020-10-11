@@ -187,6 +187,8 @@ class ServingRuntime(RemoteRuntime):
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")
         class_name = class_name or self.spec.default_class
+        if not isinstance(class_name, str):
+            raise ValueError('class name must be a string (name ot module.submodule.name')
         if model_path and not class_name:
             raise ValueError("model_path must be provided with class_name")
         if model_path:

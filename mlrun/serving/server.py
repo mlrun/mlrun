@@ -40,7 +40,6 @@ class _ServerContext:
 # routes (models/tasks). it will be enhanced later to support more complex topologies
 class ModelServerHost(ModelObj):
     kind = "server"
-    # _dict_fields = ['graph', 'parameters', 'load_mode', 'verbose']
 
     def __init__(
         self, graph=None, parameters=None, load_mode=None, verbose=False, version=None

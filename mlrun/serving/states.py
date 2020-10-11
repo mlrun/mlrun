@@ -53,14 +53,10 @@ class ServingTaskState(ModelObj):
         self.context = None
         self._class_object = None
 
-    def to_dict(self, fields=None, exclude=None):
-        data = super().to_dict(fields, exclude)
-        if isinstance(self.class_name, type):
-            data["class_name"] = self.class_name.__name__
-        return data
-
     def init_object(self, context, namespace, mode="sync"):
         if isinstance(self.class_name, type):
+            self.context.logger.error(f'got class obj in {self.name}')
+            self.class_name = self.class_name.__name__
             self._class_object = self.class_name
 
         self.context = context
@@ -123,7 +119,6 @@ class ServingRouterState(ServingTaskState):
             del self._routes[key]
 
     def init_object(self, context, namespace, mode="sync"):
-        self.class_name = self.class_name or ModelRouter
         self.class_args = self.class_args or {}
         self.class_args["routes"] = self._routes
         super().init_object(context, namespace, "skip")

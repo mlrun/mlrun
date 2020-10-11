@@ -239,9 +239,7 @@ class SparkRuntime(KubejobRuntime):
                         .get("webUIIngressAddress")
                     )
                     if ui_ingress:
-                        runobj.status.status_text = "UI is available while the job is running: http://{ui_ingress}".format(
-                            ui_ingress=ui_ingress
-                        )
+                        runobj.status.status_text = f"UI is available while the job is running: http://{ui_ingress}"
             else:
                 logger.error(
                     "SparkJob status unknown or failed, check pods: {}".format(

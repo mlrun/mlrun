@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 from os import environ
 from urllib.parse import urlparse
 
@@ -372,9 +371,9 @@ class RemoteRuntime(KubeResource):
         if "://" not in path:
             if not self.status.address:
                 raise ValueError("no function address, first run .deploy()")
-            if path.startswith('/'):
+            if path.startswith("/"):
                 path = path[1:]
-            path = f'http://{self.status.address}/{path}'
+            path = f"http://{self.status.address}/{path}"
 
         kwargs = {}
         if body:

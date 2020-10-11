@@ -18,7 +18,6 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import requests
 
-from . import ModelRouter
 from ..model import ModelObj, ObjectDict
 from ..utils import create_class
 
@@ -55,9 +54,8 @@ class ServingTaskState(ModelObj):
 
     def init_object(self, context, namespace, mode="sync"):
         if isinstance(self.class_name, type):
-            self.context.logger.error(f'got class obj in {self.name}')
-            self.class_name = self.class_name.__name__
             self._class_object = self.class_name
+            self.class_name = self.class_name.__name__
 
         self.context = context
         if not self._class_object:

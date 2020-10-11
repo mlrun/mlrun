@@ -233,10 +233,14 @@ class SparkRuntime(KubejobRuntime):
                         )
                     )
                     resp = self.get_job(meta.name, meta.namespace)
-                    ui_ingress = get_in(resp, "status.driverInfo.webUIIngressAddress")
+                    ui_ingress = (
+                        resp.get("status", {})
+                        .get("driverInfo", {})
+                        .get("webUIIngressAddress")
+                    )
                     if ui_ingress:
-                        runobj.status.status_text = "UI is available while the job is running: http://{}".format(
-                            ui_ingress
+                        runobj.status.status_text = "UI is available while the job is running: http://{ui_ingress}".format(
+                            ui_ingress=ui_ingress
                         )
             else:
                 logger.error(

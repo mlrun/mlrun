@@ -253,10 +253,10 @@ class V2ModelServer:
 class _ModelLogPusher:
     def __init__(self, model, context, output_stream=None):
         self.model = model
-        self.hostname = context.server.hostname
-        self.stream_batch = context.server.stream_batch
-        self.stream_sample = context.server.stream_sample
-        self.output_stream = output_stream or context.server.output_stream
+        self.hostname = context.stream.hostname
+        self.stream_batch = context.stream.stream_batch
+        self.stream_sample = context.stream.stream_sample
+        self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id
         self._sample_iter = 0
         self._batch_iter = 0

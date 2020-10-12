@@ -25,7 +25,7 @@ from ..platforms.iguazio import OutputStream
 from ..utils import create_logger
 
 
-class _ServerContext:
+class _StreamContext:
     def __init__(self, parameters):
         self.hostname = socket.gethostname()
         self.output_stream = None
@@ -73,7 +73,7 @@ class ModelServerHost(ModelObj):
         self.context = context
         # enrich the context with classes and methods which will be used when
         # initializing classes or handling the event
-        setattr(context, "server", _ServerContext(self.parameters))
+        setattr(context, "stream", _StreamContext(self.parameters))
         setattr(context, "merge_root_params", self.merge_root_params)
         setattr(context, "verbose", self.verbose)
 

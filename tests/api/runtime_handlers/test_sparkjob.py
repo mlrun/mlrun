@@ -56,14 +56,13 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
-        expected_monitor_cycles_to_reach_expected_state = expected_number_of_list_crds_calls
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_crds_calls
+        )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
-            self.runtime_handler.monitor_runs(
-                get_db(), db
-            )
+            self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            expected_number_of_list_crds_calls,
+            self.runtime_handler, expected_number_of_list_crds_calls,
         )
         run_label_selector = self.runtime_handler._get_run_label_selector(
             self.project, self.run_uid
@@ -71,7 +70,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         expected_pod_label_selector = f"mlrun/class,{run_label_selector}"
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, expected_number_of_list_pods_calls, expected_pod_label_selector
+            self.runtime_handler,
+            expected_number_of_list_pods_calls,
+            expected_pod_label_selector,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -98,14 +99,13 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
-        expected_monitor_cycles_to_reach_expected_state = expected_number_of_list_crds_calls
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_crds_calls
+        )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
-            self.runtime_handler.monitor_runs(
-                get_db(), db
-            )
+            self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            expected_number_of_list_crds_calls,
+            self.runtime_handler, expected_number_of_list_crds_calls,
         )
         run_label_selector = self.runtime_handler._get_run_label_selector(
             self.project, self.run_uid
@@ -113,7 +113,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         expected_pod_label_selector = f"mlrun/class,{run_label_selector}"
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, expected_number_of_list_pods_calls, expected_pod_label_selector
+            self.runtime_handler,
+            expected_number_of_list_pods_calls,
+            expected_pod_label_selector,
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(

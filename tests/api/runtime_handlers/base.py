@@ -34,7 +34,10 @@ class TestRuntimeHandlerBase:
 
     @pytest.fixture(autouse=True)
     def _store_run_fixture(self, db: Session):
-        self.run = {"status": {"state": RunStates.created}, "metadata": {"project": self.project, "uid": self.run_uid}}
+        self.run = {
+            "status": {"state": RunStates.created},
+            "metadata": {"project": self.project, "uid": self.run_uid},
+        }
         get_db().store_run(db, self.run, self.run_uid, self.project)
 
     def teardown_method(self, method):
@@ -164,12 +167,16 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_list_namespaced_pods_calls(
-        runtime_handler, expected_number_of_calls: int, expected_label_selector: str = None
+        runtime_handler,
+        expected_number_of_calls: int,
+        expected_label_selector: str = None,
     ):
         assert (
             get_k8s().v1api.list_namespaced_pod.call_count == expected_number_of_calls
         )
-        expected_label_selector = expected_label_selector or runtime_handler._get_default_label_selector()
+        expected_label_selector = (
+            expected_label_selector or runtime_handler._get_default_label_selector()
+        )
         get_k8s().v1api.list_namespaced_pod.assert_any_call(
             get_k8s().resolve_namespace(), label_selector=expected_label_selector
         )

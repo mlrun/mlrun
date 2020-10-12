@@ -44,14 +44,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
-        expected_monitor_cycles_to_reach_expected_state = expected_number_of_list_crds_calls
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_crds_calls
+        )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
-            self.runtime_handler.monitor_runs(
-                get_db(), db
-            )
+            self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            expected_number_of_list_crds_calls,
+            self.runtime_handler, expected_number_of_list_crds_calls,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -65,14 +64,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
-        expected_monitor_cycles_to_reach_expected_state = expected_number_of_list_crds_calls
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_crds_calls
+        )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
-            self.runtime_handler.monitor_runs(
-                get_db(), db
-            )
+            self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            expected_number_of_list_crds_calls,
+            self.runtime_handler, expected_number_of_list_crds_calls,
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(db, self.project, self.run_uid, "")

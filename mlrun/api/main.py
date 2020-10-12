@@ -119,7 +119,7 @@ async def startup_event():
     # periodic cleanup is not needed if we're not inside kubernetes cluster
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         _start_periodic_cleanup()
-        _resume_monitoring_runs()
+        _start_periodic_runs_monitoring()
 
 
 @app.on_event("shutdown")
@@ -153,7 +153,9 @@ def _monitor_runs():
                 runtime_handler = get_runtime_handler(kind)
                 runtime_handler.monitor_runs(get_db(), db_session)
             except Exception as exc:
-                logger.warning("Failed monitoring runs. Ignoring", exc=str(exc), kind=kind)
+                logger.warning(
+                    "Failed monitoring runs. Ignoring", exc=str(exc), kind=kind
+                )
     finally:
         close_session(db_session)
 
@@ -167,7 +169,9 @@ def _cleanup_runtimes():
                 runtime_handler = get_runtime_handler(kind)
                 runtime_handler.delete_resources(get_db(), db_session)
             except Exception as exc:
-                logger.warning("Failed deleting resources. Ignoring", exc=str(exc), kind=kind)
+                logger.warning(
+                    "Failed deleting resources. Ignoring", exc=str(exc), kind=kind
+                )
     finally:
         close_session(db_session)
 

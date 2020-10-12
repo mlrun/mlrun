@@ -129,43 +129,10 @@ def _parse_submit_run_body(db_session: Session, data):
 
 
 async def submit_task(db_session: Session, data):
-    project, function_kind, run_uid, response = await run_in_threadpool(
+    _, _, _, response = await run_in_threadpool(
         _submit_task, db_session, data
     )
-    if run_uid:
-        # monitor in the background
-        asyncio.create_task(
-            run_in_threadpool(monitor_run, project, function_kind, run_uid)
-        )
     return response
-
-
-def monitor_run(project: str, function_kind: str, run_uid: str):
-    """
-    This function is running in background, i.e. outside of the context of a request
-    therefore it should create its own db session
-    """
-    logger.info(
-        "Starting to monitor run",
-        project=project,
-        function_kind=function_kind,
-        run_uid=run_uid,
-    )
-    try:
-        runtime_handler = get_runtime_handler(function_kind)
-        db = get_db()
-        db_session = create_session()
-        runtime_handler.monitor_run(db, db_session, project, run_uid)
-        close_session(db_session)
-    except Exception as exc:
-        logger.warning("Run monitoring failed", exc=str(exc))
-    else:
-        logger.info(
-            "Run monitoring finished successfully",
-            project=project,
-            function_kind=function_kind,
-            run_uid=run_uid,
-        )
 
 
 def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:

@@ -846,50 +846,6 @@ class BaseRuntimeHandler(ABC):
                 )
                 continue
 
-    def monitor_run(
-        self,
-        db: DBInterface,
-        db_session: Session,
-        project: str,
-        run_uid: str,
-        interval: int = 5,
-        timeout: int = 60 * 60 * 24,
-    ):
-        logger.debug(
-            "Starting run monitor loop",
-            project=project,
-            run_uid=run_uid,
-            timeout=timeout,
-            interval=interval,
-        )
-        try:
-            mlrun.utils.helpers.retry_until_successful(
-                interval,
-                timeout,
-                logger,
-                False,
-                self._verify_run_reached_stable_state_and_monitor_progress,
-                db,
-                db_session,
-                project,
-                run_uid,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Run did not reach stable state in given timeout. Marking with error",
-                exc=str(exc),
-            )
-            self._ensure_run_state(db, db_session, project, run_uid, RunStates.error)
-
-        logger.debug(
-            "Run reached stable state, ensuring logs collected",
-            project=project,
-            run_uid=run_uid,
-        )
-
-        # if we're here run finished, do log collection
-        self._ensure_finished_run_logs_collected(db, db_session, project, run_uid)
-
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None
     ) -> Dict:
@@ -1206,39 +1162,6 @@ class BaseRuntimeHandler(ABC):
 
         return False, last_update
 
-    def _verify_run_reached_stable_state_and_monitor_progress(
-        self, db: DBInterface, db_session: Session, project: str, run_uid: str
-    ):
-        """
-        This function runs in a retry_until_successful and therefore need to raise if run didn't reach stable state
-        """
-        desired_run_state = self._resolve_run_state_representing_current_resource_state(
-            db, db_session, project, run_uid
-        )
-        _, updated_run_state = self._ensure_run_state(
-            db, db_session, project, run_uid, desired_run_state
-        )
-
-        if updated_run_state not in RunStates.stable_states():
-            raise Exception("run did not reach stable state yet")
-
-    def _resolve_run_state_representing_current_resource_state(
-        self, db: DBInterface, db_session: Session, project: str, run_uid: str
-    ) -> str:
-        crd_group, crd_version, crd_plural = self._get_crd_info()
-        if crd_group and crd_version and crd_plural:
-            crd_object = self._get_run_crd_object(project, run_uid)
-            (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
-                db, db_session, crd_object
-            )
-        else:
-            pod = self._get_run_pod(project, run_uid)
-            (_, _, desired_run_state,) = self._resolve_pod_status_info(
-                db, db_session, pod.to_dict()
-            )
-
-        return desired_run_state
-
     def _list_runs_for_monitoring(
         self, db: DBInterface, db_session: Session,
     ):
@@ -1349,7 +1272,7 @@ class BaseRuntimeHandler(ABC):
             raise RuntimeError("Run pod could not be found")
         if len(pods) > 1:
             logger.warning(
-                "Unexpectedly received more than one pod for run. Best effort - using the first one"
+                "Unexpectedly received more than one pod for run. Heuristically using the first one"
             )
         return pods[0]
 

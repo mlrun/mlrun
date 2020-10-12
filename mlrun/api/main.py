@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 
 import fastapi
@@ -9,7 +8,6 @@ from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.errors
 from mlrun.api.api.api import api_router
-from mlrun.api.api.utils import monitor_run
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
@@ -22,7 +20,6 @@ from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_sched
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
-from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
 
 app = fastapi.FastAPI(
@@ -142,50 +139,21 @@ def _start_periodic_cleanup():
     run_function_periodically(int(config.runtimes_cleanup_interval), _cleanup_runtimes)
 
 
-def _resume_monitoring_runs():
-    logger.info("Resuming monitoring runs")
+def _start_periodic_runs_monitoring():
+    logger.info("Starting periodic runs monitoring")
+    run_function_periodically(int(config.runs_monitoring_interval), _monitor_runs)
+
+
+def _monitor_runs():
+    logger.debug("Monitoring runs")
     db_session = create_session()
     try:
-        projects = get_db().list_projects(db_session)
-        for project in projects:
-            runs = get_db().list_runs(db_session, project=project.name)
-            for run in runs:
-                try:
-                    state = run.get("status", {}).get("state")
-                    if state not in RunStates.stable_states():
-                        run_uid = run.get("metadata", {}).get("uid")
-                        function_kind = (
-                            run.get("metadata", {}).get("labels", {}).get("kind")
-                        )
-                        if not function_kind:
-                            logger.warning(
-                                "Could not determine run function kind, can not resume monitoring run. Continuing",
-                                project=project.name,
-                                function_kind=function_kind,
-                                run_uid=run_uid,
-                            )
-                            continue
-
-                        logger.debug(
-                            "Launching monitoring in background task",
-                            project=project.name,
-                            function_kind=function_kind,
-                            run_uid=run_uid,
-                        )
-                        # monitor in the background
-                        asyncio.create_task(
-                            fastapi.concurrency.run_in_threadpool(
-                                monitor_run, project.name, function_kind, run_uid
-                            )
-                        )
-                except Exception as exc:
-                    logger.warning(
-                        "Failed resuming monitoring for run. Ignoring",
-                        exc=str(exc),
-                        project=project.name,
-                    )
-    except Exception as exc:
-        logger.warning("Failed resuming monitoring. Ignoring", exc=str(exc))
+        for kind in RuntimeKinds.runtime_with_handlers():
+            try:
+                runtime_handler = get_runtime_handler(kind)
+                runtime_handler.monitor_runs(get_db(), db_session)
+            except Exception as exc:
+                logger.warning("Failed monitoring runs. Ignoring", exc=str(exc), kind=kind)
     finally:
         close_session(db_session)
 
@@ -195,8 +163,11 @@ def _cleanup_runtimes():
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():
-            runtime_handler = get_runtime_handler(kind)
-            runtime_handler.delete_resources(get_db(), db_session)
+            try:
+                runtime_handler = get_runtime_handler(kind)
+                runtime_handler.delete_resources(get_db(), db_session)
+            except Exception as exc:
+                logger.warning("Failed deleting resources. Ignoring", exc=str(exc), kind=kind)
     finally:
         close_session(db_session)
 

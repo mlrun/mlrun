@@ -39,8 +39,10 @@ from .runtimes import (
     RemoteRuntime,
     RuntimeKinds,
     get_runtime_class,
+    ServingRuntime,
 )
 from .runtimes.funcdoc import update_function_entry_points
+from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     get_in,
@@ -583,6 +585,14 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels
 
+    def resolve_nuclio_subkind(kind):
+        is_nuclio = kind.startswith("nuclio")
+        subkind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
+        if kind == RuntimeKinds.serving:
+            is_nuclio = True
+            subkind = serving_subkind
+        return is_nuclio, subkind
+
     if (
         not embed_code
         and not code_output
@@ -593,19 +603,19 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
-    subkind = kind[kind.find(":") + 1 :] if kind.startswith("nuclio:") else None
+    is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(
         filename, name=name, handler=handler or "handler", kind=subkind
     )
     spec_kind = get_in(spec, "kind", "")
-    if spec_kind not in ["", "Function"]:
+    if not kind and spec_kind not in ["", "Function"]:
         kind = spec_kind.lower()
 
         # if its a nuclio subkind, redo nb parsing
-        if kind.startswith("nuclio:"):
-            subkind = kind[kind.find(":") + 1 :]
+        is_nuclio, subkind = resolve_nuclio_subkind(kind)
+        if is_nuclio:
             name, spec, code = build_file(
                 filename, name=name, handler=handler or "handler", kind=subkind
             )
@@ -619,9 +629,12 @@ def code_to_function(
         else:
             raise ValueError("code_output option is only used with notebooks")
 
-    if kind.startswith("nuclio"):
-        r = RemoteRuntime()
-        r.spec.function_kind = subkind
+    if is_nuclio:
+        if subkind == serving_subkind:
+            r = ServingRuntime()
+        else:
+            r = RemoteRuntime()
+            r.spec.function_kind = subkind
         if embed_code:
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec

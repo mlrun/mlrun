@@ -34,7 +34,7 @@ from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .projects import load_project
 from .run import new_function, import_function_to_dict, import_function, get_object
-from .runtimes import RemoteRuntime, RunError, RuntimeKinds
+from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
     list2dict,
@@ -185,23 +185,9 @@ def run(
         mlconf.dbpath = db
 
     if func_url:
-        try:
-            if func_url.startswith("db://"):
-                func_url = func_url[5:]
-                project, name, tag, hash_key = parse_function_uri(func_url)
-                mldb = get_run_db(mlconf.dbpath).connect()
-                runtime = mldb.get_function(name, project, tag, hash_key)
-            else:
-                func_url = "function.yaml" if func_url == "." else func_url
-                runtime = import_function_to_dict(func_url, {})
-        except Exception as e:
-            print("function {} not found, {}".format(func_url, e))
+        runtime = func_url_to_runtime(func_url)
+        if runtime is None:
             exit(1)
-
-        if not runtime:
-            print("function {} not found or is null".format(func_url))
-            exit(1)
-
         kind = get_in(runtime, "kind", "")
         if kind not in ["", "local", "dask"] and url:
             if path.isfile(url) and url.endswith(".py"):
@@ -413,6 +399,12 @@ def build(
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("spec", type=str, required=False)
 @click.option("--source", "-s", default="", help="location/url of the source")
+@click.option(
+    "--func-url",
+    "-f",
+    default="",
+    help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
+)
 @click.option("--dashboard", "-d", default="", help="nuclio dashboard url")
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
@@ -420,9 +412,13 @@ def build(
 @click.option("--tag", default="", help="version tag")
 @click.option("--env", "-e", multiple=True, help="environment variables")
 @click.option("--verbose", is_flag=True, help="verbose log")
-def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
+def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, verbose):
     """Deploy model or function"""
-    if spec:
+    if func_url:
+        runtime = func_url_to_runtime(func_url)
+        if runtime is None:
+            exit(1)
+    elif spec:
         runtime = py_eval(spec)
     else:
         runtime = {}
@@ -430,21 +426,37 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
         print("runtime parameter must be a dict, not {}".format(type(runtime)))
         exit(1)
 
-    f = RemoteRuntime.from_dict(runtime)
-    f.spec.source = source
-    if kind:
-        f.spec.function_kind = kind
+    if verbose:
+        pprint(runtime)
+        pprint(model)
+
+    # support both v1 & v2+ model struct for backwards compatibility
+    if runtime and runtime["kind"] == RuntimeKinds.serving:
+        print("Deploying V2 model server")
+        function = ServingRuntime.from_dict(runtime)
+        if model:
+            # v2+ model struct (list of json obj)
+            for _model in model:
+                args = json.loads(_model)
+                function.add_model(**args)
+    else:
+        function = RemoteRuntime.from_dict(runtime)
+        if kind:
+            function.spec.function_kind = kind
+        if model:
+            # v1 model struct (list of k=v)
+            models = list2dict(model)
+            for k, v in models.items():
+                function.add_model(k, v)
+
+    function.spec.source = source
     if env:
         for k, v in list2dict(env).items():
-            f.set_env(k, v)
-    f.verbose = verbose
-    if model:
-        models = list2dict(model)
-        for k, v in models.items():
-            f.add_model(k, v)
+            function.set_env(k, v)
+    function.verbose = verbose
 
     try:
-        addr = f.deploy(dashboard=dashboard, project=project, tag=tag, kind=kind)
+        addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
         print("deploy error: {}".format(err))
         exit(1)
@@ -453,7 +465,7 @@ def deploy(spec, source, dashboard, project, model, tag, kind, env, verbose):
     with open("/tmp/output", "w") as fp:
         fp.write(addr)
     with open("/tmp/name", "w") as fp:
-        fp.write(f.status.nuclio_name)
+        fp.write(function.status.nuclio_name)
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -881,6 +893,27 @@ def dict_to_str(struct: dict):
     if not struct:
         return []
     return ",".join(["{}={}".format(k, v) for k, v in struct.items()])
+
+
+def func_url_to_runtime(func_url):
+    try:
+        if func_url.startswith("db://"):
+            func_url = func_url[5:]
+            project, name, tag, hash_key = parse_function_uri(func_url)
+            mldb = get_run_db(mlconf.dbpath).connect()
+            runtime = mldb.get_function(name, project, tag, hash_key)
+        else:
+            func_url = "function.yaml" if func_url == "." else func_url
+            runtime = import_function_to_dict(func_url, {})
+    except Exception as e:
+        logger.error("function {} not found, {}".format(func_url, e))
+        return None
+
+    if not runtime:
+        logger.error("function {} not found or is null".format(func_url))
+        return None
+
+    return runtime
 
 
 if __name__ == "__main__":

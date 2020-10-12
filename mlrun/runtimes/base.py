@@ -763,8 +763,10 @@ class BaseRuntimeHandler(ABC):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(label_selector)
-        pod_resources = self._list_pod_resources(namespace, label_selector)
-        crd_resources = self._list_crd_resources(namespace, label_selector)
+        pods = self._list_pods(namespace, label_selector)
+        pod_resources = self._build_pod_resources(pods)
+        crd_objects = self._list_crd_objects(namespace, label_selector)
+        crd_resources = self._build_crd_resources(crd_objects)
         response = self._build_list_resources_response(pod_resources, crd_resources)
         response = self._enrich_list_resources_response(
             response, namespace, label_selector
@@ -810,6 +812,117 @@ class BaseRuntimeHandler(ABC):
         else:
             label_selector = object_label_selector
         self.delete_resources(db, db_session, label_selector, force, grace_period)
+
+    def monitor_runs(
+            self,
+            db: DBInterface,
+            db_session: Session,
+    ):
+        k8s_helper = get_k8s_helper()
+        namespace = k8s_helper.resolve_namespace()
+        label_selector = self._get_default_label_selector()
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        runtime_resource_is_crd = False
+        if crd_group and crd_version and crd_plural:
+            runtime_resource_is_crd = True
+            runtime_resources = self._list_crd_objects(namespace, label_selector)
+        else:
+            runtime_resources = self._list_pods(namespace, label_selector)
+        project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
+        for runtime_resource in runtime_resources:
+            try:
+                self._monitor_runtime_resource(db, db_session, project_run_uid_map, runtime_resource, runtime_resource_is_crd, namespace)
+            except Exception as exc:
+                logger.warning(
+                    "Failed monitoring runtime resource. Continuing",
+                    runtime_resource_name=runtime_resource['metadata']['name'],
+                    namespace=namespace,
+                    exc=str(exc),
+                )
+                continue
+
+    def _list_runs_for_monitoring(
+            self,
+            db: DBInterface,
+            db_session: Session,
+    ):
+        runs = db.list_runs(db_session, project='*')
+        project_run_uid_map = {}
+        run_with_missing_data = []
+        duplicated_runs = []
+        for run in runs:
+            project = run.get('metadata', {}).get('project')
+            uid = run.get('metadata', {}).get('uid')
+            if not uid or not project:
+                run_with_missing_data.append(run.get('metadata', {}))
+                continue
+            current_run = project_run_uid_map.setdefault(project, {}).get(uid)
+
+            # sanity
+            if current_run:
+                duplicated_runs = {
+                    'monitored_run': current_run.get(['metadata']),
+                    'duplicated_run': run.get(['metadata']),
+                }
+                continue
+
+            project_run_uid_map[project][uid] = run
+
+        # If there are duplications or runs with missing data it probably won't be fixed
+        # Monitoring is running periodically and we don't want to log on every problem we found which will spam the log
+        # so we're aggregating the problems and logging only once per aggregation
+        if duplicated_runs:
+            logger.warning(
+                "Found duplicated runs (same uid). Heuristically monitoring the first one found",
+                duplicated_runs=duplicated_runs,
+            )
+
+        if run_with_missing_data:
+            logger.warning(
+                "Found runs with missing data. They will not be monitored",
+                run_with_missing_data=run_with_missing_data,
+            )
+
+        return project_run_uid_map
+
+    def _monitor_runtime_resource(
+            self,
+            db: DBInterface,
+            db_session: Session,
+            project_run_uid_map: Dict,
+            runtime_resource: Dict,
+            runtime_resource_is_crd: bool,
+            namespace: str,
+    ):
+        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        if not project or not uid:
+            logger.warning(
+                "Could not resolve run project or uid from runtime resource, can not monitor run. Continuing",
+                project=project,
+                uid=uid,
+                runtime_resource_name=runtime_resource['metadata']['name'],
+                namespace=namespace,
+            )
+            return
+        run = project_run_uid_map.get(project, {}).get(uid)
+        if runtime_resource_is_crd:
+            (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
+                db, db_session, runtime_resource
+            )
+        else:
+            (_, _, desired_run_state,) = self._resolve_pod_status_info(
+                db, db_session, runtime_resource
+            )
+        run_state_changed, updated_run_state = self._ensure_run_state(
+            db, db_session, project, uid, desired_run_state, run, search_run=False,
+        )
+        if run_state_changed and updated_run_state in RunStates.stable_states():
+            logger.debug(
+                "Run reached stable state, ensuring logs collected",
+                project=project,
+                uid=uid,
+            )
+            self._ensure_finished_run_logs_collected(db, db_session, project, uid)
 
     def monitor_run(
         self,
@@ -891,7 +1004,7 @@ class BaseRuntimeHandler(ABC):
         return False, None, None
 
     def _resolve_pod_status_info(
-        self, db: DBInterface, db_session: Session, pod
+        self, db: DBInterface, db_session: Session, pod: Dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         :return: Tuple with:
@@ -901,15 +1014,15 @@ class BaseRuntimeHandler(ABC):
         """
         # it is less likely that there will be new stable states, or the existing ones will change so better to
         # resolve whether it's a transient state by checking if it's not a stable state
-        in_transient_state = pod.status.phase not in PodPhases.stable_phases()
+        in_transient_state = pod['status']['phase'] not in PodPhases.stable_phases()
         completion_time = None
-        desired_run_state = PodPhases.pod_phase_to_run_state(pod.status.phase)
+        desired_run_state = PodPhases.pod_phase_to_run_state(pod['status']['phase'])
         if not in_transient_state:
-            for container_status in pod.status.container_statuses:
-                if hasattr(container_status.state, "terminated"):
+            for container_status in pod['status'].get('container_statuses', []):
+                if container_status.get('state', {}).get('terminated'):
                     datetime.now().replace()
                     container_completion_time = (
-                        container_status.state.terminated.finished_at
+                        container_status['state']['terminated'].get('finished_at')
                     )
 
                     # take latest completion time
@@ -947,15 +1060,18 @@ class BaseRuntimeHandler(ABC):
         """
         return False
 
-    def _list_pod_resources(self, namespace: str, label_selector: str = None) -> List:
+    def _list_pods(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.list_pods(namespace, selector=label_selector)
-        return self._build_pod_resources(pods)
+        # when we work with custom objects (list_namespaced_custom_object) it's always a dict, to be able to generalize
+        # code working on runtime resource (either a custom object or a pod) we're transforming to dicts
+        pods = [pod.to_dict() for pod in pods]
+        return pods
 
-    def _list_crd_resources(self, namespace: str, label_selector: str = None) -> List:
+    def _list_crd_objects(self, namespace: str, label_selector: str = None) -> List:
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
-        crd_resources = None
+        crd_objects = []
         if crd_group and crd_version and crd_plural:
             try:
                 crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(
@@ -970,8 +1086,8 @@ class BaseRuntimeHandler(ABC):
                 if e.status != 404:
                     raise
             else:
-                crd_resources = self._build_crd_resources(crd_objects)
-        return crd_resources
+                crd_objects = crd_objects["items"]
+        return crd_objects
 
     def _resolve_label_selector(self, label_selector: str = None) -> str:
         default_label_selector = self._get_default_label_selector()
@@ -1008,7 +1124,7 @@ class BaseRuntimeHandler(ABC):
                     in_transient_state,
                     last_update,
                     desired_run_state,
-                ) = self._resolve_pod_status_info(db, db_session, pod)
+                ) = self._resolve_pod_status_info(db, db_session, pod.to_dict())
                 if in_transient_state:
                     continue
 
@@ -1177,7 +1293,7 @@ class BaseRuntimeHandler(ABC):
         desired_run_state = self._resolve_run_state_representing_current_resource_state(
             db, db_session, project, run_uid
         )
-        updated_run_state = self._ensure_run_state(
+        _, updated_run_state = self._ensure_run_state(
             db, db_session, project, run_uid, desired_run_state
         )
 
@@ -1196,7 +1312,7 @@ class BaseRuntimeHandler(ABC):
         else:
             pod = self._get_run_pod(project, run_uid)
             (_, _, desired_run_state,) = self._resolve_pod_status_info(
-                db, db_session, pod
+                db, db_session, pod.to_dict()
             )
 
         return desired_run_state
@@ -1283,35 +1399,38 @@ class BaseRuntimeHandler(ABC):
         project: str,
         uid: str,
         desired_run_state: str,
-    ) -> str:
-        run = {}
+        run: Dict = None,
+        search_run: bool = True,
+    ) -> Tuple[bool, str]:
+        if run is None:
+            run = {}
         update_run = True
         updated_run_state = desired_run_state
-        try:
-            run = db.read_run(db_session, uid, project)
-        except mlrun.errors.MLRunNotFoundError:
-            logger.warning(
-                "Run not found. A new run with status only will be created",
-                project=project,
-                uid=uid,
-                desired_run_state=desired_run_state,
-            )
-        else:
-            current_run_state = run.get("status", {}).get("state")
-            if current_run_state:
-                if current_run_state == desired_run_state:
-                    update_run = False
-                # if the current run state is stable and different then the desired - don't touch
-                if current_run_state in RunStates.stable_states():
-                    logger.warning(
-                        "Run is in different stable state than desired. Not changing",
-                        project=project,
-                        uid=uid,
-                        current_run_state=current_run_state,
-                        desired_run_state=desired_run_state,
-                    )
-                    updated_run_state = current_run_state
-                    update_run = False
+        if search_run:
+            try:
+                run = db.read_run(db_session, uid, project)
+            except mlrun.errors.MLRunNotFoundError:
+                logger.warning(
+                    "Run not found. A new run with status only will be created",
+                    project=project,
+                    uid=uid,
+                    desired_run_state=desired_run_state,
+                )
+        current_run_state = run.get("status", {}).get("state")
+        if current_run_state:
+            if current_run_state == desired_run_state:
+                update_run = False
+            # if the current run state is stable and different then the desired - don't touch
+            if current_run_state in RunStates.stable_states():
+                logger.warning(
+                    "Run is in different stable state than desired. Not changing",
+                    project=project,
+                    uid=uid,
+                    current_run_state=current_run_state,
+                    desired_run_state=desired_run_state,
+                )
+                updated_run_state = current_run_state
+                update_run = False
 
         if update_run:
             logger.info("Updating run state", run_state=desired_run_state)
@@ -1319,7 +1438,7 @@ class BaseRuntimeHandler(ABC):
             run.setdefault("status", {})["last_update"] = now_date().isoformat()
             db.store_run(db_session, run, uid, project)
 
-        return updated_run_state
+        return update_run, updated_run_state
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
@@ -1370,12 +1489,11 @@ class BaseRuntimeHandler(ABC):
     def _build_pod_resources(pods) -> List:
         pod_resources = []
         for pod in pods:
-            pod_dict = pod.to_dict()
             pod_resources.append(
                 {
-                    "name": pod_dict["metadata"]["name"],
-                    "labels": pod_dict["metadata"]["labels"],
-                    "status": pod_dict["status"],
+                    "name": pod["metadata"]["name"],
+                    "labels": pod["metadata"]["labels"],
+                    "status": pod["status"],
                 }
             )
         return pod_resources
@@ -1383,7 +1501,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _build_crd_resources(custom_objects) -> List:
         crd_resources = []
-        for custom_object in custom_objects["items"]:
+        for custom_object in custom_objects:
             crd_resources.append(
                 {
                     "name": custom_object["metadata"]["name"],

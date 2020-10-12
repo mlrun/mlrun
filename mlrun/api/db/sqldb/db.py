@@ -749,7 +749,7 @@ class SQLDB(DBInterface):
 
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
-        if project == '*':
+        if project == "*":
             project = None
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)

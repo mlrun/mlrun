@@ -814,9 +814,7 @@ class BaseRuntimeHandler(ABC):
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(
-            self,
-            db: DBInterface,
-            db_session: Session,
+        self, db: DBInterface, db_session: Session,
     ):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
@@ -831,98 +829,22 @@ class BaseRuntimeHandler(ABC):
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         for runtime_resource in runtime_resources:
             try:
-                self._monitor_runtime_resource(db, db_session, project_run_uid_map, runtime_resource, runtime_resource_is_crd, namespace)
+                self._monitor_runtime_resource(
+                    db,
+                    db_session,
+                    project_run_uid_map,
+                    runtime_resource,
+                    runtime_resource_is_crd,
+                    namespace,
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runtime resource. Continuing",
-                    runtime_resource_name=runtime_resource['metadata']['name'],
+                    runtime_resource_name=runtime_resource["metadata"]["name"],
                     namespace=namespace,
                     exc=str(exc),
                 )
                 continue
-
-    def _list_runs_for_monitoring(
-            self,
-            db: DBInterface,
-            db_session: Session,
-    ):
-        runs = db.list_runs(db_session, project='*')
-        project_run_uid_map = {}
-        run_with_missing_data = []
-        duplicated_runs = []
-        for run in runs:
-            project = run.get('metadata', {}).get('project')
-            uid = run.get('metadata', {}).get('uid')
-            if not uid or not project:
-                run_with_missing_data.append(run.get('metadata', {}))
-                continue
-            current_run = project_run_uid_map.setdefault(project, {}).get(uid)
-
-            # sanity
-            if current_run:
-                duplicated_runs = {
-                    'monitored_run': current_run.get(['metadata']),
-                    'duplicated_run': run.get(['metadata']),
-                }
-                continue
-
-            project_run_uid_map[project][uid] = run
-
-        # If there are duplications or runs with missing data it probably won't be fixed
-        # Monitoring is running periodically and we don't want to log on every problem we found which will spam the log
-        # so we're aggregating the problems and logging only once per aggregation
-        if duplicated_runs:
-            logger.warning(
-                "Found duplicated runs (same uid). Heuristically monitoring the first one found",
-                duplicated_runs=duplicated_runs,
-            )
-
-        if run_with_missing_data:
-            logger.warning(
-                "Found runs with missing data. They will not be monitored",
-                run_with_missing_data=run_with_missing_data,
-            )
-
-        return project_run_uid_map
-
-    def _monitor_runtime_resource(
-            self,
-            db: DBInterface,
-            db_session: Session,
-            project_run_uid_map: Dict,
-            runtime_resource: Dict,
-            runtime_resource_is_crd: bool,
-            namespace: str,
-    ):
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
-        if not project or not uid:
-            logger.warning(
-                "Could not resolve run project or uid from runtime resource, can not monitor run. Continuing",
-                project=project,
-                uid=uid,
-                runtime_resource_name=runtime_resource['metadata']['name'],
-                namespace=namespace,
-            )
-            return
-        run = project_run_uid_map.get(project, {}).get(uid)
-        if runtime_resource_is_crd:
-            (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
-                db, db_session, runtime_resource
-            )
-        else:
-            (_, _, desired_run_state,) = self._resolve_pod_status_info(
-                db, db_session, runtime_resource
-            )
-        run_state_changed, updated_run_state = self._ensure_run_state(
-            db, db_session, project, uid, desired_run_state, run, search_run=False,
-        )
-        if run_state_changed and updated_run_state in RunStates.stable_states():
-            logger.debug(
-                "Run reached stable state, ensuring logs collected",
-                project=project,
-                uid=uid,
-            )
-            self._ensure_finished_run_logs_collected(db, db_session, project, uid)
 
     def monitor_run(
         self,
@@ -1014,16 +936,16 @@ class BaseRuntimeHandler(ABC):
         """
         # it is less likely that there will be new stable states, or the existing ones will change so better to
         # resolve whether it's a transient state by checking if it's not a stable state
-        in_transient_state = pod['status']['phase'] not in PodPhases.stable_phases()
+        in_transient_state = pod["status"]["phase"] not in PodPhases.stable_phases()
         completion_time = None
-        desired_run_state = PodPhases.pod_phase_to_run_state(pod['status']['phase'])
+        desired_run_state = PodPhases.pod_phase_to_run_state(pod["status"]["phase"])
         if not in_transient_state:
-            for container_status in pod['status'].get('container_statuses', []):
-                if container_status.get('state', {}).get('terminated'):
+            for container_status in pod["status"].get("container_statuses", []):
+                if container_status.get("state", {}).get("terminated"):
                     datetime.now().replace()
-                    container_completion_time = (
-                        container_status['state']['terminated'].get('finished_at')
-                    )
+                    container_completion_time = container_status["state"][
+                        "terminated"
+                    ].get("finished_at")
 
                     # take latest completion time
                     if (
@@ -1316,6 +1238,87 @@ class BaseRuntimeHandler(ABC):
             )
 
         return desired_run_state
+
+    def _list_runs_for_monitoring(
+        self, db: DBInterface, db_session: Session,
+    ):
+        runs = db.list_runs(db_session, project="*")
+        project_run_uid_map = {}
+        run_with_missing_data = []
+        duplicated_runs = []
+        for run in runs:
+            project = run.get("metadata", {}).get("project")
+            uid = run.get("metadata", {}).get("uid")
+            if not uid or not project:
+                run_with_missing_data.append(run.get("metadata", {}))
+                continue
+            current_run = project_run_uid_map.setdefault(project, {}).get(uid)
+
+            # sanity
+            if current_run:
+                duplicated_runs = {
+                    "monitored_run": current_run.get(["metadata"]),
+                    "duplicated_run": run.get(["metadata"]),
+                }
+                continue
+
+            project_run_uid_map[project][uid] = run
+
+        # If there are duplications or runs with missing data it probably won't be fixed
+        # Monitoring is running periodically and we don't want to log on every problem we found which will spam the log
+        # so we're aggregating the problems and logging only once per aggregation
+        if duplicated_runs:
+            logger.warning(
+                "Found duplicated runs (same uid). Heuristically monitoring the first one found",
+                duplicated_runs=duplicated_runs,
+            )
+
+        if run_with_missing_data:
+            logger.warning(
+                "Found runs with missing data. They will not be monitored",
+                run_with_missing_data=run_with_missing_data,
+            )
+
+        return project_run_uid_map
+
+    def _monitor_runtime_resource(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project_run_uid_map: Dict,
+        runtime_resource: Dict,
+        runtime_resource_is_crd: bool,
+        namespace: str,
+    ):
+        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        if not project or not uid:
+            logger.warning(
+                "Could not resolve run project or uid from runtime resource, can not monitor run. Continuing",
+                project=project,
+                uid=uid,
+                runtime_resource_name=runtime_resource["metadata"]["name"],
+                namespace=namespace,
+            )
+            return
+        run = project_run_uid_map.get(project, {}).get(uid)
+        if runtime_resource_is_crd:
+            (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
+                db, db_session, runtime_resource
+            )
+        else:
+            (_, _, desired_run_state,) = self._resolve_pod_status_info(
+                db, db_session, runtime_resource
+            )
+        run_state_changed, updated_run_state = self._ensure_run_state(
+            db, db_session, project, uid, desired_run_state, run, search_run=False,
+        )
+        if run_state_changed and updated_run_state in RunStates.stable_states():
+            logger.debug(
+                "Run reached stable state, ensuring logs collected",
+                project=project,
+                uid=uid,
+            )
+            self._ensure_finished_run_logs_collected(db, db_session, project, uid)
 
     def _get_run_crd_object(self, project: str, run_uid: str):
         label_selector = self._get_run_label_selector(project, run_uid)

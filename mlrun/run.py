@@ -536,7 +536,7 @@ def parse_command(runtime, url):
 
 def code_to_function(
     name: str = "",
-    project=None,
+    project: str = "",
     tag: str = "",
     filename: str = "",
     handler: str = "",
@@ -581,12 +581,7 @@ def code_to_function(
     def update_meta(fn):
         from .projects import MlrunProject
         fn.spec.description = description
-        if isinstance(project, MlrunProject):
-            fn.metadata.project = project.name
-            project.configure_vault(fn)
-        else:
-            fn.metadata.project = project or mlconf.default_project
-
+        fn.metadata.project = project or mlconf.default_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
         fn.metadata.labels = labels

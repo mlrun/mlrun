@@ -23,7 +23,7 @@ from tests.conftest import (
     verify_state,
 )
 from unittest.mock import Mock
-from mlrun import NewTask, get_run_db, new_function, run_local
+from mlrun import NewTask, get_run_db, new_function, import_function
 import os
 import requests
 import json
@@ -177,35 +177,40 @@ def test_vault_secrets():
         from mlrun import mlconf, code_to_function, new_project
 
         # Set test secrets and configurations
-        mlconf.dbpath = 'http://localhost:52003'
+        mlconf.dbpath = 'http://localhost:55843'
         mlconf.vault_url = 'http://localhost:8200'
         os.environ['MLRUN_VAULT_ROLE'] = 'user:saarc'
-        add_vault_user_secret('admin', {'password': 'myVeryNiceSecret!'})
-        add_vault_project_secret('default', {'path': '/just/a/path/again', 'github_key': 'defaultKey!!!'})
+        # add_vault_user_secret('admin', {'password': 'myVeryNiceSecret!'})
+        # add_vault_project_secret('default', {'path': '/just/a/path/again', 'github_key': 'defaultKey!!!'})
 
-        proj = new_project('proj1', init_vault=True)
+        proj_name = 'abc'
+        func_name = 'vault-func'
+        proj = new_project(proj_name, init_vault=True)
         proj.create_vault_secrets({'aws_key': '1234567890', 'github_key': 'proj1Key!!!'})
 
         # Create function and set container configuration
-        func = code_to_function(filename="{}/vault_function.py".format(examples_path),
+        func = code_to_function(name=func_name,
+                                filename="{}/vault_function.py".format(examples_path),
                                 handler='vault_func',
-                                project=proj,
+                                project=proj_name,
                                 kind='job')
 
         func.spec.build.base_image = 'saarcoiguazio/mlrun:unstable'
         func.spec.build.image = '.secret-image'
         func.deploy()
 
-        # Create context for the execution
-        spec = tag_test(base_spec, "test_local_runtime")
-        spec.with_secrets('vault', {"user": "admin", "secrets": ["password"]})
-        spec.with_secrets('vault', {"project": "default", "secrets": ["path", "github_key"]})
-        spec.with_secrets('vault', {"project": "proj1", "secrets": ["aws_key", "github_key"]})
-        spec.with_params(secrets=['password', 'path', 'github_key', 'aws_key'])
+        # func = import_function(url='db://{}/{}'.format(proj_name, func_name))
+        # proj_name = 'proj-yyy'
 
-        result = func.run(
-            spec, handler="vault_func"
-        )
+        # Create context for the execution
+        spec = NewTask(project=proj_name,
+                       name='vault_test_run',
+                       handler='vault_func',
+                       out_path=out_path,
+                       params={'secrets': ['password', 'path', 'github_key', 'aws_key']})
+        spec.with_secrets('vault', ["aws_key", "github_key"])
+
+        result = func.run(spec)
         result.show()
 
         verify_state(result)

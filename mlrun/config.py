@@ -88,6 +88,7 @@ default_config = {
     "vault_url": "http://docker.for.mac.localhost:8200",
     "vault_remote_url": "http://docker.for.mac.localhost:8200",
     "vault_token_path": "~/.mlrun/vault",
+    "project_sa_name": "sa-vault-{proj}",
 }
 
 

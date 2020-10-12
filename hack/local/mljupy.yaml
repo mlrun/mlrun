@@ -1,3 +1,50 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jupyter-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/exec
+  - pods/log
+  - services
+  - serviceaccounts
+  - secrets
+  verbs:
+  - '*'
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - mpijobs
+  verbs:
+  - '*'
+- apiGroups:
+  - sparkoperator.k8s.io
+  resources:
+  - sparkapplications
+  - scheduledsparkapplications
+  verbs:
+  - '*'
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jupyter
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jupyter-mlrun-executor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jupyter-role
+subjects:
+- kind: ServiceAccount
+  name: jupyter
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,6 +75,8 @@ spec:
           value: "http://mlrun-api:8080"
         - name: MLRUN_ARTIFACT_PATH
           value: "/home/jovyan/data"
+        - name: MLRUN_VAULT_ROLE
+          value: "user:saarc"
         volumeMounts:
         - mountPath: /home/jovyan/data
           name: notebooks

@@ -343,6 +343,12 @@ class RunTemplate(ModelObj):
 
         :returns: project object
         """
+
+        # For vault, you can use with_secrets('vault',['secret1','secret2'...])
+        # in this case, the project will be injected to the secret source. Else, the source will be copied as-is.
+        if kind == "vault" and isinstance(source, list):
+            source = {"project": self.metadata.project, "secrets": source}
+
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 

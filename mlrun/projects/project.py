@@ -47,6 +47,7 @@ from ..utils import (
     RunNotifications,
 )
 from ..runtimes.utils import add_code_metadata
+from ..k8s_utils import get_k8s_helper
 
 
 class ProjectError(Exception):
@@ -232,32 +233,6 @@ class MlrunProject(ModelObj):
             pass
         return None
 
-    def configure_vault(self, fn):
-        from ..runtimes.kubejob import KubejobRuntime
-        from ..config import config as mlconf
-
-        if not isinstance(fn, KubejobRuntime):
-            return
-
-        if self._sa_secret is None:
-            return
-
-        volumes = [{"name": "vault-secret",
-                    "secret": {
-                        "defaultMode": 420,
-                        "secretName": self._sa_secret
-                    }}]
-
-        token_path = mlconf.vault_token_path.replace('~', '/root')
-
-        volume_mounts = [{"name": "vault-secret",
-                          "mountPath": token_path
-                          }]
-
-        fn.spec.update_vols_and_mounts(volumes, volume_mounts)
-        fn.spec.env.append({"name": "MLRUN_VAULT_ROLE", "value": "proj:{}".format(self.name)})
-        fn.spec.env.append({"name": "MLRUN_VAULT_URL", "value": mlconf.vault_remote_url})
-
     def create_vault_secrets(self, secrets):
         self._secrets.vault.add_vault_secret(secrets, project=self.name)
 
@@ -269,37 +244,19 @@ class MlrunProject(ModelObj):
         These constructs will enable any pod created as part of this project to access the project's secrets
         in Vault, assuming that the secret which is part of the SA created is mounted to the pod.
         """
-        from kubernetes import client as k8s_client, config
-        try:
-            config.load_kube_config()
-        except:
-            # load_kube_config throws if there is no config, but does not document what it throws,
-            # so I can't rely on any particular type here
-            config.load_incluster_config()
 
+        ns = config.namespace
+        k8s = get_k8s_helper(silent=True)
         sa_name = 'sa-vault-{}'.format(self.name)
-        sa_list = k8s_client.CoreV1Api().list_namespaced_service_account(namespace='default-tenant',
-                                                                         field_selector='metadata.name={}'.format(sa_name))
-        if len(sa_list.items) == 0:
-            from subprocess import Popen
-            # This is a hack, running kubectl, because creating a new SA is such a pain using the API
-            cmd = ["kubectl", "-n", "default-tenant", "create", "serviceaccount", sa_name]
-            child = Popen(cmd)
-            ret = child.wait()
-            if ret != 0:
-                raise SystemExit(ret)
 
-            sa_list = k8s_client.CoreV1Api().list_namespaced_service_account(namespace='default-tenant',
-                                                                             field_selector='metadata.name={}'.format(sa_name))
-            if len(sa_list.items) == 0:
-                raise ValueError("Failed to create SA using kubectl")
+        secret_name = k8s.get_project_vault_secret_name(self.name)
 
-        sa = sa_list.items[0]
-        self._sa_secret = sa.secrets[0].name
+        if not secret_name:
+            k8s.create_project_service_account(self.name)
 
         policy_name = self._secrets.vault.create_project_policy(self.name)
         role_name = self._secrets.vault.create_project_role(self.name,
-                                                            namespace='default-tenant',
+                                                            namespace=ns,
                                                             sa=sa_name,
                                                             policy=policy_name)
 

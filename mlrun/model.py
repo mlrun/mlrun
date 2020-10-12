@@ -88,6 +88,84 @@ class ModelObj:
         return deepcopy(self)
 
 
+# model class for building ModelObj dictionaries
+class ObjectDict:
+    def __init__(self, classes_map, default_kind=""):
+        self._children = {}
+        self._default_kind = default_kind
+        self._classes_map = classes_map
+
+    def values(self):
+        return self._children.values()
+
+    def keys(self):
+        return self._children.keys()
+
+    def items(self):
+        return self._children.items()
+
+    def __len__(self):
+        return len(self._children)
+
+    def __iter__(self):
+        yield from self._children.keys()
+
+    def __getitem__(self, name):
+        return self._children[name]
+
+    def __setitem__(self, key, item):
+        self._children[key] = self._get_child_object(item, key)
+
+    def __delitem__(self, key):
+        del self._children[key]
+
+    def to_dict(self):
+        return {k: v.to_dict() for k, v in self._children.items()}
+
+    @classmethod
+    def from_dict(cls, classes_map: dict, children=None, default_kind=""):
+        if children is None:
+            return cls(classes_map, default_kind)
+        if not isinstance(children, dict):
+            raise ValueError("children must be a dict")
+
+        new_obj = cls(classes_map, default_kind)
+        for name, child in children.items():
+            child_obj = new_obj._get_child_object(child, name)
+            new_obj._children[name] = child_obj
+
+        return new_obj
+
+    def _get_child_object(self, child, name):
+        if hasattr(child, "kind") and child.kind in self._classes_map.keys():
+            child.name = name
+            return child
+        elif isinstance(child, dict):
+            kind = child.get("kind", self._default_kind)
+            if kind not in self._classes_map.keys():
+                raise ValueError(f"illegal object kind {kind}")
+            child_obj = self._classes_map[kind].from_dict(child)
+            child_obj.name = name
+            return child_obj
+        else:
+            raise ValueError(f"illegal child (should be dict or child kind), {child}")
+
+    def to_yaml(self):
+        return dict_to_yaml(self.to_dict())
+
+    def to_json(self):
+        return dict_to_json(self.to_dict())
+
+    def to_str(self):
+        return "{}".format(self.to_dict())
+
+    def __str__(self):
+        return str(self.to_dict())
+
+    def copy(self):
+        return deepcopy(self)
+
+
 class BaseMetadata(ModelObj):
     def __init__(
         self,

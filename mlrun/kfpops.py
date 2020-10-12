@@ -16,6 +16,7 @@ import json
 from copy import deepcopy
 from os import environ
 
+import mlrun
 from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
@@ -409,19 +410,18 @@ def mlrun_op(
 def deploy_op(
     name,
     function,
+    func_url=None,
     source="",
     dashboard="",
     project="",
-    models: dict = None,
+    models: list = None,
     env: dict = None,
     tag="",
     verbose=False,
 ):
     from kfp import dsl
 
-    models = {} if models is None else models
-    runtime = "{}".format(function.to_dict())
-    cmd = ["python", "-m", "mlrun", "deploy", runtime]
+    cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
     if dashboard:
@@ -432,11 +432,27 @@ def deploy_op(
         cmd += ["--verbose"]
     if project:
         cmd += ["-p", project]
-    for m, val in models.items():
-        cmd += ["-m", "{}={}".format(m, val)]
+
+    if models:
+        for m in models:
+            for key in ["model_path", "model_url", "class_name"]:
+                if key in m:
+                    m[key] = str(m[key])  # verify we stringify pipeline params
+            if function.kind == mlrun.runtimes.RuntimeKinds.serving:
+                cmd += ["-m", json.dumps(m)]
+            else:
+                cmd += ["-m", "{}={}".format(m["key"], m["model_path"])]
+
     if env:
         for key, val in env.items():
             cmd += ["--env", "{}={}".format(key, val)]
+
+    if func_url:
+        cmd += ["-f", func_url]
+    else:
+        runtime = f"{function.to_dict()}"
+        cmd += [runtime]
+
     cop = dsl.ContainerOp(
         name=name,
         image=config.kfp_image,

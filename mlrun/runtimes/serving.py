@@ -19,8 +19,8 @@ from .function import RemoteRuntime, NuclioSpec
 from ..serving.server import create_mock_server
 from ..serving.states import (
     ServingRouterState,
-    remote_endpoint,
-    model_endpoint,
+    new_remote_endpoint,
+    new_model_endpoint,
     StateKinds,
 )
 
@@ -208,9 +208,9 @@ class ServingRuntime(RemoteRuntime):
             self.set_topology()
 
         if model_url:
-            route = remote_endpoint(model_url, **class_args)
+            route = new_remote_endpoint(model_url, **class_args)
         else:
-            route = model_endpoint(class_name, model_path, handler, **class_args)
+            route = new_model_endpoint(class_name, model_path, handler, **class_args)
         self.spec.graph.add_route(key, route)
 
     def remove_models(self, keys: list):

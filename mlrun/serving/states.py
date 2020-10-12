@@ -30,13 +30,13 @@ class StateKinds:
 _task_state_fields = ["kind", "class_name", "class_args", "handler"]
 
 
-def model_endpoint(class_name, model_path, handler=None, **class_args):
+def new_model_endpoint(class_name, model_path, handler=None, **class_args):
     class_args = deepcopy(class_args)
     class_args["model_path"] = model_path
     return ServingTaskState(class_name, class_args, handler=handler)
 
 
-def remote_endpoint(url, **class_args):
+def new_remote_endpoint(url, **class_args):
     class_args = deepcopy(class_args)
     class_args["url"] = url
     return ServingTaskState("$remote", class_args)

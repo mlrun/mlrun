@@ -115,7 +115,7 @@ class ServingRouterState(ServingTaskState):
         self._routes[key] = route
         return route
 
-    def clear_routes(self, *routes):
+    def clear_routes(self, routes: list):
         if not routes:
             routes = self._routes.keys()
         for key in routes:

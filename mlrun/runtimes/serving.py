@@ -213,10 +213,10 @@ class ServingRuntime(RemoteRuntime):
             route = model_endpoint(class_name, model_path, handler, **class_args)
         self.spec.graph.add_route(key, route)
 
-    def remove_models(self, *keys):
+    def remove_models(self, keys: list):
         """remove one, multiple, or all models from the spec (blank list for all)"""
         if self.spec.graph:
-            self.spec.graph.clear_routes(*keys)
+            self.spec.graph.clear_routes(keys)
 
     def deploy(self, dashboard="", project="", tag=""):
         """deploy model serving function to a local/remote cluster

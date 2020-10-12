@@ -11,7 +11,6 @@ log = logging.getLogger(__name__)
 @pytest.fixture
 def alembic_config():
     return {
-        "script_location": "alembic",
         "before_revision_data": {
             # schedule id migration revision
             "cf21882f938e": [

@@ -26,4 +26,5 @@ def upgrade():
 def downgrade():
     with op.batch_alter_table("schedules_v2") as batch_op:
         batch_op.drop_constraint('_schedules_v2_uc', type_='unique')
+        batch_op.create_primary_key('pk_schedules_v2', ['name', 'project'])
         batch_op.drop_column('id')

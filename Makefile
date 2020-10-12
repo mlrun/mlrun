@@ -407,7 +407,8 @@ test-migrations: clean ## Run mlrun db migrations tests
 		--capture=no \
 		--disable-warnings \
 		-rf \
-		alembic/tests/*
+		--test-alembic \
+		migrations/tests/*
 
 .PHONY: test-system
 test-system: build-test-system ## Run mlrun system tests

@@ -451,6 +451,15 @@ def get_obj_status(selector=[], namespace=None):
 
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
+
+    # Dask runtime resources are per function (and not per run).
+    # It means that monitoring runtime resources state doesn't say anything about the run state.
+    # Therefore dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
+    def monitor_runs(
+            self, db: DBInterface, db_session: Session,
+    ):
+        return
+
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"

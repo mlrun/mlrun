@@ -1408,32 +1408,33 @@ class BaseRuntimeHandler(ABC):
         if run is None:
             run = {}
         update_run = True
-        updated_run_state = desired_run_state
         if search_run:
             try:
                 run = db.read_run(db_session, uid, project)
             except mlrun.errors.MLRunNotFoundError:
-                logger.warning(
-                    "Run not found. A new run with status only will be created",
-                    project=project,
-                    uid=uid,
-                    desired_run_state=desired_run_state,
-                )
+                run = {}
+        if not run:
+            logger.warning(
+                "Run not found. A new run will be created",
+                project=project,
+                uid=uid,
+                desired_run_state=desired_run_state,
+                search_run=search_run,
+            )
+            run = {"metadata": {"project": project, "uid": uid}}
         current_run_state = run.get("status", {}).get("state")
         if current_run_state:
             if current_run_state == desired_run_state:
                 update_run = False
-            # if the current run state is stable and different then the desired - don't touch
+            # if the current run state is stable and different then the desired - log
             if current_run_state in RunStates.stable_states():
                 logger.warning(
-                    "Run is in different stable state than desired. Not changing",
+                    "Run is in different stable state than desired. Changing",
                     project=project,
                     uid=uid,
                     current_run_state=current_run_state,
                     desired_run_state=desired_run_state,
                 )
-                updated_run_state = current_run_state
-                update_run = False
 
         if update_run:
             logger.info("Updating run state", run_state=desired_run_state)
@@ -1441,7 +1442,7 @@ class BaseRuntimeHandler(ABC):
             run.setdefault("status", {})["last_update"] = now_date().isoformat()
             db.store_run(db_session, run, uid, project)
 
-        return update_run, updated_run_state
+        return update_run, desired_run_state
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:

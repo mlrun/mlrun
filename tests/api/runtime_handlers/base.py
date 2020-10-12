@@ -1,6 +1,7 @@
 import unittest.mock
 from typing import List, Dict
 
+import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud as crud
@@ -8,6 +9,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import get_runtime_handler
+from mlrun.runtimes.constants import RunStates
 from mlrun.utils import create_logger
 from tests.conftest import DictToK8sObjectWrapper
 
@@ -29,6 +31,11 @@ class TestRuntimeHandlerBase:
         self._logger.info(
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
+
+    @pytest.fixture(autouse=True)
+    def _store_run_fixture(self, db: Session):
+        self.run = {"status": {"state": RunStates.created}, "metadata": {"project": self.project, "uid": self.run_uid}}
+        get_db().store_run(db, self.run, self.run_uid, self.project)
 
     def teardown_method(self, method):
         self._logger.info(
@@ -157,18 +164,19 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_list_namespaced_pods_calls(
-        expected_number_of_calls: int, expected_label_selector: str
+        runtime_handler, expected_number_of_calls: int, expected_label_selector: str = None
     ):
         assert (
             get_k8s().v1api.list_namespaced_pod.call_count == expected_number_of_calls
         )
+        expected_label_selector = expected_label_selector or runtime_handler._get_default_label_selector()
         get_k8s().v1api.list_namespaced_pod.assert_any_call(
             get_k8s().resolve_namespace(), label_selector=expected_label_selector
         )
 
     @staticmethod
     def _assert_list_namespaced_crds_calls(
-        runtime_handler, expected_number_of_calls: int, expected_label_selector: str
+        runtime_handler, expected_number_of_calls: int
     ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         assert (
@@ -180,7 +188,7 @@ class TestRuntimeHandlerBase:
             crd_version,
             get_k8s().resolve_namespace(),
             crd_plural,
-            label_selector=expected_label_selector,
+            label_selector=runtime_handler._get_default_label_selector(),
         )
 
     @staticmethod

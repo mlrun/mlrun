@@ -50,7 +50,7 @@ class BaseModelRouter:
             if "data_url" in body:
                 # Get data from URL
                 url = body["data_url"]
-                self.context.logger.debug("Downloading data", url=url)
+                self.context.logger.debug(f"Downloading data url={url}")
                 data = mlrun.get_object(url)
                 sample = BytesIO(data)
                 parsed_event[self.inputs_key] = [sample]

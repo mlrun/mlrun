@@ -237,7 +237,7 @@ class HTTPHandler:
             if "data_url" in body:
                 # Get data from URL
                 url = body["data_url"]
-                self.context.logger.debug_with("downloading data", url=url)
+                self.context.logger.debug_with(f"downloading data url={url}")
                 data = urlopen(url).read()
                 sample = BytesIO(data)
                 parsed_event["instances"].append(sample)

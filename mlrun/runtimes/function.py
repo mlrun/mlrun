@@ -339,7 +339,7 @@ class RemoteRuntime(KubeResource):
         env=None,
         tag=None,
         verbose=None,
-        use_db=True,
+        use_function_from_db=True,
     ):
         models = {} if models is None else models
         name = "deploy_{}".format(self.metadata.name or "function")
@@ -347,7 +347,7 @@ class RemoteRuntime(KubeResource):
         if models and isinstance(models, dict):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
-        if use_db:
+        if use_function_from_db:
             hash_key = self.save(versioned=True, refresh=True)
             url = "db://" + self._function_uri(hash_key=hash_key)
         else:

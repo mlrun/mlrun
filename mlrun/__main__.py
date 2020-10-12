@@ -429,10 +429,13 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
     if verbose:
         pprint(runtime)
         pprint(model)
+
+    # support both v1 & v2+ model struct for backwards compatibility
     if runtime and runtime["kind"] == RuntimeKinds.serving:
         print("Deploying V2 model server")
         function = ServingRuntime.from_dict(runtime)
         if model:
+            # v2+ model struct (list of json obj)
             for _model in model:
                 args = json.loads(_model)
                 function.add_model(**args)
@@ -441,6 +444,7 @@ def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, ve
         if kind:
             function.spec.function_kind = kind
         if model:
+            # v1 model struct (list of k=v)
             models = list2dict(model)
             for k, v in models.items():
                 function.add_model(k, v)

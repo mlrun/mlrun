@@ -17,7 +17,12 @@ import nuclio
 
 from .function import RemoteRuntime, NuclioSpec
 from ..serving.server import create_mock_server
-from ..serving.states import ServingRouterState, remote_endpoint, model_endpoint
+from ..serving.states import (
+    ServingRouterState,
+    remote_endpoint,
+    model_endpoint,
+    StateKinds,
+)
 
 serving_subkind = "serving_v2"
 
@@ -134,13 +139,16 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def set_topology(
-        self, topology="router", class_name=None, exist_ok=False, **class_args
+        self, topology=None, class_name=None, exist_ok=False, **class_args
     ):
         """set the serving graph topology (router/flow/endpoint) and root class"""
+        topology = topology or StateKinds.router
         if self.spec.graph and not exist_ok:
             raise ValueError("graph topology is already set")
 
         # currently we only support router topology
+        if topology != StateKinds.router:
+            raise NotImplementedError("currently only supporting router topology")
         self.spec.graph = ServingRouterState(
             class_name=class_name, class_args=class_args
         )
@@ -189,7 +197,7 @@ class ServingRuntime(RemoteRuntime):
         class_name = class_name or self.spec.default_class
         if not isinstance(class_name, str):
             raise ValueError(
-                "class name must be a string (name ot module.submodule.name"
+                "class name must be a string (name ot module.submodule.name)"
             )
         if model_path and not class_name:
             raise ValueError("model_path must be provided with class_name")
@@ -237,7 +245,7 @@ class ServingRuntime(RemoteRuntime):
         env = {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
         return super().deploy(dashboard, project, tag, kind, env)
 
-    def mock_server(self, namespace=None, log_level="debug"):
+    def to_mock_server(self, namespace=None, log_level="debug"):
         """create mock server object for local testing/emulation
 
         :param namespace: classes search namespace, use globals() for current notebook

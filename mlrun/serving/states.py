@@ -22,6 +22,11 @@ from ..model import ModelObj, ObjectDict
 from ..utils import create_class
 
 
+class StateKinds:
+    router = "router"
+    task = "task"
+
+
 _task_state_fields = ["kind", "class_name", "class_args", "handler"]
 
 

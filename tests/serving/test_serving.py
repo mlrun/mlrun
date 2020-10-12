@@ -25,7 +25,7 @@ router_object.routes = {
 }
 
 
-def make_spec(graph, mode="sync", params={}):
+def generate_spec(graph, mode="sync", params={}):
     return {
         "version": "v2",
         "parameters": params,
@@ -35,7 +35,7 @@ def make_spec(graph, mode="sync", params={}):
     }
 
 
-asyncspec = make_spec(
+asyncspec = generate_spec(
     {
         "kind": "router",
         "routes": {
@@ -49,7 +49,7 @@ asyncspec = make_spec(
 )
 
 
-spec = make_spec(router_object.to_dict())
+spec = generate_spec(router_object.to_dict())
 testdata = '{"inputs": [5]}'
 
 

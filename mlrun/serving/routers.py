@@ -68,10 +68,6 @@ class BaseModelRouter:
         return parsed_event
 
     def post_init(self, mode="sync"):
-        # Verify that models are loaded
-        # assert (
-        #     len(self.routes) > 0
-        # ), "No models were loaded!\n Please register child models"
         self.context.logger.info(f"Loaded {list(self.routes.keys())}")
 
     def get_metadata(self):

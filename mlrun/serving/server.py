@@ -112,10 +112,9 @@ class ModelServerHost(ModelObj):
         """invoke a test event into the server to simulate/test server behaviour
 
         e.g.:
-                host = create_mock_server()
-                host.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
-                print(host.test("my/infer", testdata))
-
+                server = create_mock_server()
+                server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
+                print(server.test("my/infer", testdata))
 
         :param path:     relative ({route-name}/..) or absolute (/{router.url_prefix}/{name}/..) path
         :param body:     message body (dict or json str/bytes)
@@ -190,9 +189,9 @@ def create_mock_server(
 
     if not graph:
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
-    host = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
-    host.init(context, namespace or {})
-    return host
+    server = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
+    server.init(context, namespace or {})
+    return server
 
 
 class MockEvent(object):

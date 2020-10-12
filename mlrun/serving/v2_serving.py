@@ -79,7 +79,7 @@ class V2ModelServer:
             self.model = model
             self.ready = True
 
-    def _load_wrapper(self):
+    def _load_and_update_state(self):
         try:
             self.load()
         except Exception as e:
@@ -93,11 +93,11 @@ class V2ModelServer:
         """sync/async model loading, for internal use"""
         if not self.ready:
             if mode == "async":
-                t = threading.Thread(target=self._load_wrapper)
+                t = threading.Thread(target=self._load_and_update_state)
                 t.start()
                 self.context.logger.info(f"started async model loading for {self.name}")
             else:
-                self._load_wrapper()
+                self._load_and_update_state()
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -146,7 +146,7 @@ class V2ModelServer:
                 return
         raise RuntimeError(f"model {self.name} is not ready {self.error}")
 
-    def _prepare(self, event, op):
+    def _pre_event_processing_actions(self, event, op):
         self._check_readiness(event)
         request = self.preprocess(event.body, op)
         if "id" not in request:
@@ -160,7 +160,7 @@ class V2ModelServer:
 
         if op == "predict" or op == "infer":
             # predict operation
-            request = self._prepare(event, op)
+            request = self._pre_event_processing_actions(event, op)
             outputs = self.predict(request)
             response = {
                 "id": request["id"],
@@ -197,7 +197,7 @@ class V2ModelServer:
 
         elif op == "explain":
             # explain operation
-            request = self._prepare(event, op)
+            request = self._pre_event_processing_actions(event, op)
             outputs = self.explain(request)
             response = {
                 "id": request["id"],

@@ -147,10 +147,12 @@ class VaultStore:
         # TODO - need to make sure name is escaped properly and invalid chars are stripped
         url = self.url + "/v1/sys/policies/acl/" + policy_name
 
-        policy_str = (
-                '''path "secret/data/projects/{}" {{capabilities = ["read", "list", "create", "delete", "update"]}} ''' +
-                '''path "secret/data/projects/{}/*" {{capabilities = ["read", "list", "create", "delete", "update"]}}'''
-        ).format(project, project)
+        policy_str = ('path "secret/data/projects/{0}" {{\n' +
+                      '  capabilities = ["read", "list", "create", "delete", "update"]\n' +
+                      '}}\n' +
+                      'path "secret/data/projects/{0}/*" {{\n' +
+                      '  capabilities = ["read", "list", "create", "delete", "update"]\n' +
+                      '}}').format(project)
 
         data_obj = {"policy": policy_str}
         payload = json.dumps(data_obj)

@@ -201,6 +201,8 @@ class RemoteRuntime(KubeResource):
     def add_model(self, name, model_path, **kw):
         if model_path.startswith("v3io://"):
             model = "/User/" + "/".join(model_path.split("/")[5:])
+        else:
+            model = model_path
         self.set_env("SERVING_MODEL_{}".format(name), model)
         return self
 

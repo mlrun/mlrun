@@ -10,7 +10,7 @@ class PodPhases:
     unknown = "Unknown"
 
     @staticmethod
-    def stable_phases():
+    def terminal_phases():
         return [
             PodPhases.succeeded,
             PodPhases.failed,
@@ -72,7 +72,7 @@ class RunStates(object):
         ]
 
     @staticmethod
-    def stable_states():
+    def terminal_states():
         return [
             RunStates.completed,
             RunStates.error,
@@ -96,7 +96,7 @@ class SparkApplicationStates:
     unknown = "UNKNOWN"
 
     @staticmethod
-    def stable_states():
+    def terminal_states():
         return [
             SparkApplicationStates.completed,
             SparkApplicationStates.failed,
@@ -147,7 +147,7 @@ class MPIJobV1Alpha1States:
     active = "Active"
 
     @staticmethod
-    def stable_states():
+    def terminal_states():
         return [
             MPIJobV1Alpha1States.succeeded,
             MPIJobV1Alpha1States.failed,

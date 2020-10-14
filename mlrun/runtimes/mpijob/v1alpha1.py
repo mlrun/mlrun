@@ -129,14 +129,12 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         self, db: DBInterface, db_session: Session, crd_object
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
         launcher_status = crd_object.get("status", {}).get("launcherStatus", "")
-        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
-        # whether it's a transient state by checking if it's not a stable state
-        in_transient_state = launcher_status not in MPIJobV1Alpha1States.stable_states()
+        in_terminal_state = launcher_status in MPIJobV1Alpha1States.terminal_states()
         desired_run_state = MPIJobV1Alpha1States.mpijob_state_to_run_state(
             launcher_status
         )
         completion_time = None
-        if not in_transient_state:
+        if in_terminal_state:
             completion_time = datetime.fromisoformat(
                 crd_object.get("status", {})
                 .get("completionTime")
@@ -146,7 +144,7 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
                 "Succeeded": RunStates.completed,
                 "Failed": RunStates.error,
             }[launcher_status]
-        return in_transient_state, completion_time, desired_run_state
+        return in_terminal_state, completion_time, desired_run_state
 
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:

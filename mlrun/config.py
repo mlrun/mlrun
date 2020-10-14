@@ -64,7 +64,7 @@ default_config = {
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
     "runs_monitoring_interval": "5",
-    # the grace period (in seconds) that will be given to runtime resources (after they're in stable state)
+    # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
     "artifact_path": "",  # default artifacts path/url

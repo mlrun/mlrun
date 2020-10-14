@@ -780,14 +780,14 @@ def validate_kind(ctx, param, value):
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")
 @click.option(
-    "--force", "-f", is_flag=True, help="clean resources in transient states as well"
+    "--force", "-f", is_flag=True, help="clean resources in non-terminal states as well"
 )
 @click.option(
     "--grace-period",
     "-gp",
     type=int,
     default=mlconf.runtime_resources_deletion_grace_period,
-    help="the grace period (in seconds) that will be given to runtime resources (after they're in stable state) "
+    help="the grace period (in seconds) that will be given to runtime resources (after they're in terminal state) "
     "before cleaning them. Ignored when --force is given",
     show_default=True,
 )

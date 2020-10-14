@@ -504,8 +504,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         )
         service_names = []
         for pod in pods.items:
-            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
-            if not in_transient_phase or (force and in_transient_phase):
+            in_terminal_phase = pod.status.phase not in PodPhases.terminal_phases()
+            if in_terminal_phase or (force and not in_terminal_phase):
                 comp = pod.metadata.labels.get("dask.org/component")
                 if comp == "scheduler":
                     service_names.append(

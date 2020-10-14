@@ -116,7 +116,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_logs(db, self.project, self.run_uid, "")
 
-    def test_monitor_run_overriding_stable_state(self, db: Session, client: TestClient):
+    def test_monitor_run_overriding_terminal_state(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.failed_pod_dict],
             # additional time for the get_logger_pods

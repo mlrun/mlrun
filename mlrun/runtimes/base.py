@@ -878,8 +878,8 @@ class BaseRuntimeHandler(ABC):
         """
         Override this if the runtime has CRD resources.
         :return: Tuple with:
-        1. bool determining whether the pod is in transient state
-        2. datetime of when the pod got into stable state (only when the pod in stable state)
+        1. bool determining whether the crd object is in terminal state
+        2. datetime of when the crd object got into terminal state (only when the crd object in terminal state)
         3. the desired run state matching the crd object state
         """
         return False, None, None
@@ -889,16 +889,14 @@ class BaseRuntimeHandler(ABC):
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         :return: Tuple with:
-        1. bool determining whether the pod is in transient state
-        2. datetime of when the pod got into stable state (only when the pod in stable state)
+        1. bool determining whether the pod is in terminal state
+        2. datetime of when the pod got into terminal state (only when the pod in terminal state)
         3. the desired run state matching the pod state
         """
-        # it is less likely that there will be new stable states, or the existing ones will change so better to
-        # resolve whether it's a transient state by checking if it's not a stable state
-        in_transient_state = pod["status"]["phase"] not in PodPhases.stable_phases()
+        in_terminal_state = pod["status"]["phase"] in PodPhases.terminal_phases()
         completion_time = None
         desired_run_state = PodPhases.pod_phase_to_run_state(pod["status"]["phase"])
-        if not in_transient_state:
+        if in_terminal_state:
             for container_status in pod["status"].get("container_statuses", []):
                 if container_status.get("state", {}).get("terminated"):
                     datetime.now().replace()
@@ -913,7 +911,7 @@ class BaseRuntimeHandler(ABC):
                     ):
                         completion_time = container_completion_time
 
-        return in_transient_state, completion_time, desired_run_state
+        return in_terminal_state, completion_time, desired_run_state
 
     @staticmethod
     def _get_default_label_selector() -> str:
@@ -1002,11 +1000,11 @@ class BaseRuntimeHandler(ABC):
                     continue
 
                 (
-                    in_transient_state,
+                    in_terminal_state,
                     last_update,
                     desired_run_state,
                 ) = self._resolve_pod_status_info(db, db_session, pod.to_dict())
-                if in_transient_state:
+                if not in_terminal_state:
                     continue
 
                 # give some grace period if we have last update time
@@ -1070,11 +1068,11 @@ class BaseRuntimeHandler(ABC):
                         continue
 
                     (
-                        in_transient_state,
+                        in_terminal_state,
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
-                    if in_transient_state:
+                    if not in_terminal_state:
                         continue
 
                     # give some grace period if we have last update time
@@ -1136,7 +1134,7 @@ class BaseRuntimeHandler(ABC):
 
         self._ensure_finished_run_logs_collected(db, db_session, project, uid)
 
-    def _is_runtime_resource_run_in_transient_state(
+    def _is_runtime_resource_run_in_terminal_state(
         self, db: DBInterface, db_session: Session, runtime_resource: Dict,
     ) -> Tuple[bool, Optional[datetime]]:
         """
@@ -1146,13 +1144,13 @@ class BaseRuntimeHandler(ABC):
         might be in completed state, but we would like to verify that the run is completed as well to verify the logs
         were collected before we're removing the pod.
 
-        :returns: bool determining whether the run in transient state, and the last update time if it exists
+        :returns: bool determining whether the run in terminal state, and the last update time if it exists
         """
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
-        # if no uid, assume in stable state
+        # if no uid, assume in terminal state
         if not uid:
-            return False, None
+            return True, None
 
         run = db.read_run(db_session, uid, project)
         last_update = None
@@ -1160,10 +1158,10 @@ class BaseRuntimeHandler(ABC):
         if last_update_str is not None:
             last_update = datetime.fromisoformat(last_update_str)
 
-        if run.get("status", {}).get("state") not in RunStates.stable_states():
-            return True, last_update
+        if run.get("status", {}).get("state") not in RunStates.terminal_states():
+            return False, last_update
 
-        return False, last_update
+        return True, last_update
 
     def _list_runs_for_monitoring(
         self, db: DBInterface, db_session: Session,
@@ -1238,9 +1236,9 @@ class BaseRuntimeHandler(ABC):
         run_state_changed, updated_run_state = self._ensure_run_state(
             db, db_session, project, uid, desired_run_state, run, search_run=False,
         )
-        if run_state_changed and updated_run_state in RunStates.stable_states():
+        if run_state_changed and updated_run_state in RunStates.terminal_states():
             logger.debug(
-                "Run reached stable state, ensuring logs collected",
+                "Run reached terminal state, ensuring logs collected",
                 project=project,
                 uid=uid,
             )
@@ -1288,7 +1286,7 @@ class BaseRuntimeHandler(ABC):
         db: DBInterface, db_session: Session, project: str, uid: str
     ):
         """
-        NOTE: This function logic based on the fact that the runtime resource was verified to reach stable state
+        NOTE: This function logic based on the fact that the runtime resource was verified to reach terminal state
         therefore the naming FINISHED_runtime_resource
         """
         # import here to avoid circular imports
@@ -1308,7 +1306,7 @@ class BaseRuntimeHandler(ABC):
 
             # this function is used to verify that logs collected from runtime resources before deleting them
             # here we're using the knowledge that the function is called only after a it was verified that the runtime
-            # resource run is not in transient state, so we're assuming the run's last update is the last one, so if the
+            # resource run is in terminal state, so we're assuming the run's last update is the last one, so if the
             # log file was modified after it, we're considering it as all logs collected
             if log_mtime_datetime < last_update:
                 store_log = True
@@ -1353,9 +1351,9 @@ class BaseRuntimeHandler(ABC):
             if current_run_state == desired_run_state:
                 update_run = False
             # if the current run state is stable and different then the desired - log
-            if current_run_state in RunStates.stable_states():
+            if current_run_state in RunStates.terminal_states():
                 logger.warning(
-                    "Run is in different stable state than desired. Changing",
+                    "Run is in different terminal state than desired. Changing",
                     project=project,
                     uid=uid,
                     current_run_state=current_run_state,

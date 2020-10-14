@@ -240,7 +240,7 @@ class SystemTestPreparer:
     def _get_provctl_version_and_url(self):
         response = requests.get(
             self.Constants.provctl_releases,
-            headers={"Authorization:": f"token {self._github_access_token}"},
+            headers={"Authorization": f"token {self._github_access_token}"},
         )
         response.raise_for_status()
         latest_provazio_release = json.loads(response.content)

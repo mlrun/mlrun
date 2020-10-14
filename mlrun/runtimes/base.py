@@ -894,8 +894,8 @@ class BaseRuntimeHandler(ABC):
         3. the run state matching the pod state
         """
         in_terminal_state = pod["status"]["phase"] in PodPhases.terminal_phases()
-        last_container_completion_time = None
         run_state = PodPhases.pod_phase_to_run_state(pod["status"]["phase"])
+        last_container_completion_time = None
         if in_terminal_state:
             for container_status in pod["status"].get("container_statuses", []):
                 if container_status.get("state", {}).get("terminated"):

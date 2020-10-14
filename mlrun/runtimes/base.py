@@ -891,11 +891,11 @@ class BaseRuntimeHandler(ABC):
         :return: Tuple with:
         1. bool determining whether the pod is in terminal state
         2. datetime of when the pod got into terminal state (only when the pod in terminal state)
-        3. the desired run state matching the pod state
+        3. the run state matching the pod state
         """
         in_terminal_state = pod["status"]["phase"] in PodPhases.terminal_phases()
-        completion_time = None
-        desired_run_state = PodPhases.pod_phase_to_run_state(pod["status"]["phase"])
+        last_container_completion_time = None
+        run_state = PodPhases.pod_phase_to_run_state(pod["status"]["phase"])
         if in_terminal_state:
             for container_status in pod["status"].get("container_statuses", []):
                 if container_status.get("state", {}).get("terminated"):
@@ -906,12 +906,12 @@ class BaseRuntimeHandler(ABC):
 
                     # take latest completion time
                     if (
-                        not completion_time
-                        or completion_time < container_completion_time
+                        not last_container_completion_time
+                        or last_container_completion_time < container_completion_time
                     ):
-                        completion_time = container_completion_time
+                        last_container_completion_time = container_completion_time
 
-        return in_terminal_state, completion_time, desired_run_state
+        return in_terminal_state, last_container_completion_time, run_state
 
     @staticmethod
     def _get_default_label_selector() -> str:
@@ -1002,7 +1002,7 @@ class BaseRuntimeHandler(ABC):
                 (
                     in_terminal_state,
                     last_update,
-                    desired_run_state,
+                    run_state,
                 ) = self._resolve_pod_status_info(db, db_session, pod.to_dict())
                 if not in_terminal_state:
                     continue
@@ -1018,7 +1018,7 @@ class BaseRuntimeHandler(ABC):
                 if self._consider_run_on_resources_deletion():
                     try:
                         self._pre_deletion_runtime_resource_run_actions(
-                            db, db_session, pod.to_dict(), desired_run_state
+                            db, db_session, pod.to_dict(), run_state
                         )
                     except Exception as exc:
                         # Don't prevent the deletion for failure in the pre deletion run actions
@@ -1112,7 +1112,7 @@ class BaseRuntimeHandler(ABC):
         db: DBInterface,
         db_session: Session,
         runtime_resource: Dict,
-        desired_run_state: str,
+        run_state: str,
     ):
         project, uid = self._resolve_runtime_resource_run(runtime_resource)
 
@@ -1130,7 +1130,7 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
 
-        self._ensure_run_state(db, db_session, project, uid, desired_run_state)
+        self._ensure_run_state(db, db_session, project, uid, run_state)
 
         self._ensure_finished_run_logs_collected(db, db_session, project, uid)
 
@@ -1226,15 +1226,15 @@ class BaseRuntimeHandler(ABC):
             return
         run = project_run_uid_map.get(project, {}).get(uid)
         if runtime_resource_is_crd:
-            (_, _, desired_run_state,) = self._resolve_crd_object_status_info(
+            (_, _, run_state,) = self._resolve_crd_object_status_info(
                 db, db_session, runtime_resource
             )
         else:
-            (_, _, desired_run_state,) = self._resolve_pod_status_info(
+            (_, _, run_state,) = self._resolve_pod_status_info(
                 db, db_session, runtime_resource
             )
         run_state_changed, updated_run_state = self._ensure_run_state(
-            db, db_session, project, uid, desired_run_state, run, search_run=False,
+            db, db_session, project, uid, run_state, run, search_run=False,
         )
         if run_state_changed and updated_run_state in RunStates.terminal_states():
             logger.debug(
@@ -1325,7 +1325,7 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         project: str,
         uid: str,
-        desired_run_state: str,
+        run_state: str,
         run: Dict = None,
         search_run: bool = True,
     ) -> Tuple[bool, str]:
@@ -1342,31 +1342,31 @@ class BaseRuntimeHandler(ABC):
                 "Run not found. A new run will be created",
                 project=project,
                 uid=uid,
-                desired_run_state=desired_run_state,
+                desired_run_state=run_state,
                 search_run=search_run,
             )
             run = {"metadata": {"project": project, "uid": uid}}
-        current_run_state = run.get("status", {}).get("state")
-        if current_run_state:
-            if current_run_state == desired_run_state:
+        db_run_state = run.get("status", {}).get("state")
+        if db_run_state:
+            if db_run_state == run_state:
                 update_run = False
             # if the current run state is stable and different then the desired - log
-            if current_run_state in RunStates.terminal_states():
+            if db_run_state in RunStates.terminal_states():
                 logger.warning(
                     "Run is in different terminal state than desired. Changing",
                     project=project,
                     uid=uid,
-                    current_run_state=current_run_state,
-                    desired_run_state=desired_run_state,
+                    db_run_state=db_run_state,
+                    run_state=run_state,
                 )
 
         if update_run:
-            logger.info("Updating run state", run_state=desired_run_state)
-            run.setdefault("status", {})["state"] = desired_run_state
+            logger.info("Updating run state", run_state=run_state)
+            run.setdefault("status", {})["state"] = run_state
             run.setdefault("status", {})["last_update"] = now_date().isoformat()
             db.store_run(db_session, run, uid, project)
 
-        return update_run, desired_run_state
+        return update_run, run_state
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:

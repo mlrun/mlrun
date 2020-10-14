@@ -9,16 +9,16 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         # initializing them here to save space in tests
         scheduler_pod_labels = {
-                    "app": "dask",
-                    "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
-                    "dask.org/component": "scheduler",
-                    "mlrun/class": "dask",
-                    "mlrun/function": "mydask",
-                    "mlrun/project": "default",
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "user": "root",
-                }
+            "app": "dask",
+            "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
+            "dask.org/component": "scheduler",
+            "mlrun/class": "dask",
+            "mlrun/function": "mydask",
+            "mlrun/project": "default",
+            "mlrun/scrape_metrics": "False",
+            "mlrun/tag": "latest",
+            "user": "root",
+        }
         scheduler_pod_name = "mlrun-mydask-d7656bc1-0n4z9z"
 
         self.scheduler_pod = self._generate_pod(
@@ -26,16 +26,16 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         worker_pod_labels = {
-                    "app": "dask",
-                    "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
-                    "dask.org/component": "worker",
-                    "mlrun/class": "dask",
-                    "mlrun/function": "mydask",
-                    "mlrun/project": "default",
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "user": "root",
-                }
+            "app": "dask",
+            "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
+            "dask.org/component": "worker",
+            "mlrun/class": "dask",
+            "mlrun/function": "mydask",
+            "mlrun/project": "default",
+            "mlrun/scrape_metrics": "False",
+            "mlrun/tag": "latest",
+            "user": "root",
+        }
         worker_pod_name = "mlrun-mydask-d7656bc1-0pqbnc"
 
         self.worker_pod = self._generate_pod(
@@ -59,21 +59,16 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def _create_daskjob_service_mocks():
         name = "mlrun-mydask-d7656bc1-0"
         labels = {
-                    "app": "dask",
-                    "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
-                    "dask.org/component": "scheduler",
-                    "mlrun/class": "dask",
-                    "mlrun/function": "mydask",
-                    "mlrun/project": "default",
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "user": "root",
-                }
+            "app": "dask",
+            "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
+            "dask.org/component": "scheduler",
+            "mlrun/class": "dask",
+            "mlrun/function": "mydask",
+            "mlrun/project": "default",
+            "mlrun/scrape_metrics": "False",
+            "mlrun/tag": "latest",
+            "user": "root",
+        }
         metadata = client.V1ObjectMeta(name=name, labels=labels)
         service = client.V1Service(metadata=metadata)
         return TestDaskjobRuntimeHandler._mock_list_services([service])
-
-    @staticmethod
-    def _generate_service(name, labels):
-
-        return service

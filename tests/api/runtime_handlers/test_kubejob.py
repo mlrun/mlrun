@@ -27,18 +27,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pod_name = "my-training-j7dtf"
 
         # initializing them here to save space in tests
-        self.pending_pod = self._generate_pod(
-            pod_name, labels, PodPhases.pending,
-        )
-        self.running_pod = self._generate_pod(
-            pod_name, labels, PodPhases.running,
-        )
-        self.completed_pod = self._generate_pod(
-            pod_name, labels, PodPhases.succeeded,
-        )
-        self.failed_pod = self._generate_pod(
-            pod_name, labels, PodPhases.failed,
-        )
+        self.pending_pod = self._generate_pod(pod_name, labels, PodPhases.pending)
+        self.running_pod = self._generate_pod(pod_name, labels, PodPhases.running)
+        self.completed_pod = self._generate_pod(pod_name, labels, PodPhases.succeeded)
+        self.failed_pod = self._generate_pod(pod_name, labels, PodPhases.failed)
 
     def test_list_resources(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
@@ -70,11 +62,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.completed
         )
         self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_pod.metadata.name,
+            db, self.project, self.run_uid, log, self.completed_pod.metadata.name,
         )
 
     def test_monitor_run_failed_pod(self, db: Session, client: TestClient):
@@ -99,11 +87,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.failed_pod.metadata.name,
+            db, self.project, self.run_uid, log, self.failed_pod.metadata.name,
         )
 
     def test_monitor_run_no_pods(self, db: Session, client: TestClient):
@@ -151,11 +135,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_pod.metadata.name,
+            db, self.project, self.run_uid, log, self.completed_pod.metadata.name,
         )
 
     def test_monitor_run_run_does_not_exists(self, db: Session, client: TestClient):
@@ -181,11 +161,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.completed
         )
         self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_pod.metadata.name,
+            db, self.project, self.run_uid, log, self.completed_pod.metadata.name,
         )
 
     def _mock_list_resources_pods(self):

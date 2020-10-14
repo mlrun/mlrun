@@ -60,11 +60,18 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _generate_pod(name, labels, phase=PodPhases.succeeded):
-        terminated_container_state = client.V1ContainerStateTerminated(finished_at=datetime.now(), exit_code=0)
+        terminated_container_state = client.V1ContainerStateTerminated(
+            finished_at=datetime.now(), exit_code=0
+        )
         container_state = client.V1ContainerState(terminated=terminated_container_state)
-        container_status = client.V1ContainerStatus(state=container_state, image="must/provide:image",
-                                                    image_id="must-provide-image-id", name="must-provide-name",
-                                                    ready=True, restart_count=0)
+        container_status = client.V1ContainerStatus(
+            state=container_state,
+            image="must/provide:image",
+            image_id="must-provide-image-id",
+            name="must-provide-name",
+            ready=True,
+            restart_count=0,
+        )
         status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
         metadata = client.V1ObjectMeta(name=name, labels=labels)
         pod = client.V1Pod(metadata=metadata, status=status)

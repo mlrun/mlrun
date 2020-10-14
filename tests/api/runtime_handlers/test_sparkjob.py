@@ -27,21 +27,21 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         executor_pod_labels = {
-                    "mlrun/class": "spark",
-                    "mlrun/function": "my-spark-jdbc",
-                    "mlrun/job": "my-spark-jdbc-2ea432f1",
-                    "mlrun/name": "my-spark-jdbc",
-                    "mlrun/project": self.project,
-                    "mlrun/uid": self.run_uid,
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
-                    "spark-exec-id": "1",
-                    "spark-role": "executor",
-                    "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
-                    "sparkoperator.k8s.io/launched-by-spark-operator": "true",
-                    "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
-                }
+            "mlrun/class": "spark",
+            "mlrun/function": "my-spark-jdbc",
+            "mlrun/job": "my-spark-jdbc-2ea432f1",
+            "mlrun/name": "my-spark-jdbc",
+            "mlrun/project": self.project,
+            "mlrun/uid": self.run_uid,
+            "mlrun/scrape_metrics": "False",
+            "mlrun/tag": "latest",
+            "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
+            "spark-exec-id": "1",
+            "spark-role": "executor",
+            "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
+            "sparkoperator.k8s.io/launched-by-spark-operator": "true",
+            "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
+        }
         executor_pod_name = "my-spark-jdbc-2ea432f1-1597760338437-exec-1"
 
         self.executor_pod = self._generate_pod(
@@ -49,20 +49,20 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         driver_pod_labels = {
-                    "mlrun/class": "spark",
-                    "mlrun/function": "my-spark-jdbc",
-                    "mlrun/job": "my-spark-jdbc-2ea432f1",
-                    "mlrun/name": "my-spark-jdbc",
-                    "mlrun/project": self.project,
-                    "mlrun/uid": self.run_uid,
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
-                    "spark-role": "driver",
-                    "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
-                    "sparkoperator.k8s.io/launched-by-spark-operator": "true",
-                    "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
-                }
+            "mlrun/class": "spark",
+            "mlrun/function": "my-spark-jdbc",
+            "mlrun/job": "my-spark-jdbc-2ea432f1",
+            "mlrun/name": "my-spark-jdbc",
+            "mlrun/project": self.project,
+            "mlrun/uid": self.run_uid,
+            "mlrun/scrape_metrics": "False",
+            "mlrun/tag": "latest",
+            "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
+            "spark-role": "driver",
+            "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
+            "sparkoperator.k8s.io/launched-by-spark-operator": "true",
+            "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
+        }
         driver_pod_name = "my-spark-jdbc-2ea432f1-driver"
 
         self.driver_pod = self._generate_pod(
@@ -114,11 +114,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.completed
         )
         self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.driver_pod.metadata.name,
+            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
         )
 
     def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
@@ -155,11 +151,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.driver_pod.metadata.name,
+            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
         )
 
     def _mock_list_resources_pods(self):

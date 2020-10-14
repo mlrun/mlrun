@@ -899,7 +899,6 @@ class BaseRuntimeHandler(ABC):
         if in_terminal_state:
             for container_status in pod["status"].get("container_statuses", []):
                 if container_status.get("state", {}).get("terminated"):
-                    datetime.now().replace()
                     container_completion_time = container_status["state"][
                         "terminated"
                     ].get("finished_at")

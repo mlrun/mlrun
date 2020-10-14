@@ -2,6 +2,7 @@ import unittest.mock
 from typing import List, Dict
 
 import pytest
+from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud as crud
@@ -11,7 +12,6 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import RunStates
 from mlrun.utils import create_logger
-from tests.conftest import DictToK8sObjectMockWrapper
 
 logger = create_logger(level="debug", name="test-runtime-handlers")
 
@@ -127,14 +127,11 @@ class TestRuntimeHandlerBase:
                 )
 
     @staticmethod
-    def _mock_list_namespaces_pods(pod_dicts_call_responses: List[List[Dict]]):
+    def _mock_list_namespaces_pods(list_pods_call_responses: List[List[client.V1Pod]]):
         calls = []
-        for pod_dicts_call_response in pod_dicts_call_responses:
-            pods = []
-            for pod_dict in pod_dicts_call_response:
-                pod = DictToK8sObjectMockWrapper(pod_dict)
-                pods.append(pod)
-            calls.append(DictToK8sObjectMockWrapper({"items": pods}))
+        for list_pods_call_response in list_pods_call_responses:
+            pods = client.V1PodList(items=list_pods_call_response)
+            calls.append(pods)
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
         return calls
 

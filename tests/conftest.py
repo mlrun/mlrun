@@ -154,6 +154,9 @@ class DictToObjectWrapper:
 
 
 class DictToK8sObjectWrapper(DictToObjectWrapper):
+    """
+    An helper class to give easy way to create objects to mock k8s client responses by instantiating them from a dict.
+    """
     def __init__(self, dictionary):
         self._should_never_ever_be_a_key_in_the_dictionary = dictionary
         super().__init__(dictionary)

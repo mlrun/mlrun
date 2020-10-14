@@ -1238,9 +1238,7 @@ class BaseRuntimeHandler(ABC):
         )
         if run_state_changed and updated_run_state in RunStates.terminal_states():
             logger.debug(
-                "Run reached terminal state, collecting logs",
-                project=project,
-                uid=uid,
+                "Run reached terminal state, collecting logs", project=project, uid=uid,
             )
             self._collect_run_logs(db, db_session, project, uid)
 
@@ -1282,11 +1280,10 @@ class BaseRuntimeHandler(ABC):
         return f"mlrun/project={project},mlrun/uid={run_uid}"
 
     @staticmethod
-    def _collect_run_logs(
-        db: DBInterface, db_session: Session, project: str, uid: str
-    ):
+    def _collect_run_logs(db: DBInterface, db_session: Session, project: str, uid: str):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
+
         _, logs_from_k8s = crud.Logs.get_logs(
             db_session, project, uid, source=LogSources.K8S
         )

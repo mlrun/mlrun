@@ -135,13 +135,15 @@ async def _initialize_singletons():
 
 
 def _start_periodic_cleanup():
-    logger.info("Starting periodic runtimes cleanup")
-    run_function_periodically(int(config.runtimes_cleanup_interval), _cleanup_runtimes)
+    interval = int(config.runtimes_cleanup_interval)
+    logger.info("Starting periodic runtimes cleanup", interval=interval)
+    run_function_periodically(interval, _cleanup_runtimes)
 
 
 def _start_periodic_runs_monitoring():
-    logger.info("Starting periodic runs monitoring")
-    run_function_periodically(int(config.runs_monitoring_interval), _monitor_runs)
+    interval = int(config.runs_monitoring_interval)
+    logger.info("Starting periodic runs monitoring", interval=interval)
+    run_function_periodically(interval, _monitor_runs)
 
 
 def _monitor_runs():

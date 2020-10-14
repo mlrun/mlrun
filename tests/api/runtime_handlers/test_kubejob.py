@@ -1,8 +1,6 @@
 import unittest.mock
-from datetime import datetime
 
 from fastapi.testclient import TestClient
-from kubernetes import client
 from sqlalchemy.orm import Session
 
 from mlrun.api.utils.singletons.db import get_db
@@ -17,18 +15,29 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
         self.runtime_handler = get_runtime_handler(RuntimeKinds.job)
 
+        labels = {
+            "mlrun/class": "job",
+            "mlrun/function": "my-trainer",
+            "mlrun/name": "my-training",
+            "mlrun/project": self.project,
+            "mlrun/scrape_metrics": "False",
+            "mlrun/tag": "latest",
+            "mlrun/uid": self.run_uid,
+        }
+        pod_name = "my-training-j7dtf"
+
         # initializing them here to save space in tests
         self.pending_pod = self._generate_pod(
-            self.project, self.run_uid, PodPhases.pending,
+            pod_name, labels, PodPhases.pending,
         )
         self.running_pod = self._generate_pod(
-            self.project, self.run_uid, PodPhases.running,
+            pod_name, labels, PodPhases.running,
         )
         self.completed_pod = self._generate_pod(
-            self.project, self.run_uid, PodPhases.succeeded,
+            pod_name, labels, PodPhases.succeeded,
         )
         self.failed_pod = self._generate_pod(
-            self.project, self.run_uid, PodPhases.failed,
+            pod_name, labels, PodPhases.failed,
         )
 
     def test_list_resources(self, db: Session, client: TestClient):
@@ -182,23 +191,3 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaces_pods([[self.completed_pod]])
         return mocked_responses[0].items
-
-    @staticmethod
-    def _generate_pod(project, uid, phase=PodPhases.succeeded):
-        terminated_container_state = client.V1ContainerStateTerminated(finished_at=datetime.now(), exit_code=0)
-        container_state = client.V1ContainerState(terminated=terminated_container_state)
-        container_status = client.V1ContainerStatus(state=container_state, image="must/provide:image", image_id="must-provide-image-id", name="must-provide-name", ready=True, restart_count=0)
-        status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
-
-        labels = {
-            "mlrun/class": "job",
-            "mlrun/function": "my-trainer",
-            "mlrun/name": "my-training",
-            "mlrun/project": project,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
-            "mlrun/uid": uid,
-        }
-        metadata = client.V1ObjectMeta(name="my-training-j7dtf", labels=labels)
-        pod = client.V1Pod(metadata=metadata, status=status)
-        return pod

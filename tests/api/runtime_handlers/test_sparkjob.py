@@ -7,7 +7,7 @@ from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import RunStates
+from mlrun.runtimes.constants import RunStates, PodPhases
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -26,11 +26,47 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.project, self.run_uid, self._get_failed_crd_status(),
         )
 
-        self.executor_pod_dict = self._generate_executor_pod_dict(
-            self.project, self.run_uid
+        executor_pod_labels = {
+                    "mlrun/class": "spark",
+                    "mlrun/function": "my-spark-jdbc",
+                    "mlrun/job": "my-spark-jdbc-2ea432f1",
+                    "mlrun/name": "my-spark-jdbc",
+                    "mlrun/project": self.project,
+                    "mlrun/uid": self.run_uid,
+                    "mlrun/scrape_metrics": "False",
+                    "mlrun/tag": "latest",
+                    "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
+                    "spark-exec-id": "1",
+                    "spark-role": "executor",
+                    "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
+                    "sparkoperator.k8s.io/launched-by-spark-operator": "true",
+                    "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
+                }
+        executor_pod_name = "my-spark-jdbc-2ea432f1-1597760338437-exec-1"
+
+        self.executor_pod = self._generate_pod(
+            executor_pod_name, executor_pod_labels, PodPhases.running,
         )
-        self.driver_pod_dict = self._generate_driver_pod_dict(
-            self.project, self.run_uid
+
+        driver_pod_labels = {
+                    "mlrun/class": "spark",
+                    "mlrun/function": "my-spark-jdbc",
+                    "mlrun/job": "my-spark-jdbc-2ea432f1",
+                    "mlrun/name": "my-spark-jdbc",
+                    "mlrun/project": self.project,
+                    "mlrun/uid": self.run_uid,
+                    "mlrun/scrape_metrics": "False",
+                    "mlrun/tag": "latest",
+                    "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
+                    "spark-role": "driver",
+                    "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
+                    "sparkoperator.k8s.io/launched-by-spark-operator": "true",
+                    "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
+                }
+        driver_pod_name = "my-spark-jdbc-2ea432f1-driver"
+
+        self.driver_pod = self._generate_pod(
+            driver_pod_name, driver_pod_labels, PodPhases.running,
         )
 
     def test_list_sparkjob_resources(self):
@@ -50,7 +86,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods
         list_namespaced_pods_calls = [
-            [self.executor_pod_dict, self.driver_pod_dict],
+            [self.executor_pod, self.driver_pod],
         ]
         self._mock_list_namespaces_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -82,7 +118,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.project,
             self.run_uid,
             log,
-            self.driver_pod_dict["metadata"]["name"],
+            self.driver_pod.metadata.name,
         )
 
     def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
@@ -93,7 +129,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods
         list_namespaced_pods_calls = [
-            [self.executor_pod_dict, self.driver_pod_dict],
+            [self.executor_pod, self.driver_pod],
         ]
         self._mock_list_namespaces_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -123,12 +159,12 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.project,
             self.run_uid,
             log,
-            self.driver_pod_dict["metadata"]["name"],
+            self.driver_pod.metadata.name,
         )
 
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaces_pods(
-            [[self.executor_pod_dict, self.driver_pod_dict]]
+            [[self.executor_pod, self.driver_pod]]
         )
         return mocked_responses[0].items
 
@@ -171,75 +207,4 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         return {
             "terminationTime": "2020-10-05T21:17:11Z",
             "applicationState": {"state": "FAILED"},
-        }
-
-    @staticmethod
-    def _generate_executor_pod_dict(project: str, uid: str):
-        return {
-            "metadata": {
-                "name": "my-spark-jdbc-2ea432f1-1597760338437-exec-1",
-                "labels": {
-                    "mlrun/class": "spark",
-                    "mlrun/function": "my-spark-jdbc",
-                    "mlrun/job": "my-spark-jdbc-2ea432f1",
-                    "mlrun/name": "my-spark-jdbc",
-                    "mlrun/project": project,
-                    "mlrun/uid": uid,
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
-                    "spark-exec-id": "1",
-                    "spark-role": "executor",
-                    "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
-                    "sparkoperator.k8s.io/launched-by-spark-operator": "true",
-                    "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
-                },
-            },
-            "status": {
-                "container_statuses": [
-                    {
-                        "state": {
-                            "running": {"started_at": "2020-08-18T14:19:28+00:00"},
-                            "terminated": None,
-                            "waiting": None,
-                        },
-                    }
-                ],
-                "phase": "Running",
-            },
-        }
-
-    @staticmethod
-    def _generate_driver_pod_dict(project: str, uid: str):
-        return {
-            "metadata": {
-                "name": "my-spark-jdbc-2ea432f1-driver",
-                "labels": {
-                    "mlrun/class": "spark",
-                    "mlrun/function": "my-spark-jdbc",
-                    "mlrun/job": "my-spark-jdbc-2ea432f1",
-                    "mlrun/name": "my-spark-jdbc",
-                    "mlrun/project": project,
-                    "mlrun/uid": uid,
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
-                    "spark-role": "driver",
-                    "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
-                    "sparkoperator.k8s.io/launched-by-spark-operator": "true",
-                    "sparkoperator.k8s.io/submission-id": "44343f6b-42ca-41d4-b01a-66052cc5c919",
-                },
-            },
-            "status": {
-                "container_statuses": [
-                    {
-                        "state": {
-                            "running": {"started_at": "2020-08-18T14:19:16+00:00"},
-                            "terminated": None,
-                            "waiting": None,
-                        },
-                    }
-                ],
-                "phase": "Running",
-            },
         }

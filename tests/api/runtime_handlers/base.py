@@ -1,4 +1,5 @@
 import unittest.mock
+from datetime import datetime
 from typing import List, Dict
 
 import pytest
@@ -10,7 +11,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import get_runtime_handler
-from mlrun.runtimes.constants import RunStates
+from mlrun.runtimes.constants import RunStates, PodPhases
 from mlrun.utils import create_logger
 
 logger = create_logger(level="debug", name="test-runtime-handlers")
@@ -56,6 +57,18 @@ class TestRuntimeHandlerBase:
 
     def custom_teardown(self):
         pass
+
+    @staticmethod
+    def _generate_pod(name, labels, phase=PodPhases.succeeded):
+        terminated_container_state = client.V1ContainerStateTerminated(finished_at=datetime.now(), exit_code=0)
+        container_state = client.V1ContainerState(terminated=terminated_container_state)
+        container_status = client.V1ContainerStatus(state=container_state, image="must/provide:image",
+                                                    image_id="must-provide-image-id", name="must-provide-name",
+                                                    ready=True, restart_count=0)
+        status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
+        metadata = client.V1ObjectMeta(name=name, labels=labels)
+        pod = client.V1Pod(metadata=metadata, status=status)
+        return pod
 
     @staticmethod
     def _assert_runtime_handler_list_resources(
@@ -146,21 +159,12 @@ class TestRuntimeHandlerBase:
         return calls
 
     @staticmethod
-    def _mock_list_services(service_dicts):
-        service_mocks = []
-        for service_dict in service_dicts:
-            service_mock = unittest.mock.Mock()
-            service_mock.metadata.name.return_value = service_dict["metadata"]["name"]
-            service_mock.metadata.labels.return_value = service_dict["metadata"][
-                "labels"
-            ]
-            service_mocks.append(service_mock)
-        services_mock = unittest.mock.Mock()
-        services_mock.items = service_mocks
+    def _mock_list_services(services):
+        services_list = client.V1ServiceList(items=services)
         get_k8s().v1api.list_namespaced_service = unittest.mock.Mock(
-            return_value=services_mock
+            return_value=services_list
         )
-        return service_mocks
+        return services
 
     @staticmethod
     def _assert_list_namespaced_pods_calls(

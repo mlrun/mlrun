@@ -11,7 +11,7 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import RunStates
 from mlrun.utils import create_logger
-from tests.conftest import DictToK8sObjectWrapper
+from tests.conftest import DictToK8sObjectMockWrapper
 
 logger = create_logger(level="debug", name="test-runtime-handlers")
 
@@ -132,9 +132,9 @@ class TestRuntimeHandlerBase:
         for pod_dicts_call_response in pod_dicts_call_responses:
             pods = []
             for pod_dict in pod_dicts_call_response:
-                pod = DictToK8sObjectWrapper(pod_dict)
+                pod = DictToK8sObjectMockWrapper(pod_dict)
                 pods.append(pod)
-            calls.append(DictToK8sObjectWrapper({"items": pods}))
+            calls.append(DictToK8sObjectMockWrapper({"items": pods}))
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
         return calls
 

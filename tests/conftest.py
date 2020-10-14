@@ -153,7 +153,7 @@ class DictToObjectWrapper:
                 )
 
 
-class DictToK8sObjectWrapper(DictToObjectWrapper):
+class DictToK8sObjectMockWrapper(DictToObjectWrapper):
     """
     An helper class to give easy way to create objects to mock k8s client responses by instantiating them from a dict.
     """

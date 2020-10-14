@@ -1242,39 +1242,6 @@ class BaseRuntimeHandler(ABC):
             )
             self._collect_run_logs(db, db_session, project, uid)
 
-    def _get_run_crd_object(self, project: str, run_uid: str):
-        label_selector = self._get_run_label_selector(project, run_uid)
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace()
-        crd_group, crd_version, crd_plural = self._get_crd_info()
-        crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(
-            crd_group,
-            crd_version,
-            namespace,
-            crd_plural,
-            label_selector=label_selector,
-        )
-        if not crd_objects or len(crd_objects["items"]) == 0:
-            raise RuntimeError("Run crd object could not be found")
-        if len(crd_objects["items"]) > 1:
-            logger.warning(
-                "Received more than one crd record for run. Heuristically using the first one"
-            )
-        return crd_objects["items"][0]
-
-    def _get_run_pod(self, project: str, run_uid: str):
-        label_selector = self._get_run_label_selector(project, run_uid)
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace()
-        pods = k8s_helper.list_pods(namespace, selector=label_selector)
-        if len(pods) == 0:
-            raise RuntimeError("Run pod could not be found")
-        if len(pods) > 1:
-            logger.warning(
-                "Unexpectedly received more than one pod for run. Heuristically using the first one"
-            )
-        return pods[0]
-
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
         return f"mlrun/project={project},mlrun/uid={run_uid}"

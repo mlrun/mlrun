@@ -1325,7 +1325,7 @@ class BaseRuntimeHandler(ABC):
         if db_run_state:
             if db_run_state == run_state:
                 update_run = False
-            # if the current run state is stable and different then the desired - log
+            # if the current run state is stable and different than the desired - log
             if db_run_state in RunStates.terminal_states():
                 logger.warning(
                     "Run is in different terminal state than desired. Changing",

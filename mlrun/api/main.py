@@ -147,7 +147,6 @@ def _start_periodic_runs_monitoring():
 
 
 def _monitor_runs():
-    logger.debug("Monitoring runs")
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():

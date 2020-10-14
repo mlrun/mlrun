@@ -229,7 +229,7 @@ class Scheduler:
     @staticmethod
     def submit_task_wrapper(scheduled_object):
         # import here to avoid circular imports
-        from mlrun.api.api.utils import submit_task
+        from mlrun.api.api.utils import submit_run
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop
@@ -241,7 +241,7 @@ class Scheduler:
 
         db_session = create_session()
 
-        submit_task(db_session, scheduled_object)
+        submit_run(db_session, scheduled_object)
 
         close_session(db_session)
 

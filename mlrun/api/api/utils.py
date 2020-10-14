@@ -125,12 +125,12 @@ def _parse_submit_run_body(db_session: Session, data):
     return function, task
 
 
-async def submit_task(db_session: Session, data):
-    _, _, _, response = await run_in_threadpool(_submit_task, db_session, data)
+async def submit_run(db_session: Session, data):
+    _, _, _, response = await run_in_threadpool(_submit_run, db_session, data)
     return response
 
 
-def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
+def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
         1. str of the project of the run
@@ -144,7 +144,7 @@ def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typin
         fn, task = _parse_submit_run_body(db_session, data)
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db, True)
-        logger.info("Submitting task", function=fn.to_dict(), task=task)
+        logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
@@ -184,5 +184,5 @@ def _submit_task(db_session: Session, data) -> typing.Tuple[str, str, str, typin
             HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
         )
 
-    logger.info("Task submission succeeded", response=response)
+    logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

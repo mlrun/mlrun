@@ -848,7 +848,6 @@ class BaseRuntimeHandler(ABC):
                     namespace=namespace,
                     exc=str(exc),
                 )
-                continue
 
     def _enrich_list_resources_response(
         self, response: Dict, namespace: str, label_selector: str = None

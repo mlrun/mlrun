@@ -12,7 +12,7 @@ from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import RunStates, PodPhases
-from mlrun.utils import create_logger
+from mlrun.utils import create_logger, now_date
 
 logger = create_logger(level="debug", name="test-runtime-handlers")
 
@@ -36,7 +36,7 @@ class TestRuntimeHandlerBase:
     @pytest.fixture(autouse=True)
     def _store_run_fixture(self, db: Session):
         self.run = {
-            "status": {"state": RunStates.created},
+            "status": {"state": RunStates.created, "last_update": now_date().isoformat()},
             "metadata": {"project": self.project, "uid": self.run_uid},
         }
         get_db().store_run(db, self.run, self.run_uid, self.project)

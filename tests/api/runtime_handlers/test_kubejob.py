@@ -1,4 +1,5 @@
 import unittest.mock
+from datetime import timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -8,6 +9,8 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import RunStates, PodPhases
+from mlrun.utils import now_date
+from mlrun.config import config
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -134,6 +137,57 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, expected_number_of_list_pods_calls
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.completed_pod.metadata.name,
+        )
+
+    def test_monitor_run_debouncing_non_terminal_state(
+        self, db: Session, client: TestClient
+    ):
+        # set monitoring interval so debouncing will be active
+        config.runs_monitoring_interval = 100
+
+        # Mocking the SDK updating the Run's state to terminal state
+        self.run["status"]["state"] = RunStates.completed
+        self.run["status"]["last_update"] = now_date().isoformat()
+        get_db().store_run(db, self.run, self.run_uid, self.project)
+
+        # Mocking pod that is still in non-terminal state
+        self._mock_list_namespaces_pods([[self.running_pod]])
+
+        # Triggering monitor cycle
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # verifying monitoring was debounced
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.completed)
+
+        # Mocking that update occurred before debounced period
+        debounce_period = config.runs_monitoring_interval
+        self.run["status"]["last_update"] = (now_date() - timedelta(seconds=float(2 * debounce_period))).isoformat()
+        get_db().store_run(db, self.run, self.run_uid, self.project)
+
+        # Mocking pod that is still in non-terminal state
+        self._mock_list_namespaces_pods([[self.running_pod]])
+
+        # Triggering monitor cycle
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # verifying monitoring was not debounced
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.running)
+
+        # Mocking pod that is in terminal state (extra one for the log collection)
+        self._mock_list_namespaces_pods([[self.completed_pod], [self.completed_pod]])
+
+        # Mocking read log calls
+        log = "Some log string"
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+
+        # Triggering monitor cycle
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # verifying monitoring was not debounced
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.completed)
+
         self._assert_run_logs(
             db, self.project, self.run_uid, log, self.completed_pod.metadata.name,
         )

@@ -105,6 +105,7 @@ class SparkJobSpec(KubeResourceSpec):
         restart_policy=None,
         deps=None,
         main_class=None,
+        spark_args=None,
     ):
 
         super().__init__(
@@ -129,6 +130,7 @@ class SparkJobSpec(KubeResourceSpec):
         self.restart_policy = restart_policy
         self.deps = deps
         self.main_class = main_class
+        self.spark_args = spark_args
 
 
 class SparkRuntime(KubejobRuntime):
@@ -187,7 +189,7 @@ class SparkRuntime(KubejobRuntime):
                 )
         if self.spec.command:
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        update_in(job, "spec.arguments", self.spec.args)
+        update_in(job, "spec.arguments", self.spec.spark_args)
         resp = self._submit_job(job, meta.namespace)
         # name = get_in(resp, 'metadata.name', 'unknown')
 

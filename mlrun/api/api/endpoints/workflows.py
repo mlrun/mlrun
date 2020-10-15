@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from mlrun.run import list_pipelines
 from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.run import list_pipelines
 
 router = APIRouter()
 

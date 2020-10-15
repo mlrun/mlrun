@@ -90,6 +90,7 @@ class SparkApplicationStates:
     running = "RUNNING"
     submission_failed = "SUBMISSION_FAILED"
     pending_rerun = "PENDING_RERUN"
+    pending_submission = "PENDING_SUBMISSION"
     invalidating = "INVALIDATING"
     succeeding = "SUCCEEDING"
     failing = "FAILING"
@@ -111,6 +112,7 @@ class SparkApplicationStates:
             SparkApplicationStates.running,
             SparkApplicationStates.submission_failed,
             SparkApplicationStates.pending_rerun,
+            SparkApplicationStates.pending_submission,
             SparkApplicationStates.invalidating,
             SparkApplicationStates.succeeding,
             SparkApplicationStates.failing,
@@ -130,6 +132,7 @@ class SparkApplicationStates:
             SparkApplicationStates.running: RunStates.running,
             SparkApplicationStates.submission_failed: RunStates.running,
             SparkApplicationStates.pending_rerun: RunStates.running,
+            SparkApplicationStates.pending_submission: RunStates.running,
             SparkApplicationStates.invalidating: RunStates.running,
             SparkApplicationStates.succeeding: RunStates.running,
             SparkApplicationStates.failing: RunStates.running,

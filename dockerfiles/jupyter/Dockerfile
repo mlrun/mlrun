@@ -29,6 +29,7 @@ ENV MLRUN_DBPATH=http://localhost:8080 \
     JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
+    MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
     MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data
 
 # run the mlrun db (api) and the notebook in parallel

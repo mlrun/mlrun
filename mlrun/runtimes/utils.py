@@ -321,7 +321,7 @@ def get_resource_labels(function, run=None, scrape_metrics=False):
         run_uid = run.metadata.uid
         run_name = run.metadata.name
         run_project = run.metadata.project
-        run_owner = run.metadata.labels.get('owner')
+        run_owner = run.metadata.labels.get("owner")
     labels = deepcopy(function.metadata.labels)
     labels[mlrun_key + "class"] = function.kind
     labels[mlrun_key + "project"] = run_project or function.metadata.project

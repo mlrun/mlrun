@@ -888,7 +888,7 @@ def get_pipeline(run_id, namespace=None):
     return resp
 
 
-def list_piplines(
+def list_pipelines(
     full=False,
     page_token="",
     page_size=10,

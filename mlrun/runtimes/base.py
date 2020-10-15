@@ -1131,7 +1131,7 @@ class BaseRuntimeHandler(ABC):
 
         self._ensure_run_state(db, db_session, project, uid, run_state)
 
-        self._collect_run_logs(db, db_session, project, uid)
+        self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_terminal_state(
         self, db: DBInterface, db_session: Session, runtime_resource: Dict,
@@ -1232,30 +1232,32 @@ class BaseRuntimeHandler(ABC):
             (_, _, run_state,) = self._resolve_pod_status_info(
                 db, db_session, runtime_resource
             )
-        run_state_changed, updated_run_state = self._ensure_run_state(
+        _, updated_run_state = self._ensure_run_state(
             db, db_session, project, uid, run_state, run, search_run=False,
         )
-        if run_state_changed and updated_run_state in RunStates.terminal_states():
+        if updated_run_state in RunStates.terminal_states():
             logger.debug(
                 "Run reached terminal state, collecting logs", project=project, uid=uid,
             )
-            self._collect_run_logs(db, db_session, project, uid)
+            self._ensure_run_logs_collected(db, db_session, project, uid)
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
         return f"mlrun/project={project},mlrun/uid={run_uid}"
 
     @staticmethod
-    def _collect_run_logs(db: DBInterface, db_session: Session, project: str, uid: str):
+    def _ensure_run_logs_collected(db: DBInterface, db_session: Session, project: str, uid: str):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        _, logs_from_k8s = crud.Logs.get_logs(
-            db_session, project, uid, source=LogSources.K8S
-        )
-        if logs_from_k8s:
-            logger.info("Storing run logs", project=project, uid=uid)
-            crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
+        log_file_exists = crud.Logs.log_file_exists(project, uid)
+        if not log_file_exists:
+            _, logs_from_k8s = crud.Logs.get_logs(
+                db_session, project, uid, source=LogSources.K8S
+            )
+            if logs_from_k8s:
+                logger.info("Storing run logs", project=project, uid=uid)
+                crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
 
     @staticmethod
     def _ensure_run_state(
@@ -1269,7 +1271,6 @@ class BaseRuntimeHandler(ABC):
     ) -> Tuple[bool, str]:
         if run is None:
             run = {}
-        update_run = True
         if search_run:
             try:
                 run = db.read_run(db_session, uid, project)
@@ -1287,24 +1288,46 @@ class BaseRuntimeHandler(ABC):
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
             if db_run_state == run_state:
-                update_run = False
-            # if the current run state is stable and different than the desired - log
+                return False, run_state
+            # if the current run state is terminal and different than the desired - log
             if db_run_state in RunStates.terminal_states():
+
+                # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
+                # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
+                if run_state not in RunStates.terminal_states():
+                    now = datetime.now(timezone.utc)
+                    last_update_str = run.get("status", {}).get("last_update")
+                    if last_update_str is not None:
+                        last_update = datetime.fromisoformat(last_update_str)
+                        debounce_period = config.runs_monitoring_interval
+                        if last_update > now - timedelta(seconds=float(debounce_period)):
+                            logger.warning(
+                                "Monitoring found non-terminal state on runtime resource but record has recently "
+                                "updated to terminal state. Debouncing",
+                                project=project,
+                                uid=uid,
+                                db_run_state=db_run_state,
+                                run_state=run_state,
+                                last_update=last_update,
+                                now=now,
+                                debounce_period=debounce_period,
+                            )
+                            return False, run_state
+
                 logger.warning(
-                    "Run is in different terminal state than desired. Changing",
+                    "Run record has terminal state but monitoring found different state on runtime resource. Changing",
                     project=project,
                     uid=uid,
                     db_run_state=db_run_state,
                     run_state=run_state,
                 )
 
-        if update_run:
-            logger.info("Updating run state", run_state=run_state)
-            run.setdefault("status", {})["state"] = run_state
-            run.setdefault("status", {})["last_update"] = now_date().isoformat()
-            db.store_run(db_session, run, uid, project)
+        logger.info("Updating run state", run_state=run_state)
+        run.setdefault("status", {})["state"] = run_state
+        run.setdefault("status", {})["last_update"] = now_date().isoformat()
+        db.store_run(db_session, run, uid, project)
 
-        return update_run, run_state
+        return True, run_state
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:

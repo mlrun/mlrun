@@ -1246,7 +1246,9 @@ class BaseRuntimeHandler(ABC):
         return f"mlrun/project={project},mlrun/uid={run_uid}"
 
     @staticmethod
-    def _ensure_run_logs_collected(db: DBInterface, db_session: Session, project: str, uid: str):
+    def _ensure_run_logs_collected(
+        db: DBInterface, db_session: Session, project: str, uid: str
+    ):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
@@ -1300,7 +1302,9 @@ class BaseRuntimeHandler(ABC):
                     if last_update_str is not None:
                         last_update = datetime.fromisoformat(last_update_str)
                         debounce_period = config.runs_monitoring_interval
-                        if last_update > now - timedelta(seconds=float(debounce_period)):
+                        if last_update > now - timedelta(
+                            seconds=float(debounce_period)
+                        ):
                             logger.warning(
                                 "Monitoring found non-terminal state on runtime resource but record has recently "
                                 "updated to terminal state. Debouncing",

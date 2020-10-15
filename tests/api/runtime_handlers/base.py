@@ -36,7 +36,10 @@ class TestRuntimeHandlerBase:
     @pytest.fixture(autouse=True)
     def _store_run_fixture(self, db: Session):
         self.run = {
-            "status": {"state": RunStates.created, "last_update": now_date().isoformat()},
+            "status": {
+                "state": RunStates.created,
+                "last_update": now_date().isoformat(),
+            },
             "metadata": {"project": self.project, "uid": self.run_uid},
         }
         get_db().store_run(db, self.run, self.run_uid, self.project)

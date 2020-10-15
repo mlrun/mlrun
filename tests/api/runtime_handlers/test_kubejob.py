@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import RunStates, PodPhases
 from mlrun.utils import now_date
-from mlrun.config import config
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -159,11 +159,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.monitor_runs(get_db(), db)
 
         # verifying monitoring was debounced
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.completed)
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
 
         # Mocking that update occurred before debounced period
         debounce_period = config.runs_monitoring_interval
-        self.run["status"]["last_update"] = (now_date() - timedelta(seconds=float(2 * debounce_period))).isoformat()
+        self.run["status"]["last_update"] = (
+            now_date() - timedelta(seconds=float(2 * debounce_period))
+        ).isoformat()
         get_db().store_run(db, self.run, self.run_uid, self.project)
 
         # Mocking pod that is still in non-terminal state
@@ -173,7 +177,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.monitor_runs(get_db(), db)
 
         # verifying monitoring was not debounced
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.running)
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
 
         # Mocking pod that is in terminal state (extra one for the log collection)
         self._mock_list_namespaces_pods([[self.completed_pod], [self.completed_pod]])
@@ -186,7 +192,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.monitor_runs(get_db(), db)
 
         # verifying monitoring was not debounced
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.completed)
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
 
         self._assert_run_logs(
             db, self.project, self.run_uid, log, self.completed_pod.metadata.name,

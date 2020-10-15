@@ -1236,9 +1236,6 @@ class BaseRuntimeHandler(ABC):
             db, db_session, project, uid, run_state, run, search_run=False,
         )
         if updated_run_state in RunStates.terminal_states():
-            logger.debug(
-                "Run reached terminal state, collecting logs", project=project, uid=uid,
-            )
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
     @staticmethod

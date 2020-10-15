@@ -40,6 +40,8 @@ def db() -> Generator:
 def client() -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
+        mlconf.runs_monitoring_interval = 0
+        mlconf.runtimes_cleanup_interval = 0
 
         # in case some test setup already mocked them, don't override it
         if not hasattr(get_k8s(), "v1api"):

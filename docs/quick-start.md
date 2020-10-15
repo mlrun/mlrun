@@ -21,7 +21,7 @@ MLRun requires separate containers for the API and the dashboard (UI).
 
 To install and run MLRun locally using Docker:
 ``` sh
-SHARED_DIR=/home/me/data
+SHARED_DIR=~/mlrun-data
 
 docker pull mlrun/mlrun-ui:0.5.2
 docker pull mlrun/jupyter:0.5.2

@@ -25,9 +25,7 @@ class SystemTestPreparer:
         system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
 
         git_url = "https://github.com/mlrun/mlrun.git"
-        provctl_releases = (
-            "https://api.github.com/repos/iguazio/provazio/releases/latest"
-        )
+        provctl_releases = "https://api.github.com/repos/iguazio/provazio/releases"
         provctl_binary_format = "provctl-{release_name}-linux-amd64"
 
     def __init__(
@@ -243,7 +241,11 @@ class SystemTestPreparer:
             headers={"Authorization": f"token {self._github_access_token}"},
         )
         response.raise_for_status()
-        latest_provazio_release = json.loads(response.content)
+        provazio_releases = json.loads(response.content)
+        stable_provazio_releases = list(
+            filter(lambda release: release["tag_name"] != "unstable", provazio_releases)
+        )
+        latest_provazio_release = stable_provazio_releases[0]
         for asset in latest_provazio_release["assets"]:
             if asset["name"] == self.Constants.provctl_binary_format.format(
                 release_name=latest_provazio_release["name"]

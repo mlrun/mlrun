@@ -14,10 +14,5 @@ def test_list_workflows(db: Session, client: TestClient) -> None:
         "next_page_token": None,
     }
     assert (
-            deepdiff.DeepDiff(
-                expected_response,
-                response.json(),
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(expected_response, response.json(), ignore_order=True,) == {}
     )

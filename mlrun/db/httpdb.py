@@ -184,7 +184,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         if resp.headers:
-            state = resp.headers.get("pod_status", "")
+            state = resp.headers.get("x-mlrun-run-state", "")
             return state.lower(), resp.content
 
         return "unknown", resp.content

@@ -35,12 +35,14 @@ environ["KFP_ARTIFACTS_DIR"] = f"{results}/kfp/"
 print(f"KFP: {results}/kfp/")
 
 rundb_path = f"{results}/rundb"
+logs_path = f"{results}/logs"
 out_path = f"{results}/out"
 root_path = str(Path(here).parent)
 examples_path = Path(here).parent.joinpath("examples")
 environ["PYTHONPATH"] = root_path
 environ["MLRUN_DBPATH"] = rundb_path
 environ["MLRUN_httpdb__dirpath"] = rundb_path
+environ["MLRUN_httpdb__logs_path"] = logs_path
 environ["MLRUN_log_level"] = "DEBUG"
 pytest_plugins = ["tests.common_fixtures"]
 

@@ -451,6 +451,15 @@ def get_obj_status(selector=[], namespace=None):
 
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
+
+    # Dask runtime resources are per function (and not per run).
+    # It means that monitoring runtime resources state doesn't say anything about the run state.
+    # Therefore dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
+    def monitor_runs(
+        self, db: DBInterface, db_session: Session,
+    ):
+        return
+
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"
@@ -495,8 +504,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         )
         service_names = []
         for pod in pods.items:
-            in_transient_phase = pod.status.phase not in PodPhases.stable_phases()
-            if not in_transient_phase or (force and in_transient_phase):
+            in_terminal_phase = pod.status.phase not in PodPhases.terminal_phases()
+            if in_terminal_phase or (force and not in_terminal_phase):
                 comp = pod.metadata.labels.get("dask.org/component")
                 if comp == "scheduler":
                     service_names.append(

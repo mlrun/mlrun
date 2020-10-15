@@ -25,7 +25,7 @@ def get_log(
     offset: int = 0,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    out, status = crud.Logs.get_log(db_session, project, uid, size, offset)
+    run_state, log = crud.Logs.get_logs(db_session, project, uid, size, offset)
     return Response(
-        content=out, media_type="text/plain", headers={"pod_status": status}
+        content=log, media_type="text/plain", headers={"x-mlrun-run-state": run_state}
     )

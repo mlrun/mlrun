@@ -166,6 +166,66 @@ class ObjectDict:
         return deepcopy(self)
 
 
+class ObjectList:
+    def __init__(self, child_class):
+        self._children = {}
+        self._child_class = child_class
+
+    def values(self):
+        return self._children.values()
+
+    def keys(self):
+        return self._children.keys()
+
+    def items(self):
+        return self._children.items()
+
+    def __len__(self):
+        return len(self._children)
+
+    def __iter__(self):
+        yield from self._children.keys()
+
+    def __getitem__(self, name):
+        return self._children[name]
+
+    def __delitem__(self, key):
+        del self._children[key]
+
+    def to_list(self):
+        return [t.to_dict() for t in self._children.values()]
+
+    @classmethod
+    def from_list(cls, child_class, children=None):
+        if children is None:
+            return cls(child_class)
+        if not isinstance(children, list):
+            raise ValueError('states must be a list')
+
+        new_obj = cls(child_class)
+        for child in children:
+            name, child_obj = new_obj._get_child_object(child)
+            new_obj._children[name] = child_obj
+        return new_obj
+
+    def _get_child_object(self, child):
+        if isinstance(child, self._child_class):
+            return child.name, child
+        elif isinstance(child, dict):
+            if 'name' not in child.keys():
+                raise ValueError("illegal object no 'name' field")
+            child_obj = self._child_class.from_dict(child)
+            return child_obj.name, child_obj
+        else:
+            raise ValueError(f"illegal child (should be dict or child kind), {child}")
+
+    def update(self, child, name=None):
+        object_name, child_obj = self._get_child_object(child)
+        child_obj.name = name or object_name
+        self._children[child_obj.name] = child_obj
+        return child_obj
+
+
 class BaseMetadata(ModelObj):
     def __init__(
         self,

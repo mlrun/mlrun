@@ -8,14 +8,14 @@ from .model import DataTarget, TargetTypes, FeatureClassKind
 from .ingest import write_to_target_store
 
 
-def store_client():
-    return FeatureStoreClient()
+def store_client(data_prefix='', project=None, secrets=None):
+    return FeatureStoreClient(data_prefix, project, secrets)
 
 
 class FeatureStoreClient:
     def __init__(self, data_prefix='', project=None, secrets=None):
         self._api = None
-        self._data_prefix = data_prefix or '../repo'
+        self._data_prefix = data_prefix or './store'
         self._data_stores = store_manager.set(secrets)
         self._fs = {}
         self._default_ingest_targets = [TargetTypes.parquet]

@@ -108,10 +108,8 @@ class FeatureStoreClient:
     def save_object(self, obj):
         """save featureset or other definitions into the DB"""
         if obj.kind != FeatureClassKind.FeatureSet:
-            raise NotImplementedError('only support FeatureSet for now')
+            raise NotImplementedError("only support FeatureSet for now")
         target = self._get_target_path(
-            FeatureClassKind.FeatureSet,
-            obj.metadata.name,
-            obj.metadata.project,
+            FeatureClassKind.FeatureSet, obj.metadata.name, obj.metadata.project,
         )
         self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())

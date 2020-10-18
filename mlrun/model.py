@@ -200,7 +200,7 @@ class ObjectList:
         if children is None:
             return cls(child_class)
         if not isinstance(children, list):
-            raise ValueError('states must be a list')
+            raise ValueError("states must be a list")
 
         new_obj = cls(child_class)
         for child in children:
@@ -212,7 +212,7 @@ class ObjectList:
         if isinstance(child, self._child_class):
             return child.name, child
         elif isinstance(child, dict):
-            if 'name' not in child.keys():
+            if "name" not in child.keys():
                 raise ValueError("illegal object no 'name' field")
             child_obj = self._child_class.from_dict(child)
             return child_obj.name, child_obj

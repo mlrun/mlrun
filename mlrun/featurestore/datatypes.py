@@ -1,3 +1,18 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# this module is WIP
 
 
 class ValueType:
@@ -5,22 +20,22 @@ class ValueType:
     Feature value type. Used to define data types in Feature Tables.
     """
 
-    UNKNOWN = ''
-    BYTES = 'bytes'
-    STRING = 'str'
-    INT32 = 'int32'
-    INT64 = 'int'
-    DOUBLE = 'float'
-    FLOAT = 'float32'
-    BOOL = 'bool'
-    DATETIME = 'datetime'
-    BYTES_LIST = ''
-    STRING_LIST = ''
-    INT32_LIST = ''
-    INT64_LIST = ''
-    DOUBLE_LIST = ''
-    FLOAT_LIST = ''
-    BOOL_LIST = ''
+    UNKNOWN = ""
+    BYTES = "bytes"
+    STRING = "str"
+    INT32 = "int32"
+    INT64 = "int"
+    DOUBLE = "float"
+    FLOAT = "float32"
+    BOOL = "bool"
+    DATETIME = "datetime"
+    BYTES_LIST = ""
+    STRING_LIST = ""
+    INT32_LIST = ""
+    INT64_LIST = ""
+    DOUBLE_LIST = ""
+    FLOAT_LIST = ""
+    BOOL_LIST = ""
 
 
 def pd_schema_to_value_type(value):
@@ -31,7 +46,6 @@ def pd_schema_to_value_type(value):
         "datetime": ValueType.DATETIME,
     }
     return type_map[value]
-
 
 
 def py_to_value_type(value):

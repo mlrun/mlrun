@@ -1,11 +1,27 @@
-from .model import *
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from .model import FeatureSetStatus, FeatureSetSpec, FeatureSetMetadata
 from .infer import infer_features_from_df, get_df_stats
+from ..model import ModelObj
 
 
 class FeatureSet(ModelObj):
     """Run template"""
-    kind = 'featureset'
-    _dict_fields = ['kind', 'metadata', 'spec', 'status']
+
+    kind = "featureset"
+    _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(self, name=None, description=None, entities=None):
         self._spec: FeatureSetSpec = None
@@ -23,7 +39,7 @@ class FeatureSet(ModelObj):
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', FeatureSetSpec)
+        self._spec = self._verify_dict(spec, "spec", FeatureSetSpec)
 
     @property
     def metadata(self) -> FeatureSetMetadata:
@@ -31,7 +47,7 @@ class FeatureSet(ModelObj):
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, 'metadata', FeatureSetMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", FeatureSetMetadata)
 
     @property
     def status(self) -> FeatureSetStatus:
@@ -39,11 +55,19 @@ class FeatureSet(ModelObj):
 
     @status.setter
     def status(self, status):
-        self._status = self._verify_dict(status, 'status', FeatureSetStatus)
+        self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
-    def infer_from_df(self, df, with_stats=False, entity_columns=None,
-                      timestamp_key=None, label_column=None, with_index=True,
-                      with_histogram=False, with_preview=False):
+    def infer_from_df(
+        self,
+        df,
+        with_stats=False,
+        entity_columns=None,
+        timestamp_key=None,
+        label_column=None,
+        with_index=True,
+        with_histogram=False,
+        with_preview=False,
+    ):
         """Infer features schema and stats from a local DataFrame"""
         infer_features_from_df(df, self._spec, entity_columns, with_index)
         if with_stats:

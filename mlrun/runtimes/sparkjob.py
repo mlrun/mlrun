@@ -189,7 +189,7 @@ class SparkRuntime(KubejobRuntime):
                 )
         if self.spec.command:
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        update_in(job, "spec.arguments", self.spec.spark_args)
+        update_in(job, "spec.arguments", self.spec.spark_args or [])
         resp = self._submit_job(job, meta.namespace)
         # name = get_in(resp, 'metadata.name', 'unknown')
 

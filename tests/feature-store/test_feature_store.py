@@ -26,3 +26,6 @@ def test_get_offline():
         features, entity_rows=trades, entity_timestamp_column="time"
     )
     print(resp.to_dataframe())
+
+    service = client.get_online_feature_service(features)
+    service.get(trades)

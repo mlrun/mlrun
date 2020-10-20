@@ -72,7 +72,7 @@ class FeatureStoreClient:
         pass
 
     def deploy_ingestion_service(
-        self, featureset, source_path, argets=None, parameters=None, function=None
+        self, featureset, source_path, targets=None, parameters=None, function=None
     ):
         """Start real-time Nuclio function which loads data into the feature store"""
         pass
@@ -95,7 +95,7 @@ class FeatureStoreClient:
         )
         return OfflineVectorResponse(self, df=df)
 
-    def get_online_feature_service(self, features, store_kind):
+    def get_online_feature_service(self, features):
         vector = FeatureVectorSpec(self, features)
         return OnlineVectorService(self, vector)
 

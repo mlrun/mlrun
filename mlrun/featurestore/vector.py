@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Dict
 
 from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
+import v3io.dataplane
 
 from .featureset import FeatureSet
 from .model import DataTarget, get_offline_store
@@ -30,7 +31,7 @@ class FeatureVectorSpec(ModelObj):
         self._entity_df = None
         self._feature_set_fields = {}
         self._processed_features = {}
-        self.feature_set_objects = {}
+        self.feature_set_objects: Dict[FeatureSet] = {}
 
     def parse_features(self):
         self._processed_features = {}
@@ -92,6 +93,15 @@ class FeatureVectorSpec(ModelObj):
             dfs.append(df)
         return feature_sets, dfs
 
+    def prep_feature_serving(self, path_prefix):
+        feature_sets = []
+        for name, columns in self._feature_set_fields.items():
+            fs = self.feature_set_objects[name]
+            column_names = [name for name, alias in columns]
+            key_column = fs.spec.get_features_map().keys()[0]
+            feature_sets.append((path_prefix + name, key_column, column_names))
+        return feature_sets
+
 
 class OfflineVectorResponse:
     def __init__(self, client, run_url=None, df=None):
@@ -107,15 +117,21 @@ class OfflineVectorResponse:
 
 
 class OnlineVectorService:
-    def __init__(self, client, vector):
+    def __init__(self, client, feature_sets):
         self._client = client
-        self._vector = vector
+        self._feature_sets = feature_sets
+        self._v3io_client = v3io.dataplane.Client()
+        self._container = None
 
     @property
     def status(self):
         return "ready"
 
     def get(self, entity_rows):
+        for row in entity_rows:
+            for table_path, key_column, column_names in self._feature_sets:
+                table_path += f'/{row[key_column]}'
+                self._v3io_client.get_item(self._container, table_path, attribute_names=column_names)
         return entity_rows
 
 

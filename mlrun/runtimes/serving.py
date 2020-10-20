@@ -236,6 +236,7 @@ class ServingRuntime(RemoteRuntime):
         # we currently support a minimal topology of one router + multiple child routes/models
         # in the future we will extend the support to a full graph, the spec is already built accordingly
         serving_spec = {
+            "function_uri": self._function_uri(),
             "version": "v2",
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict(),

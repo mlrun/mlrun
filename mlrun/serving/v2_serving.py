@@ -254,6 +254,7 @@ class _ModelLogPusher:
     def __init__(self, model, context, output_stream=None):
         self.model = model
         self.hostname = context.stream.hostname
+        self.function_uri = context.stream.function_uri
         self.stream_batch = context.stream.stream_batch
         self.stream_sample = context.stream.stream_sample
         self.output_stream = output_stream or context.stream.output_stream
@@ -265,10 +266,11 @@ class _ModelLogPusher:
     def base_data(self):
         base_data = {
             "class": self.model.__class__.__name__,
-            "worker": self.worker,
+            "worker": self._worker,
             "model": self.model.name,
             "version": self.model.version,
             "host": self.hostname,
+            "function_uri": self.function_uri,
         }
         if getattr(self.model, "labels", None):
             base_data["labels"] = self.model.labels

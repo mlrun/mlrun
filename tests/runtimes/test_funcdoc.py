@@ -23,7 +23,7 @@ from tests.conftest import tests_root_directory
 
 
 def load_rst_cases(name):
-    with open(tests_root_directory / name) as fp:
+    with open(tests_root_directory / "runtimes" / name) as fp:
         data = yaml.load(fp)
 
     for i, case in enumerate(data):

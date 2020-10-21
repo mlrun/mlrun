@@ -220,22 +220,27 @@ class KubejobRuntime(KubeResource):
 
         proj_secret = self._get_k8s().get_project_vault_secret_name(proj_name)
         if proj_secret is None:
-            logger.info("No vault secret associated with project {}".format(proj_secret))
+            logger.info(
+                "No vault secret associated with project {}".format(proj_secret)
+            )
             return
 
-        volumes = [{"name": "vault-secret",
-                   "secret": {
-                      "defaultMode": 420,
-                      "secretName": proj_secret
-                   }}]
-        token_path = mlconf.vault_token_path.replace('~', '/root')
-        volume_mounts = [{"name": "vault-secret",
-                         "mountPath": token_path
-                          }]
+        volumes = [
+            {
+                "name": "vault-secret",
+                "secret": {"defaultMode": 420, "secretName": proj_secret},
+            }
+        ]
+        token_path = mlconf.vault_token_path.replace("~", "/root")
+        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
 
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
-        self.spec.env.append({"name": "MLRUN_VAULT_ROLE", "value": "proj:{}".format(proj_name)})
-        self.spec.env.append({"name": "MLRUN_VAULT_URL", "value": mlconf.vault_remote_url})
+        self.spec.env.append(
+            {"name": "MLRUN_VAULT_ROLE", "value": "proj:{}".format(proj_name)}
+        )
+        self.spec.env.append(
+            {"name": "MLRUN_VAULT_URL", "value": mlconf.vault_remote_url}
+        )
 
     def _run(self, runobj: RunObject, execution):
 

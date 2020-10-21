@@ -277,8 +277,7 @@ class K8sHelper:
         namespace = self.resolve_namespace(namespace)
         sa_name = mlconfig.project_sa_name.format(proj=project)
         sa = client.V1ServiceAccount()
-        sa.metadata = client.V1ObjectMeta(name=sa_name,
-                                          namespace=namespace)
+        sa.metadata = client.V1ObjectMeta(name=sa_name, namespace=namespace)
         try:
             api_response = self.v1api.create_namespaced_service_account(
                 namespace,
@@ -294,8 +293,9 @@ class K8sHelper:
         sa_name = mlconfig.project_sa_name.format(proj=project)
 
         try:
-            sa_list = self.v1api.list_namespaced_service_account(namespace=namespace,
-                                                                 field_selector='metadata.name={}'.format(sa_name))
+            sa_list = self.v1api.list_namespaced_service_account(
+                namespace=namespace, field_selector="metadata.name={}".format(sa_name)
+            )
         except ApiException as e:
             logger.error("failed to list service accounts: {}".format(e))
             raise e
@@ -304,6 +304,7 @@ class K8sHelper:
             return None
         sa = sa_list.items[0]
         return sa.secrets[0].name
+
 
 class BasePod:
     def __init__(
@@ -386,7 +387,10 @@ class BasePod:
         self.add_volume(
             client.V1Volume(
                 name=name,
-                secret=client.V1SecretVolumeSource(secret_name=name, items=items,),
+                secret=client.V1SecretVolumeSource(
+                    secret_name=name,
+                    items=items,
+                ),
             ),
             mount_path=path,
         )

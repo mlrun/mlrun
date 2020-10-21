@@ -16,7 +16,9 @@ router = APIRouter()
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
 @router.post("/project")
 def add_project(
-    project: schemas.ProjectCreate, use_vault=False, db_session: Session = Depends(deps.get_db_session)
+    project: schemas.ProjectCreate,
+    use_vault=False,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     project_id = get_db().add_project(db_session, project.dict())
 

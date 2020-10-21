@@ -579,7 +579,6 @@ def code_to_function(
         return "{}:{}".format(origin, name)
 
     def update_meta(fn):
-        from .projects import MlrunProject
         fn.spec.description = description
         fn.metadata.project = project or mlconf.default_project
         fn.metadata.tag = tag

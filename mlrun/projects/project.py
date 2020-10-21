@@ -164,7 +164,7 @@ def _load_project_file(url, name="", secrets=None):
 
 class MlrunProject(ModelObj):
     kind = "project"
-    _dict_fields = ['name', 'description']
+    _dict_fields = ["name", "description"]
 
     def __init__(
         self,
@@ -235,7 +235,9 @@ class MlrunProject(ModelObj):
 
     def create_vault_secrets(self, secrets):
         if not self.use_vault:
-            raise ValueError("create_vault_secrets called on a project not set to use vault")
+            raise ValueError(
+                "create_vault_secrets called on a project not set to use vault"
+            )
         self._secrets.vault.add_vault_secret(secrets, project=self.name)
 
     def init_vault(self):
@@ -253,7 +255,7 @@ class MlrunProject(ModelObj):
 
         ns = config.namespace
         k8s = get_k8s_helper(silent=True)
-        sa_name = 'sa-vault-{}'.format(self.name)
+        sa_name = "sa-vault-{}".format(self.name)
 
         secret_name = k8s.get_project_vault_secret_name(self.name)
 
@@ -261,10 +263,11 @@ class MlrunProject(ModelObj):
             k8s.create_project_service_account(self.name)
 
         policy_name = self._secrets.vault.create_project_policy(self.name)
-        role_name = self._secrets.vault.create_project_role(self.name,
-                                                            namespace=ns,
-                                                            sa=sa_name,
-                                                            policy=policy_name)
+        role_name = self._secrets.vault.create_project_role(
+            self.name, namespace=ns, sa=sa_name, policy=policy_name
+        )
+
+        logger.info("Created Vault policy: {}, role: {}".format(policy_name, role_name))
 
     @property
     def mountdir(self) -> str:

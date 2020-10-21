@@ -17,26 +17,30 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: saarcoiguazio/mlrun-api:unstable
-        # image: mlrun/mlrun-api:unstable
-        imagePullPolicy: IfNotPresent
+        image: mlrun/mlrun-api:0.5.2
+        imagePullPolicy: Always
         env:
         - name: MLRUN_LOG_LEVEL
-          value: DEBUG
+          value: ERROR
         - name: MLRUN_HTTPDB__DB_TYPE
           value: sqldb
         - name: MLRUN_HTTPDB__DIRPATH
           value: "/mlrun/db"
         - name: DEFAULT_DOCKER_REGISTRY
-          value: 'saarcoiguazio'
+          value: "<set default registry url>"
+        - name: V3IO_ACCESS_KEY
+          value: <access-key>
         - name: V3IO_USERNAME
           value: admin
-        - name: MLRUN_VAULT_URL
-          value: 'http://docker.for.mac.localhost:8200'
-        - name: MLRUN_VAULT_ROLE
-          value: 'user:admin'
-        - name: DEFAULT_DOCKER_SECRET
-          value: my-docker
+# Uncomment to enable Vault secrets integration
+#        - name: MLRUN_VAULT_URL
+#          value: 'http://docker.for.mac.localhost:8200'
+#        - name: MLRUN_VAULT_ROLE
+#          value: 'user:admin'
+# Uncomment to use a secret when accessing Dockerhub
+#        - name: DEFAULT_DOCKER_SECRET
+#          value: my-docker
+
         ports:
         - containerPort: 8080
         command: ["python", "-m", "mlrun", "db"]

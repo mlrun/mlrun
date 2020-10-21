@@ -65,7 +65,7 @@ info_handlers = [
 
 
 def load_info_cases():
-    with open(tests_root_directory / "info_cases.yml") as fp:
+    with open(tests_root_directory / "runtimes" / "info_cases.yml") as fp:
         cases = yaml.load(fp)
 
     for case in cases:
@@ -144,7 +144,7 @@ def test_ast_none():
 
 
 def test_ast_compound():
-    with open(f"{tests_root_directory}/arc.txt") as fp:
+    with open(f"{tests_root_directory}/runtimes/arc.txt") as fp:
         code = fp.read()
 
     fn = ast_func(code)

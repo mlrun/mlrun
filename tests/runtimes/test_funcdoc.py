@@ -19,11 +19,11 @@ import pytest
 import yaml
 
 from mlrun.runtimes import funcdoc
-from tests.conftest import here
+from tests.conftest import tests_root_directory
 
 
 def load_rst_cases(name):
-    with open(here / name) as fp:
+    with open(tests_root_directory / "runtimes" / name) as fp:
         data = yaml.load(fp)
 
     for i, case in enumerate(data):
@@ -65,7 +65,7 @@ info_handlers = [
 
 
 def load_info_cases():
-    with open(here / "info_cases.yml") as fp:
+    with open(tests_root_directory / "runtimes" / "info_cases.yml") as fp:
         cases = yaml.load(fp)
 
     for case in cases:
@@ -144,7 +144,7 @@ def test_ast_none():
 
 
 def test_ast_compound():
-    with open(f"{here}/arc.txt") as fp:
+    with open(f"{tests_root_directory}/runtimes/arc.txt") as fp:
         code = fp.read()
 
     fn = ast_func(code)

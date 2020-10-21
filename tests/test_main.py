@@ -15,7 +15,7 @@
 from sys import executable, stderr
 from subprocess import run, PIPE
 from tests.conftest import (
-    here,
+    tests_root_directory,
     examples_path,
     root_path,
 )
@@ -67,7 +67,7 @@ def test_main_run_hyper():
 
 def test_main_run_noctx():
     out = exec_run(
-        f"{here}/no_ctx.py",
+        f"{tests_root_directory}/no_ctx.py",
         ["--mode", "noctx"] + compose_param_list(dict(p1=5, p2='"aaa"')),
         "test_main_run_noctx",
     )

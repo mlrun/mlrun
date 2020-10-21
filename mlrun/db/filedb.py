@@ -383,6 +383,10 @@ class FileRunDB(RunDBInterface):
 
         return results
 
+    def store_project(self, name, struct, use_vault):
+        # TODO - not sure we really need to implement that, need to consider.
+        pass
+
     def _filepath(self, table, project, key="", tag=""):
         if tag == "*":
             tag = ""

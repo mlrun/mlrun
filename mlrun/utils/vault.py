@@ -119,7 +119,8 @@ class VaultStore:
             return resp
         values = response.json()['data']['data']
         for key in keys:
-            resp[key] = values[key]
+            if key in values:
+                resp[key] = values[key]
         return resp
 
     def add_vault_secret(self,

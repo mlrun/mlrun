@@ -630,6 +630,15 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
+    def store_project(self, name, struct, use_vault):
+        params = {"use_vault": use_vault}
+        error_message = f"Failed storing project for {name} ? use-vault={use_vault}"
+
+        self.api_call("POST", "project",
+                      error=error_message,
+                      params=params,
+                      body=json.dumps(struct))
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

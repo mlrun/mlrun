@@ -8,6 +8,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.sqldb.helpers import to_dict as db2dict
 from mlrun.api.utils.singletons.db import get_db
+from mlrun import new_project
 
 router = APIRouter()
 
@@ -15,9 +16,14 @@ router = APIRouter()
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
 @router.post("/project")
 def add_project(
-    project: schemas.ProjectCreate, db_session: Session = Depends(deps.get_db_session)
+    project: schemas.ProjectCreate, use_vault=False, db_session: Session = Depends(deps.get_db_session)
 ):
     project_id = get_db().add_project(db_session, project.dict())
+
+    if use_vault:
+        proj = new_project(project.name, use_vault=True)
+        proj.init_vault()
+
     return {
         "id": project_id,
         "name": project.name,

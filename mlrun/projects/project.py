@@ -54,13 +54,13 @@ class ProjectError(Exception):
     pass
 
 
-def new_project(name, context=None, init_git=False, init_vault=False ):
+def new_project(name, context=None, init_git=False, use_vault=False):
     """Create a new MLRun project
 
     :param name:       project name
     :param context:    project local directory path
     :param init_git:   if True, will git init the context dir
-    :param init_vault: create relevant configurations in Vault for project secrets
+    :param use_vault:  create relevant configurations in Vault for project secrets
 
     :returns: project object
     """
@@ -71,8 +71,7 @@ def new_project(name, context=None, init_git=False, init_vault=False ):
         repo = Repo.init(context)
         project.repo = repo
 
-    if init_vault:
-        project.init_vault()
+    project.use_vault = use_vault
     return project
 
 
@@ -165,6 +164,7 @@ def _load_project_file(url, name="", secrets=None):
 
 class MlrunProject(ModelObj):
     kind = "project"
+    _dict_fields = ['name', 'description']
 
     def __init__(
         self,
@@ -176,6 +176,7 @@ class MlrunProject(ModelObj):
         artifacts=None,
         artifact_path=None,
         conda=None,
+        use_vault=False,
     ):
 
         self._initialized = False
@@ -194,6 +195,7 @@ class MlrunProject(ModelObj):
         self._mountdir = None
         self._artifact_mngr = None
         self.artifact_path = artifact_path or config.artifact_path
+        self.use_vault = use_vault
 
         self.workflows = workflows or []
         self.artifacts = artifacts or []
@@ -201,8 +203,6 @@ class MlrunProject(ModelObj):
         self._function_objects = {}
         self._function_defs = {}
         self.functions = functions or []
-
-        self._sa_secret = None
 
     @property
     def source(self) -> str:
@@ -234,6 +234,8 @@ class MlrunProject(ModelObj):
         return None
 
     def create_vault_secrets(self, secrets):
+        if not self.use_vault:
+            raise ValueError("create_vault_secrets called on a project not set to use vault")
         self._secrets.vault.add_vault_secret(secrets, project=self.name)
 
     def init_vault(self):
@@ -244,6 +246,10 @@ class MlrunProject(ModelObj):
         These constructs will enable any pod created as part of this project to access the project's secrets
         in Vault, assuming that the secret which is part of the SA created is mounted to the pod.
         """
+
+        logger.info("init_vault called, project name: {}".format(self.name))
+        if not self.use_vault:
+            raise ValueError("init_vault called on a project not set to use vault")
 
         ns = config.namespace
         k8s = get_k8s_helper(silent=True)
@@ -806,6 +812,11 @@ class MlrunProject(ModelObj):
         filepath = filepath or path.join(self.context, self.subpath, "project.yaml")
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
+
+    def store(self):
+        """Save the project object in the MLRun DB"""
+        db = get_run_db().connect(self._secrets)
+        db.store_project(self.name, self.to_dict(), self.use_vault)
 
 
 def _init_function_from_dict(f, project):

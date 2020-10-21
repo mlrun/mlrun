@@ -110,6 +110,10 @@ class RunDBInterface(ABC):
     def list_functions(self, name, project="", tag="", labels=None):
         pass
 
+    @abstractmethod
+    def store_project(self, name, struct, use_vault):
+        pass
+
     def list_projects(self):
         return []
 

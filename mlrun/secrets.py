@@ -67,8 +67,8 @@ class SecretsStore:
                 raise ValueError("vault secrets must be of type dict")
 
             for key, value in self.vault.get_secrets(source["secrets"],
-                                                      user=source.get("user"),
-                                                      project=source.get("project")).items():
+                                                     user=source.get("user"),
+                                                     project=source.get("project")).items():
                 self._hidden_secrets[prefix + key] = value
             self._hidden_sources.append({"kind": kind, "source": source})
 

@@ -165,7 +165,9 @@ def test_local_handler():
 def test_local_no_context():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
-    result = new_function(command="{}/no_ctx.py".format(tests_root_directory), mode="noctx").run(spec)
+    result = new_function(
+        command="{}/no_ctx.py".format(tests_root_directory), mode="noctx"
+    ).run(spec)
     verify_state(result)
 
     db = get_run_db().connect()

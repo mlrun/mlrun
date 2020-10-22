@@ -457,6 +457,8 @@ def new_function(
 
     :return: function object
     """
+    if runtime:
+        runtime = deepcopy(runtime)
     kind, runtime = _process_runtime(command, runtime, kind)
     command = get_in(runtime, "spec.command", command)
     name = name or get_in(runtime, "metadata.name", "")

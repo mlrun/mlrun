@@ -18,7 +18,7 @@ import pandas as pd
 from tests.conftest import (
     examples_path,
     has_secrets,
-    here,
+    tests_root_directory,
     out_path,
     tag_test,
     verify_state,
@@ -134,7 +134,7 @@ def test_handler_hyper():
 
 def test_handler_hyperlist():
     run_spec = tag_test(base_spec, "test_handler_hyperlist")
-    run_spec.spec.param_file = "{}/param_file.csv".format(here)
+    run_spec.spec.param_file = "{}/param_file.csv".format(tests_root_directory)
     result = new_function().run(run_spec, handler=my_func)
     print(result)
     assert len(result.status.iterations) == 3 + 1, "hyper parameters test failed"
@@ -165,7 +165,9 @@ def test_local_handler():
 def test_local_no_context():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
-    result = new_function(command="{}/no_ctx.py".format(here), mode="noctx").run(spec)
+    result = new_function(
+        command="{}/no_ctx.py".format(tests_root_directory), mode="noctx"
+    ).run(spec)
     verify_state(result)
 
     db = get_run_db().connect()

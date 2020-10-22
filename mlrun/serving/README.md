@@ -23,7 +23,7 @@ but eliminate the operational overhead and provide additional functionality.
 - [Model Server API](#model-server-api)
 - [Model Monitoring](#model-monitoring)
 
-<b>You can find examples for serving functions ..TBD..</b>
+<b>You can find [this notebook example](../../examples/v2_model_server.ipynb) with a V2 serving functions</b>
 
 ## Creating And Serving A Model
 
@@ -109,6 +109,10 @@ x = load_iris()['data'].tolist()
 result = server.test("mymodel/infer", {"inputs": x})
 ```
 
+> Note: you can also create `mock_server` object from the function object 
+using `fn.to_mock_server()`, this way the mock_server configuration will 
+be identical to the function spec.
+
 #### Load() method
 
 in the load method we download the model from external store, run the algorithm/framework
@@ -162,7 +166,7 @@ and aggregate the result), multi-armed-bandit, etc.
 You can use a pre-defined Router class, or write your own custom router. 
 Router can route to models on the same function or access models on a separate function.
 
-to specify the router class and class args use `.set_router()` with your function.
+to specify the topology, router class and class args use `.set_topology()` with your function.
 
 ## Creating Model Serving Function (Service)
 
@@ -197,6 +201,13 @@ to deploy a model we can simply call:
 
 ```python
 fn.deploy()
+```
+
+to create a `mock server` for testing from the function spec use `fn.to_mock_server()`, example:
+
+```python
+server = fn.to_mock_server(globals())
+result = server.test("/v2/models/mymodel/infer", {"inputs": x})
 ```
 
 we can also deploy a model from within an ML pipeline (check the various demos for details).

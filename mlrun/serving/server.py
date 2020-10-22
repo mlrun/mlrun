@@ -26,9 +26,10 @@ from ..utils import create_logger
 
 
 class _StreamContext:
-    def __init__(self, parameters):
+    def __init__(self, parameters, function_uri):
         self.hostname = socket.gethostname()
         self.output_stream = None
+        self.function_uri = function_uri
         out_stream = parameters.get("log_stream", "")
         self.stream_sample = int(parameters.get("log_stream_sample", "1"))
         self.stream_batch = int(parameters.get("log_stream_batch", "1"))
@@ -42,10 +43,17 @@ class ModelServerHost(ModelObj):
     kind = "server"
 
     def __init__(
-        self, graph=None, parameters=None, load_mode=None, verbose=False, version=None
+        self,
+        graph=None,
+        function_uri=None,
+        parameters=None,
+        load_mode=None,
+        verbose=False,
+        version=None,
     ):
         self._graph = None
         self.graph: ServingRouterState = graph
+        self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
         self.load_mode = load_mode or "sync"
@@ -73,7 +81,7 @@ class ModelServerHost(ModelObj):
         self.context = context
         # enrich the context with classes and methods which will be used when
         # initializing classes or handling the event
-        setattr(context, "stream", _StreamContext(self.parameters))
+        setattr(context, "stream", _StreamContext(self.parameters, self.function_uri))
         setattr(context, "merge_root_params", self.merge_root_params)
         setattr(context, "verbose", self.verbose)
 

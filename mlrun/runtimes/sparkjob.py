@@ -16,6 +16,7 @@ import time
 from copy import deepcopy
 from datetime import datetime
 from typing import Tuple, Optional
+from os import environ
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
@@ -161,6 +162,8 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
+        elif environ.get("IGZ_VERSION"):
+            update_in(job, "spec.image", "spark-app:{}".format(environ["IGZ_VERSION"]))
         update_in(job, "spec.volumes", self.spec.volumes)
 
         extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
@@ -188,8 +191,10 @@ class SparkRuntime(KubejobRuntime):
                     job, "spec.executor.memory", self.spec.resources["limits"]["memory"]
                 )
         if self.spec.command:
+            if "://" not in self.spec.command:
+                self.spec.command = "local://" + self.spec.command
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        update_in(job, "spec.arguments", self.spec.spark_args or [])
+        update_in(job, "spec.arguments", self.spec.args or [])
         resp = self._submit_job(job, meta.namespace)
         # name = get_in(resp, 'metadata.name', 'unknown')
 
@@ -305,12 +310,11 @@ class SparkRuntime(KubejobRuntime):
 
     def with_igz_spark(self):
         self._update_igz_jars()
-        self.apply(mount_v3io(name="v3io-fuse", remote="/", mount_path="/v3io"))
+        self.apply(mount_v3io())
         self.apply(
             mount_v3iod(
                 namespace="default-tenant",
                 v3io_config_configmap="spark-operator-v3io-config",
-                v3io_auth_secret="spark-operator-v3io-auth",
             )
         )
 

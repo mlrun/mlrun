@@ -457,7 +457,8 @@ def new_function(
 
     :return: function object
     """
-    if runtime:
+    # don't override given dict
+    if runtime and isinstance(runtime, dict):
         runtime = deepcopy(runtime)
     kind, runtime = _process_runtime(command, runtime, kind)
     command = get_in(runtime, "spec.command", command)

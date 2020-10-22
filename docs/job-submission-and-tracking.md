@@ -20,7 +20,7 @@
   - [Using the MLRun CLI to Run an MLRun Service](#using-the-mlrun-cli-to-run-an-mlrun-service)
 
 ##  Experiment Tracking
-Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find the following sections within the your project:
+Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find the following sections within your project:
 1. [**Artifacts**](#artifact): Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs.
 2. [**Functions**](#functions): The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions).
 3. [**Jobs**](#jobs): Allows you to review anything you executed, and review the execution outcome.

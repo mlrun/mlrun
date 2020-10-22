@@ -86,9 +86,7 @@ class ServingSpec(NuclioSpec):
         service_account=None,
         readiness_timeout=None,
         models=None,
-        router=None,
         graph=None,
-        router_args=None,
         parameters=None,
         default_class=None,
         load_mode=None,
@@ -119,9 +117,7 @@ class ServingSpec(NuclioSpec):
         )
 
         self.models = models or {}
-        self.router = router
         self.graph: ServingRouterState = graph
-        self.router_args = router_args
         self.parameters = parameters or {}
         self.default_class = default_class
         self.load_mode = load_mode
@@ -152,11 +148,6 @@ class ServingRuntime(RemoteRuntime):
         self.spec.graph = ServingRouterState(
             class_name=class_name, class_args=class_args
         )
-
-    def set_router(self, router, **router_args):
-        """set the routing class and router arguments"""
-        self.spec.router = router
-        self.spec.router_args = router_args
 
     def set_tracking(self, stream_path, batch=None, sample=None):
         """set tracking log stream parameters"""
@@ -236,6 +227,7 @@ class ServingRuntime(RemoteRuntime):
         # we currently support a minimal topology of one router + multiple child routes/models
         # in the future we will extend the support to a full graph, the spec is already built accordingly
         serving_spec = {
+            "function_uri": self._function_uri(),
             "version": "v2",
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict(),

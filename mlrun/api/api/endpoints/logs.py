@@ -26,6 +26,11 @@ def get_log(
     db_session: Session = Depends(deps.get_db_session),
 ):
     run_state, log = crud.Logs.get_logs(db_session, project, uid, size, offset)
-    return Response(
-        content=log, media_type="text/plain", headers={"x-mlrun-run-state": run_state}
-    )
+    headers = {
+        "x-mlrun-run-state": run_state,
+        # pod_status was changed x-mlrun-run-state in 0.5.3, keeping it here for backwards compatibility (so <0.5.3
+        # clients will work with the API)
+        # TODO: remove this in 0.7.0
+        "pod_status": run_state,
+    }
+    return Response(content=log, media_type="text/plain", headers=headers)

@@ -73,7 +73,8 @@ get_data_run = run_local(name='get_data',
                          artifact_path=artifact_path)
 ```
 
-The dataset location is returned in the `output` field, therefore you can get the location by calling `get_data_run.outputs['iris_dataset']` and use the `get_dataitem` function to get the dataset itself.
+The dataset location is returned in the `outputs` field, therefore you can get the location by calling `get_data_run.outputs['iris_dataset']` and use the `get_dataitem` function to get the dataset itself.
+
 
 ``` python
 # Read your data set

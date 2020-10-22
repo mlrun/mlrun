@@ -164,7 +164,7 @@ def _load_project_file(url, name="", secrets=None):
 
 class MlrunProject(ModelObj):
     kind = "project"
-    _dict_fields = ["name", "description"]
+    _dict_fields = ["name", "description", "params", "source"]
 
     def __init__(
         self,
@@ -239,6 +239,13 @@ class MlrunProject(ModelObj):
                 "create_vault_secrets called on a project not set to use vault"
             )
         self._secrets.vault.add_vault_secret(secrets, project=self.name)
+
+    def get_vault_secret_keys(self):
+        if not self.use_vault:
+            raise ValueError(
+                "create_vault_secrets called on a project not set to use vault"
+            )
+        return list(self._secrets.vault.get_secrets([], project=self.name).keys())
 
     def init_vault(self):
         """Create needed configurations for this new project:
@@ -810,16 +817,16 @@ class MlrunProject(ModelObj):
         if self.context and path.exists(self.context) and path.isdir(self.context):
             shutil.rmtree(self.context)
 
-    def save(self, filepath=None):
+    def save(self, filepath=None, to_db=False, to_file=True):
         """save the project object into a file (default to project.yaml)"""
-        filepath = filepath or path.join(self.context, self.subpath, "project.yaml")
-        with open(filepath, "w") as fp:
-            fp.write(self.to_yaml())
+        if to_file:
+            filepath = filepath or path.join(self.context, self.subpath, "project.yaml")
+            with open(filepath, "w") as fp:
+                fp.write(self.to_yaml())
 
-    def store(self):
-        """Save the project object in the MLRun DB"""
-        db = get_run_db().connect(self._secrets)
-        db.store_project(self.name, self.to_dict(), self.use_vault)
+        if to_db:
+            db = get_run_db().connect(self._secrets)
+            db.store_project(self.name, self.to_dict(), self.use_vault)
 
 
 def _init_function_from_dict(f, project):

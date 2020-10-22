@@ -128,6 +128,11 @@ class VaultStore:
             )
             return resp
         values = response.json()["data"]["data"]
+
+        # if no specific keys were asked for, return all the values available
+        if not keys:
+            return values
+
         for key in keys:
             if key in values:
                 resp[key] = values[key]

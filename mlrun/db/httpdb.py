@@ -634,9 +634,10 @@ class HTTPRunDB(RunDBInterface):
         params = {"use_vault": use_vault}
         error_message = f"Failed storing project for {name} ? use-vault={use_vault}"
 
+        path = f"project/{name}"
         self.api_call(
             "POST",
-            "project",
+            path=path,
             error=error_message,
             params=params,
             body=json.dumps(struct),

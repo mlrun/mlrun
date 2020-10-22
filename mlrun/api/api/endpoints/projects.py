@@ -37,10 +37,27 @@ def add_project(
 def update_project(
     project: schemas.ProjectUpdate,
     name: str,
+    use_vault=False,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().update_project(db_session, name, project.dict(exclude_unset=True))
-    return {}
+    if project.name and project.name != name:
+        log_and_raise(error=f"Conflict between path proj name {name} and project name {project.name}")
+
+    proj = get_db().get_project(db_session, name)
+    if not proj:
+        project_id = get_db().add_project(db_session, project.dict())
+    else:
+        project_id = proj.id
+        get_db().update_project(db_session, name, project.dict(exclude_unset=True))
+
+    if use_vault:
+        proj = new_project(project.name, use_vault=True)
+        proj.init_vault()
+
+    return {
+        "id": project_id,
+        "name": name,
+    }
 
 
 # curl http://localhost:8080/project/<name>

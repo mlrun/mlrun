@@ -103,6 +103,10 @@ class V2ModelServer:
         """get param by key (specified in the model or the function)"""
         return self._params.get(key, default)
 
+    def set_metric(self, name: str, value):
+        """set real time metric (for model monitoring)"""
+        self.metrics[name] = value
+
     def get_model(self, suffix=""):
         """get the model file(s) and metadata from model store
 

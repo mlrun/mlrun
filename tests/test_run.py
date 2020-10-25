@@ -19,7 +19,6 @@ from tests.conftest import (
     examples_path,
     has_secrets,
     has_vault,
-    here,
     tests_root_directory,
     out_path,
     tag_test,

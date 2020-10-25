@@ -49,7 +49,7 @@ def new_model_server(
     handler=None,
 ):
     if protocol:
-        new_v2_model_server(
+        return new_v2_model_server(
             name,
             model_class,
             models=models,
@@ -61,7 +61,7 @@ def new_model_server(
             canary=canary,
         )
     else:
-        new_v1_model_server(
+        return new_v1_model_server(
             name,
             model_class,
             models=models,

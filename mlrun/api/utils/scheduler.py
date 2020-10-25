@@ -211,7 +211,7 @@ class Scheduler:
 
         if scheduled_kind == schemas.ScheduleKinds.job:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
-            return Scheduler.submit_task_wrapper, [scheduled_object_copy], {}
+            return Scheduler.submit_run_wrapper, [scheduled_object_copy], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, None, None
 
@@ -227,7 +227,7 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
-    def submit_task_wrapper(scheduled_object):
+    async def submit_run_wrapper(scheduled_object):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run
 
@@ -241,7 +241,7 @@ class Scheduler:
 
         db_session = create_session()
 
-        submit_run(db_session, scheduled_object)
+        await submit_run(db_session, scheduled_object)
 
         close_session(db_session)
 

@@ -206,8 +206,8 @@ class BaseRuntime(ModelObj):
         )
 
     def _get_db(self):
+        self.spec.rundb = self.spec.rundb or get_or_set_dburl()
         if not self._db_conn:
-            self.spec.rundb = self.spec.rundb or get_or_set_dburl()
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
         return self._db_conn

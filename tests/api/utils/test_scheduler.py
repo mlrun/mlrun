@@ -1,13 +1,17 @@
 import asyncio
+import pathlib
 from datetime import datetime, timedelta, timezone
 from typing import Generator
 
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
+from mlrun.runtimes.base import RunStates
 from mlrun.utils import logger
 
 
@@ -42,7 +46,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     expected_call_counter = 5
     now_plus_5_seconds = now + timedelta(seconds=expected_call_counter)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_time=now, end_time=now_plus_5_seconds
+        second="*/1", start_date=now, end_date=now_plus_5_seconds
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -56,6 +60,49 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     )
     await asyncio.sleep(expected_call_counter)
     assert call_counter == expected_call_counter
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
+    now = datetime.now()
+    now_plus_1_second = now + timedelta(seconds=1)
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now, end_date=now_plus_1_second
+    )
+    schedule_name = "schedule-name"
+    project = config.default_project
+    function_name = "my-function"
+    code_path = pathlib.Path(__file__).absolute().parent / "function.py"
+    function = mlrun.code_to_function(
+        name=function_name, kind="local", filename=str(code_path)
+    )
+    function.spec.command = f"{str(code_path)}"
+    hash_key = get_db().store_function(
+        db, function.to_dict(), function_name, project, versioned=True
+    )
+    scheduled_object = {
+        "task": {
+            "spec": {
+                "function": f"{project}/{function_name}@{hash_key}",
+                "handler": "do_nothing",
+            },
+            "metadata": {"name": "my-task", "project": f"{project}"},
+        }
+    }
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 0
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+    await asyncio.sleep(1)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 1
+    assert runs[0]["status"]["state"] == RunStates.completed
 
 
 @pytest.mark.asyncio
@@ -302,7 +349,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     now = datetime.now()
     now_plus_2_seconds = now + timedelta(seconds=2)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_time=now, end_time=now_plus_2_seconds
+        second="*/1", start_date=now, end_date=now_plus_2_seconds
     )
     schedule_name = "schedule-name"
     project = config.default_project

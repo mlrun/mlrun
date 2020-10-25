@@ -77,19 +77,16 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
         name=function_name, kind="local", filename=str(code_path)
     )
     function.spec.command = f"{str(code_path)}"
-    hash_key = get_db().store_function(db,
-        function.to_dict(), function_name, project, versioned=True
+    hash_key = get_db().store_function(
+        db, function.to_dict(), function_name, project, versioned=True
     )
     scheduled_object = {
         "task": {
             "spec": {
                 "function": f"{project}/{function_name}@{hash_key}",
-                "handler": "do_nothing"
+                "handler": "do_nothing",
             },
-            "metadata": {
-                "name": "my-task",
-                "project": f"{project}",
-            }
+            "metadata": {"name": "my-task", "project": f"{project}"},
         }
     }
     runs = get_db().list_runs(db, project=project)
@@ -105,7 +102,7 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
     await asyncio.sleep(1)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
-    assert runs[0]['status']['state'] == RunStates.completed
+    assert runs[0]["status"]["state"] == RunStates.completed
 
 
 @pytest.mark.asyncio

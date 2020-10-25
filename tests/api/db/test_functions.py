@@ -201,9 +201,28 @@ def test_list_functions_multiple_tags(db: DBInterface, db_session: Session):
     assert len(tags) == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
+)
+def test_list_functions_by_tag(db: DBInterface, db_session: Session):
+    tag = "function_name_1"
+
+    names = ["some_name", "some_name2", "some_name3"]
+    for name in names:
+        function_body = {"metadata": {"name": name}}
+        db.store_function(
+            db_session, function_body, name, tag=tag, versioned=True
+        )
+    functions = db.list_functions(db_session, tag=tag)
+    assert len(functions) == len(names)
+    for function in functions:
+        function_name = function["metadata"]["name"]
+        names.remove(function_name)
+    assert len(names) == 0
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
 )
 def test_list_functions_filtering_unversioned_untagged(
     db: DBInterface, db_session: Session

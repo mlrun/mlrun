@@ -17,6 +17,7 @@
 import json
 import traceback
 from ast import literal_eval
+from distutils.util import strtobool
 from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
@@ -121,6 +122,7 @@ def main():
 @click.option("--label", multiple=True, help="run labels (key=val)")
 @click.option("--watch", "-w", is_flag=True, help="watch/tail run log")
 @click.option("--verbose", is_flag=True, help="verbose log")
+@click.option("--scrape-metrics", is_flag=True, help="whether to add the `mlrun/scrape-metrics` label to this run's resources")
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
 def run(
     url,
@@ -153,6 +155,7 @@ def run(
     label,
     watch,
     verbose,
+    scrape_metrics,
     run_args,
 ):
     """Execute a task and inject parameters."""
@@ -237,6 +240,8 @@ def run(
     set_item(
         runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, "kind", "source")
     )
+    set_item(runobj.spec, verbose, "verbose", strtobool(verbose))
+    set_item(runobj.spec, scrape_metrics, "scrape_metrics", strtobool(scrape_metrics))
 
     if kfp or runobj.spec.verbose or verbose:
         print("MLRun version: {}".format(str(Version().get())))

@@ -413,7 +413,9 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         uids = None
         if tag:
-            uids = self._resolve_tag_function_uids(session, Function, project, tag, name)
+            uids = self._resolve_tag_function_uids(
+                session, Function, project, tag, name
+            )
         functions = FunctionList()
         for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct
@@ -676,7 +678,9 @@ class SQLDB(DBInterface):
             return self._query(session, cls).get(tag.obj_id).uid
         return None
 
-    def _resolve_tag_function_uids(self, session, cls, project, tag_name, function_name=None) -> List[str]:
+    def _resolve_tag_function_uids(
+        self, session, cls, project, tag_name, function_name=None
+    ) -> List[str]:
         uids = []
         for tag in self._query(
             session, cls.Tag, project=project, obj_name=function_name, name=tag_name

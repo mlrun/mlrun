@@ -210,9 +210,7 @@ def test_list_functions_by_tag(db: DBInterface, db_session: Session):
     names = ["some_name", "some_name2", "some_name3"]
     for name in names:
         function_body = {"metadata": {"name": name}}
-        db.store_function(
-            db_session, function_body, name, tag=tag, versioned=True
-        )
+        db.store_function(db_session, function_body, name, tag=tag, versioned=True)
     functions = db.list_functions(db_session, tag=tag)
     assert len(functions) == len(names)
     for function in functions:

@@ -29,7 +29,7 @@ from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, mount_v3iod
+from ..platforms.iguazio import mount_v3io_ext, mount_v3iod
 from ..utils import update_in, logger, get_in
 
 igz_deps = {
@@ -163,7 +163,9 @@ class SparkRuntime(KubejobRuntime):
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
         elif environ.get("IGZ_VERSION"):
-            update_in(job, "spec.image", "spark-app:{}".format(environ["IGZ_VERSION"]))
+            update_in(
+                job, "spec.image", "iguazio/spark-app:{}".format(environ["IGZ_VERSION"])
+            )
         update_in(job, "spec.volumes", self.spec.volumes)
 
         extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
@@ -310,7 +312,7 @@ class SparkRuntime(KubejobRuntime):
 
     def with_igz_spark(self):
         self._update_igz_jars()
-        self.apply(mount_v3io())
+        self.apply(mount_v3io_ext())
         self.apply(
             mount_v3iod(
                 namespace="default-tenant",
@@ -337,6 +339,10 @@ class SparkRuntime(KubejobRuntime):
             return
         _ = self._get_k8s()
         return list(pods.items())[0]
+
+    @property
+    def is_deployed(self):
+        return True
 
     @property
     def spec(self) -> SparkJobSpec:

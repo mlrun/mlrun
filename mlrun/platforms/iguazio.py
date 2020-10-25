@@ -70,7 +70,8 @@ def mount_v3io_ext(
             )
         mounts = [
             Mount(path="/v3io", sub_path=""),
-            Mount(path="/User", sub_path="users/" + user),
+            # Temporarily commented out as we do not support multiple mount on the same volume yet (set_named_item...)
+            #            Mount(path="/User", sub_path="users/" + user),
         ]
 
     if not isinstance(mounts, list) and any([not isinstance(x, Mount) for x in mounts]):

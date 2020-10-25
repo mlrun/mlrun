@@ -94,29 +94,6 @@ def test_store_function_not_versioned(db: DBInterface, db_session: Session):
     assert len(functions) == 1
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
-def test_list_functions_filtering_unversioned_untagged(
-    db: DBInterface, db_session: Session
-):
-    function_1 = {"bla": "blabla"}
-    function_2 = {"bla": "blablablabla"}
-    function_name_1 = "function_name_1"
-    tag = "some_tag"
-    db.store_function(db_session, function_1, function_name_1, versioned=False, tag=tag)
-    tagged_function_hash_key = db.store_function(
-        db_session, function_2, function_name_1, versioned=True, tag=tag
-    )
-    functions = db.list_functions(db_session, function_name_1)
-
-    # First we stored to the tag without versioning (unversioned instance) then we stored to the tag with version
-    # so the unversioned instance remained untagged, verifying we're not getting it
-    assert len(functions) == 1
-    assert functions[0]["metadata"]["hash"] == tagged_function_hash_key
-
-
 @pytest.mark.parametrize(
     "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
 )
@@ -222,6 +199,29 @@ def test_list_functions_multiple_tags(db: DBInterface, db_session: Session):
         function_tag = function["metadata"]["tag"]
         tags.remove(function_tag)
     assert len(tags) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_functions_filtering_unversioned_untagged(
+    db: DBInterface, db_session: Session
+):
+    function_1 = {"bla": "blabla"}
+    function_2 = {"bla": "blablablabla"}
+    function_name_1 = "function_name_1"
+    tag = "some_tag"
+    db.store_function(db_session, function_1, function_name_1, versioned=False, tag=tag)
+    tagged_function_hash_key = db.store_function(
+        db_session, function_2, function_name_1, versioned=True, tag=tag
+    )
+    functions = db.list_functions(db_session, function_name_1)
+
+    # First we stored to the tag without versioning (unversioned instance) then we stored to the tag with version
+    # so the unversioned instance remained untagged, verifying we're not getting it
+    assert len(functions) == 1
+    assert functions[0]["metadata"]["hash"] == tagged_function_hash_key
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

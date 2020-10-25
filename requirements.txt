@@ -29,3 +29,4 @@ seaborn
 google-auth<2.0dev,>=1.19.1
 azure-storage-blob
 pydantic~=1.5
+orjson>=3,<4

@@ -1,7 +1,9 @@
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.errors
 from mlrun.api.db.base import DBInterface
+from mlrun.api.db.sqldb.models import Function
 from tests.api.db.conftest import dbs
 
 
@@ -81,10 +83,8 @@ def test_store_function_not_versioned(db: DBInterface, db_session: Session):
     assert function_result_1["metadata"]["tag"] == "latest"
 
     # not versioned so not queryable by hash key
-    function_result_2 = db.get_function(
-        db_session, function_name_1, hash_key=function_hash_key
-    )
-    assert function_result_2 is None
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(db_session, function_name_1, hash_key=function_hash_key)
 
     function_2 = {"bla": "blabla", "bla2": "blabla2"}
     db.store_function(db_session, function_2, function_name_1, versioned=False)
@@ -141,6 +141,21 @@ def test_get_function_by_tag(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
 )
+def test_get_function_not_found(db: DBInterface, db_session: Session):
+    function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
+    function_name_1 = "function_name_1"
+    db.store_function(db_session, function_1, function_name_1, versioned=True)
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(db_session, function_name_1, tag="inexistent_tag")
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(db_session, function_name_1, hash_key="inexistent_hash_key")
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
+)
 def test_list_functions_no_tags(db: DBInterface, db_session: Session):
     function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
     function_2 = {"bla2": "blabla", "status": {"bla": "blabla"}}
@@ -184,3 +199,62 @@ def test_list_functions_multiple_tags(db: DBInterface, db_session: Session):
         function_tag = function["metadata"]["tag"]
         tags.remove(function_tag)
     assert len(tags) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_delete_function(db: DBInterface, db_session: Session):
+    labels = {
+        "name": "value",
+        "name2": "value2",
+    }
+    function = {
+        "bla": "blabla",
+        "metadata": {"labels": labels},
+        "status": {"bla": "blabla"},
+    }
+    function_name = "function_name_1"
+    project = "bla"
+    tags = ["some_tag", "some_tag2", "some_tag3"]
+    function_hash_key = None
+    for tag in tags:
+        function_hash_key = db.store_function(
+            db_session, function, function_name, project, tag=tag, versioned=True
+        )
+
+    # if not exploding then function exists
+    for tag in tags:
+        db.get_function(db_session, function_name, project, tag=tag)
+    db.get_function(db_session, function_name, project, hash_key=function_hash_key)
+    assert len(tags) == len(db.list_functions(db_session, function_name, project))
+    number_of_tags = (
+        db_session.query(Function.Tag)
+        .filter_by(project=project, obj_name=function_name)
+        .count()
+    )
+    number_of_labels = db_session.query(Function.Label).count()
+
+    assert len(tags) == number_of_tags
+    assert len(labels) == number_of_labels
+
+    db.delete_function(db_session, project, function_name)
+
+    for tag in tags:
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_function(db_session, function_name, project, tag=tag)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(db_session, function_name, project, hash_key=function_hash_key)
+    assert 0 == len(db.list_functions(db_session, function_name, project))
+
+    # verifying tags and labels (different table) records were removed
+    number_of_tags = (
+        db_session.query(Function.Tag)
+        .filter_by(project=project, obj_name=function_name)
+        .count()
+    )
+    number_of_labels = db_session.query(Function.Label).count()
+
+    assert number_of_tags == 0
+    assert number_of_labels == 0

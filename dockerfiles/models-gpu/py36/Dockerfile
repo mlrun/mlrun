@@ -118,8 +118,10 @@ RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
 RUN conda clean -aqy
 
+# TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
+    #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
-    HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
+    MAKEFLAGS="-j1" HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install horovod && \
     ldconfig
 

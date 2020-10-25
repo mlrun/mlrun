@@ -83,7 +83,16 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, session, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        session,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        kind=None,
+        category: schemas.ArtifactCategories = None,
     ):
         pass
 
@@ -112,6 +121,10 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_function(self, session, name, project="", tag="", hash_key=""):
+        pass
+
+    @abstractmethod
+    def delete_function(self, session, project: str, name: str):
         pass
 
     @abstractmethod
@@ -148,8 +161,25 @@ class DBInterface(ABC):
     def delete_schedule(self, session, project: str, name: str):
         pass
 
-    def list_projects(self, session):
+    @abstractmethod
+    def list_projects(self, session, owner=None):
         return []
+
+    @abstractmethod
+    def get_project(self, session, name=None, project_id=None):
+        pass
+
+    @abstractmethod
+    def add_project(self, session, project: dict):
+        pass
+
+    @abstractmethod
+    def update_project(self, session, name, data: dict):
+        pass
+
+    @abstractmethod
+    def delete_project(self, session, name: str):
+        pass
 
     def list_artifact_tags(self, session, project):
         return []

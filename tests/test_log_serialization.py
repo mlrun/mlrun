@@ -17,7 +17,7 @@ from tests.conftest import (
     tag_test,
     verify_state,
 )
-from mlrun import NewTask, run_local
+from mlrun import new_task, run_local
 import numpy as np
 import pandas as pd
 import datetime
@@ -60,7 +60,7 @@ def my_func(context):
     return np.nan
 
 
-base_spec = NewTask(artifact_path=out_path, handler=my_func)
+base_spec = new_task(artifact_path=out_path, handler=my_func)
 
 
 def test_serialization():

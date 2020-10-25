@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import hashlib
 import json
-import sys
 import re
+import sys
+import time
 from datetime import datetime, timezone
 from os import path, environ
+from importlib import import_module
 
 import numpy as np
 import requests
@@ -27,8 +28,9 @@ from pandas._libs.tslibs.timestamps import Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
-from ..config import config
+import mlrun.utils.version.version
 from .logger import create_logger
+from ..config import config
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -328,6 +330,17 @@ def parse_function_uri(uri):
     return project, uri, tag, hash_key
 
 
+def generate_function_uri(project, name, tag=None, hash_key=None):
+    uri = "{}/{}".format(project, name)
+
+    # prioritize hash key over tag
+    if hash_key:
+        uri += "@{}".format(hash_key)
+    elif tag:
+        uri += ":{}".format(tag)
+    return uri
+
+
 def extend_hub_uri(uri):
     if not uri.startswith(hub_prefix):
         return uri
@@ -406,13 +419,15 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def tag_image(base: str):
-    ver = config.images_tag or config.version
-    if ver and (
-        base == "mlrun/mlrun" or (base.startswith("mlrun/ml-") and ":" not in base)
-    ):
-        base += ":" + ver
-    return base
+def enrich_image_url(image_url: str) -> str:
+    tag = config.images_tag or mlrun.utils.version.Version().get()["version"]
+    registry = config.images_registry
+    if image_url.startswith("mlrun/") or "/mlrun/" in image_url:
+        if tag and ":" not in image_url:
+            image_url = f"{image_url}:{tag}"
+        if registry and "/mlrun/" not in image_url:
+            image_url = f"{registry}{image_url}"
+    return image_url
 
 
 def get_artifact_target(item: dict, project=None):
@@ -632,3 +647,30 @@ class RunNotifications:
 
         self._hooks.append(_comment)
         return self
+
+
+def create_class(pkg_class: str):
+    """Create a class from a package.module.class string
+
+    :param pkg_class:  full class location,
+                       e.g. "sklearn.model_selection.GroupKFold"
+    """
+    splits = pkg_class.split(".")
+    clfclass = splits[-1]
+    pkg_module = splits[:-1]
+    class_ = getattr(import_module(".".join(pkg_module)), clfclass)
+    return class_
+
+
+def create_function(pkg_func: list):
+    """Create a function from a package.module.function string
+
+    :param pkg_func:  full function location,
+                      e.g. "sklearn.feature_selection.f_classif"
+    """
+    splits = pkg_func.split(".")
+    pkg_module = ".".join(splits[:-1])
+    cb_fname = splits[-1]
+    pkg_module = __import__(pkg_module, fromlist=[cb_fname])
+    function_ = getattr(pkg_module, cb_fname)
+    return function_

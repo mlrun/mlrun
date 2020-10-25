@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.utils.singletons.db import get_db
@@ -91,10 +92,14 @@ def list_artifacts(
     project: str = config.default_project,
     name: str = None,
     tag: str = None,
+    kind: str = None,
+    category: schemas.ArtifactCategories = None,
     labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    artifacts = get_db().list_artifacts(db_session, name, project, tag, labels)
+    artifacts = get_db().list_artifacts(
+        db_session, name, project, tag, labels, kind=kind, category=category,
+    )
     return {
         "artifacts": artifacts,
     }

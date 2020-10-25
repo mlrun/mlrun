@@ -15,7 +15,7 @@
 import pytest
 
 from tests.conftest import tag_test, verify_state
-from mlrun import NewTask, new_function
+from mlrun import new_task, new_function
 
 has_dask = False
 try:
@@ -44,6 +44,6 @@ def my_func(context, p1=1, p2="a-string"):
 
 @pytest.mark.skipif(not has_dask, reason="missing dask")
 def test_dask_local():
-    spec = tag_test(NewTask(params={"p1": 3, "p2": "vv"}), "test_dask_local")
+    spec = tag_test(new_task(params={"p1": 3, "p2": "vv"}), "test_dask_local")
     run = new_function(kind="dask").run(spec, handler=my_func)
     verify_state(run)

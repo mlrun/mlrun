@@ -13,25 +13,26 @@
 # limitations under the License.
 
 import pytest
+import pathlib
 import pandas as pd
 from tests.conftest import (
     examples_path,
     has_secrets,
     has_vault,
     here,
+    tests_root_directory,
     out_path,
     tag_test,
     verify_state,
 )
 from unittest.mock import Mock
-from mlrun import NewTask, get_run_db, new_function
-import os
+from mlrun import new_task, get_run_db, new_function
 
 
-def my_func(context, p1=1, p2="a-string"):
+def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}\n")
-    print("file\n{}\n".format(context.get_input("infile.txt").get()))
+    print("file\n{}\n".format(context.get_input(input_name).get()))
 
     context.log_result("accuracy", p1 * 2)
     context.logger.info("some info")
@@ -51,15 +52,21 @@ def my_func(context, p1=1, p2="a-string"):
     context.log_dataset("mydf", df=df)
 
 
-base_spec = NewTask(params={"p1": 8}, out_path=out_path)
-base_spec.spec.inputs = {"infile.txt": "infile.txt"}
+base_spec = new_task(params={"p1": 8}, out_path=out_path)
+
+repo_root = pathlib.Path(__file__).resolve().absolute().parent.parent
+input_file_path = repo_root / "tests" / "assets" / "test_run_input_file.txt"
+base_spec.spec.inputs = {"infile.txt": str(input_file_path)}
 
 s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
 s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 
 
 def test_noparams():
-    result = new_function().run(handler=my_func)
+    # Since we're executing the function without inputs, it will try to use the input name as the file path
+    result = new_function().run(
+        params={"input_name": str(input_file_path)}, handler=my_func
+    )
 
     assert result.output("accuracy") == 2, "failed to run"
     assert result.status.artifacts[0].get("key") == "chart", "failed to run"
@@ -129,7 +136,7 @@ def test_handler_hyper():
 
 def test_handler_hyperlist():
     run_spec = tag_test(base_spec, "test_handler_hyperlist")
-    run_spec.spec.param_file = "{}/param_file.csv".format(here)
+    run_spec.spec.param_file = "{}/param_file.csv".format(tests_root_directory)
     result = new_function().run(run_spec, handler=my_func)
     print(result)
     assert len(result.status.iterations) == 3 + 1, "hyper parameters test failed"
@@ -160,7 +167,9 @@ def test_local_handler():
 def test_local_no_context():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
-    result = new_function(command="{}/no_ctx.py".format(here), mode="noctx").run(spec)
+    result = new_function(
+        command="{}/no_ctx.py".format(tests_root_directory), mode="noctx"
+    ).run(spec)
     verify_state(result)
 
     db = get_run_db().connect()
@@ -205,7 +214,7 @@ def test_vault_secrets():
     func.deploy()
 
     # Create context for the execution
-    spec = NewTask(
+    spec = new_task(
         project=proj_name,
         name="vault_test_run",
         handler="vault_func",

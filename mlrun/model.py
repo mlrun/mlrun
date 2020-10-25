@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import inspect
+import warnings
 from copy import deepcopy
 from os import environ
 
+from .config import config
 from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
-from .config import config
 
 
 class ModelObj:
@@ -70,6 +71,84 @@ class ModelObj:
                 if key in fields:
                     setattr(new_obj, key, val)
         return new_obj
+
+    def to_yaml(self):
+        return dict_to_yaml(self.to_dict())
+
+    def to_json(self):
+        return dict_to_json(self.to_dict())
+
+    def to_str(self):
+        return "{}".format(self.to_dict())
+
+    def __str__(self):
+        return str(self.to_dict())
+
+    def copy(self):
+        return deepcopy(self)
+
+
+# model class for building ModelObj dictionaries
+class ObjectDict:
+    def __init__(self, classes_map, default_kind=""):
+        self._children = {}
+        self._default_kind = default_kind
+        self._classes_map = classes_map
+
+    def values(self):
+        return self._children.values()
+
+    def keys(self):
+        return self._children.keys()
+
+    def items(self):
+        return self._children.items()
+
+    def __len__(self):
+        return len(self._children)
+
+    def __iter__(self):
+        yield from self._children.keys()
+
+    def __getitem__(self, name):
+        return self._children[name]
+
+    def __setitem__(self, key, item):
+        self._children[key] = self._get_child_object(item, key)
+
+    def __delitem__(self, key):
+        del self._children[key]
+
+    def to_dict(self):
+        return {k: v.to_dict() for k, v in self._children.items()}
+
+    @classmethod
+    def from_dict(cls, classes_map: dict, children=None, default_kind=""):
+        if children is None:
+            return cls(classes_map, default_kind)
+        if not isinstance(children, dict):
+            raise ValueError("children must be a dict")
+
+        new_obj = cls(classes_map, default_kind)
+        for name, child in children.items():
+            child_obj = new_obj._get_child_object(child, name)
+            new_obj._children[name] = child_obj
+
+        return new_obj
+
+    def _get_child_object(self, child, name):
+        if hasattr(child, "kind") and child.kind in self._classes_map.keys():
+            child.name = name
+            return child
+        elif isinstance(child, dict):
+            kind = child.get("kind", self._default_kind)
+            if kind not in self._classes_map.keys():
+                raise ValueError(f"illegal object kind {kind}")
+            child_obj = self._classes_map[kind].from_dict(child)
+            child_obj.name = name
+            return child_obj
+        else:
+            raise ValueError(f"illegal child (should be dict or child kind), {child}")
 
     def to_yaml(self):
         return dict_to_yaml(self.to_dict())
@@ -446,6 +525,7 @@ class RunObject(RunTemplate):
         return state
 
 
+# TODO: remove in 0.9.0
 def NewTask(
     name=None,
     project=None,
@@ -463,7 +543,73 @@ def NewTask(
     secrets=None,
     base=None,
 ):
-    """Create new task"""
+    """Creates a new task - see new_task
+    """
+    warnings.warn(
+        "NewTask will be deprecated in 0.7.0, and will be removed in 0.9.0, use new_task instead",
+        # TODO: In 0.7.0 and replace NewTask to new_task in examples & demos
+        PendingDeprecationWarning,
+    )
+    return new_task(
+        name,
+        project,
+        handler,
+        params,
+        hyper_params,
+        param_file,
+        selector,
+        tuning_strategy,
+        inputs,
+        outputs,
+        in_path,
+        out_path,
+        artifact_path,
+        secrets,
+        base,
+    )
+
+
+def new_task(
+    name=None,
+    project=None,
+    handler=None,
+    params=None,
+    hyper_params=None,
+    param_file=None,
+    selector=None,
+    tuning_strategy=None,
+    inputs=None,
+    outputs=None,
+    in_path=None,
+    out_path=None,
+    artifact_path=None,
+    secrets=None,
+    base=None,
+):
+    """Creates a new task
+
+    :param name:            task name
+    :param project:         task project
+    :param handler          code entry-point/hanfler name
+    :param params:          input parameters (dict)
+    :param hyper_params:    dictionary of hyper parameters and list values, each
+                            hyper param holds a list of values, the run will be
+                            executed for every parameter combination (GridSearch)
+    :param param_file:      a csv file with parameter combinations, first row hold
+                            the parameter names, following rows hold param values
+    :param selector:        selection criteria for hyper params e.g. "max.accuracy"
+    :param tuning_strategy: selection strategy for hyper params e.g. list, grid, random
+    :param inputs:          dictionary of input objects + optional paths (if path is
+                            omitted the path will be the in_path/key.
+    :param outputs:         dictionary of input objects + optional paths (if path is
+                            omitted the path will be the out_path/key.
+    :param in_path:         default input path/url (prefix) for inputs
+    :param out_path:        default output path/url (prefix) for artifacts
+    :param artifact_path:   default artifact output path
+    :param secrets:         extra secrets specs, will be injected into the runtime
+                            e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
+    :param base:            task instance to use as a base instead of a fresh new task instance
+    """
 
     if base:
         run = deepcopy(base)

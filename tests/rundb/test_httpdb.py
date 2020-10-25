@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import codecs
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -132,20 +133,26 @@ def docker_fixture():
 
 
 def server_fixture():
-    proc = None
+    process = None
     workdir = None
 
     def create(env=None):
-        nonlocal proc, workdir
+        nonlocal process, workdir
         workdir = create_workdir()
-        proc, url = start_server(workdir, env)
+        process, url = start_server(workdir, env)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(url, conn, workdir)
 
     def cleanup():
-        if proc:
-            proc.terminate()
+        if process:
+            process.terminate()
+            stdout = process.stdout.read()
+            human_readable_stdout = codecs.escape_decode(stdout)[0].decode("utf-8")
+            stderr = process.stderr.read()
+            human_readable_stderr = codecs.escape_decode(stderr)[0].decode("utf-8")
+            print(f"Stdout from server {human_readable_stdout}")
+            print(f"Stderr from server {human_readable_stderr}")
         if workdir:
             rmtree(workdir)
 
@@ -175,6 +182,7 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
+    db.store_run({"asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
     state, data = db.get_log(uid, prj)

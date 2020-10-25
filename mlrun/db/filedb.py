@@ -34,6 +34,7 @@ from ..utils import (
     match_value,
     update_in,
     fill_function_hash,
+    generate_function_uri,
 )
 
 run_logs = "runs"
@@ -309,13 +310,17 @@ class FileRunDB(RunDBInterface):
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
-            return None
+            function_uri = generate_function_uri(project, name, tag, hash_key)
+            raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
         data = self._datastore.get(filepath)
         parsed_data = self._loads(data)
 
         # tag should be filled only when queried by tag
         parsed_data["metadata"]["tag"] = "" if hash_key else tag
         return parsed_data
+
+    def delete_function(self, name: str, project: str = ""):
+        raise NotImplementedError()
 
     def list_functions(self, name, project="", tag="", labels=None):
         labels = labels or []
@@ -402,6 +407,9 @@ class FileRunDB(RunDBInterface):
         return [
             {"name": d} for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
         ]
+
+    def delete_project(self, name: str):
+        raise NotImplementedError()
 
     @property
     def schedules_dir(self):

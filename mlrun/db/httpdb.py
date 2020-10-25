@@ -184,7 +184,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         if resp.headers:
-            state = resp.headers.get("pod_status", "")
+            state = resp.headers.get("x-mlrun-run-state", "")
             return state.lower(), resp.content
 
         return "unknown", resp.content
@@ -355,6 +355,12 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["func"]
 
+    def delete_function(self, name: str, project: str = ""):
+        project = project or default_project
+        path = f"projects/{project}/functions/{name}"
+        error_message = f"Failed deleting function {project}/{name}"
+        self.api_call("DELETE", path, error_message)
+
     def list_functions(self, name=None, project=None, tag=None, labels=None):
         params = {
             "project": project or default_project,
@@ -454,6 +460,11 @@ class HTTPRunDB(RunDBInterface):
         project = project or default_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed deleting schedule {project}/{name}"
+        self.api_call("DELETE", path, error_message)
+
+    def delete_project(self, name: str):
+        path = f"projects/{name}"
+        error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 
     def remote_builder(self, func, with_mlrun):

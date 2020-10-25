@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from mlrun import run_local, NewTask
+from mlrun import run_local, new_task
 from mlrun.artifacts import PlotArtifact
 
 from tests.system.base import TestMLRunSystem
@@ -18,13 +18,13 @@ class TestBasics(TestMLRunSystem):
         # {{run.uid}} will be substituted with the run id, so output will be written to different directories per run
         output_path = str(self.results_path / "{{run.uid}}")
         self._basics_task = (
-            NewTask(name="demo", params={"p1": 5}, artifact_path=output_path)
+            new_task(name="demo", params={"p1": 5}, artifact_path=output_path)
             .with_secrets("file", self.assets_path / "secrets.txt")
             .set_label("type", "demo")
         )
 
         self._logger.debug("Creating inline task")
-        self._inline_task = NewTask(
+        self._inline_task = new_task(
             name="demo2",
             handler=self._get_inline_handler(),
             artifact_path=str(self.results_path / "{{run.uid}}"),

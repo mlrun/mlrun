@@ -16,6 +16,8 @@ import ast
 import inspect
 import re
 
+from mlrun.runtimes.base import FunctionEntrypoint
+
 
 def type_name(ann):
     if ann is inspect.Signature.empty:
@@ -240,6 +242,40 @@ def find_handlers(code: str, handlers=None):
     else:
         markers = find_handler_markers(code)
         return filter_funcs(funcs, markers)
+
+
+def as_func(handler):
+    ret = clean(handler["return"])
+    return FunctionEntrypoint(
+        name=handler["name"],
+        doc=handler["doc"],
+        parameters=[clean(p) for p in handler["params"]],
+        outputs=[ret] if ret else None,
+        lineno=handler["lineno"],
+    ).to_dict()
+
+
+def update_function_entry_points(function, code):
+    handlers = find_handlers(code)
+    function.spec.entry_points = {
+        handler["name"]: as_func(handler) for handler in handlers
+    }
+
+
+def clean(struct: dict):
+    if not struct:
+        return None
+    if "default" in struct:
+        struct["default"] = py_eval(struct["default"])
+    return {k: v for k, v in struct.items() if v or k == "default"}
+
+
+def py_eval(data):
+    try:
+        value = ast.literal_eval(data)
+        return value
+    except (SyntaxError, ValueError):
+        return data
 
 
 def filter_funcs(funcs, markers):

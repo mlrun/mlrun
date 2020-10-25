@@ -50,7 +50,7 @@ def load_deps(path):
 with open("README.md") as fp:
     long_desc = fp.read()
 
-install_requires = list(load_deps("requirements.txt")) + ["importlib-resources;python_version<'3.7'"]
+install_requires = list(load_deps("requirements.txt"))
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
@@ -90,7 +90,7 @@ setup(
         "mlrun.api.utils.singletons",
     ],
     install_requires=install_requires,
-    extras_require={"api": api_deps},
+    extras_require={"api": api_deps, ":python_version<'3.7'": ["importlib-resources"]},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

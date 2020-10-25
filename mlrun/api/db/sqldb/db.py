@@ -409,13 +409,13 @@ class SQLDB(DBInterface):
         for labeled_class in _labeled:
             self._delete(session, labeled_class, project=project)
 
-    def list_functions(self, session, name, project=None, tag=None, labels=None):
+    def list_functions(self, session, name=None, project=None, tag=None, labels=None):
         project = project or config.default_project
-        uid = None
+        uids = None
         if tag:
-            uid = self._resolve_tag_function_uid(session, Function, project, name, tag)
+            uids = self._resolve_tag_function_uids(session, Function, project, tag, name)
         functions = FunctionList()
-        for function in self._find_functions(session, name, project, uid, labels):
+        for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct
             if not tag:
                 function_tags = self._list_function_tags(session, project, function.id)
@@ -676,6 +676,14 @@ class SQLDB(DBInterface):
             return self._query(session, cls).get(tag.obj_id).uid
         return None
 
+    def _resolve_tag_function_uids(self, session, cls, project, tag_name, function_name=None) -> List[str]:
+        uids = []
+        for tag in self._query(
+            session, cls.Tag, project=project, obj_name=function_name, name=tag_name
+        ):
+            uids.append(self._query(session, cls).get(tag.obj_id).uid)
+        return uids
+
     def _query(self, session, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
@@ -917,10 +925,10 @@ class SQLDB(DBInterface):
                 filtered_artifacts.append(artifact)
         return filtered_artifacts
 
-    def _find_functions(self, session, name, project, uid=None, labels=None):
+    def _find_functions(self, session, name, project, uids=None, labels=None):
         query = self._query(session, Function, name=name, project=project)
-        if uid:
-            query = query.filter(Function.uid == uid)
+        if uids:
+            query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)
         return self._add_labels_filter(session, query, Function, labels)

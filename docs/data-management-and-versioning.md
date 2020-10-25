@@ -65,11 +65,16 @@ We can run this function locally or as a job. For example if we run it locally:
 
 ``` python
 from os import path
-from mlrun import new_project
+from mlrun import new_project, run_local, mlconf
 
 project_name = 'my-project'
 project_path = path.abspath('conf')
 project = new_project(project_name, project_path, init_git=True)
+
+# Target location for storing pipeline artifacts
+artifact_path = path.abspath('jobs')
+# MLRun DB path or API service URL
+mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
 
 source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
 # Run get-data function locally

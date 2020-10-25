@@ -83,28 +83,12 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
     scheduled_object = {
         "task": {
             "spec": {
-                "parameters": {
-                    "context": "",
-                    "fail": False
-                },
-                "inputs": {},
-                "hyperparams": {},
-                "secret_sources": [],
-                "param_file": "",
-                "tuning_strategy": "list",
-                # "output_path": "v3io:///users/{{run.user}}/artifacts/{{run.project}}",
-                "output_path": "",
-                "input_path": "",
                 "function": f"{project}/{function_name}@{hash_key}",
                 "handler": "do_nothing"
             },
             "metadata": {
                 "name": "my-task",
                 "project": f"{project}",
-                # "labels": {
-                #     "v3io_user": "iguazio",
-                #     "owner": "iguazio"
-                # }
             }
         }
     }

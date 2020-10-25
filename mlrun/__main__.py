@@ -122,7 +122,11 @@ def main():
 @click.option("--label", multiple=True, help="run labels (key=val)")
 @click.option("--watch", "-w", is_flag=True, help="watch/tail run log")
 @click.option("--verbose", is_flag=True, help="verbose log")
-@click.option("--scrape-metrics", is_flag=True, help="whether to add the `mlrun/scrape-metrics` label to this run's resources")
+@click.option(
+    "--scrape-metrics",
+    is_flag=True,
+    help="whether to add the `mlrun/scrape-metrics` label to this run's resources",
+)
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
 def run(
     url,

@@ -64,7 +64,14 @@ def get_data(context: MLClientCtx, source_url: DataItem, format: str = 'csv'):
 We can run this function locally or as a job. For example if we run it locally:
 
 ``` python
-source_url = 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'
+from os import path
+from mlrun import new_project
+
+project_name = 'my-project'
+project_path = path.abspath('conf')
+project = new_project(project_name, project_path, init_git=True)
+
+source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
 # Run get-data function locally
 get_data_run = run_local(name='get_data',
                          handler=get_data,
@@ -147,8 +154,8 @@ gen_func = code_to_function(name=train_iris,
 train_iris_func = project.set_function(gen_func).apply(auto_mount())
 
 train_iris = train_iris_func.run(name=train_iris,
-                                    handler=train_iris,
-                                    artifact_path=artifact_path)
+                                 handler=train_iris,
+                                 artifact_path=artifact_path)
 ```
 
 You can now use `get_model` to read the model and run it. This function will get the model file, metadata, and extra data. The input can be either the path of the model, or the directory where the model resides. If you provide a directory, the function will search for the model file (by default it searches for .pkl files)
@@ -197,7 +204,7 @@ run = func.run(name=test_model,
                 handler=test_model,
                 params={'label_column': 'label'},
                 inputs={'models_path': train_iris.outputs['model'],
-                        'test_set': 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'}),
+                        'test_set': 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'}),
                 artifact_path=artifact_path)
 ```
 
@@ -212,8 +219,14 @@ from mlrun.artifacts import PlotArtifact
 from mlrun.mlutils import gcf_clear
 
 gcf_clear(plt)
-cmd = metrics.plot_confusion_matrix(model, xtest, ytest, normalize='all', values_format = '.2g', cmap=plt.cm.Blues)
-confusion_matrix = context.log_artifact(PlotArtifact('confusion-matrix', body=cmd.figure_), local_path='plots/confusion_matrix.html')
+confusion_matrix = metrics.plot_confusion_matrix(model,
+                                                 xtest,
+                                                 ytest,
+                                                 normalize='all',
+                                                 values_format = '.2g',
+                                                 cmap=plt.cm.Blues)
+confusion_matrix = context.log_artifact(PlotArtifact('confusion-matrix', body=confusion_matrix.figure_), 
+                                        local_path='plots/confusion_matrix.html')
 ```
 
 You can use the `update_dataset_meta` function to associate the plot with the dataset by assigning the value of the `extra_data` parameter:

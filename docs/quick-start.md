@@ -140,7 +140,7 @@ As input, we will provide a CSV file from S3:
 
 ```python
 # Set the source-data URL
-source_url = 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'
+source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
 ```
 
 Next call this function locally, using the `run_local` method. This is a wrapper that will store the execution results in the MLRun database.
@@ -413,7 +413,7 @@ def init_functions(functions: dict, project=None, secrets=None):
     name="Quick-start",
     description="This is  simple workflow"
 )
-def kfpipeline(source_url='http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'):
+def kfpipeline(source_url='https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'):
 
     # Ingest the data set
     ingest = funcs['get-data'].as_step(

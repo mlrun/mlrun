@@ -98,14 +98,14 @@ def test_store_function_not_versioned(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
-def test_list_functions_filtering_unversioned_untagged(db: DBInterface, db_session: Session):
+def test_list_functions_filtering_unversioned_untagged(
+    db: DBInterface, db_session: Session
+):
     function_1 = {"bla": "blabla"}
     function_2 = {"bla": "blablablabla"}
     function_name_1 = "function_name_1"
     tag = "some_tag"
-    db.store_function(
-        db_session, function_1, function_name_1, versioned=False, tag=tag
-    )
+    db.store_function(db_session, function_1, function_name_1, versioned=False, tag=tag)
     tagged_function_hash_key = db.store_function(
         db_session, function_2, function_name_1, versioned=True, tag=tag
     )

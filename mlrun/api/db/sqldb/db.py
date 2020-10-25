@@ -40,6 +40,7 @@ from mlrun.utils import (
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
 class SQLDB(DBInterface):
@@ -340,7 +341,7 @@ class SQLDB(DBInterface):
         if versioned:
             uid = hash_key
         else:
-            uid = f"unversioned-{tag}"
+            uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
 
         updated = datetime.now(timezone.utc)
         update_in(function, "metadata.updated", updated)
@@ -413,28 +414,33 @@ class SQLDB(DBInterface):
         uid = None
         if tag:
             uid = self._resolve_tag_function_uid(session, Function, project, name, tag)
-        funcs = FunctionList()
-        for obj in self._find_functions(session, name, project, uid, labels):
-            function_dict = obj.struct
+        functions = FunctionList()
+        for function in self._find_functions(session, name, project, uid, labels):
+            function_dict = function.struct
             if not tag:
-                function_tags = self._list_function_tags(session, project, obj.id)
+                function_tags = self._list_function_tags(session, project, function.id)
                 if len(function_tags) == 0:
 
                     # function status should be added only to tagged functions
                     function_dict["status"] = None
-                    funcs.append(function_dict)
+
+                    # function has no tags, but its uid is the "unversioned" uid for the tag - don't send it
+                    if function.uid.startswith(unversioned_tagged_object_uid_prefix):
+                        continue
+
+                    functions.append(function_dict)
                 elif len(function_tags) == 1:
                     function_dict["metadata"]["tag"] = function_tags[0]
-                    funcs.append(function_dict)
+                    functions.append(function_dict)
                 else:
                     for function_tag in function_tags:
                         function_dict_copy = deepcopy(function_dict)
                         function_dict_copy["metadata"]["tag"] = function_tag
-                        funcs.append(function_dict_copy)
+                        functions.append(function_dict_copy)
             else:
                 function_dict["metadata"]["tag"] = tag
-                funcs.append(function_dict)
-        return funcs
+                functions.append(function_dict)
+        return functions
 
     def _delete_function_tags(self, session, project, function_name, commit=True):
         query = session.query(Function.Tag).filter(

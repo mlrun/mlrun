@@ -352,7 +352,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     now = datetime.now()
     now_plus_2_seconds = now + timedelta(seconds=2)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_time=now, end_time=now_plus_2_seconds
+        second="*/1", start_date=now, end_date=now_plus_2_seconds
     )
     schedule_name = "schedule-name"
     project = config.default_project

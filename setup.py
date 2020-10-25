@@ -50,7 +50,7 @@ def load_deps(path):
 with open("README.md") as fp:
     long_desc = fp.read()
 
-install_requires = list(load_deps("requirements.txt"))
+install_requires = list(load_deps("requirements.txt")) + ["importlib-resources;python_version<'3.7'"]
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 

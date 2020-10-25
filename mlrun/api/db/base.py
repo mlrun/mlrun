@@ -181,5 +181,17 @@ class DBInterface(ABC):
     def delete_project(self, session, name: str):
         pass
 
+    @abstractmethod
+    def add_feature_set(self, session, project, fs: dict):
+        pass
+
+    @abstractmethod
+    def get_feature_set(self, session, project, name):
+        pass
+
+    @abstractmethod
+    def list_feature_sets(self, session, project):
+        pass
+
     def list_artifact_tags(self, session, project):
         return []

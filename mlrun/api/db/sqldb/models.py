@@ -19,6 +19,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BLOB,
+    JSON,
     TIMESTAMP,
     Column,
     ForeignKey,
@@ -224,6 +225,55 @@ with warnings.catch_warnings():
         @spec.setter
         def spec(self, value):
             self._spec = pickle.dumps(value)
+
+    class Feature(Base):
+        __tablename__ = "features"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey('feature_sets.id'))
+
+        name = Column(String)
+        description = Column(String)
+        value_type = Column(String)
+        # Either 'entity' or 'feature', according to the type of the feature
+        type = Column(String)
+
+        Label = make_label(__tablename__)
+        labels = relationship(Label)
+
+
+    class FeatureSet(Base):
+        __tablename__ = "feature_sets"
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        description = Column(String)
+        updated = Column(TIMESTAMP, default=datetime.utcnow)
+
+        _status = Column("status", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label)
+
+        features = relationship(Feature,
+                                cascade="all, delete, delete-orphan",
+                                primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'feature')"
+                                )
+
+        entities = relationship(Feature,
+                                cascade="all, delete, delete-orphan",
+                                primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'entity')"
+                                )
+
+        @property
+        def status(self):
+            if self._status:
+                return json.loads(self._status)
+
+        @status.setter
+        def status(self, value):
+            self._status = json.dumps(value)
 
 
 # Must be after all table definitions

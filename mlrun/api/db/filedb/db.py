@@ -133,6 +133,15 @@ class FileDB(DBInterface):
     def delete_project(self, session, name: str):
         raise NotImplementedError()
 
+    def add_feature_set(self, session, project, fs: dict):
+        raise NotImplementedError()
+
+    def get_feature_set(self, session, project, name):
+        raise NotImplementedError()
+
+    def list_feature_sets(self, session, project):
+        raise NotImplementedError()
+
     def list_artifact_tags(self, session, project):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
 

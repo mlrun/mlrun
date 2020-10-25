@@ -25,6 +25,8 @@ from mlrun.api.db.sqldb.models import (
     Schedule,
     User,
     Project,
+    FeatureSet,
+    Feature,
     _tagged,
     _labeled,
 )
@@ -655,6 +657,47 @@ class SQLDB(DBInterface):
     def list_projects(self, session, owner=None):
         return self._query(session, Project, owner=owner)
 
+    def get_feature_set(self, session, project, name):
+        db_fs = self._query(session, FeatureSet, name=name, project=project).one_or_none()
+        if db_fs:
+            db_fs = self._transform_feature_set_model_to_scheme(db_fs)
+        return db_fs
+
+    def list_feature_sets(self, session, project):
+        query = self._query(session, FeatureSet, project=project)
+        feature_sets = [
+            self._transform_feature_set_model_to_scheme(db_fs)
+            for db_fs in query
+        ]
+        return feature_sets
+
+    def add_feature_set(self, session, project, fs: dict):
+        fs = fs.copy()
+        name = fs.get("name")
+        if not name or not project:
+            raise ValueError("feature-set missing name or project")
+
+        features = fs.pop("features")
+        entities = fs.pop("entities")
+        status = fs.pop("status")
+
+        feature_set = FeatureSet(**fs)
+        feature_set.project = project
+
+        for feat in features:
+            f = Feature(**feat)
+            f.type = 'feature'
+            feature_set.features.append(f)
+        for ent in entities:
+            f = Feature(**ent)
+            f.type = 'entity'
+            feature_set.entities.append(f)
+
+        feature_set.status = status
+
+        self._upsert(session, feature_set)
+        return feature_set.id
+
     def _resolve_tag(self, session, cls, project, name):
         uids = []
         for tag in self._query(session, cls.Tag, project=project, name=name):
@@ -959,3 +1002,10 @@ class SQLDB(DBInterface):
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
         setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
+
+    @staticmethod
+    def _transform_feature_set_model_to_scheme(
+        db_fs: FeatureSet
+    ) -> schemas.FeatureSetInDB:
+        fs = schemas.FeatureSetInDB.from_orm(db_fs)
+        return fs

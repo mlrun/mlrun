@@ -90,7 +90,7 @@ setup(
         "mlrun.api.utils.singletons",
     ],
     install_requires=install_requires,
-    extras_require={"api": api_deps, ":python_version<'3.7'": ["importlib-resources"]},
+    extras_require={"api": api_deps},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

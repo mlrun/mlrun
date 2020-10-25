@@ -426,7 +426,9 @@ class SQLDB(DBInterface):
                     # function status should be added only to tagged functions
                     function_dict["status"] = None
 
-                    # function has no tags, but its uid is the "unversioned" uid for the tag - don't send it
+                    # the unversioned uid is only a place holder for tagged instance that are is versioned
+                    # if another instance "took" the tag, we're left with an unversioned untagged instance
+                    # don't list it
                     if function.uid.startswith(unversioned_tagged_object_uid_prefix):
                         continue
 

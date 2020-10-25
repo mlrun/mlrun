@@ -53,7 +53,7 @@ _sparkjob_template = {
         "image": "",
         "imagePullPolicy": "IfNotPresent",
         "mainApplicationFile": "",
-        "sparkVersion": "2.4.0",
+        "sparkVersion": "2.4.5",
         "restartPolicy": {
             "type": "OnFailure",
             "onFailureRetries": 3,

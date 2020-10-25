@@ -17,7 +17,6 @@
 import json
 import traceback
 from ast import literal_eval
-from distutils.util import strtobool
 from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
@@ -244,8 +243,8 @@ def run(
     set_item(
         runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, "kind", "source")
     )
-    set_item(runobj.spec, verbose, "verbose", strtobool(verbose))
-    set_item(runobj.spec, scrape_metrics, "scrape_metrics", strtobool(scrape_metrics))
+    set_item(runobj.spec, verbose, "verbose")
+    set_item(runobj.spec, scrape_metrics, "scrape_metrics")
 
     if kfp or runobj.spec.verbose or verbose:
         print("MLRun version: {}".format(str(Version().get())))

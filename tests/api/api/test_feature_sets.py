@@ -59,3 +59,15 @@ def test_feature_set(db: Session, client: TestClient) -> None:
     print("Response is: {}".format(json_resp))
     assert "feature_sets" in json_resp, "no feature sets"
     assert len(json_resp["feature_sets"]) == 2, "not enough feature sets in response"
+
+    # Delete the 2nd fs
+    resp = client.delete(f"/api/projects/{proj_name}/feature_sets/{fs['name']}")
+    assert resp.status_code == HTTPStatus.OK.value, "delete"
+
+    # Now try to list - expect only 1 fs
+    resp = client.get(f"/api/projects/{proj_name}/feature_sets/")
+    assert resp.status_code == HTTPStatus.OK.value, "list"
+    json_resp = resp.json()
+    print("Response is: {}".format(json_resp))
+    assert "feature_sets" in json_resp, "no feature sets"
+    assert len(json_resp["feature_sets"]) == 1, "too many feature sets in response after deletion"

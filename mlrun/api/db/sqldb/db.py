@@ -671,32 +671,74 @@ class SQLDB(DBInterface):
         ]
         return feature_sets
 
+    @staticmethod
+    def _update_fs_features(fs: FeatureSet, features: dict, is_entity=False, replace=False):
+        if replace:
+            if is_entity:
+                fs.entities = []
+            else:
+                fs.features = []
+
+        for feat in features:
+            f = Feature(**feat)
+            if is_entity:
+                f.type = 'entity'
+                fs.entities.append(f)
+            else:
+                f.type = 'feature'
+                fs.features.append(f)
+
     def add_feature_set(self, session, project, fs: dict):
         fs = fs.copy()
         name = fs.get("name")
         if not name or not project:
             raise ValueError("feature-set missing name or project")
 
-        features = fs.pop("features")
-        entities = fs.pop("entities")
-        status = fs.pop("status")
+        features = fs.pop("features", [])
+        entities = fs.pop("entities", [])
+        status = fs.pop("status", None)
 
         feature_set = FeatureSet(**fs)
         feature_set.project = project
-
-        for feat in features:
-            f = Feature(**feat)
-            f.type = 'feature'
-            feature_set.features.append(f)
-        for ent in entities:
-            f = Feature(**ent)
-            f.type = 'entity'
-            feature_set.entities.append(f)
-
+        self._update_fs_features(feature_set, features, is_entity=False)
+        self._update_fs_features(feature_set, entities, is_entity=True)
         feature_set.status = status
 
         self._upsert(session, feature_set)
         return feature_set.id
+
+    def update_feature_set(self, session, project, name, fs: dict):
+        db_fs = self.get_feature_set(session, project, name)
+        if not db_fs:
+            return None
+        data = fs.copy()
+        stat = data.pop("status", None)
+        db_fs.status = stat or db_fs.status
+
+        features = data.pop("features", [])
+        if features:
+            self._update_fs_features(db_fs, features, is_entity=False, replace=True)
+
+        entities = data.pop("entities", [])
+        if entities:
+            self._update_fs_features(db_fs, entities, is_entity=True, replace=True)
+
+        for key, value in data.items():
+            if not hasattr(db_fs, key):
+                raise DBError(f"unknown feature-set attribute - {key}")
+            setattr(db_fs, key, value)
+
+        self._upsert(session, db_fs, ignore=True)
+        return db_fs.id
+
+    def delete_feature_set(self, session, project, name):
+        db_fs = self.get_feature_set(session, project, name)
+        if not db_fs:
+            return None
+
+        fs_id = db_fs.id
+        self._delete(session, FeatureSet, project=project, name=name)
+        return fs_id
 
     def _resolve_tag(self, session, cls, project, name):
         uids = []

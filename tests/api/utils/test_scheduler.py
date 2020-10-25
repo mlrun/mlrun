@@ -46,7 +46,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     expected_call_counter = 5
     now_plus_5_seconds = now + timedelta(seconds=expected_call_counter)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_time=now, end_time=now_plus_5_seconds
+        second="*/1", start_date=now, end_date=now_plus_5_seconds
     )
     schedule_name = "schedule-name"
     project = config.default_project

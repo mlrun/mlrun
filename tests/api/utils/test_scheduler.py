@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Generator
 
 import pytest
+from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -29,12 +30,12 @@ async def scheduler(db: Session) -> Generator:
 call_counter: int = 0
 
 
-def bump_counter():
+async def bump_counter():
     global call_counter
     call_counter += 1
 
 
-def do_nothing():
+async def do_nothing():
     pass
 
 
@@ -63,6 +64,39 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
+async def test_invoke_schedule(db: Session, scheduler: Scheduler):
+    cron_trigger = schemas.ScheduleCronTrigger(year=1999)
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 0
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 0
+    response_1 = await scheduler.invoke_schedule(db, project, schedule_name)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 1
+    response_2 = await scheduler.invoke_schedule(db, project, schedule_name)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 2
+    for run in runs:
+        assert run["status"]["state"] == RunStates.completed
+    response_uids = [
+        response["data"]["metadata"]["uid"] for response in [response_1, response_2]
+    ]
+    db_uids = [run["metadata"]["uid"] for run in runs]
+    assert DeepDiff(response_uids, db_uids, ignore_order=True,) == {}
+
+
+@pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
     now = datetime.now()
     now_plus_1_second = now + timedelta(seconds=1)
@@ -71,24 +105,7 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
     )
     schedule_name = "schedule-name"
     project = config.default_project
-    function_name = "my-function"
-    code_path = pathlib.Path(__file__).absolute().parent / "function.py"
-    function = mlrun.code_to_function(
-        name=function_name, kind="local", filename=str(code_path)
-    )
-    function.spec.command = f"{str(code_path)}"
-    hash_key = get_db().store_function(
-        db, function.to_dict(), function_name, project, versioned=True
-    )
-    scheduled_object = {
-        "task": {
-            "spec": {
-                "function": f"{project}/{function_name}@{hash_key}",
-                "handler": "do_nothing",
-            },
-            "metadata": {"name": "my-task", "project": f"{project}"},
-        }
-    }
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 0
     scheduler.create_schedule(
@@ -230,7 +247,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
     # no next run time cause we put year=1999
-    assert_schedule(
+    _assert_schedule(
         schedule,
         project,
         schedule_name,
@@ -252,7 +269,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
     )
     schedule_2 = scheduler.get_schedule(db, project, schedule_name_2)
     year_datetime = datetime(year=year, month=1, day=1, tzinfo=timezone.utc)
-    assert_schedule(
+    _assert_schedule(
         schedule_2,
         project,
         schedule_name_2,
@@ -263,7 +280,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 
     schedules = scheduler.list_schedules(db)
     assert len(schedules.schedules) == 2
-    assert_schedule(
+    _assert_schedule(
         schedules.schedules[0],
         project,
         schedule_name,
@@ -271,7 +288,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         cron_trigger,
         None,
     )
-    assert_schedule(
+    _assert_schedule(
         schedules.schedules[1],
         project,
         schedule_name_2,
@@ -375,7 +392,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     assert call_counter == 2
 
 
-def assert_schedule(
+def _assert_schedule(
     schedule: schemas.ScheduleOutput, project, name, kind, cron_trigger, next_run_time
 ):
     assert schedule.name == name
@@ -384,3 +401,25 @@ def assert_schedule(
     assert schedule.next_run_time == next_run_time
     assert schedule.cron_trigger == cron_trigger
     assert schedule.creation_time is not None
+
+
+def _create_mlrun_function_and_matching_scheduled_object(db: Session, project: str):
+    function_name = "my-function"
+    code_path = pathlib.Path(__file__).absolute().parent / "function.py"
+    function = mlrun.code_to_function(
+        name=function_name, kind="local", filename=str(code_path)
+    )
+    function.spec.command = f"{str(code_path)}"
+    hash_key = get_db().store_function(
+        db, function.to_dict(), function_name, project, versioned=True
+    )
+    scheduled_object = {
+        "task": {
+            "spec": {
+                "function": f"{project}/{function_name}@{hash_key}",
+                "handler": "do_nothing",
+            },
+            "metadata": {"name": "my-task", "project": f"{project}"},
+        }
+    }
+    return scheduled_object

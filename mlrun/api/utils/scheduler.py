@@ -101,6 +101,14 @@ class Scheduler:
         self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
+    async def invoke_schedule(self, db_session: Session, project: str, name: str):
+        logger.debug("Invoking schedule", project=project, name=name)
+        db_schedule = get_db().get_schedule(db_session, project, name)
+        function, args, kwargs = self._resolve_job_function(
+            db_schedule.kind, db_schedule.scheduled_object
+        )
+        return await function(*args, **kwargs)
+
     def _validate_cron_trigger(
         self,
         cron_trigger: schemas.ScheduleCronTrigger,
@@ -213,7 +221,7 @@ class Scheduler:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
             return Scheduler.submit_run_wrapper, [scheduled_object_copy], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
-            return scheduled_object, None, None
+            return scheduled_object, [], {}
 
         # sanity
         message = "Scheduled object kind missing implementation"
@@ -241,9 +249,11 @@ class Scheduler:
 
         db_session = create_session()
 
-        await submit_run(db_session, scheduled_object)
+        response = await submit_run(db_session, scheduled_object)
 
         close_session(db_session)
+
+        return response
 
     @staticmethod
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(

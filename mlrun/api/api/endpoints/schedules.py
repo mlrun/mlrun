@@ -46,6 +46,15 @@ def get_schedule(
     return get_scheduler().get_schedule(db_session, project, name)
 
 
+@router.post(
+    "/projects/{project}/schedules/{name}/invoke"
+)
+async def invoke_schedule(
+    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+):
+    await get_scheduler().invoke_schedule(db_session, project, name)
+
+
 @router.delete(
     "/projects/{project}/schedules/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )

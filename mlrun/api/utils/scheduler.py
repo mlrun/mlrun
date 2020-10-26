@@ -221,7 +221,7 @@ class Scheduler:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
             return Scheduler.submit_run_wrapper, [scheduled_object_copy], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
-            return scheduled_object, None, None
+            return scheduled_object, [], {}
 
         # sanity
         message = "Scheduled object kind missing implementation"

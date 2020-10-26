@@ -2,9 +2,9 @@ import asyncio
 import pathlib
 from datetime import datetime, timedelta, timezone
 from typing import Generator
-from deepdiff import DeepDiff
 
 import pytest
+from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -89,16 +89,11 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
     assert len(runs) == 2
     for run in runs:
         assert run["status"]["state"] == RunStates.completed
-    response_uids = [response['data']['metadata']['uid'] for response in [response_1, response_2]]
-    db_uids = [run['metadata']['uid'] for run in runs]
-    assert (
-            DeepDiff(
-                response_uids,
-                db_uids,
-                ignore_order=True,
-            )
-            == {}
-    )
+    response_uids = [
+        response["data"]["metadata"]["uid"] for response in [response_1, response_2]
+    ]
+    db_uids = [run["metadata"]["uid"] for run in runs]
+    assert DeepDiff(response_uids, db_uids, ignore_order=True,) == {}
 
 
 @pytest.mark.asyncio

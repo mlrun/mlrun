@@ -50,7 +50,7 @@ def get_schedule(
 async def invoke_schedule(
     project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):
-    await get_scheduler().invoke_schedule(db_session, project, name)
+    return await get_scheduler().invoke_schedule(db_session, project, name)
 
 
 @router.delete(

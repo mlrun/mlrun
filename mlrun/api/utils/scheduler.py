@@ -107,7 +107,7 @@ class Scheduler:
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind, db_schedule.scheduled_object
         )
-        await function(*args, **kwargs)
+        return await function(*args, **kwargs)
 
     def _validate_cron_trigger(
         self,
@@ -249,9 +249,11 @@ class Scheduler:
 
         db_session = create_session()
 
-        await submit_run(db_session, scheduled_object)
+        response = await submit_run(db_session, scheduled_object)
 
         close_session(db_session)
+
+        return response
 
     @staticmethod
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(

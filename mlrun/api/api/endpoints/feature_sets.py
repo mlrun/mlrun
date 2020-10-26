@@ -16,10 +16,11 @@ router = APIRouter()
 @router.post("/projects/{project}/feature_sets")
 def add_feature_set(
         project: str,
-        feature_set: schemas.FeatureSet,
+        feature_set: schemas.FeatureSetIO,
         db_session: Session = Depends(deps.get_db_session),
 ):
     fs_id = get_db().add_feature_set(db_session, project, feature_set.dict())
+
     return {
         "id": fs_id,
         "name": feature_set.name,
@@ -30,20 +31,11 @@ def add_feature_set(
 def update_feature_set(
         project: str,
         name: str,
-        feature_set: schemas.FeatureSet,
+        feature_set: schemas.FeatureSetUpdate,
         db_session: Session = Depends(deps.get_db_session),
 ):
-    fs_id = get_db().update_feature_set(db_session, project, feature_set.dict())
-    if not fs_id:
-        log_and_raise(
-            HTTPStatus.NOT_FOUND.value,
-            reason="feature set doesn't exist {}/{}".format(project, name),
-        )
-
-    return {
-        "id": fs_id,
-        "name": feature_set.name,
-    }
+    get_db().update_feature_set(db_session, project, name, feature_set.dict())
+    return Response(status_code=HTTPStatus.OK.value)
 
 
 @router.get("/projects/{project}/feature_sets/{name}")
@@ -70,12 +62,8 @@ def delete_feature_set(
         name: str,
         db_session: Session = Depends(deps.get_db_session),
 ):
-    fs_id = get_db().delete_feature_set(db_session, project, name)
-    if not fs_id:
-        log_and_raise(
-            HTTPStatus.NOT_FOUND.value,
-            reason="feature set doesn't exist {}/{}".format(project, name),
-        )
+    get_db().delete_feature_set(db_session, project, name)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/projects/{project}/feature_sets")

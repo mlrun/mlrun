@@ -16,6 +16,7 @@ from mlrun.api.db.sqldb.helpers import (
     run_labels,
     run_state,
     update_labels,
+    merge_labels,
 )
 from mlrun.api.db.sqldb.models import (
     Artifact,
@@ -661,6 +662,7 @@ class SQLDB(DBInterface):
         db_fs = self._query(session, FeatureSet, name=name, project=project).one_or_none()
         if db_fs:
             db_fs = self._transform_feature_set_model_to_scheme(db_fs)
+
         return db_fs
 
     def list_feature_sets(self, session, project):
@@ -697,18 +699,20 @@ class SQLDB(DBInterface):
         features = fs.pop("features", [])
         entities = fs.pop("entities", [])
         status = fs.pop("status", None)
+        labels = fs.pop("labels", {})
 
         feature_set = FeatureSet(**fs)
         feature_set.project = project
         self._update_fs_features(feature_set, features, is_entity=False)
         self._update_fs_features(feature_set, entities, is_entity=True)
         feature_set.status = status
+        update_labels(feature_set, labels)
 
         self._upsert(session, feature_set)
         return feature_set.id
 
     def update_feature_set(self, session, project, name, fs: dict):
-        db_fs = self.get_feature_set(session, project, name)
+        db_fs = self._query(session, FeatureSet, name=name, project=project).one_or_none()
         if not db_fs:
             return None
         data = fs.copy()
@@ -723,6 +727,8 @@ class SQLDB(DBInterface):
         if entities:
             self._update_fs_features(db_fs, entities, is_entity=True, replace=True)
 
+        merge_labels(db_fs, data.pop("labels", {}))
+
         for key, value in data.items():
             if not hasattr(db_fs, key):
                 raise DBError(f"unknown feature-set attribute - {key}")
@@ -732,13 +738,7 @@ class SQLDB(DBInterface):
         return db_fs.id
 
     def delete_feature_set(self, session, project, name):
-        db_fs = self.get_feature_set(session, project, name)
-        if not db_fs:
-            return None
-
-        fs_id = db_fs.id
         self._delete(session, FeatureSet, project=project, name=name)
-        return fs_id
 
     def _resolve_tag(self, session, cls, project, name):
         uids = []
@@ -1048,6 +1048,10 @@ class SQLDB(DBInterface):
     @staticmethod
     def _transform_feature_set_model_to_scheme(
         db_fs: FeatureSet
-    ) -> schemas.FeatureSetInDB:
-        fs = schemas.FeatureSetInDB.from_orm(db_fs)
-        return fs
+    ) -> schemas.FeatureSetIO:
+        fs = schemas.FeatureSetRecord.from_orm(db_fs)
+
+        fs_io = schemas.FeatureSetIO(**fs.dict())
+        fs_io.labels = {label.name: label.value for label in db_fs.labels}
+
+        return fs_io

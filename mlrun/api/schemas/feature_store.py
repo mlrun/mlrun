@@ -23,7 +23,19 @@ class FeatureSet(BaseModel):
     status: Optional[dict] = None
 
 
-class FeatureSetInDB(FeatureSet):
+class FeatureSetUpdate(BaseModel):
+    description: Optional[str] = None
+    features: Optional[List[Feature]]
+    entities: Optional[List[Feature]]
+    status: Optional[dict] = None
+    labels: Optional[dict] = None
+
+
+class FeatureSetIO(FeatureSet):
+    labels: Optional[dict] = None
+
+
+class FeatureSetRecord(FeatureSet):
     project: str
     id: int = None
 

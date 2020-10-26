@@ -633,6 +633,10 @@ class MlrunProject(ModelObj):
 
         :returns: project object
         """
+
+        if kind == "vault" and isinstance(source, list):
+            source = {"project": self.name, "secrets": source}
+
         self._secrets.add_source(kind, source, prefix)
         return self
 

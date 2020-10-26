@@ -245,11 +245,6 @@ def build_runtime(runtime, with_mlrun, interactive=False):
         )
     logger.info(f"building image ({build.image})")
 
-    if runtime.kind == "dask":
-        extra = 'ENTRYPOINT ["tini", "-g", "--", "/usr/bin/prepare.sh"]'
-    else:
-        extra = None
-
     name = normalize_name("mlrun-build-{}".format(runtime.metadata.name))
     base_image = enrich_image_url(build.base_image or "mlrun/mlrun")
     if not build.base_image:
@@ -265,7 +260,6 @@ def build_runtime(runtime, with_mlrun, interactive=False):
         secret_name=build.secret,
         interactive=interactive,
         name=name,
-        extra=extra,
         with_mlrun=with_mlrun,
     )
     runtime.status.build_pod = None

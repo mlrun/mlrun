@@ -23,12 +23,13 @@ from sqlalchemy.orm import Session
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import SparkApplicationStates
+from mlrun.config import config
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, mount_v3iod
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from ..utils import update_in, logger, get_in
 
 igz_deps = {
@@ -52,7 +53,7 @@ _sparkjob_template = {
         "image": "",
         "imagePullPolicy": "IfNotPresent",
         "mainApplicationFile": "",
-        "sparkVersion": "2.4.0",
+        "sparkVersion": "2.4.5",
         "restartPolicy": {
             "type": "OnFailure",
             "onFailureRetries": 3,
@@ -159,6 +160,11 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
+        elif config.igz_version:
+            image_tag = (
+                "" if ":" in config.spark_app_image else ":" + config.igz_version
+            )
+            update_in(job, "spec.image", config.spark_app_image + image_tag)
         update_in(job, "spec.volumes", self.spec.volumes)
 
         extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
@@ -186,8 +192,10 @@ class SparkRuntime(KubejobRuntime):
                     job, "spec.executor.memory", self.spec.resources["limits"]["memory"]
                 )
         if self.spec.command:
+            if "://" not in self.spec.command:
+                self.spec.command = "local://" + self.spec.command
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        update_in(job, "spec.arguments", self.spec.args)
+        update_in(job, "spec.arguments", self.spec.args or [])
         resp = self._submit_job(job, meta.namespace)
         # name = get_in(resp, 'metadata.name', 'unknown')
 
@@ -303,12 +311,11 @@ class SparkRuntime(KubejobRuntime):
 
     def with_igz_spark(self):
         self._update_igz_jars()
-        self.apply(mount_v3io(name="v3io-fuse", remote="/", mount_path="/v3io"))
+        self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
                 namespace="default-tenant",
                 v3io_config_configmap="spark-operator-v3io-config",
-                v3io_auth_secret="spark-operator-v3io-auth",
             )
         )
 
@@ -331,6 +338,12 @@ class SparkRuntime(KubejobRuntime):
             return
         _ = self._get_k8s()
         return list(pods.items())[0]
+
+    @property
+    def is_deployed(self):
+        if not self.spec.build.source and not self.spec.build.commands:
+            return True
+        return super().is_deployed
 
     @property
     def spec(self) -> SparkJobSpec:

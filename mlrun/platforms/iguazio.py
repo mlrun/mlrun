@@ -49,19 +49,20 @@ def xcp_op(
 Mount = namedtuple("Mount", ["path", "sub_path"])
 
 
-def mount_v3io_ext(
+def mount_v3io_extended(
     name="v3io", remote="", mounts=None, access_key="", user="", secret=None
 ):
     """Modifier function to apply to a Container Op to volume mount a v3io path
 
     :param name:            the volume name
     :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
-    :param mounts:          the mount path & volume sub path to be mounted (type Mount)
+    :param mounts:          list of mount & volume sub paths (type Mount). empty mounts & remote mount /v3io & /User
     :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
     :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
     :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     """
 
+    # Empty remote & mounts defaults are mounts of /v3io and /User
     if not remote and not mounts:
         user = os.environ.get("V3IO_USERNAME", user)
         if not user:
@@ -77,7 +78,7 @@ def mount_v3io_ext(
     if not isinstance(mounts, list) and any([not isinstance(x, Mount) for x in mounts]):
         raise TypeError("mounts should be a list of Mount")
 
-    def _mount_v3io_ext(task):
+    def _mount_v3io_extended(task):
         from kubernetes import client as k8s_client
 
         vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
@@ -93,7 +94,7 @@ def mount_v3io_ext(
             task = v3io_cred(access_key=access_key)(task)
         return task
 
-    return _mount_v3io_ext
+    return _mount_v3io_extended
 
 
 def mount_v3io(
@@ -109,7 +110,7 @@ def mount_v3io(
     :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     """
 
-    return mount_v3io_ext(
+    return mount_v3io_extended(
         name=name,
         remote=remote,
         mounts=[Mount(path=mount_path, sub_path="")],

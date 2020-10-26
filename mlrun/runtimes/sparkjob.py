@@ -16,7 +16,6 @@ import time
 from copy import deepcopy
 from datetime import datetime
 from typing import Tuple, Optional
-from os import environ
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
@@ -24,12 +23,13 @@ from sqlalchemy.orm import Session
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import SparkApplicationStates
+from mlrun.config import config
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io_ext, mount_v3iod
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from ..utils import update_in, logger, get_in
 
 igz_deps = {
@@ -106,7 +106,6 @@ class SparkJobSpec(KubeResourceSpec):
         restart_policy=None,
         deps=None,
         main_class=None,
-        spark_args=None,
     ):
 
         super().__init__(
@@ -131,7 +130,6 @@ class SparkJobSpec(KubeResourceSpec):
         self.restart_policy = restart_policy
         self.deps = deps
         self.main_class = main_class
-        self.spark_args = spark_args
 
 
 class SparkRuntime(KubejobRuntime):
@@ -162,9 +160,9 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
-        elif environ.get("IGZ_VERSION"):
+        elif config.igz_version:
             update_in(
-                job, "spec.image", "iguazio/spark-app:{}".format(environ["IGZ_VERSION"])
+                job, "spec.image", config.spark_app_image + ":" + config.igz_version
             )
         update_in(job, "spec.volumes", self.spec.volumes)
 
@@ -312,7 +310,7 @@ class SparkRuntime(KubejobRuntime):
 
     def with_igz_spark(self):
         self._update_igz_jars()
-        self.apply(mount_v3io_ext())
+        self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
                 namespace="default-tenant",
@@ -342,7 +340,9 @@ class SparkRuntime(KubejobRuntime):
 
     @property
     def is_deployed(self):
-        return True
+        if not self.spec.build.source and not self.spec.build.commands:
+            return True
+        return super().is_deployed
 
     @property
     def spec(self) -> SparkJobSpec:

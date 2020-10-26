@@ -46,9 +46,7 @@ def get_schedule(
     return get_scheduler().get_schedule(db_session, project, name)
 
 
-@router.post(
-    "/projects/{project}/schedules/{name}/invoke"
-)
+@router.post("/projects/{project}/schedules/{name}/invoke")
 async def invoke_schedule(
     project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):

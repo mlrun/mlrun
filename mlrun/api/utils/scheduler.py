@@ -101,12 +101,12 @@ class Scheduler:
         self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
-    async def invoke_schedule(
-        self, db_session: Session, project: str, name: str
-    ):
+    async def invoke_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
-        function, args, kwargs = self._resolve_job_function(db_schedule.kind, db_schedule.scheduled_object)
+        function, args, kwargs = self._resolve_job_function(
+            db_schedule.kind, db_schedule.scheduled_object
+        )
         await function(*args, **kwargs)
 
     def _validate_cron_trigger(

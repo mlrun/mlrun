@@ -12,9 +12,10 @@ from .schedule import (
 )
 from .user import User, UserCreate, UserInDB, UserUpdate
 from .feature_store import (
-    FeatureSet,
     Feature,
+    FeatureSetSpec,
+    FeatureSetMetaData,
+    FeatureSet,
     FeatureSetRecord,
     FeatureSetUpdate,
-    FeatureSetIO,
 )

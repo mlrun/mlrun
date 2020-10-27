@@ -5,7 +5,7 @@ from typing import Any, List
 import pytz
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 import mlrun.errors
 from mlrun.api import schemas
@@ -658,15 +658,45 @@ class SQLDB(DBInterface):
     def list_projects(self, session, owner=None):
         return self._query(session, Project, owner=owner)
 
-    def get_feature_set(self, session, project, name):
+    def get_feature_set(
+            self,
+            session,
+            project: str,
+            name: str
+    ) -> schemas.FeatureSet:
         db_fs = self._query(session, FeatureSet, name=name, project=project).one_or_none()
         if db_fs:
             db_fs = self._transform_feature_set_model_to_scheme(db_fs)
 
         return db_fs
 
-    def list_feature_sets(self, session, project):
-        query = self._query(session, FeatureSet, project=project)
+    def list_feature_sets(
+            self,
+            session,
+            project: str,
+            name: str = None,
+            state: str = None,
+            entities: List[str] = None,
+            features: List[str] = None,
+    ) -> List[schemas.FeatureSet]:
+        # Query exact fields
+        query = self._query(
+            session,
+            FeatureSet,
+            project=project,
+            state=state
+        )
+
+        # Name, entities and features are like-queries
+        if name is not None:
+            query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
+        if entities:
+            ent_alias = aliased(Feature)
+            query = query.join(FeatureSet.entities.of_type(ent_alias)).filter(ent_alias.name.in_(entities))
+        if features:
+            feat_alias = aliased(Feature)
+            query = query.join(FeatureSet.features.of_type(feat_alias)).filter(feat_alias.name.in_(features))
+
         feature_sets = [
             self._transform_feature_set_model_to_scheme(db_fs)
             for db_fs in query
@@ -692,20 +722,29 @@ class SQLDB(DBInterface):
 
     def add_feature_set(self, session, project, fs: dict):
         fs = fs.copy()
-        name = fs.get("name")
+        name = fs["metadata"]["name"]
         if not name or not project:
             raise ValueError("feature-set missing name or project")
 
-        features = fs.pop("features", [])
-        entities = fs.pop("entities", [])
-        status = fs.pop("status", None)
-        labels = fs.pop("labels", {})
+        fs_spec = fs.get("spec")
+        if fs_spec:
+            features = fs_spec.pop("features", [])
+            entities = fs_spec.pop("entities", [])
+        fs_status = fs.get("status")
+        if fs_status:
+            state = fs_status.get("state")
 
-        feature_set = FeatureSet(**fs)
-        feature_set.project = project
+        labels = fs["metadata"].pop("labels", {})
+
+        feature_set = FeatureSet(
+            name=name,
+            project=project,
+            state=state,
+            status=fs_status
+        )
+
         self._update_fs_features(feature_set, features, is_entity=False)
         self._update_fs_features(feature_set, entities, is_entity=True)
-        feature_set.status = status
         update_labels(feature_set, labels)
 
         self._upsert(session, feature_set)
@@ -717,7 +756,11 @@ class SQLDB(DBInterface):
             return None
         data = fs.copy()
         stat = data.pop("status", None)
-        db_fs.status = stat or db_fs.status
+        if stat:
+            state = stat.get("status")
+            db_fs.state = state or db_fs.state
+            # TODO - granular update of JSON fields.
+            db_fs.status = stat
 
         features = data.pop("features", [])
         if features:
@@ -1048,10 +1091,18 @@ class SQLDB(DBInterface):
     @staticmethod
     def _transform_feature_set_model_to_scheme(
         db_fs: FeatureSet
-    ) -> schemas.FeatureSetIO:
+    ) -> schemas.FeatureSet:
         fs = schemas.FeatureSetRecord.from_orm(db_fs)
 
-        fs_io = schemas.FeatureSetIO(**fs.dict())
-        fs_io.labels = {label.name: label.value for label in db_fs.labels}
+        fs_dict = fs.dict()
+        fs_md = schemas.FeatureSetMetaData(**fs_dict)
+        fs_spec = schemas.FeatureSetSpec(**fs_dict)
 
-        return fs_io
+        fs_ret = schemas.FeatureSet(
+            metadata=fs_md,
+            spec=fs_spec,
+            status=fs.status
+        )
+
+        fs_ret.metadata.labels = {label.name: label.value for label in db_fs.labels}
+        return fs_ret

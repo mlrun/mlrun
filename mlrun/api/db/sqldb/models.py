@@ -232,7 +232,6 @@ with warnings.catch_warnings():
         feature_set_id = Column(Integer, ForeignKey('feature_sets.id'))
 
         name = Column(String)
-        description = Column(String)
         value_type = Column(String)
         # Either 'entity' or 'feature', according to the type of the feature
         type = Column(String)
@@ -246,9 +245,8 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String)
         project = Column(String)
-        description = Column(String)
         updated = Column(TIMESTAMP, default=datetime.utcnow)
-
+        state = Column(String)
         _status = Column("status", JSON)
 
         Label = make_label(__tablename__)

@@ -186,11 +186,24 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_feature_set(self, session, project, name):
+    def get_feature_set(
+            self,
+            session,
+            project: str,
+            name: str
+    ) -> schemas.FeatureSet:
         pass
 
     @abstractmethod
-    def list_feature_sets(self, session, project):
+    def list_feature_sets(
+            self,
+            session,
+            project: str,
+            name: str = None,
+            state: str = None,
+            entities: List[str] = None,
+            features: List[str] = None,
+    ) -> List[schemas.FeatureSet]:
         pass
 
     @abstractmethod

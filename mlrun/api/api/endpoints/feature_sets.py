@@ -1,13 +1,13 @@
 from operator import attrgetter
 from http import HTTPStatus
+from typing import List
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Query
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.db.sqldb.helpers import to_dict as db2dict
 from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
@@ -16,14 +16,14 @@ router = APIRouter()
 @router.post("/projects/{project}/feature_sets")
 def add_feature_set(
         project: str,
-        feature_set: schemas.FeatureSetIO,
+        feature_set: schemas.FeatureSet,
         db_session: Session = Depends(deps.get_db_session),
 ):
     fs_id = get_db().add_feature_set(db_session, project, feature_set.dict())
 
     return {
         "id": fs_id,
-        "name": feature_set.name,
+        "name": feature_set.metadata.name,
     }
 
 
@@ -68,10 +68,21 @@ def delete_feature_set(
 
 @router.get("/projects/{project}/feature_sets")
 def list_feature_sets(
-    project: str,
-    db_session: Session = Depends(deps.get_db_session),
+        project: str,
+        name: str = None,
+        state: str = None,
+        entities: List[str] = Query(None, alias="entity"),
+        features: List[str] = Query(None, alias="feature"),
+        db_session: Session = Depends(deps.get_db_session),
 ):
-    fs_list = get_db().list_feature_sets(db_session, project)
+    fs_list = get_db().list_feature_sets(
+        db_session,
+        project,
+        name,
+        state,
+        entities,
+        features
+    )
 
     return {
         "feature_sets": fs_list,

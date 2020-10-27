@@ -19,9 +19,9 @@ from uuid import uuid4
 
 import pytest
 
-from tests.conftest import here, in_docker, wait_for_server
+from tests.conftest import tests_root_directory, in_docker, wait_for_server
 
-prj_dir = here.parent
+prj_dir = tests_root_directory.parent
 is_ci = "CI" in environ
 
 

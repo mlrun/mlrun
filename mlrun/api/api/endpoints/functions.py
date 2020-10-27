@@ -73,7 +73,7 @@ def get_function(
 def delete_function(
     project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().delete_function(db_session, name, project)
+    get_db().delete_function(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 

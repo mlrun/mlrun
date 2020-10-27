@@ -123,7 +123,7 @@ When working with functions pay attention to the following:
 In this example we run the describe function. this function analyze a dataset (in our case it's a csv file) and generate html files (e.g. correlation, histogram) and save them under the artifact path
 
 ```python
-DATA_URL = 'https://iguazio-sample-data.s3.amazonaws.com/datasets/iris_dataset.csv'
+DATA_URL = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
 
 my_describe.run(name='describe',
                 inputs={'table': DATA_URL},

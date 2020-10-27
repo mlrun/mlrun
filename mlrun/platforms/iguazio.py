@@ -17,6 +17,7 @@ import requests
 import urllib3
 from http import HTTPStatus
 from datetime import datetime
+from collections import namedtuple
 
 
 _cached_control_session = None
@@ -45,6 +46,57 @@ def xcp_op(
     )
 
 
+Mount = namedtuple("Mount", ["path", "sub_path"])
+
+
+def mount_v3io_extended(
+    name="v3io", remote="", mounts=None, access_key="", user="", secret=None
+):
+    """Modifier function to apply to a Container Op to volume mount a v3io path
+
+    :param name:            the volume name
+    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
+    :param mounts:          list of mount & volume sub paths (type Mount). empty mounts & remote mount /v3io & /User
+    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
+    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
+    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
+    """
+
+    # Empty remote & mounts defaults are mounts of /v3io and /User
+    if not remote and not mounts:
+        user = os.environ.get("V3IO_USERNAME", user)
+        if not user:
+            raise ValueError(
+                "user name/env must be specified when using empty remote and mounts"
+            )
+        mounts = [
+            Mount(path="/v3io", sub_path=""),
+            # Temporarily commented out as we do not support multiple mount on the same volume yet (set_named_item...)
+            #            Mount(path="/User", sub_path="users/" + user),
+        ]
+
+    if not isinstance(mounts, list) and any([not isinstance(x, Mount) for x in mounts]):
+        raise TypeError("mounts should be a list of Mount")
+
+    def _mount_v3io_extended(task):
+        from kubernetes import client as k8s_client
+
+        vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
+        task.add_volume(vol)
+        for mount in mounts:
+            task.add_volume_mount(
+                k8s_client.V1VolumeMount(
+                    mount_path=mount.path, sub_path=mount.sub_path, name=name
+                )
+            )
+
+        if not secret:
+            task = v3io_cred(access_key=access_key)(task)
+        return task
+
+    return _mount_v3io_extended
+
+
 def mount_v3io(
     name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None
 ):
@@ -58,19 +110,14 @@ def mount_v3io(
     :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     """
 
-    def _mount_v3io(task):
-        from kubernetes import client as k8s_client
-
-        vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
-        task.add_volume(vol).add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path=mount_path, name=name)
-        )
-
-        if not secret:
-            task = v3io_cred(access_key=access_key)(task)
-        return task
-
-    return _mount_v3io
+    return mount_v3io_extended(
+        name=name,
+        remote=remote,
+        mounts=[Mount(path=mount_path, sub_path="")],
+        access_key=access_key,
+        user=user,
+        secret=secret,
+    )
 
 
 def mount_spark_conf():
@@ -87,9 +134,7 @@ def mount_spark_conf():
     return _mount_spark
 
 
-def mount_v3iod(
-    namespace, v3io_config_configmap, v3io_auth_secret="spark-operator-v3io-auth"
-):
+def mount_v3iod(namespace, v3io_config_configmap):
     def _mount_v3iod(task):
         from kubernetes import client as k8s_client
 
@@ -127,11 +172,6 @@ def mount_v3iod(
         task.add_volume(vol).add_volume_mount(
             k8s_client.V1VolumeMount(mount_path="/etc/config/v3io", name="v3io-config")
         )
-
-        # vol = k8s_client.V1Volume(name='v3io-auth',
-        #                           secret=k8s_client.V1SecretVolumeSource(secret_name=v3io_auth_secret,
-        #                                                                  default_mode=420))
-        # task.add_volume(vol).add_volume_mount(k8s_client.V1VolumeMount(mount_path='/igz/.igz', name='v3io-auth'))
 
         task.add_env_variable(
             k8s_client.V1EnvVar(
@@ -197,6 +237,8 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
     from kubernetes import client
 
     access_key = access_key or environ.get("V3IO_ACCESS_KEY")
+    opts = {"accessKey": access_key}
+
     remote = str(remote)
 
     if remote.startswith("~/"):
@@ -207,11 +249,14 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
             remote = "users/" + user
         else:
             remote = "users/" + user + remote[1:]
-    container, subpath = split_path(remote)
+    if remote:
+        container, subpath = split_path(remote)
+        opts["container"] = container
+        opts["subPath"] = subpath
+
     if secret:
         secret = {"name": secret}
 
-    opts = {"accessKey": access_key, "container": container, "subPath": subpath}
     # vol = client.V1Volume(name=name, flex_volume=client.V1FlexVolumeSource('v3io/fuse', options=opts))
     vol = {
         "flexVolume": client.V1FlexVolumeSource(

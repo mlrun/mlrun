@@ -120,4 +120,3 @@ def test_feature_set(db: Session, client: TestClient) -> None:
 
     # Now try to list - expect only 2 fs
     test_list(client, proj_name, None, 2)
-

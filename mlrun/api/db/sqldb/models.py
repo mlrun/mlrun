@@ -239,7 +239,6 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
         labels = relationship(Label)
 
-
     class FeatureSet(Base):
         __tablename__ = "feature_sets"
         __table_args__ = (
@@ -272,11 +271,11 @@ with warnings.catch_warnings():
         @property
         def status(self):
             if self._status:
-                return json.loads(self._status)
+                return orjson.loads(self._status)
 
         @status.setter
         def status(self, value):
-            self._status = json.dumps(value)
+            self._status = orjson.dumps(value)
 
 
 # Must be after all table definitions

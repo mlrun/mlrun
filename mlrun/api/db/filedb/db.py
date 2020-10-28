@@ -167,7 +167,7 @@ class FileDB(DBInterface):
             fs: dict,
             tag=None
     ):
-       raise NotImplementedError()
+        raise NotImplementedError()
 
     def delete_feature_set(self, session, project, name):
         raise NotImplementedError()

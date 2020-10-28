@@ -799,7 +799,7 @@ class SQLDB(DBInterface):
                 name=name,
                 project=project,
                 state=state,
-                status=get_in(fs,"status"),
+                status=get_in(fs, "status"),
                 uid=uid,
                 updated=datetime.now(timezone.utc)
             )

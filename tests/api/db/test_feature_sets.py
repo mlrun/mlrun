@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from tests.api.db.conftest import dbs
-from mlrun.api.db.sqldb.models import FeatureSet
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -63,5 +62,3 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
     print("Got from DB: {}".format(fs_res.dict()))
 
     fs_res = db.list_feature_sets(db_session, proj)
-
-

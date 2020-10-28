@@ -52,5 +52,3 @@ class FeatureSetRecord(BaseModel):
 
     class Config:
         orm_mode = True
-
-

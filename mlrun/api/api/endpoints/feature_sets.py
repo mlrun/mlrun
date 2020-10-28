@@ -1,4 +1,3 @@
-from operator import attrgetter
 from http import HTTPStatus
 from typing import List
 

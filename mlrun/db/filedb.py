@@ -521,4 +521,3 @@ def make_time_pred(since, until):
         return since <= t <= until
 
     return pred
-

@@ -1,8 +1,13 @@
-import importlib.resources
 import json
+import sys
 
 import mlrun.utils
 from mlrun.utils.singleton import Singleton
+
+if sys.version_info >= (3, 7):
+    from importlib.resources import read_text
+else:
+    from importlib_resources import read_text
 
 
 class Version(metaclass=Singleton):
@@ -12,7 +17,7 @@ class Version(metaclass=Singleton):
         self.version_info = {"git_commit": "unknown", "version": "unstable"}
         try:
             self.version_info = json.loads(
-                importlib.resources.read_text("mlrun.utils.version", "version.json")
+                read_text("mlrun.utils.version", "version.json")
             )
         except Exception:
             mlrun.utils.logger.warning(

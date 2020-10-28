@@ -462,6 +462,12 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed deleting schedule {project}/{name}"
         self.api_call("DELETE", path, error_message)
 
+    def invoke_schedule(self, project: str, name: str):
+        project = project or default_project
+        path = f"projects/{project}/schedules/{name}/invoke"
+        error_message = f"Failed invoking schedule {project}/{name}"
+        self.api_call("POST", path, error_message)
+
     def delete_project(self, name: str):
         path = f"projects/{name}"
         error_message = f"Failed deleting project {name}"

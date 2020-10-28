@@ -2,6 +2,7 @@
 
 - [Overview](#overview)
 - [Datasets](#datasets)
+  - [Logging a Dataset From a Job](#logging-a-dataset-from-a-job)
 - [Models](#models)
 - [Plots](#plots)
 
@@ -37,11 +38,69 @@ Where `key` is the the name of the artifact and `df` is the DataFrame. By defaul
 
 MLRun will also calculate statistics on the DataFrame on all numeric fields. You can enable statistics regardless to the DataFrame size by setting the `stats` parameter to `True`.
 
+### Logging a Dataset From a Job
+
+The following example shows how to work with datasets from a [job](job-submission-and-tracking.html):
+
+``` python
+from os import path
+from mlrun.execution import MLClientCtx
+from mlrun.datastore import DataItem
+
+# Ingest a data set into the platform
+def get_data(context: MLClientCtx, source_url: DataItem, format: str = 'csv'):
+
+    iris_dataset = source_url.as_df()
+
+    target_path = path.join(context.artifact_path, 'data')
+    # Optionally print data to your logger
+    context.logger.info('Saving Iris data set to {} ...'.format(target_path))
+
+    # Store the data set in your artifacts database
+    context.log_dataset('iris_dataset', df=iris_dataset, format=format,
+                        index=False, artifact_path=target_path)
+```
+
+We can run this function locally or as a job. For example if we run it locally:
+
+``` python
+from os import path
+from mlrun import new_project, run_local, mlconf
+
+project_name = 'my-project'
+project_path = path.abspath('conf')
+project = new_project(project_name, project_path, init_git=True)
+
+# Target location for storing pipeline artifacts
+artifact_path = path.abspath('jobs')
+# MLRun DB path or API service URL
+mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
+
+source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
+# Run get-data function locally
+get_data_run = run_local(name='get_data',
+                         handler=get_data,
+                         inputs={'source_url': source_url},
+                         project=project_name,
+                         artifact_path=artifact_path)
+```
+
+The dataset location is returned in the `outputs` field, therefore you can get the location by calling `get_data_run.outputs['iris_dataset']` and use the `get_dataitem` function to get the dataset itself.
+
+
+``` python
+# Read your data set
+from mlrun.run import get_dataitem
+dataset = get_dataitem(get_data_run.outputs['iris_dataset'])
+```
+
+Call `dataset.meta.stats` to obtain the data statistics. You can also get the data as a Pandas Dataframe by calling the `dataset.as_df()`.
+
 ## Models
 
 An essential piece of artifact management and versioning is storing a model version. This allows the users to experiment with different models and compare their performance, without having to worry about losing their previous results.
 
-The simplest way to store a model named `model` is with the following code:
+The simplest way to store a model named `my_model` is with the following code:
 
 ``` python
 from pickle import dumps
@@ -100,8 +159,8 @@ gen_func = code_to_function(name=train_iris,
 train_iris_func = project.set_function(gen_func).apply(auto_mount())
 
 train_iris = train_iris_func.run(name=train_iris,
-                                    handler=train_iris,
-                                    artifact_path=artifact_path)
+                                 handler=train_iris,
+                                 artifact_path=artifact_path)
 ```
 
 You can now use `get_model` to read the model and run it. This function will get the model file, metadata, and extra data. The input can be either the path of the model, or the directory where the model resides. If you provide a directory, the function will search for the model file (by default it searches for .pkl files)
@@ -150,7 +209,7 @@ run = func.run(name=test_model,
                 handler=test_model,
                 params={'label_column': 'label'},
                 inputs={'models_path': train_iris.outputs['model'],
-                        'test_set': 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'}),
+                        'test_set': 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'}),
                 artifact_path=artifact_path)
 ```
 
@@ -161,8 +220,27 @@ Storing plots is useful to visualize the data and to show any information regard
 For example, the following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.plot_confusion_matrix.html#sklearn.metrics.plot_confusion_matrix) and stores the plot in the artifact repository:
 
 ``` python
-    cmd = metrics.plot_confusion_matrix(model, xtest, ytest, normalize='all', values_format='.2g', cmap=plt.cm.Blues)
-    context.log_artifact(PlotArtifact('confusion-matrix', body=cmd.figure_), local_path='plots/confusion_matrix.html')
+from mlrun.artifacts import PlotArtifact
+from mlrun.mlutils import gcf_clear
+
+gcf_clear(plt)
+confusion_matrix = metrics.plot_confusion_matrix(model,
+                                                 xtest,
+                                                 ytest,
+                                                 normalize='all',
+                                                 values_format = '.2g',
+                                                 cmap=plt.cm.Blues)
+confusion_matrix = context.log_artifact(PlotArtifact('confusion-matrix', body=confusion_matrix.figure_), 
+                                        local_path='plots/confusion_matrix.html')
+```
+
+You can use the `update_dataset_meta` function to associate the plot with the dataset by assigning the value of the `extra_data` parameter:
+
+``` python
+from mlrun.artifacts import update_dataset_meta
+
+extra_data = {'confusion_matrix': confusion_matrix}
+update_dataset_meta(dataset, extra_data=extra_data)
 ```
 
 [Back to top](#top)

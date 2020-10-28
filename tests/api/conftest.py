@@ -24,7 +24,11 @@ def db() -> Generator:
     db_file = NamedTemporaryFile(suffix="-mlrun.db")
     logger.info(f"Created temp db file: {db_file.name}")
     config.httpdb.db_type = "sqldb"
-    config.httpdb.dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
+    dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
+    config.httpdb.dsn = dsn
+
+    # we're also running client code in tests
+    config.dbpath = dsn
 
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests

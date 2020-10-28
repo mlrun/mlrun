@@ -22,15 +22,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: JUPYTER_ENABLE_LAB
-          value: "yes"
         - name: MLRUN_DBPATH
           value: "http://mlrun-api:8080"
-        - name: MLRUN_ARTIFACT_PATH
-          value: "/home/jovyan/data"
         volumeMounts:
         - mountPath: /home/jovyan/data
-          name: notebooks
+          name: storage
         ports:
         - containerPort: 8888
         command: ["start-notebook.sh"]
@@ -41,9 +37,9 @@ spec:
         - --NotebookApp.password=''
         - --NotebookApp.default_url="/lab"
       volumes:
-      - name: notebooks
+      - name: storage
         persistentVolumeClaim:
-          claimName: nfsvol
+          claimName: nfs-pvc
 ---
 kind: Service
 apiVersion: v1

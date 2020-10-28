@@ -17,7 +17,6 @@ spec:
       containers:
       - name: mlrun-ui
         image: mlrun/mlrun-ui:0.5.2
-        imagePullPolicy: Always
         env:
         - name: MLRUN_API_PROXY_URL
           value: http://mlrun-api:8080

@@ -59,7 +59,7 @@ The following example uses a shared NFS server and a Helm chart for the installa
 1. Run the following commands (provided Helm is installed):
     ```sh
     helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-    helm install stable/nfs-server-provisioner --name nfsprov
+    helm install nfsprov stable/nfs-server-provisioner
     ```
 2. Create a `PersistentVolumeClaim` (PVC) for a shared NFS volume: copy the [**nfs-pvc.yaml**](nfs-pvc.yaml) file to you cluster and run the following command:
     ```sh

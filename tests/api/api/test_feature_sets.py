@@ -7,42 +7,21 @@ from sqlalchemy.orm import Session
 fs = {
     "metadata": {
         "name": "dummy",
-        "labels": {
-            "owner": "saarc",
-            "group": "dev",
-        },
+        "labels": {"owner": "saarc", "group": "dev"},
         "tag": "latest",
     },
     "spec": {
-        "entities": [
-            {
-                "name": "ticker",
-                "value_type": "str",
-            },
-        ],
+        "entities": [{"name": "ticker", "value_type": "str"}],
         "features": [
-            {
-                "name": "time",
-                "value_type": "datetime",
-            },
-            {
-                "name": "bid",
-                "value_type": "float",
-            },
-            {
-                "name": "ask",
-                "value_type": "time",
-            },
+            {"name": "time", "value_type": "datetime"},
+            {"name": "bid", "value_type": "float"},
+            {"name": "ask", "value_type": "time"},
         ],
     },
     "status": {
         "state": "created",
         "stats": {
-            "time": {
-                "count": "8",
-                "unique": "7",
-                "top": "2016-05-25 13:30:00.222222"
-            }
+            "time": {"count": "8", "unique": "7", "top": "2016-05-25 13:30:00.222222"}
         },
     },
 }
@@ -57,7 +36,9 @@ def test_list(client: TestClient, proj, query, num_entities):
     json_resp = resp.json()
     print("Response is: {}".format(json_resp))
     assert "feature_sets" in json_resp, "no feature sets"
-    assert len(json_resp["feature_sets"]) == num_entities, "wrong number of feature sets in response"
+    assert (
+        len(json_resp["feature_sets"]) == num_entities
+    ), "wrong number of feature sets in response"
 
 
 def test_feature_set(db: Session, client: TestClient) -> None:
@@ -79,10 +60,7 @@ def test_feature_set(db: Session, client: TestClient) -> None:
 
     name = "feat_3"
     fs["metadata"]["name"] = name
-    fs["spec"]["entities"] = [{
-        "name": "buyer",
-        "value_type": "str",
-        }]
+    fs["spec"]["entities"] = [{"name": "buyer", "value_type": "str"}]
 
     resp = client.post(f"/api/projects/{proj_name}/feature_sets", json=fs)
     assert resp.status_code == HTTPStatus.OK.value, "add"
@@ -95,16 +73,8 @@ def test_feature_set(db: Session, client: TestClient) -> None:
 
     # Update a feature-set
     fs_update = {
-        "entities": [
-            {
-                "name": "market_cap",
-                "value_type": "integer",
-            },
-        ],
-        "labels": {
-            "new-label": "new-value",
-            "owner": "someone-else",
-        },
+        "entities": [{"name": "market_cap", "value_type": "integer"}],
+        "labels": {"new-label": "new-value", "owner": "someone-else"},
     }
     resp = client.put(f"/api/projects/{proj_name}/feature_sets/{name}", json=fs_update)
     assert resp.status_code == HTTPStatus.OK.value, "update"
@@ -112,7 +82,9 @@ def test_feature_set(db: Session, client: TestClient) -> None:
     assert resp.status_code == HTTPStatus.OK.value, "get"
     updated_resp = resp.json()
     fs_resp = updated_resp["feature_set"]["metadata"]
-    assert len(fs_resp["labels"]) == 3 and "new-label" in fs_resp["labels"], "update corrupt data"
+    assert (
+        len(fs_resp["labels"]) == 3 and "new-label" in fs_resp["labels"]
+    ), "update corrupt data"
 
     # Delete the last fs
     resp = client.delete(f"/api/projects/{proj_name}/feature_sets/{name}")

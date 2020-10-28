@@ -137,36 +137,24 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def get_feature_set(
-            self,
-            session,
-            project: str,
-            name: str,
-            tag: str = None,
-            hash_key: str = None
+        self, session, project: str, name: str, tag: str = None, hash_key: str = None
     ) -> schemas.FeatureSet:
         raise NotImplementedError()
 
     def list_feature_sets(
-            self,
-            session,
-            project: str,
-            name: str = None,
-            tag: str = None,
-            state: str = None,
-            entities: List[str] = None,
-            features: List[str] = None,
-            labels: List[str] = None,
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
     ) -> List[schemas.FeatureSet]:
         raise NotImplementedError()
 
-    def update_feature_set(
-            self,
-            session,
-            project,
-            name,
-            fs: dict,
-            tag=None
-    ):
+    def update_feature_set(self, session, project, name, fs: dict, tag=None):
         raise NotImplementedError()
 
     def delete_feature_set(self, session, project, name):

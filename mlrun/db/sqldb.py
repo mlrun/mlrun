@@ -213,40 +213,45 @@ class SQLDB(RunDBInterface):
             raise RunDBError(exc.args)
 
     def create_feature_set(self, fs: dict, project="", versioned=False):
-        return self._transform_db_error(self.db.add_feature_set, self.session, project, fs, versioned)
-
-    def get_feature_set(
-            self,
-            name: str,
-            project: str = "",
-            tag: str = None,
-            hash_key: str = None
-    ):
-        return self._transform_db_error(self.db.get_feature_set, self.session, project, name, tag, hash_key)
-
-    def list_feature_sets(
-            self,
-            project: str = "",
-            name: str = None,
-            tag: str = None,
-            state: str = None,
-            entities: List[str] = None,
-            features: List[str] = None,
-            labels: List[str] = None,
-    ):
         return self._transform_db_error(
-            self.db.list_feature_sets, self.session, project, name, tag, state, entities, features, labels
+            self.db.add_feature_set, self.session, project, fs, versioned
         )
 
-    def update_feature_set(
-            self,
-            name,
-            fs: dict,
-            project="",
-            tag=None,
-            uid=None
+    def get_feature_set(
+        self, name: str, project: str = "", tag: str = None, hash_key: str = None
     ):
-        return self._transform_db_error(self.db.update_feature_set, self.session, project, name, fs, tag, uid)
+        return self._transform_db_error(
+            self.db.get_feature_set, self.session, project, name, tag, hash_key
+        )
+
+    def list_feature_sets(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_feature_sets,
+            self.session,
+            project,
+            name,
+            tag,
+            state,
+            entities,
+            features,
+            labels,
+        )
+
+    def update_feature_set(self, name, fs: dict, project="", tag=None, uid=None):
+        return self._transform_db_error(
+            self.db.update_feature_set, self.session, project, name, fs, tag, uid
+        )
 
     def delete_feature_set(self, name, project=""):
-        return self._transform_db_error(self.db.delete_feature_set, self.session, project, name)
+        return self._transform_db_error(
+            self.db.delete_feature_set, self.session, project, name
+        )

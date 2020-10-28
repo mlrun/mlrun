@@ -331,32 +331,15 @@ def test_list_feature_sets(create_server):
     fs = {
         "metadata": {
             "name": "dummy",
-            "labels": {
-                "owner": "saarc",
-                "group": "dev",
-            },
+            "labels": {"owner": "saarc", "group": "dev"},
             "tag": "latest",
         },
         "spec": {
-            "entities": [
-                {
-                    "name": "ticker",
-                    "value_type": "str",
-                },
-            ],
+            "entities": [{"name": "ticker", "value_type": "str"}],
             "features": [
-                {
-                    "name": "time",
-                    "value_type": "datetime",
-                },
-                {
-                    "name": "bid",
-                    "value_type": "float",
-                },
-                {
-                    "name": "ask",
-                    "value_type": "time",
-                },
+                {"name": "time", "value_type": "datetime"},
+                {"name": "bid", "value_type": "float"},
+                {"name": "ask", "value_type": "time"},
             ],
         },
         "status": {
@@ -365,7 +348,7 @@ def test_list_feature_sets(create_server):
                 "time": {
                     "count": "8",
                     "unique": "7",
-                    "top": "2016-05-25 13:30:00.222222"
+                    "top": "2016-05-25 13:30:00.222222",
                 }
             },
         },
@@ -379,13 +362,10 @@ def test_list_feature_sets(create_server):
         db.create_feature_set(fs, project=proj, versioned=True)
 
     fs_update = {
-        "labels": {
-            "new-label": "new-value",
-            "owner": "someone-else",
-        },
+        "labels": {"new-label": "new-value", "owner": "someone-else"},
     }
 
-    db.update_feature_set(name, fs_update, proj, tag='latest')
+    db.update_feature_set(name, fs_update, proj, tag="latest")
     feat_sets = db.list_feature_sets(project=proj)
 
     for fs in feat_sets:

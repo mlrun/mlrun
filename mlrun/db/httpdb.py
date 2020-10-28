@@ -650,40 +650,31 @@ class HTTPRunDB(RunDBInterface):
     def create_feature_set(self, fs: dict, project="", versioned=False):
         project = project or default_project
         path = f"projects/{project}/feature_sets"
-        params = {
-            "versioned": versioned
-        }
+        params = {"versioned": versioned}
 
         name = fs["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         self.api_call("POST", path, error_message, params=params, body=json.dumps(fs))
 
     def get_feature_set(
-            self,
-            name: str,
-            project: str = "",
-            tag: str = None,
-            hash_key: str = None
+        self, name: str, project: str = "", tag: str = None, hash_key: str = None
     ):
         project = project or default_project
         path = f"projects/{project}/feature_sets/{name}"
-        params = {
-            "tag": tag,
-            "hash_key": hash_key
-        }
+        params = {"tag": tag, "hash_key": hash_key}
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message, params=params)
         return resp.json()["feature_set"]
 
     def list_feature_sets(
-            self,
-            project: str = "",
-            name: str = None,
-            tag: str = None,
-            state: str = None,
-            entities: List[str] = None,
-            features: List[str] = None,
-            labels: List[str] = None,
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
     ):
         project = project or default_project
         params = {
@@ -696,18 +687,13 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{project}/feature_sets"
 
-        error_message = f"Failed listing feature-sets, project: {project}, query: {params}"
+        error_message = (
+            f"Failed listing feature-sets, project: {project}, query: {params}"
+        )
         resp = self.api_call("GET", path, error_message, params=params)
         return resp.json()["feature_sets"]
 
-    def update_feature_set(
-            self,
-            name,
-            fs: dict,
-            project="",
-            tag=None,
-            uid=None
-    ):
+    def update_feature_set(self, name, fs: dict, project="", tag=None, uid=None):
         project = project or default_project
         path = f"projects/{project}/feature_sets/{name}"
         params = {

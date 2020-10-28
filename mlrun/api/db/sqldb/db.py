@@ -675,12 +675,7 @@ class SQLDB(DBInterface):
         return self._query(session, Project, owner=owner)
 
     def get_feature_set(
-            self,
-            session,
-            project: str,
-            name: str,
-            tag: str = None,
-            hash_key: str = None
+        self, session, project: str, name: str, tag: str = None, hash_key: str = None
     ) -> schemas.FeatureSet:
         query = self._query(session, FeatureSet, name=name, project=project)
         computed_tag = tag or "latest"
@@ -713,32 +708,25 @@ class SQLDB(DBInterface):
 
     # TODO - IMPLEMENT QUERY BY LABEL!!!!!
     def list_feature_sets(
-            self,
-            session,
-            project: str,
-            name: str = None,
-            tag: str = None,
-            state: str = None,
-            entities: List[str] = None,
-            features: List[str] = None,
-            labels: List[str] = None,
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
     ) -> List[schemas.FeatureSet]:
         # Find object IDs by tag, project and fs-name (which is a like query)
-        tag = tag or 'latest'
+        tag = tag or "latest"
         tag_query = self._query(session, FeatureSet.Tag, project=project, name=tag)
         if name:
             tag_query = tag_query.filter(FeatureSet.Tag.obj_name.ilike(f"%{name}%"))
-        obj_uids = {
-            row.obj_id: row.name for row in tag_query
-        }
+        obj_uids = {row.obj_id: row.name for row in tag_query}
 
         # Query exact fields
-        query = self._query(
-            session,
-            FeatureSet,
-            project=project,
-            state=state
-        )
+        query = self._query(session, FeatureSet, project=project, state=state)
 
         if name is not None:
             query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
@@ -746,10 +734,14 @@ class SQLDB(DBInterface):
             query = query.filter(FeatureSet.id.in_(obj_uids.keys()))
         if entities:
             ent_alias = aliased(Feature)
-            query = query.join(FeatureSet.entities.of_type(ent_alias)).filter(ent_alias.name.in_(entities))
+            query = query.join(FeatureSet.entities.of_type(ent_alias)).filter(
+                ent_alias.name.in_(entities)
+            )
         if features:
             feat_alias = aliased(Feature)
-            query = query.join(FeatureSet.features.of_type(feat_alias)).filter(feat_alias.name.in_(features))
+            query = query.join(FeatureSet.features.of_type(feat_alias)).filter(
+                feat_alias.name.in_(features)
+            )
 
         feature_sets = []
         for db_fs in query:
@@ -759,7 +751,9 @@ class SQLDB(DBInterface):
         return feature_sets
 
     @staticmethod
-    def _update_fs_features(fs: FeatureSet, features: dict, is_entity=False, replace=False):
+    def _update_fs_features(
+        fs: FeatureSet, features: dict, is_entity=False, replace=False
+    ):
         if replace:
             if is_entity:
                 fs.entities = []
@@ -769,10 +763,10 @@ class SQLDB(DBInterface):
         for feat in features:
             f = Feature(**feat)
             if is_entity:
-                f.type = 'entity'
+                f.type = "entity"
                 fs.entities.append(f)
             else:
-                f.type = 'feature'
+                f.type = "feature"
                 fs.features.append(f)
 
     def add_feature_set(self, session, project, fs: dict, versioned=False):
@@ -797,7 +791,9 @@ class SQLDB(DBInterface):
         else:
             uid = f"unversioned-{tag}"
 
-        feature_set = self._query(session, FeatureSet, name=name, project=project, uid=uid).one_or_none()
+        feature_set = self._query(
+            session, FeatureSet, name=name, project=project, uid=uid
+        ).one_or_none()
         if not feature_set:
             state = get_in(fs, "status.state")
 
@@ -807,7 +803,7 @@ class SQLDB(DBInterface):
                 state=state,
                 status=get_in(fs, "status"),
                 uid=uid,
-                updated=datetime.now(timezone.utc)
+                updated=datetime.now(timezone.utc),
             )
 
         fs_spec = fs.get("spec")
@@ -826,26 +822,22 @@ class SQLDB(DBInterface):
 
         return hash_key
 
-    def update_feature_set(
-            self,
-            session,
-            project,
-            name,
-            fs: dict,
-            tag=None,
-            uid=None
-    ):
+    def update_feature_set(self, session, project, name, fs: dict, tag=None, uid=None):
         # If object uid was given, use it. Else, find it by tag
         if not uid:
-            tag = tag or 'latest'
-            tag = self._query(session, FeatureSet.Tag, project=project, name=tag, obj_name=name).one_or_none()
+            tag = tag or "latest"
+            tag = self._query(
+                session, FeatureSet.Tag, project=project, name=tag, obj_name=name
+            ).one_or_none()
             if not tag:
                 raise mlrun.errors.MLRunNotFoundError(
                     f"Feature-set not found {project}/{name}:{tag}"
                 )
             query = self._query(session, FeatureSet, id=tag.obj_id)
         else:
-            query = self._query(session, FeatureSet, name=name, project=project, uid=uid)
+            query = self._query(
+                session, FeatureSet, name=name, project=project, uid=uid
+            )
 
         db_fs = query.one_or_none()
         if not db_fs:
@@ -1196,20 +1188,14 @@ class SQLDB(DBInterface):
         setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
 
     @staticmethod
-    def _transform_feature_set_model_to_scheme(
-        db_fs: FeatureSet
-    ) -> schemas.FeatureSet:
+    def _transform_feature_set_model_to_scheme(db_fs: FeatureSet) -> schemas.FeatureSet:
         fs = schemas.FeatureSetRecord.from_orm(db_fs)
 
         fs_dict = fs.dict()
         fs_md = schemas.FeatureSetMetaData(**fs_dict)
         fs_spec = schemas.FeatureSetSpec(**fs_dict)
 
-        fs_ret = schemas.FeatureSet(
-            metadata=fs_md,
-            spec=fs_spec,
-            status=fs.status
-        )
+        fs_ret = schemas.FeatureSet(metadata=fs_md, spec=fs_spec, status=fs.status)
 
         fs_ret.metadata.labels = {label.name: label.value for label in db_fs.labels}
         return fs_ret

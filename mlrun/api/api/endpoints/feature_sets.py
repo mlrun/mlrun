@@ -14,10 +14,10 @@ router = APIRouter()
 
 @router.post("/projects/{project}/feature_sets")
 def add_feature_set(
-        project: str,
-        feature_set: schemas.FeatureSet,
-        versioned: bool = False,
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    feature_set: schemas.FeatureSet,
+    versioned: bool = False,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     fs_id = get_db().add_feature_set(db_session, project, feature_set.dict(), versioned)
 
@@ -29,12 +29,12 @@ def add_feature_set(
 
 @router.put("/projects/{project}/feature_sets/{name}")
 def update_feature_set(
-        project: str,
-        name: str,
-        feature_set: schemas.FeatureSetUpdate,
-        tag: str = None,
-        uid: str = None,
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    feature_set: schemas.FeatureSetUpdate,
+    tag: str = None,
+    uid: str = None,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     get_db().update_feature_set(db_session, project, name, feature_set.dict(), tag, uid)
     return Response(status_code=HTTPStatus.OK.value)
@@ -62,9 +62,7 @@ def get_feature_set(
 
 @router.delete("/projects/{project}/feature_sets/{name}")
 def delete_feature_set(
-        project: str,
-        name: str,
-        db_session: Session = Depends(deps.get_db_session),
+    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):
     get_db().delete_feature_set(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
@@ -72,24 +70,17 @@ def delete_feature_set(
 
 @router.get("/projects/{project}/feature_sets")
 def list_feature_sets(
-        project: str,
-        name: str = None,
-        state: str = None,
-        tag: str = None,
-        entities: List[str] = Query(None, alias="entity"),
-        features: List[str] = Query(None, alias="feature"),
-        labels: List[str] = Query(None, alias="label"),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str = None,
+    state: str = None,
+    tag: str = None,
+    entities: List[str] = Query(None, alias="entity"),
+    features: List[str] = Query(None, alias="feature"),
+    labels: List[str] = Query(None, alias="label"),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     fs_list = get_db().list_feature_sets(
-        db_session,
-        project,
-        name,
-        tag,
-        state,
-        entities,
-        features,
-        labels
+        db_session, project, name, tag, state, entities, features, labels
     )
 
     return {

@@ -230,7 +230,7 @@ with warnings.catch_warnings():
     class Feature(Base):
         __tablename__ = "features"
         id = Column(Integer, primary_key=True)
-        feature_set_id = Column(Integer, ForeignKey('feature_sets.id'))
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
 
         name = Column(String)
         value_type = Column(String)
@@ -260,15 +260,17 @@ with warnings.catch_warnings():
 
         labels = relationship(Label)
 
-        features = relationship(Feature,
-                                cascade="all, delete, delete-orphan",
-                                primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'feature')"
-                                )
+        features = relationship(
+            Feature,
+            cascade="all, delete, delete-orphan",
+            primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'feature')",
+        )
 
-        entities = relationship(Feature,
-                                cascade="all, delete, delete-orphan",
-                                primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'entity')"
-                                )
+        entities = relationship(
+            Feature,
+            cascade="all, delete, delete-orphan",
+            primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'entity')",
+        )
 
         @property
         def status(self):

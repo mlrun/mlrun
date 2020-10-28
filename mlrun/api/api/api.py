@@ -57,5 +57,7 @@ api_router.include_router(
     workflows.router, tags=["workflows"], dependencies=[Depends(deps.AuthVerifier)]
 )
 api_router.include_router(
-    feature_sets.router, tags=["feature_sets"], dependencies=[Depends(deps.AuthVerifier)]
+    feature_sets.router,
+    tags=["feature_sets"],
+    dependencies=[Depends(deps.AuthVerifier)],
 )

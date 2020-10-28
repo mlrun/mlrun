@@ -61,7 +61,11 @@ def _assert_resources_in_project(
             # Label doesn't have project attribute
             # Project (obviously) doesn't have project attribute
             # Features are not directly linked to project since they are sub-entity of feature-sets
-            if cls.__name__ != "Label" and cls.__name__ != "Project" and cls.__name__ != "Feature":
+            if (
+                cls.__name__ != "Label"
+                and cls.__name__ != "Project"
+                and cls.__name__ != "Feature"
+            ):
                 number_of_cls_records = (
                     db_session.query(cls).filter_by(project=project).count()
                 )
@@ -195,24 +199,8 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
         )
 
     feature_set = {
-        "metadata": {
-            "name": "dummy",
-            "tag": "latest",
-            "labels": {
-                "owner": "nobody",
-            }
-        },
-        "spec": {
-            "entities": [{
-                "name": "ent1",
-                "value_type": "str",
-            }],
-            "features": [],
-        },
-        "status": {}
+        "metadata": {"name": "dummy", "tag": "latest", "labels": {"owner": "nobody"}},
+        "spec": {"entities": [{"name": "ent1", "value_type": "str"}], "features": []},
+        "status": {},
     }
-    db.add_feature_set(
-        db_session,
-        project,
-        feature_set
-    )
+    db.add_feature_set(db_session, project, feature_set)

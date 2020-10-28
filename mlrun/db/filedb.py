@@ -467,34 +467,23 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def get_feature_set(
-            self,
-            name: str,
-            project: str = "",
-            tag: str = None,
-            hash_key: str = None
+        self, name: str, project: str = "", tag: str = None, hash_key: str = None
     ):
         raise NotImplementedError()
 
     def list_feature_sets(
-            self,
-            project: str = "",
-            name: str = None,
-            tag: str = None,
-            state: str = None,
-            entities: List[str] = None,
-            features: List[str] = None,
-            labels: List[str] = None,
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
     ):
         raise NotImplementedError()
 
-    def update_feature_set(
-            self,
-            name,
-            fs: dict,
-            project="",
-            tag=None,
-            uid=None
-    ):
+    def update_feature_set(self, name, fs: dict, project="", tag=None, uid=None):
         raise NotImplementedError()
 
     def delete_feature_set(self, name, project=""):

@@ -11,33 +11,13 @@ from tests.api.db.conftest import dbs
 )
 def test_create_feature_set(db: DBInterface, db_session: Session):
     fs = {
-        "metadata": {
-            "name": "dummy",
-            "labels": {
-                "owner": "saarc",
-                "group": "dev",
-            },
-        },
+        "metadata": {"name": "dummy", "labels": {"owner": "saarc", "group": "dev"}},
         "spec": {
-            "entities": [
-                {
-                    "name": "ticker",
-                    "value_type": "str",
-                },
-            ],
+            "entities": [{"name": "ticker", "value_type": "str"}],
             "features": [
-                {
-                    "name": "time",
-                    "value_type": "datetime",
-                },
-                {
-                    "name": "bid",
-                    "value_type": "float",
-                },
-                {
-                    "name": "ask",
-                    "value_type": "time",
-                },
+                {"name": "time", "value_type": "datetime"},
+                {"name": "bid", "value_type": "float"},
+                {"name": "ask", "value_type": "time"},
             ],
         },
         "status": {
@@ -46,7 +26,7 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
                 "time": {
                     "count": "8",
                     "unique": "7",
-                    "top": "2016-05-25 13:30:00.222222"
+                    "top": "2016-05-25 13:30:00.222222",
                 }
             },
         },

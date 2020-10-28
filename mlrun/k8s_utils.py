@@ -281,10 +281,7 @@ class K8sHelper:
         sa = client.V1ServiceAccount()
         sa.metadata = client.V1ObjectMeta(name=sa_name, namespace=namespace)
         try:
-            api_response = self.v1api.create_namespaced_service_account(
-                namespace,
-                sa,
-            )
+            api_response = self.v1api.create_namespaced_service_account(namespace, sa,)
             return api_response
         except ApiException as e:
             logger.error("failed to create service account: {}".format(e))
@@ -389,10 +386,7 @@ class BasePod:
         self.add_volume(
             client.V1Volume(
                 name=name,
-                secret=client.V1SecretVolumeSource(
-                    secret_name=name,
-                    items=items,
-                ),
+                secret=client.V1SecretVolumeSource(secret_name=name, items=items,),
             ),
             mount_path=path,
         )

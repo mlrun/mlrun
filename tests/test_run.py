@@ -193,7 +193,9 @@ def test_vault_secrets():
     github_key_value = "proj1Key!!!"
 
     proj = new_project(proj_name, use_vault=True)
-    proj.create_vault_secrets({"aws_key": aws_key_value, "github_key": github_key_value})
+    proj.create_vault_secrets(
+        {"aws_key": aws_key_value, "github_key": github_key_value}
+    )
     secs = proj.get_vault_secret_keys()
     assert secs == ["aws_key", "github_key"], "secrets not created"
 
@@ -208,7 +210,7 @@ def test_vault_secrets():
         kind="job",
     )
     # func.spec.build.base_image = 'saarcoiguazio/mlrun:unstable'
-    func.spec.build.image = '.mlrun-vault-image'
+    func.spec.build.image = ".mlrun-vault-image"
     # func.spec.image = ".mlrun-vault-image"
     func.deploy()
 
@@ -230,5 +232,9 @@ def test_vault_secrets():
     log = str(log)
     print(state)
 
-    assert log.find("value: {}".format(aws_key_value)) != -1, "secret value not detected in function output"
-    assert log.find("value: {}".format(github_key_value)) != -1, "secret value not detected in function output"
+    assert (
+        log.find("value: {}".format(aws_key_value)) != -1
+    ), "secret value not detected in function output"
+    assert (
+        log.find("value: {}".format(github_key_value)) != -1
+    ), "secret value not detected in function output"

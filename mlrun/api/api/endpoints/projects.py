@@ -42,7 +42,9 @@ def update_project(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project.name and project.name != name:
-        log_and_raise(error=f"Conflict between path proj name {name} and project name {project.name}")
+        log_and_raise(
+            error=f"Conflict between path proj name {name} and project name {project.name}"
+        )
 
     proj = get_db().get_project(db_session, name)
     if not proj:

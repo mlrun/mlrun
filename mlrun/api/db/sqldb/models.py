@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import orjson
+import json
 import pickle
 import warnings
 from datetime import datetime, timezone
@@ -236,8 +237,9 @@ with warnings.catch_warnings():
         # Either 'entity' or 'feature', according to the type of the feature
         type = Column(String)
 
-        Label = make_label(__tablename__)
-        labels = relationship(Label)
+        # Labels for features are not implemented yet.
+        # Label = make_label(__tablename__)
+        # labels = relationship(Label)
 
     class FeatureSet(Base):
         __tablename__ = "feature_sets"
@@ -271,11 +273,11 @@ with warnings.catch_warnings():
         @property
         def status(self):
             if self._status:
-                return orjson.loads(self._status)
+                return json.loads(self._status)
 
         @status.setter
         def status(self, value):
-            self._status = orjson.dumps(value)
+            self._status = json.dumps(value)
 
 
 # Must be after all table definitions

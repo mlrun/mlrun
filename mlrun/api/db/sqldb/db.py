@@ -550,6 +550,11 @@ class SQLDB(DBInterface):
         for schedule in self.list_schedules(session, project=project):
             self.delete_schedule(session, project, schedule.name)
 
+    def _delete_feature_sets(self, session: Session, project: str):
+        logger.debug("Removing feature-sets from db", project=project)
+        for fs in self.list_feature_sets(session, project):
+            self.delete_feature_set(session, project, fs.metadata.name)
+
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.
 
@@ -658,6 +663,7 @@ class SQLDB(DBInterface):
         self.del_runs(session, project=name)
         self._delete_schedules(session, name)
         self._delete_functions(session, name)
+        self._delete_feature_sets(session, name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources

@@ -11,6 +11,7 @@ from mlrun.api.db.sqldb.models import (
     Project,
     Run,
     Artifact,
+    FeatureSet,
 )
 from tests.api.db.conftest import dbs
 
@@ -59,7 +60,8 @@ def _assert_resources_in_project(
             number_of_cls_records = 0
             # Label doesn't have project attribute
             # Project (obviously) doesn't have project attribute
-            if cls.__name__ != "Label" and cls.__name__ != "Project":
+            # Features are not directly linked to project since they are sub-entity of feature-sets
+            if cls.__name__ != "Label" and cls.__name__ != "Project" and cls.__name__ != "Feature":
                 number_of_cls_records = (
                     db_session.query(cls).filter_by(project=project).count()
                 )
@@ -85,6 +87,16 @@ def _assert_resources_in_project(
                         .filter(Artifact.project == project)
                         .count()
                     )
+                if cls.__tablename__ == "feature_sets_labels":
+                    number_of_cls_records = (
+                        db_session.query(FeatureSet)
+                        .join(cls)
+                        .filter(FeatureSet.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "features_labels":
+                    # Skip this test for now - features are linked to labels, but not implemented right now.
+                    number_of_cls_records = 1
             else:
                 number_of_cls_records = (
                     db_session.query(Project).filter(Project.name == project).count()
@@ -181,3 +193,26 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
             schedule,
             schedule_cron_trigger,
         )
+
+    feature_set = {
+        "metadata": {
+            "name": "dummy",
+            "tag": "latest",
+            "labels": {
+                "owner": "nobody",
+            }
+        },
+        "spec": {
+            "entities": [{
+                "name": "ent1",
+                "value_type": "str",
+            }],
+            "features": [],
+        },
+        "status": {}
+    }
+    db.add_feature_set(
+        db_session,
+        project,
+        feature_set
+    )

@@ -27,7 +27,7 @@ fs = {
 }
 
 
-def test_list(client: TestClient, proj, query, num_entities):
+def _test_list(client: TestClient, proj, query, num_entities):
     url = f"/api/projects/{proj}/feature_sets"
     if query:
         url = url + f"?{query}"
@@ -65,11 +65,11 @@ def test_feature_set(db: Session, client: TestClient) -> None:
     resp = client.post(f"/api/projects/{proj_name}/feature_sets", json=fs)
     assert resp.status_code == HTTPStatus.OK.value, "add"
 
-    test_list(client, proj_name, None, 3)
-    test_list(client, proj_name, "name=feature", 2)
-    test_list(client, proj_name, "entity=buyer", 1)
-    test_list(client, proj_name, "entity=ticker&entity=bid", 2)
-    test_list(client, proj_name, "name=feature&entity=buyer", 0)
+    _test_list(client, proj_name, None, 3)
+    _test_list(client, proj_name, "name=feature", 2)
+    _test_list(client, proj_name, "entity=buyer", 1)
+    _test_list(client, proj_name, "entity=ticker&entity=bid", 2)
+    _test_list(client, proj_name, "name=feature&entity=buyer", 0)
 
     # Update a feature-set
     fs_update = {
@@ -91,4 +91,4 @@ def test_feature_set(db: Session, client: TestClient) -> None:
     assert resp.status_code == HTTPStatus.NO_CONTENT.value, "delete"
 
     # Now try to list - expect only 2 fs
-    test_list(client, proj_name, None, 2)
+    _test_list(client, proj_name, None, 2)

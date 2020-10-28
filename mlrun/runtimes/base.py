@@ -206,8 +206,8 @@ class BaseRuntime(ModelObj):
         )
 
     def _get_db(self):
+        self.spec.rundb = self.spec.rundb or get_or_set_dburl()
         if not self._db_conn:
-            self.spec.rundb = self.spec.rundb or get_or_set_dburl()
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
         return self._db_conn
@@ -614,24 +614,26 @@ class BaseRuntime(ModelObj):
         labels: dict = None,
         use_db=True,
         verbose=None,
+        scrape_metrics=False,
     ):
         """Run a local or remote task.
 
-        :param runspec:    run template object or dict (see RunTemplate)
-        :param handler:    name of the function handler
-        :param name:       execution name
-        :param project:    project name
-        :param params:     input parameters (dict)
-        :param hyperparams: hyper parameters
-        :param selector:   selection criteria for hyper params
-        :param inputs:     input objects (dict of key: path)
-        :param outputs:    list of outputs which can pass in the workflow
-        :param artifact_path: default artifact output path (replace out_path)
-        :param workdir:    default input artifacts path
-        :param image:      container image to use
-        :param labels:     labels to tag the job/run with ({key:val, ..})
-        :param use_db:     save function spec in the db (vs the workflow file)
-        :param verbose:    add verbose prints/logs
+        :param runspec:         run template object or dict (see RunTemplate)
+        :param handler:         name of the function handler
+        :param name:            execution name
+        :param project:         project name
+        :param params:          input parameters (dict)
+        :param hyperparams:     hyper parameters
+        :param selector:        selection criteria for hyper params
+        :param inputs:          input objects (dict of key: path)
+        :param outputs:         list of outputs which can pass in the workflow
+        :param artifact_path:   default artifact output path (replace out_path)
+        :param workdir:         default input artifacts path
+        :param image:           container image to use
+        :param labels:          labels to tag the job/run with ({key:val, ..})
+        :param use_db:          save function spec in the db (vs the workflow file)
+        :param verbose:         add verbose prints/logs
+        :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
 
         :return: KubeFlow containerOp
         """
@@ -667,6 +669,7 @@ class BaseRuntime(ModelObj):
             out_path=artifact_path,
             in_path=workdir,
             verbose=verbose,
+            scrape_metrics=scrape_metrics,
         )
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):

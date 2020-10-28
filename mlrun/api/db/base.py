@@ -128,7 +128,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, session, name, project="", tag="", labels=None):
+    def list_functions(self, session, name=None, project="", tag="", labels=None):
         pass
 
     @abstractmethod

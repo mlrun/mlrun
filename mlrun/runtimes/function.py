@@ -266,6 +266,8 @@ class RemoteRuntime(KubeResource):
         handler = self.spec.function_handler
         if self.spec.readiness_timeout:
             spec.set_config("spec.readinessTimeoutSeconds", self.spec.readiness_timeout)
+        if self.spec.resources:
+            spec.set_config("spec.resources", self.spec.resources)
         if self.spec.no_cache:
             spec.set_config("spec.build.noCache", True)
         if self.spec.replicas:

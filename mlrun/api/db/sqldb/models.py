@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+import orjson
 import pickle
 import warnings
 from datetime import datetime, timezone
@@ -181,11 +181,11 @@ with warnings.catch_warnings():
 
         @property
         def cron_trigger(self) -> schemas.ScheduleCronTrigger:
-            return json.loads(self.cron_trigger_str)
+            return orjson.loads(self.cron_trigger_str)
 
         @cron_trigger.setter
         def cron_trigger(self, trigger: schemas.ScheduleCronTrigger):
-            self.cron_trigger_str = json.dumps(trigger.dict(exclude_unset=True))
+            self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
 
     # Define "many to many" users/projects
     project_users = Table(

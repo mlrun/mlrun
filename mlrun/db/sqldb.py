@@ -154,7 +154,7 @@ class SQLDB(RunDBInterface):
             self.db.delete_function, self.session, project, name
         )
 
-    def list_functions(self, name, project=None, tag=None, labels=None):
+    def list_functions(self, name=None, project=None, tag=None, labels=None):
         return self._transform_db_error(
             self.db.list_functions, self.session, name, project, tag, labels
         )

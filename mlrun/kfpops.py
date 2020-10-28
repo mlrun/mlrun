@@ -153,6 +153,7 @@ def mlrun_op(
     more_args: list = None,
     tuning_strategy=None,
     verbose=None,
+    scrape_metrics=False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
@@ -190,6 +191,7 @@ def mlrun_op(
     :param handler   code entry-point/hanfler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
+    :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
 
     :returns: KFP step operation
 
@@ -293,6 +295,7 @@ def mlrun_op(
         project = project or runobj.metadata.project
         labels = runobj.metadata.labels or labels
         verbose = verbose or runobj.spec.verbose
+        scrape_metrics = scrape_metrics or runobj.spec.scrape_metrics
 
     if not name:
         if not function_name:
@@ -355,6 +358,8 @@ def mlrun_op(
         cmd += ["--mode", mode]
     if verbose:
         cmd += ["--verbose"]
+    if scrape_metrics:
+        cmd += ["--scrape-metrics"]
     if more_args:
         cmd += more_args
 

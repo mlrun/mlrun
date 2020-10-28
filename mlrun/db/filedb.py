@@ -323,7 +323,7 @@ class FileRunDB(RunDBInterface):
     def delete_function(self, name: str, project: str = ""):
         raise NotImplementedError()
 
-    def list_functions(self, name, project="", tag="", labels=None):
+    def list_functions(self, name=None, project="", tag="", labels=None):
         labels = labels or []
         logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")
         filepath = path.join(

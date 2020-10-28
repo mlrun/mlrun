@@ -11,6 +11,7 @@ fs = {
             "owner": "saarc",
             "group": "dev",
         },
+        "tag": "latest",
     },
     "spec": {
         "entities": [
@@ -64,7 +65,7 @@ def test_feature_set(db: Session, client: TestClient) -> None:
 
     name = "feature_set1"
     fs["metadata"]["name"] = name
-    resp = client.post(f"/api/projects/{proj_name}/feature_sets", json=fs)
+    resp = client.post(f"/api/projects/{proj_name}/feature_sets?versioned=1", json=fs)
     assert resp.status_code == HTTPStatus.OK.value, "add"
 
     resp = client.get(f"/api/projects/{proj_name}/feature_sets/{name}")
@@ -103,7 +104,7 @@ def test_feature_set(db: Session, client: TestClient) -> None:
         "labels": {
             "new-label": "new-value",
             "owner": "someone-else",
-        }
+        },
     }
     resp = client.put(f"/api/projects/{proj_name}/feature_sets/{name}", json=fs_update)
     assert resp.status_code == HTTPStatus.OK.value, "update"

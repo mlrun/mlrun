@@ -641,6 +641,82 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
+    def create_feature_set(self, fs: dict, project="", versioned=False):
+        project = project or default_project
+        path = f"projects/{project}/feature_sets"
+        params = {
+            "versioned": versioned
+        }
+
+        name = fs["metadata"]["name"]
+        error_message = f"Failed creating feature-set {project}/{name}"
+        self.api_call("POST", path, error_message, params=params, body=json.dumps(fs))
+
+    def get_feature_set(
+            self,
+            name: str,
+            project: str = "",
+            tag: str = None,
+            hash_key: str = None
+    ):
+        project = project or default_project
+        path = f"projects/{project}/feature_sets/{name}"
+        params = {
+            "tag": tag,
+            "hash_key": hash_key
+        }
+        error_message = f"Failed retrieving feature-set {project}/{name}"
+        resp = self.api_call("GET", path, error_message, params=params)
+        return resp.json()["feature_set"]
+
+    def list_feature_sets(
+            self,
+            project: str = "",
+            name: str = None,
+            tag: str = None,
+            state: str = None,
+            entities: List[str] = None,
+            features: List[str] = None,
+            labels: List[str] = None,
+    ):
+        project = project or default_project
+        params = {
+            "name": name,
+            "state": state,
+            "entity": entities or [],
+            "feature": features or [],
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/feature_sets"
+
+        error_message = f"Failed listing feature-sets, project: {project}, query: {params}"
+        resp = self.api_call("GET", path, error_message, params=params)
+        return resp.json()["feature_sets"]
+
+    def update_feature_set(
+            self,
+            name,
+            fs: dict,
+            project="",
+            tag=None,
+            uid=None
+    ):
+        project = project or default_project
+        path = f"projects/{project}/feature_sets/{name}"
+        params = {
+            "tag": tag,
+            "uid": uid,
+        }
+        error_message = f"Failed updating feature-set {project}/{name}"
+        self.api_call("PUT", path, error_message, body=json.dumps(fs), params=params)
+
+    def delete_feature_set(self, name, project=""):
+        project = project or default_project
+        path = f"projects/{project}/feature_sets/{name}"
+        error_message = f"Failed deleting project {name}"
+        self.api_call("DELETE", path, error_message)
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

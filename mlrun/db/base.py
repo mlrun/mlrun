@@ -14,6 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
+from typing import List
 
 
 class RunDBError(Exception):
@@ -123,3 +124,45 @@ class RunDBInterface(ABC):
 
     def list_artifact_tags(self, project):
         return []
+
+    @abstractmethod
+    def create_feature_set(self, fs: dict, project="", versioned=False):
+        pass
+
+    @abstractmethod
+    def get_feature_set(
+            self,
+            name: str,
+            project: str = "",
+            tag: str = None,
+            hash_key: str = None
+    ):
+        pass
+
+    @abstractmethod
+    def list_feature_sets(
+            self,
+            project: str = "",
+            name: str = None,
+            tag: str = None,
+            state: str = None,
+            entities: List[str] = None,
+            features: List[str] = None,
+            labels: List[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_feature_set(
+            self,
+            name,
+            fs: dict,
+            project="",
+            tag=None,
+            uid=None
+    ):
+        pass
+
+    @abstractmethod
+    def delete_feature_set(self, name, project=""):
+        pass

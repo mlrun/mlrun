@@ -133,14 +133,16 @@ class FileDB(DBInterface):
     def delete_project(self, session, name: str):
         raise NotImplementedError()
 
-    def add_feature_set(self, session, project, fs: dict):
+    def add_feature_set(self, session, project, fs: dict, versioned=False):
         raise NotImplementedError()
 
     def get_feature_set(
             self,
             session,
             project: str,
-            name: str
+            name: str,
+            tag: str = None,
+            hash_key: str = None
     ) -> schemas.FeatureSet:
         raise NotImplementedError()
 
@@ -149,14 +151,23 @@ class FileDB(DBInterface):
             session,
             project: str,
             name: str = None,
+            tag: str = None,
             state: str = None,
             entities: List[str] = None,
             features: List[str] = None,
+            labels: List[str] = None,
     ) -> List[schemas.FeatureSet]:
         raise NotImplementedError()
 
-    def update_feature_set(self, session, project, name, fs: dict):
-        raise NotImplementedError()
+    def update_feature_set(
+            self,
+            session,
+            project,
+            name,
+            fs: dict,
+            tag=None
+    ):
+       raise NotImplementedError()
 
     def delete_feature_set(self, session, project, name):
         raise NotImplementedError()

@@ -16,6 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
+from typing import List
 
 import yaml
 from dateutil.parser import parse as parse_time
@@ -462,6 +463,43 @@ class FileRunDB(RunDBInterface):
         else:
             raise RunDBError(f"run file is not found or valid ({filepath})")
 
+    def create_feature_set(self, fs: dict, project="", versioned=False):
+        raise NotImplementedError()
+
+    def get_feature_set(
+            self,
+            name: str,
+            project: str = "",
+            tag: str = None,
+            hash_key: str = None
+    ):
+        raise NotImplementedError()
+
+    def list_feature_sets(
+            self,
+            project: str = "",
+            name: str = None,
+            tag: str = None,
+            state: str = None,
+            entities: List[str] = None,
+            features: List[str] = None,
+            labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def update_feature_set(
+            self,
+            name,
+            fs: dict,
+            project="",
+            tag=None,
+            uid=None
+    ):
+        raise NotImplementedError()
+
+    def delete_feature_set(self, name, project=""):
+        raise NotImplementedError()
+
 
 def make_time_pred(since, until):
     if not (since or until):
@@ -483,3 +521,4 @@ def make_time_pred(since, until):
         return since <= t <= until
 
     return pred
+

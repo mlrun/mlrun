@@ -662,23 +662,60 @@ class SQLDB(DBInterface):
             self,
             session,
             project: str,
-            name: str
+            name: str,
+            tag: str = None,
+            hash_key: str = None
     ) -> schemas.FeatureSet:
-        db_fs = self._query(session, FeatureSet, name=name, project=project).one_or_none()
-        if db_fs:
-            db_fs = self._transform_feature_set_model_to_scheme(db_fs)
+        query = self._query(session, FeatureSet, name=name, project=project)
+        computed_tag = tag or "latest"
+        tag_fs_uid = None
+        if not tag and hash_key:
+            uid = hash_key
+        else:
+            tag_fs_uid = self._resolve_tag_function_uid(
+                session, FeatureSet, project, name, computed_tag
+            )
+            if tag_fs_uid is None:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Feature-set tag not found {project}/{name}:{tag}"
+                )
+            uid = tag_fs_uid
+        if uid:
+            query = query.filter(FeatureSet.uid == uid)
+        obj = query.one_or_none()
+        if obj:
+            db_fs = self._transform_feature_set_model_to_scheme(obj)
 
-        return db_fs
+            # If connected to a tag add it to metadata
+            if tag_fs_uid:
+                db_fs.metadata.tag = computed_tag
+            return db_fs
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Feature-set not found {project}/{name}"
+            )
 
+    # TODO - IMPLEMENT QUERY BY LABEL!!!!!
     def list_feature_sets(
             self,
             session,
             project: str,
             name: str = None,
+            tag: str = None,
             state: str = None,
             entities: List[str] = None,
             features: List[str] = None,
+            labels: List[str] = None,
     ) -> List[schemas.FeatureSet]:
+        # Find object IDs by tag, project and fs-name (which is a like query)
+        tag = tag or 'latest'
+        tag_query = self._query(session, FeatureSet.Tag, project=project, name=tag)
+        if name:
+            tag_query = tag_query.filter(FeatureSet.Tag.obj_name.ilike(f"%{name}%"))
+        obj_uids = {
+            row.obj_id: row.name for row in tag_query
+        }
+
         # Query exact fields
         query = self._query(
             session,
@@ -687,9 +724,10 @@ class SQLDB(DBInterface):
             state=state
         )
 
-        # Name, entities and features are like-queries
         if name is not None:
             query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
+        if obj_uids:
+            query = query.filter(FeatureSet.id.in_(obj_uids.keys()))
         if entities:
             ent_alias = aliased(Feature)
             query = query.join(FeatureSet.entities.of_type(ent_alias)).filter(ent_alias.name.in_(entities))
@@ -697,10 +735,11 @@ class SQLDB(DBInterface):
             feat_alias = aliased(Feature)
             query = query.join(FeatureSet.features.of_type(feat_alias)).filter(feat_alias.name.in_(features))
 
-        feature_sets = [
-            self._transform_feature_set_model_to_scheme(db_fs)
-            for db_fs in query
-        ]
+        feature_sets = []
+        for db_fs in query:
+            fs = self._transform_feature_set_model_to_scheme(db_fs)
+            fs.metadata.tag = obj_uids[db_fs.id]
+            feature_sets.append(fs)
         return feature_sets
 
     @staticmethod
@@ -720,40 +759,84 @@ class SQLDB(DBInterface):
                 f.type = 'feature'
                 fs.features.append(f)
 
-    def add_feature_set(self, session, project, fs: dict):
+    def add_feature_set(self, session, project, fs: dict, versioned=False):
         fs = fs.copy()
-        name = fs["metadata"]["name"]
+
+        fs_meta = fs["metadata"]
+        name = fs_meta["name"]
         if not name or not project:
             raise ValueError("feature-set missing name or project")
+
+        self._ensure_project(session, project)
+        tag = fs_meta.pop("tag", None) or "latest"
+
+        hash_key = fill_function_hash(fs, tag)
+
+        # ??? - is this needed???
+        # # clear tag from object in case another function will "take" that tag
+        # update_in(function, "metadata.tag", "")
+
+        if versioned:
+            uid = hash_key
+        else:
+            uid = f"unversioned-{tag}"
+
+        feature_set = self._query(session, FeatureSet, name=name, project=project, uid=uid).one_or_none()
+        if not feature_set:
+            state = get_in(fs, "status.state")
+
+            feature_set = FeatureSet(
+                name=name,
+                project=project,
+                state=state,
+                status=get_in(fs,"status"),
+                uid=uid,
+                updated=datetime.now(timezone.utc)
+            )
 
         fs_spec = fs.get("spec")
         if fs_spec:
             features = fs_spec.pop("features", [])
             entities = fs_spec.pop("entities", [])
-        fs_status = fs.get("status")
-        if fs_status:
-            state = fs_status.get("state")
-
-        labels = fs["metadata"].pop("labels", {})
-
-        feature_set = FeatureSet(
-            name=name,
-            project=project,
-            state=state,
-            status=fs_status
-        )
 
         self._update_fs_features(feature_set, features, is_entity=False)
         self._update_fs_features(feature_set, entities, is_entity=True)
+
+        labels = fs_meta.pop("labels", {})
         update_labels(feature_set, labels)
 
         self._upsert(session, feature_set)
-        return feature_set.id
+        self.tag_objects_v2(session, [feature_set], project, tag)
 
-    def update_feature_set(self, session, project, name, fs: dict):
-        db_fs = self._query(session, FeatureSet, name=name, project=project).one_or_none()
+        return hash_key
+
+    def update_feature_set(
+            self,
+            session,
+            project,
+            name,
+            fs: dict,
+            tag=None,
+            uid=None
+    ):
+        # If object uid was given, use it. Else, find it by tag
+        if not uid:
+            tag = tag or 'latest'
+            tag = self._query(session, FeatureSet.Tag, project=project, name=tag, obj_name=name).one_or_none()
+            if not tag:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Feature-set not found {project}/{name}:{tag}"
+                )
+            query = self._query(session, FeatureSet, id=tag.obj_id)
+        else:
+            query = self._query(session, FeatureSet, name=name, project=project, uid=uid)
+
+        db_fs = query.one_or_none()
         if not db_fs:
-            return None
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Feature-set not found {project}/{name}:{tag}"
+            )
+
         data = fs.copy()
         stat = data.pop("status", None)
         if stat:
@@ -771,17 +854,15 @@ class SQLDB(DBInterface):
             self._update_fs_features(db_fs, entities, is_entity=True, replace=True)
 
         merge_labels(db_fs, data.pop("labels", {}))
-
-        for key, value in data.items():
-            if not hasattr(db_fs, key):
-                raise DBError(f"unknown feature-set attribute - {key}")
-            setattr(db_fs, key, value)
+        db_fs.updated = datetime.now(timezone.utc)
 
         self._upsert(session, db_fs, ignore=True)
+
         return db_fs.id
 
     def delete_feature_set(self, session, project, name):
         self._delete(session, FeatureSet, project=project, name=name)
+        self._delete(session, FeatureSet.Tag, project=project, obj_name=name)
 
     def _resolve_tag(self, session, cls, project, name):
         uids = []

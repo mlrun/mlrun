@@ -17,9 +17,10 @@ router = APIRouter()
 def add_feature_set(
         project: str,
         feature_set: schemas.FeatureSet,
+        versioned: bool = False,
         db_session: Session = Depends(deps.get_db_session),
 ):
-    fs_id = get_db().add_feature_set(db_session, project, feature_set.dict())
+    fs_id = get_db().add_feature_set(db_session, project, feature_set.dict(), versioned)
 
     return {
         "id": fs_id,
@@ -32,9 +33,11 @@ def update_feature_set(
         project: str,
         name: str,
         feature_set: schemas.FeatureSetUpdate,
+        tag: str = None,
+        uid: str = None,
         db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().update_feature_set(db_session, project, name, feature_set.dict())
+    get_db().update_feature_set(db_session, project, name, feature_set.dict(), tag, uid)
     return Response(status_code=HTTPStatus.OK.value)
 
 
@@ -42,9 +45,11 @@ def update_feature_set(
 def get_feature_set(
     project: str,
     name: str,
+    tag: str = None,
+    hash_key: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    fs = get_db().get_feature_set(db_session, project, name)
+    fs = get_db().get_feature_set(db_session, project, name, tag, hash_key)
     if not fs:
         log_and_raise(
             HTTPStatus.NOT_FOUND.value,
@@ -71,17 +76,21 @@ def list_feature_sets(
         project: str,
         name: str = None,
         state: str = None,
+        tag: str = None,
         entities: List[str] = Query(None, alias="entity"),
         features: List[str] = Query(None, alias="feature"),
+        labels: List[str] = Query(None, alias="label"),
         db_session: Session = Depends(deps.get_db_session),
 ):
     fs_list = get_db().list_feature_sets(
         db_session,
         project,
         name,
+        tag,
         state,
         entities,
-        features
+        features,
+        labels
     )
 
     return {

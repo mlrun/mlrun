@@ -14,7 +14,10 @@ class Feature(BaseModel):
 
 class FeatureSetMetaData(BaseModel):
     name: str
+    tag: Optional[str]
     labels: Optional[dict]
+    updated: Optional[datetime]
+    uid: Optional[str]
 
 
 class FeatureSetSpec(BaseModel):
@@ -40,6 +43,7 @@ class FeatureSetRecord(BaseModel):
     id: int
     name: str
     project: str
+    uid: str
     updated: Optional[datetime] = None
     entities: List[Feature]
     features: List[Feature]

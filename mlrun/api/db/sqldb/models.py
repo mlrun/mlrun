@@ -15,7 +15,7 @@
 import json
 import pickle
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     BLOB,
@@ -242,11 +242,16 @@ with warnings.catch_warnings():
 
     class FeatureSet(Base):
         __tablename__ = "feature_sets"
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),
+        )
+
         id = Column(Integer, primary_key=True)
         name = Column(String)
         project = Column(String)
-        updated = Column(TIMESTAMP, default=datetime.utcnow)
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String)
+        uid = Column(String)
         _status = Column("status", JSON)
 
         Label = make_label(__tablename__)

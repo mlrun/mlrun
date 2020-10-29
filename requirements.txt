@@ -29,5 +29,6 @@ seaborn
 google-auth<2.0dev,>=1.19.1
 azure-storage-blob
 pydantic~=1.5
-orjson>=3,<4
+# <3.4 since 3.4 can't be installed on pip 18.1
+orjson>=3,<3.4
 importlib-resources; python_version < '3.7'

@@ -27,6 +27,7 @@ from mlrun.config import config
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
+from .utils import get_resources
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
@@ -123,7 +124,7 @@ class SparkJobSpec(KubeResourceSpec):
             image_pull_secret=image_pull_secret,
         )
 
-        self.driver_resources = driver_resources
+        self.driver_resources = driver_resources or {}
         self.job_type = job_type
         self.python_version = python_version
         self.spark_version = spark_version
@@ -190,6 +191,26 @@ class SparkRuntime(KubejobRuntime):
             if "memory" in self.spec.resources["limits"]:
                 update_in(
                     job, "spec.executor.memory", self.spec.resources["limits"]["memory"]
+                )
+        if "requests" in self.spec.driver_resources:
+            if "cpu" in self.spec.driver_resources["requests"]:
+                update_in(
+                    job,
+                    "spec.driver.cores",
+                    self.spec.driver_resources["requests"]["cpu"],
+                )
+        if "limits" in self.spec.driver_resources:
+            if "cpu" in self.spec.driver_resources["limits"]:
+                update_in(
+                    job,
+                    "spec.driver.coreLimit",
+                    self.spec.driver_resources["limits"]["cpu"],
+                )
+            if "memory" in self.spec.driver_resources["limits"]:
+                update_in(
+                    job,
+                    "spec.driver.memory",
+                    self.spec.driver_resources["limits"]["memory"],
                 )
         if self.spec.command:
             if "://" not in self.spec.command:
@@ -318,6 +339,20 @@ class SparkRuntime(KubejobRuntime):
                 v3io_config_configmap="spark-operator-v3io-config",
             )
         )
+
+    def with_driver_requests(
+        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+    ):
+        """set driver pod required cpu/memory/gpu resources"""
+        update_in(
+            self.spec.driver_resources,
+            "requests",
+            get_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
+
+    def with_driver_limits(self, cpu=None):
+        """set driver pod cpu limits"""
+        update_in(self.spec.driver_resources, "limits", get_resources(cpu=cpu))
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

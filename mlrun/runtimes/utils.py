@@ -341,6 +341,18 @@ def get_resource_labels(function, run=None, scrape_metrics=False):
     return labels
 
 
+def get_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    """get pod cpu/memory/gpu resources dict"""
+    resources = {}
+    if gpus:
+        resources[gpu_type] = gpus
+    if mem:
+        resources["memory"] = mem
+    if cpu:
+        resources["cpu"] = cpu
+    return resources
+
+
 def get_func_selector(project, name=None, tag=None):
     s = ["{}project={}".format(mlrun_key, project)]
     if name:

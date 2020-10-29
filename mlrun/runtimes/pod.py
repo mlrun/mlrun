@@ -18,7 +18,13 @@ from copy import deepcopy
 from kubernetes import client
 from kfp.dsl import ContainerOp
 
-from .utils import apply_kfp, set_named_item, get_item_name, get_resource_labels
+from .utils import (
+    apply_kfp,
+    set_named_item,
+    get_item_name,
+    get_resource_labels,
+    get_resources,
+)
 from ..utils import normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec
 
@@ -167,23 +173,15 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        limits = {}
-        if gpus:
-            limits[gpu_type] = gpus
-        if mem:
-            limits["memory"] = mem
-        if cpu:
-            limits["cpu"] = cpu
-        update_in(self.spec.resources, "limits", limits)
+        update_in(
+            self.spec.resources,
+            "limits",
+            get_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
-        requests = {}
-        if mem:
-            requests["memory"] = mem
-        if cpu:
-            requests["cpu"] = cpu
-        update_in(self.spec.resources, "requests", requests)
+        update_in(self.spec.resources, "requests", get_resources(mem=mem, cpu=cpu))
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()

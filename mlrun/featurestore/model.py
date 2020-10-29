@@ -134,6 +134,15 @@ class DataTarget(ModelObj):
         self._producer = self._verify_dict(producer, "producer", FeatureSetProducer)
 
 
+class FeatureAggregation(ModelObj):
+    def __init__(self, name=None, column=None, operations=None, windows=None, period=None):
+        self.name = name
+        self.column = column
+        self.operations = operations or []
+        self.windows = windows or []
+        self.period = period
+
+
 class FeatureSetMetadata(ModelObj):
     def __init__(
         self,
@@ -165,14 +174,17 @@ class FeatureSetSpec(ModelObj):
         timestamp_key=None,
         label_column=None,
         relations=None,
+        aggregations=None,
         flow=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
+        self._aggregations = None
 
         self.description = description
         self.entities = entities or []
         self.features: List[Feature] = features or []
+        self.aggregations: List[FeatureAggregation] = aggregations or []
         self.primary_keys = primary_keys or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -188,7 +200,7 @@ class FeatureSetSpec(ModelObj):
     def entities(self, entities: List[Entity]):
         self._entities = ObjectList.from_list(Entity, entities)
 
-    def get_entities_map(self):
+    def get_entities_map(self) -> Dict[Entity]:
         return self._entities
 
     @property
@@ -199,8 +211,19 @@ class FeatureSetSpec(ModelObj):
     def features(self, features: List[Feature]):
         self._features = ObjectList.from_list(Feature, features)
 
-    def get_features_map(self):
+    def get_features_map(self) -> Dict[Feature]:
         return self._features
+
+    @property
+    def aggregations(self) -> List[FeatureAggregation]:
+        return self._aggregations.to_list()
+
+    @aggregations.setter
+    def aggregations(self, aggregations: List[FeatureAggregation]):
+        self._aggregations = ObjectList.from_list(FeatureAggregation, aggregations)
+
+    def get_aggregations_map(self) -> Dict[FeatureAggregation]:
+        return self._aggregations
 
 
 class FeatureSetStatus(ModelObj):

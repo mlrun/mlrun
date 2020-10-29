@@ -77,6 +77,10 @@ class FeatureStoreClient:
         """Start real-time Nuclio function which loads data into the feature store"""
         pass
 
+    def get_features_metadata(self, features):
+        """return metadata (schema & stats) for requested features"""
+        pass
+
     def get_offline_features(
         self,
         features,

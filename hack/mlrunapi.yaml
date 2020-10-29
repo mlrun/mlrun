@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/mlrun-api:0.5.2
+        image: mlrun/mlrun-api:0.5.3
         env:
         - name: DEFAULT_DOCKER_REGISTRY
           value: "<set default registry url>"

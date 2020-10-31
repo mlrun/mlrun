@@ -12,30 +12,71 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Dict
-
 from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
 import v3io.dataplane
 
-from .model import DataTarget, get_offline_store
+from .model import (
+    DataTarget,
+    get_offline_store,
+    FeatureSetMetadata,
+    FeatureVectorSpec,
+    FeatureVectorStatus,
+)
 
 
-class FeatureVectorSpec(ModelObj):
-    def __init__(self, client=None, features=None):
-        self.features: List[str] = features or []
+class FeatureVector(ModelObj):
+    """Feature Vector"""
+
+    kind = "FeatureVector"
+    _dict_fields = ["kind", "metadata", "spec", "status"]
+
+    def __init__(self, client=None, name=None, description=None, features=None):
+        self._spec: FeatureVectorSpec = None
+        self._metadata = None
+        self._status = None
+        self._api_client = None
+
+        self.spec = FeatureVectorSpec(description=description, features=features)
+        self.metadata = FeatureSetMetadata(name=name)
+        self.status = None
+
         self._client = client
-
-        self.entity_source = None
         self._entity_df = None
         self._feature_set_fields = {}
         self._processed_features = {}
         self.feature_set_objects = {}
 
+    @property
+    def spec(self) -> FeatureVectorSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", FeatureVectorSpec)
+
+    @property
+    def metadata(self) -> FeatureSetMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", FeatureSetMetadata)
+
+    @property
+    def status(self) -> FeatureVectorStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(status, "status", FeatureVectorStatus)
+
     def parse_features(self):
-        self._processed_features = {}
-        self.feature_set_objects = {}
-        self._feature_set_fields = {}
+        self._processed_features = (
+            {}
+        )  # dict of name to (featureset, feature object) tuple
+        self.feature_set_objects = {}  # cache of used feature set objects
+        self._feature_set_fields = {}  # list of field (name, alias) per featureset
 
         def add_feature(name, alias, feature_set_object):
             if alias in self._processed_features.keys():
@@ -53,7 +94,7 @@ class FeatureVectorSpec(ModelObj):
             else:
                 self._feature_set_fields[featureset_name] = [(name, alias)]
 
-        for feature in self.features:
+        for feature in self._spec.features:
             feature_set, feature_name, alias = _parse_feature_string(feature)
             if feature_set not in self.feature_set_objects.keys():
                 self.feature_set_objects[feature_set] = self._client.get_feature_set(
@@ -129,8 +170,10 @@ class OnlineVectorService:
     def get(self, entity_rows):
         for row in entity_rows:
             for table_path, key_column, column_names in self._feature_sets:
-                table_path += f'/{row[key_column]}'
-                self._v3io_client.get_item(self._container, table_path, attribute_names=column_names)
+                table_path += f"/{row[key_column]}"
+                self._v3io_client.get_item(
+                    self._container, table_path, attribute_names=column_names
+                )
         return entity_rows
 
 
@@ -148,9 +191,7 @@ def _parse_feature_string(feature):
     return feature_set, feature_name, None
 
 
-def _featureset_to_df(
-    featureset, columns=None, target_name=None, df_module=None
-):
+def _featureset_to_df(featureset, columns=None, target_name=None, df_module=None):
     targets_map = featureset.status.targets
     target_name = get_offline_store(targets_map.keys(), target_name)
     target: DataTarget = targets_map[target_name]

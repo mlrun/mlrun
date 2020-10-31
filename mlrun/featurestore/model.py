@@ -20,9 +20,9 @@ from ..serving.states import ServingTaskState
 
 
 class FeatureClassKind:
-    FeatureVector = "featurevector"
-    FeatureSet = "featureset"
-    Entity = "entity"
+    FeatureVector = "FeatureVector"
+    FeatureSet = "FeatureSet"
+    Entity = "Entity"
 
 
 class Entity(ModelObj):
@@ -136,7 +136,9 @@ class DataTarget(ModelObj):
 
 
 class FeatureAggregation(ModelObj):
-    def __init__(self, name=None, column=None, operations=None, windows=None, period=None):
+    def __init__(
+        self, name=None, column=None, operations=None, windows=None, period=None
+    ):
         self.name = name
         self.column = column
         self.operations = operations or []
@@ -246,3 +248,48 @@ class FeatureSetStatus(ModelObj):
 
     def update_target(self, target: DataTarget):
         self._targets.update(target)
+
+
+class FeatureVectorSpec(ModelObj):
+    _dict_fields = [
+        "features",
+        "description",
+        "entity_source",
+        "target_path",
+        "flow",
+        "label_column",
+    ]
+
+    def __init__(
+        self,
+        client=None,
+        features=None,
+        description=None,
+        entity_source=None,
+        target_path=None,
+        flow=None,
+        label_column=None,
+    ):
+        self.description = description
+        self.features: List[str] = features or []
+        self.entity_source = entity_source
+        self.target_path = target_path
+        self.flow = flow or []
+        self.label_column = label_column
+
+
+class FeatureVectorStatus(ModelObj):
+    def __init__(self, state=None, target=None, stats=None, preview=None):
+        self.state = state or "created"
+        self._target: DataTarget = None
+        self.target = target
+        self.stats = stats or {}
+        self.preview = preview or []
+
+    @property
+    def target(self) -> DataTarget:
+        return self._spec
+
+    @target.setter
+    def target(self, target):
+        self._target = self._verify_dict(target, "target", DataTarget)

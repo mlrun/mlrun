@@ -78,7 +78,7 @@ def get_df_stats(
 ):
     """get per column data stats from dataframe"""
 
-    d = {}
+    results_dict = {}
     if with_index:
         df = df.reset_index()
     for col, values in df.describe(include="all", percentiles=[]).items():
@@ -100,8 +100,8 @@ def get_df_stats(
             except Exception:
                 pass
 
-        d[col] = stats_dict
-    featureset_status.stats = d
+        results_dict[col] = stats_dict
+    featureset_status.stats = results_dict
 
     if with_preview:
         # record sample rows from the dataframe
@@ -113,4 +113,4 @@ def get_df_stats(
             shortdf.columns.values.tolist()
         ] + shortdf.values.tolist()
 
-    return d
+    return results_dict

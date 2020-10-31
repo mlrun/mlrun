@@ -15,8 +15,12 @@
 import yaml
 from mlrun.datastore import store_manager
 
-from .vector import FeatureVectorSpec, OfflineVectorResponse, OnlineVectorService
-from .mergers import LocalFeatureMerger
+from .vector import (
+    OfflineVectorResponse,
+    OnlineVectorService,
+    FeatureVector,
+)
+from mlrun.featurestore.mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
 from .model import DataTarget, TargetTypes, FeatureClassKind
 from .ingest import write_to_target_store
@@ -91,7 +95,7 @@ class FeatureStoreClient:
     ):
 
         merger = LocalFeatureMerger()
-        vector = FeatureVectorSpec(self, features)
+        vector = FeatureVector(self, features=features)
         vector.parse_features()
         featuresets, feature_dfs = vector.load_featureset_dfs()
         df = merger.merge(
@@ -100,10 +104,11 @@ class FeatureStoreClient:
         return OfflineVectorResponse(self, df=df)
 
     def get_online_feature_service(self, features):
-        vector = FeatureVectorSpec(self, features)
+        vector = FeatureVector(self, features=features)
         return OnlineVectorService(self, vector)
 
     def get_feature_set(self, name, project=None):
+        # todo: if name has "/" split to project/name
         target = self._get_target_path(FeatureClassKind.FeatureSet, name, project)
         body = self._data_stores.object(url=target + ".yaml").get()
         obj = yaml.load(body, Loader=yaml.FullLoader)
@@ -112,7 +117,7 @@ class FeatureStoreClient:
     def save_object(self, obj):
         """save featureset or other definitions into the DB"""
         if obj.kind != FeatureClassKind.FeatureSet:
-            raise NotImplementedError("only support FeatureSet for now")
+            raise NotImplementedError(f"only support FeatureSet for now ({obj.kind})")
         target = self._get_target_path(
             FeatureClassKind.FeatureSet, obj.metadata.name, obj.metadata.project,
         )

@@ -15,7 +15,12 @@ import inspect
 
 from storey import DataframeSource
 
-from .model import FeatureSetStatus, FeatureSetSpec, FeatureSetMetadata, FeatureAggregation
+from .model import (
+    FeatureSetStatus,
+    FeatureSetSpec,
+    FeatureSetMetadata,
+    FeatureAggregation,
+)
 from .infer import infer_schema_from_df, get_df_stats
 from .pipeline import create_ingest_pipeline
 from ..model import ModelObj
@@ -23,9 +28,9 @@ from ..serving.states import ServingTaskState
 
 
 class FeatureSet(ModelObj):
-    """Run template"""
+    """Feature Set"""
 
-    kind = "featureset"
+    kind = "FeatureSet"
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(self, name=None, description=None, entities=None, timestamp_key=None):
@@ -34,9 +39,9 @@ class FeatureSet(ModelObj):
         self._status = None
         self._api_client = None
 
-        self.spec = FeatureSetSpec(description=description,
-                                   entities=entities,
-                                   timestamp_key=timestamp_key)
+        self.spec = FeatureSetSpec(
+            description=description, entities=entities, timestamp_key=timestamp_key
+        )
         self.metadata = FeatureSetMetadata(name=name)
         self.status = None
 
@@ -80,8 +85,9 @@ class FeatureSet(ModelObj):
         if timestamp_key is not None:
             self._spec.timestamp_key = timestamp_key
 
-        infer_schema_from_df(df, self._spec, entity_columns,
-                             with_index, with_features=False)
+        infer_schema_from_df(
+            df, self._spec, entity_columns, with_index, with_features=False
+        )
         entity_columns = list(self._spec.entities.keys())
         namespace = namespace or inspect.stack()[1][0].f_globals
         if self._spec.require_processing():
@@ -104,7 +110,9 @@ class FeatureSet(ModelObj):
         self._spec.features.update(feature, name)
 
     def add_flow_step(self, name, class_name, **class_args):
-        self._spec._flow.update(ServingTaskState(class_name, class_args=class_args), name)
+        self._spec._flow.update(
+            ServingTaskState(class_name, class_args=class_args), name
+        )
 
     def add_aggregation(self, name, column, operations, windows, period=None):
         aggregation = FeatureAggregation(name, column, operations, windows, period)

@@ -1,13 +1,11 @@
 import asyncio
 
 from data_sample import quotes, trades, stocks
-from storey import DataframeSource, build_flow, Map, ReduceToDataFrame, Flow
+from storey import Flow
 from storey.dtypes import _termination_obj
 import mlrun.featurestore as fs
-from mlrun.featurestore import FeatureSet, Feature, Entity
+from mlrun.featurestore import FeatureSet, Entity
 from mlrun.featurestore.datatypes import ValueType
-from mlrun.featurestore.pipeline import create_ingest_pipeline
-from mlrun.serving.states import ServingTaskState
 
 
 def test_get_offline():
@@ -15,20 +13,19 @@ def test_get_offline():
 
     # add feature set with time (for time travel) and record its stats
     quotes_set = fs.FeatureSet("stock-quotes")
-    quotes_set.infer_from_df(
+    df = quotes_set.infer_from_df(
         quotes, entity_columns=["ticker"], with_stats=True, timestamp_key="time"
     )
 
     # save ingest data and print the FeatureSet spec
     client.ingest(quotes_set, quotes)
-    print(quotes_set.spec.features[1])
+    print(df)
     print(list(quotes_set.spec.features))
     print(quotes_set.to_yaml())
 
     # add feature set without time column (stock ticker metadata)
-    stocks_set = fs.FeatureSet("stocks").infer_from_df(
-        stocks, entity_columns=["ticker"]
-    )
+    stocks_set = fs.FeatureSet("stocks")
+    stocks_set.infer_from_df(stocks, entity_columns=["ticker"])
     client.ingest(stocks_set, stocks)
 
     features = ["stock-quotes:bid", "stock-quotes:ask@mycol", "stocks:*"]
@@ -37,12 +34,12 @@ def test_get_offline():
     )
     print(resp.to_dataframe())
 
-    #service = client.get_online_feature_service(features)
-    #service.get(trades)
+    # service = client.get_online_feature_service(features)
+    # service.get(trades)
 
 
 def my_fn(event):
-    event['xx'] = event['bid'] * 2
+    event["xx"] = event["bid"] * 2
     return event
 
 
@@ -84,16 +81,20 @@ class MyMap(MapClass):
         self._mul = mul
 
     def do(self, event):
-        event['xx'] = event['bid'] * self._mul
+        event["xx"] = event["bid"] * self._mul
         return event
 
 
 def test_storey():
-    quotes_set = FeatureSet('stock-quotes',
-                            entities=[Entity('ticker', ValueType.STRING)],
-                            timestamp_key='time')
-    quotes_set.add_flow_step('map', MyMap, mul=3)
-    quotes_set.add_aggregation('asks', 'ask', ['sum', 'max'], ['5s', '20s'], '1s')
-    df = quotes_set.infer_from_df(quotes, entity_columns=['ticker'], with_stats=True, timestamp_key='time')
+    quotes_set = FeatureSet(
+        "stock-quotes",
+        entities=[Entity("ticker", ValueType.STRING)],
+        timestamp_key="time",
+    )
+    quotes_set.add_flow_step("map", MyMap, mul=3)
+    quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["5s", "20s"], "1s")
+    df = quotes_set.infer_from_df(
+        quotes, entity_columns=["ticker"], with_stats=True, timestamp_key="time"
+    )
     print(quotes_set.to_yaml())
     print(df)

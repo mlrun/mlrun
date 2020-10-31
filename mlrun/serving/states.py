@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
 import json
 from copy import deepcopy
 
@@ -78,8 +77,8 @@ class ServingTaskState(ModelObj):
             class_args = {k: v for k, v in self.class_args.items()}
             class_args.update(extra_kwargs)
             if self.skip_context is None or not self.skip_context:
-                class_args['name'] = self.name
-                class_args['context'] = self.context
+                class_args["name"] = self.name
+                class_args["context"] = self.context
             self._object = self._class_object(**class_args)
             self._handler = getattr(self._object, self.handler or "do_event", None)
 
@@ -130,7 +129,9 @@ class ServingRouterState(ServingTaskState):
 
     def init_object(self, context, namespace, mode="sync", **extra_kwargs):
         self.class_args = self.class_args or {}
-        super().init_object(context, namespace, "skip", routes=self._routes, **extra_kwargs)
+        super().init_object(
+            context, namespace, "skip", routes=self._routes, **extra_kwargs
+        )
 
         for route in self._routes.values():
             route.init_object(context, namespace, mode)

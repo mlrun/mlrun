@@ -28,11 +28,11 @@ MLRUN_IP=localhost
 SHARED_DIR=/home/me/data
 # On Windows, use host.docker.internal for MLRUN_IP
 
-docker pull mlrun/mlrun-ui:0.5.2
-docker pull mlrun/jupyter:0.5.2
+docker pull mlrun/mlrun-ui:0.5.3
+docker pull mlrun/jupyter:0.5.3
 
-docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 mlrun/mlrun-ui:0.5.2
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.2
+docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 mlrun/mlrun-ui:0.5.3
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.3
 ```
 
 When the execution completes &mdash;
@@ -59,7 +59,7 @@ The following example uses a shared NFS server and a Helm chart for the installa
 1. Run the following commands (provided Helm is installed):
     ```sh
     helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-    helm install stable/nfs-server-provisioner --name nfsprov
+    helm install nfsprov stable/nfs-server-provisioner
     ```
 2. Create a `PersistentVolumeClaim` (PVC) for a shared NFS volume: copy the [**nfs-pvc.yaml**](nfs-pvc.yaml) file to you cluster and run the following command:
     ```sh

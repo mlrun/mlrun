@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 from mlrun.model import ModelObj
 from .datatypes import ValueType
 from ..model import ObjectList
+from ..serving.states import ServingTaskState
 
 
 class FeatureClassKind:
@@ -111,7 +112,7 @@ def get_online_store(type_list):
 
 
 class DataTarget(ModelObj):
-    _dict_fields = ["name", "path", "start_time", "num_rows", "size"]
+    _dict_fields = ["name", "path", "start_time", "num_rows", "size", "status"]
 
     def __init__(self, name: TargetTypes = None, path=None):
         self.name: TargetTypes = name
@@ -169,7 +170,6 @@ class FeatureSetSpec(ModelObj):
         description=None,
         entities=None,
         features=None,
-        primary_keys=None,
         partition_keys=None,
         timestamp_key=None,
         label_column=None,
@@ -180,12 +180,12 @@ class FeatureSetSpec(ModelObj):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._aggregations = None
+        self._flow = None
 
         self.description = description
         self.entities = entities or []
         self.features: List[Feature] = features or []
         self.aggregations: List[FeatureAggregation] = aggregations or []
-        self.primary_keys = primary_keys or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.relations = relations or {}
@@ -194,36 +194,38 @@ class FeatureSetSpec(ModelObj):
 
     @property
     def entities(self) -> List[Entity]:
-        return self._entities.to_list()
+        return self._entities
 
     @entities.setter
     def entities(self, entities: List[Entity]):
         self._entities = ObjectList.from_list(Entity, entities)
 
-    def get_entities_map(self) -> Dict[Entity]:
-        return self._entities
-
     @property
     def features(self) -> List[Feature]:
-        return self._features.to_list()
+        return self._features
 
     @features.setter
     def features(self, features: List[Feature]):
         self._features = ObjectList.from_list(Feature, features)
 
-    def get_features_map(self) -> Dict[Feature]:
-        return self._features
-
     @property
     def aggregations(self) -> List[FeatureAggregation]:
-        return self._aggregations.to_list()
+        return self._aggregations
 
     @aggregations.setter
     def aggregations(self, aggregations: List[FeatureAggregation]):
         self._aggregations = ObjectList.from_list(FeatureAggregation, aggregations)
 
-    def get_aggregations_map(self) -> Dict[FeatureAggregation]:
-        return self._aggregations
+    @property
+    def flow(self) -> List[ServingTaskState]:
+        return self._flow
+
+    @flow.setter
+    def flow(self, flow: List[ServingTaskState]):
+        self._flow = ObjectList.from_list(ServingTaskState, flow)
+
+    def require_processing(self):
+        return len(self._flow) > 0 or len(self._aggregations) > 0
 
 
 class FeatureSetStatus(ModelObj):
@@ -236,7 +238,7 @@ class FeatureSetStatus(ModelObj):
 
     @property
     def targets(self) -> List[DataTarget]:
-        return self._targets.to_list()
+        return self._targets
 
     @targets.setter
     def targets(self, targets: List[DataTarget]):
@@ -244,6 +246,3 @@ class FeatureSetStatus(ModelObj):
 
     def update_target(self, target: DataTarget):
         self._targets.update(target)
-
-    def get_targets_map(self):
-        return self._targets

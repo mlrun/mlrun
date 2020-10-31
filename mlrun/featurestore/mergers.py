@@ -15,8 +15,6 @@
 from typing import List
 import pandas as pd
 
-from .featureset import FeatureSet
-
 
 class LocalFeatureMerger:
     def __init__(self):
@@ -26,7 +24,7 @@ class LocalFeatureMerger:
         self,
         entity_df,
         entity_timestamp_column: str,
-        featuresets: List[FeatureSet],
+        featuresets: list,
         featureset_dfs: List[pd.DataFrame],
     ):
         merged_df = entity_df
@@ -46,10 +44,10 @@ class LocalFeatureMerger:
         self,
         entity_df,
         entity_timestamp_column: str,
-        featureset: FeatureSet,
+        featureset,
         featureset_df: pd.DataFrame,
     ):
-        indexes = list(featureset.spec.get_entities_map().keys())
+        indexes = list(featureset.spec.entities.keys())
         merged_df = pd.merge_asof(
             entity_df,
             featureset_df,
@@ -63,9 +61,9 @@ class LocalFeatureMerger:
         self,
         entity_df,
         entity_timestamp_column: str,
-        featureset: FeatureSet,
+        featureset,
         featureset_df: pd.DataFrame,
     ):
-        indexes = list(featureset.spec.get_entities_map().keys())
+        indexes = list(featureset.spec.entities.keys())
         merged_df = pd.merge(entity_df, featureset_df, on=indexes)
         return merged_df

@@ -42,7 +42,7 @@ def upload_nosql(client, source, target_path, featureset: FeatureSet, **kw):
 
     container, subpath = split_path(target_path)
     client = v3f.Client(mlconf.frames_url, container=container)
-    index = featureset.spec.get_entities_map().keys()
+    index = featureset.spec.entities.keys()
     if len(index) != 1:
         raise ValueError("currently only support single column NoSQL index")
     client.write(

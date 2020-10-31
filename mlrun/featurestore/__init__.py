@@ -14,4 +14,5 @@
 
 from .client import store_client  # noqa
 from .featureset import FeatureSet  # noqa
-from .model import Feature, Entity  # noqa
+from .model import Feature, Entity, TargetTypes  # noqa
+from .datatypes import ValueType  # noqa

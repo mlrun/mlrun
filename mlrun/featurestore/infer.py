@@ -20,11 +20,12 @@ from .model import Feature, FeatureSetSpec, FeatureSetStatus, Entity
 from .datatypes import pd_schema_to_value_type
 
 
-def infer_features_from_df(
+def infer_schema_from_df(
     df: pd.DataFrame,
     featureset_spec: FeatureSetSpec,
     entity_columns=None,
     with_index=True,
+    with_features=True,
 ):
     """infer feature set schema from dataframe"""
     features = []
@@ -36,7 +37,7 @@ def infer_features_from_df(
         is_entity = entity_columns and column in entity_columns
         if is_entity:
             entities.append(Entity(name=column, value_type=value_type))
-        else:
+        elif with_features:
             features.append(Feature(name=column, value_type=value_type))
         if value_type == "datetime":
             timestamp_fields.append((column, is_entity))
@@ -55,9 +56,10 @@ def infer_features_from_df(
                 if value_type == "datetime":
                     timestamp_fields.append((name, True))
 
-    featureset_spec.features = features
+    if with_features:
+        featureset_spec.features = features
     featureset_spec.entities = entities
-    if len(timestamp_fields) == 1:
+    if len(timestamp_fields) == 1 and not featureset_spec.timestamp_key:
         featureset_spec.timestamp_key = timestamp_fields[0][0]
 
 

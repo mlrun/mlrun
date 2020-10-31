@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import json
 from copy import deepcopy
 
@@ -27,7 +28,7 @@ class StateKinds:
     task = "task"
 
 
-_task_state_fields = ["kind", "class_name", "class_args", "handler"]
+_task_state_fields = ["kind", "class_name", "class_args", "handler", "skip_context"]
 
 
 def new_model_endpoint(class_name, model_path, handler=None, **class_args):
@@ -55,9 +56,10 @@ class ServingTaskState(ModelObj):
         self._handler = None
         self._object = None
         self.context = None
+        self.skip_context = None
         self._class_object = None
 
-    def init_object(self, context, namespace, mode="sync"):
+    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
         if isinstance(self.class_name, type):
             self._class_object = self.class_name
             self.class_name = self.class_name.__name__
@@ -73,8 +75,13 @@ class ServingTaskState(ModelObj):
 
         if not self._object:
             print(self.class_args)
-            self._object = self._class_object(context, self.name, **self.class_args)
-            self._handler = getattr(self._object, self.handler or "do_event")
+            class_args = {k: v for k, v in self.class_args.items()}
+            class_args.update(extra_kwargs)
+            if self.skip_context is None or not self.skip_context:
+                class_args['name'] = self.name
+                class_args['context'] = self.context
+            self._object = self._class_object(**class_args)
+            self._handler = getattr(self._object, self.handler or "do_event", None)
 
         if mode != "skip":
             self._post_init(mode)
@@ -121,11 +128,9 @@ class ServingRouterState(ServingTaskState):
         for key in routes:
             del self._routes[key]
 
-    def init_object(self, context, namespace, mode="sync"):
+    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
         self.class_args = self.class_args or {}
-        self.class_args["routes"] = self._routes
-        super().init_object(context, namespace, "skip")
-        del self.class_args["routes"]
+        super().init_object(context, namespace, "skip", routes=self._routes, **extra_kwargs)
 
         for route in self._routes.values():
             route.init_object(context, namespace, mode)

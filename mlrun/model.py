@@ -14,6 +14,7 @@
 
 import inspect
 import warnings
+from collections import OrderedDict
 from copy import deepcopy
 from os import environ
 
@@ -168,7 +169,7 @@ class ObjectDict:
 
 class ObjectList:
     def __init__(self, child_class):
-        self._children = {}
+        self._children = OrderedDict()
         self._child_class = child_class
 
     def values(self):
@@ -184,15 +185,21 @@ class ObjectList:
         return len(self._children)
 
     def __iter__(self):
-        yield from self._children.keys()
+        yield from self._children.values()
 
     def __getitem__(self, name):
+        if isinstance(name, int):
+            return list(self._children.values())[name]
         return self._children[name]
+
+    def __setitem__(self, key, item):
+        self.update(item, key)
 
     def __delitem__(self, key):
         del self._children[key]
 
-    def to_list(self):
+    def to_dict(self):
+        # method used by ModelObj class to serialize the object to nested dict
         return [t.to_dict() for t in self._children.values()]
 
     @classmethod

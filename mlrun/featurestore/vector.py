@@ -18,7 +18,6 @@ from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
 import v3io.dataplane
 
-from .featureset import FeatureSet
 from .model import DataTarget, get_offline_store
 
 
@@ -31,7 +30,7 @@ class FeatureVectorSpec(ModelObj):
         self._entity_df = None
         self._feature_set_fields = {}
         self._processed_features = {}
-        self.feature_set_objects: Dict[FeatureSet] = {}
+        self.feature_set_objects = {}
 
     def parse_features(self):
         self._processed_features = {}
@@ -62,7 +61,7 @@ class FeatureVectorSpec(ModelObj):
                 )
             feature_set_object = self.feature_set_objects[feature_set]
 
-            feature_set_fields = feature_set_object.spec.get_features_map().keys()
+            feature_set_fields = feature_set_object.spec.features.keys()
             if feature_name == "*":
                 for field in feature_set_fields:
                     if field != feature_set_object.spec.timestamp_key:
@@ -98,7 +97,7 @@ class FeatureVectorSpec(ModelObj):
         for name, columns in self._feature_set_fields.items():
             fs = self.feature_set_objects[name]
             column_names = [name for name, alias in columns]
-            key_column = fs.spec.get_features_map().keys()[0]
+            key_column = fs.spec.entities.keys()[0]
             feature_sets.append((path_prefix + name, key_column, column_names))
         return feature_sets
 
@@ -150,10 +149,10 @@ def _parse_feature_string(feature):
 
 
 def _featureset_to_df(
-    featureset: FeatureSet, columns=None, target_name=None, df_module=None
+    featureset, columns=None, target_name=None, df_module=None
 ):
-    targets_map = featureset.status.get_targets_map()
+    targets_map = featureset.status.targets
     target_name = get_offline_store(targets_map.keys(), target_name)
     target: DataTarget = targets_map[target_name]
-    columns = list(featureset.spec.get_entities_map().keys()) + columns
+    columns = list(featureset.spec.entities.keys()) + columns
     return get_dataitem(target.path).as_df(columns=columns, df_module=df_module)

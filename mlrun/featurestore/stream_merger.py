@@ -11,14 +11,14 @@ def steps_from_featureset(featureset: FeatureSet):
         event.update(data)
         return event
 
-    target = featureset.status.get_targets_map()[TargetTypes.nosql]
+    target = featureset.status.targets[TargetTypes.nosql]
     cache = Cache(target.path, V3ioDriver())
-    column_list = list(featureset.spec.get_features_map().keys())
-    entity_list = list(featureset.spec.get_entities_map().keys())
+    column_list = list(featureset.spec.features.keys())
+    entity_list = list(featureset.spec.entities.keys())
     key_column = entity_list[0]
     steps = []
 
-    aggregations = featureset.spec.get_aggregations_map()
+    aggregations = featureset.spec.aggregations
     if aggregations:
         aggregation_objects = []
         for name, aggregate in aggregations.items():

@@ -1,5 +1,13 @@
+import asyncio
+
 from data_sample import quotes, trades, stocks
+from storey import DataframeSource, build_flow, Map, ReduceToDataFrame, Flow
+from storey.dtypes import _termination_obj
 import mlrun.featurestore as fs
+from mlrun.featurestore import FeatureSet, Feature, Entity
+from mlrun.featurestore.datatypes import ValueType
+from mlrun.featurestore.pipeline import create_ingest_pipeline
+from mlrun.serving.states import ServingTaskState
 
 
 def test_get_offline():
@@ -13,6 +21,8 @@ def test_get_offline():
 
     # save ingest data and print the FeatureSet spec
     client.ingest(quotes_set, quotes)
+    print(quotes_set.spec.features[1])
+    print(list(quotes_set.spec.features))
     print(quotes_set.to_yaml())
 
     # add feature set without time column (stock ticker metadata)
@@ -27,5 +37,63 @@ def test_get_offline():
     )
     print(resp.to_dataframe())
 
-    service = client.get_online_feature_service(features)
-    service.get(trades)
+    #service = client.get_online_feature_service(features)
+    #service.get(trades)
+
+
+def my_fn(event):
+    event['xx'] = event['bid'] * 2
+    return event
+
+
+class MapClass(Flow):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._is_async = asyncio.iscoroutinefunction(self.do)
+        self._filter = False
+
+    def filter(self):
+        # used in the .do() code to signal filtering
+        self._filter = True
+
+    def do(self, event):
+        raise NotImplementedError()
+
+    async def _call(self, event):
+        res = self.do(event)
+        if self._is_async:
+            res = await res
+        return res
+
+    async def _do(self, event):
+        if event is _termination_obj:
+            return await self._do_downstream(_termination_obj)
+        else:
+            element = self._get_safe_event_or_body(event)
+            fn_result = await self._call(element)
+            if not self._filter:
+                mapped_event = self._user_fn_output_to_event(event, fn_result)
+                await self._do_downstream(mapped_event)
+            else:
+                self._filter = False  # clear the flag for future runs
+
+
+class MyMap(MapClass):
+    def __init__(self, mul=1, **kwargs):
+        super().__init__(**kwargs)
+        self._mul = mul
+
+    def do(self, event):
+        event['xx'] = event['bid'] * self._mul
+        return event
+
+
+def test_storey():
+    quotes_set = FeatureSet('stock-quotes',
+                            entities=[Entity('ticker', ValueType.STRING)],
+                            timestamp_key='time')
+    quotes_set.add_flow_step('map', MyMap, mul=3)
+    quotes_set.add_aggregation('asks', 'ask', ['sum', 'max'], ['5s', '20s'], '1s')
+    df = quotes_set.infer_from_df(quotes, entity_columns=['ticker'], with_stats=True, timestamp_key='time')
+    print(quotes_set.to_yaml())
+    print(df)

@@ -17,14 +17,11 @@ import pathlib
 import v3io_frames as v3f
 from tempfile import mktemp
 from .model import TargetTypes
-from .featureset import FeatureSet
 from ..platforms.iguazio import split_path
 from ..config import config as mlconf
 
 
-def write_to_target_store(
-    client, kind, source, target_path, featureset: FeatureSet, **kw
-):
+def write_to_target_store(client, kind, source, target_path, featureset, **kw):
     """write/ingest data to a target store"""
     if kind == TargetTypes.parquet:
         return upload_file(client, source, target_path, featureset, **kw)
@@ -35,7 +32,7 @@ def write_to_target_store(
     )
 
 
-def upload_nosql(client, source, target_path, featureset: FeatureSet, **kw):
+def upload_nosql(client, source, target_path, featureset, **kw):
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
         source = client.get_data_stores().object(url=source).as_df()
@@ -50,9 +47,7 @@ def upload_nosql(client, source, target_path, featureset: FeatureSet, **kw):
     )
 
 
-def upload_file(
-    client, source, target_path, featureset: FeatureSet, format="parquet", **kw
-):
+def upload_file(client, source, target_path, featureset, format="parquet", **kw):
     data_stores = client.get_data_stores()
     suffix = pathlib.Path(target_path).suffix
     if not suffix:

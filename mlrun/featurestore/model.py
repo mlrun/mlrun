@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 from mlrun.model import ModelObj
 from .datatypes import ValueType
 from ..model import ObjectList
-from ..serving.states import ServingTaskState
+from ..serving.states import ServingTaskState, ServingRootFlowState
 
 
 class FeatureClassKind:
@@ -182,7 +182,7 @@ class FeatureSetSpec(ModelObj):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._aggregations = None
-        self._flow = None
+        self._flow: ServingRootFlowState = None
 
         self.description = description
         self.entities = entities or []
@@ -191,7 +191,7 @@ class FeatureSetSpec(ModelObj):
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.relations = relations or {}
-        self.flow = flow or []
+        self.flow = flow
         self.label_column = label_column
 
     @property
@@ -219,15 +219,15 @@ class FeatureSetSpec(ModelObj):
         self._aggregations = ObjectList.from_list(FeatureAggregation, aggregations)
 
     @property
-    def flow(self) -> List[ServingTaskState]:
+    def flow(self) -> ServingRootFlowState:
         return self._flow
 
     @flow.setter
-    def flow(self, flow: List[ServingTaskState]):
-        self._flow = ObjectList.from_list(ServingTaskState, flow)
+    def flow(self, flow):
+        self._flow = self._verify_dict(flow, "flow", ServingRootFlowState)
 
     def require_processing(self):
-        return len(self._flow) > 0 or len(self._aggregations) > 0
+        return len(self._flow.states) > 0 or len(self._aggregations) > 0
 
 
 class FeatureSetStatus(ModelObj):

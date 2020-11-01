@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 
 import yaml
 from mlrun.datastore import store_manager
+from .pipeline import run_ingestion_pipeline
 
 from .vector import (
     OfflineVectorResponse,
@@ -44,30 +46,26 @@ class FeatureStoreClient:
     def get_data_stores(self):
         return self._data_stores
 
-    def _get_target_path(self, kind, name, project=None, version=None):
+    def _get_db_path(self, kind, name, project=None, version=None):
         project = project or self.project or "default"
-        data_prefix = (
-            self.nosql_path_prefix if kind == TargetTypes.nosql else self.data_prefix
-        )
         if version:
             name = f"{name}-{version}"
-        return f"{data_prefix}/{project}/{kind}/{name}"
+        return f"{self.data_prefix}/{project}/{kind}/{name}"
 
-    def ingest(self, featureset: FeatureSet, source, targets=None):
+    def _get_target_path(self, kind, featureset):
+        name = featureset.metadata.name
+        version = featureset.metadata.tag
+        project = featureset.metadata.project or self.project or "default"
+        if version:
+            name = f"{name}-{version}"
+        return f"{self.data_prefix}/{project}/{kind}/{name}"
+
+    def ingest(self, featureset: FeatureSet, source, targets=None, namespace=None):
         """Read local DataFrame, file, or URL into the feature store"""
         targets = targets or self._default_ingest_targets
-        if not targets:
-            raise ValueError("ingestion target(s) were not specified")
-        for target in targets:
-            target_path = self._get_target_path(
-                target, featureset.metadata.name, featureset.metadata.project
-            )
-            target_path = write_to_target_store(
-                self, target, source, target_path, featureset
-            )
-            target = DataTarget(target, target_path)
-            featureset.status.update_target(target)
-        self.save_object(featureset)
+        namespace = namespace or inspect.stack()[1][0].f_globals
+        df = run_ingestion_pipeline(self, featureset, source, targets, namespace)
+        return df
 
     def run_ingestion_job(
         self, featureset, source_path, targets=None, parameters=None, function=None
@@ -109,16 +107,20 @@ class FeatureStoreClient:
 
     def get_feature_set(self, name, project=None):
         # todo: if name has "/" split to project/name
-        target = self._get_target_path(FeatureClassKind.FeatureSet, name, project)
+        target = self._get_db_path(FeatureClassKind.FeatureSet, name, project)
         body = self._data_stores.object(url=target + ".yaml").get()
         obj = yaml.load(body, Loader=yaml.FullLoader)
         return FeatureSet.from_dict(obj)
 
+    def get_feature_vector(self, name, project=None):
+        pass
+
     def save_object(self, obj):
-        """save featureset or other definitions into the DB"""
-        if obj.kind != FeatureClassKind.FeatureSet:
-            raise NotImplementedError(f"only support FeatureSet for now ({obj.kind})")
-        target = self._get_target_path(
-            FeatureClassKind.FeatureSet, obj.metadata.name, obj.metadata.project,
-        )
+        """save feature set/vector or other definitions into the DB"""
+        if obj.kind not in [
+            FeatureClassKind.FeatureSet,
+            FeatureClassKind.FeatureVector,
+        ]:
+            raise NotImplementedError(f"object kind not supported ({obj.kind})")
+        target = self._get_db_path(obj.kind, obj.metadata.name, obj.metadata.project,)
         self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())

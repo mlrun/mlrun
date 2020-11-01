@@ -27,7 +27,17 @@ class StateKinds:
     task = "task"
 
 
-_task_state_fields = ["kind", "class_name", "class_args", "handler", "skip_context"]
+_task_state_fields = [
+    "kind",
+    "class_name",
+    "class_args",
+    "handler",
+    "skip_context",
+    "next",
+    "resource",
+    "comment",
+    "end",
+]
 
 
 def new_model_endpoint(class_name, model_path, handler=None, **class_args):
@@ -42,19 +52,59 @@ def new_remote_endpoint(url, **class_args):
     return ServingTaskState("$remote", class_args)
 
 
-class ServingTaskState(ModelObj):
+class BaseState(ModelObj):
+    kind = "BaseState"
+    _dict_fields = ["kind", "comment", "next", "end"]
+
+    def __init__(self, name=None, next=None):
+        self.name = name
+        self._parent = None
+        self.comment = None
+        self.context = None
+        self.next = next
+        self.end = None
+        self.resource = None
+
+    def set_parent(self, parent):
+        self._parent = parent
+
+    def set_next(self, key):
+        if not self.next:
+            self.next = [key]
+        elif key not in self.next:
+            self.next.append(key)
+
+    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
+        self.context = context
+
+    def get_children(self):
+        return []
+
+    @property
+    def fullname(self):
+        name = self.name
+        if self._parent:
+            name = ".".join([self._parent.fullname, name])
+        return name
+
+    def _post_init(self, mode="sync"):
+        pass
+
+
+class ServingTaskState(BaseState):
     kind = "task"
     _dict_fields = _task_state_fields
     _default_class = ""
 
-    def __init__(self, class_name=None, class_args=None, handler=None, name=None):
-        self.name = name
+    def __init__(
+        self, class_name=None, class_args=None, handler=None, name=None, next=None
+    ):
+        super().__init__(name, next)
         self.class_name = class_name
         self.class_args = class_args or {}
         self.handler = handler
         self._handler = None
         self._object = None
-        self.context = None
         self.skip_context = None
         self._class_object = None
 
@@ -109,6 +159,9 @@ class ServingRouterState(ServingTaskState):
         self._routes = {}
         self.routes = routes
 
+    def get_children(self):
+        return self._routes.values()
+
     @property
     def routes(self):
         return self._routes
@@ -118,7 +171,8 @@ class ServingRouterState(ServingTaskState):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
     def add_route(self, key, route):
-        self._routes[key] = route
+        route = self._routes.update(key, route)
+        route.set_parent(self)
         return route
 
     def clear_routes(self, routes: list):
@@ -134,12 +188,108 @@ class ServingRouterState(ServingTaskState):
         )
 
         for route in self._routes.values():
+            route.set_parent(self)
             route.init_object(context, namespace, mode)
 
         self._post_init(mode)
 
     def __getitem__(self, name):
         return self._routes[name]
+
+    def __setitem__(self, name, route):
+        self.add_route(name, route)
+
+    def __delitem__(self, key):
+        del self._routes[key]
+
+    def __iter__(self):
+        yield from self._routes.keys()
+
+
+class ServingFlowState(BaseState):
+    kind = "flow"
+    _dict_fields = BaseState._dict_fields + ["states", "start_at"]
+
+    def __init__(self, name=None, states=None, next=None, start_at=None):
+        super().__init__(name, next)
+        self._states = None
+        self.states = states
+        self.start_at = start_at
+        self.from_state = None
+        self._last_added = None
+
+    def get_children(self):
+        return self._states.values()
+
+    @property
+    def states(self):
+        return self._states
+
+    @states.setter
+    def states(self, states):
+        self._states = ObjectDict.from_dict(classes_map, states, "task")
+
+    def add_state(self, key, state, after=None):
+        state = self._states.update(key, state)
+        state.set_parent(self)
+
+        if not self.start_at and len(self._states) <= 1:
+            self.start_at = key
+
+        if after:
+            if isinstance(after, str):
+                if after not in self._states.keys():
+                    raise ValueError(
+                        f"there is no state named {after}, cant set next state"
+                    )
+                after = self._states[after]
+            after.set_next(key)
+        elif self._last_added:
+            self._last_added.set_next(key)
+        self._last_added = state
+        return state
+
+    def __getitem__(self, name):
+        return self._states[name]
+
+    def __setitem__(self, name, state):
+        self.add_state(name, state)
+
+    def __delitem__(self, key):
+        del self._states[key]
+
+    def __iter__(self):
+        yield from self._states.keys()
+
+    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
+        self.context = context
+        for state in self._states.values():
+            state.set_parent(self)
+            state.init_object(context, namespace, mode)
+        self._post_init(mode)
+
+    def get_start_state(self, from_state=None):
+        from_state = from_state or self.from_state or self.start_at
+        if not from_state:
+            raise ValueError(
+                f"start step {from_state} was not specified in {self.name}"
+            )
+        tree = from_state.split(".")
+        next_obj = self
+        for state in tree:
+            if state not in next_obj.keys():
+                raise ValueError(f"start step {from_state} doesnt exist in {self.name}")
+            next_obj = next_obj[state]
+        return next_obj
+
+    def run(self, event, *args, **kwargs):
+        next_obj = self.get_start_state(kwargs.get("from_state", None))
+        return next_obj.run(event, *args, **kwargs)
+
+
+class ServingRootFlowState(ServingFlowState):
+    kind = "rootFlow"
+    _dict_fields = ["states", "start_at"]
 
 
 http_adapter = HTTPAdapter(
@@ -197,4 +347,8 @@ def get_class(class_name, namespace):
     return class_object
 
 
-classes_map = {"task": ServingTaskState}
+classes_map = {
+    "task": ServingTaskState,
+    "router": ServingRouterState,
+    "flow": ServingFlowState,
+}

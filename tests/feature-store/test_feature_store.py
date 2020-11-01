@@ -26,7 +26,8 @@ def test_get_offline():
     # add feature set without time column (stock ticker metadata)
     stocks_set = fs.FeatureSet("stocks")
     stocks_set.infer_from_df(stocks, entity_columns=["ticker"])
-    client.ingest(stocks_set, stocks)
+    resp = client.ingest(stocks_set, stocks)
+    print(resp)
 
     features = ["stock-quotes:bid", "stock-quotes:ask@mycol", "stocks:*"]
     resp = client.get_offline_features(
@@ -86,15 +87,23 @@ class MyMap(MapClass):
 
 
 def test_storey():
+    client = fs.store_client(data_prefix="./store")
+
     quotes_set = FeatureSet(
         "stock-quotes",
         entities=[Entity("ticker", ValueType.STRING)],
         timestamp_key="time",
     )
     quotes_set.add_flow_step("map", MyMap, mul=3)
+    quotes_set.add_flow_step("map3", MyMap, mul=2, after='map')
+    quotes_set.add_flow_step("map4", MyMap, mul=4, after='map')
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["5s", "20s"], "1s")
     df = quotes_set.infer_from_df(
         quotes, entity_columns=["ticker"], with_stats=True, timestamp_key="time"
     )
+    print(quotes_set.to_yaml())
+    # print(df)
+
+    df = client.ingest(quotes_set, quotes)
     print(quotes_set.to_yaml())
     print(df)

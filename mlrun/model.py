@@ -92,7 +92,7 @@ class ModelObj:
 # model class for building ModelObj dictionaries
 class ObjectDict:
     def __init__(self, classes_map, default_kind=""):
-        self._children = {}
+        self._children = OrderedDict()
         self._default_kind = default_kind
         self._classes_map = classes_map
 
@@ -119,6 +119,11 @@ class ObjectDict:
 
     def __delitem__(self, key):
         del self._children[key]
+
+    def update(self, key, item):
+        child = self._get_child_object(item, key)
+        self._children[key] = child
+        return child
 
     def to_dict(self):
         return {k: v.to_dict() for k, v in self._children.items()}

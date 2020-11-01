@@ -22,7 +22,7 @@ from .model import (
     FeatureAggregation,
 )
 from .infer import infer_schema_from_df, get_df_stats
-from .pipeline import create_ingest_pipeline
+from .pipeline import process_to_df
 from ..model import ModelObj
 from ..serving.states import ServingTaskState
 
@@ -85,16 +85,16 @@ class FeatureSet(ModelObj):
         if timestamp_key is not None:
             self._spec.timestamp_key = timestamp_key
 
-        infer_schema_from_df(
-            df, self._spec, entity_columns, with_index, with_features=False
-        )
-        entity_columns = list(self._spec.entities.keys())
         namespace = namespace or inspect.stack()[1][0].f_globals
         if self._spec.require_processing():
-            source = DataframeSource(df, entity_columns[0], self._spec.timestamp_key)
-            flow = create_ingest_pipeline(None, self, source, namespace=namespace)
-            controller = flow.run()
-            df = controller.await_termination()
+            # find/update entities schema
+            infer_schema_from_df(
+                df, self._spec, entity_columns, with_index, with_features=False
+            )
+            entity_columns = list(self._spec.entities.keys())
+            if not entity_columns:
+                raise ValueError("entity column(s) are not defined in feature set")
+            df = process_to_df(df, self, entity_columns[0], namespace)
 
         infer_schema_from_df(df, self._spec, entity_columns, with_index)
         if with_stats:
@@ -109,9 +109,9 @@ class FeatureSet(ModelObj):
     def add_feature(self, feature, name=None):
         self._spec.features.update(feature, name)
 
-    def add_flow_step(self, name, class_name, **class_args):
-        self._spec._flow.update(
-            ServingTaskState(class_name, class_args=class_args), name
+    def add_flow_step(self, name, class_name, after=None, **class_args):
+        self._spec.flow.add_state(
+            name, ServingTaskState(class_name, class_args=class_args), after
         )
 
     def add_aggregation(self, name, column, operations, windows, period=None):

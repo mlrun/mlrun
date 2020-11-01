@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from storey import Reduce, build_flow, Source
 
 from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
@@ -23,6 +24,7 @@ from .model import (
     FeatureVectorSpec,
     FeatureVectorStatus,
 )
+from .pipeline import steps_from_featureset
 
 
 class FeatureVector(ModelObj):
@@ -72,9 +74,7 @@ class FeatureVector(ModelObj):
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
 
     def parse_features(self):
-        self._processed_features = (
-            {}
-        )  # dict of name to (featureset, feature object) tuple
+        self._processed_features = {}  # dict of name to (featureset, feature object)
         self.feature_set_objects = {}  # cache of used feature set objects
         self._feature_set_fields = {}  # list of field (name, alias) per featureset
 
@@ -156,10 +156,16 @@ class OfflineVectorResponse:
         return self._df
 
 
+def append_return(lst, x):
+    lst.append(x)
+    return lst
+
+
 class OnlineVectorService:
-    def __init__(self, client, feature_sets):
+    def __init__(self, client, vector):
         self._client = client
-        self._feature_sets = feature_sets
+        self._vector = vector
+        self._feature_sets = None
         self._v3io_client = v3io.dataplane.Client()
         self._container = None
 
@@ -167,7 +173,21 @@ class OnlineVectorService:
     def status(self):
         return "ready"
 
-    def get(self, entity_rows):
+    def get(self, entity_rows: list):
+        steps = [Source()]
+        for name, columns in self._vector._feature_set_fields.items():
+            fs = self._vector.feature_set_objects[name]
+            column_names = [name for name, alias in columns]
+            steps.extend(steps_from_featureset(fs, column_names))
+        steps.append(Reduce([], lambda acc, x: append_return(acc, x)))
+        flow = build_flow(steps)
+        controller = flow.run()
+        for row in entity_rows:
+            controller.emit(row)
+        controller.terminate()
+        res = controller.await_termination()
+
+    def get2(self, entity_rows):
         for row in entity_rows:
             for table_path, key_column, column_names in self._feature_sets:
                 table_path += f"/{row[key_column]}"

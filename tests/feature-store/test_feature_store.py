@@ -1,10 +1,7 @@
-import asyncio
-
 from data_sample import quotes, trades, stocks
-from storey import Flow
-from storey.dtypes import _termination_obj
+from storey import MapClass
 import mlrun.featurestore as fs
-from mlrun.featurestore import FeatureSet, Entity
+from mlrun.featurestore import FeatureSet, Entity, TargetTypes
 from mlrun.featurestore.datatypes import ValueType
 
 
@@ -29,7 +26,7 @@ def test_get_offline():
     resp = client.ingest(stocks_set, stocks)
     print(resp)
 
-    features = ["stock-quotes:bid", "stock-quotes:ask@mycol", "stocks:*"]
+    features = ["stock-quotes:bid", "stock-quotes:bid_sum_5h", "stock-quotes:ask@mycol", "stocks:*"]
     resp = client.get_offline_features(
         features, entity_rows=trades, entity_timestamp_column="time"
     )
@@ -39,43 +36,6 @@ def test_get_offline():
     # service.get(trades)
 
 
-def my_fn(event):
-    event["xx"] = event["bid"] * 2
-    return event
-
-
-class MapClass(Flow):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._is_async = asyncio.iscoroutinefunction(self.do)
-        self._filter = False
-
-    def filter(self):
-        # used in the .do() code to signal filtering
-        self._filter = True
-
-    def do(self, event):
-        raise NotImplementedError()
-
-    async def _call(self, event):
-        res = self.do(event)
-        if self._is_async:
-            res = await res
-        return res
-
-    async def _do(self, event):
-        if event is _termination_obj:
-            return await self._do_downstream(_termination_obj)
-        else:
-            element = self._get_safe_event_or_body(event)
-            fn_result = await self._call(element)
-            if not self._filter:
-                mapped_event = self._user_fn_output_to_event(event, fn_result)
-                await self._do_downstream(mapped_event)
-            else:
-                self._filter = False  # clear the flag for future runs
-
-
 class MyMap(MapClass):
     def __init__(self, mul=1, **kwargs):
         super().__init__(**kwargs)
@@ -83,21 +43,31 @@ class MyMap(MapClass):
 
     def do(self, event):
         event["xx"] = event["bid"] * self._mul
+        event["zz"] = 9
         return event
 
 
 def test_storey():
-    client = fs.store_client(data_prefix="./store")
+    client = fs.store_client(data_prefix="v3io:///users/admin/fs")
+    client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
+    # client.nosql_path_prefix = 'users/admin/fs'
+
+    stocks_set = fs.FeatureSet("stocks")
+    stocks_set.infer_from_df(stocks, entity_columns=["ticker"])
+    resp = client.ingest(stocks_set, stocks)
+    print(resp)
+    return
 
     quotes_set = FeatureSet(
         "stock-quotes",
         entities=[Entity("ticker", ValueType.STRING)],
         timestamp_key="time",
     )
-    quotes_set.add_flow_step("map", MyMap, mul=3)
+    quotes_set.add_flow_step("map", "MyMap", mul=3)
     # quotes_set.add_flow_step("map3", MyMap, mul=2, after='map')
     # quotes_set.add_flow_step("map4", MyMap, mul=4, after='map')
-    quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["5s", "20s"], "1s")
+    quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["5h", "600s"], "1s")
+
     df = quotes_set.infer_from_df(
         quotes, entity_columns=["ticker"], with_stats=True, timestamp_key="time"
     )
@@ -107,3 +77,20 @@ def test_storey():
     df = client.ingest(quotes_set, quotes)
     print(quotes_set.to_yaml())
     print(df)
+
+    # stocks_set = FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
+    # client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
+
+
+
+def test_realtime_query():
+    client = fs.store_client(data_prefix="v3io:///users/admin/fs")
+    client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
+    # client.nosql_path_prefix = 'users/admin/fs'
+
+    fset = client.get_feature_set("stock-quotes")
+    print(fset.to_yaml())
+
+    features = ["stock-quotes:bid", "stock-quotes:ask", "stock-quotes:xx"]
+    svc = client.get_online_feature_service(features)
+    svc.get([{"ticker": "GOOG"}])

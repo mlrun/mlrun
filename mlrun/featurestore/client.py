@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
+from urllib.parse import urlparse
 
 import yaml
 from mlrun.datastore import store_manager
+from .infer import infer_schema_from_df, get_df_stats
 from .pipeline import run_ingestion_pipeline
 
 from .vector import (
@@ -52,20 +54,44 @@ class FeatureStoreClient:
             name = f"{name}-{version}"
         return f"{self.data_prefix}/{project}/{kind}/{name}"
 
-    def _get_target_path(self, kind, featureset):
+    def _get_target_path(self, kind, featureset, suffix=""):
         name = featureset.metadata.name
         version = featureset.metadata.tag
         project = featureset.metadata.project or self.project or "default"
+        if kind == TargetTypes.nosql:
+            data_prefix = nosql_path(self.nosql_path_prefix or self.data_prefix)
+        else:
+            data_prefix = self.data_prefix
         if version:
             name = f"{name}-{version}"
-        return f"{self.data_prefix}/{project}/{kind}/{name}"
+        return f"{data_prefix}/{project}/{kind}/{name}{suffix}"
 
-    def ingest(self, featureset: FeatureSet, source, targets=None, namespace=None):
+    def ingest(
+        self,
+        featureset: FeatureSet,
+        source,
+        targets=None,
+        namespace=None,
+        return_df=True,
+        infer_schema=True,
+        with_stats=False,
+        with_histogram=False,
+        with_preview=False,
+    ):
         """Read local DataFrame, file, or URL into the feature store"""
         targets = targets or self._default_ingest_targets
         namespace = namespace or inspect.stack()[1][0].f_globals
+        entity_list = list(featureset.spec.entities.keys())
+        if not entity_list:
+            raise ValueError("Entity columns are not defined for this feature set")
+
+        if infer_schema:
+            infer_schema_from_df(source, featureset.spec, entity_list, False)
         df = run_ingestion_pipeline(self, featureset, source, targets, namespace)
-        return df
+        if with_stats:
+            get_df_stats(df, featureset.status, with_histogram, with_preview)
+        if return_df:
+            return df
 
     def run_ingestion_job(
         self, featureset, source_path, targets=None, parameters=None, function=None
@@ -103,6 +129,7 @@ class FeatureStoreClient:
 
     def get_online_feature_service(self, features):
         vector = FeatureVector(self, features=features)
+        vector.parse_features()
         return OnlineVectorService(self, vector)
 
     def get_feature_set(self, name, project=None):
@@ -124,3 +151,16 @@ class FeatureStoreClient:
             raise NotImplementedError(f"object kind not supported ({obj.kind})")
         target = self._get_db_path(obj.kind, obj.metadata.name, obj.metadata.project,)
         self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())
+
+
+def nosql_path(url):
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme.lower()
+    if scheme != "v3io":
+        raise ValueError("url must start with v3io://[host]/{container}/{path}")
+
+    endpoint = parsed_url.hostname
+    if parsed_url.port:
+        endpoint += ":{}".format(parsed_url.port)
+    # todo: use endpoint
+    return parsed_url.path.strip("/")

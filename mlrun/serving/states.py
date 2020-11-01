@@ -123,7 +123,6 @@ class ServingTaskState(BaseState):
                 )
 
         if not self._object:
-            print(self.class_args)
             class_args = {k: v for k, v in self.class_args.items()}
             class_args.update(extra_kwargs)
             if self.skip_context is None or not self.skip_context:

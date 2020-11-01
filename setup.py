@@ -79,6 +79,7 @@ setup(
         "mlrun.utils.version",
         "mlrun.datastore",
         "mlrun.featurestore",
+        "mlrun.featurestore.mergers",
         "mlrun.api",
         "mlrun.api.api",
         "mlrun.api.api.endpoints",

@@ -160,13 +160,13 @@ def ipython_display(html, display=True, alt_text=None):
 
 style = """<style>
 .dictlist {
-  background-color: #b3edff;
+  background-color: #C47A45;
   text-align: center;
   margin: 4px;
   border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
 .artifact {
   cursor: pointer;
-  background-color: #ffe6cc;
+  background-color: #C47A45;
   text-align: left;
   margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
 }
@@ -208,7 +208,7 @@ iframe.fileview {
 }
 .pane-header {
   line-height: 1;
-  background-color: #ffe6cc;
+  background-color: #C47A45;
   padding: 3px;
 }
 .pane-header .close {

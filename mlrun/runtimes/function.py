@@ -266,7 +266,7 @@ class RemoteRuntime(KubeResource):
         handler = self.spec.function_handler
 
         # In Nuclio 1.6.0 default serviceType changed to "ClusterIP", make sure we're using NodePort
-        spec.set_config("serviceType", "NodePort")
+        spec.set_config("spec.serviceType", "NodePort")
         if self.spec.readiness_timeout:
             spec.set_config("spec.readinessTimeoutSeconds", self.spec.readiness_timeout)
         if self.spec.resources:

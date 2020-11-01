@@ -83,7 +83,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         )
     try:
         response = await call_next(request)
-    except Exception:
+    except Exception as exc:
         logger.warning(
             "Request handling failed. Sending response",
             # User middleware (like this one) runs after the exception handling middleware, the only thing running after
@@ -93,6 +93,7 @@ async def log_request_response(request: fastapi.Request, call_next):
             request_id=request_id,
             uri=path_with_query_string,
             method=request.method,
+            exc=exc,
         )
         raise
     else:

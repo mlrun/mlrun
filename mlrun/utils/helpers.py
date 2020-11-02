@@ -52,13 +52,6 @@ try:
 except ImportError:
     pass
 
-if is_ipython:
-
-    # bypass Jupyter asyncio bug
-    import nest_asyncio
-
-    nest_asyncio.apply()
-
 
 class run_keys:
     input_path = "input_path"

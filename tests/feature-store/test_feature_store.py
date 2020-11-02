@@ -47,50 +47,40 @@ class MyMap(MapClass):
         return event
 
 
-def test_storey():
+def test_ingestion():
     client = fs.store_client(data_prefix="v3io:///users/admin/fs")
     client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
-    # client.nosql_path_prefix = 'users/admin/fs'
 
-    stocks_set = fs.FeatureSet("stocks")
-    stocks_set.infer_from_df(stocks, entity_columns=["ticker"])
-    resp = client.ingest(stocks_set, stocks)
-    print(resp)
-    return
+    # add feature set without time column (stock ticker metadata)
+    #stocks_set = fs.FeatureSet("stocks")
+    #resp = stocks_set.infer_from_df(stocks, entity_columns=["ticker"])
+    #resp = client.ingest(stocks_set, stocks)
+    #print(resp)
+    #return
 
-    quotes_set = FeatureSet(
-        "stock-quotes",
-        entities=[Entity("ticker", ValueType.STRING)],
-        timestamp_key="time",
-    )
-    quotes_set.add_flow_step("map", "MyMap", mul=3)
-    # quotes_set.add_flow_step("map3", MyMap, mul=2, after='map')
-    # quotes_set.add_flow_step("map4", MyMap, mul=4, after='map')
+
+    quotes_set = FeatureSet("stock-quotes")
+    quotes_set.add_flow_step("map", "storey.Map", mul=3)
+    quotes_set.add_flow_step("map2", "MyMap", mul=3, after='map')
+    quotes_set.add_flow_step("map3", "MyMap", mul=3, after='map')
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["5h", "600s"], "1s")
 
     df = quotes_set.infer_from_df(
         quotes, entity_columns=["ticker"], with_stats=True, timestamp_key="time"
     )
+
+    with open('df.html', 'w') as fp:
+        fp.write(df.to_html())
+
+    client.ingest(quotes_set, quotes)
     print(quotes_set.to_yaml())
-    # print(df)
-
-    df = client.ingest(quotes_set, quotes)
-    print(quotes_set.to_yaml())
-    print(df)
-
-    # stocks_set = FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
-    # client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
-
 
 
 def test_realtime_query():
     client = fs.store_client(data_prefix="v3io:///users/admin/fs")
     client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
-    # client.nosql_path_prefix = 'users/admin/fs'
 
-    fset = client.get_feature_set("stock-quotes")
-    print(fset.to_yaml())
-
-    features = ["stock-quotes:bid", "stock-quotes:ask", "stock-quotes:xx"]
+    features = ["stock-quotes:*"]
     svc = client.get_online_feature_service(features)
-    svc.get([{"ticker": "GOOG"}])
+    resp = svc.get([{"ticker": "GOOG"}])
+    print(resp)

@@ -185,7 +185,7 @@ class OnlineVectorService:
         for row in entity_rows:
             controller.emit(row)
         controller.terminate()
-        res = controller.await_termination()
+        return controller.await_termination()
 
     def get2(self, entity_rows):
         for row in entity_rows:

@@ -73,7 +73,7 @@ class FeatureStoreClient:
         targets=None,
         namespace=None,
         return_df=True,
-        infer_schema=True,
+        infer_schema=False,
         with_stats=False,
         with_histogram=False,
         with_preview=False,
@@ -85,9 +85,9 @@ class FeatureStoreClient:
         if not entity_list:
             raise ValueError("Entity columns are not defined for this feature set")
 
+        df = run_ingestion_pipeline(self, featureset, source, targets, namespace)
         if infer_schema:
             infer_schema_from_df(source, featureset.spec, entity_list, False)
-        df = run_ingestion_pipeline(self, featureset, source, targets, namespace)
         if with_stats:
             get_df_stats(df, featureset.status, with_histogram, with_preview)
         if return_df:

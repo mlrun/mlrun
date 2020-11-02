@@ -81,7 +81,7 @@ def get_df_stats(
     results_dict = {}
     if with_index:
         df = df.reset_index()
-    for col, values in df.describe(include="all", percentiles=[]).items():
+    for col, values in df.describe(include="all", percentiles=[], datetime_is_numeric=True).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
             if stat != "50%":

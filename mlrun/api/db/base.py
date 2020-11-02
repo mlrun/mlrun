@@ -182,12 +182,14 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def add_feature_set(self, session, project, fs: dict, versioned=False):
+    def create_feature_set(
+        self, session, project, feature_set: schemas.FeatureSet, versioned=False
+    ):
         pass
 
     @abstractmethod
     def get_feature_set(
-        self, session, project: str, name: str, tag: str = None, hash_key: str = None
+        self, session, project: str, name: str, tag: str = None, uid: str = None
     ) -> schemas.FeatureSet:
         pass
 
@@ -202,11 +204,19 @@ class DBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> List[schemas.FeatureSet]:
+    ) -> schemas.FeatureSetsOutput:
         pass
 
     @abstractmethod
-    def update_feature_set(self, session, project, name, fs: dict, tag=None, uid=None):
+    def update_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set_update: schemas.FeatureSetUpdate,
+        tag=None,
+        uid=None,
+    ):
         pass
 
     @abstractmethod

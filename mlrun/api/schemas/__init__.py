@@ -14,8 +14,10 @@ from .user import User, UserCreate, UserInDB, UserUpdate
 from .feature_store import (
     Feature,
     FeatureSetSpec,
-    FeatureSetMetaData,
+    FeatureSetMetadata,
     FeatureSet,
     FeatureSetRecord,
     FeatureSetUpdate,
+    FeatureSetCreateOutput,
+    FeatureSetsOutput,
 )

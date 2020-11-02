@@ -647,24 +647,36 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def create_feature_set(self, fs: dict, project="", versioned=False):
+    def create_feature_set(
+        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=False
+    ) -> schemas.FeatureSetCreateOutput:
         project = project or default_project
         path = f"projects/{project}/feature_sets"
         params = {"versioned": versioned}
 
-        name = fs["metadata"]["name"]
+        if isinstance(feature_set, dict):
+            feature_set = schemas.FeatureSet(**feature_set)
+
+        name = feature_set.metadata.name
         error_message = f"Failed creating feature-set {project}/{name}"
-        self.api_call("POST", path, error_message, params=params, body=json.dumps(fs))
+        resp = self.api_call(
+            "POST",
+            path,
+            error_message,
+            params=params,
+            body=json.dumps(feature_set.dict()),
+        )
+        return schemas.FeatureSetCreateOutput(**resp.json())
 
     def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, hash_key: str = None
-    ):
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
         project = project or default_project
-        path = f"projects/{project}/feature_sets/{name}"
-        params = {"tag": tag, "hash_key": hash_key}
+        reference = uid or tag or "latest"
+        path = f"projects/{project}/feature_sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["feature_set"]
+        resp = self.api_call("GET", path, error_message)
+        return schemas.FeatureSet(**resp.json())
 
     def list_feature_sets(
         self,
@@ -675,11 +687,12 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ):
+    ) -> schemas.FeatureSetsOutput:
         project = project or default_project
         params = {
             "name": name,
             "state": state,
+            "tag": tag,
             "entity": entities or [],
             "feature": features or [],
             "label": labels or [],
@@ -691,17 +704,23 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-sets, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["feature_sets"]
+        return schemas.FeatureSetsOutput(**resp.json())
 
-    def update_feature_set(self, name, fs: dict, project="", tag=None, uid=None):
+    def update_feature_set(
+        self,
+        name,
+        feature_set: Union[dict, schemas.FeatureSetUpdate],
+        project="",
+        tag=None,
+        uid=None,
+    ):
         project = project or default_project
-        path = f"projects/{project}/feature_sets/{name}"
-        params = {
-            "tag": tag,
-            "uid": uid,
-        }
+        reference = uid or tag or "latest"
+        if isinstance(feature_set, dict):
+            feature_set = schemas.FeatureSetUpdate(**feature_set)
+        path = f"projects/{project}/feature_sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
-        self.api_call("PUT", path, error_message, body=json.dumps(fs), params=params)
+        self.api_call("PUT", path, error_message, body=json.dumps(feature_set.dict()))
 
     def delete_feature_set(self, name, project=""):
         project = project or default_project

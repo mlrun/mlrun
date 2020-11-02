@@ -198,9 +198,13 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
             schedule_cron_trigger,
         )
 
-    feature_set = {
-        "metadata": {"name": "dummy", "tag": "latest", "labels": {"owner": "nobody"}},
-        "spec": {"entities": [{"name": "ent1", "value_type": "str"}], "features": []},
-        "status": {},
-    }
-    db.add_feature_set(db_session, project, feature_set)
+    feature_set = schemas.FeatureSet(
+        metadata=schemas.FeatureSetMetadata(
+            name="dummy", tag="latest", labels={"owner": "nobody"}
+        ),
+        spec=schemas.FeatureSetSpec(
+            entities=[schemas.Feature(name="ent1", value_type="str")], features=[]
+        ),
+        status={},
+    )
+    db.create_feature_set(db_session, project, feature_set)

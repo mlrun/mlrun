@@ -49,7 +49,9 @@ def test_feature_set(db: Session, client: TestClient) -> None:
     resp = client.post(f"/api/projects/{proj_name}/feature_sets?versioned=1", json=fs)
     assert resp.status_code == HTTPStatus.OK.value, "add"
 
-    resp = client.get(f"/api/projects/{proj_name}/feature_sets/{name}")
+    resp = client.get(
+        f"/api/projects/{proj_name}/feature_sets/{name}/references/latest"
+    )
     assert resp.status_code == HTTPStatus.OK.value, "get"
     print("Response is: {}".format(resp.json()))
 
@@ -76,12 +78,17 @@ def test_feature_set(db: Session, client: TestClient) -> None:
         "entities": [{"name": "market_cap", "value_type": "integer"}],
         "labels": {"new-label": "new-value", "owner": "someone-else"},
     }
-    resp = client.put(f"/api/projects/{proj_name}/feature_sets/{name}", json=fs_update)
+    resp = client.put(
+        f"/api/projects/{proj_name}/feature_sets/{name}/references/latest",
+        json=fs_update,
+    )
     assert resp.status_code == HTTPStatus.OK.value, "update"
-    resp = client.get(f"/api/projects/{proj_name}/feature_sets/{name}")
+    resp = client.get(
+        f"/api/projects/{proj_name}/feature_sets/{name}/references/latest"
+    )
     assert resp.status_code == HTTPStatus.OK.value, "get"
     updated_resp = resp.json()
-    fs_resp = updated_resp["feature_set"]["metadata"]
+    fs_resp = updated_resp["metadata"]
     assert (
         len(fs_resp["labels"]) == 3 and "new-label" in fs_resp["labels"]
     ), "update corrupt data"

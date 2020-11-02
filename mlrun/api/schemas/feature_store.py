@@ -12,7 +12,7 @@ class Feature(BaseModel):
         orm_mode = True
 
 
-class FeatureSetMetaData(BaseModel):
+class FeatureSetMetadata(BaseModel):
     name: str
     tag: Optional[str]
     labels: Optional[dict]
@@ -26,7 +26,7 @@ class FeatureSetSpec(BaseModel):
 
 
 class FeatureSet(BaseModel):
-    metadata: FeatureSetMetaData
+    metadata: FeatureSetMetadata
     spec: FeatureSetSpec
     status: Optional[dict]
 
@@ -38,7 +38,6 @@ class FeatureSetUpdate(BaseModel):
     labels: Optional[dict]
 
 
-# state is extracted from the full status dict to enable queries
 class FeatureSetRecord(BaseModel):
     id: int
     name: str
@@ -47,8 +46,18 @@ class FeatureSetRecord(BaseModel):
     updated: Optional[datetime] = None
     entities: List[Feature]
     features: List[Feature]
+    # state is extracted from the full status dict to enable queries
     state: Optional[str] = None
     status: Optional[dict] = None
 
     class Config:
         orm_mode = True
+
+
+class FeatureSetCreateOutput(BaseModel):
+    uid: str
+    name: str
+
+
+class FeatureSetsOutput(BaseModel):
+    feature_sets: List[FeatureSet]

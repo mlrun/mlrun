@@ -126,12 +126,12 @@ class RunDBInterface(ABC):
         return []
 
     @abstractmethod
-    def create_feature_set(self, fs: dict, project="", versioned=False):
+    def create_feature_set(self, feature_set, project="", versioned=False):
         pass
 
     @abstractmethod
     def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, hash_key: str = None
+        self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
         pass
 
@@ -149,7 +149,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_feature_set(self, name, fs: dict, project="", tag=None, uid=None):
+    def update_feature_set(self, name, feature_set, project="", tag=None, uid=None):
         pass
 
     @abstractmethod

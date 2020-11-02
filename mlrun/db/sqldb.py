@@ -212,16 +212,16 @@ class SQLDB(RunDBInterface):
         except DBError as exc:
             raise RunDBError(exc.args)
 
-    def create_feature_set(self, fs: dict, project="", versioned=False):
+    def create_feature_set(self, feature_set, project="", versioned=False):
         return self._transform_db_error(
-            self.db.add_feature_set, self.session, project, fs, versioned
+            self.db.create_feature_set, self.session, project, feature_set, versioned
         )
 
     def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, hash_key: str = None
+        self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
         return self._transform_db_error(
-            self.db.get_feature_set, self.session, project, name, tag, hash_key
+            self.db.get_feature_set, self.session, project, name, tag, uid
         )
 
     def list_feature_sets(
@@ -246,9 +246,15 @@ class SQLDB(RunDBInterface):
             labels,
         )
 
-    def update_feature_set(self, name, fs: dict, project="", tag=None, uid=None):
+    def update_feature_set(self, name, feature_set, project="", tag=None, uid=None):
         return self._transform_db_error(
-            self.db.update_feature_set, self.session, project, name, fs, tag, uid
+            self.db.update_feature_set,
+            self.session,
+            project,
+            name,
+            feature_set,
+            tag,
+            uid,
         )
 
     def delete_feature_set(self, name, project=""):

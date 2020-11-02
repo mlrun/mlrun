@@ -35,7 +35,7 @@ from ..utils import (
     match_value,
     update_in,
     fill_function_hash,
-    generate_function_uri,
+    generate_object_uri,
 )
 
 run_logs = "runs"
@@ -311,7 +311,7 @@ class FileRunDB(RunDBInterface):
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
-            function_uri = generate_function_uri(project, name, tag, hash_key)
+            function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
         data = self._datastore.get(filepath)
         parsed_data = self._loads(data)
@@ -463,11 +463,11 @@ class FileRunDB(RunDBInterface):
         else:
             raise RunDBError(f"run file is not found or valid ({filepath})")
 
-    def create_feature_set(self, fs: dict, project="", versioned=False):
+    def create_feature_set(self, feature_set, project="", versioned=False):
         raise NotImplementedError()
 
     def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, hash_key: str = None
+        self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
         raise NotImplementedError()
 
@@ -483,7 +483,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def update_feature_set(self, name, fs: dict, project="", tag=None, uid=None):
+    def update_feature_set(self, name, feature_set, project="", tag=None, uid=None):
         raise NotImplementedError()
 
     def delete_feature_set(self, name, project=""):

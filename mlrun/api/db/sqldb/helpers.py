@@ -43,12 +43,12 @@ def update_labels(obj, labels: dict):
 # This method implements a different logic - it keeps existing labels as long as they're not overwritten. In
 # addition, it adds new labels from the labels structure
 def merge_labels(obj, labels: dict):
-    old = [label for label in obj.labels if label.name not in labels]
+    existing_labels = [label for label in obj.labels if label.name not in labels]
     obj.labels.clear()
     for name, value in labels.items():
         obj.labels.append(obj.Label(name=name, value=value, parent=obj.id))
-    for value in old:
-        obj.labels.append(value)
+    for label in existing_labels:
+        obj.labels.append(label)
 
 
 def to_dict(obj):

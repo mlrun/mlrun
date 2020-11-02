@@ -250,6 +250,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String)
         project = Column(String)
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String)
         uid = Column(String)
@@ -262,13 +263,13 @@ with warnings.catch_warnings():
 
         features = relationship(
             Feature,
-            cascade="all, delete, delete-orphan",
+            cascade="all, delete-orphan",
             primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'feature')",
         )
 
         entities = relationship(
             Feature,
-            cascade="all, delete, delete-orphan",
+            cascade="all, delete-orphan",
             primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'entity')",
         )
 

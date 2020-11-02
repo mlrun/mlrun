@@ -328,7 +328,7 @@ def test_list_feature_sets(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 
-    fs = {
+    feature_set = {
         "metadata": {
             "name": "dummy",
             "labels": {"owner": "saarc", "group": "dev"},
@@ -358,16 +358,16 @@ def test_list_feature_sets(create_server):
     count = 5
     for i in range(count):
         name = f"fs_{i}"
-        fs["metadata"]["name"] = name
-        db.create_feature_set(fs, project=proj, versioned=True)
+        feature_set["metadata"]["name"] = name
+        db.create_feature_set(feature_set, project=proj, versioned=True)
 
-    fs_update = {
+    feature_set_update = {
         "labels": {"new-label": "new-value", "owner": "someone-else"},
     }
 
-    db.update_feature_set(name, fs_update, proj, tag="latest")
-    feat_sets = db.list_feature_sets(project=proj)
+    db.update_feature_set(name, feature_set_update, proj, tag="latest")
+    feature_sets = db.list_feature_sets(project=proj)
 
-    for fs in feat_sets:
-        assert fs["metadata"]["tag"] is not None
-    assert len(feat_sets) == count, "bad list"
+    for fs in feature_sets.feature_sets:
+        assert fs.metadata.tag is not None
+    assert len(feature_sets.feature_sets) == count, "bad list"

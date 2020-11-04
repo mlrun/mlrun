@@ -499,12 +499,16 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         name: str = None,
+        labels: str = None,
         kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, project=project, kind=kind)
         if name is not None:
             query = query.filter(Schedule.name.ilike(f"%{name}%"))
+        labels = label_set(labels)
+        query = self._add_labels_filter(session, query, Schedule, labels)
+
         schedules = [
             self._transform_schedule_model_to_scheme(db_schedule)
             for db_schedule in query

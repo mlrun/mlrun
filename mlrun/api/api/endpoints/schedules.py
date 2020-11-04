@@ -32,10 +32,11 @@ def create_schedule(
 def list_schedules(
     project: str,
     name: str = None,
+    labels: str = None,
     kind: schemas.ScheduleKinds = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_scheduler().list_schedules(db_session, project, name, kind)
+    return get_scheduler().list_schedules(db_session, project, name, labels, kind)
 
 
 @router.get(

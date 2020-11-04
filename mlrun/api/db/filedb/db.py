@@ -153,6 +153,7 @@ class FileDB(DBInterface):
         session,
         project: str = None,
         name: str = None,
+        labels: str = None,
         kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         raise NotImplementedError()

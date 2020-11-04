@@ -80,9 +80,10 @@ class Scheduler:
         project: str = None,
         name: str = None,
         kind: str = None,
+        labels: str = None,
     ) -> schemas.SchedulesOutput:
-        logger.debug("Getting schedules", project=project, name=name, kind=kind)
-        db_schedules = get_db().list_schedules(db_session, project, name, kind)
+        logger.debug("Getting schedules", project=project, name=name, labels=labels, kind=kind)
+        db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_db_schedule_to_schedule(db_schedule)

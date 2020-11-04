@@ -150,6 +150,7 @@ class DBInterface(ABC):
         session,
         project: str = None,
         name: str = None,
+        labels: str = None,
         kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         pass

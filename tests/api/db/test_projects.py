@@ -11,6 +11,7 @@ from mlrun.api.db.sqldb.models import (
     Project,
     Run,
     Artifact,
+    Schedule,
 )
 from tests.api.db.conftest import dbs
 
@@ -83,6 +84,13 @@ def _assert_resources_in_project(
                         db_session.query(Artifact)
                         .join(cls)
                         .filter(Artifact.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "schedules_v2_labels":
+                    number_of_cls_records = (
+                        db_session.query(Schedule)
+                        .join(cls)
+                        .filter(Schedule.project == project)
                         .count()
                     )
             else:
@@ -180,4 +188,5 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
             schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
+            labels,
         )

@@ -50,3 +50,5 @@ RUN pip install \
     -r docs-requirements.txt
 
 COPY . .
+
+RUN python setup.py develop

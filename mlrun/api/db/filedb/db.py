@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List, Any, Dict
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError
@@ -144,6 +144,7 @@ class FileDB(DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        labels: Dict = None,
     ):
         raise NotImplementedError()
 
@@ -152,6 +153,7 @@ class FileDB(DBInterface):
         session,
         project: str = None,
         name: str = None,
+        labels: str = None,
         kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         raise NotImplementedError()

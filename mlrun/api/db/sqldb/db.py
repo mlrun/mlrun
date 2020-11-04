@@ -1,6 +1,6 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, List
+from typing import Any, List, Dict
 
 import pytz
 from sqlalchemy import and_, func
@@ -276,7 +276,9 @@ class SQLDB(DBInterface):
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
         self._delete_artifact_tags(session, project, key, tag, commit=False)
-        self._delete_artifact_labels(session, project, key, commit=False)
+        self._delete_class_labels(
+            session, Artifact, project=project, key=key, commit=False
+        )
         kw = {
             "key": key,
             "project": project,
@@ -298,21 +300,6 @@ class SQLDB(DBInterface):
             query = query.filter(Artifact.Tag.name == tag_name)
         for tag in query:
             session.delete(tag)
-        if commit:
-            session.commit()
-
-    def _delete_artifact_labels(
-        self, session, project, artifact_key, tag_name="", commit=True
-    ):
-        query = (
-            session.query(Artifact.Label)
-            .join(Artifact)
-            .filter(Artifact.project == project, Artifact.key == artifact_key)
-        )
-        if tag_name:
-            query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag_name)
-        for label in query:
-            session.delete(label)
         if commit:
             session.commit()
 
@@ -394,7 +381,9 @@ class SQLDB(DBInterface):
     def delete_function(self, session: Session, project: str, name: str):
         logger.debug("Removing function from db", project=project, name=name)
         self._delete_function_tags(session, project, name, commit=False)
-        self._delete_function_labels(session, project, name, commit=False)
+        self._delete_class_labels(
+            session, Function, project=project, name=name, commit=False
+        )
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
@@ -455,17 +444,6 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def _delete_function_labels(self, session, project, function_name, commit=True):
-        labels = (
-            session.query(Function.Label)
-            .join(Function)
-            .filter(Function.project == project, Function.name == function_name)
-        )
-        for label in labels:
-            session.delete(label)
-        if commit:
-            session.commit()
-
     def _list_function_tags(self, session, project, function_id):
         query = (
             session.query(Function.Tag.name)
@@ -490,6 +468,7 @@ class SQLDB(DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        labels: Dict = None,
     ):
         self._ensure_project(session, project)
         schedule = Schedule(
@@ -502,6 +481,9 @@ class SQLDB(DBInterface):
             scheduled_object=scheduled_object,
             cron_trigger=cron_trigger,
         )
+
+        labels = labels or {}
+        update_labels(schedule, labels)
 
         logger.debug(
             "Saving schedule to db",
@@ -517,12 +499,16 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         name: str = None,
+        labels: str = None,
         kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, project=project, kind=kind)
         if name is not None:
             query = query.filter(Schedule.name.ilike(f"%{name}%"))
+        labels = label_set(labels)
+        query = self._add_labels_filter(session, query, Schedule, labels)
+
         schedules = [
             self._transform_schedule_model_to_scheme(db_schedule)
             for db_schedule in query
@@ -540,6 +526,9 @@ class SQLDB(DBInterface):
 
     def delete_schedule(self, session: Session, project: str, name: str):
         logger.debug("Removing schedule from db", project=project, name=name)
+        self._delete_class_labels(
+            session, Schedule, project=project, name=name, commit=False
+        )
         self._delete(session, Schedule, project=project, name=name)
 
     def _delete_schedules(self, session: Session, project: str):
@@ -963,6 +952,29 @@ class SQLDB(DBInterface):
 
         subq = session.query(cls.Label).filter(*preds).subquery("labels")
         return query.join(subq)
+
+    def _delete_class_labels(
+        self,
+        session: Session,
+        cls: Any,
+        project: str = "",
+        name: str = "",
+        key: str = "",
+        commit: bool = True,
+    ):
+        filters = []
+        if project:
+            filters.append(cls.project == project)
+        if name:
+            filters.append(cls.name == name)
+        if key:
+            filters.append(cls.key == key)
+        query = session.query(cls.Label).join(cls).filter(*filters)
+
+        for label in query:
+            session.delete(label)
+        if commit:
+            session.commit()
 
     @staticmethod
     def _transform_schedule_model_to_scheme(

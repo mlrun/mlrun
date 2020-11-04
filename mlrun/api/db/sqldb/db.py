@@ -40,6 +40,7 @@ from mlrun.utils import (
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
 class SQLDB(DBInterface):
@@ -92,8 +93,11 @@ class SQLDB(DBInterface):
         for log in self._query(session, Log, project=project):
             self.delete_log(session, project, log.uid)
 
-    def store_run(self, session, struct, uid, project="", iter=0):
+    def store_run(self, session, run_data, uid, project="", iter=0):
         project = project or config.default_project
+        logger.debug(
+            "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
+        )
         self._ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:
@@ -101,15 +105,15 @@ class SQLDB(DBInterface):
                 uid=uid,
                 project=project,
                 iteration=iter,
-                state=run_state(struct),
-                start_time=run_start_time(struct) or datetime.now(timezone.utc),
+                state=run_state(run_data),
+                start_time=run_start_time(run_data) or datetime.now(timezone.utc),
             )
-        labels = run_labels(struct)
-        new_state = run_state(struct)
+        labels = run_labels(run_data)
+        new_state = run_state(run_data)
         if new_state:
             run.state = new_state
         update_labels(run, labels)
-        run.struct = struct
+        run.struct = run_data
         self._upsert(session, run, ignore=True)
 
     def update_run(self, session, updates: dict, uid, project="", iter=0):
@@ -337,7 +341,7 @@ class SQLDB(DBInterface):
         if versioned:
             uid = hash_key
         else:
-            uid = f"unversioned-{tag}"
+            uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
 
         updated = datetime.now(timezone.utc)
         update_in(function, "metadata.updated", updated)
@@ -405,33 +409,42 @@ class SQLDB(DBInterface):
         for labeled_class in _labeled:
             self._delete(session, labeled_class, project=project)
 
-    def list_functions(self, session, name, project=None, tag=None, labels=None):
+    def list_functions(self, session, name=None, project=None, tag=None, labels=None):
         project = project or config.default_project
-        uid = None
+        uids = None
         if tag:
-            uid = self._resolve_tag_function_uid(session, Function, project, name, tag)
-        funcs = FunctionList()
-        for obj in self._find_functions(session, name, project, uid, labels):
-            function_dict = obj.struct
+            uids = self._resolve_tag_function_uids(
+                session, Function, project, tag, name
+            )
+        functions = FunctionList()
+        for function in self._find_functions(session, name, project, uids, labels):
+            function_dict = function.struct
             if not tag:
-                function_tags = self._list_function_tags(session, project, obj.id)
+                function_tags = self._list_function_tags(session, project, function.id)
                 if len(function_tags) == 0:
 
                     # function status should be added only to tagged functions
                     function_dict["status"] = None
-                    funcs.append(function_dict)
+
+                    # the unversioned uid is only a place holder for tagged instance that are is versioned
+                    # if another instance "took" the tag, we're left with an unversioned untagged instance
+                    # don't list it
+                    if function.uid.startswith(unversioned_tagged_object_uid_prefix):
+                        continue
+
+                    functions.append(function_dict)
                 elif len(function_tags) == 1:
                     function_dict["metadata"]["tag"] = function_tags[0]
-                    funcs.append(function_dict)
+                    functions.append(function_dict)
                 else:
                     for function_tag in function_tags:
                         function_dict_copy = deepcopy(function_dict)
                         function_dict_copy["metadata"]["tag"] = function_tag
-                        funcs.append(function_dict_copy)
+                        functions.append(function_dict_copy)
             else:
                 function_dict["metadata"]["tag"] = tag
-                funcs.append(function_dict)
-        return funcs
+                functions.append(function_dict)
+        return functions
 
     def _delete_function_tags(self, session, project, function_name, commit=True):
         query = session.query(Function.Tag).filter(
@@ -673,6 +686,16 @@ class SQLDB(DBInterface):
             return self._query(session, cls).get(tag.obj_id).uid
         return None
 
+    def _resolve_tag_function_uids(
+        self, session, cls, project, tag_name, function_name=None
+    ) -> List[str]:
+        uids = []
+        for tag in self._query(
+            session, cls.Tag, project=project, obj_name=function_name, name=tag_name
+        ):
+            uids.append(self._query(session, cls).get(tag.obj_id).uid)
+        return uids
+
     def _query(self, session, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
@@ -752,6 +775,8 @@ class SQLDB(DBInterface):
 
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
+        if project == "*":
+            project = None
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
 
@@ -912,10 +937,10 @@ class SQLDB(DBInterface):
                 filtered_artifacts.append(artifact)
         return filtered_artifacts
 
-    def _find_functions(self, session, name, project, uid=None, labels=None):
+    def _find_functions(self, session, name, project, uids=None, labels=None):
         query = self._query(session, Function, name=name, project=project)
-        if uid:
-            query = query.filter(Function.uid == uid)
+        if uids:
+            query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)
         return self._add_labels_filter(session, query, Function, labels)

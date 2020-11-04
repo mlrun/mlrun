@@ -24,8 +24,8 @@ from urllib.request import URLError, urlopen
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-here = Path(__file__).absolute().parent
-results = here / "test_results"
+tests_root_directory = Path(__file__).absolute().parent
+results = tests_root_directory / "test_results"
 is_ci = "CI" in environ
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
@@ -35,12 +35,14 @@ environ["KFP_ARTIFACTS_DIR"] = f"{results}/kfp/"
 print(f"KFP: {results}/kfp/")
 
 rundb_path = f"{results}/rundb"
+logs_path = f"{results}/logs"
 out_path = f"{results}/out"
-root_path = str(Path(here).parent)
-examples_path = Path(here).parent.joinpath("examples")
+root_path = str(Path(tests_root_directory).parent)
+examples_path = Path(tests_root_directory).parent.joinpath("examples")
 environ["PYTHONPATH"] = root_path
 environ["MLRUN_DBPATH"] = rundb_path
 environ["MLRUN_httpdb__dirpath"] = rundb_path
+environ["MLRUN_httpdb__logs_path"] = logs_path
 environ["MLRUN_log_level"] = "DEBUG"
 pytest_plugins = ["tests.common_fixtures"]
 

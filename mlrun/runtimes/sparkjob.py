@@ -22,12 +22,14 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
-from .base import RunError, RunStates
+from mlrun.runtimes.constants import SparkApplicationStates
+from mlrun.config import config
+from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, mount_v3iod
+from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from ..utils import update_in, logger, get_in
 
 igz_deps = {
@@ -51,7 +53,7 @@ _sparkjob_template = {
         "image": "",
         "imagePullPolicy": "IfNotPresent",
         "mainApplicationFile": "",
-        "sparkVersion": "2.4.0",
+        "sparkVersion": "2.4.5",
         "restartPolicy": {
             "type": "OnFailure",
             "onFailureRetries": 3,
@@ -158,6 +160,11 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
+        elif config.igz_version:
+            image_tag = (
+                "" if ":" in config.spark_app_image else ":" + config.igz_version
+            )
+            update_in(job, "spec.image", config.spark_app_image + image_tag)
         update_in(job, "spec.volumes", self.spec.volumes)
 
         extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
@@ -185,8 +192,10 @@ class SparkRuntime(KubejobRuntime):
                     job, "spec.executor.memory", self.spec.resources["limits"]["memory"]
                 )
         if self.spec.command:
+            if "://" not in self.spec.command:
+                self.spec.command = "local://" + self.spec.command
             update_in(job, "spec.mainApplicationFile", self.spec.command)
-        update_in(job, "spec.arguments", self.spec.args)
+        update_in(job, "spec.arguments", self.spec.args or [])
         resp = self._submit_job(job, meta.namespace)
         # name = get_in(resp, 'metadata.name', 'unknown')
 
@@ -232,7 +241,14 @@ class SparkRuntime(KubejobRuntime):
                             meta.name, driver, status
                         )
                     )
-                    logger.info("use .watch({}) to see logs".format(meta.name))
+                    resp = self.get_job(meta.name, meta.namespace)
+                    ui_ingress = (
+                        resp.get("status", {})
+                        .get("driverInfo", {})
+                        .get("webUIIngressAddress")
+                    )
+                    if ui_ingress:
+                        runobj.status.status_text = f"UI is available while the job is running: http://{ui_ingress}"
             else:
                 logger.error(
                     "SparkJob status unknown or failed, check pods: {}".format(
@@ -295,12 +311,11 @@ class SparkRuntime(KubejobRuntime):
 
     def with_igz_spark(self):
         self._update_igz_jars()
-        self.apply(mount_v3io(name="v3io-fuse", remote="/", mount_path="/v3io"))
+        self.apply(mount_v3io_extended())
         self.apply(
             mount_v3iod(
                 namespace="default-tenant",
                 v3io_config_configmap="spark-operator-v3io-config",
-                v3io_auth_secret="spark-operator-v3io-auth",
             )
         )
 
@@ -325,6 +340,12 @@ class SparkRuntime(KubejobRuntime):
         return list(pods.items())[0]
 
     @property
+    def is_deployed(self):
+        if not self.spec.build.source and not self.spec.build.commands:
+            return True
+        return super().is_deployed
+
+    @property
     def spec(self) -> SparkJobSpec:
         return self._spec
 
@@ -337,23 +358,19 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
-        # it is less likely that there will be new stable states, or the existing ones will change so better to resolve
-        # whether it's a transient state by checking if it's not a stable state
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
-        in_transient_state = state not in ["COMPLETED", "FAILED"]
-        desired_run_state = None
+        in_terminal_state = state in SparkApplicationStates.terminal_states()
+        desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(
+            state
+        )
         completion_time = None
-        if not in_transient_state:
+        if in_terminal_state:
             completion_time = datetime.fromisoformat(
                 crd_object.get("status", {})
                 .get("terminationTime")
                 .replace("Z", "+00:00")
             )
-            desired_run_state = {
-                "COMPLETED": RunStates.completed,
-                "FAILED": RunStates.error,
-            }[state]
-        return in_transient_state, completion_time, desired_run_state
+        return in_terminal_state, completion_time, desired_run_state
 
     @staticmethod
     def _consider_run_on_resources_deletion() -> bool:

@@ -20,11 +20,11 @@
   - [Using the MLRun CLI to Run an MLRun Service](#using-the-mlrun-cli-to-run-an-mlrun-service)
 
 ##  Experiment Tracking
-Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find 3 main sections within the your project:
-1. [**Artifacts**](#artifact): Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs
-2. [**Functions**](#functions): The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions)
-3. [**Jobs**](#jobs): Allows you to review anything you executed, and review the execution outcome
-4. [**Pipelines**](#pipelines): Reusable end-to-end ML workflows
+Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find the following sections within your project:
+1. [**Artifacts**](#artifact): Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs.
+2. [**Functions**](#functions): The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions).
+3. [**Jobs**](#jobs): Allows you to review anything you executed, and review the execution outcome.
+4. [**Pipelines**](#pipelines): Reusable end-to-end ML workflows.
 
 You can compare different experiments and review these results. When using experiment tracking you don't have to worry about saving your work as you try out different models and various configurations, you can always compare your different results and choose the best strategy based on your current and past experiments.
 

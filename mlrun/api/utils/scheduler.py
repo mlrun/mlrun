@@ -101,6 +101,14 @@ class Scheduler:
         self._scheduler.remove_job(job_id)
         get_db().delete_schedule(db_session, project, name)
 
+    async def invoke_schedule(self, db_session: Session, project: str, name: str):
+        logger.debug("Invoking schedule", project=project, name=name)
+        db_schedule = get_db().get_schedule(db_session, project, name)
+        function, args, kwargs = self._resolve_job_function(
+            db_schedule.kind, db_schedule.scheduled_object
+        )
+        return await function(*args, **kwargs)
+
     def _validate_cron_trigger(
         self,
         cron_trigger: schemas.ScheduleCronTrigger,
@@ -211,9 +219,9 @@ class Scheduler:
 
         if scheduled_kind == schemas.ScheduleKinds.job:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
-            return Scheduler.submit_job_wrapper, [scheduled_object_copy], {}
+            return Scheduler.submit_run_wrapper, [scheduled_object_copy], {}
         if scheduled_kind == schemas.ScheduleKinds.local_function:
-            return scheduled_object, None, None
+            return scheduled_object, [], {}
 
         # sanity
         message = "Scheduled object kind missing implementation"
@@ -227,23 +235,25 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
-    def submit_job_wrapper(scheduled_object):
+    async def submit_run_wrapper(scheduled_object):
         # import here to avoid circular imports
-        from mlrun.api.api.utils import submit
+        from mlrun.api.api.utils import submit_run
 
-        # removing the schedule from the body otherwise when the scheduler will submit this job it will go to an
+        # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop
         scheduled_object.pop("schedule", None)
 
         # removing the uid from the task metadata so that a new uid will be generated for every run
-        # otherwise all jobs will have the same uid
+        # otherwise all runs will have the same uid
         scheduled_object.get("task", {}).get("metadata", {}).pop("uid", None)
 
         db_session = create_session()
 
-        submit(db_session, scheduled_object)
+        response = await submit_run(db_session, scheduled_object)
 
         close_session(db_session)
+
+        return response
 
     @staticmethod
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(

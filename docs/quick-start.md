@@ -21,15 +21,14 @@ MLRun requires separate containers for the API and the dashboard (UI).
 
 To install and run MLRun locally using Docker:
 ``` sh
-MLRUN_IP=localhost
-SHARED_DIR=/home/me/data
-# On Windows, use host.docker.internal for MLRUN_IP
+SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/mlrun-ui:0.5.2
-docker pull mlrun/jupyter:0.5.2
+docker pull mlrun/jupyter:0.5.3
+docker pull mlrun/mlrun-ui:0.5.3
 
-docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 mlrun/mlrun-ui:0.5.2
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.2
+docker network create mlrun-network
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.3
+docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.5.3
 ```
 
 When using Docker MLRun can only use local runs.
@@ -46,7 +45,7 @@ kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/h
 
 ```
 
-For more details regarding MLRun installation, refer to the [Installation Guide](install.html).
+For more details regarding MLRun installation, refer to the [Installation Guide](install.md).
 
 <a id="setup"></a>
 ## MLRun Setup
@@ -140,7 +139,7 @@ As input, we will provide a CSV file from S3:
 
 ```python
 # Set the source-data URL
-source_url = 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'
+source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
 ```
 
 Next call this function locally, using the `run_local` method. This is a wrapper that will store the execution results in the MLRun database.
@@ -413,7 +412,7 @@ def init_functions(functions: dict, project=None, secrets=None):
     name="Quick-start",
     description="This is  simple workflow"
 )
-def kfpipeline(source_url='http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'):
+def kfpipeline(source_url='https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'):
 
     # Ingest the data set
     ingest = funcs['get-data'].as_step(

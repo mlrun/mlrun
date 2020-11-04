@@ -16,6 +16,7 @@ import json
 from copy import deepcopy
 from os import environ
 
+import mlrun
 from .db import get_or_set_dburl
 from .utils import run_keys, dict_to_yaml, logger, gen_md_table, get_artifact_target
 from .config import config
@@ -152,6 +153,7 @@ def mlrun_op(
     more_args: list = None,
     tuning_strategy=None,
     verbose=None,
+    scrape_metrics=False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
@@ -189,6 +191,7 @@ def mlrun_op(
     :param handler   code entry-point/hanfler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
+    :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
 
     :returns: KFP step operation
 
@@ -292,6 +295,7 @@ def mlrun_op(
         project = project or runobj.metadata.project
         labels = runobj.metadata.labels or labels
         verbose = verbose or runobj.spec.verbose
+        scrape_metrics = scrape_metrics or runobj.spec.scrape_metrics
 
     if not name:
         if not function_name:
@@ -354,6 +358,8 @@ def mlrun_op(
         cmd += ["--mode", mode]
     if verbose:
         cmd += ["--verbose"]
+    if scrape_metrics:
+        cmd += ["--scrape-metrics"]
     if more_args:
         cmd += more_args
 
@@ -409,19 +415,18 @@ def mlrun_op(
 def deploy_op(
     name,
     function,
+    func_url=None,
     source="",
     dashboard="",
     project="",
-    models: dict = None,
+    models: list = None,
     env: dict = None,
     tag="",
     verbose=False,
 ):
     from kfp import dsl
 
-    models = {} if models is None else models
-    runtime = "{}".format(function.to_dict())
-    cmd = ["python", "-m", "mlrun", "deploy", runtime]
+    cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
     if dashboard:
@@ -432,11 +437,27 @@ def deploy_op(
         cmd += ["--verbose"]
     if project:
         cmd += ["-p", project]
-    for m, val in models.items():
-        cmd += ["-m", "{}={}".format(m, val)]
+
+    if models:
+        for m in models:
+            for key in ["model_path", "model_url", "class_name"]:
+                if key in m:
+                    m[key] = str(m[key])  # verify we stringify pipeline params
+            if function.kind == mlrun.runtimes.RuntimeKinds.serving:
+                cmd += ["-m", json.dumps(m)]
+            else:
+                cmd += ["-m", "{}={}".format(m["key"], m["model_path"])]
+
     if env:
         for key, val in env.items():
             cmd += ["--env", "{}={}".format(key, val)]
+
+    if func_url:
+        cmd += ["-f", func_url]
+    else:
+        runtime = f"{function.to_dict()}"
+        cmd += [runtime]
+
     cop = dsl.ContainerOp(
         name=name,
         image=config.kfp_image,

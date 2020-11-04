@@ -76,7 +76,7 @@ class K8sHelper:
     def list_pods(self, namespace=None, selector="", states=None):
         try:
             resp = self.v1api.list_namespaced_pod(
-                self.resolve_namespace(namespace), watch=False, label_selector=selector
+                self.resolve_namespace(namespace), label_selector=selector
             )
         except ApiException as e:
             logger.error("failed to list pods: {}".format(e))
@@ -253,10 +253,12 @@ class K8sHelper:
             items.append(i)
         return items
 
-    def get_logger_pods(self, uid, namespace=""):
+    def get_logger_pods(self, project, uid, namespace=""):
         namespace = self.resolve_namespace(namespace)
-        selector = "mlrun/class,mlrun/uid={}".format(uid)
-        pods = self.list_pods(selector=selector, namespace=namespace)
+        # TODO: all mlrun labels are sprinkled in a lot of places - they need to all be defined in a central,
+        #  inclusive place.
+        selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
+        pods = self.list_pods(namespace, selector=selector)
         if not pods:
             logger.error("no pod matches that uid", uid=uid)
             return

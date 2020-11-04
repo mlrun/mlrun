@@ -1,39 +1,13 @@
 from http import HTTPStatus
-from typing import Callable
-from typing import Generator
+from typing import Callable, Generator
 from unittest.mock import Mock
 
 import pytest
 import requests
 import v3io.dataplane
 
-import mlrun.k8s_utils
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.config import config
 from tests.conftest import init_sqldb
-
-
-@pytest.fixture
-def k8s_helper_mock(monkeypatch):
-    class K8sHelperMock(Mock):
-        def resolve_namespace(self, namespace=None):
-            return namespace or config.namespace
-
-        def is_running_inside_kubernetes_cluster(self):
-            return False
-
-    # remember the real one
-    real_k8s_helper = mlrun.k8s_utils._k8s
-
-    # set it to the mock
-    k8s_helper_mock_instance = K8sHelperMock()
-    mlrun.k8s_utils._k8s = k8s_helper_mock_instance
-
-    yield k8s_helper_mock_instance
-
-    # set it to real one
-    mlrun.k8s_utils._k8s = real_k8s_helper
-
 
 session_maker: Callable
 

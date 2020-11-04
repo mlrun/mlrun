@@ -3,7 +3,8 @@ urllib3>=1.24.2, <1.25
 GitPython>=2.1.0
 # required by google-auth
 aiohttp<4.0.0dev,>=3.6.2
-boto3>=1.9
+# In 1.16 boto3 requires botocore >=1.19.0 which requires urllib3>=1.25.4,<1.26 which conflicting with our dependencies
+boto3>=1.9, <1.16
 # ==7.0 from kfp
 click==7.0
 # this is the pipelines version running in 2.8/2.10 iguazio system, for now locking it to this version
@@ -28,4 +29,7 @@ seaborn
 google-auth<2.0dev,>=1.19.1
 azure-storage-blob
 pydantic~=1.5
+# <3.4 since 3.4 can't be installed on pip 18.1
+orjson>=3,<3.4
+importlib-resources; python_version < '3.7'
 alembic~=1.4

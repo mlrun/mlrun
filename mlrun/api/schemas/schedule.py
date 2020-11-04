@@ -65,13 +65,25 @@ class ScheduleKinds(str, Enum):
     local_function = "local_function"
 
 
-# Properties to receive via API on creation
-class ScheduleInput(BaseModel):
+class LabelOutput(BaseModel):
     name: str
-    kind: ScheduleKinds
+    value: str
+
+    class Config:
+        orm_mode = True
+
+
+# Properties to receive via API on creation
+class ScheduleUpdate(BaseModel):
     scheduled_object: Any
     cron_trigger: Union[str, ScheduleCronTrigger]
     desired_state: Optional[str]
+    labels: List[LabelOutput]
+
+
+class ScheduleInput(ScheduleUpdate):
+    name: str
+    kind: ScheduleKinds
 
 
 # the schedule object returned from the db layer

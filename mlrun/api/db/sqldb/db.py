@@ -1,6 +1,6 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, List
+from typing import Any, List, Dict
 
 import pytz
 from sqlalchemy import and_, func
@@ -490,6 +490,7 @@ class SQLDB(DBInterface):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        labels: Dict = None,
     ):
         self._ensure_project(session, project)
         schedule = Schedule(
@@ -503,10 +504,7 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
         )
 
-        try:
-            labels = get_in(scheduled_object, "metadata.labels", {})
-        except TypeError:
-            labels = {}
+        labels = labels or {}
         update_labels(schedule, labels)
 
         logger.debug(
@@ -546,12 +544,26 @@ class SQLDB(DBInterface):
 
     def delete_schedule(self, session: Session, project: str, name: str):
         logger.debug("Removing schedule from db", project=project, name=name)
+        self._delete_schedule_labels(session, project, name, commit=False)
         self._delete(session, Schedule, project=project, name=name)
 
     def _delete_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
         for schedule in self.list_schedules(session, project=project):
             self.delete_schedule(session, project, schedule.name)
+
+    def _delete_schedule_labels(
+        self, session: Session, project: str, schedule_name: str, commit: bool = True
+    ):
+        labels = (
+            session.query(Schedule.Label)
+            .join(Schedule)
+            .filter(Schedule.project == project, Schedule.name == schedule_name)
+        )
+        for label in labels:
+            session.delete(label)
+        if commit:
+            session.commit()
 
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.

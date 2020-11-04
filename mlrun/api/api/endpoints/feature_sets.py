@@ -19,7 +19,7 @@ def create_feature_set(
     versioned: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_set_id = get_db().create_feature_set(
+    feature_set_uid = get_db().create_feature_set(
         db_session, project, feature_set, versioned
     )
 
@@ -28,7 +28,7 @@ def create_feature_set(
         project,
         feature_set.metadata.name,
         tag=feature_set.metadata.tag,
-        uid=feature_set_id,
+        uid=feature_set_uid,
     )
 
 

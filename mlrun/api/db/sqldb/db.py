@@ -765,7 +765,6 @@ class SQLDB(DBInterface):
                     feature_set = self._transform_feature_set_model_to_schema(
                         feature_set_record
                     )
-                    feature_set.status = None
                     feature_sets.append(feature_set)
                 else:
                     for feature_set_tag in feature_set_tags:

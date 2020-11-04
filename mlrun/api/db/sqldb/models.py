@@ -161,14 +161,20 @@ with warnings.catch_warnings():
 
     class Schedule(Base):
         __tablename__ = "schedules_v2"
-        project = Column(String, primary_key=True)
-        name = Column(String, primary_key=True)
+        __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
+
+        Label = make_label(__tablename__)
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String, nullable=False)
+        name = Column(String, nullable=False)
         kind = Column(String)
         desired_state = Column(String)
         state = Column(String)
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
         struct = Column(BLOB)
+        labels = relationship(Label)
 
         @property
         def scheduled_object(self):

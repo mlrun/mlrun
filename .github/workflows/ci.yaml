@@ -46,7 +46,7 @@ jobs:
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make test-dockerized
 
-  magrations-tests:
+  migrations-tests:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:

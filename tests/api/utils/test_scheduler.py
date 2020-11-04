@@ -237,6 +237,10 @@ async def test_get_schedule_datetime_fields_timezone(db: Session, scheduler: Sch
 
 @pytest.mark.asyncio
 async def test_get_schedule(db: Session, scheduler: Scheduler):
+    labels_1 = {
+        "label1": "value1",
+        "label2": "value2",
+    }
     cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project = config.default_project
@@ -247,6 +251,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger,
+        labels_1,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -258,8 +263,13 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schemas.ScheduleKinds.local_function,
         cron_trigger,
         None,
+        labels_1,
     )
 
+    labels_2 = {
+        "label3": "value3",
+        "label4": "value4",
+    }
     year = 2050
     cron_trigger_2 = schemas.ScheduleCronTrigger(year=year, timezone="utc")
     schedule_name_2 = "schedule-name-2"
@@ -270,6 +280,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger_2,
+        labels_2,
     )
     schedule_2 = scheduler.get_schedule(db, project, schedule_name_2)
     year_datetime = datetime(year=year, month=1, day=1, tzinfo=timezone.utc)
@@ -280,6 +291,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schemas.ScheduleKinds.local_function,
         cron_trigger_2,
         year_datetime,
+        labels_2,
     )
 
     schedules = scheduler.list_schedules(db)
@@ -291,6 +303,7 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schemas.ScheduleKinds.local_function,
         cron_trigger,
         None,
+        labels_1,
     )
     _assert_schedule(
         schedules.schedules[1],
@@ -299,6 +312,19 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         schemas.ScheduleKinds.local_function,
         cron_trigger_2,
         year_datetime,
+        labels_2,
+    )
+
+    schedules = scheduler.list_schedules(db, labels="label3=value3")
+    assert len(schedules.schedules) == 1
+    _assert_schedule(
+        schedules.schedules[0],
+        project,
+        schedule_name_2,
+        schemas.ScheduleKinds.local_function,
+        cron_trigger_2,
+        year_datetime,
+        labels_2,
     )
 
 
@@ -397,7 +423,13 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
 
 
 def _assert_schedule(
-    schedule: schemas.ScheduleOutput, project, name, kind, cron_trigger, next_run_time
+    schedule: schemas.ScheduleOutput,
+    project,
+    name,
+    kind,
+    cron_trigger,
+    next_run_time,
+    labels,
 ):
     assert schedule.name == name
     assert schedule.project == project
@@ -405,6 +437,9 @@ def _assert_schedule(
     assert schedule.next_run_time == next_run_time
     assert schedule.cron_trigger == cron_trigger
     assert schedule.creation_time is not None
+    assert len(schedule.labels) == len(labels)
+    for label in schedule.labels:
+        assert labels[label.name] == label.value
 
 
 def _create_mlrun_function_and_matching_scheduled_object(db: Session, project: str):

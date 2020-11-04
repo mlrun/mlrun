@@ -52,6 +52,7 @@ class Scheduler:
         kind: schemas.ScheduleKinds,
         scheduled_object: Union[Dict, Callable],
         cron_trigger: Union[str, schemas.ScheduleCronTrigger],
+        labels: Dict = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
@@ -67,7 +68,7 @@ class Scheduler:
             cron_trigger=cron_trigger,
         )
         get_db().create_schedule(
-            db_session, project, name, kind, scheduled_object, cron_trigger
+            db_session, project, name, kind, scheduled_object, cron_trigger, labels
         )
         self._create_schedule_in_scheduler(
             project, name, kind, scheduled_object, cron_trigger
@@ -79,9 +80,12 @@ class Scheduler:
         project: str = None,
         name: str = None,
         kind: str = None,
+        labels: str = None,
     ) -> schemas.SchedulesOutput:
-        logger.debug("Getting schedules", project=project, name=name, kind=kind)
-        db_schedules = get_db().list_schedules(db_session, project, name, kind)
+        logger.debug(
+            "Getting schedules", project=project, name=name, labels=labels, kind=kind
+        )
+        db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_db_schedule_to_schedule(db_schedule)

@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Any
+from typing import List, Any, Dict
 
 from mlrun.api import schemas
 
@@ -140,6 +140,7 @@ class DBInterface(ABC):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        labels: Dict = None,
     ):
         pass
 
@@ -149,6 +150,7 @@ class DBInterface(ABC):
         session,
         project: str = None,
         name: str = None,
+        labels: str = None,
         kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         pass

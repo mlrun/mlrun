@@ -176,7 +176,6 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
     # Create several schedule
     schedule = {
         "bla": "blabla",
-        "metadata": {"labels": labels},
         "status": {"bla": "blabla"},
     }
     schedule_cron_trigger = schemas.ScheduleCronTrigger(year=1999)
@@ -189,4 +188,5 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
             schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
+            labels,
         )

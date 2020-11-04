@@ -45,9 +45,11 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     call_counter = 0
     now = datetime.now()
     expected_call_counter = 5
-    now_plus_5_seconds = now + timedelta(seconds=expected_call_counter)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=1 + expected_call_counter)
+    # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now, end_date=now_plus_5_seconds
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -59,7 +61,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
         bump_counter,
         cron_trigger,
     )
-    await asyncio.sleep(expected_call_counter)
+    await asyncio.sleep(1 + expected_call_counter)
     assert call_counter == expected_call_counter
 
 
@@ -100,8 +102,10 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
 async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
     now = datetime.now()
     now_plus_1_second = now + timedelta(seconds=1)
+    now_plus_2_second = now + timedelta(seconds=2)
+    # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now, end_date=now_plus_1_second
+        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -116,7 +120,7 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
         scheduled_object,
         cron_trigger,
     )
-    await asyncio.sleep(1)
+    await asyncio.sleep(2)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed

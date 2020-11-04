@@ -339,7 +339,7 @@ class BaseRuntime(ModelObj):
         if not self.is_child:
             dbstr = "self" if self._is_api_server else self.spec.rundb
             logger.info(
-                "starting run {} uid={}  -> {}".format(meta.name, meta.uid, dbstr)
+                "starting run {} uid={} DB={}".format(meta.name, meta.uid, dbstr)
             )
             meta.labels["kind"] = self.kind
             if "owner" not in meta.labels:

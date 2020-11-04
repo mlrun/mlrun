@@ -390,6 +390,26 @@ test: clean ## Run mlrun tests
 		-rf \
 		tests
 
+.PHONY: test-migrations-dockerized
+test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
+	docker run \
+		-t \
+		--rm \
+		--network='host' \
+		-v /tmp:/tmp \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
+
+.PHONY: test-migrations
+test-migrations: clean ## Run mlrun db migrations tests
+	cd mlrun/api; \
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rf \
+		--test-alembic \
+		migrations/tests/*
+
 .PHONY: test-system
 test-system: build-test-system ## Run mlrun system tests
 	docker run -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)

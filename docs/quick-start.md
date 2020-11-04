@@ -23,12 +23,12 @@ To install and run MLRun locally using Docker:
 ``` sh
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/mlrun-ui:0.5.2
-docker pull mlrun/jupyter:0.5.2
+docker pull mlrun/jupyter:0.5.3
+docker pull mlrun/mlrun-ui:0.5.3
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.2
-docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.5.2
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.3
+docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.5.3
 ```
 
 When using Docker MLRun can only use local runs.
@@ -45,7 +45,7 @@ kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/h
 
 ```
 
-For more details regarding MLRun installation, refer to the [Installation Guide](install.html).
+For more details regarding MLRun installation, refer to the [Installation Guide](install.md).
 
 <a id="setup"></a>
 ## MLRun Setup

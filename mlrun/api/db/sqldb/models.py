@@ -267,7 +267,7 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)
 
-        labels = relationship(Label)
+        labels = relationship(Label, cascade="all, delete-orphan")
 
         features = relationship(Feature, cascade="all, delete-orphan")
         entities = relationship(Entity, cascade="all, delete-orphan")

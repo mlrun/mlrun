@@ -7,52 +7,55 @@ from sqlalchemy.orm import Session
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.utils.singletons.db import get_db
-from .utils import parse_reference
+from mlrun.api.api.utils import parse_reference
 
 router = APIRouter()
 
 
-@router.post(
-    "/projects/{project}/feature_sets", response_model=schemas.FeatureSetCreateOutput
-)
+@router.post("/projects/{project}/feature_sets", response_model=schemas.FeatureSet)
 def create_feature_set(
     project: str,
     feature_set: schemas.FeatureSet,
-    versioned: bool = False,
+    versioned: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
     feature_set_id = get_db().create_feature_set(
         db_session, project, feature_set, versioned
     )
-    return schemas.FeatureSetCreateOutput(
-        uid=feature_set_id, name=feature_set.metadata.name
+
+    return get_db().get_feature_set(
+        db_session,
+        project,
+        feature_set.metadata.name,
+        tag=feature_set.metadata.tag,
+        uid=feature_set_id,
     )
 
 
-@router.put("/projects/{project}/feature_sets/{name}/references/{ref}")
+@router.put("/projects/{project}/feature_sets/{name}/references/{reference}")
 def update_feature_set(
     project: str,
     name: str,
     feature_set_update: schemas.FeatureSetUpdate,
-    ref: str,
+    reference: str,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    tag, uid = parse_reference(ref)
+    tag, uid = parse_reference(reference)
     get_db().update_feature_set(db_session, project, name, feature_set_update, tag, uid)
     return Response(status_code=HTTPStatus.OK.value)
 
 
 @router.get(
-    "/projects/{project}/feature_sets/{name}/references/{ref}",
+    "/projects/{project}/feature_sets/{name}/references/{reference}",
     response_model=schemas.FeatureSet,
 )
 def get_feature_set(
     project: str,
     name: str,
-    ref: str,
+    reference: str,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    tag, uid = parse_reference(ref)
+    tag, uid = parse_reference(reference)
     feature_set = get_db().get_feature_set(db_session, project, name, tag, uid)
     return feature_set
 

@@ -5,7 +5,7 @@ from typing import Any, List
 import pytz
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session
 
 import mlrun.errors
 from mlrun.api import schemas
@@ -28,6 +28,7 @@ from mlrun.api.db.sqldb.models import (
     Project,
     FeatureSet,
     Feature,
+    Entity,
     _tagged,
     _labeled,
 )
@@ -721,38 +722,57 @@ class SQLDB(DBInterface):
         tag_query = self._query(session, FeatureSet.Tag, project=project, name=tag)
         if name:
             tag_query = tag_query.filter(FeatureSet.Tag.obj_name.ilike(f"%{name}%"))
-        obj_uids = {row.obj_id: row.name for row in tag_query}
 
-        # Query exact fields
+        # Generate a mapping from each object id (note: not uid, it's the DB ID) to its associated tags.
+        obj_id_tags = {}
+        for row in tag_query:
+            if row.obj_id in obj_id_tags:
+                obj_id_tags[row.obj_id].append(row.name)
+            else:
+                obj_id_tags[row.obj_id] = [row.name]
+
+        # Query the actual objects to be returned
         query = self._query(session, FeatureSet, project=project, state=state)
 
         if name is not None:
             query = query.filter(FeatureSet.name.ilike(f"%{name}%"))
         if tag:
-            query = query.filter(FeatureSet.id.in_(obj_uids.keys()))
+            query = query.filter(FeatureSet.id.in_(obj_id_tags.keys()))
         if entities:
-            ent_alias = aliased(Feature)
-            query = query.join(FeatureSet.entities.of_type(ent_alias)).filter(
-                ent_alias.name.in_(entities)
-            )
+            query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
         if features:
-            feat_alias = aliased(Feature)
-            query = query.join(FeatureSet.features.of_type(feat_alias)).filter(
-                feat_alias.name.in_(features)
-            )
+            query = query.join(FeatureSet.features).filter(Feature.name.in_(features))
 
+        # Using a similar mechanism here to assign tags to feature sets as is used in list_functions. Please refer
+        # there for some comments explaining the logic.
         feature_sets = []
         for feature_set_record in query:
-            feature_set = self._transform_feature_set_model_to_schema(
-                feature_set_record
-            )
-            feature_set.metadata.tag = obj_uids[feature_set_record.id]
-            feature_sets.append(feature_set)
+            if tag:
+                feature_sets.append(
+                    self._transform_feature_set_model_to_schema(feature_set_record, tag)
+                )
+            else:
+                feature_set_tags = obj_id_tags[feature_set_record.id]
+                if len(feature_set_tags) == 0 and not feature_set_record.id.startswith(
+                    unversioned_tagged_object_uid_prefix
+                ):
+                    feature_set = self._transform_feature_set_model_to_schema(
+                        feature_set_record
+                    )
+                    feature_set.status = None
+                    feature_sets.append(feature_set)
+                else:
+                    for feature_set_tag in feature_set_tags:
+                        feature_sets.append(
+                            self._transform_feature_set_model_to_schema(
+                                feature_set_record, feature_set_tag
+                            )
+                        )
         return schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
     @staticmethod
-    def _update_feature_set_features(
-        feature_set: FeatureSet, features: List[dict], is_entity=False, replace=False
+    def _update_feature_set_features_or_entities(
+        feature_set: FeatureSet, objects: List[dict], is_entity=False, replace=False
     ):
         if replace:
             if is_entity:
@@ -760,17 +780,14 @@ class SQLDB(DBInterface):
             else:
                 feature_set.features = []
 
-        for feature in features:
-            f = Feature(**feature)
+        for obj in objects:
             if is_entity:
-                f.type = "entity"
-                feature_set.entities.append(f)
+                feature_set.entities.append(Entity(**obj))
             else:
-                f.type = "feature"
-                feature_set.features.append(f)
+                feature_set.features.append(Feature(**obj))
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=False
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
     ):
         name = feature_set.metadata.name
         if not name or not project:
@@ -785,7 +802,7 @@ class SQLDB(DBInterface):
         if versioned:
             uid = hash_key
         else:
-            uid = f"unversioned-{tag}"
+            uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
 
         state = feature_set_dict.get("status", {}).get("state")
 
@@ -795,7 +812,6 @@ class SQLDB(DBInterface):
             state=state,
             status=feature_set_dict.get("status", {}),
             uid=uid,
-            updated=datetime.now(timezone.utc),
         )
 
         feature_set_spec = feature_set_dict.get("spec")
@@ -803,8 +819,12 @@ class SQLDB(DBInterface):
             features = feature_set_spec.pop("features", [])
             entities = feature_set_spec.pop("entities", [])
 
-        self._update_feature_set_features(feature_set, features, is_entity=False)
-        self._update_feature_set_features(feature_set, entities, is_entity=True)
+        self._update_feature_set_features_or_entities(
+            feature_set, features, is_entity=False
+        )
+        self._update_feature_set_features_or_entities(
+            feature_set, entities, is_entity=True
+        )
 
         labels = feature_set_dict["metadata"].pop("labels", {})
         update_labels(feature_set, labels)
@@ -857,20 +877,20 @@ class SQLDB(DBInterface):
 
         features = data.pop("features", [])
         if features:
-            self._update_feature_set_features(
+            self._update_feature_set_features_or_entities(
                 feature_set_record, features, is_entity=False, replace=True
             )
 
         entities = data.pop("entities", [])
         if entities:
-            self._update_feature_set_features(
+            self._update_feature_set_features_or_entities(
                 feature_set_record, entities, is_entity=True, replace=True
             )
 
         merge_labels(feature_set_record, data.pop("labels", {}))
         feature_set_record.updated = datetime.now(timezone.utc)
 
-        self._upsert(session, feature_set_record, ignore=True)
+        self._upsert(session, feature_set_record)
 
         return feature_set_record.id
 
@@ -894,12 +914,15 @@ class SQLDB(DBInterface):
         return None
 
     def _resolve_class_tag_uids(
-        self, session, cls, project, tag_name, function_name=None
+        self, session, cls, project, tag_name, obj_name=None
     ) -> List[str]:
         uids = []
-        for tag in self._query(
-            session, cls.Tag, project=project, obj_name=function_name, name=tag_name
-        ):
+
+        query = self._query(session, cls.Tag, project=project, name=tag_name)
+        if obj_name:
+            query = query.filter(cls.Tag.obj_name.ilike(f"%{obj_name}%"))
+
+        for tag in query:
             uids.append(self._query(session, cls).get(tag.obj_id).uid)
         return uids
 
@@ -1195,7 +1218,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_feature_set_model_to_schema(
-        feature_set_record: FeatureSet,
+        feature_set_record: FeatureSet, tag=None,
     ) -> schemas.FeatureSet:
         feature_set = schemas.FeatureSetRecord.from_orm(feature_set_record)
 
@@ -1212,4 +1235,5 @@ class SQLDB(DBInterface):
         feature_set_resp.metadata.labels = {
             label.name: label.value for label in feature_set_record.labels
         }
+        feature_set_resp.metadata.tag = tag
         return feature_set_resp

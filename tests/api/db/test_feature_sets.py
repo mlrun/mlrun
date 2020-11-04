@@ -6,13 +6,9 @@ from tests.api.db.conftest import dbs
 from mlrun.api import schemas
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
-def test_create_feature_set(db: DBInterface, db_session: Session):
-    fs = {
-        "metadata": {"name": "dummy", "labels": {"owner": "saarc", "group": "dev"}},
+def _create_feature_set(name):
+    return {
+        "metadata": {"name": name, "labels": {"owner": "saarc", "group": "dev"}},
         "spec": {
             "entities": [{"name": "ticker", "value_type": "str"}],
             "features": [
@@ -33,15 +29,20 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
         },
     }
 
-    proj = "proj_test"
-    name = fs["metadata"]["name"]
 
-    feature_set = schemas.FeatureSet(**fs)
-    fs_id = db.create_feature_set(db_session, proj, feature_set, versioned=True)
-    print("Got ID: {}".format(fs_id))
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_create_feature_set(db: DBInterface, db_session: Session):
+    name = "dummy"
+    feature_set = _create_feature_set(name)
 
-    fs_res = db.get_feature_set(db_session, proj, name)
-    print("Got from DB: {}".format(fs_res.dict()))
+    project = "proj_test"
 
-    fs_res = db.list_feature_sets(db_session, proj)
-    assert len(fs_res.feature_sets) == 1
+    feature_set = schemas.FeatureSet(**feature_set)
+    db.create_feature_set(db_session, project, feature_set, versioned=True)
+    db.get_feature_set(db_session, project, name)
+
+    feature_set_res = db.list_feature_sets(db_session, project)
+    assert len(feature_set_res.feature_sets) == 1

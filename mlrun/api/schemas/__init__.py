@@ -18,6 +18,5 @@ from .feature_store import (
     FeatureSet,
     FeatureSetRecord,
     FeatureSetUpdate,
-    FeatureSetCreateOutput,
     FeatureSetsOutput,
 )

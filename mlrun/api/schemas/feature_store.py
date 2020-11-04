@@ -54,10 +54,5 @@ class FeatureSetRecord(BaseModel):
         orm_mode = True
 
 
-class FeatureSetCreateOutput(BaseModel):
-    uid: str
-    name: str
-
-
 class FeatureSetsOutput(BaseModel):
     feature_sets: List[FeatureSet]

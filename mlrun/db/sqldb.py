@@ -212,7 +212,7 @@ class SQLDB(RunDBInterface):
         except DBError as exc:
             raise RunDBError(exc.args)
 
-    def create_feature_set(self, feature_set, project="", versioned=False):
+    def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
             self.db.create_feature_set, self.session, project, feature_set, versioned
         )

@@ -60,11 +60,12 @@ def _assert_resources_in_project(
             number_of_cls_records = 0
             # Label doesn't have project attribute
             # Project (obviously) doesn't have project attribute
-            # Features are not directly linked to project since they are sub-entity of feature-sets
+            # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
             if (
                 cls.__name__ != "Label"
                 and cls.__name__ != "Project"
                 and cls.__name__ != "Feature"
+                and cls.__name__ != "Entity"
             ):
                 number_of_cls_records = (
                     db_session.query(cls).filter_by(project=project).count()

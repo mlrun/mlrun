@@ -234,12 +234,14 @@ with warnings.catch_warnings():
 
         name = Column(String)
         value_type = Column(String)
-        # Either 'entity' or 'feature', according to the type of the feature
-        type = Column(String)
 
-        # Labels for features are not implemented yet.
-        # Label = make_label(__tablename__)
-        # labels = relationship(Label)
+    class Entity(Base):
+        __tablename__ = "entities"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+
+        name = Column(String)
+        value_type = Column(String)
 
     class FeatureSet(Base):
         __tablename__ = "feature_sets"
@@ -261,17 +263,8 @@ with warnings.catch_warnings():
 
         labels = relationship(Label)
 
-        features = relationship(
-            Feature,
-            cascade="all, delete-orphan",
-            primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'feature')",
-        )
-
-        entities = relationship(
-            Feature,
-            cascade="all, delete-orphan",
-            primaryjoin="and_(Feature.feature_set_id == FeatureSet.id, Feature.type == 'entity')",
-        )
+        features = relationship(Feature, cascade="all, delete-orphan")
+        entities = relationship(Entity, cascade="all, delete-orphan")
 
         @property
         def status(self):

@@ -183,7 +183,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=False
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
     ):
         pass
 

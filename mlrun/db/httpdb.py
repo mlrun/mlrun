@@ -28,6 +28,7 @@ from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta
+from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
 
@@ -648,8 +649,8 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def create_feature_set(
-        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=False
-    ) -> schemas.FeatureSetCreateOutput:
+        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
+    ) -> schemas.FeatureSet:
         project = project or default_project
         path = f"projects/{project}/feature_sets"
         params = {"versioned": versioned}
@@ -666,11 +667,14 @@ class HTTPRunDB(RunDBInterface):
             params=params,
             body=json.dumps(feature_set.dict()),
         )
-        return schemas.FeatureSetCreateOutput(**resp.json())
+        return schemas.FeatureSet(**resp.json())
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ) -> schemas.FeatureSet:
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
         project = project or default_project
         reference = uid or tag or "latest"
         path = f"projects/{project}/feature_sets/{name}/references/{reference}"
@@ -714,6 +718,9 @@ class HTTPRunDB(RunDBInterface):
         tag=None,
         uid=None,
     ):
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
         project = project or default_project
         reference = uid or tag or "latest"
         if isinstance(feature_set, dict):

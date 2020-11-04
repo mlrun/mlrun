@@ -14,7 +14,8 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Union
+from mlrun.api import schemas
 
 
 class RunDBError(Exception):
@@ -126,13 +127,15 @@ class RunDBInterface(ABC):
         return []
 
     @abstractmethod
-    def create_feature_set(self, feature_set, project="", versioned=False):
+    def create_feature_set(
+        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
+    ) -> schemas.FeatureSet:
         pass
 
     @abstractmethod
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ):
+    ) -> schemas.FeatureSet:
         pass
 
     @abstractmethod
@@ -145,11 +148,18 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ):
+    ) -> schemas.FeatureSetsOutput:
         pass
 
     @abstractmethod
-    def update_feature_set(self, name, feature_set, project="", tag=None, uid=None):
+    def update_feature_set(
+        self,
+        name,
+        feature_set: Union[dict, schemas.FeatureSetUpdate],
+        project="",
+        tag=None,
+        uid=None,
+    ):
         pass
 
     @abstractmethod

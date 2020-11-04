@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import json
 import os
 import socket
@@ -112,6 +113,7 @@ class ModelServerHost(ModelObj):
         class_args = deepcopy(class_args)
         class_args["model_path"] = model_path
         route = ServingTaskState(class_name, class_args, handler)
+        namespace = namespace or inspect.stack()[1][0].f_globals
         self.graph.add_route(name, route).init_object(self.context, namespace)
 
     def test(
@@ -197,6 +199,7 @@ def create_mock_server(
 
     if not graph:
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
+    namespace = namespace or inspect.stack()[1][0].f_globals
     server = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
     server.init(context, namespace or {})
     return server

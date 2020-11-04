@@ -23,6 +23,7 @@ def create_schedule(
         schedule.kind,
         schedule.scheduled_object,
         schedule.cron_trigger,
+        labels={label.name: label.value for label in schedule.labels},
     )
     return Response(status_code=HTTPStatus.CREATED.value)
 

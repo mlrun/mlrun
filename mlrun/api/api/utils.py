@@ -154,6 +154,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
+            schedule_labels = task["metadata"].get("labels")
             get_scheduler().create_schedule(
                 db_session,
                 task["metadata"]["project"],
@@ -161,6 +162,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
                 schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
+                schedule_labels,
             )
             project = task["metadata"]["project"]
 

@@ -65,14 +65,18 @@ def test_feature_set(db: Session, client: TestClient) -> None:
 
     name = "feature_set2"
     feature_set = _generate_feature_set(name)
-    response = client.post(f"/api/projects/{project_name}/feature_sets", json=feature_set)
+    response = client.post(
+        f"/api/projects/{project_name}/feature_sets", json=feature_set
+    )
     assert response.status_code == HTTPStatus.OK.value
 
     name = "feat_3"
     feature_set = _generate_feature_set(name)
     feature_set["spec"]["entities"] = [{"name": "buyer", "value_type": "str"}]
 
-    response = client.post(f"/api/projects/{project_name}/feature_sets", json=feature_set)
+    response = client.post(
+        f"/api/projects/{project_name}/feature_sets", json=feature_set
+    )
     assert response.status_code == HTTPStatus.OK.value
 
     _assert_list_feature_sets(client, project_name, None, 3)

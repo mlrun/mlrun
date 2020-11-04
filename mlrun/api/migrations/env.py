@@ -28,7 +28,7 @@ target_metadata = models.Base.metadata
 
 # this will overwrite the ini-file sqlalchemy.url path
 # with the path given in the mlconf
-config.set_main_option('sqlalchemy.url', mlconf.httpdb.dsn)
+config.set_main_option("sqlalchemy.url", mlconf.httpdb.dsn)
 
 
 def run_migrations_offline():

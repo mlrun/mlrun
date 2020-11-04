@@ -14,6 +14,7 @@
 
 import inspect
 import warnings
+from collections import OrderedDict
 from copy import deepcopy
 from os import environ
 
@@ -91,7 +92,7 @@ class ModelObj:
 # model class for building ModelObj dictionaries
 class ObjectDict:
     def __init__(self, classes_map, default_kind=""):
-        self._children = {}
+        self._children = OrderedDict()
         self._default_kind = default_kind
         self._classes_map = classes_map
 
@@ -118,6 +119,11 @@ class ObjectDict:
 
     def __delitem__(self, key):
         del self._children[key]
+
+    def update(self, key, item):
+        child = self._get_child_object(item, key)
+        self._children[key] = child
+        return child
 
     def to_dict(self):
         return {k: v.to_dict() for k, v in self._children.items()}
@@ -164,6 +170,72 @@ class ObjectDict:
 
     def copy(self):
         return deepcopy(self)
+
+
+class ObjectList:
+    def __init__(self, child_class):
+        self._children = OrderedDict()
+        self._child_class = child_class
+
+    def values(self):
+        return self._children.values()
+
+    def keys(self):
+        return self._children.keys()
+
+    def items(self):
+        return self._children.items()
+
+    def __len__(self):
+        return len(self._children)
+
+    def __iter__(self):
+        yield from self._children.values()
+
+    def __getitem__(self, name):
+        if isinstance(name, int):
+            return list(self._children.values())[name]
+        return self._children[name]
+
+    def __setitem__(self, key, item):
+        self.update(item, key)
+
+    def __delitem__(self, key):
+        del self._children[key]
+
+    def to_dict(self):
+        # method used by ModelObj class to serialize the object to nested dict
+        return [t.to_dict() for t in self._children.values()]
+
+    @classmethod
+    def from_list(cls, child_class, children=None):
+        if children is None:
+            return cls(child_class)
+        if not isinstance(children, list):
+            raise ValueError("states must be a list")
+
+        new_obj = cls(child_class)
+        for child in children:
+            name, child_obj = new_obj._get_child_object(child)
+            new_obj._children[name] = child_obj
+        return new_obj
+
+    def _get_child_object(self, child):
+        if isinstance(child, self._child_class):
+            return child.name, child
+        elif isinstance(child, dict):
+            if "name" not in child.keys():
+                raise ValueError("illegal object no 'name' field")
+            child_obj = self._child_class.from_dict(child)
+            return child_obj.name, child_obj
+        else:
+            raise ValueError(f"illegal child (should be dict or child kind), {child}")
+
+    def update(self, child, name=None):
+        object_name, child_obj = self._get_child_object(child)
+        child_obj.name = name or object_name
+        self._children[child_obj.name] = child_obj
+        return child_obj
 
 
 class BaseMetadata(ModelObj):

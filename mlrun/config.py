@@ -41,7 +41,7 @@ default_config = {
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
-    "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter
+    "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks)
     "remote_host": "",
     "version": "",  # will be set to current version

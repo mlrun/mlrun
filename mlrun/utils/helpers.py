@@ -52,7 +52,7 @@ try:
 except ImportError:
     pass
 
-if is_ipython and config.nest_asyncio_enabled:
+if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
 
     # bypass Jupyter asyncio bug
     import nest_asyncio

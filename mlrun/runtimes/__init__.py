@@ -104,6 +104,14 @@ class RuntimeKinds(object):
             RuntimeKinds.mpijob,
         ]
 
+    @staticmethod
+    def serverless_runtimes():
+        return [
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
+        ]
+
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 

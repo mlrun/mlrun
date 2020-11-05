@@ -149,7 +149,7 @@ class KubejobRuntime(KubeResource):
         db = self._get_db()
         offset = 0
         try:
-            text = db.get_builder_status(self, 0, logs=logs)
+            text, _ = db.get_builder_status(self, 0, logs=logs)
         except RunDBError:
             raise ValueError("function or build process not found")
 
@@ -159,7 +159,7 @@ class KubejobRuntime(KubeResource):
             while self.status.state in ["pending", "running"]:
                 offset += len(text)
                 time.sleep(2)
-                text = db.get_builder_status(self, offset, logs=logs)
+                text, _ = db.get_builder_status(self, offset, logs=logs)
                 if text:
                     print(text.decode(), end="")
 

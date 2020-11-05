@@ -20,6 +20,7 @@ from typing import List, Dict, Union
 
 import kfp
 import requests
+from mlrun.runtimes import RuntimeKinds
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -487,7 +488,7 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def get_builder_status(self, func, offset=0, logs=True):
+    def get_builder_status(self, func, offset=0, logs=True, last_time=0):
         try:
             params = {
                 "name": func.metadata.name,
@@ -495,6 +496,7 @@ class HTTPRunDB(RunDBInterface):
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),
                 "offset": str(offset),
+                "last_time": str(last_time),
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
@@ -507,10 +509,14 @@ class HTTPRunDB(RunDBInterface):
 
         if resp.headers:
             func.status.state = resp.headers.get("function_status", "")
-            func.status.build_pod = resp.headers.get("builder_pod", "")
-            func.spec.image = resp.headers.get("function_image", "")
+            last_time = resp.headers.get("last_time", 0)
+            if func.kind in RuntimeKinds.serverless_runtimes():
+                func.status.address = resp.headers.get("address", "")
+            else:
+                func.status.build_pod = resp.headers.get("builder_pod", "")
+                func.spec.image = resp.headers.get("function_image", "")
 
-        return resp.content
+        return resp.content, last_time
 
     def remote_start(self, func_url):
         try:

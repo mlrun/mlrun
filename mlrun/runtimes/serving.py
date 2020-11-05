@@ -219,11 +219,11 @@ class ServingRuntime(RemoteRuntime):
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
             raise ValueError(f"illegal model loading mode {load_mode}")
-        kind = None
-        if not self.spec.base_spec:
-            kind = serving_subkind
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
+        return super().deploy(dashboard, project, tag)
+
+    def _get_runtime_env(self):
         # we currently support a minimal topology of one router + multiple child routes/models
         # in the future we will extend the support to a full graph, the spec is already built accordingly
         serving_spec = {
@@ -231,11 +231,10 @@ class ServingRuntime(RemoteRuntime):
             "version": "v2",
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict(),
-            "load_mode": load_mode,
+            "load_mode": self.spec.load_mode,
             "verbose": self.verbose,
         }
-        env = {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
-        return super().deploy(dashboard, project, tag, kind, env)
+        return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
 
     def to_mock_server(self, namespace=None, log_level="debug"):
         """create mock server object for local testing/emulation

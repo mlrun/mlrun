@@ -322,3 +322,56 @@ def test_list_functions(create_server):
     for function in functions:
         assert function["metadata"]["tag"] is not None
     assert len(functions) == count, "bad list"
+
+
+def _create_feature_set(name):
+    return {
+        "metadata": {
+            "name": name,
+            "labels": {"owner": "saarc", "group": "dev"},
+            "tag": "latest",
+        },
+        "spec": {
+            "entities": [{"name": "ticker", "value_type": "str"}],
+            "features": [
+                {"name": "time", "value_type": "datetime"},
+                {"name": "bid", "value_type": "float"},
+                {"name": "ask", "value_type": "time"},
+            ],
+        },
+        "status": {
+            "state": "created",
+            "stats": {
+                "time": {
+                    "count": "8",
+                    "unique": "7",
+                    "top": "2016-05-25 13:30:00.222222",
+                }
+            },
+        },
+    }
+
+
+def test_list_feature_sets(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    count = 5
+    for i in range(count):
+        name = f"fs_{i}"
+        feature_set = _create_feature_set(name)
+        db.create_feature_set(feature_set, project=project, versioned=True)
+
+    feature_set_update = {
+        "labels": {"new-label": "new-value", "owner": "someone-else"},
+    }
+
+    db.update_feature_set(name, feature_set_update, project, tag="latest")
+    feature_sets = db.list_feature_sets(project=project)
+
+    for fs in feature_sets.feature_sets:
+        assert fs.metadata.tag is not None
+    assert (
+        len(feature_sets.feature_sets) == count
+    ), "bad list results - wrong number of members"

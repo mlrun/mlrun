@@ -28,6 +28,7 @@ from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta
+from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
 
@@ -646,6 +647,93 @@ class HTTPRunDB(RunDBInterface):
             raise ValueError("bad get pipeline response, {}".format(resp.text))
 
         return resp.json()
+
+    def create_feature_set(
+        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
+    ) -> schemas.FeatureSet:
+        project = project or default_project
+        path = f"projects/{project}/feature_sets"
+        params = {"versioned": versioned}
+
+        if isinstance(feature_set, dict):
+            feature_set = schemas.FeatureSet(**feature_set)
+
+        name = feature_set.metadata.name
+        error_message = f"Failed creating feature-set {project}/{name}"
+        resp = self.api_call(
+            "POST",
+            path,
+            error_message,
+            params=params,
+            body=json.dumps(feature_set.dict()),
+        )
+        return schemas.FeatureSet(**resp.json())
+
+    def get_feature_set(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        project = project or default_project
+        reference = uid or tag or "latest"
+        path = f"projects/{project}/feature_sets/{name}/references/{reference}"
+        error_message = f"Failed retrieving feature-set {project}/{name}"
+        resp = self.api_call("GET", path, error_message)
+        return schemas.FeatureSet(**resp.json())
+
+    def list_feature_sets(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureSetsOutput:
+        project = project or default_project
+        params = {
+            "name": name,
+            "state": state,
+            "tag": tag,
+            "entity": entities or [],
+            "feature": features or [],
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/feature_sets"
+
+        error_message = (
+            f"Failed listing feature-sets, project: {project}, query: {params}"
+        )
+        resp = self.api_call("GET", path, error_message, params=params)
+        return schemas.FeatureSetsOutput(**resp.json())
+
+    def update_feature_set(
+        self,
+        name,
+        feature_set: Union[dict, schemas.FeatureSetUpdate],
+        project="",
+        tag=None,
+        uid=None,
+    ):
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        project = project or default_project
+        reference = uid or tag or "latest"
+        if isinstance(feature_set, dict):
+            feature_set = schemas.FeatureSetUpdate(**feature_set)
+        path = f"projects/{project}/feature_sets/{name}/references/{reference}"
+        error_message = f"Failed updating feature-set {project}/{name}"
+        self.api_call("PUT", path, error_message, body=json.dumps(feature_set.dict()))
+
+    def delete_feature_set(self, name, project=""):
+        project = project or default_project
+        path = f"projects/{project}/feature_sets/{name}"
+        error_message = f"Failed deleting project {name}"
+        self.api_call("DELETE", path, error_message)
 
 
 def _as_json(obj):

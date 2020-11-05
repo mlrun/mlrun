@@ -32,7 +32,7 @@ import mlrun.utils.helpers
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
-from mlrun.utils.helpers import verify_field_regex, generate_function_uri
+from mlrun.utils.helpers import verify_field_regex, generate_object_uri
 from .constants import PodPhases, RunStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
@@ -198,7 +198,7 @@ class BaseRuntime(ModelObj):
         return False
 
     def _function_uri(self, tag=None, hash_key=None):
-        return generate_function_uri(
+        return generate_object_uri(
             self.metadata.project,
             self.metadata.name,
             tag=tag or self.metadata.tag,

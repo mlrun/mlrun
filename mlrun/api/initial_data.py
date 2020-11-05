@@ -17,7 +17,7 @@ def init_data() -> None:
         argv=[
             # raise error to exit on a failure
             "--raiseerr",
-            "-c"
+            "-c",
             f"{str(alembic_config_path)}",
             "upgrade",
             "head",

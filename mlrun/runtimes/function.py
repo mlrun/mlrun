@@ -256,14 +256,20 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.project = tag
         name = self.metadata.name
-        state, text, last_time = deploy_nuclio_function(self, dashboard)
-        if text:
-            print(text)
+        deploy_nuclio_function(self, dashboard)
+        state = ''
+        last_time = 1
         while state not in {"ready", "error"}:
             sleep(1)
-            state, text = self._get_state(dashboard, last_time, verbose)
+            state, text, last_time = self._get_state(dashboard, last_time, verbose)
             if text:
                 print(text)
+
+        if state != 'ready':
+            logger.error(f'ERROR: {text}')
+            raise RunError(f'cannot deploy {text}')
+
+        logger.info(f'function deployed, address={self.status.address}')
 
         self.status.nuclio_name = name
         return self.spec.command
@@ -281,7 +287,7 @@ class RemoteRuntime(KubeResource):
         if address:
             self.status.address = address
             self.spec.command = "http://{}".format(address)
-        return state, text
+        return state, text, last_time
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)

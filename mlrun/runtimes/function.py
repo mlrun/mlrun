@@ -532,7 +532,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
         logger.info("deploy started")
         name = get_fullname(function.metadata.name, project, tag)
         update_in(config, "metadata.name", name)
-        state, address, last_time, outputs = nuclio.deploy.deploy_config(
+        nuclio.deploy.deploy_config(
             config,
             dashboard,
             name=name,
@@ -558,7 +558,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
         update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
         name = get_fullname(name, project, tag)
         update_in(config, "metadata.name", name)
-        state, address, last_time, outputs = deploy_config(
+        deploy_config(
             config,
             dashboard_url=dashboard,
             name=name,
@@ -570,13 +570,6 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
         )
 
     # function.spec.command = "http://{}".format(addr)
-    function.status.nuclio_name = name
-
-    function.status.state = state
-    function.status.address = address
-    function.save(versioned=False)
-    text = "\n".join(outputs) if outputs else ""
-    return state, text, last_time
 
 
 def get_nuclio_deploy_status(
@@ -588,5 +581,12 @@ def get_nuclio_deploy_status(
     state, address, last_time, outputs = get_deploy_status(
         api_address, name, last_time, verbose
     )
+
+    # todo: read func and update status
+    # function.status.nuclio_name = name
+    # function.status.state = state
+    # function.status.address = address
+    # function.save(versioned=False)
+
     text = "\n".join(outputs) if outputs else ""
     return state, address, last_time, text

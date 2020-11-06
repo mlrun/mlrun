@@ -16,6 +16,7 @@ import json
 import nuclio
 
 from .function import RemoteRuntime, NuclioSpec
+from ..utils import logger
 from ..serving.server import create_mock_server
 from ..serving.states import (
     ServingRouterState,
@@ -247,5 +248,6 @@ class ServingRuntime(RemoteRuntime):
             load_mode=self.spec.load_mode,
             graph=self.spec.graph,
             namespace=namespace,
+            logger=logger,
             level=log_level,
         )

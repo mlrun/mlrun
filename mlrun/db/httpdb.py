@@ -20,7 +20,7 @@ from typing import List, Dict, Union
 
 import kfp
 import requests
-from mlrun.runtimes import RuntimeKinds
+import mlrun
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -510,7 +510,7 @@ class HTTPRunDB(RunDBInterface):
         if resp.headers:
             func.status.state = resp.headers.get("function_status", "")
             last_time = resp.headers.get("last_time", 0)
-            if func.kind in RuntimeKinds.serverless_runtimes():
+            if func.kind in mlrun.RuntimeKinds.serverless_runtimes():
                 func.status.address = resp.headers.get("address", "")
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")

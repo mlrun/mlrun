@@ -511,7 +511,7 @@ class HTTPRunDB(RunDBInterface):
 
         if resp.headers:
             func.status.state = resp.headers.get("function_status", "")
-            last_time = resp.headers.get("last_time", 0)
+            last_time = float(resp.headers.get("last_time", "0.0"))
             if func.kind in mlrun.runtimes.RuntimeKinds.serverless_runtimes():
                 func.status.address = resp.headers.get("address", "")
                 func.status.nuclio_name = resp.headers.get("name", "")

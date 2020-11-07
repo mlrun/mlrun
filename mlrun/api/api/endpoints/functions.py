@@ -161,7 +161,7 @@ def build_status(
     tag: str = "",
     offset: int = 0,
     logs: bool = True,
-    last_time: int = 0,
+    last_time: float = 0.0,
     verbose: bool = False,
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -186,13 +186,13 @@ def build_status(
         if state == "ready":
             versioned = True
         get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
-
+        print(state, last_time, address, text)
         return Response(
             content=text,
             media_type="text/plain",
             headers={
                 "function_status": state,
-                "last_time": last_time,
+                "last_time": str(last_time),
                 "address": address,
                 "name": nuclio_name,
             },

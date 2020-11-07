@@ -118,10 +118,19 @@ class ServingSpec(NuclioSpec):
         )
 
         self.models = models or {}
+        self._graph = None
         self.graph: ServingRouterState = graph
         self.parameters = parameters or {}
         self.default_class = default_class
         self.load_mode = load_mode
+
+    @property
+    def graph(self) -> ServingRouterState:
+        return self._graph
+
+    @graph.setter
+    def graph(self, graph):
+        self._graph = self._verify_dict(graph, "graph", ServingRouterState)
 
 
 class ServingRuntime(RemoteRuntime):

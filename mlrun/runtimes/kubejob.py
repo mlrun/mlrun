@@ -154,14 +154,14 @@ class KubejobRuntime(KubeResource):
             raise ValueError("function or build process not found")
 
         if text:
-            print(text.decode())
+            print(text)
         if watch:
             while self.status.state in ["pending", "running"]:
                 offset += len(text)
                 time.sleep(2)
                 text, _ = db.get_builder_status(self, offset, logs=logs)
                 if text:
-                    print(text.decode(), end="")
+                    print(text, end="")
 
         return self.status.state
 

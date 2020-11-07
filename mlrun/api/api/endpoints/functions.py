@@ -14,7 +14,8 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
-from mlrun.runtimes import runtime_resources_map
+from mlrun.runtimes import runtime_resources_map, RuntimeKinds
+from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
 from mlrun.utils import get_in, logger, parse_function_uri, update_in
 
 router = APIRouter()
@@ -160,12 +161,44 @@ def build_status(
     tag: str = "",
     offset: int = 0,
     logs: bool = True,
+    last_time: int = 0,
+    verbose: bool = False,
     db_session: Session = Depends(deps.get_db_session),
 ):
     fn = get_db().get_function(db_session, name, project, tag)
     if not fn:
         log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
 
+    # nuclio deploy status
+    if fn.get("kind", "") in RuntimeKinds.serverless_runtimes():
+        state, address, nuclio_name, last_time, text = get_nuclio_deploy_status(
+            name, project, tag, last_time=last_time, verbose=verbose
+        )
+        if state == "ready":
+            logger.info(f"nuclio deploy of {name} completed successfully")
+        if state == "error":
+            logger.error(f"nuclio deploy error in {name}, {text}")
+        update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.state", state)
+        update_in(fn, "status.address", address)
+
+        versioned = False
+        if state == "ready":
+            versioned = True
+        get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
+
+        return Response(
+            content=text,
+            media_type="text/plain",
+            headers={
+                "function_status": state,
+                "last_time": last_time,
+                "address": address,
+                "name": nuclio_name,
+            },
+        )
+
+    # job deploy status
     state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
     image = get_in(fn, "spec.build.image", "")
@@ -223,8 +256,11 @@ def _build_function(db_session, function, with_mlrun):
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
-
-        ready = build_runtime(fn, with_mlrun)
+        if fn.kind in RuntimeKinds.serverless_runtimes():
+            deploy_nuclio_function(fn)
+            ready = False
+        else:
+            ready = build_runtime(fn, with_mlrun)
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:

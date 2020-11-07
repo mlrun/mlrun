@@ -488,7 +488,7 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def get_builder_status(self, func, offset=0, logs=True, last_time=0):
+    def get_builder_status(self, func, offset=0, logs=True, last_time=0, verbose=False):
         try:
             params = {
                 "name": func.metadata.name,
@@ -497,6 +497,7 @@ class HTTPRunDB(RunDBInterface):
                 "logs": bool2str(logs),
                 "offset": str(offset),
                 "last_time": str(last_time),
+                "verbose": bool2str(verbose),
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
@@ -510,13 +511,17 @@ class HTTPRunDB(RunDBInterface):
         if resp.headers:
             func.status.state = resp.headers.get("function_status", "")
             last_time = resp.headers.get("last_time", 0)
-            if func.kind in mlrun.RuntimeKinds.serverless_runtimes():
+            if func.kind in mlrun.runtimes.RuntimeKinds.serverless_runtimes():
                 func.status.address = resp.headers.get("address", "")
+                func.status.nuclio_name = resp.headers.get("name", "")
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")
 
-        return resp.content, last_time
+        text = ""
+        if resp.content:
+            text = resp.content.decode()
+        return text, last_time
 
     def remote_start(self, func_url):
         try:

@@ -21,6 +21,7 @@ import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
+from mlrun.db import RunDBError
 from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
 import nuclio
 
@@ -255,39 +256,71 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.project = tag
-        name = self.metadata.name
-        deploy_nuclio_function(self, dashboard)
-        state = ''
+        state = ""
         last_time = 1
-        while state not in {"ready", "error"}:
-            sleep(1)
-            state, text, last_time = self._get_state(dashboard, last_time, verbose)
-            if text:
-                print(text)
 
-        if state != 'ready':
-            logger.error(f'ERROR: {text}')
-            raise RunError(f'cannot deploy {text}')
+        if not dashboard:
+            db = self._get_db()
+            logger.info("starting remote function deploy")
+            data = db.remote_builder(self, False)
+            self.status = data["data"].get("status", None)
+            # ready = data.get("ready", False)
 
-        logger.info(f'function deployed, address={self.status.address}')
+            while state not in {"ready", "error"}:
+                sleep(1)
+                try:
+                    text, last_time = db.get_builder_status(
+                        self, last_time=last_time, verbose=verbose
+                    )
+                except RunDBError:
+                    raise ValueError("function or deploy process not found")
+                state = self.status.state
+                if text and state != "error":
+                    print(text)
 
-        self.status.nuclio_name = name
+            if state != "ready":
+                logger.error(f"ERROR: {text}\n")
+                raise RunError(f"cannot deploy {text}")
+
+            if self.status.address:
+                self.spec.command = "http://{}".format(self.status.address)
+
+        else:
+            self.save(versioned=False)
+            address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
+            if address:
+                self.spec.command = "http://{}".format(address)
+                self.status.state = "ready"
+                self.status.address = address
+                self.save(versioned=False)
+
+        logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
 
     def _get_state(self, dashboard="", last_time=None, verbose=False):
-        state, address, last_time, text = get_nuclio_deploy_status(
-            self.metadata.name,
-            dashboard,
-            self.metadata.project,
-            self.metadata.tag,
-            last_time=last_time,
-            verbose=verbose,
-        )
-        self.status.state = state
-        if address:
-            self.status.address = address
-            self.spec.command = "http://{}".format(address)
-        return state, text, last_time
+        if dashboard:
+            state, address, name, last_time, text = get_nuclio_deploy_status(
+                self.metadata.name,
+                self.metadata.project,
+                self.metadata.tag,
+                dashboard,
+                last_time=last_time,
+                verbose=verbose,
+            )
+            self.status.state = state
+            self.status.nuclio_name = name
+            if address:
+                self.status.address = address
+                self.spec.command = "http://{}".format(address)
+            return state, text, last_time
+
+        try:
+            text, last_time = self._get_db().get_builder_status(
+                self, last_time=last_time, verbose=verbose
+            )
+        except RunDBError:
+            raise ValueError("function or deploy process not found")
+        return self.status.state, text, last_time
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
@@ -327,12 +360,16 @@ class RemoteRuntime(KubeResource):
             verbose=verbose,
         )
 
-    def invoke(self, path, body=None, method=None, headers=None):
+    def invoke(self, path, body=None, method=None, headers=None, dashboard=""):
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
             if not self.status.address:
-                raise ValueError("no function address, first run .deploy()")
+                state, _, _ = self._get_state(dashboard)
+                if state != "ready" or not self.status.address:
+                    raise ValueError(
+                        "no function address or not ready, first run .deploy()"
+                    )
             if path.startswith("/"):
                 path = path[1:]
             path = f"http://{self.status.address}/{path}"
@@ -492,7 +529,7 @@ def get_fullname(name, project, tag):
     return name
 
 
-def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
+def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
     function.set_config("metadata.labels.mlrun/class", function.kind)
     env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
     for key, value in function._get_runtime_env().items():
@@ -531,8 +568,9 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
 
         logger.info("deploy started")
         name = get_fullname(function.metadata.name, project, tag)
+        function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
-        nuclio.deploy.deploy_config(
+        return nuclio.deploy.deploy_config(
             config,
             dashboard,
             name=name,
@@ -540,7 +578,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
             tag=tag,
             verbose=function.verbose,
             create_new=True,
-            watch=False,
+            watch=watch,
         )
     else:
 
@@ -557,8 +595,10 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
 
         update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
         name = get_fullname(name, project, tag)
+        function.status.nuclio_name = name
+
         update_in(config, "metadata.name", name)
-        deploy_config(
+        return deploy_config(
             config,
             dashboard_url=dashboard,
             name=name,
@@ -566,14 +606,12 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard=""):
             tag=tag,
             verbose=function.verbose,
             create_new=True,
-            watch=False,
+            watch=watch,
         )
-
-    # function.spec.command = "http://{}".format(addr)
 
 
 def get_nuclio_deploy_status(
-    name, dashboard="", project="", tag="", last_time=None, verbose=False
+    name, project, tag, dashboard="", last_time=None, verbose=False
 ):
     api_address = find_dashboard_url(dashboard)
     name = get_fullname(name, project, tag)
@@ -582,11 +620,5 @@ def get_nuclio_deploy_status(
         api_address, name, last_time, verbose
     )
 
-    # todo: read func and update status
-    # function.status.nuclio_name = name
-    # function.status.state = state
-    # function.status.address = address
-    # function.save(versioned=False)
-
     text = "\n".join(outputs) if outputs else ""
-    return state, address, last_time, text
+    return state, address, name, last_time, text

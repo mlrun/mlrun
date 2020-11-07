@@ -52,7 +52,7 @@ try:
 except ImportError:
     pass
 
-if is_ipython:
+if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
 
     # bypass Jupyter asyncio bug
     import nest_asyncio
@@ -330,7 +330,7 @@ def parse_function_uri(uri):
     return project, uri, tag, hash_key
 
 
-def generate_function_uri(project, name, tag=None, hash_key=None):
+def generate_object_uri(project, name, tag=None, hash_key=None):
     uri = "{}/{}".format(project, name)
 
     # prioritize hash key over tag
@@ -457,25 +457,27 @@ def pr_comment(repo: str, issue: int, message: str, token=None):
     return resp.json()["id"]
 
 
-def fill_function_hash(function_dict, tag=""):
-
+def fill_object_hash(object_dict, property_name, tag=""):
     # remove tag, hash, date from calculation
-    function_dict.setdefault("metadata", {})
-    tag = tag or function_dict["metadata"].get("tag")
-    status = function_dict.setdefault("status", {})
-    function_dict["metadata"]["tag"] = ""
-    function_dict["metadata"]["hash"] = ""
-    function_dict["status"] = None
-    function_dict["metadata"]["updated"] = None
-
-    data = json.dumps(function_dict, sort_keys=True).encode()
+    object_dict.setdefault("metadata", {})
+    tag = tag or object_dict["metadata"].get("tag")
+    status = object_dict.setdefault("status", {})
+    object_dict["metadata"]["tag"] = ""
+    object_dict["metadata"][property_name] = ""
+    object_dict["status"] = None
+    object_dict["metadata"]["updated"] = None
+    data = json.dumps(object_dict, sort_keys=True).encode()
     h = hashlib.sha1()
     h.update(data)
-    hashkey = h.hexdigest()
-    function_dict["metadata"]["tag"] = tag
-    function_dict["metadata"]["hash"] = hashkey
-    function_dict["status"] = status
-    return hashkey
+    uid = h.hexdigest()
+    object_dict["metadata"]["tag"] = tag
+    object_dict["metadata"][property_name] = uid
+    object_dict["status"] = status
+    return uid
+
+
+def fill_function_hash(function_dict, tag=""):
+    return fill_object_hash(function_dict, "hash", tag)
 
 
 def retry_until_successful(

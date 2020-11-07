@@ -352,8 +352,11 @@ def deploy_function(function: DaskCluster, secrets=None):
 
     pod_labels = get_resource_labels(function, scrape_metrics=False)
     args = ["dask-worker", "--nthreads", str(spec.nthreads)]
+    memory_limit = spec.resources.get('limits', {}).get("memory")
+    if memory_limit:
+        args.extend(["--memory-limit", str(memory_limit)])
     if spec.args:
-        args += spec.args
+        args.extend(spec.args)
 
     container = client.V1Container(
         name="base",
@@ -504,7 +507,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         )
         service_names = []
         for pod in pods.items:
-            in_terminal_phase = pod.status.phase not in PodPhases.terminal_phases()
+            in_terminal_phase = pod.status.phase in PodPhases.terminal_phases()
             if in_terminal_phase or (force and not in_terminal_phase):
                 comp = pod.metadata.labels.get("dask.org/component")
                 if comp == "scheduler":

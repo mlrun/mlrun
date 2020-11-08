@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes import get_runtime_handler
@@ -36,6 +37,80 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_runtime_handler_list_resources(
             RuntimeKinds.mpijob, expected_crds=mocked_responses[0]["items"]
         )
+
+    def test_delete_resources_succeeded_crd(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.succeeded_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [self.succeeded_crd_dict["metadata"]["name"]],
+            self.succeeded_crd_dict["metadata"]["namespace"],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
+        self._assert_run_logs(db, self.project, self.run_uid, "")
+
+    def test_delete_resources_running_crd(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.active_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
+
+        # nothing removed cause crd is active
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+
+    def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.succeeded_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=10)
+
+        # nothing removed cause grace period didn't pass
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+
+    def test_delete_resources_with_force(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.active_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [self.active_crd_dict["metadata"]["name"]],
+            self.active_crd_dict["metadata"]["namespace"],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+        self._assert_run_logs(db, self.project, self.run_uid, "")
 
     def test_monitor_run_succeeded_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
@@ -82,6 +157,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         crd_dict = {
             "metadata": {
                 "name": "train-eaf63df8",
+                "namespace": get_k8s().resolve_namespace(),
                 "labels": {
                     "mlrun/class": "mpijob",
                     "mlrun/function": "trainer",

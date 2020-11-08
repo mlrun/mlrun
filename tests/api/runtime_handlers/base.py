@@ -181,8 +181,32 @@ class TestRuntimeHandlerBase:
         get_k8s().v1api.delete_namespaced_service.assert_has_calls(calls)
 
     @staticmethod
+    def _assert_delete_namespaced_custom_objects(
+        runtime_handler,
+        expected_custom_object_names: List[str],
+        expected_custom_object_namespace: str = None,
+    ):
+        crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+        calls = [
+            unittest.mock.call(
+                crd_group,
+                crd_version,
+                expected_custom_object_namespace,
+                crd_plural,
+                expected_custom_object_name,
+                client.V1DeleteOptions(),
+            )
+            for expected_custom_object_name in expected_custom_object_names
+        ]
+        get_k8s().crdapi.delete_namespaced_custom_object.assert_has_calls(calls)
+
+    @staticmethod
     def _mock_delete_namespaced_pods():
         get_k8s().v1api.delete_namespaced_pod = unittest.mock.Mock()
+
+    @staticmethod
+    def _mock_delete_namespaced_custom_objects():
+        get_k8s().crdapi.delete_namespaced_custom_object = unittest.mock.Mock()
 
     @staticmethod
     def _mock_delete_namespaced_services():

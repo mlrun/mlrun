@@ -54,7 +54,7 @@ def new_remote_endpoint(url, **class_args):
 
 class BaseState(ModelObj):
     kind = "BaseState"
-    _dict_fields = ["kind", "comment", "next", "end"]
+    _dict_fields = ["kind", "comment", "next", "end", "resource"]
 
     def __init__(self, name=None, next=None):
         self.name = name

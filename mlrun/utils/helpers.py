@@ -20,6 +20,7 @@ import time
 from datetime import datetime, timezone
 from os import path, environ
 from importlib import import_module
+import inspect
 
 import numpy as np
 import requests
@@ -674,3 +675,10 @@ def create_function(pkg_func: list):
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
     function_ = getattr(pkg_module, cb_fname)
     return function_
+
+
+def get_caller_globals(level=2):
+    try:
+        return inspect.stack()[level][0].f_globals
+    except Exception:
+        return None

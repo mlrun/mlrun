@@ -25,7 +25,8 @@ RUN apt-get update && apt-get install -y \
   git-core \
   sqlite3 \
   procps \
-  vim
+  vim \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade --no-cache pip
 

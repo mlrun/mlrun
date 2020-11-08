@@ -16,6 +16,8 @@ ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}
 
+ENV PIP_NO_CACHE_DIR=1
+
 WORKDIR /mlrun
 
 RUN pip install --upgrade pip

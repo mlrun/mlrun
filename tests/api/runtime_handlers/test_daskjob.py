@@ -80,7 +80,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.completed_worker_pod, self.completed_scheduler_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_list_services([self.cluster_service])
         self._mock_delete_namespaced_pods()
         self._mock_delete_namespaced_services()
@@ -104,7 +104,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.running_worker_pod, self.running_scheduler_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_list_services([self.cluster_service])
         self._mock_delete_namespaced_pods()
         self._mock_delete_namespaced_services()
@@ -116,7 +116,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     def _mock_list_resources_pods(self):
-        mocked_responses = TestDaskjobRuntimeHandler._mock_list_namespaces_pods(
+        mocked_responses = TestDaskjobRuntimeHandler._mock_list_namespaced_pods(
             [[self.running_scheduler_pod, self.running_worker_pod]]
         )
         return mocked_responses[0].items

@@ -152,7 +152,7 @@ class TestRuntimeHandlerBase:
                 )
 
     @staticmethod
-    def _mock_list_namespaces_pods(list_pods_call_responses: List[List[client.V1Pod]]):
+    def _mock_list_namespaced_pods(list_pods_call_responses: List[List[client.V1Pod]]):
         calls = []
         for list_pods_call_response in list_pods_call_responses:
             pods = client.V1PodList(items=list_pods_call_response)

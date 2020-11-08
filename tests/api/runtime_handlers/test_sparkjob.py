@@ -92,7 +92,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.executor_pod, self.driver_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -158,7 +158,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.executor_pod, self.driver_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -193,7 +193,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.executor_pod, self.driver_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -227,7 +227,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.executor_pod, self.driver_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -250,7 +250,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     def _mock_list_resources_pods(self):
-        mocked_responses = self._mock_list_namespaces_pods(
+        mocked_responses = self._mock_list_namespaced_pods(
             [[self.executor_pod, self.driver_pod]]
         )
         return mocked_responses[0].items

@@ -47,7 +47,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # additional time for the get_logger_pods
             [self.completed_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -69,7 +69,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.running_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
 
@@ -83,7 +83,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         list_namespaced_pods_calls = [
             [self.completed_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10)
 
@@ -99,7 +99,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # additional time for the get_logger_pods
             [self.running_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -125,7 +125,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # additional time for the get_logger_pods
             [self.completed_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -152,7 +152,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # additional time for the get_logger_pods
             [self.failed_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -175,7 +175,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             [],
             [],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_pods_calls
@@ -198,7 +198,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # additional time for the get_logger_pods
             [self.failed_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -229,7 +229,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         get_db().store_run(db, self.run, self.run_uid, self.project)
 
         # Mocking pod that is still in non-terminal state
-        self._mock_list_namespaces_pods([[self.running_pod]])
+        self._mock_list_namespaced_pods([[self.running_pod]])
 
         # Triggering monitor cycle
         self.runtime_handler.monitor_runs(get_db(), db)
@@ -247,7 +247,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         get_db().store_run(db, self.run, self.run_uid, self.project)
 
         # Mocking pod that is still in non-terminal state
-        self._mock_list_namespaces_pods([[self.running_pod]])
+        self._mock_list_namespaced_pods([[self.running_pod]])
 
         # Triggering monitor cycle
         self.runtime_handler.monitor_runs(get_db(), db)
@@ -258,7 +258,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         # Mocking pod that is in terminal state (extra one for the log collection)
-        self._mock_list_namespaces_pods([[self.completed_pod], [self.completed_pod]])
+        self._mock_list_namespaced_pods([[self.completed_pod], [self.completed_pod]])
 
         # Mocking read log calls
         log = "Some log string"
@@ -283,7 +283,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # additional time for the get_logger_pods
             [self.completed_pod],
         ]
-        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
@@ -303,5 +303,5 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     def _mock_list_resources_pods(self):
-        mocked_responses = self._mock_list_namespaces_pods([[self.completed_pod]])
+        mocked_responses = self._mock_list_namespaced_pods([[self.completed_pod]])
         return mocked_responses[0].items

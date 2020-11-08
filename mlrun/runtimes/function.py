@@ -15,7 +15,6 @@
 import json
 from os import environ
 from time import sleep
-from urllib.parse import urlparse
 
 import requests
 from datetime import datetime
@@ -27,11 +26,7 @@ import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import (
-    mount_v3io,
-    add_or_refresh_credentials,
-    is_iguazio_endpoint,
-)
+from ..platforms.iguazio import mount_v3io
 from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in, enrich_image_url
@@ -255,22 +250,22 @@ class RemoteRuntime(KubeResource):
         if project:
             self.metadata.project = project
         if tag:
-            self.metadata.project = tag
+            self.metadata.tag = tag
         state = ""
-        last_time = 1
+        last_log_timestamp = 1
 
         if not dashboard:
             db = self._get_db()
-            logger.info("starting remote function deploy")
+            logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
-            self.status = data["data"].get("status", None)
+            self.status = data["data"].get("status")
             # ready = data.get("ready", False)
 
-            while state not in {"ready", "error"}:
+            while state not in ["ready", "error"]:
                 sleep(1)
                 try:
-                    text, last_time = db.get_builder_status(
-                        self, last_time=last_time, verbose=verbose
+                    text, last_log_timestamp = db.get_builder_status(
+                        self, last_log_timestamp=last_log_timestamp, verbose=verbose
                     )
                 except RunDBError:
                     raise ValueError("function or deploy process not found")
@@ -279,7 +274,7 @@ class RemoteRuntime(KubeResource):
                     print(text)
 
             if state != "ready":
-                logger.error(f"ERROR: {text}\n")
+                logger.error(f"Nuclio ERROR: {text}\n")
                 raise RunError(f"cannot deploy {text}")
 
             if self.status.address:
@@ -297,14 +292,14 @@ class RemoteRuntime(KubeResource):
         logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
 
-    def _get_state(self, dashboard="", last_time=None, verbose=False):
+    def _get_state(self, dashboard="", last_log_timestamp=None, verbose=False):
         if dashboard:
-            state, address, name, last_time, text = get_nuclio_deploy_status(
+            state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(
                 self.metadata.name,
                 self.metadata.project,
                 self.metadata.tag,
                 dashboard,
-                last_time=last_time,
+                last_log_timestamp=last_log_timestamp,
                 verbose=verbose,
             )
             self.status.state = state
@@ -312,15 +307,15 @@ class RemoteRuntime(KubeResource):
             if address:
                 self.status.address = address
                 self.spec.command = "http://{}".format(address)
-            return state, text, last_time
+            return state, text, last_log_timestamp
 
         try:
-            text, last_time = self._get_db().get_builder_status(
-                self, last_time=last_time, verbose=verbose
+            text, last_log_timestamp = self._get_db().get_builder_status(
+                self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except RunDBError:
             raise ValueError("function or deploy process not found")
-        return self.status.state, text, last_time
+        return self.status.state, text, last_log_timestamp
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
@@ -506,21 +501,6 @@ def _fullname(project, name):
     return name
 
 
-def get_auth_filled_platform_dashboard_url(dashboard: str) -> str:
-    if not is_iguazio_endpoint(mlconf.dbpath):
-        return dashboard or mlconf.nuclio_dashboard_url
-
-    # todo: workaround for 2.8 use nuclio_dashboard_url for subdns name
-    parsed_dbpath = urlparse(mlconf.dbpath)
-    user, control_session, _ = add_or_refresh_credentials(parsed_dbpath.hostname)
-    return "https://{}:{}@{}{}".format(
-        user,
-        control_session,
-        mlconf.nuclio_dashboard_url or "nuclio-api",
-        parsed_dbpath.hostname[parsed_dbpath.hostname.find(".") :],
-    )
-
-
 def get_fullname(name, project, tag):
     if project:
         name = "{}-{}".format(project, name)
@@ -555,7 +535,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         spec.set_config("spec.minReplicas", function.spec.min_replicas)
         spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
-    dashboard = get_auth_filled_platform_dashboard_url(dashboard)
+    dashboard = dashboard or mlconf.nuclio_dashboard_url
     if function.spec.base_spec:
         config = nuclio.config.extend_config(
             function.spec.base_spec, spec, tag, function.spec.build.code_origin
@@ -611,14 +591,14 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
 
 def get_nuclio_deploy_status(
-    name, project, tag, dashboard="", last_time=None, verbose=False
+    name, project, tag, dashboard="", last_log_timestamp=None, verbose=False
 ):
     api_address = find_dashboard_url(dashboard)
     name = get_fullname(name, project, tag)
 
-    state, address, last_time, outputs = get_deploy_status(
-        api_address, name, last_time, verbose
+    state, address, last_log_timestamp, outputs = get_deploy_status(
+        api_address, name, last_log_timestamp, verbose
     )
 
     text = "\n".join(outputs) if outputs else ""
-    return state, address, name, last_time, text
+    return state, address, name, last_log_timestamp, text

@@ -161,7 +161,7 @@ def build_status(
     tag: str = "",
     offset: int = 0,
     logs: bool = True,
-    last_time: float = 0.0,
+    last_log_timestamp: float = 0.0,
     verbose: bool = False,
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -170,12 +170,18 @@ def build_status(
         log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
 
     # nuclio deploy status
-    if fn.get("kind", "") in RuntimeKinds.serverless_runtimes():
-        state, address, nuclio_name, last_time, text = get_nuclio_deploy_status(
-            name, project, tag, last_time=last_time, verbose=verbose
+    if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
+        (
+            state,
+            address,
+            nuclio_name,
+            last_log_timestamp,
+            text,
+        ) = get_nuclio_deploy_status(
+            name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
         )
         if state == "ready":
-            logger.info(f"nuclio deploy of {name} completed successfully")
+            logger.info("Nuclio function deployed successfully", name=name)
         if state == "error":
             logger.error(f"nuclio deploy error in {name}, {text}")
         update_in(fn, "status.nuclio_name", nuclio_name)
@@ -184,17 +190,18 @@ def build_status(
 
         versioned = False
         if state == "ready":
+            # Versioned means the version will be saved in the DB forever, we don't want to spam
+            # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
         get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
-        print(state, last_time, address, text)
         return Response(
             content=text,
             media_type="text/plain",
             headers={
-                "function_status": state,
-                "last_time": str(last_time),
-                "address": address,
-                "name": nuclio_name,
+                "x-mlrun-function-status": state,
+                "x-mlrun-last-timestamp": str(last_log_timestamp),
+                "x-mlrun-address": address,
+                "x-mlrun-name": nuclio_name,
             },
         )
 
@@ -243,7 +250,12 @@ def build_status(
     return Response(
         content=out,
         media_type="text/plain",
-        headers={"function_status": state, "function_image": image, "builder_pod": pod},
+        headers={
+            "x-mlrun-function-status": state,
+            "function_status": state,
+            "function_image": image,
+            "builder_pod": pod,
+        },
     )
 
 
@@ -256,8 +268,9 @@ def _build_function(db_session, function, with_mlrun):
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
-        if fn.kind in RuntimeKinds.serverless_runtimes():
+        if fn.kind in RuntimeKinds.nuclio_runtimes():
             deploy_nuclio_function(fn)
+            # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
             ready = build_runtime(fn, with_mlrun)

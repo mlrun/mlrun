@@ -105,7 +105,7 @@ class RuntimeKinds(object):
         ]
 
     @staticmethod
-    def serverless_runtimes():
+    def nuclio_runtimes():
         return [
             RuntimeKinds.remote,
             RuntimeKinds.nuclio,

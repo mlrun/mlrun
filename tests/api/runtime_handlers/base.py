@@ -225,6 +225,7 @@ class TestRuntimeHandlerBase:
     def _mock_read_namespaced_pod_log():
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        return log
 
     @staticmethod
     def _mock_list_namespaced_crds(crd_dicts_call_responses: List[List[Dict]]):

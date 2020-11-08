@@ -53,7 +53,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
-        self._assert_delete_namespaced_pods([self.completed_pod.metadata.name], self.completed_pod.metadata.namespace)
+        self._assert_delete_namespaced_pods(
+            [self.completed_pod.metadata.name], self.completed_pod.metadata.namespace
+        )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler, expected_number_of_list_pods_calls
         )
@@ -106,7 +108,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
-        self._assert_delete_namespaced_pods([self.running_pod.metadata.name], self.running_pod.metadata.namespace)
+        self._assert_delete_namespaced_pods(
+            [self.running_pod.metadata.name], self.running_pod.metadata.namespace
+        )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler, expected_number_of_list_pods_calls
         )

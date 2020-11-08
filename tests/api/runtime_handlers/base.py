@@ -76,7 +76,9 @@ class TestRuntimeHandlerBase:
             restart_count=0,
         )
         status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
-        metadata = client.V1ObjectMeta(name=name, labels=labels, namespace=get_k8s().resolve_namespace())
+        metadata = client.V1ObjectMeta(
+            name=name, labels=labels, namespace=get_k8s().resolve_namespace()
+        )
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
@@ -159,8 +161,13 @@ class TestRuntimeHandlerBase:
         return calls
 
     @staticmethod
-    def _assert_delete_namespaced_pods(expected_pod_names: List[str], expected_pod_namespace: str = None):
-        calls = [unittest.mock.call(expected_pod_name, expected_pod_namespace) for expected_pod_name in expected_pod_names]
+    def _assert_delete_namespaced_pods(
+        expected_pod_names: List[str], expected_pod_namespace: str = None
+    ):
+        calls = [
+            unittest.mock.call(expected_pod_name, expected_pod_namespace)
+            for expected_pod_name in expected_pod_names
+        ]
         get_k8s().v1api.delete_namespaced_pod.assert_has_calls(calls)
 
     @staticmethod

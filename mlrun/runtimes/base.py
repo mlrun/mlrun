@@ -1073,7 +1073,8 @@ class BaseRuntimeHandler(ABC):
                         now = datetime.now(timezone.utc)
                         if (
                             last_update is not None
-                            and last_update + timedelta(seconds=float(grace_period)) > now
+                            and last_update + timedelta(seconds=float(grace_period))
+                            > now
                         ):
                             continue
 

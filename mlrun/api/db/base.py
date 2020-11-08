@@ -183,5 +183,47 @@ class DBInterface(ABC):
     def delete_project(self, session, name: str):
         pass
 
+    @abstractmethod
+    def create_feature_set(
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    ):
+        pass
+
+    @abstractmethod
+    def get_feature_set(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
+        pass
+
+    @abstractmethod
+    def list_feature_sets(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureSetsOutput:
+        pass
+
+    @abstractmethod
+    def update_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set_update: schemas.FeatureSetUpdate,
+        tag=None,
+        uid=None,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_feature_set(self, session, project, name):
+        pass
+
     def list_artifact_tags(self, session, project):
         return []

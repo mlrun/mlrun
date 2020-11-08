@@ -133,6 +133,43 @@ class FileDB(DBInterface):
     def delete_project(self, session, name: str):
         raise NotImplementedError()
 
+    def create_feature_set(
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    ):
+        raise NotImplementedError()
+
+    def get_feature_set(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
+        raise NotImplementedError()
+
+    def list_feature_sets(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureSetsOutput:
+        raise NotImplementedError()
+
+    def update_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set_update: schemas.FeatureSetUpdate,
+        tag=None,
+        uid=None,
+    ):
+        raise NotImplementedError()
+
+    def delete_feature_set(self, session, project, name):
+        raise NotImplementedError()
+
     def list_artifact_tags(self, session, project):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
 

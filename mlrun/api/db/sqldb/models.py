@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import orjson
+import json
 import pickle
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     BLOB,
+    JSON,
     TIMESTAMP,
     Column,
     ForeignKey,
@@ -230,6 +232,54 @@ with warnings.catch_warnings():
         @spec.setter
         def spec(self, value):
             self._spec = pickle.dumps(value)
+
+    class Feature(Base):
+        __tablename__ = "features"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+
+        name = Column(String)
+        value_type = Column(String)
+
+    class Entity(Base):
+        __tablename__ = "entities"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+
+        name = Column(String)
+        value_type = Column(String)
+
+    class FeatureSet(Base):
+        __tablename__ = "feature_sets"
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String)
+        uid = Column(String)
+        _status = Column("status", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+        features = relationship(Feature, cascade="all, delete-orphan")
+        entities = relationship(Entity, cascade="all, delete-orphan")
+
+        @property
+        def status(self):
+            if self._status:
+                return json.loads(self._status)
+
+        @status.setter
+        def status(self, value):
+            self._status = json.dumps(value)
 
 
 # Must be after all table definitions

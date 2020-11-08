@@ -11,3 +11,12 @@ from .schedule import (
     ScheduleRecord,
 )
 from .user import User, UserCreate, UserInDB, UserUpdate
+from .feature_store import (
+    Feature,
+    FeatureSetSpec,
+    FeatureSetMetadata,
+    FeatureSet,
+    FeatureSetRecord,
+    FeatureSetUpdate,
+    FeatureSetsOutput,
+)

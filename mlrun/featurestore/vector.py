@@ -133,15 +133,6 @@ class FeatureVector(ModelObj):
             dfs.append(df)
         return feature_sets, dfs
 
-    def prep_feature_serving(self, path_prefix):
-        feature_sets = []
-        for name, columns in self._feature_set_fields.items():
-            fs = self.feature_set_objects[name]
-            column_names = [name for name, alias in columns]
-            key_column = fs.spec.entities.keys()[0]
-            feature_sets.append((path_prefix + name, key_column, column_names))
-        return feature_sets
-
 
 class OfflineVectorResponse:
     def __init__(self, client, run_url=None, df=None):
@@ -168,33 +159,28 @@ class OnlineVectorService:
         self._feature_sets = None
         self._v3io_client = v3io.dataplane.Client()
         self._container = None
+        self._controller = None
 
     @property
     def status(self):
         return "ready"
 
-    def get(self, entity_rows: list):
+    def init(self):
         steps = [Source()]
         for name, columns in self._vector._feature_set_fields.items():
             fs = self._vector.feature_set_objects[name]
             column_names = [name for name, alias in columns]
-            steps.extend(steps_from_featureset(fs, column_names))
+            aliases = {name: alias for name, alias in columns if alias}
+            steps.extend(steps_from_featureset(fs, column_names, aliases))
         steps.append(Reduce([], lambda acc, x: append_return(acc, x)))
         flow = build_flow(steps)
-        controller = flow.run()
-        for row in entity_rows:
-            controller.emit(row)
-        controller.terminate()
-        return controller.await_termination()
+        self._controller = flow.run()
 
-    def get2(self, entity_rows):
+    def get(self, entity_rows: list):
         for row in entity_rows:
-            for table_path, key_column, column_names in self._feature_sets:
-                table_path += f"/{row[key_column]}"
-                self._v3io_client.get_item(
-                    self._container, table_path, attribute_names=column_names
-                )
-        return entity_rows
+            self._controller.emit(row)
+        self._controller.terminate()
+        return self._controller.await_termination()
 
 
 def _parse_feature_string(feature):

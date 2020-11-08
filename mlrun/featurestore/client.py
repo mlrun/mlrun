@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
+from typing import List
 from urllib.parse import urlparse
 
 import yaml
@@ -29,7 +30,6 @@ from .vector import (
 from mlrun.featurestore.mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
 from .model import DataTarget, TargetTypes, FeatureClassKind
-from .ingest import write_to_target_store
 
 
 def store_client(data_prefix="", project=None, secrets=None):
@@ -37,7 +37,7 @@ def store_client(data_prefix="", project=None, secrets=None):
 
 
 class FeatureStoreClient:
-    def __init__(self, data_prefix="", project=None, secrets=None, api_address=''):
+    def __init__(self, data_prefix="", project=None, secrets=None, api_address=""):
         self.data_prefix = data_prefix or "./store"
         self.nosql_path_prefix = ""
         self.project = project
@@ -140,7 +140,9 @@ class FeatureStoreClient:
     def get_online_feature_service(self, features):
         vector = FeatureVector(self, features=features)
         vector.parse_features()
-        return OnlineVectorService(self, vector)
+        service = OnlineVectorService(self, vector)
+        service.init()
+        return service
 
     def get_feature_set(self, name, project=None):
         # todo: if name has "/" split to project/name
@@ -149,7 +151,14 @@ class FeatureStoreClient:
         obj = yaml.load(body, Loader=yaml.FullLoader)
         return FeatureSet.from_dict(obj)
 
-    def list_feature_sets(self):
+    def list_feature_sets(
+        self,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ):
+        """list feature sets with optional filter"""
 
     def get_feature_vector(self, name, project=None):
         pass

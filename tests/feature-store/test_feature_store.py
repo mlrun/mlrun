@@ -57,17 +57,14 @@ def test_ingestion():
     client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
 
     # add feature set without time column (stock ticker metadata)
-    # stocks_set = fs.FeatureSet("stocks")
-    # resp = stocks_set.infer_from_df(stocks, entity_columns=["ticker"])
-    # resp = client.ingest(stocks_set, stocks)
-    # print(resp)
-    # return
+    stocks_set = fs.FeatureSet("stocks", entities=[Entity('ticker', ValueType.STRING)])
+    resp = client.ingest(stocks_set, stocks, infer_schema=False, with_stats=False)
+    print(resp)
 
     quotes_set = FeatureSet("stock-quotes")
-    quotes_set.add_flow_step("map", "storey.Map", mul=3)
-    quotes_set.add_flow_step("map2", "MyMap", mul=3, after="map")
-    quotes_set.add_flow_step("map3", "MyMap", mul=3, after="map")
+    quotes_set.add_flow_step("map", "MyMap", mul=3)
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["5h", "600s"], "1s")
+    quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["5h"], "1s")
 
     df = quotes_set.infer_from_df(
         quotes, entity_columns=["ticker"], with_stats=True, timestamp_key="time"
@@ -84,7 +81,14 @@ def test_realtime_query():
     client = fs.store_client(data_prefix="v3io:///users/admin/fs")
     client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
 
-    features = ["stock-quotes:*"]
+    #features = ["stock-quotes:*", "stocks:*"]
+    features = [
+        "stock-quotes:bid",
+        "stock-quotes:asks_sum_5h",
+        "stock-quotes:ask@mycol",
+        "stocks:*",
+    ]
+
     svc = client.get_online_feature_service(features)
     resp = svc.get([{"ticker": "GOOG"}])
     print(resp)

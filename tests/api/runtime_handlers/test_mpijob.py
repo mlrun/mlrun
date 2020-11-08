@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -77,7 +78,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
         recently_completed_crd_dict = self._generate_mpijob_crd(
-            self.project, self.run_uid, self._get_succeeded_crd_status(datetime.now(timezone.utc).isoformat()),
+            self.project,
+            self.run_uid,
+            self._get_succeeded_crd_status(datetime.now(timezone.utc).isoformat()),
         )
         list_namespaced_crds_calls = [
             [recently_completed_crd_dict],

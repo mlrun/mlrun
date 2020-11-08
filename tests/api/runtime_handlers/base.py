@@ -171,8 +171,22 @@ class TestRuntimeHandlerBase:
         get_k8s().v1api.delete_namespaced_pod.assert_has_calls(calls)
 
     @staticmethod
+    def _assert_delete_namespaced_services(
+        expected_service_names: List[str], expected_service_namespace: str = None
+    ):
+        calls = [
+            unittest.mock.call(expected_service_name, expected_service_namespace)
+            for expected_service_name in expected_service_names
+        ]
+        get_k8s().v1api.delete_namespaced_service.assert_has_calls(calls)
+
+    @staticmethod
     def _mock_delete_namespaced_pods():
         get_k8s().v1api.delete_namespaced_pod = unittest.mock.Mock()
+
+    @staticmethod
+    def _mock_delete_namespaced_services():
+        get_k8s().v1api.delete_namespaced_service = unittest.mock.Mock()
 
     @staticmethod
     def _mock_list_namespaced_crds(crd_dicts_call_responses: List[List[Dict]]):

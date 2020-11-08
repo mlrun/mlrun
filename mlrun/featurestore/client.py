@@ -15,6 +15,8 @@ import inspect
 from urllib.parse import urlparse
 
 import yaml
+from mlrun import get_run_db
+
 from mlrun.datastore import store_manager
 from .infer import infer_schema_from_df, get_df_stats
 from .pipeline import run_ingestion_pipeline
@@ -35,15 +37,23 @@ def store_client(data_prefix="", project=None, secrets=None):
 
 
 class FeatureStoreClient:
-    def __init__(self, data_prefix="", project=None, secrets=None):
-        self._api = None
+    def __init__(self, data_prefix="", project=None, secrets=None, api_address=''):
         self.data_prefix = data_prefix or "./store"
         self.nosql_path_prefix = ""
+        self.project = project
+        self.parameters = {}
+
+        self._api_address = api_address
+        self._db_conn = None
+        self._secrets = secrets
         self._data_stores = store_manager.set(secrets)
         self._fs = {}
         self._default_ingest_targets = [TargetTypes.parquet]
-        self.project = project
-        self.parameters = {}
+
+    def _get_db(self):
+        if not self._db_conn:
+            self._db_conn = get_run_db(self._api_address).connect(self._secrets)
+        return self._db_conn
 
     def get_data_stores(self):
         return self._data_stores
@@ -138,6 +148,8 @@ class FeatureStoreClient:
         body = self._data_stores.object(url=target + ".yaml").get()
         obj = yaml.load(body, Loader=yaml.FullLoader)
         return FeatureSet.from_dict(obj)
+
+    def list_feature_sets(self):
 
     def get_feature_vector(self, name, project=None):
         pass

@@ -593,7 +593,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 def get_nuclio_deploy_status(
     name, project, tag, dashboard="", last_log_timestamp=None, verbose=False
 ):
-    api_address = find_dashboard_url(dashboard)
+    api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
 
     state, address, last_log_timestamp, outputs = get_deploy_status(

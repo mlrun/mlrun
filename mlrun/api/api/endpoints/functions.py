@@ -183,7 +183,7 @@ def build_status(
         if state == "ready":
             logger.info("Nuclio function deployed successfully", name=name)
         if state == "error":
-            logger.error(f"nuclio deploy error in {name}, {text}")
+            logger.error(f"Nuclio deploy error, {text}", name=name)
         update_in(fn, "status.nuclio_name", nuclio_name)
         update_in(fn, "status.state", state)
         update_in(fn, "status.address", address)

@@ -108,7 +108,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
             len(list_namespaced_pods_calls),
-            self.pod_label_selector
+            self.pod_label_selector,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -174,7 +174,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
             len(list_namespaced_pods_calls),
-            self.pod_label_selector
+            self.pod_label_selector,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running

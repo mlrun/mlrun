@@ -20,6 +20,7 @@ from typing import List, Dict, Union
 
 import kfp
 import requests
+import mlrun
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -488,7 +489,9 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def get_builder_status(self, func, offset=0, logs=True):
+    def get_builder_status(
+        self, func, offset=0, logs=True, last_log_timestamp=0, verbose=False
+    ):
         try:
             params = {
                 "name": func.metadata.name,
@@ -496,6 +499,8 @@ class HTTPRunDB(RunDBInterface):
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),
                 "offset": str(offset),
+                "last_log_timestamp": str(last_log_timestamp),
+                "verbose": bool2str(verbose),
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
@@ -507,11 +512,21 @@ class HTTPRunDB(RunDBInterface):
             raise RunDBError("bad function build response")
 
         if resp.headers:
-            func.status.state = resp.headers.get("function_status", "")
-            func.status.build_pod = resp.headers.get("builder_pod", "")
-            func.spec.image = resp.headers.get("function_image", "")
+            func.status.state = resp.headers.get("x-mlrun-function-status", "")
+            last_log_timestamp = float(
+                resp.headers.get("x-mlrun-last-timestamp", "0.0")
+            )
+            if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+                func.status.address = resp.headers.get("x-mlrun-address", "")
+                func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+            else:
+                func.status.build_pod = resp.headers.get("builder_pod", "")
+                func.spec.image = resp.headers.get("function_image", "")
 
-        return resp.content
+        text = ""
+        if resp.content:
+            text = resp.content.decode()
+        return text, last_log_timestamp
 
     def remote_start(self, func_url):
         try:

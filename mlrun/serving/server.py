@@ -183,6 +183,7 @@ def create_mock_server(
     load_mode=None,
     graph=None,
     namespace=None,
+    logger=None,
     level="debug",
 ):
     """create serving emulator/tester for locally testing models and servers
@@ -193,7 +194,7 @@ def create_mock_server(
                 print(host.test("my/infer", testdata))
     """
     if not context:
-        context = MockContext(level)
+        context = MockContext(level, logger=logger)
 
     if not graph:
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
@@ -241,8 +242,8 @@ class Response(object):
 class MockContext:
     """mock basic nuclio context object"""
 
-    def __init__(self, level="debug"):
+    def __init__(self, level="debug", logger=None):
         self.state = None
-        self.logger = create_logger(level, "human", "flow", sys.stdout)
+        self.logger = logger or create_logger(level, "human", "flow", sys.stdout)
         self.worker_id = 0
         self.Response = Response

@@ -49,8 +49,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
         self._assert_delete_namespaced_pods(
             [self.completed_pod.metadata.name], self.completed_pod.metadata.namespace
@@ -101,8 +100,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
         self._assert_delete_namespaced_pods(
             [self.running_pod.metadata.name], self.running_pod.metadata.namespace
@@ -127,8 +125,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_pods_calls - 1
         )
@@ -154,8 +151,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_pods_calls - 1
         )
@@ -200,8 +196,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         self.run["status"]["state"] = RunStates.completed
         get_db().store_run(db, self.run, self.run_uid, self.project)
         expected_monitor_cycles_to_reach_expected_state = (
@@ -261,8 +256,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_pods([[self.completed_pod], [self.completed_pod]])
 
         # Mocking read log calls
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
 
         # Triggering monitor cycle
         self.runtime_handler.monitor_runs(get_db(), db)
@@ -285,8 +279,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_pods_calls - 1
         )

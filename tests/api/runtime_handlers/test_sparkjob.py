@@ -95,8 +95,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
@@ -166,8 +165,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, force=True)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
@@ -201,8 +199,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
         )
@@ -235,8 +232,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
-        log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
         )

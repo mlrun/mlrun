@@ -14,7 +14,7 @@
 import inspect
 import socket
 from os import environ
-from typing import Dict
+from typing import Dict, List
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
@@ -22,7 +22,6 @@ from sqlalchemy.orm import Session
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
-from .constants import PodPhases
 from .kubejob import KubejobRuntime
 from .local import load_module, exec_from_params
 from .pod import KubeResourceSpec
@@ -494,6 +493,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         db: DBInterface,
         db_session: Session,
         namespace: str,
+        deleted_resources: List[Dict],
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
@@ -501,20 +501,18 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         """
         Handling services deletion
         """
-        k8s_helper = get_k8s_helper()
-        pods = k8s_helper.v1api.list_namespaced_pod(
-            namespace, label_selector=label_selector
-        )
         service_names = []
-        for pod in pods.items:
-            in_terminal_phase = pod.status.phase in PodPhases.terminal_phases()
-            if in_terminal_phase or (force and not in_terminal_phase):
-                comp = pod.metadata.labels.get("dask.org/component")
-                if comp == "scheduler":
-                    service_names.append(
-                        pod.metadata.labels.get("dask.org/cluster-name")
-                    )
+        for pod_dict in deleted_resources:
+            dask_component = (
+                pod_dict["metadata"].get("labels", {}).get("dask.org/component")
+            )
+            cluster_name = (
+                pod_dict["metadata"].get("labels", {}).get("dask.org/cluster-name")
+            )
+            if dask_component == "scheduler" and cluster_name:
+                service_names.append(cluster_name)
 
+        k8s_helper = get_k8s_helper()
         services = k8s_helper.v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )

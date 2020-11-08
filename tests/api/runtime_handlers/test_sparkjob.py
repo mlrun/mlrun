@@ -2,6 +2,7 @@ import unittest.mock
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -96,7 +97,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_delete_namespaced_custom_objects()
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
-        self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
+        self.runtime_handler.delete_resources(get_db(), db)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
             [self.completed_crd_dict["metadata"]["name"]],
@@ -123,7 +124,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         self._mock_delete_namespaced_custom_objects()
-        self.runtime_handler.delete_resources(get_db(), db, grace_period=10)
+        self.runtime_handler.delete_resources(get_db(), db)
 
         # nothing removed cause crd is running
         self._assert_delete_namespaced_custom_objects(
@@ -134,8 +135,11 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
+        recently_completed_crd_dict = self._generate_sparkjob_crd(
+            self.project, self.run_uid, self._get_completed_crd_status(datetime.now(timezone.utc).isoformat()),
+        )
         list_namespaced_crds_calls = [
-            [self.completed_crd_dict],
+            [recently_completed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         self._mock_delete_namespaced_custom_objects()
@@ -162,7 +166,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_delete_namespaced_custom_objects()
         log = "Some log string"
         get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
-        self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
+        self.runtime_handler.delete_resources(get_db(), db, force=True)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
             [self.running_crd_dict["metadata"]["name"]],
@@ -284,9 +288,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         }
 
     @staticmethod
-    def _get_completed_crd_status():
+    def _get_completed_crd_status(timestamp=None):
         return {
-            "terminationTime": "2020-10-05T21:17:11Z",
+            "terminationTime": timestamp or "2020-10-05T21:17:11Z",
             "applicationState": {"state": "COMPLETED"},
         }
 

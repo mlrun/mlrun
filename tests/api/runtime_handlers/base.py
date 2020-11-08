@@ -168,7 +168,10 @@ class TestRuntimeHandlerBase:
             unittest.mock.call(expected_pod_name, expected_pod_namespace)
             for expected_pod_name in expected_pod_names
         ]
-        get_k8s().v1api.delete_namespaced_pod.assert_has_calls(calls)
+        if not expected_pod_names:
+            assert get_k8s().v1api.delete_namespaced_pod.call_count == 0
+        else:
+            get_k8s().v1api.delete_namespaced_pod.assert_has_calls(calls)
 
     @staticmethod
     def _assert_delete_namespaced_services(
@@ -178,7 +181,10 @@ class TestRuntimeHandlerBase:
             unittest.mock.call(expected_service_name, expected_service_namespace)
             for expected_service_name in expected_service_names
         ]
-        get_k8s().v1api.delete_namespaced_service.assert_has_calls(calls)
+        if not expected_service_names:
+            assert get_k8s().v1api.delete_namespaced_service.call_count == 0
+        else:
+            get_k8s().v1api.delete_namespaced_service.assert_has_calls(calls)
 
     @staticmethod
     def _assert_delete_namespaced_custom_objects(
@@ -198,7 +204,10 @@ class TestRuntimeHandlerBase:
             )
             for expected_custom_object_name in expected_custom_object_names
         ]
-        get_k8s().crdapi.delete_namespaced_custom_object.assert_has_calls(calls)
+        if not expected_custom_object_names:
+            assert get_k8s().crdapi.delete_namespaced_custom_object.call_count == 0
+        else:
+            get_k8s().crdapi.delete_namespaced_custom_object.assert_has_calls(calls)
 
     @staticmethod
     def _mock_delete_namespaced_pods():

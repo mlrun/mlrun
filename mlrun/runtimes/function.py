@@ -270,11 +270,11 @@ class RemoteRuntime(KubeResource):
                 except RunDBError:
                     raise ValueError("function or deploy process not found")
                 state = self.status.state
-                if text and state != "error":
+                if text:
                     print(text)
 
             if state != "ready":
-                logger.error(f"Nuclio ERROR: {text}\n")
+                logger.error("Nuclio function failed to deploy")
                 raise RunError(f"cannot deploy {text}")
 
             if self.status.address:

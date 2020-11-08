@@ -1,4 +1,3 @@
-import unittest.mock
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient

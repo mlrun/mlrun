@@ -22,7 +22,6 @@ from sqlalchemy.orm import Session
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
-from .constants import PodPhases
 from .kubejob import KubejobRuntime
 from .local import load_module, exec_from_params
 from .pod import KubeResourceSpec

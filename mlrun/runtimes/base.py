@@ -997,25 +997,22 @@ class BaseRuntimeHandler(ABC):
 
             # best effort - don't let one failure in pod deletion to cut the whole operation
             try:
-                if force:
-                    self._delete_pod(namespace, pod)
-                    continue
-
                 (
                     in_terminal_state,
                     last_update,
                     run_state,
                 ) = self._resolve_pod_status_info(db, db_session, pod.to_dict())
-                if not in_terminal_state:
-                    continue
+                if not force:
+                    if not in_terminal_state:
+                        continue
 
-                # give some grace period if we have last update time
-                now = datetime.now(timezone.utc)
-                if (
-                    last_update is not None
-                    and last_update + timedelta(seconds=float(grace_period)) > now
-                ):
-                    continue
+                    # give some grace period if we have last update time
+                    now = datetime.now(timezone.utc)
+                    if (
+                        last_update is not None
+                        and last_update + timedelta(seconds=float(grace_period)) > now
+                    ):
+                        continue
 
                 if self._consider_run_on_resources_deletion():
                     try:
@@ -1063,27 +1060,22 @@ class BaseRuntimeHandler(ABC):
             for crd_object in crd_objects["items"]:
                 # best effort - don't let one failure in pod deletion to cut the whole operation
                 try:
-                    if force:
-                        self._delete_crd(
-                            namespace, crd_group, crd_version, crd_plural, crd_object
-                        )
-                        continue
-
                     (
                         in_terminal_state,
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
-                    if not in_terminal_state:
-                        continue
+                    if not force:
+                        if not in_terminal_state:
+                            continue
 
-                    # give some grace period if we have last update time
-                    now = datetime.now(timezone.utc)
-                    if (
-                        last_update is not None
-                        and last_update + timedelta(seconds=float(grace_period)) > now
-                    ):
-                        continue
+                        # give some grace period if we have last update time
+                        now = datetime.now(timezone.utc)
+                        if (
+                            last_update is not None
+                            and last_update + timedelta(seconds=float(grace_period)) > now
+                        ):
+                            continue
 
                     if self._consider_run_on_resources_deletion():
 

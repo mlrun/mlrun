@@ -1,5 +1,5 @@
 import unittest.mock
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 
 import pytest
@@ -64,7 +64,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_pod(name, labels, phase=PodPhases.succeeded):
         terminated_container_state = client.V1ContainerStateTerminated(
-            finished_at=datetime.now(), exit_code=0
+            finished_at=datetime.now(timezone.utc), exit_code=0
         )
         container_state = client.V1ContainerState(terminated=terminated_container_state)
         container_status = client.V1ContainerStatus(
@@ -76,7 +76,7 @@ class TestRuntimeHandlerBase:
             restart_count=0,
         )
         status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
-        metadata = client.V1ObjectMeta(name=name, labels=labels)
+        metadata = client.V1ObjectMeta(name=name, labels=labels, namespace=get_k8s().resolve_namespace())
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
@@ -157,6 +157,15 @@ class TestRuntimeHandlerBase:
             calls.append(pods)
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
         return calls
+
+    @staticmethod
+    def _assert_delete_namespaced_pods(expected_pod_names: List[str], expected_pod_namespace: str = None):
+        calls = [unittest.mock.call(expected_pod_name, expected_pod_namespace) for expected_pod_name in expected_pod_names]
+        get_k8s().v1api.delete_namespaced_pod.assert_has_calls(calls)
+
+    @staticmethod
+    def _mock_delete_namespaced_pods():
+        get_k8s().v1api.delete_namespaced_pod = unittest.mock.Mock()
 
     @staticmethod
     def _mock_list_namespaced_crds(crd_dicts_call_responses: List[List[Dict]]):

@@ -41,6 +41,82 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             RuntimeKinds.job, expected_pods=pods
         )
 
+    def test_delete_resources_completed_pod(self, db: Session, client: TestClient):
+        list_namespaced_pods_calls = [
+            [self.completed_pod],
+            # additional time for the get_logger_pods
+            [self.completed_pod],
+        ]
+        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_delete_namespaced_pods()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        log = "Some log string"
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
+        self._assert_delete_namespaced_pods([self.completed_pod.metadata.name], self.completed_pod.metadata.namespace)
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.completed_pod.metadata.name,
+        )
+
+    def test_delete_resources_running_pod(self, db: Session, client: TestClient):
+        list_namespaced_pods_calls = [
+            [self.running_pod],
+        ]
+        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_delete_namespaced_pods()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
+
+        # nothing removed cause pod is running
+        self._assert_delete_namespaced_pods([])
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+
+    def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
+        list_namespaced_pods_calls = [
+            [self.completed_pod],
+        ]
+        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_delete_namespaced_pods()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=10)
+
+        # nothing removed cause pod grace period didn't pass
+        self._assert_delete_namespaced_pods([])
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+
+    def test_delete_resources_with_force(self, db: Session, client: TestClient):
+        list_namespaced_pods_calls = [
+            [self.running_pod],
+            # additional time for the get_logger_pods
+            [self.running_pod],
+        ]
+        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_delete_namespaced_pods()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        log = "Some log string"
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
+        self._assert_delete_namespaced_pods([self.running_pod.metadata.name], self.running_pod.metadata.namespace)
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.running_pod.metadata.name,
+        )
+
     def test_monitor_run_completed_pod(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.pending_pod],

@@ -69,6 +69,11 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             driver_pod_name, driver_pod_labels, PodPhases.running,
         )
 
+        run_label_selector = self.runtime_handler._get_run_label_selector(
+            self.project, self.run_uid
+        )
+        self.pod_label_selector = f"mlrun/class,{run_label_selector}"
+
     def test_list_sparkjob_resources(self):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])
         pods = self._mock_list_resources_pods()
@@ -76,6 +81,106 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             RuntimeKinds.spark,
             expected_crds=mocked_responses[0]["items"],
             expected_pods=pods,
+        )
+
+    def test_delete_resources_completed_crd(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.completed_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
+        list_namespaced_pods_calls = [
+            [self.executor_pod, self.driver_pod],
+        ]
+        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_delete_namespaced_custom_objects()
+        log = "Some log string"
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [self.completed_crd_dict["metadata"]["name"]],
+            self.completed_crd_dict["metadata"]["namespace"],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector
+        )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
+        )
+
+    def test_delete_resources_running_crd(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.running_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=10)
+
+        # nothing removed cause crd is running
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler, [],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+
+    def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.completed_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=10)
+
+        # nothing removed cause grace period didn't pass
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler, [],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+
+    def test_delete_resources_with_force(self, db: Session, client: TestClient):
+        list_namespaced_crds_calls = [
+            [self.running_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
+        list_namespaced_pods_calls = [
+            [self.executor_pod, self.driver_pod],
+        ]
+        self._mock_list_namespaces_pods(list_namespaced_pods_calls)
+        self._mock_delete_namespaced_custom_objects()
+        log = "Some log string"
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [self.running_crd_dict["metadata"]["name"]],
+            self.running_crd_dict["metadata"]["namespace"],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler, len(list_namespaced_crds_calls),
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector
+        )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+        self._assert_run_logs(
+            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
         )
 
     def test_monitor_run_completed_crd(self, db: Session, client: TestClient):
@@ -100,15 +205,10 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, expected_number_of_list_crds_calls,
         )
-        run_label_selector = self.runtime_handler._get_run_label_selector(
-            self.project, self.run_uid
-        )
-        expected_pod_label_selector = f"mlrun/class,{run_label_selector}"
-        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
-            expected_number_of_list_pods_calls,
-            expected_pod_label_selector,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -139,15 +239,10 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, expected_number_of_list_crds_calls,
         )
-        run_label_selector = self.runtime_handler._get_run_label_selector(
-            self.project, self.run_uid
-        )
-        expected_pod_label_selector = f"mlrun/class,{run_label_selector}"
-        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
-            expected_number_of_list_pods_calls,
-            expected_pod_label_selector,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(
@@ -167,6 +262,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         crd_dict = {
             "metadata": {
                 "name": "my-spark-jdbc-2ea432f1",
+                "namespace": get_k8s().resolve_namespace(),
                 "labels": {
                     "mlrun/class": "spark",
                     "mlrun/function": "my-spark-jdbc",

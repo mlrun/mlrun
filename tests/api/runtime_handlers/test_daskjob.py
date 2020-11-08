@@ -79,7 +79,6 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_delete_resources_completed_cluster(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.completed_worker_pod, self.completed_scheduler_pod],
-            [self.completed_worker_pod, self.completed_scheduler_pod],
         ]
         self._mock_list_namespaces_pods(list_namespaced_pods_calls)
         self._mock_list_services([self.cluster_service])
@@ -103,7 +102,6 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_delete_resources_running_cluster(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
-            [self.running_worker_pod, self.running_scheduler_pod],
             [self.running_worker_pod, self.running_scheduler_pod],
         ]
         self._mock_list_namespaces_pods(list_namespaced_pods_calls)

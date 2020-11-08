@@ -801,7 +801,13 @@ class BaseRuntimeHandler(ABC):
                 db, db_session, namespace, label_selector, force, grace_period
             )
         self._delete_resources(
-            db, db_session, namespace, deleted_resources, label_selector, force, grace_period,
+            db,
+            db_session,
+            namespace,
+            deleted_resources,
+            label_selector,
+            force,
+            grace_period,
         )
 
     def delete_runtime_object_resources(

@@ -68,8 +68,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # nothing removed cause crd is active
         self._assert_delete_namespaced_custom_objects(
-            self.runtime_handler,
-            [],
+            self.runtime_handler, [],
         )
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, len(list_namespaced_crds_calls),
@@ -85,8 +84,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # nothing removed cause grace period didn't pass
         self._assert_delete_namespaced_custom_objects(
-            self.runtime_handler,
-            [],
+            self.runtime_handler, [],
         )
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler, len(list_namespaced_crds_calls),

@@ -504,8 +504,12 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         """
         service_names = []
         for pod_dict in deleted_resources:
-            dask_component = pod_dict["metadata"].get("labels", {}).get("dask.org/component")
-            cluster_name = pod_dict["metadata"].get("labels", {}).get("dask.org/cluster-name")
+            dask_component = (
+                pod_dict["metadata"].get("labels", {}).get("dask.org/component")
+            )
+            cluster_name = (
+                pod_dict["metadata"].get("labels", {}).get("dask.org/cluster-name")
+            )
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 

@@ -1,5 +1,7 @@
 FROM continuumio/anaconda3:2020.02
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 
@@ -53,6 +55,8 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 RUN conda install -y -c plotly plotly-orca python=3.6
+
+RUN conda clean -ayq
 
 # pytorch caused cuda download, this guarantees cpu version:
 RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \

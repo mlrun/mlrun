@@ -54,7 +54,7 @@ def new_remote_endpoint(url, **class_args):
 
 class BaseState(ModelObj):
     kind = "BaseState"
-    _dict_fields = ["kind", "comment", "next", "end"]
+    _dict_fields = ["kind", "comment", "next", "end", "resource"]
 
     def __init__(self, name=None, next=None):
         self.name = name
@@ -106,6 +106,7 @@ class ServingTaskState(BaseState):
         self._handler = None
         self._object = None
         self.skip_context = None
+        self.context = None
         self._class_object = None
 
     def init_object(self, context, namespace, mode="sync", **extra_kwargs):

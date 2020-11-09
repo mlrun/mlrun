@@ -697,6 +697,28 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error_message)
         return schemas.FeatureSet(**resp.json())
 
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        project = project or default_project
+        params = {
+            "name": name,
+            "tag": tag,
+            "entity": entities or [],
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/features"
+
+        error_message = f"Failed listing features, project: {project}, query: {params}"
+        resp = self.api_call("GET", path, error_message, params=params)
+        return schemas.FeaturesOutput(**resp.json())
+
     def list_feature_sets(
         self,
         project: str = "",

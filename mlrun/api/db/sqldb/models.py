@@ -241,6 +241,9 @@ with warnings.catch_warnings():
         name = Column(String)
         value_type = Column(String)
 
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
+
     class Entity(Base):
         __tablename__ = "entities"
         id = Column(Integer, primary_key=True)
@@ -248,6 +251,9 @@ with warnings.catch_warnings():
 
         name = Column(String)
         value_type = Column(String)
+
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
 
     class FeatureSet(Base):
         __tablename__ = "feature_sets"

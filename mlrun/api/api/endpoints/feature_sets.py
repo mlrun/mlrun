@@ -86,3 +86,16 @@ def list_feature_sets(
     )
 
     return feature_sets
+
+
+@router.get("/projects/{project}/features", response_model=schemas.FeaturesOutput)
+def list_features(
+    project: str,
+    name: str = None,
+    tag: str = None,
+    entities: List[str] = Query(None, alias="entity"),
+    labels: List[str] = Query(None, alias="label"),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    features = get_db().list_features(db_session, project, name, tag, entities, labels)
+    return features

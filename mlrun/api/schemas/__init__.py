@@ -13,10 +13,16 @@ from .schedule import (
 from .user import User, UserCreate, UserInDB, UserUpdate
 from .feature_store import (
     Feature,
+    FeatureRecord,
+    Entity,
+    EntityRecord,
     FeatureSetSpec,
     FeatureSetMetadata,
     FeatureSet,
     FeatureSetRecord,
     FeatureSetUpdate,
     FeatureSetsOutput,
+    FeatureSetDigestOutput,
+    FeatureListOutput,
+    FeaturesOutput,
 )

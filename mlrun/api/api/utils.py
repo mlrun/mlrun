@@ -203,4 +203,6 @@ def parse_reference(reference: str):
     uid = uid_regex.findall(reference)
     if not uid:
         tag = reference
+    else:
+        uid = uid[0]
     return tag, uid

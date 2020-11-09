@@ -12,6 +12,8 @@ from mlrun.api.db.sqldb.models import (
     Run,
     Artifact,
     FeatureSet,
+    Feature,
+    Entity,
     Schedule,
 )
 from tests.api.db.conftest import dbs
@@ -101,8 +103,21 @@ def _assert_resources_in_project(
                         .count()
                     )
                 if cls.__tablename__ == "features_labels":
-                    # Skip this test for now - features are linked to labels, but not implemented right now.
-                    number_of_cls_records = 1
+                    number_of_cls_records = (
+                        db_session.query(FeatureSet)
+                        .join(Feature)
+                        .join(cls)
+                        .filter(FeatureSet.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "entities_labels":
+                    number_of_cls_records = (
+                        db_session.query(FeatureSet)
+                        .join(Entity)
+                        .join(cls)
+                        .filter(FeatureSet.project == project)
+                        .count()
+                    )
                 if cls.__tablename__ == "schedules_v2_labels":
                     number_of_cls_records = (
                         db_session.query(Schedule)
@@ -213,7 +228,12 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
             name="dummy", tag="latest", labels={"owner": "nobody"}
         ),
         spec=schemas.FeatureSetSpec(
-            entities=[schemas.Feature(name="ent1", value_type="str")], features=[]
+            entities=[
+                schemas.Entity(name="ent1", value_type="str", labels={"label": "1"})
+            ],
+            features=[
+                schemas.Feature(name="feat1", value_type="str", labels={"label": "1"})
+            ],
         ),
         status={},
     )

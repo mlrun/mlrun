@@ -33,11 +33,13 @@ class AlembicUtil(object):
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
     def _get_current_revision(self):
-        alembic_cfg = alembic.config.Config(self._alembic_config_path)
 
         def print_stdout(text, *arg):
             self._current_revision = text
 
+        # create separate config in order to catch the stdout
+        alembic_cfg = alembic.config.Config(self._alembic_config_path)
         alembic_cfg.print_stdout = print_stdout
+
         alembic.command.current(alembic_cfg)
         return self._current_revision

@@ -33,7 +33,6 @@ class AlembicUtil(object):
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
     def _get_current_revision(self):
-
         def print_stdout(text, *arg):
             self._current_revision = text
 

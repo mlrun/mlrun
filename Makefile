@@ -52,6 +52,15 @@ install-requirements: ## Install all requirements needed for development
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
 
+.PHONY: create-migration
+create-migration: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations/mlrun.db?check_same_thread=false"
+create-migration: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
+ifndef MLRUN_MIGRATION_MESSAGE
+	$(error MLRUN_MIGRATION_MESSAGE is undefined)
+endif
+	alembic -c ./mlrun/api/alembic.ini upgrade head
+	alembic -c ./mlrun/api/alembic.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+
 .PHONY: bump-version
 bump-version: ## Bump version in all needed places in code
 ifndef MLRUN_NEW_VERSION

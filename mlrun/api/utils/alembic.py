@@ -9,7 +9,8 @@ class AlembicUtil(object):
     class Constants(object):
         initial_alembic_revision = "11f8dd2dc9fe"
 
-    def __init__(self):
+    def __init__(self, alembic_config_path):
+        self._alembic_config_path = str(alembic_config_path)
         self._current_revision = None
 
     def init_alembic(self):
@@ -24,10 +25,13 @@ class AlembicUtil(object):
 
         self.run_alembic_command("upgrade", "head")
 
-    @staticmethod
-    def run_alembic_command(*args):
+    def run_alembic_command(self, *args):
         # raise error to exit on a failure
-        argv = ["--raiseerr"]
+        argv = [
+            "--raiseerr",
+            "-c",
+            f"{self._alembic_config_path}",
+        ]
         argv.extend(args)
         alembic.config.main(argv=argv)
 
@@ -36,7 +40,7 @@ class AlembicUtil(object):
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
     def _get_current_database_version(self):
-        alembic_cfg = alembic.config.Config("alembic.ini")
+        alembic_cfg = alembic.config.Config(self._alembic_config_path)
 
         def print_stdout(text, *arg):
             self._current_revision = text

@@ -4,25 +4,18 @@ import pathlib
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import create_session, close_session
 from mlrun.utils import logger
-import alembic.config
+from .utils.alembic import AlembicUtil
 
 
-def init_data() -> None:
+def init_data(from_scratch: bool = False) -> None:
     logger.info("Creating initial data")
 
     # run migrations on existing DB or create it with alembic
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     alembic_config_path = dir_path / "alembic.ini"
-    alembic.config.main(
-        argv=[
-            # raise error to exit on a failure
-            "--raiseerr",
-            "-c",
-            f"{str(alembic_config_path)}",
-            "upgrade",
-            "head",
-        ]
-    )
+
+    alembic_util = AlembicUtil(alembic_config_path)
+    alembic_util.init_alembic(from_scratch=from_scratch)
 
     db_session = create_session()
     try:

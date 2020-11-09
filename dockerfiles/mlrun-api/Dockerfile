@@ -15,6 +15,8 @@ ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
@@ -23,7 +25,8 @@ RUN apt-get update && apt-get install -y \
   git-core \
   sqlite3 \
   procps \
-  vim
+  vim \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade --no-cache pip
 

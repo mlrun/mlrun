@@ -31,6 +31,11 @@ class AlembicUtil(object):
 
     @staticmethod
     def _get_db_file_path():
+        """
+        Get the db file path from the dsn.
+        Converts the dsn to the file path. e.g.:
+        sqlite:////mlrun/db/mlrun.db?check_same_thread=false -> /mlrun/db/mlrun.db
+        """
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
     def _get_current_revision(self):

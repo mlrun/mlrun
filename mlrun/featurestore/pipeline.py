@@ -44,6 +44,8 @@ def run_ingestion_pipeline(
     )
     controller = flow.run()
     df = controller.await_termination()
+    if featureset.spec.timestamp_key:
+        df.sort_values(featureset.spec.timestamp_key, inplace=True)
     if TargetTypes.parquet in targets:
         target_path = client._get_target_path(TargetTypes.parquet, featureset)
         target_path = upload_file(client, df, target_path, featureset)

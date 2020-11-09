@@ -20,7 +20,8 @@ dbs = [
 def db(request) -> Generator:
     if request.param == "sqldb":
         dsn = "sqlite:///:memory:?check_same_thread=false"
-        _init_engine(dsn)
+        config.httpdb.dsn = dsn
+        _init_engine()
 
         # memory sqldb remove it self when all session closed, this session will keep it up during all test
         db_session = create_session()

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from storey import Reduce, build_flow, Source
+from storey import Reduce, build_flow, Source, Complete
 
 from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
@@ -172,15 +172,23 @@ class OnlineVectorService:
             column_names = [name for name, alias in columns]
             aliases = {name: alias for name, alias in columns if alias}
             steps.extend(steps_from_featureset(fs, column_names, aliases))
-        steps.append(Reduce([], lambda acc, x: append_return(acc, x)))
+        steps.append(Complete())
         flow = build_flow(steps)
         self._controller = flow.run()
 
     def get(self, entity_rows: list):
+        results = []
+        futures = []
         for row in entity_rows:
-            self._controller.emit(row)
+            futures.append(self._controller.emit(row, return_awaitable_result=True))
+        for future in futures:
+            result = future.await_result()
+            results.append(result)
+
+        return results
+
+    def close(self):
         self._controller.terminate()
-        return self._controller.await_termination()
 
 
 def _parse_feature_string(feature):

@@ -1,13 +1,15 @@
 FROM jupyter/scipy-notebook
 
+ENV PIP_NO_CACHE_DIR=1
+
 # by default COPY creates files with root permissions, so doing all the preparation with root and chown-ing everything
 # in the end
 USER root
 COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install --no-cache-dir ".[api]" && cd /tmp && rm -rf mlrun
+RUN cd /tmp/mlrun && python -m pip install ".[api]" && cd /tmp && rm -rf mlrun
 
 COPY ./dockerfiles/jupyter/requirements.txt /tmp
-RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
+RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
 
 WORKDIR $HOME
 

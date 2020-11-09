@@ -3,7 +3,7 @@ import os
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import create_session, close_session
 from mlrun.utils import logger
-from .utils.almbic import init_alembic
+from .utils.almbic import AlembicUtil
 
 
 def init_data() -> None:
@@ -14,7 +14,8 @@ def init_data() -> None:
     cwd = os.getcwd()
     os.chdir(dir_path)
 
-    init_alembic()
+    alembic_util = AlembicUtil()
+    alembic_util.init_alembic()
 
     os.chdir(cwd)
 

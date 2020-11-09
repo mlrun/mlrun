@@ -99,6 +99,9 @@ def get_offline_store(type_list, requested_type):
         raise ValueError(
             f"target type {requested_type}, not available or is not offline type"
         )
+    # todo: sort from best (e.g. parquet) to last
+    if TargetTypes.parquet in type_list:
+        return TargetTypes.parquet
     for value in type_list:
         if is_offline_store(value):
             return value

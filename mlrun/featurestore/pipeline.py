@@ -49,7 +49,6 @@ def run_ingestion_pipeline(
         target_path = upload_file(client, df, target_path, featureset)
         target = DataTarget(TargetTypes.parquet, target_path)
         featureset.status.update_target(target)
-    client.save_object(featureset)
     return df
 
 
@@ -184,7 +183,6 @@ def _clear_aggregators(aggregations, column_list):
                 if split[1] not in windows:
                     windows.append(split[1])
                 remove_list.append(col)
-        print(operations, windows)
         if operations:
             aggregate = aggregate.copy()
             aggregate.operations = operations
@@ -211,14 +209,13 @@ def steps_from_featureset(featureset, column_list, aliases):
         aggregation_objects = []
         column_list, aggregates_list = _clear_aggregators(aggregations, column_list)
         for aggregate in aggregates_list:
-            print(aggregate)
             aggregation_objects.append(state_to_field_aggregator(aggregate))
 
         steps.append(
             QueryAggregationByKey(
                 aggregation_objects,
                 table,
-                key_column,
+                key=key_column,
                 enrich_with=column_list,
                 aliases=aliases,
             )

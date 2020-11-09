@@ -61,19 +61,17 @@ def test_ingestion():
     resp = client.ingest(stocks_set, stocks, infer_schema=False, with_stats=False)
     print(resp)
 
-    quotes_set = FeatureSet("stock-quotes2")
+    quotes_set = FeatureSet("stock-quotes")
     quotes_set.add_flow_step("map", "MyMap", mul=3)
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
-    quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
+    # quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
 
     df = quotes_set.infer_from_df(
         quotes, entity_columns=["ticker"], with_stats=True, timestamp_key="time"
     )
+    print(df)
 
-    with open("df.html", "w") as fp:
-        fp.write(df.to_html())
-
-    client.ingest(quotes_set, quotes)
+    print(client.ingest(quotes_set, quotes, return_df=True))
     print(quotes_set.to_yaml())
 
 
@@ -87,6 +85,11 @@ def test_realtime_query():
         "stock-quotes:ask@mycol",
         "stocks:*",
     ]
+
+    # resp = client.get_offline_features(
+    #     features, entity_rows=trades, entity_timestamp_column="time"
+    # )
+    # print(resp.to_dataframe())
 
     svc = client.get_online_feature_service(features)
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])

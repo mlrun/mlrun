@@ -100,6 +100,7 @@ class FeatureStoreClient:
             infer_schema_from_df(source, featureset.spec, entity_list, False)
         if with_stats:
             get_df_stats(df, featureset.status, with_histogram, with_preview)
+        self.save_object(featureset)
         if return_df:
             return df
 

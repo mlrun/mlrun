@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from storey import Reduce, build_flow, Source, Complete
+from storey import Reduce, build_flow, Source, Complete, Map
 
 from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
@@ -147,9 +147,10 @@ class OfflineVectorResponse:
         return self._df
 
 
-def append_return(lst, x):
-    lst.append(x)
-    return lst
+def print_event(event):
+    print(str(event.key))
+    print(str(event.body))
+    return event
 
 
 class OnlineVectorService:
@@ -172,6 +173,7 @@ class OnlineVectorService:
             column_names = [name for name, alias in columns]
             aliases = {name: alias for name, alias in columns if alias}
             steps.extend(steps_from_featureset(fs, column_names, aliases))
+        # steps.append(Map(print_event, full_event=True))
         steps.append(Complete())
         flow = build_flow(steps)
         self._controller = flow.run()

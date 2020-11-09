@@ -38,8 +38,8 @@ class AlembicUtil(object):
             self._current_revision = text
 
         # create separate config in order to catch the stdout
-        alembic_cfg = alembic.config.Config(self._alembic_config_path)
-        alembic_cfg.print_stdout = print_stdout
+        catch_stdout_config = alembic.config.Config(self._alembic_config_path)
+        catch_stdout_config.print_stdout = print_stdout
 
-        alembic.command.current(alembic_cfg)
+        alembic.command.current(catch_stdout_config)
         return self._current_revision

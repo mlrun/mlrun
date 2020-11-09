@@ -22,7 +22,7 @@ from copy import deepcopy
 from .states import ServingRouterState, ServingTaskState
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
-from ..utils import create_logger
+from ..utils import create_logger, get_caller_globals
 
 
 class _StreamContext:
@@ -112,6 +112,7 @@ class ModelServerHost(ModelObj):
         class_args = deepcopy(class_args)
         class_args["model_path"] = model_path
         route = ServingTaskState(class_name, class_args, handler)
+        namespace = namespace or get_caller_globals()
         self.graph.add_route(name, route).init_object(self.context, namespace)
 
     def test(
@@ -198,6 +199,7 @@ def create_mock_server(
 
     if not graph:
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
+    namespace = namespace or get_caller_globals()
     server = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
     server.init(context, namespace or {})
     return server

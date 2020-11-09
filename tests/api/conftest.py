@@ -33,7 +33,7 @@ def db() -> Generator:
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
     _init_engine(config.httpdb.dsn)
-    init_data()
+    init_data(from_scratch=True)
     initialize_db()
     yield create_session()
     logger.info(f"Removing temp db file: {db_file.name}")

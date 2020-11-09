@@ -14,9 +14,10 @@ class AlembicUtil(object):
         self._alembic_config = alembic.config.Config(self._alembic_config_path)
         self._current_revision = None
 
-    def init_alembic(self):
+    def init_alembic(self, from_scratch: bool = False):
         if (
-            os.path.isfile(self._get_db_file_path())
+            not from_scratch
+            and os.path.isfile(self._get_db_file_path())
             and not self._get_current_revision()
         ):
 

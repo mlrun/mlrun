@@ -7,7 +7,7 @@ from mlrun.utils import logger
 from .utils.alembic import AlembicUtil
 
 
-def init_data() -> None:
+def init_data(from_scratch: bool = False) -> None:
     logger.info("Creating initial data")
 
     # run migrations on existing DB or create it with alembic
@@ -15,7 +15,7 @@ def init_data() -> None:
     alembic_config_path = dir_path / "alembic.ini"
 
     alembic_util = AlembicUtil(alembic_config_path)
-    alembic_util.init_alembic()
+    alembic_util.init_alembic(from_scratch=from_scratch)
 
     db_session = create_session()
     try:

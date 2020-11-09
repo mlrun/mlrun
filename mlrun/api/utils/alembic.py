@@ -11,35 +11,28 @@ class AlembicUtil(object):
 
     def __init__(self, alembic_config_path):
         self._alembic_config_path = str(alembic_config_path)
+        self._alembic_config = alembic.config.Config(self._alembic_config_path)
         self._current_revision = None
 
     def init_alembic(self):
         if (
             os.path.isfile(self._get_db_file_path())
-            and not self._get_current_database_version()
+            and not self._get_current_revision()
         ):
 
             # if database file exists but no alembic version exists, stamp the existing
             # database with the initial alembic version, so we can upgrade it later
-            self.run_alembic_command("stamp", self.Constants.initial_alembic_revision)
+            alembic.command.stamp(
+                self._alembic_config, self.Constants.initial_alembic_revision
+            )
 
-        self.run_alembic_command("upgrade", "head")
-
-    def run_alembic_command(self, *args):
-        # raise error to exit on a failure
-        argv = [
-            "--raiseerr",
-            "-c",
-            f"{self._alembic_config_path}",
-        ]
-        argv.extend(args)
-        alembic.config.main(argv=argv)
+        alembic.command.upgrade(self._alembic_config, "head")
 
     @staticmethod
     def _get_db_file_path():
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
-    def _get_current_database_version(self):
+    def _get_current_revision(self):
         alembic_cfg = alembic.config.Config(self._alembic_config_path)
 
         def print_stdout(text, *arg):

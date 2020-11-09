@@ -3,7 +3,7 @@ import os
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import create_session, close_session
 from mlrun.utils import logger
-import alembic.config
+from .utils.almbic import init_alembic
 
 
 def init_data() -> None:
@@ -13,14 +13,9 @@ def init_data() -> None:
     dir_path = os.path.dirname(os.path.realpath(__file__))
     cwd = os.getcwd()
     os.chdir(dir_path)
-    alembic.config.main(
-        argv=[
-            # raise error to exit on a failure
-            "--raiseerr",
-            "upgrade",
-            "head",
-        ]
-    )
+
+    init_alembic()
+
     os.chdir(cwd)
 
     db_session = create_session()

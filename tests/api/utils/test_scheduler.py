@@ -2,6 +2,7 @@ import asyncio
 import pathlib
 from datetime import datetime, timedelta, timezone
 from typing import Generator
+from dateutil.tz import tzlocal
 
 import pytest
 from deepdiff import DeepDiff
@@ -514,10 +515,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     now_plus_2_second = now + timedelta(seconds=2)
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1",
-        start_date=now_plus_1_second,
-        end_date=now_plus_2_second,
-        timezone="utc",
+        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second,
     )
     scheduler.update_schedule(
         db, project, schedule_name, cron_trigger=cron_trigger,
@@ -531,7 +529,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         hour=now_plus_2_second.hour,
         minute=now_plus_2_second.minute,
         second=now_plus_2_second.second,
-        tzinfo=timezone.utc,
+        tzinfo=tzlocal(),
     )
 
     _assert_schedule(

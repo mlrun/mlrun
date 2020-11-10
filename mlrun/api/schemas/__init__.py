@@ -23,6 +23,7 @@ from .feature_store import (
     FeatureSetUpdate,
     FeatureSetsOutput,
     FeatureSetDigestOutput,
+    FeatureSetDigestSpec,
     FeatureListOutput,
     FeaturesOutput,
 )

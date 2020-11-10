@@ -90,12 +90,13 @@ class FeatureSetsOutput(BaseModel):
     feature_sets: List[FeatureSet]
 
 
+class FeatureSetDigestSpec(BaseModel):
+    entities: List[Entity]
+
+
 class FeatureSetDigestOutput(BaseModel):
-    name: str
-    tag: Optional[str]
-    labels: Optional[dict]
-    uid: Optional[str]
-    entities: List[Feature]
+    metadata: FeatureSetMetadata
+    spec: FeatureSetDigestSpec
 
 
 class FeatureListOutput(BaseModel):

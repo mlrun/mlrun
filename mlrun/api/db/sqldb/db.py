@@ -16,6 +16,7 @@ from mlrun.api.db.sqldb.helpers import (
     run_labels,
     run_state,
     update_labels,
+    transform_label_list_to_dict,
 )
 from mlrun.api.db.sqldb.models import (
     Artifact,
@@ -695,7 +696,7 @@ class SQLDB(DBInterface):
                 f"Feature-set not found {feature_set_uri}"
             )
 
-    def _get_feature_sets_by_tag_and_name(self, session, project, tag, name=None):
+    def _get_feature_sets_tags_map(self, session, project, tag, name=None):
         # Find object IDs by tag, project and feature-set-name (which is a like query)
         tag_query = self._query(session, FeatureSet.Tag, project=project, name=tag)
         if name:
@@ -711,7 +712,7 @@ class SQLDB(DBInterface):
         return obj_id_tags
 
     def _generate_feature_set_results_with_tags_assigned(
-        self, feature_set_record, default_tag, obj_id_tags
+        self, feature_set_record, obj_id_tags, default_tag=None
     ):
         # Using a similar mechanism here to assign tags to feature sets as is used in list_functions. Please refer
         # there for some comments explaining the logic.
@@ -743,11 +744,8 @@ class SQLDB(DBInterface):
     @staticmethod
     def _generate_feature_set_digest(feature_set: schemas.FeatureSet):
         return schemas.FeatureSetDigestOutput(
-            name=feature_set.metadata.name,
-            tag=feature_set.metadata.tag,
-            labels=feature_set.metadata.labels,
-            uid=feature_set.metadata.uid,
-            entities=feature_set.spec.entities,
+            metadata=feature_set.metadata,
+            spec=schemas.FeatureSetDigestSpec(entities=feature_set.spec.entities),
         )
 
     def list_features(
@@ -760,7 +758,7 @@ class SQLDB(DBInterface):
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
         # We don't filter by feature-set name here, as the name parameter refers to features
-        feature_set_id_tags = self._get_feature_sets_by_tag_and_name(
+        feature_set_id_tags = self._get_feature_sets_tags_map(
             session, project, tag, name=None
         )
 
@@ -784,13 +782,13 @@ class SQLDB(DBInterface):
         for row in query:
             feature_record = schemas.FeatureRecord.from_orm(row.Feature)
             feature_sets = self._generate_feature_set_results_with_tags_assigned(
-                row.FeatureSet, tag, feature_set_id_tags
+                row.FeatureSet, feature_set_id_tags, tag
             )
 
             feature = schemas.Feature(
                 name=feature_record.name,
                 value_type=feature_record.value_type,
-                labels={label.name: label.value for label in feature_record.labels},
+                labels=transform_label_list_to_dict(feature_record.labels),
             )
 
             features_results.append(
@@ -815,9 +813,7 @@ class SQLDB(DBInterface):
         features: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeatureSetsOutput:
-        obj_id_tags = self._get_feature_sets_by_tag_and_name(
-            session, project, tag, name
-        )
+        obj_id_tags = self._get_feature_sets_tags_map(session, project, tag, name)
 
         # Query the actual objects to be returned
         query = self._query(session, FeatureSet, project=project, state=state)
@@ -837,7 +833,7 @@ class SQLDB(DBInterface):
         for feature_set_record in query:
             feature_sets.extend(
                 self._generate_feature_set_results_with_tags_assigned(
-                    feature_set_record, tag, obj_id_tags
+                    feature_set_record, obj_id_tags, tag
                 )
             )
         return schemas.FeatureSetsOutput(feature_sets=feature_sets)
@@ -1321,15 +1317,13 @@ class SQLDB(DBInterface):
     def _transform_feature_set_model_to_schema(
         feature_set_record: FeatureSet, tag=None,
     ) -> schemas.FeatureSet:
-        def _transform_label_list_to_dict(label_list):
-            return {label.name: label.value for label in label_list}
 
         feature_set = schemas.FeatureSetRecord.from_orm(feature_set_record)
 
         feature_set_metadata = schemas.FeatureSetMetadata(
             name=feature_set.name,
             updated=feature_set.updated,
-            labels=_transform_label_list_to_dict(feature_set.labels),
+            labels=transform_label_list_to_dict(feature_set.labels),
             uid=feature_set.uid,
         )
         feature_set_spec = schemas.FeatureSetSpec(entities=[], features=[])
@@ -1338,7 +1332,7 @@ class SQLDB(DBInterface):
                 schemas.Feature(
                     name=feature.name,
                     value_type=feature.value_type,
-                    labels=_transform_label_list_to_dict(feature.labels),
+                    labels=transform_label_list_to_dict(feature.labels),
                 )
             )
         for entity in feature_set.entities:
@@ -1346,7 +1340,7 @@ class SQLDB(DBInterface):
                 schemas.Entity(
                     name=entity.name,
                     value_type=entity.value_type,
-                    labels=_transform_label_list_to_dict(entity.labels),
+                    labels=transform_label_list_to_dict(entity.labels),
                 )
             )
 

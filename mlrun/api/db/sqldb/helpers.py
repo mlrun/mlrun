@@ -15,6 +15,10 @@ def label_set(labels):
     return set(labels or [])
 
 
+def transform_label_list_to_dict(label_list):
+    return {label.name: label.value for label in label_list}
+
+
 def run_start_time(run):
     ts = get_in(run, "status.start_time", "")
     if not ts:

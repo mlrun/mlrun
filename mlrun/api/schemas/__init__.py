@@ -7,6 +7,7 @@ from .schedule import (
     ScheduleOutput,
     ScheduleCronTrigger,
     ScheduleKinds,
+    ScheduleUpdate,
     ScheduleInput,
     ScheduleRecord,
 )

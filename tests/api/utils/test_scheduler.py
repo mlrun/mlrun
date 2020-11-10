@@ -422,6 +422,98 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     assert call_counter == 2
 
 
+@pytest.mark.asyncio
+async def test_update_schedule(db: Session, scheduler: Scheduler):
+    labels_1 = {
+        "label1": "value1",
+        "label2": "value2",
+    }
+    labels_2 = {
+        "label3": "value3",
+        "label4": "value4",
+    }
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-update-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+        labels_1,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        cron_trigger,
+        None,
+        labels_1,
+    )
+
+    # update labels
+    scheduler.update_schedule(
+        db,
+        project,
+        schedule_name,
+        labels=labels_2,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        cron_trigger,
+        None,
+        labels_2,
+    )
+
+    # update nothing
+    scheduler.update_schedule(
+        db,
+        project,
+        schedule_name,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        cron_trigger,
+        None,
+        labels_2,
+    )
+
+    # update labels to empty dict
+    scheduler.update_schedule(
+        db,
+        project,
+        schedule_name,
+        labels={},
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        cron_trigger,
+        None,
+        {},
+    )
+
+
+
 def _assert_schedule(
     schedule: schemas.ScheduleOutput,
     project,

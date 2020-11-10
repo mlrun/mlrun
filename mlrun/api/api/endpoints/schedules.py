@@ -28,6 +28,24 @@ def create_schedule(
     return Response(status_code=HTTPStatus.CREATED.value)
 
 
+@router.put("/projects/{project}/schedules")
+def update_schedule(
+    project: str,
+    name: str,
+    schedule: schemas.ScheduleUpdate,
+    db_session: Session = Depends(deps.get_db_session),
+):
+    get_scheduler().update_schedule(
+        db_session,
+        project,
+        name,
+        schedule.scheduled_object,
+        schedule.cron_trigger,
+        labels={label.name: label.value for label in schedule.labels},
+    )
+    return Response(status_code=HTTPStatus.ACCEPTED.value)
+
+
 @router.get("/projects/{project}/schedules", response_model=schemas.SchedulesOutput)
 def list_schedules(
     project: str,

@@ -66,12 +66,40 @@ class Scheduler:
             kind=kind,
             scheduled_object=scheduled_object,
             cron_trigger=cron_trigger,
+            labels=labels,
         )
         get_db().create_schedule(
             db_session, project, name, kind, scheduled_object, cron_trigger, labels
         )
         self._create_schedule_in_scheduler(
             project, name, kind, scheduled_object, cron_trigger
+        )
+
+    def update_schedule(
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        scheduled_object: Union[Dict, Callable] = None,
+        cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
+        labels: Dict = None,
+    ):
+        if isinstance(cron_trigger, str):
+            cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+
+        if cron_trigger is not None:
+            self._validate_cron_trigger(cron_trigger)
+
+        logger.debug(
+            "Updating schedule",
+            project=project,
+            name=name,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+        )
+        get_db().update_schedule(
+            db_session, project, name, scheduled_object, cron_trigger, labels
         )
 
     def list_schedules(

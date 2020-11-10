@@ -497,6 +497,43 @@ class SQLDB(DBInterface):
         )
         self._upsert(session, schedule)
 
+    def update_schedule(
+        self,
+        session: Session,
+        project: str,
+        name: str,
+        scheduled_object: Any = None,
+        cron_trigger: schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+    ):
+        self._ensure_project(session, project)
+        query = self._query(session, Schedule, project=project, name=name)
+        schedule = query.one_or_none()
+
+        # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
+        if scheduled_object is not None:
+            session.scheduled_object = scheduled_object
+
+        if cron_trigger is not None:
+            session.cron_trigger = cron_trigger
+
+        if labels is not None:
+            schedule.labels.clear()
+            for name, value in labels.items():
+                label = Schedule.Label(name=name, value=value, parent=schedule.id)
+                schedule.labels.append(label)
+
+        logger.debug(
+            "Saving schedule to db",
+            project=project,
+            name=name,
+            cron_trigger=cron_trigger,
+            labels=labels,
+        )
+        session.merge(schedule)
+        session.commit()
+        self._delete_empty_labels(session, Schedule.Label)
+
     def list_schedules(
         self,
         session: Session,

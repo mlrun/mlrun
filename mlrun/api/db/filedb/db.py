@@ -185,6 +185,17 @@ class FileDB(DBInterface):
     ):
         raise NotImplementedError()
 
+    def update_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        scheduled_object: Any = None,
+        cron_trigger: schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+    ):
+        raise NotImplementedError()
+
     def list_schedules(
         self,
         session,

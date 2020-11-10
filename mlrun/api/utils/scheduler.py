@@ -112,13 +112,6 @@ class Scheduler:
             updated_schedule.cron_trigger,
         )
 
-        # delete and create
-        # job_id = self._resolve_job_id(project, name)
-        # self._scheduler.remove_job(job_id)
-        # self._create_schedule_in_scheduler(
-        #     project, name, updated_schedule.kind, updated_schedule.scheduled_object, updated_schedule.cron_trigger
-        # )
-
     def list_schedules(
         self,
         db_session: Session,

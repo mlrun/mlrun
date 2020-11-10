@@ -544,7 +544,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         {},
     )
 
-    await asyncio.sleep(10)
+    await asyncio.sleep(2)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed

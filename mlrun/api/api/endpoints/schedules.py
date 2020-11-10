@@ -28,7 +28,7 @@ def create_schedule(
     return Response(status_code=HTTPStatus.CREATED.value)
 
 
-@router.put("/projects/{project}/schedules")
+@router.put("/projects/{project}/schedules/{name}")
 def update_schedule(
     project: str,
     name: str,
@@ -43,7 +43,7 @@ def update_schedule(
         schedule.cron_trigger,
         labels={label.name: label.value for label in schedule.labels},
     )
-    return Response(status_code=HTTPStatus.ACCEPTED.value)
+    return Response(status_code=HTTPStatus.OK.value)
 
 
 @router.get("/projects/{project}/schedules", response_model=schemas.SchedulesOutput)

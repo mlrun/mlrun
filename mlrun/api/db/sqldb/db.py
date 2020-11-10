@@ -512,19 +512,16 @@ class SQLDB(DBInterface):
 
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
         if scheduled_object is not None:
-            session.scheduled_object = scheduled_object
+            schedule.scheduled_object = scheduled_object
 
         if cron_trigger is not None:
-            session.cron_trigger = cron_trigger
+            schedule.cron_trigger = cron_trigger
 
         if labels is not None:
-            schedule.labels.clear()
-            for name, value in labels.items():
-                label = Schedule.Label(name=name, value=value, parent=schedule.id)
-                schedule.labels.append(label)
+            update_labels(schedule, labels)
 
         logger.debug(
-            "Saving schedule to db",
+            "Updating schedule in db",
             project=project,
             name=name,
             cron_trigger=cron_trigger,
@@ -532,7 +529,6 @@ class SQLDB(DBInterface):
         )
         session.merge(schedule)
         session.commit()
-        self._delete_empty_labels(session, Schedule.Label)
 
     def list_schedules(
         self,

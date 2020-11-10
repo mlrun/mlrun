@@ -432,26 +432,30 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         "label3": "value3",
         "label4": "value4",
     }
-    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
-    schedule_name = "schedule-update-name"
+    inactive_cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-name"
     project = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 0
     scheduler.create_schedule(
         db,
         project,
         schedule_name,
-        schemas.ScheduleKinds.local_function,
-        do_nothing,
-        cron_trigger,
-        labels_1,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        inactive_cron_trigger,
+        labels=labels_1,
     )
+
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
     _assert_schedule(
         schedule,
         project,
         schedule_name,
-        schemas.ScheduleKinds.local_function,
-        cron_trigger,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
         None,
         labels_1,
     )
@@ -466,8 +470,8 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         schedule,
         project,
         schedule_name,
-        schemas.ScheduleKinds.local_function,
-        cron_trigger,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
         None,
         labels_2,
     )
@@ -482,8 +486,8 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         schedule,
         project,
         schedule_name,
-        schemas.ScheduleKinds.local_function,
-        cron_trigger,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
         None,
         labels_2,
     )
@@ -498,11 +502,52 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         schedule,
         project,
         schedule_name,
-        schemas.ScheduleKinds.local_function,
-        cron_trigger,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
         None,
         {},
     )
+
+    # update it so it runs
+    now = datetime.now()
+    now_plus_1_second = now + timedelta(seconds=1)
+    now_plus_2_second = now + timedelta(seconds=2)
+    # this way we're leaving ourselves one second to create the schedule preventing transient test failure
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1",
+        start_date=now_plus_1_second,
+        end_date=now_plus_2_second,
+        timezone="utc",
+    )
+    scheduler.update_schedule(
+        db, project, schedule_name, cron_trigger=cron_trigger,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    next_run_time = datetime(
+        year=now_plus_2_second.year,
+        month=now_plus_2_second.month,
+        day=now_plus_2_second.day,
+        hour=now_plus_2_second.hour,
+        minute=now_plus_2_second.minute,
+        second=now_plus_2_second.second,
+        tzinfo=timezone.utc,
+    )
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        cron_trigger,
+        next_run_time,
+        {},
+    )
+
+    await asyncio.sleep(10)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 1
+    assert runs[0]["status"]["state"] == RunStates.completed
 
 
 def _assert_schedule(

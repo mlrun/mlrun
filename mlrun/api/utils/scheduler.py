@@ -66,12 +66,50 @@ class Scheduler:
             kind=kind,
             scheduled_object=scheduled_object,
             cron_trigger=cron_trigger,
+            labels=labels,
         )
         get_db().create_schedule(
             db_session, project, name, kind, scheduled_object, cron_trigger, labels
         )
         self._create_schedule_in_scheduler(
             project, name, kind, scheduled_object, cron_trigger
+        )
+
+    def update_schedule(
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        scheduled_object: Union[Dict, Callable] = None,
+        cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
+        labels: Dict = None,
+    ):
+        if isinstance(cron_trigger, str):
+            cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+
+        if cron_trigger is not None:
+            self._validate_cron_trigger(cron_trigger)
+
+        logger.debug(
+            "Updating schedule",
+            project=project,
+            name=name,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+        )
+        get_db().update_schedule(
+            db_session, project, name, scheduled_object, cron_trigger, labels
+        )
+        db_schedule = get_db().get_schedule(db_session, project, name)
+        updated_schedule = self._transform_db_schedule_to_schedule(db_schedule)
+
+        self._update_schedule_in_scheduler(
+            project,
+            name,
+            updated_schedule.kind,
+            updated_schedule.scheduled_object,
+            updated_schedule.cron_trigger,
         )
 
     def list_schedules(
@@ -183,6 +221,31 @@ class Scheduler:
             args,
             kwargs,
             job_id,
+        )
+
+    def _update_schedule_in_scheduler(
+        self,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
+        job_id = self._resolve_job_id(project, name)
+        logger.debug("Updating schedule in scheduler", job_id=job_id)
+        function, args, kwargs = self._resolve_job_function(kind, scheduled_object)
+        trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+            cron_trigger
+        )
+        now = datetime.now(self._scheduler.timezone)
+        next_run_time = trigger.get_next_fire_time(None, now)
+        self._scheduler.modify_job(
+            job_id,
+            func=function,
+            args=args,
+            kwargs=kwargs,
+            trigger=trigger,
+            next_run_time=next_run_time,
         )
 
     def _reload_schedules(self, db_session: Session):

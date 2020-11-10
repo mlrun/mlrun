@@ -74,16 +74,20 @@ class Label(BaseModel):
 
 
 class ScheduleUpdate(BaseModel):
-    scheduled_object: Any
-    cron_trigger: Union[str, ScheduleCronTrigger]
+    scheduled_object: Optional[Any]
+    cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
     desired_state: Optional[str]
-    labels: List[Label]
+    labels: Optional[List[Label]]
 
 
 # Properties to receive via API on creation
-class ScheduleInput(ScheduleUpdate):
+class ScheduleInput(BaseModel):
     name: str
     kind: ScheduleKinds
+    scheduled_object: Any
+    cron_trigger: Union[str, ScheduleCronTrigger]
+    desired_state: Optional[str]
+    labels: Optional[List[Label]]
 
 
 # the schedule object returned from the db layer

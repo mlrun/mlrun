@@ -145,6 +145,18 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def update_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        scheduled_object: Any = None,
+        cron_trigger: schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+    ):
+        pass
+
+    @abstractmethod
     def list_schedules(
         self,
         session,

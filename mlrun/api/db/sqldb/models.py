@@ -176,7 +176,7 @@ with warnings.catch_warnings():
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
         struct = Column(BLOB)
-        labels = relationship(Label)
+        labels = relationship(Label, cascade="all, delete-orphan")
 
         @property
         def scheduled_object(self):

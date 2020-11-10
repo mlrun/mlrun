@@ -119,7 +119,6 @@ class Scheduler:
         #     project, name, updated_schedule.kind, updated_schedule.scheduled_object, updated_schedule.cron_trigger
         # )
 
-
     def list_schedules(
         self,
         db_session: Session,
@@ -249,12 +248,11 @@ class Scheduler:
         next_run_time = trigger.get_next_fire_time(None, now)
         self._scheduler.modify_job(
             job_id,
-            jobstore='default',
             func=function,
             args=args,
             kwargs=kwargs,
             trigger=trigger,
-            next_run_time=next_run_time
+            next_run_time=next_run_time,
         )
 
     def _reload_schedules(self, db_session: Session):

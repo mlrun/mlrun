@@ -224,6 +224,18 @@ class SQLDB(RunDBInterface):
             self.db.get_feature_set, self.session, project, name, tag, uid
         )
 
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_features, self.session, project, name, tag, entities, labels,
+        )
+
     def list_feature_sets(
         self,
         project: str = "",

@@ -143,6 +143,17 @@ class FileDB(DBInterface):
     ) -> schemas.FeatureSet:
         raise NotImplementedError()
 
+    def list_features(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        raise NotImplementedError()
+
     def list_feature_sets(
         self,
         session,

@@ -200,7 +200,10 @@ uid_regex = re.compile(f"^[0-9a-f]{{{hash_len}}}$", re.IGNORECASE)
 
 def parse_reference(reference: str):
     tag = None
-    uid = uid_regex.findall(reference)
-    if not uid:
+    uid = None
+    regex_match = uid_regex.match(reference)
+    if not regex_match:
         tag = reference
+    else:
+        uid = regex_match.string
     return tag, uid

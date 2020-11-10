@@ -139,6 +139,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
     def list_feature_sets(
         self,
         project: str = "",

@@ -46,3 +46,6 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
 
     feature_set_res = db.list_feature_sets(db_session, project)
     assert len(feature_set_res.feature_sets) == 1
+
+    features_res = db.list_features(db_session, project, "time")
+    assert len(features_res.features) == 1

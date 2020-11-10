@@ -458,10 +458,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update labels
     scheduler.update_schedule(
-        db,
-        project,
-        schedule_name,
-        labels=labels_2,
+        db, project, schedule_name, labels=labels_2,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -477,9 +474,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update nothing
     scheduler.update_schedule(
-        db,
-        project,
-        schedule_name,
+        db, project, schedule_name,
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -495,10 +490,7 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
 
     # update labels to empty dict
     scheduler.update_schedule(
-        db,
-        project,
-        schedule_name,
-        labels={},
+        db, project, schedule_name, labels={},
     )
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
@@ -511,7 +503,6 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         None,
         {},
     )
-
 
 
 def _assert_schedule(

@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, Dict
 
 from pydantic import BaseModel
 
@@ -94,6 +94,7 @@ class ScheduleInput(BaseModel):
 class ScheduleRecord(ScheduleInput):
     creation_time: datetime
     project: str
+    last_run_uri: Optional[str]
     state: Optional[str]
 
     class Config:
@@ -103,6 +104,7 @@ class ScheduleRecord(ScheduleInput):
 # Additional properties to return via API
 class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
+    last_run: Optional[Dict]
 
 
 class SchedulesOutput(BaseModel):

@@ -506,6 +506,7 @@ class SQLDB(DBInterface):
         scheduled_object: Any = None,
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
+        last_run_uri: str = None,
     ):
         self._ensure_project(session, project)
         query = self._query(session, Schedule, project=project, name=name)
@@ -520,6 +521,9 @@ class SQLDB(DBInterface):
 
         if labels is not None:
             update_labels(schedule, labels)
+
+        if last_run_uri is not None:
+            schedule.last_run_uri = last_run_uri
 
         logger.debug(
             "Updating schedule in db",

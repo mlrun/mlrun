@@ -71,7 +71,7 @@ default_config = {
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
     # sets the background color that is used in printed tables in jupyter
-    "background_color": "#ca8452",
+    "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
     "httpdb": {
         "port": 8080,

@@ -158,7 +158,8 @@ def ipython_display(html, display=True, alt_text=None):
     return html
 
 
-style = f"""<style>
+def get_style():
+    return f"""<style>
 .dictlist {{
   background-color: {config.background_color};
   text-align: center;
@@ -228,6 +229,7 @@ iframe.fileview {{
   box-sizing: border-box;
 }}
 </style>"""
+
 
 jscripts = r"""<script>
 function copyToClipboard(fld) {
@@ -318,7 +320,7 @@ def get_tblframe(df, display, classes=None):
 
     table = tblframe.format(table_html)
     rnd = "result" + str(uuid.uuid4())[:8]
-    html = style + jscripts + table.replace('="result', '="' + rnd)
+    html = get_style() + jscripts + table.replace('="result', '="' + rnd)
     return ipython_display(html, display)
 
 

@@ -103,7 +103,9 @@ class Scheduler:
             db_session, project, name, scheduled_object, cron_trigger, labels
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
-        updated_schedule = self._transform_db_schedule_to_schedule(db_schedule)
+        updated_schedule = self._transform_and_enrich_db_schedule(
+            db_session, db_schedule
+        )
 
         self._update_schedule_in_scheduler(
             project,
@@ -120,6 +122,7 @@ class Scheduler:
         name: str = None,
         kind: str = None,
         labels: str = None,
+        include_last_run: bool = False,
     ) -> schemas.SchedulesOutput:
         logger.debug(
             "Getting schedules", project=project, name=name, labels=labels, kind=kind
@@ -127,16 +130,24 @@ class Scheduler:
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
-            schedule = self._transform_db_schedule_to_schedule(db_schedule)
+            schedule = self._transform_and_enrich_db_schedule(
+                db_session, db_schedule, include_last_run
+            )
             schedules.append(schedule)
         return schemas.SchedulesOutput(schedules=schedules)
 
     def get_schedule(
-        self, db_session: Session, project: str, name: str
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
-        return self._transform_db_schedule_to_schedule(db_schedule)
+        return self._transform_and_enrich_db_schedule(
+            db_session, db_schedule, include_last_run
+        )
 
     def delete_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Deleting schedule", project=project, name=name)
@@ -273,14 +284,34 @@ class Scheduler:
                     db_schedule=db_schedule,
                 )
 
-    def _transform_db_schedule_to_schedule(
-        self, schedule_record: schemas.ScheduleRecord
+    def _transform_and_enrich_db_schedule(
+        self,
+        db_session: Session,
+        schedule_record: schemas.ScheduleRecord,
+        include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
+        schedule = schemas.ScheduleOutput(**schedule_record.dict())
+
         job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
         job = self._scheduler.get_job(job_id)
-        schedule = schemas.ScheduleOutput(**schedule_record.dict())
         schedule.next_run_time = job.next_run_time
+
+        if include_last_run:
+            schedule = self._enrich_schedule_with_last_run(db_session, schedule)
+
         return schedule
+
+    @staticmethod
+    def _enrich_schedule_with_last_run(
+        db_session: Session, schedule_output: schemas.ScheduleOutput
+    ):
+        if schedule_output.last_run_uri:
+            run_project, run_uid, iteration, _ = RunObject.parse_uri(
+                schedule_output.last_run_uri
+            )
+            run_data = get_db().read_run(db_session, run_uid, run_project, iteration)
+            schedule_output.last_run = run_data
+        return schedule_output
 
     def _resolve_job_function(
         self,

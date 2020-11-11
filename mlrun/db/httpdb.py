@@ -450,18 +450,26 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed updating schedule {project}/{name}"
         self.api_call("PUT", path, error_message, body=json.dumps(schedule.dict()))
 
-    def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
+    def get_schedule(
+        self, project: str, name: str, include_last_run: bool = False
+    ) -> schemas.ScheduleOutput:
         project = project or default_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed getting schedule for {project}/{name}"
-        resp = self.api_call("GET", path, error_message)
+        resp = self.api_call(
+            "GET", path, error_message, params={"include_last_run": include_last_run}
+        )
         return schemas.ScheduleOutput(**resp.json())
 
     def list_schedules(
-        self, project: str, name: str = None, kind: schemas.ScheduleKinds = None
+        self,
+        project: str,
+        name: str = None,
+        kind: schemas.ScheduleKinds = None,
+        include_last_run: bool = False,
     ) -> schemas.SchedulesOutput:
         project = project or default_project
-        params = {"kind": kind, "name": name}
+        params = {"kind": kind, "name": name, "include_last_run": include_last_run}
         path = f"projects/{project}/schedules"
         error_message = f"Failed listing schedules for {project} ? {kind} {name}"
         resp = self.api_call("GET", path, error_message, params=params)

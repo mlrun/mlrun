@@ -98,6 +98,11 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
     db_uids = [run["metadata"]["uid"] for run in runs]
     assert DeepDiff(response_uids, db_uids, ignore_order=True,) == {}
 
+    schedule = scheduler.get_schedule(db, project, schedule_name, include_last_run=True)
+    assert schedule.last_run is not None
+    assert schedule.last_run["metadata"]["uid"] == response_uids[-1]
+    assert schedule.last_run["metadata"]["project"] == project
+
 
 @pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):

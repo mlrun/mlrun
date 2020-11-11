@@ -213,7 +213,9 @@ class Scheduler:
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
-        function, args, kwargs = self._resolve_job_function(kind, scheduled_object, name)
+        function, args, kwargs = self._resolve_job_function(
+            kind, scheduled_object, name
+        )
         self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -234,7 +236,9 @@ class Scheduler:
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
-        function, args, kwargs = self._resolve_job_function(kind, scheduled_object, name)
+        function, args, kwargs = self._resolve_job_function(
+            kind, scheduled_object, name
+        )
         trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
             cron_trigger
         )
@@ -279,7 +283,10 @@ class Scheduler:
         return schedule
 
     def _resolve_job_function(
-        self, scheduled_kind: schemas.ScheduleKinds, scheduled_object: Any, schedule_name: str
+        self,
+        scheduled_kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        schedule_name: str,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -287,7 +294,11 @@ class Scheduler:
 
         if scheduled_kind == schemas.ScheduleKinds.job:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
-            return Scheduler.submit_run_wrapper, [scheduled_object_copy, schedule_name], {}
+            return (
+                Scheduler.submit_run_wrapper,
+                [scheduled_object_copy, schedule_name],
+                {},
+            )
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, [], {}
 
@@ -324,10 +335,7 @@ class Scheduler:
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
         get_db().update_schedule(
-            db_session,
-            run_metadata['project'],
-            schedule_name,
-            last_run_uri=run_uri,
+            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
         )
 
         close_session(db_session)

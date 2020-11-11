@@ -158,76 +158,78 @@ def ipython_display(html, display=True, alt_text=None):
     return html
 
 
-style = """<style>
-.dictlist {
-  background-color: #ca8452;
+def get_style():
+    return f"""<style>
+.dictlist {{
+  background-color: {config.background_color};
   text-align: center;
   margin: 4px;
-  border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
-.artifact {
+  border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}}
+.artifact {{
   cursor: pointer;
-  background-color: #ca8452;
+  background-color: {config.background_color};
   text-align: left;
   margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
-}
-div.block.hidden {
+}}
+div.block.hidden {{
   display: none;
-}
-.clickable {
+}}
+.clickable {{
   cursor: pointer;
-}
-.ellipsis {
+}}
+.ellipsis {{
   display: inline-block;
   max-width: 60px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.master-wrapper {
+}}
+.master-wrapper {{
   display: flex;
   flex-flow: row nowrap;
   justify-content: flex-start;
   align-items: stretch;
-}
-.master-tbl {
+}}
+.master-tbl {{
   flex: 3
-}
-.master-wrapper > div {
+}}
+.master-wrapper > div {{
   margin: 4px;
   padding: 10px;
-}
-iframe.fileview {
+}}
+iframe.fileview {{
   border: 0 none;
   height: 100%;
   width: 100%;
   white-space: pre-wrap;
-}
-.pane-header-title {
+}}
+.pane-header-title {{
   width: 80%;
   font-weight: 500;
-}
-.pane-header {
+}}
+.pane-header {{
   line-height: 1;
-  background-color: #ca8452;
+  background-color: {config.background_color};
   padding: 3px;
-}
-.pane-header .close {
+}}
+.pane-header .close {{
   font-size: 20px;
   font-weight: 700;
   float: right;
   margin-top: -5px;
-}
-.master-wrapper .right-pane {
+}}
+.master-wrapper .right-pane {{
   border: 1px inset silver;
   width: 40%;
   min-height: 300px;
   flex: 3
   min-width: 500px;
-}
-.master-wrapper * {
+}}
+.master-wrapper * {{
   box-sizing: border-box;
-}
+}}
 </style>"""
+
 
 jscripts = r"""<script>
 function copyToClipboard(fld) {
@@ -318,7 +320,7 @@ def get_tblframe(df, display, classes=None):
 
     table = tblframe.format(table_html)
     rnd = "result" + str(uuid.uuid4())[:8]
-    html = style + jscripts + table.replace('="result', '="' + rnd)
+    html = get_style() + jscripts + table.replace('="result', '="' + rnd)
     return ipython_display(html, display)
 
 

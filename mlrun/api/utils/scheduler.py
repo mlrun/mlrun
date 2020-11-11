@@ -103,7 +103,9 @@ class Scheduler:
             db_session, project, name, scheduled_object, cron_trigger, labels
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
-        updated_schedule = self._transform_and_enrich_db_schedule(db_session, db_schedule)
+        updated_schedule = self._transform_and_enrich_db_schedule(
+            db_session, db_schedule
+        )
 
         self._update_schedule_in_scheduler(
             project,

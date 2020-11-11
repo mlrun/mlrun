@@ -17,6 +17,8 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from os import environ
+import re
+import typing
 
 from .config import config
 from .db import get_run_db
@@ -589,6 +591,30 @@ class RunObject(RunTemplate):
         if state:
             print("final state: {}".format(state))
         return state
+
+    @staticmethod
+    def create_uri(project: str, uid: str, iteration: str, tag: str = ""):
+        if tag:
+            tag = f":{tag}"
+        return f"{project}@{uid}#{iteration}{tag}"
+
+    @staticmethod
+    def parse_uri(uri: str) -> typing.Tuple[str, str, str, str]:
+        uri_pattern = (
+            r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
+        )
+        match = re.match(uri_pattern, uri)
+        if not match:
+            raise ValueError(
+                "Uri not in supported format <project>@<uid>#<iteration>[:tag]"
+            )
+        group_dict = match.groupdict()
+        return (
+            group_dict["project"],
+            group_dict["uid"],
+            group_dict["iteration"],
+            group_dict["tag"],
+        )
 
 
 # TODO: remove in 0.9.0

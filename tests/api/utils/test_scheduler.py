@@ -126,6 +126,11 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed
 
+    expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
+
+    schedule = get_db().get_schedule(db, project, schedule_name)
+    assert schedule.last_run_uri == expected_last_run_uri
+
 
 @pytest.mark.asyncio
 async def test_create_schedule_success_cron_trigger_validation(

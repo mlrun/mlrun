@@ -94,6 +94,7 @@ class ScheduleInput(BaseModel):
 class ScheduleRecord(ScheduleInput):
     creation_time: datetime
     project: str
+    last_run_uri: Optional[str]
     state: Optional[str]
 
     class Config:

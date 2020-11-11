@@ -441,6 +441,15 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating schedule {project}/{schedule.name}"
         self.api_call("POST", path, error_message, body=json.dumps(schedule.dict()))
 
+    def update_schedule(
+        self, project: str, name: str, schedule: schemas.ScheduleUpdate
+    ):
+        project = project or default_project
+        path = f"projects/{project}/schedules/{name}"
+
+        error_message = f"Failed updating schedule {project}/{name}"
+        self.api_call("PUT", path, error_message, body=json.dumps(schedule.dict()))
+
     def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
         project = project or default_project
         path = f"projects/{project}/schedules/{name}"

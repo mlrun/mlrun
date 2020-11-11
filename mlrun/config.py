@@ -70,6 +70,8 @@ default_config = {
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
+    # sets the background color that is used in printed tables in jupyter
+    "background_color": "#ca8452",
     "artifact_path": "",  # default artifacts path/url
     "httpdb": {
         "port": 8080,

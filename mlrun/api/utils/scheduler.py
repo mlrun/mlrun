@@ -120,6 +120,7 @@ class Scheduler:
         name: str = None,
         kind: str = None,
         labels: str = None,
+        include_last_run: bool = False,
     ) -> schemas.SchedulesOutput:
         logger.debug(
             "Getting schedules", project=project, name=name, labels=labels, kind=kind
@@ -128,15 +129,24 @@ class Scheduler:
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_db_schedule_to_schedule(db_schedule)
+            if include_last_run:
+                schedule = self._enrich_schedule_with_last_run(db_session, schedule)
             schedules.append(schedule)
         return schemas.SchedulesOutput(schedules=schedules)
 
     def get_schedule(
-        self, db_session: Session, project: str, name: str
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
-        return self._transform_db_schedule_to_schedule(db_schedule)
+        schedule = self._transform_db_schedule_to_schedule(db_schedule)
+        if include_last_run:
+            schedule = self._enrich_schedule_with_last_run(db_session, schedule)
+        return schedule
 
     def delete_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Deleting schedule", project=project, name=name)
@@ -281,6 +291,18 @@ class Scheduler:
         schedule = schemas.ScheduleOutput(**schedule_record.dict())
         schedule.next_run_time = job.next_run_time
         return schedule
+
+    @staticmethod
+    def _enrich_schedule_with_last_run(
+        db_session: Session, schedule_output: schemas.ScheduleOutput
+    ):
+        if schedule_output.last_run_uri:
+            run_project, run_uid, _, _ = RunObject.parse_uri(
+                schedule_output.last_run_uri
+            )
+            run_data = get_db().read_run(db_session, run_uid, run_project)
+            schedule_output.last_run = run_data
+        return schedule_output
 
     def _resolve_job_function(
         self,

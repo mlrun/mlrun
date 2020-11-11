@@ -52,18 +52,26 @@ def list_schedules(
     name: str = None,
     labels: str = None,
     kind: schemas.ScheduleKinds = None,
+    include_last_run: bool = False,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_scheduler().list_schedules(db_session, project, name, labels, kind)
+    return get_scheduler().list_schedules(
+        db_session, project, name, labels, kind, include_last_run=include_last_run
+    )
 
 
 @router.get(
     "/projects/{project}/schedules/{name}", response_model=schemas.ScheduleOutput
 )
 def get_schedule(
-    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    include_last_run: bool = False,
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_scheduler().get_schedule(db_session, project, name)
+    return get_scheduler().get_schedule(
+        db_session, project, name, include_last_run=include_last_run
+    )
 
 
 @router.post("/projects/{project}/schedules/{name}/invoke")

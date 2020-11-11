@@ -178,26 +178,19 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.executor.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.deps", self.spec.deps)
-        if "requests" in self.spec.resources:
-            if "cpu" in self.spec.resources["requests"]:
-                update_in(
-                    job, "spec.executor.cores", self.spec.resources["requests"]["cpu"]
-                )
         if "limits" in self.spec.resources:
             if "cpu" in self.spec.resources["limits"]:
                 update_in(
                     job, "spec.executor.coreLimit", self.spec.resources["limits"]["cpu"]
                 )
-            if "memory" in self.spec.resources["limits"]:
+        if "requests" in self.spec.resources:
+            if "cpu" in self.spec.resources["requests"]:
                 update_in(
-                    job, "spec.executor.memory", self.spec.resources["limits"]["memory"]
+                    job, "spec.executor.cores", self.spec.resources["requests"]["cpu"]
                 )
-        if "requests" in self.spec.driver_resources:
-            if "cpu" in self.spec.driver_resources["requests"]:
+            if "memory" in self.spec.resources["requests"]:
                 update_in(
-                    job,
-                    "spec.driver.cores",
-                    self.spec.driver_resources["requests"]["cpu"],
+                    job, "spec.executor.memory", self.spec.resources["requests"]["memory"]
                 )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
@@ -206,11 +199,18 @@ class SparkRuntime(KubejobRuntime):
                     "spec.driver.coreLimit",
                     self.spec.driver_resources["limits"]["cpu"],
                 )
-            if "memory" in self.spec.driver_resources["limits"]:
+        if "requests" in self.spec.driver_resources:
+            if "cpu" in self.spec.driver_resources["requests"]:
+                update_in(
+                    job,
+                    "spec.driver.cores",
+                    self.spec.driver_resources["requests"]["cpu"],
+                )
+            if "memory" in self.spec.driver_resources["requests"]:
                 update_in(
                     job,
                     "spec.driver.memory",
-                    self.spec.driver_resources["limits"]["memory"],
+                    self.spec.driver_resources["requests"]["memory"],
                 )
         if self.spec.command:
             if "://" not in self.spec.command:
@@ -339,6 +339,30 @@ class SparkRuntime(KubejobRuntime):
                 v3io_config_configmap="spark-operator-v3io-config",
             )
         )
+
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        raise NotImplementedError(
+            "In spark runtimes, please use with_driver_limits & with_executor_limits"
+        )
+
+    def with_requests(self, mem=None, cpu=None):
+        raise NotImplementedError(
+            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+        )
+
+    def with_executor_requests(
+        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+    ):
+        """set executor pod required cpu/memory/gpu resources"""
+        update_in(
+            self.spec.resources,
+            "requests",
+            get_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
+
+    def with_executor_limits(self, cpu=None):
+        """set executor pod cpu limits"""
+        update_in(self.spec.resources, "limits", get_resources(cpu=cpu))
 
     def with_driver_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"

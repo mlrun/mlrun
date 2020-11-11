@@ -204,6 +204,7 @@ class FileDB(DBInterface):
         scheduled_object: Any = None,
         cron_trigger: schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
+        last_run_uri: str = None,
     ):
         raise NotImplementedError()
 

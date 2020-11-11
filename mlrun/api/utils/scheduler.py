@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from mlrun.api import schemas
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.model import RunObject
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -147,7 +148,7 @@ class Scheduler:
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         function, args, kwargs = self._resolve_job_function(
-            db_schedule.kind, db_schedule.scheduled_object
+            db_schedule.kind, db_schedule.scheduled_object, name
         )
         return await function(*args, **kwargs)
 
@@ -212,7 +213,9 @@ class Scheduler:
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
-        function, args, kwargs = self._resolve_job_function(kind, scheduled_object)
+        function, args, kwargs = self._resolve_job_function(
+            kind, scheduled_object, name
+        )
         self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -233,7 +236,9 @@ class Scheduler:
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
-        function, args, kwargs = self._resolve_job_function(kind, scheduled_object)
+        function, args, kwargs = self._resolve_job_function(
+            kind, scheduled_object, name
+        )
         trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
             cron_trigger
         )
@@ -278,7 +283,10 @@ class Scheduler:
         return schedule
 
     def _resolve_job_function(
-        self, scheduled_kind: schemas.ScheduleKinds, scheduled_object: Any,
+        self,
+        scheduled_kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        schedule_name: str,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -286,7 +294,11 @@ class Scheduler:
 
         if scheduled_kind == schemas.ScheduleKinds.job:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
-            return Scheduler.submit_run_wrapper, [scheduled_object_copy], {}
+            return (
+                Scheduler.submit_run_wrapper,
+                [scheduled_object_copy, schedule_name],
+                {},
+            )
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, [], {}
 
@@ -302,7 +314,7 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
-    async def submit_run_wrapper(scheduled_object):
+    async def submit_run_wrapper(scheduled_object, schedule_name):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run
 
@@ -317,6 +329,14 @@ class Scheduler:
         db_session = create_session()
 
         response = await submit_run(db_session, scheduled_object)
+
+        run_metadata = response["data"]["metadata"]
+        run_uri = RunObject.create_uri(
+            run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
+        )
+        get_db().update_schedule(
+            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
+        )
 
         close_session(db_session)
 

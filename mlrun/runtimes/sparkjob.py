@@ -190,7 +190,19 @@ class SparkRuntime(KubejobRuntime):
                 )
             if "memory" in self.spec.resources["requests"]:
                 update_in(
-                    job, "spec.executor.memory", self.spec.resources["requests"]["memory"]
+                    job,
+                    "spec.executor.memory",
+                    self.spec.resources["requests"]["memory"],
+                )
+            gpu_type = [
+                x for x in self.spec.resources["requests"] if x not in ["cpu", "memory"]
+            ]
+            if gpu_type:
+                update_in(job, "spec.executor.gpu.name", gpu_type[0])
+                update_in(
+                    job,
+                    "spec.executor.gpu.quantity",
+                    self.spec.resources["requests"][gpu_type[0]],
                 )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
@@ -211,6 +223,18 @@ class SparkRuntime(KubejobRuntime):
                     job,
                     "spec.driver.memory",
                     self.spec.driver_resources["requests"]["memory"],
+                )
+            gpu_type = [
+                x
+                for x in self.spec.driver_resources["requests"]
+                if x not in ["cpu", "memory"]
+            ]
+            if gpu_type:
+                update_in(job, "spec.driver.gpu.name", gpu_type[0])
+                update_in(
+                    job,
+                    "spec.driver.gpu.quantity",
+                    self.spec.driver_resources["requests"][gpu_type[0]],
                 )
         if self.spec.command:
             if "://" not in self.spec.command:

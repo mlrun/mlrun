@@ -90,6 +90,11 @@ default_config = {
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
             "min_allowed_interval": "10 minutes"
         },
+        "projects": {
+            "master_consumer": "mlrun",
+            "consumers": "",
+            "periodic_sync_interval": "10 seconds",
+        },
     },
 }
 

@@ -41,3 +41,7 @@ class Project(ProjectInDB):
 
 class ProjectOut(BaseModel):
     project: Project
+
+
+class ProjectsOutput(BaseModel):
+    projects: List[Project]

@@ -308,9 +308,7 @@ def test_multi_inserts_and_updates(db: Session, client: TestClient) -> None:
         _assert_add_feature_set(client, project_name, feature_set)
 
     feature_set_update = {
-        "metadata": {
-            "labels": {"new-label": "new-value", "owner": "someone-else"},
-        }
+        "metadata": {"labels": {"new-label": "new-value", "owner": "someone-else"}}
     }
 
     response = client.patch(

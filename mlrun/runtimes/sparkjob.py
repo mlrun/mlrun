@@ -162,10 +162,9 @@ class SparkRuntime(KubejobRuntime):
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
         elif config.igz_version:
-            image_tag = (
-                "" if ":" in config.spark_app_image else ":" + config.igz_version
+            update_in(
+                job, "spec.image", config.spark_app_image + ":" + config.igz_version
             )
-            update_in(job, "spec.image", config.spark_app_image + image_tag)
         update_in(job, "spec.volumes", self.spec.volumes)
 
         extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}

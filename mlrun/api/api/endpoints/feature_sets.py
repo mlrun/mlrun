@@ -13,13 +13,13 @@ router = APIRouter()
 
 
 @router.post("/projects/{project}/feature_sets", response_model=schemas.FeatureSet)
-def create_feature_set(
+def add_feature_set(
     project: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_set_uid = get_db().create_feature_set(
+    feature_set_uid = get_db().add_feature_set(
         db_session, project, feature_set, versioned
     )
 
@@ -32,16 +32,39 @@ def create_feature_set(
     )
 
 
-@router.put("/projects/{project}/feature_sets/{name}/references/{reference}")
-def update_feature_set(
+@router.put(
+    "/projects/{project}/feature_sets/{name}/references/{reference}",
+    response_model=schemas.FeatureSet,
+)
+def store_feature_set(
     project: str,
     name: str,
-    feature_set_update: schemas.FeatureSetUpdate,
+    feature_set: schemas.FeatureSet,
     reference: str,
+    versioned: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    get_db().update_feature_set(db_session, project, name, feature_set_update, tag, uid)
+    uid = get_db().store_feature_set(
+        db_session, project, name, feature_set, tag, uid, versioned
+    )
+
+    return get_db().get_feature_set(db_session, project, name, uid=uid,)
+
+
+@router.patch("/projects/{project}/feature_sets/{name}/references/{reference}")
+def patch_feature_set(
+    project: str,
+    name: str,
+    feature_set_update: dict,
+    reference: str,
+    additive: bool = False,
+    db_session: Session = Depends(deps.get_db_session),
+):
+    tag, uid = parse_reference(reference)
+    get_db().update_feature_set(
+        db_session, project, name, feature_set_update, tag, uid, additive
+    )
     return Response(status_code=HTTPStatus.OK.value)
 
 

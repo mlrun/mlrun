@@ -224,7 +224,7 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
         )
 
     feature_set = schemas.FeatureSet(
-        metadata=schemas.FeatureSetMetadata(
+        metadata=schemas.ObjectMetadata(
             name="dummy", tag="latest", labels={"owner": "nobody"}
         ),
         spec=schemas.FeatureSetSpec(
@@ -237,4 +237,4 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
         ),
         status={},
     )
-    db.create_feature_set(db_session, project, feature_set)
+    db.add_feature_set(db_session, project, feature_set)

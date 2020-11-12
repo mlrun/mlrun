@@ -463,7 +463,7 @@ class FileRunDB(RunDBInterface):
         else:
             raise RunDBError(f"run file is not found or valid ({filepath})")
 
-    def create_feature_set(self, feature_set, project="", versioned=True):
+    def add_feature_set(self, feature_set, project="", versioned=True):
         raise NotImplementedError()
 
     def get_feature_set(
@@ -493,7 +493,14 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def update_feature_set(self, name, feature_set, project="", tag=None, uid=None):
+    def store_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+    ):
+        raise NotImplementedError()
+
+    def update_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, additive=False
+    ):
         raise NotImplementedError()
 
     def delete_feature_set(self, name, project=""):

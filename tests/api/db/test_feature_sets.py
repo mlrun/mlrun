@@ -41,7 +41,9 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
     project = "proj_test"
 
     feature_set = schemas.FeatureSet(**feature_set)
-    db.create_feature_set(db_session, project, feature_set, versioned=True)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
     db.get_feature_set(db_session, project, name)
 
     feature_set_res = db.list_feature_sets(db_session, project)

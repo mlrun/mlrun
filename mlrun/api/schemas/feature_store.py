@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra
+from .object import ObjectMetadata
 
 
 class Feature(BaseModel):
@@ -9,37 +10,33 @@ class Feature(BaseModel):
     value_type: str
     labels: Optional[dict]
 
+    class Config:
+        extra = Extra.allow
+
 
 class Entity(BaseModel):
     name: str
     value_type: str
     labels: Optional[dict]
 
-
-class FeatureSetMetadata(BaseModel):
-    name: str
-    tag: Optional[str]
-    labels: Optional[dict]
-    updated: Optional[datetime]
-    uid: Optional[str]
+    class Config:
+        extra = Extra.allow
 
 
 class FeatureSetSpec(BaseModel):
     entities: List[Entity]
     features: List[Feature]
 
+    class Config:
+        extra = Extra.allow
+
 
 class FeatureSet(BaseModel):
-    metadata: FeatureSetMetadata
+    metadata: ObjectMetadata
     spec: FeatureSetSpec
-    status: Optional[dict]
 
-
-class FeatureSetUpdate(BaseModel):
-    features: Optional[List[Feature]]
-    entities: Optional[List[Feature]]
-    status: Optional[dict]
-    labels: Optional[dict]
+    class Config:
+        extra = Extra.allow
 
 
 class LabelRecord(BaseModel):
@@ -80,7 +77,7 @@ class FeatureSetRecord(BaseModel):
     labels: List[LabelRecord]
     # state is extracted from the full status dict to enable queries
     state: Optional[str] = None
-    status: Optional[dict] = None
+    full_object: Optional[dict] = None
 
     class Config:
         orm_mode = True
@@ -95,13 +92,13 @@ class FeatureSetDigestSpec(BaseModel):
 
 
 class FeatureSetDigestOutput(BaseModel):
-    metadata: FeatureSetMetadata
+    metadata: ObjectMetadata
     spec: FeatureSetDigestSpec
 
 
 class FeatureListOutput(BaseModel):
     feature: Feature
-    feature_set_digests: List[FeatureSetDigestOutput]
+    feature_set_digest: FeatureSetDigestOutput
 
 
 class FeaturesOutput(BaseModel):

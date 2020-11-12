@@ -332,9 +332,16 @@ def _create_feature_set(name):
             "tag": "latest",
         },
         "spec": {
-            "entities": [{"name": "ticker", "value_type": "str"}],
+            "entities": [
+                {
+                    "name": "ticker",
+                    "value_type": "str",
+                    "labels": {"type": "prod"},
+                    "extra_field": 100,
+                }
+            ],
             "features": [
-                {"name": "time", "value_type": "datetime"},
+                {"name": "time", "value_type": "datetime", "extra_field": "value1"},
                 {"name": "bid", "value_type": "float"},
                 {"name": "ask", "value_type": "time"},
             ],
@@ -349,10 +356,11 @@ def _create_feature_set(name):
                 }
             },
         },
+        "some_other_field": "blabla",
     }
 
 
-def test_list_feature_sets(create_server):
+def test_feature_sets(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 
@@ -361,17 +369,26 @@ def test_list_feature_sets(create_server):
     for i in range(count):
         name = f"fs_{i}"
         feature_set = _create_feature_set(name)
-        db.create_feature_set(feature_set, project=project, versioned=True)
+        db.add_feature_set(feature_set, project=project, versioned=True)
+
+    # Test store_feature_set, which allows updates as well as inserts
+    db.store_feature_set(name, feature_set, project=project, versioned=True)
 
     feature_set_update = {
-        "labels": {"new-label": "new-value", "owner": "someone-else"},
+        "spec": {
+            "features": [{"name": "looks", "value_type": "str", "description": "good"}],
+        }
     }
 
-    db.update_feature_set(name, feature_set_update, project, tag="latest")
+    # additive mode means add the feature to the features-list
+    db.update_feature_set(
+        name, feature_set_update, project, tag="latest", additive=True
+    )
     feature_sets = db.list_feature_sets(project=project)
 
-    for fs in feature_sets.feature_sets:
-        assert fs.metadata.tag is not None
     assert (
         len(feature_sets.feature_sets) == count
     ), "bad list results - wrong number of members"
+
+    feature_set = db.get_feature_set(name, project)
+    assert len(feature_set.spec.features) == 4

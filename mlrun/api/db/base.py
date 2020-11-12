@@ -196,8 +196,22 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_feature_set(
+    def add_feature_set(
         self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    ):
+        pass
+
+    @abstractmethod
+    def store_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set: schemas.FeatureSet,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
     ):
         pass
 
@@ -239,9 +253,10 @@ class DBInterface(ABC):
         session,
         project,
         name,
-        feature_set_update: schemas.FeatureSetUpdate,
+        feature_set_update: dict,
         tag=None,
         uid=None,
+        additive=False,
     ):
         pass
 

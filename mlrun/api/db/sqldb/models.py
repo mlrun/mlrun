@@ -175,6 +175,7 @@ with warnings.catch_warnings():
         state = Column(String)
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
+        last_run_uri = Column(String)
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
 

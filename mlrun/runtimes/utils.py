@@ -341,7 +341,7 @@ def get_resource_labels(function, run=None, scrape_metrics=False):
     return labels
 
 
-def get_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
     """get pod cpu/memory/gpu resources dict"""
     resources = {}
     if gpus:

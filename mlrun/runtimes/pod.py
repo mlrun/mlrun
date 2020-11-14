@@ -23,7 +23,7 @@ from .utils import (
     set_named_item,
     get_item_name,
     get_resource_labels,
-    get_resources,
+    generate_resources,
 )
 from ..utils import normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec
@@ -176,12 +176,12 @@ class KubeResource(BaseRuntime):
         update_in(
             self.spec.resources,
             "limits",
-            get_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
         )
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
-        update_in(self.spec.resources, "requests", get_resources(mem=mem, cpu=cpu))
+        update_in(self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu))
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()

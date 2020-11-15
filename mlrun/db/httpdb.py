@@ -680,11 +680,11 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def add_feature_set(
+    def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
     ) -> schemas.FeatureSet:
         project = project or default_project
-        path = f"projects/{project}/feature_sets"
+        path = f"projects/{project}/feature-sets"
         params = {"versioned": versioned}
 
         if isinstance(feature_set, schemas.FeatureSet):
@@ -705,7 +705,7 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or default_project
         reference = uid or tag or "latest"
-        path = f"projects/{project}/feature_sets/{name}/references/{reference}"
+        path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
         return schemas.FeatureSet(**resp.json())
@@ -752,7 +752,7 @@ class HTTPRunDB(RunDBInterface):
             "label": labels or [],
         }
 
-        path = f"projects/{project}/feature_sets"
+        path = f"projects/{project}/feature-sets"
 
         error_message = (
             f"Failed listing feature-sets, project: {project}, query: {params}"
@@ -779,7 +779,7 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or default_project
         reference = uid or tag or "latest"
-        path = f"projects/{project}/feature_sets/{name}/references/{reference}"
+        path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
         resp = self.api_call(
             "PUT", path, error_message, params=params, body=json.dumps(feature_set)
@@ -793,15 +793,15 @@ class HTTPRunDB(RunDBInterface):
         project="",
         tag=None,
         uid=None,
-        additive=False,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
         if uid and tag:
             raise MLRunInvalidArgumentError("both uid and tag were provided")
 
         project = project or default_project
         reference = uid or tag or "latest"
-        params = {"additive": additive}
-        path = f"projects/{project}/feature_sets/{name}/references/{reference}"
+        params = {"patch-mode": patch_mode}
+        path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
             "PATCH",
@@ -813,7 +813,7 @@ class HTTPRunDB(RunDBInterface):
 
     def delete_feature_set(self, name, project=""):
         project = project or default_project
-        path = f"projects/{project}/feature_sets/{name}"
+        path = f"projects/{project}/feature-sets/{name}"
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 

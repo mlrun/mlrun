@@ -237,4 +237,4 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
         ),
         status={},
     )
-    db.add_feature_set(db_session, project, feature_set)
+    db.create_feature_set(db_session, project, feature_set)

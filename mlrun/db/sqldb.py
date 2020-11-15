@@ -212,9 +212,9 @@ class SQLDB(RunDBInterface):
         except DBError as exc:
             raise RunDBError(exc.args)
 
-    def add_feature_set(self, feature_set, project="", versioned=True):
+    def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
-            self.db.add_feature_set, self.session, project, feature_set, versioned
+            self.db.create_feature_set, self.session, project, feature_set, versioned
         )
 
     def get_feature_set(
@@ -273,17 +273,17 @@ class SQLDB(RunDBInterface):
         )
 
     def update_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, additive=False
+        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
     ):
         return self._transform_db_error(
-            self.db.update_feature_set,
+            self.db.patch_feature_set,
             self.session,
             project,
             name,
             feature_set,
             tag,
             uid,
-            additive,
+            patch_mode,
         )
 
     def delete_feature_set(self, name, project=""):

@@ -33,4 +33,4 @@ pydantic~=1.5
 orjson>=3,<3.4
 importlib-resources; python_version < '3.7'
 alembic~=1.4
-mergedeep
+mergedeep~=1.3

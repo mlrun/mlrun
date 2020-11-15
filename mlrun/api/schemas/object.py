@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+from enum import Enum
 from pydantic import BaseModel, Extra
 
 
@@ -12,3 +13,8 @@ class ObjectMetadata(BaseModel):
 
     class Config:
         extra = Extra.allow
+
+
+class PatchMode(str, Enum):
+    replace = "replace"
+    additive = "additive"

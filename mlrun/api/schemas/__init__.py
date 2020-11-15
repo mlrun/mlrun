@@ -26,4 +26,4 @@ from .feature_store import (
     FeatureListOutput,
     FeaturesOutput,
 )
-from .object import ObjectMetadata
+from .object import ObjectMetadata, PatchMode

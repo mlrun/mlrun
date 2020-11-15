@@ -369,7 +369,7 @@ def test_feature_sets(create_server):
     for i in range(count):
         name = f"fs_{i}"
         feature_set = _create_feature_set(name)
-        db.add_feature_set(feature_set, project=project, versioned=True)
+        db.create_feature_set(feature_set, project=project, versioned=True)
 
     # Test store_feature_set, which allows updates as well as inserts
     db.store_feature_set(name, feature_set, project=project, versioned=True)
@@ -382,7 +382,7 @@ def test_feature_sets(create_server):
 
     # additive mode means add the feature to the features-list
     db.update_feature_set(
-        name, feature_set_update, project, tag="latest", additive=True
+        name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
 

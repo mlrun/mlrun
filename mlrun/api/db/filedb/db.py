@@ -133,7 +133,7 @@ class FileDB(DBInterface):
     def delete_project(self, session, name: str):
         raise NotImplementedError()
 
-    def add_feature_set(
+    def create_feature_set(
         self, session, project, feature_set: schemas.FeatureSet, versioned=True
     ):
         raise NotImplementedError()
@@ -180,7 +180,7 @@ class FileDB(DBInterface):
     ) -> schemas.FeatureSetsOutput:
         raise NotImplementedError()
 
-    def update_feature_set(
+    def patch_feature_set(
         self,
         session,
         project,
@@ -188,7 +188,7 @@ class FileDB(DBInterface):
         feature_set_update: dict,
         tag=None,
         uid=None,
-        additive=False,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         raise NotImplementedError()
 

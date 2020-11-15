@@ -41,7 +41,7 @@ from mlrun.utils import (
     fill_object_hash,
     generate_object_uri,
 )
-from mergedeep import merge, Strategy
+import mergedeep
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -734,7 +734,7 @@ class SQLDB(DBInterface):
         if not feature_set:
             feature_set_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunNotFoundError(
-                f"Feature-set tag not found {feature_set_uri}"
+                f"Feature-set not found {feature_set_uri}"
             )
 
         return feature_set
@@ -886,31 +886,40 @@ class SQLDB(DBInterface):
         return schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
     @staticmethod
-    def _update_feature_set_features_or_entities(
-        feature_set: FeatureSet, objects: List[dict], is_entity=False, replace=False
+    def _update_feature_set_features(
+        feature_set: FeatureSet, feature_dicts: List[dict], replace=False
     ):
         if replace:
-            if is_entity:
-                feature_set.entities = []
-            else:
-                feature_set.features = []
+            feature_set.features = []
 
-        for obj in objects:
-            labels = obj.get("labels") or {}
-            if is_entity:
-                entity = Entity(
-                    name=obj["name"], value_type=obj["value_type"], labels=[],
-                )
-                update_labels(entity, labels)
-                feature_set.entities.append(entity)
-            else:
-                feature = Feature(
-                    name=obj["name"], value_type=obj["value_type"], labels=[],
-                )
-                update_labels(feature, labels)
-                feature_set.features.append(feature)
+        for feature_dict in feature_dicts:
+            labels = feature_dict.get("labels") or {}
+            feature = Feature(
+                name=feature_dict["name"],
+                value_type=feature_dict["value_type"],
+                labels=[],
+            )
+            update_labels(feature, labels)
+            feature_set.features.append(feature)
 
-    def _get_feature_set_by_project_and_uid(self, session, name, project, uid):
+    @staticmethod
+    def _update_feature_set_entities(
+        feature_set: FeatureSet, entity_dicts: List[dict], replace=False
+    ):
+        if replace:
+            feature_set.entities = []
+
+        for entity_dict in entity_dicts:
+            labels = entity_dict.get("labels") or {}
+            entity = Entity(
+                name=entity_dict["name"],
+                value_type=entity_dict["value_type"],
+                labels=[],
+            )
+            update_labels(entity, labels)
+            feature_set.entities.append(entity)
+
+    def _get_feature_set_version_by_uid(self, session, name, project, uid):
         query = self._query(session, FeatureSet, name=name, project=project, uid=uid)
         return query.one_or_none()
 
@@ -922,12 +931,8 @@ class SQLDB(DBInterface):
             features = feature_set_spec.pop("features", [])
             entities = feature_set_spec.pop("entities", [])
 
-        self._update_feature_set_features_or_entities(
-            feature_set, features, is_entity=False
-        )
-        self._update_feature_set_features_or_entities(
-            feature_set, entities, is_entity=True
-        )
+        self._update_feature_set_features(feature_set, features)
+        self._update_feature_set_entities(feature_set, entities)
 
         labels = new_feature_set_dict["metadata"].pop("labels", {})
         update_labels(feature_set, labels)
@@ -948,18 +953,16 @@ class SQLDB(DBInterface):
 
         existing_feature_set = self._get_feature_set(session, project, name, tag, uid)
         if not existing_feature_set:
-            return self.add_feature_set(session, project, feature_set, versioned)
+            return self.create_feature_set(session, project, feature_set, versioned)
 
         feature_set_dict = feature_set.dict()
-        hash_key = fill_object_hash(feature_set_dict, "uid", tag)
-        if versioned:
-            uid = hash_key
-        else:
+        uid = fill_object_hash(feature_set_dict, "uid", tag)
+        if not versioned:
             uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
             feature_set_dict["metadata"]["uid"] = uid
 
         if uid == existing_feature_set.metadata.uid or always_overwrite:
-            db_feature_set = self._get_feature_set_by_project_and_uid(
+            db_feature_set = self._get_feature_set_version_by_uid(
                 session, name, project, existing_feature_set.metadata.uid
             )
         else:
@@ -978,7 +981,7 @@ class SQLDB(DBInterface):
 
         return uid
 
-    def add_feature_set(
+    def create_feature_set(
         self, session, project, feature_set: schemas.FeatureSet, versioned=True
     ):
         name = feature_set.metadata.name
@@ -999,9 +1002,7 @@ class SQLDB(DBInterface):
 
         state = feature_set_dict.get("status", {}).get("state")
 
-        feature_set = self._get_feature_set_by_project_and_uid(
-            session, name, project, uid
-        )
+        feature_set = self._get_feature_set_version_by_uid(session, name, project, uid)
         if feature_set:
             feature_set_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunBadRequestError(
@@ -1023,7 +1024,7 @@ class SQLDB(DBInterface):
 
         return uid
 
-    def update_feature_set(
+    def patch_feature_set(
         self,
         session,
         project,
@@ -1031,7 +1032,7 @@ class SQLDB(DBInterface):
         feature_set_update: dict,
         tag=None,
         uid=None,
-        additive=False,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         feature_set_record = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set_record:
@@ -1042,12 +1043,12 @@ class SQLDB(DBInterface):
 
         feature_set_struct = feature_set_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary
-        strategy = Strategy.REPLACE
-        if additive:
-            strategy = Strategy.ADDITIVE
-        merge(feature_set_struct, feature_set_update, strategy=strategy)
+        strategy = mergedeep.Strategy.REPLACE
+        if patch_mode.value == "additive":
+            strategy = mergedeep.Strategy.ADDITIVE
+        mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
 
-        versioned = not feature_set_struct["metadata"]["uid"].startswith(
+        versioned = not feature_set_record.metadata.uid.startswith(
             unversioned_tagged_object_uid_prefix
         )
         feature_set = schemas.FeatureSet(**feature_set_struct)

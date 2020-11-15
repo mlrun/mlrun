@@ -127,7 +127,7 @@ class RunDBInterface(ABC):
         return []
 
     @abstractmethod
-    def add_feature_set(
+    def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
     ) -> schemas.FeatureSet:
         pass
@@ -176,7 +176,13 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def update_feature_set(
-        self, name, feature_set: dict, project="", tag=None, uid=None, additive=False
+        self,
+        name,
+        feature_set: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
         pass
 

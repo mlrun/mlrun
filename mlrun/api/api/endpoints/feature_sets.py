@@ -12,14 +12,14 @@ from mlrun.api.api.utils import parse_reference
 router = APIRouter()
 
 
-@router.post("/projects/{project}/feature_sets", response_model=schemas.FeatureSet)
-def add_feature_set(
+@router.post("/projects/{project}/feature-sets", response_model=schemas.FeatureSet)
+def create_feature_set(
     project: str,
     feature_set: schemas.FeatureSet,
     versioned: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    feature_set_uid = get_db().add_feature_set(
+    feature_set_uid = get_db().create_feature_set(
         db_session, project, feature_set, versioned
     )
 
@@ -33,14 +33,14 @@ def add_feature_set(
 
 
 @router.put(
-    "/projects/{project}/feature_sets/{name}/references/{reference}",
+    "/projects/{project}/feature-sets/{name}/references/{reference}",
     response_model=schemas.FeatureSet,
 )
 def store_feature_set(
     project: str,
     name: str,
-    feature_set: schemas.FeatureSet,
     reference: str,
+    feature_set: schemas.FeatureSet,
     versioned: bool = True,
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -52,24 +52,26 @@ def store_feature_set(
     return get_db().get_feature_set(db_session, project, name, uid=uid,)
 
 
-@router.patch("/projects/{project}/feature_sets/{name}/references/{reference}")
+@router.patch("/projects/{project}/feature-sets/{name}/references/{reference}")
 def patch_feature_set(
     project: str,
     name: str,
     feature_set_update: dict,
     reference: str,
-    additive: bool = False,
+    patch_mode: schemas.PatchMode = Query(
+        schemas.PatchMode.replace, alias="patch-mode"
+    ),
     db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
-    get_db().update_feature_set(
-        db_session, project, name, feature_set_update, tag, uid, additive
+    get_db().patch_feature_set(
+        db_session, project, name, feature_set_update, tag, uid, patch_mode
     )
     return Response(status_code=HTTPStatus.OK.value)
 
 
 @router.get(
-    "/projects/{project}/feature_sets/{name}/references/{reference}",
+    "/projects/{project}/feature-sets/{name}/references/{reference}",
     response_model=schemas.FeatureSet,
 )
 def get_feature_set(
@@ -83,7 +85,7 @@ def get_feature_set(
     return feature_set
 
 
-@router.delete("/projects/{project}/feature_sets/{name}")
+@router.delete("/projects/{project}/feature-sets/{name}")
 def delete_feature_set(
     project: str, name: str, db_session: Session = Depends(deps.get_db_session),
 ):
@@ -92,7 +94,7 @@ def delete_feature_set(
 
 
 @router.get(
-    "/projects/{project}/feature_sets", response_model=schemas.FeatureSetsOutput
+    "/projects/{project}/feature-sets", response_model=schemas.FeatureSetsOutput
 )
 def list_feature_sets(
     project: str,

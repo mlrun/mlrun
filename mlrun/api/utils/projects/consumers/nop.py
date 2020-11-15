@@ -7,8 +7,8 @@ import mlrun.api.utils.projects.consumers.base
 
 class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def __init__(self) -> None:
-        self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
         super().__init__()
+        self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate

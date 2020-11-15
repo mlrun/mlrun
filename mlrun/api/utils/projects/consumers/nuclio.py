@@ -23,7 +23,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
     ):
         body = {
-            "metadata": {"name": project.name,},
+            "metadata": {"name": project.name},
             "spec": {"description": project.description},
         }
         self._send_request_to_api("POST", "projects", json=body)
@@ -35,7 +35,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         project: mlrun.api.schemas.ProjectUpdate,
     ):
         body = {
-            "metadata": {"name": name,},
+            "metadata": {"name": name},
             "spec": {"description": project.description},
         }
         self._send_request_to_api("PUT", f"projects/{name}", json=body)

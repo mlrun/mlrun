@@ -203,6 +203,20 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set: schemas.FeatureSet,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        pass
+
+    @abstractmethod
     def get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None
     ) -> schemas.FeatureSet:
@@ -235,14 +249,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_feature_set(
+    def patch_feature_set(
         self,
         session,
         project,
         name,
-        feature_set_update: schemas.FeatureSetUpdate,
+        feature_set_update: dict,
         tag=None,
         uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         pass
 

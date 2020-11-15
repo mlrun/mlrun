@@ -31,12 +31,17 @@ class FeatureSetSpec(BaseModel):
         extra = Extra.allow
 
 
-class FeatureSet(BaseModel):
-    metadata: ObjectMetadata
-    spec: FeatureSetSpec
+class FeatureSetStatus(BaseModel):
+    state: Optional[str]
 
     class Config:
         extra = Extra.allow
+
+
+class FeatureSet(BaseModel):
+    metadata: ObjectMetadata
+    spec: FeatureSetSpec
+    status: FeatureSetStatus
 
 
 class LabelRecord(BaseModel):

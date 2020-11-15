@@ -43,8 +43,8 @@ def _generate_feature_set(name):
                     "top": "2016-05-25 13:30:00.222222",
                 }
             },
+            "extra_status": {"field1": "value1", "field2": "value2"},
         },
-        "something_else": {"field1": "value1", "field2": "value2"},
     }
 
 
@@ -92,8 +92,8 @@ def _assert_extra_fields_exist(json_response):
     assert json_response["spec"]["entities"][0]["extra_entity_field"] == "here"
     assert json_response["spec"]["features"][0]["extra_feature_field"] == "there"
     assert json_response["spec"]["extra_spec"] is True
-    assert json_response["something_else"]["field1"] == "value1"
-    assert json_response["something_else"]["field2"] == "value2"
+    assert json_response["status"]["extra_status"]["field1"] == "value1"
+    assert json_response["status"]["extra_status"]["field2"] == "value2"
 
 
 def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -> None:
@@ -109,6 +109,13 @@ def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -
     assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
     _assert_extra_fields_exist(json_response)
+
+    # Make sure extra fields outside of the metadata/spec/status trio are not stored
+    feature_set = _generate_feature_set("feature_set2")
+    feature_set["something_else"] = {"extra_field": "extra_value"}
+
+    response = _feature_set_create_and_assert(client, project_name, feature_set)
+    assert len(response) == 3 and "something_else" not in response
 
 
 def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
@@ -182,7 +189,7 @@ def test_feature_set_patch(db: Session, client: TestClient) -> None:
     _feature_set_create_and_assert(client, project_name, feature_set)
 
     # Update a feature-set
-    feature_set_update = {
+    feature_set_patch = {
         "spec": {
             "entities": [
                 {
@@ -194,45 +201,44 @@ def test_feature_set_patch(db: Session, client: TestClient) -> None:
             ]
         },
         "metadata": {"labels": {"new-label": "new-value", "owner": "someone-else"}},
-        "something_else": {"field3": "new_value3"},
     }
 
     patched_feature_set = _patch_feature_set(
-        client, project_name, name, feature_set_update
+        client, project_name, name, feature_set_patch
     )
-    feature_set_metadata = patched_feature_set["metadata"]
+    patched_feature_set_metadata = patched_feature_set["metadata"]
     assert (
         # New label should be added
-        len(feature_set_metadata["labels"]) == 3
-        and "new-label" in feature_set_metadata["labels"]
-        and feature_set_metadata["labels"]["owner"] == "someone-else"
+        len(patched_feature_set_metadata["labels"]) == 3
+        and "new-label" in patched_feature_set_metadata["labels"]
+        and patched_feature_set_metadata["labels"]["owner"] == "someone-else"
     ), "update corrupted data - got wrong results for labels from DB after update"
-    feature_set_spec = patched_feature_set["spec"]
+    patched_feature_set_spec = patched_feature_set["spec"]
     # Since entities is a list, entity will be replaced, so there should be only one.
-    assert feature_set_spec["entities"] == feature_set_update["spec"]["entities"]
+    assert patched_feature_set_spec["entities"] == feature_set_patch["spec"]["entities"]
 
     # update with no labels, ensure labels are not deleted
-    feature_set_update = {
+    feature_set_patch = {
         "spec": {"features": [{"name": "dividend", "value_type": "float"}]}
     }
     patched_feature_set = _patch_feature_set(
-        client, project_name, name, feature_set_update
+        client, project_name, name, feature_set_patch
     )
-    feature_set_resp = patched_feature_set["metadata"]
+    patched_feature_set_metadata = patched_feature_set["metadata"]
     assert (
-        len(feature_set_resp["labels"]) == 3
-        and "new-label" in feature_set_resp["labels"]
-        and feature_set_resp["labels"]["owner"] == "someone-else"
-    ), "update corrupted data - got wrong results for labels from DB after update"
+        len(patched_feature_set_metadata["labels"]) == 3
+        and "new-label" in patched_feature_set_metadata["labels"]
+        and patched_feature_set_metadata["labels"]["owner"] == "someone-else"
+    ), "patch corrupted data - got wrong results for labels from DB after update"
 
     # use additive strategy, the new feature should be added
-    feature_set_update = {
+    feature_set_patch = {
         "spec": {
             "features": [{"name": "looks", "value_type": "str", "description": "good"}],
         }
     }
     patched_feature_set = _patch_feature_set(
-        client, project_name, name, feature_set_update, additive=True
+        client, project_name, name, feature_set_patch, additive=True
     )
     assert len(patched_feature_set["spec"]["features"]) == 2
 
@@ -323,13 +329,13 @@ def test_feature_set_multiple_creates_and_patches(
         feature_set = _generate_feature_set(name)
         _feature_set_create_and_assert(client, project_name, feature_set)
 
-    feature_set_update = {
+    feature_set_patch = {
         "metadata": {"labels": {"new-label": "new-value", "owner": "someone-else"}}
     }
 
     response = client.patch(
         f"/api/projects/{project_name}/feature-sets/{name}/references/latest",
-        json=feature_set_update,
+        json=feature_set_patch,
     )
     assert response.status_code == HTTPStatus.OK.value
 

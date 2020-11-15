@@ -80,11 +80,12 @@ class ProjectsManager:
         self._run_on_all_consumers("create_project", session, project)
 
     def _start_periodic_sync(self):
-        mlrun.api.utils.periodic.run_function_periodically(
-            self._periodic_sync_interval_seconds,
-            self._sync_projects.__name__,
-            self._sync_projects,
-        )
+        if self._periodic_sync_interval_seconds > 0:
+            mlrun.api.utils.periodic.run_function_periodically(
+                self._periodic_sync_interval_seconds,
+                self._sync_projects.__name__,
+                self._sync_projects,
+            )
 
     def _stop_periodic_sync(self):
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)

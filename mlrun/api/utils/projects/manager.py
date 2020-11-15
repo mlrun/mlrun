@@ -1,19 +1,18 @@
-import typing
 import collections
-import humanfriendly
+import typing
 
+import humanfriendly
 import sqlalchemy.orm
 
+import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.consumers.base
 import mlrun.api.utils.projects.consumers.mlrun
-import mlrun.api.utils.projects.consumers.nuclio
 import mlrun.api.utils.projects.consumers.nop
-import mlrun.api.utils.periodic
-import mlrun.api.db.session
+import mlrun.api.utils.projects.consumers.nuclio
 import mlrun.config
 import mlrun.utils
-
 from mlrun.utils import logger
 
 

@@ -1,9 +1,9 @@
-import sqlalchemy.orm
 import requests.adapters
+import requests.packages.urllib3.util.retry
+import sqlalchemy.orm
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.consumers.base
-import requests.packages.urllib3.util.retry
 from mlrun.utils import logger
 
 

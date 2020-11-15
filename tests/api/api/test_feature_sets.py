@@ -296,7 +296,7 @@ def test_feature_set_create_failure_already_exists(
     response = client.post(
         f"/api/projects/{project_name}/feature-sets?versioned=True", json=feature_set
     )
-    assert response.status_code != HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.CONFLICT.value
 
     # Now test not-versioned add
     name = "feature_set2"
@@ -310,7 +310,7 @@ def test_feature_set_create_failure_already_exists(
     response = client.post(
         f"/api/projects/{project_name}/feature-sets?versioned=False", json=feature_set
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert response.status_code == HTTPStatus.CONFLICT.value
 
 
 def test_feature_set_multiple_creates_and_patches(
@@ -363,15 +363,25 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
 
     _assert_list_objects(client, "feature_sets", project_name, "name=feature_set1", 1)
 
-    # Now modify in a way that will affect uid, add a field to the metadata
+    # Now modify in a way that will affect uid, add a field to the metadata.
+    # Since referencing the object as "latest", a new version (with new uid) should be created.
     feature_set["metadata"]["new_metadata"] = True
     response = _assert_store_feature_set(
         client, project_name, name, "latest", feature_set
     )
-    assert response["metadata"]["uid"] != uid
+    modified_uid = response["metadata"]["uid"]
+    assert modified_uid != uid
     assert response["metadata"]["new_metadata"] is True
 
     _assert_list_objects(client, "feature_sets", project_name, "name=feature_set1", 2)
+
+    # Do the same, but reference the object by its uid - this should fail the request
+    feature_set["metadata"]["new_metadata"] = "something else"
+    response = client.put(
+        f"/api/projects/{project_name}/feature-sets/{name}/references/{modified_uid}",
+        json=feature_set,
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
 def test_features_list(db: Session, client: TestClient) -> None:

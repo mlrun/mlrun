@@ -919,7 +919,7 @@ class SQLDB(DBInterface):
             update_labels(entity, labels)
             feature_set.entities.append(entity)
 
-    def _get_feature_set_version_by_uid(self, session, name, project, uid):
+    def _get_feature_set_instance_by_uid(self, session, name, project, uid):
         query = self._query(session, FeatureSet, name=name, project=project, uid=uid)
         return query.one_or_none()
 
@@ -951,7 +951,16 @@ class SQLDB(DBInterface):
         if not tag and not uid:
             raise ValueError("cannot store feature set without reference (tag or uid)")
 
-        existing_feature_set = self._get_feature_set(session, project, name, tag, uid)
+        if feature_set.metadata.name != name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing name for an existing feature-set"
+            )
+
+        original_uid = uid
+
+        existing_feature_set = self._get_feature_set(
+            session, project, name, tag, original_uid
+        )
         if not existing_feature_set:
             return self.create_feature_set(session, project, feature_set, versioned)
 
@@ -961,8 +970,14 @@ class SQLDB(DBInterface):
             uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
             feature_set_dict["metadata"]["uid"] = uid
 
+        # If object was referenced by UID, the request cannot modify it
+        if original_uid and uid != original_uid:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing uid for an object referenced by its uid"
+            )
+
         if uid == existing_feature_set.metadata.uid or always_overwrite:
-            db_feature_set = self._get_feature_set_version_by_uid(
+            db_feature_set = self._get_feature_set_instance_by_uid(
                 session, name, project, existing_feature_set.metadata.uid
             )
         else:
@@ -1002,10 +1017,10 @@ class SQLDB(DBInterface):
 
         state = feature_set_dict.get("status", {}).get("state")
 
-        feature_set = self._get_feature_set_version_by_uid(session, name, project, uid)
+        feature_set = self._get_feature_set_instance_by_uid(session, name, project, uid)
         if feature_set:
             feature_set_uri = generate_object_uri(project, name, tag)
-            raise mlrun.errors.MLRunBadRequestError(
+            raise mlrun.errors.MLRunConflictError(
                 f"Adding an already-existing feature-set {feature_set_uri}"
             )
         else:

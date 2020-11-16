@@ -25,13 +25,12 @@ from .feature_store import (
     Entity,
     EntityRecord,
     FeatureSetSpec,
-    FeatureSetMetadata,
     FeatureSet,
     FeatureSetRecord,
-    FeatureSetUpdate,
     FeatureSetsOutput,
     FeatureSetDigestOutput,
     FeatureSetDigestSpec,
     FeatureListOutput,
     FeaturesOutput,
 )
+from .object import ObjectMetadata, PatchMode

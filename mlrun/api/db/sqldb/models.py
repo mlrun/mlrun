@@ -269,7 +269,8 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String)
         uid = Column(String)
-        _status = Column("status", JSON)
+
+        _full_object = Column("object", JSON)
 
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)
@@ -280,13 +281,13 @@ with warnings.catch_warnings():
         entities = relationship(Entity, cascade="all, delete-orphan")
 
         @property
-        def status(self):
-            if self._status:
-                return json.loads(self._status)
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
 
-        @status.setter
-        def status(self, value):
-            self._status = json.dumps(value)
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
 
 
 # Must be after all table definitions

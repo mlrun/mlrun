@@ -458,13 +458,13 @@ def pr_comment(repo: str, issue: int, message: str, token=None):
     return resp.json()["id"]
 
 
-def fill_object_hash(object_dict, property_name, tag=""):
+def fill_object_hash(object_dict, uid_property_name, tag=""):
     # remove tag, hash, date from calculation
     object_dict.setdefault("metadata", {})
     tag = tag or object_dict["metadata"].get("tag")
     status = object_dict.setdefault("status", {})
     object_dict["metadata"]["tag"] = ""
-    object_dict["metadata"][property_name] = ""
+    object_dict["metadata"][uid_property_name] = ""
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     data = json.dumps(object_dict, sort_keys=True).encode()
@@ -472,7 +472,7 @@ def fill_object_hash(object_dict, property_name, tag=""):
     h.update(data)
     uid = h.hexdigest()
     object_dict["metadata"]["tag"] = tag
-    object_dict["metadata"][property_name] = uid
+    object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
     return uid
 

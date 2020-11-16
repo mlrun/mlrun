@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import orjson
+import json
 import pickle
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     BLOB,
+    JSON,
     TIMESTAMP,
     Column,
     ForeignKey,
@@ -161,14 +163,21 @@ with warnings.catch_warnings():
 
     class Schedule(Base):
         __tablename__ = "schedules_v2"
-        project = Column(String, primary_key=True)
-        name = Column(String, primary_key=True)
+        __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
+
+        Label = make_label(__tablename__)
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String, nullable=False)
+        name = Column(String, nullable=False)
         kind = Column(String)
         desired_state = Column(String)
         state = Column(String)
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
+        last_run_uri = Column(String)
         struct = Column(BLOB)
+        labels = relationship(Label, cascade="all, delete-orphan")
 
         @property
         def scheduled_object(self):
@@ -224,6 +233,61 @@ with warnings.catch_warnings():
         @spec.setter
         def spec(self, value):
             self._spec = pickle.dumps(value)
+
+    class Feature(Base):
+        __tablename__ = "features"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+
+        name = Column(String)
+        value_type = Column(String)
+
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+    class Entity(Base):
+        __tablename__ = "entities"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+
+        name = Column(String)
+        value_type = Column(String)
+
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+    class FeatureSet(Base):
+        __tablename__ = "feature_sets"
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String)
+        uid = Column(String)
+
+        _full_object = Column("object", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+        features = relationship(Feature, cascade="all, delete-orphan")
+        entities = relationship(Entity, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
 
 
 # Must be after all table definitions

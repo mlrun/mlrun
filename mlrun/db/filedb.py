@@ -16,6 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
+from typing import List
 
 import yaml
 from dateutil.parser import parse as parse_time
@@ -34,7 +35,7 @@ from ..utils import (
     match_value,
     update_in,
     fill_function_hash,
-    generate_function_uri,
+    generate_object_uri,
 )
 
 run_logs = "runs"
@@ -310,7 +311,7 @@ class FileRunDB(RunDBInterface):
             + self.format
         )
         if not pathlib.Path(filepath).is_file():
-            function_uri = generate_function_uri(project, name, tag, hash_key)
+            function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
         data = self._datastore.get(filepath)
         parsed_data = self._loads(data)
@@ -465,6 +466,49 @@ class FileRunDB(RunDBInterface):
             remove(filepath)
         else:
             raise RunDBError(f"run file is not found or valid ({filepath})")
+
+    def create_feature_set(self, feature_set, project="", versioned=True):
+        raise NotImplementedError()
+
+    def get_feature_set(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ):
+        raise NotImplementedError()
+
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def list_feature_sets(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def store_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+    ):
+        raise NotImplementedError()
+
+    def update_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
+    ):
+        raise NotImplementedError()
+
+    def delete_feature_set(self, name, project=""):
+        raise NotImplementedError()
 
 
 def make_time_pred(since, until):

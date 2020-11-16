@@ -14,7 +14,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Any
+from typing import List, Any, Dict
 
 from mlrun.api import schemas
 
@@ -140,6 +140,20 @@ class DBInterface(ABC):
         kind: schemas.ScheduleKinds,
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
+        labels: Dict = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        scheduled_object: Any = None,
+        cron_trigger: schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
     ):
         pass
 
@@ -149,6 +163,7 @@ class DBInterface(ABC):
         session,
         project: str = None,
         name: str = None,
+        labels: str = None,
         kind: schemas.ScheduleKinds = None,
     ) -> List[schemas.ScheduleRecord]:
         pass
@@ -179,6 +194,75 @@ class DBInterface(ABC):
 
     @abstractmethod
     def delete_project(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def create_feature_set(
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    ):
+        pass
+
+    @abstractmethod
+    def store_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set: schemas.FeatureSet,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        pass
+
+    @abstractmethod
+    def get_feature_set(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
+        pass
+
+    @abstractmethod
+    def list_features(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_feature_sets(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureSetsOutput:
+        pass
+
+    @abstractmethod
+    def patch_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set_update: dict,
+        tag=None,
+        uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_feature_set(self, session, project, name):
         pass
 
     def list_artifact_tags(self, session, project):

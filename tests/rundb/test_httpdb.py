@@ -322,3 +322,73 @@ def test_list_functions(create_server):
     for function in functions:
         assert function["metadata"]["tag"] is not None
     assert len(functions) == count, "bad list"
+
+
+def _create_feature_set(name):
+    return {
+        "metadata": {
+            "name": name,
+            "labels": {"owner": "saarc", "group": "dev"},
+            "tag": "latest",
+        },
+        "spec": {
+            "entities": [
+                {
+                    "name": "ticker",
+                    "value_type": "str",
+                    "labels": {"type": "prod"},
+                    "extra_field": 100,
+                }
+            ],
+            "features": [
+                {"name": "time", "value_type": "datetime", "extra_field": "value1"},
+                {"name": "bid", "value_type": "float"},
+                {"name": "ask", "value_type": "time"},
+            ],
+        },
+        "status": {
+            "state": "created",
+            "stats": {
+                "time": {
+                    "count": "8",
+                    "unique": "7",
+                    "top": "2016-05-25 13:30:00.222222",
+                }
+            },
+        },
+        "some_other_field": "blabla",
+    }
+
+
+def test_feature_sets(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    count = 5
+    for i in range(count):
+        name = f"fs_{i}"
+        feature_set = _create_feature_set(name)
+        db.create_feature_set(feature_set, project=project, versioned=True)
+
+    # Test store_feature_set, which allows updates as well as inserts
+    db.store_feature_set(name, feature_set, project=project, versioned=True)
+
+    feature_set_update = {
+        "spec": {
+            "features": [{"name": "looks", "value_type": "str", "description": "good"}],
+        }
+    }
+
+    # additive mode means add the feature to the features-list
+    db.update_feature_set(
+        name, feature_set_update, project, tag="latest", patch_mode="additive"
+    )
+    feature_sets = db.list_feature_sets(project=project)
+
+    assert (
+        len(feature_sets.feature_sets) == count
+    ), "bad list results - wrong number of members"
+
+    feature_set = db.get_feature_set(name, project)
+    assert len(feature_set.spec.features) == 4

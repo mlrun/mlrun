@@ -41,6 +41,7 @@ default_config = {
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
+    "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks)
     "remote_host": "",
     "version": "",  # will be set to current version
@@ -69,6 +70,8 @@ default_config = {
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
+    # sets the background color that is used in printed tables in jupyter
+    "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
     "httpdb": {
         "port": 8080,

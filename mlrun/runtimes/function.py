@@ -14,22 +14,19 @@
 
 import json
 from os import environ
-from urllib.parse import urlparse
+from time import sleep
 
 import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
-from nuclio.deploy import deploy_config
+from mlrun.db import RunDBError
+from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
 import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import (
-    mount_v3io,
-    add_or_refresh_credentials,
-    is_iguazio_endpoint,
-)
+from ..platforms.iguazio import mount_v3io
 from .base import RunError, FunctionStatus
 from .utils import log_std, set_named_item, get_item_name
 from ..utils import logger, update_in, get_in, enrich_image_url
@@ -246,94 +243,83 @@ class RemoteRuntime(KubeResource):
 
         return self
 
-    def deploy(self, dashboard="", project="", tag="", kind=None, env: dict = None):
-        def get_fullname(config, name, project, tag):
-            if project:
-                name = "{}-{}".format(project, name)
-            if tag:
-                name = "{}-{}".format(name, tag)
-            update_in(config, "metadata.name", name)
-            return name
+    def deploy(
+        self, dashboard="", project="", tag="", verbose=False,
+    ):
+        verbose = verbose or self.verbose
+        if project:
+            self.metadata.project = project
+        if tag:
+            self.metadata.tag = tag
+        state = ""
+        last_log_timestamp = 1
 
-        self.set_config("metadata.labels.mlrun/class", self.kind)
-        env_dict = {get_item_name(v): get_item_name(v, "value") for v in self.spec.env}
-        if env:
-            for name, value in env.items():
-                env_dict[name] = value
-        spec = nuclio.ConfigSpec(env=env_dict, config=self.spec.config)
-        spec.cmd = self.spec.build.commands or []
-        project = project or self.metadata.project or "default"
-        handler = self.spec.function_handler
-        if self.spec.readiness_timeout:
-            spec.set_config("spec.readinessTimeoutSeconds", self.spec.readiness_timeout)
-        if self.spec.resources:
-            spec.set_config("spec.resources", self.spec.resources)
-        if self.spec.no_cache:
-            spec.set_config("spec.build.noCache", True)
-        if self.spec.replicas:
-            spec.set_config("spec.minReplicas", self.spec.replicas)
-            spec.set_config("spec.maxReplicas", self.spec.replicas)
+        if not dashboard:
+            db = self._get_db()
+            logger.info("Starting remote function deploy")
+            data = db.remote_builder(self, False)
+            self.status = data["data"].get("status")
+            # ready = data.get("ready", False)
+
+            while state not in ["ready", "error"]:
+                sleep(1)
+                try:
+                    text, last_log_timestamp = db.get_builder_status(
+                        self, last_log_timestamp=last_log_timestamp, verbose=verbose
+                    )
+                except RunDBError:
+                    raise ValueError("function or deploy process not found")
+                state = self.status.state
+                if text:
+                    print(text)
+
+            if state != "ready":
+                logger.error("Nuclio function failed to deploy")
+                raise RunError(f"cannot deploy {text}")
+
+            if self.status.address:
+                self.spec.command = "http://{}".format(self.status.address)
+
         else:
-            spec.set_config("spec.minReplicas", self.spec.min_replicas)
-            spec.set_config("spec.maxReplicas", self.spec.max_replicas)
-
-        dashboard = get_auth_filled_platform_dashboard_url(dashboard)
-        if self.spec.base_spec:
-            if kind:
-                raise ValueError("kind cannot be specified on built functions")
-            config = nuclio.config.extend_config(
-                self.spec.base_spec, spec, tag, self.spec.build.code_origin
-            )
-            update_in(config, "metadata.name", self.metadata.name)
-            update_in(config, "spec.volumes", self.spec.to_nuclio_vol())
-            base_image = get_in(config, "spec.build.baseImage")
-            if base_image:
-                update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
-
-            logger.info("deploy started")
-            name = get_fullname(config, self.metadata.name, project, tag)
-            addr = nuclio.deploy.deploy_config(
-                config,
-                dashboard,
-                name=name,
-                project=project,
-                tag=tag,
-                verbose=self.verbose,
-                create_new=True,
-            )
-        else:
-
-            kind = kind if kind is not None else self.spec.function_kind
-            name, config, code = nuclio.build_file(
-                self.spec.source,
-                name=self.metadata.name,
-                project=project,
-                handler=handler,
-                tag=tag,
-                spec=spec,
-                kind=kind,
-                verbose=self.verbose,
-            )
-
-            update_in(config, "spec.volumes", self.spec.to_nuclio_vol())
-            name = get_fullname(config, name, project, tag)
-            addr = deploy_config(
-                config,
-                dashboard_url=dashboard,
-                name=name,
-                project=project,
-                tag=tag,
-                verbose=self.verbose,
-                create_new=True,
-            )
-
-        self.spec.command = "http://{}".format(addr)
-        self.status.nuclio_name = name
-        if addr:
-            self.status.state = "ready"
-            self.status.address = addr
             self.save(versioned=False)
+            address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
+            if address:
+                self.spec.command = "http://{}".format(address)
+                self.status.state = "ready"
+                self.status.address = address
+                self.save(versioned=False)
+
+        logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
+
+    def _get_state(self, dashboard="", last_log_timestamp=None, verbose=False):
+        if dashboard:
+            state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(
+                self.metadata.name,
+                self.metadata.project,
+                self.metadata.tag,
+                dashboard,
+                last_log_timestamp=last_log_timestamp,
+                verbose=verbose,
+            )
+            self.status.state = state
+            self.status.nuclio_name = name
+            if address:
+                self.status.address = address
+                self.spec.command = "http://{}".format(address)
+            return state, text, last_log_timestamp
+
+        try:
+            text, last_log_timestamp = self._get_db().get_builder_status(
+                self, last_log_timestamp=last_log_timestamp, verbose=verbose
+            )
+        except RunDBError:
+            raise ValueError("function or deploy process not found")
+        return self.status.state, text, last_log_timestamp
+
+    def _get_runtime_env(self):
+        # for runtime specific env var enrichment (before deploy)
+        return {}
 
     def deploy_step(
         self,
@@ -369,12 +355,16 @@ class RemoteRuntime(KubeResource):
             verbose=verbose,
         )
 
-    def invoke(self, path, body=None, method=None, headers=None):
+    def invoke(self, path, body=None, method=None, headers=None, dashboard=""):
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
             if not self.status.address:
-                raise ValueError("no function address, first run .deploy()")
+                state, _, _ = self._get_state(dashboard)
+                if state != "ready" or not self.status.address:
+                    raise ValueError(
+                        "no function address or not ready, first run .deploy()"
+                    )
             if path.startswith("/"):
                 path = path[1:]
             path = f"http://{self.status.address}/{path}"
@@ -511,16 +501,104 @@ def _fullname(project, name):
     return name
 
 
-def get_auth_filled_platform_dashboard_url(dashboard: str) -> str:
-    if not is_iguazio_endpoint(mlconf.dbpath):
-        return dashboard or mlconf.nuclio_dashboard_url
+def get_fullname(name, project, tag):
+    if project:
+        name = "{}-{}".format(project, name)
+    if tag:
+        name = "{}-{}".format(name, tag)
+    return name
 
-    # todo: workaround for 2.8 use nuclio_dashboard_url for subdns name
-    parsed_dbpath = urlparse(mlconf.dbpath)
-    user, control_session, _ = add_or_refresh_credentials(parsed_dbpath.hostname)
-    return "https://{}:{}@{}{}".format(
-        user,
-        control_session,
-        mlconf.nuclio_dashboard_url or "nuclio-api",
-        parsed_dbpath.hostname[parsed_dbpath.hostname.find(".") :],
+
+def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
+    function.set_config("metadata.labels.mlrun/class", function.kind)
+    env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
+    for key, value in function._get_runtime_env().items():
+        env_dict[key] = value
+    spec = nuclio.ConfigSpec(env=env_dict, config=function.spec.config)
+    spec.cmd = function.spec.build.commands or []
+    project = function.metadata.project or "default"
+    tag = function.metadata.tag
+    handler = function.spec.function_handler
+
+    # In Nuclio 1.6.0 default serviceType changed to "ClusterIP", make sure we're using NodePort
+    spec.set_config("spec.serviceType", "NodePort")
+    if function.spec.readiness_timeout:
+        spec.set_config("spec.readinessTimeoutSeconds", function.spec.readiness_timeout)
+    if function.spec.resources:
+        spec.set_config("spec.resources", function.spec.resources)
+    if function.spec.no_cache:
+        spec.set_config("spec.build.noCache", True)
+    if function.spec.replicas:
+        spec.set_config("spec.minReplicas", function.spec.replicas)
+        spec.set_config("spec.maxReplicas", function.spec.replicas)
+    else:
+        spec.set_config("spec.minReplicas", function.spec.min_replicas)
+        spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+
+    dashboard = dashboard or mlconf.nuclio_dashboard_url
+    if function.spec.base_spec:
+        config = nuclio.config.extend_config(
+            function.spec.base_spec, spec, tag, function.spec.build.code_origin
+        )
+        update_in(config, "metadata.name", function.metadata.name)
+        update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        base_image = get_in(config, "spec.build.baseImage")
+        if base_image:
+            update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
+
+        logger.info("deploy started")
+        name = get_fullname(function.metadata.name, project, tag)
+        function.status.nuclio_name = name
+        update_in(config, "metadata.name", name)
+        return nuclio.deploy.deploy_config(
+            config,
+            dashboard,
+            name=name,
+            project=project,
+            tag=tag,
+            verbose=function.verbose,
+            create_new=True,
+            watch=watch,
+        )
+    else:
+
+        name, config, code = nuclio.build_file(
+            function.spec.source,
+            name=function.metadata.name,
+            project=project,
+            handler=handler,
+            tag=tag,
+            spec=spec,
+            kind=function.spec.function_kind,
+            verbose=function.verbose,
+        )
+
+        update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        name = get_fullname(name, project, tag)
+        function.status.nuclio_name = name
+
+        update_in(config, "metadata.name", name)
+        return deploy_config(
+            config,
+            dashboard_url=dashboard,
+            name=name,
+            project=project,
+            tag=tag,
+            verbose=function.verbose,
+            create_new=True,
+            watch=watch,
+        )
+
+
+def get_nuclio_deploy_status(
+    name, project, tag, dashboard="", last_log_timestamp=None, verbose=False
+):
+    api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
+    name = get_fullname(name, project, tag)
+
+    state, address, last_log_timestamp, outputs = get_deploy_status(
+        api_address, name, last_log_timestamp, verbose
     )
+
+    text = "\n".join(outputs) if outputs else ""
+    return state, address, name, last_log_timestamp, text

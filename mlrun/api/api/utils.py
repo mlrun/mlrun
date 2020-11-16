@@ -19,6 +19,9 @@ from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.run import import_function, new_function
 from mlrun.utils import get_in, logger, parse_function_uri
 
+import re
+from hashlib import sha1
+
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
@@ -151,6 +154,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
+            schedule_labels = task["metadata"].get("labels")
             get_scheduler().create_schedule(
                 db_session,
                 task["metadata"]["project"],
@@ -158,6 +162,7 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
                 schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
+                schedule_labels,
             )
             project = task["metadata"]["project"]
 
@@ -186,3 +191,19 @@ def _submit_run(db_session: Session, data) -> typing.Tuple[str, str, str, typing
 
     logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}
+
+
+# uid is hexdigest of sha1 value, which is double the digest size due to hex encoding
+hash_len = sha1().digest_size * 2
+uid_regex = re.compile(f"^[0-9a-f]{{{hash_len}}}$", re.IGNORECASE)
+
+
+def parse_reference(reference: str):
+    tag = None
+    uid = None
+    regex_match = uid_regex.match(reference)
+    if not regex_match:
+        tag = reference
+    else:
+        uid = regex_match.string
+    return tag, uid

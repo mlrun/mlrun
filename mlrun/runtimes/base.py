@@ -32,7 +32,7 @@ import mlrun.utils.helpers
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
-from mlrun.utils.helpers import verify_field_regex, generate_function_uri
+from mlrun.utils.helpers import verify_field_regex, generate_object_uri
 from .constants import PodPhases, RunStates
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
@@ -198,7 +198,7 @@ class BaseRuntime(ModelObj):
         return False
 
     def _function_uri(self, tag=None, hash_key=None):
-        return generate_function_uri(
+        return generate_object_uri(
             self.metadata.project,
             self.metadata.name,
             tag=tag or self.metadata.tag,
@@ -339,7 +339,7 @@ class BaseRuntime(ModelObj):
         if not self.is_child:
             dbstr = "self" if self._is_api_server else self.spec.rundb
             logger.info(
-                "starting run {} uid={}  -> {}".format(meta.name, meta.uid, dbstr)
+                "starting run {} uid={} DB={}".format(meta.name, meta.uid, dbstr)
             )
             meta.labels["kind"] = self.kind
             if "owner" not in meta.labels:
@@ -791,18 +791,24 @@ class BaseRuntimeHandler(ABC):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._resolve_label_selector(label_selector)
-        self._delete_resources(
-            db, db_session, namespace, label_selector, force, grace_period
-        )
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
-            self._delete_crd_resources(
+            deleted_resources = self._delete_crd_resources(
                 db, db_session, namespace, label_selector, force, grace_period
             )
         else:
-            self._delete_pod_resources(
+            deleted_resources = self._delete_pod_resources(
                 db, db_session, namespace, label_selector, force, grace_period
             )
+        self._delete_resources(
+            db,
+            db_session,
+            namespace,
+            deleted_resources,
+            label_selector,
+            force,
+            grace_period,
+        )
 
     def delete_runtime_object_resources(
         self,
@@ -865,6 +871,7 @@ class BaseRuntimeHandler(ABC):
         db: DBInterface,
         db_session: Session,
         namespace: str,
+        deleted_resources: List[Dict],
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
@@ -988,39 +995,38 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
-    ):
+    ) -> List[Dict]:
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(
             namespace, label_selector=label_selector
         )
+        deleted_pods = []
         for pod in pods.items:
+            pod_dict = pod.to_dict()
 
             # best effort - don't let one failure in pod deletion to cut the whole operation
             try:
-                if force:
-                    self._delete_pod(namespace, pod)
-                    continue
-
                 (
                     in_terminal_state,
                     last_update,
                     run_state,
-                ) = self._resolve_pod_status_info(db, db_session, pod.to_dict())
-                if not in_terminal_state:
-                    continue
+                ) = self._resolve_pod_status_info(db, db_session, pod_dict)
+                if not force:
+                    if not in_terminal_state:
+                        continue
 
-                # give some grace period if we have last update time
-                now = datetime.now(timezone.utc)
-                if (
-                    last_update is not None
-                    and last_update + timedelta(seconds=float(grace_period)) > now
-                ):
-                    continue
+                    # give some grace period if we have last update time
+                    now = datetime.now(timezone.utc)
+                    if (
+                        last_update is not None
+                        and last_update + timedelta(seconds=float(grace_period)) > now
+                    ):
+                        continue
 
                 if self._consider_run_on_resources_deletion():
                     try:
                         self._pre_deletion_runtime_resource_run_actions(
-                            db, db_session, pod.to_dict(), run_state
+                            db, db_session, pod_dict, run_state
                         )
                     except Exception as exc:
                         # Don't prevent the deletion for failure in the pre deletion run actions
@@ -1031,10 +1037,12 @@ class BaseRuntimeHandler(ABC):
                         )
 
                 self._delete_pod(namespace, pod)
+                deleted_pods.append(pod_dict)
             except Exception as exc:
                 logger.warning(
                     f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
+        return deleted_pods
 
     def _delete_crd_resources(
         self,
@@ -1044,9 +1052,10 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = config.runtime_resources_deletion_grace_period,
-    ):
+    ) -> List[Dict]:
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
+        deleted_crds = []
         try:
             crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(
                 crd_group,
@@ -1063,27 +1072,23 @@ class BaseRuntimeHandler(ABC):
             for crd_object in crd_objects["items"]:
                 # best effort - don't let one failure in pod deletion to cut the whole operation
                 try:
-                    if force:
-                        self._delete_crd(
-                            namespace, crd_group, crd_version, crd_plural, crd_object
-                        )
-                        continue
-
                     (
                         in_terminal_state,
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
-                    if not in_terminal_state:
-                        continue
+                    if not force:
+                        if not in_terminal_state:
+                            continue
 
-                    # give some grace period if we have last update time
-                    now = datetime.now(timezone.utc)
-                    if (
-                        last_update is not None
-                        and last_update + timedelta(seconds=float(grace_period)) > now
-                    ):
-                        continue
+                        # give some grace period if we have last update time
+                        now = datetime.now(timezone.utc)
+                        if (
+                            last_update is not None
+                            and last_update + timedelta(seconds=float(grace_period))
+                            > now
+                        ):
+                            continue
 
                     if self._consider_run_on_resources_deletion():
 
@@ -1102,12 +1107,14 @@ class BaseRuntimeHandler(ABC):
                     self._delete_crd(
                         namespace, crd_group, crd_version, crd_plural, crd_object
                     )
+                    deleted_crds.append(crd_object)
                 except Exception:
                     exc = traceback.format_exc()
                     crd_object_name = crd_object["metadata"]["name"]
                     logger.warning(
                         f"Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing"
                     )
+        return deleted_crds
 
     def _pre_deletion_runtime_resource_run_actions(
         self,

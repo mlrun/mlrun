@@ -1,5 +1,5 @@
 import unittest.mock
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 
 import pytest
@@ -64,7 +64,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_pod(name, labels, phase=PodPhases.succeeded):
         terminated_container_state = client.V1ContainerStateTerminated(
-            finished_at=datetime.now(), exit_code=0
+            finished_at=datetime.now(timezone.utc), exit_code=0
         )
         container_state = client.V1ContainerState(terminated=terminated_container_state)
         container_status = client.V1ContainerStatus(
@@ -76,7 +76,9 @@ class TestRuntimeHandlerBase:
             restart_count=0,
         )
         status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
-        metadata = client.V1ObjectMeta(name=name, labels=labels)
+        metadata = client.V1ObjectMeta(
+            name=name, labels=labels, namespace=get_k8s().resolve_namespace()
+        )
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
@@ -150,13 +152,80 @@ class TestRuntimeHandlerBase:
                 )
 
     @staticmethod
-    def _mock_list_namespaces_pods(list_pods_call_responses: List[List[client.V1Pod]]):
+    def _mock_list_namespaced_pods(list_pods_call_responses: List[List[client.V1Pod]]):
         calls = []
         for list_pods_call_response in list_pods_call_responses:
             pods = client.V1PodList(items=list_pods_call_response)
             calls.append(pods)
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
         return calls
+
+    @staticmethod
+    def _assert_delete_namespaced_pods(
+        expected_pod_names: List[str], expected_pod_namespace: str = None
+    ):
+        calls = [
+            unittest.mock.call(expected_pod_name, expected_pod_namespace)
+            for expected_pod_name in expected_pod_names
+        ]
+        if not expected_pod_names:
+            assert get_k8s().v1api.delete_namespaced_pod.call_count == 0
+        else:
+            get_k8s().v1api.delete_namespaced_pod.assert_has_calls(calls)
+
+    @staticmethod
+    def _assert_delete_namespaced_services(
+        expected_service_names: List[str], expected_service_namespace: str = None
+    ):
+        calls = [
+            unittest.mock.call(expected_service_name, expected_service_namespace)
+            for expected_service_name in expected_service_names
+        ]
+        if not expected_service_names:
+            assert get_k8s().v1api.delete_namespaced_service.call_count == 0
+        else:
+            get_k8s().v1api.delete_namespaced_service.assert_has_calls(calls)
+
+    @staticmethod
+    def _assert_delete_namespaced_custom_objects(
+        runtime_handler,
+        expected_custom_object_names: List[str],
+        expected_custom_object_namespace: str = None,
+    ):
+        crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
+        calls = [
+            unittest.mock.call(
+                crd_group,
+                crd_version,
+                expected_custom_object_namespace,
+                crd_plural,
+                expected_custom_object_name,
+                client.V1DeleteOptions(),
+            )
+            for expected_custom_object_name in expected_custom_object_names
+        ]
+        if not expected_custom_object_names:
+            assert get_k8s().crdapi.delete_namespaced_custom_object.call_count == 0
+        else:
+            get_k8s().crdapi.delete_namespaced_custom_object.assert_has_calls(calls)
+
+    @staticmethod
+    def _mock_delete_namespaced_pods():
+        get_k8s().v1api.delete_namespaced_pod = unittest.mock.Mock()
+
+    @staticmethod
+    def _mock_delete_namespaced_custom_objects():
+        get_k8s().crdapi.delete_namespaced_custom_object = unittest.mock.Mock()
+
+    @staticmethod
+    def _mock_delete_namespaced_services():
+        get_k8s().v1api.delete_namespaced_service = unittest.mock.Mock()
+
+    @staticmethod
+    def _mock_read_namespaced_pod_log():
+        log = "Some log string"
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        return log
 
     @staticmethod
     def _mock_list_namespaced_crds(crd_dicts_call_responses: List[List[Dict]]):

@@ -22,7 +22,7 @@ from copy import deepcopy
 from .states import ServingRouterState, ServingTaskState
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
-from ..utils import create_logger
+from ..utils import create_logger, get_caller_globals
 
 
 class _StreamContext:
@@ -112,6 +112,7 @@ class ModelServerHost(ModelObj):
         class_args = deepcopy(class_args)
         class_args["model_path"] = model_path
         route = ServingTaskState(class_name, class_args, handler)
+        namespace = namespace or get_caller_globals()
         self.graph.add_route(name, route).init_object(self.context, namespace)
 
     def test(
@@ -183,6 +184,7 @@ def create_mock_server(
     load_mode=None,
     graph=None,
     namespace=None,
+    logger=None,
     level="debug",
 ):
     """create serving emulator/tester for locally testing models and servers
@@ -193,10 +195,11 @@ def create_mock_server(
                 print(host.test("my/infer", testdata))
     """
     if not context:
-        context = MockContext(level)
+        context = MockContext(level, logger=logger)
 
     if not graph:
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
+    namespace = namespace or get_caller_globals()
     server = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
     server.init(context, namespace or {})
     return server
@@ -241,8 +244,8 @@ class Response(object):
 class MockContext:
     """mock basic nuclio context object"""
 
-    def __init__(self, level="debug"):
+    def __init__(self, level="debug", logger=None):
         self.state = None
-        self.logger = create_logger(level, "human", "flow", sys.stdout)
+        self.logger = logger or create_logger(level, "human", "flow", sys.stdout)
         self.worker_id = 0
         self.Response = Response

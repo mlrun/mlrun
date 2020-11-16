@@ -15,6 +15,7 @@ from mlrun.api.api.endpoints import (
     submit,
     tags,
     workflows,
+    feature_sets,
 )
 
 api_router = APIRouter()
@@ -54,4 +55,9 @@ api_router.include_router(
 )
 api_router.include_router(
     workflows.router, tags=["workflows"], dependencies=[Depends(deps.AuthVerifier)]
+)
+api_router.include_router(
+    feature_sets.router,
+    tags=["feature_sets"],
+    dependencies=[Depends(deps.AuthVerifier)],
 )

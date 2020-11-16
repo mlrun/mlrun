@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, Dict
 
 from pydantic import BaseModel
 
@@ -65,6 +65,21 @@ class ScheduleKinds(str, Enum):
     local_function = "local_function"
 
 
+class Label(BaseModel):
+    name: str
+    value: str
+
+    class Config:
+        orm_mode = True
+
+
+class ScheduleUpdate(BaseModel):
+    scheduled_object: Optional[Any]
+    cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
+    desired_state: Optional[str]
+    labels: Optional[List[Label]]
+
+
 # Properties to receive via API on creation
 class ScheduleInput(BaseModel):
     name: str
@@ -72,12 +87,14 @@ class ScheduleInput(BaseModel):
     scheduled_object: Any
     cron_trigger: Union[str, ScheduleCronTrigger]
     desired_state: Optional[str]
+    labels: Optional[List[Label]]
 
 
 # the schedule object returned from the db layer
 class ScheduleRecord(ScheduleInput):
     creation_time: datetime
     project: str
+    last_run_uri: Optional[str]
     state: Optional[str]
 
     class Config:
@@ -87,6 +104,7 @@ class ScheduleRecord(ScheduleInput):
 # Additional properties to return via API
 class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
+    last_run: Optional[Dict]
 
 
 class SchedulesOutput(BaseModel):

@@ -1,5 +1,7 @@
 FROM continuumio/anaconda3:2020.02
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 

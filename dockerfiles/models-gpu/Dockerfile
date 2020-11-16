@@ -15,6 +15,8 @@ ARG CUDA_VER=10.1
 
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
 

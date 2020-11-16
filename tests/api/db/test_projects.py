@@ -11,6 +11,10 @@ from mlrun.api.db.sqldb.models import (
     Project,
     Run,
     Artifact,
+    FeatureSet,
+    Feature,
+    Entity,
+    Schedule,
 )
 from tests.api.db.conftest import dbs
 
@@ -59,7 +63,13 @@ def _assert_resources_in_project(
             number_of_cls_records = 0
             # Label doesn't have project attribute
             # Project (obviously) doesn't have project attribute
-            if cls.__name__ != "Label" and cls.__name__ != "Project":
+            # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
+            if (
+                cls.__name__ != "Label"
+                and cls.__name__ != "Project"
+                and cls.__name__ != "Feature"
+                and cls.__name__ != "Entity"
+            ):
                 number_of_cls_records = (
                     db_session.query(cls).filter_by(project=project).count()
                 )
@@ -83,6 +93,36 @@ def _assert_resources_in_project(
                         db_session.query(Artifact)
                         .join(cls)
                         .filter(Artifact.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "feature_sets_labels":
+                    number_of_cls_records = (
+                        db_session.query(FeatureSet)
+                        .join(cls)
+                        .filter(FeatureSet.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "features_labels":
+                    number_of_cls_records = (
+                        db_session.query(FeatureSet)
+                        .join(Feature)
+                        .join(cls)
+                        .filter(FeatureSet.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "entities_labels":
+                    number_of_cls_records = (
+                        db_session.query(FeatureSet)
+                        .join(Entity)
+                        .join(cls)
+                        .filter(FeatureSet.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "schedules_v2_labels":
+                    number_of_cls_records = (
+                        db_session.query(Schedule)
+                        .join(cls)
+                        .filter(Schedule.project == project)
                         .count()
                     )
             else:
@@ -180,4 +220,21 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
             schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
+            labels,
         )
+
+    feature_set = schemas.FeatureSet(
+        metadata=schemas.ObjectMetadata(
+            name="dummy", tag="latest", labels={"owner": "nobody"}
+        ),
+        spec=schemas.FeatureSetSpec(
+            entities=[
+                schemas.Entity(name="ent1", value_type="str", labels={"label": "1"})
+            ],
+            features=[
+                schemas.Feature(name="feat1", value_type="str", labels={"label": "1"})
+            ],
+        ),
+        status={},
+    )
+    db.create_feature_set(db_session, project, feature_set)

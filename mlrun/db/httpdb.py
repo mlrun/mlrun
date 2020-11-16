@@ -20,6 +20,7 @@ from typing import List, Dict, Union
 
 import kfp
 import requests
+import mlrun
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -28,6 +29,7 @@ from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta
+from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
 
@@ -439,18 +441,35 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating schedule {project}/{schedule.name}"
         self.api_call("POST", path, error_message, body=json.dumps(schedule.dict()))
 
-    def get_schedule(self, project: str, name: str) -> schemas.ScheduleOutput:
+    def update_schedule(
+        self, project: str, name: str, schedule: schemas.ScheduleUpdate
+    ):
+        project = project or default_project
+        path = f"projects/{project}/schedules/{name}"
+
+        error_message = f"Failed updating schedule {project}/{name}"
+        self.api_call("PUT", path, error_message, body=json.dumps(schedule.dict()))
+
+    def get_schedule(
+        self, project: str, name: str, include_last_run: bool = False
+    ) -> schemas.ScheduleOutput:
         project = project or default_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed getting schedule for {project}/{name}"
-        resp = self.api_call("GET", path, error_message)
+        resp = self.api_call(
+            "GET", path, error_message, params={"include_last_run": include_last_run}
+        )
         return schemas.ScheduleOutput(**resp.json())
 
     def list_schedules(
-        self, project: str, name: str = None, kind: schemas.ScheduleKinds = None
+        self,
+        project: str,
+        name: str = None,
+        kind: schemas.ScheduleKinds = None,
+        include_last_run: bool = False,
     ) -> schemas.SchedulesOutput:
         project = project or default_project
-        params = {"kind": kind, "name": name}
+        params = {"kind": kind, "name": name, "include_last_run": include_last_run}
         path = f"projects/{project}/schedules"
         error_message = f"Failed listing schedules for {project} ? {kind} {name}"
         resp = self.api_call("GET", path, error_message, params=params)
@@ -487,7 +506,9 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def get_builder_status(self, func, offset=0, logs=True):
+    def get_builder_status(
+        self, func, offset=0, logs=True, last_log_timestamp=0, verbose=False
+    ):
         try:
             params = {
                 "name": func.metadata.name,
@@ -495,6 +516,8 @@ class HTTPRunDB(RunDBInterface):
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),
                 "offset": str(offset),
+                "last_log_timestamp": str(last_log_timestamp),
+                "verbose": bool2str(verbose),
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
@@ -506,11 +529,21 @@ class HTTPRunDB(RunDBInterface):
             raise RunDBError("bad function build response")
 
         if resp.headers:
-            func.status.state = resp.headers.get("function_status", "")
-            func.status.build_pod = resp.headers.get("builder_pod", "")
-            func.spec.image = resp.headers.get("function_image", "")
+            func.status.state = resp.headers.get("x-mlrun-function-status", "")
+            last_log_timestamp = float(
+                resp.headers.get("x-mlrun-last-timestamp", "0.0")
+            )
+            if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+                func.status.address = resp.headers.get("x-mlrun-address", "")
+                func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+            else:
+                func.status.build_pod = resp.headers.get("builder_pod", "")
+                func.spec.image = resp.headers.get("function_image", "")
 
-        return resp.content
+        text = ""
+        if resp.content:
+            text = resp.content.decode()
+        return text, last_log_timestamp
 
     def remote_start(self, func_url):
         try:
@@ -659,6 +692,143 @@ class HTTPRunDB(RunDBInterface):
             params=params,
             body=json.dumps(struct),
         )
+
+    def create_feature_set(
+        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
+    ) -> schemas.FeatureSet:
+        project = project or default_project
+        path = f"projects/{project}/feature-sets"
+        params = {"versioned": versioned}
+
+        if isinstance(feature_set, schemas.FeatureSet):
+            feature_set = feature_set.dict()
+
+        name = feature_set["metadata"]["name"]
+        error_message = f"Failed creating feature-set {project}/{name}"
+        resp = self.api_call(
+            "POST", path, error_message, params=params, body=json.dumps(feature_set),
+        )
+        return schemas.FeatureSet(**resp.json())
+
+    def get_feature_set(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        project = project or default_project
+        reference = uid or tag or "latest"
+        path = f"projects/{project}/feature-sets/{name}/references/{reference}"
+        error_message = f"Failed retrieving feature-set {project}/{name}"
+        resp = self.api_call("GET", path, error_message)
+        return schemas.FeatureSet(**resp.json())
+
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        project = project or default_project
+        params = {
+            "name": name,
+            "tag": tag,
+            "entity": entities or [],
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/features"
+
+        error_message = f"Failed listing features, project: {project}, query: {params}"
+        resp = self.api_call("GET", path, error_message, params=params)
+        return schemas.FeaturesOutput(**resp.json())
+
+    def list_feature_sets(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureSetsOutput:
+        project = project or default_project
+        params = {
+            "name": name,
+            "state": state,
+            "tag": tag,
+            "entity": entities or [],
+            "feature": features or [],
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/feature-sets"
+
+        error_message = (
+            f"Failed listing feature-sets, project: {project}, query: {params}"
+        )
+        resp = self.api_call("GET", path, error_message, params=params)
+        return schemas.FeatureSetsOutput(**resp.json())
+
+    def store_feature_set(
+        self,
+        name,
+        feature_set: Union[dict, schemas.FeatureSet],
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
+    ) -> schemas.FeatureSet:
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        params = {"versioned": versioned}
+
+        if isinstance(feature_set, schemas.FeatureSet):
+            feature_set = feature_set.dict()
+
+        project = project or default_project
+        reference = uid or tag or "latest"
+        path = f"projects/{project}/feature-sets/{name}/references/{reference}"
+        error_message = f"Failed storing feature-set {project}/{name}"
+        resp = self.api_call(
+            "PUT", path, error_message, params=params, body=json.dumps(feature_set)
+        )
+        return schemas.FeatureSet(**resp.json())
+
+    def update_feature_set(
+        self,
+        name,
+        feature_set_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+    ):
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        project = project or default_project
+        reference = uid or tag or "latest"
+        params = {"patch-mode": patch_mode}
+        path = f"projects/{project}/feature-sets/{name}/references/{reference}"
+        error_message = f"Failed updating feature-set {project}/{name}"
+        self.api_call(
+            "PATCH",
+            path,
+            error_message,
+            body=json.dumps(feature_set_update),
+            params=params,
+        )
+
+    def delete_feature_set(self, name, project=""):
+        project = project or default_project
+        path = f"projects/{project}/feature-sets/{name}"
+        error_message = f"Failed deleting project {name}"
+        self.api_call("DELETE", path, error_message)
 
 
 def _as_json(obj):

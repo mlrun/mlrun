@@ -52,6 +52,15 @@ install-requirements: ## Install all requirements needed for development
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
 
+.PHONY: create-migration
+create-migration: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations/mlrun.db?check_same_thread=false"
+create-migration: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
+ifndef MLRUN_MIGRATION_MESSAGE
+	$(error MLRUN_MIGRATION_MESSAGE is undefined)
+endif
+	alembic -c ./mlrun/api/alembic.ini upgrade head
+	alembic -c ./mlrun/api/alembic.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+
 .PHONY: bump-version
 bump-version: ## Bump version in all needed places in code
 ifndef MLRUN_NEW_VERSION
@@ -390,6 +399,26 @@ test: clean ## Run mlrun tests
 		-rf \
 		tests
 
+.PHONY: test-migrations-dockerized
+test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
+	docker run \
+		-t \
+		--rm \
+		--network='host' \
+		-v /tmp:/tmp \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
+
+.PHONY: test-migrations
+test-migrations: clean ## Run mlrun db migrations tests
+	cd mlrun/api; \
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		-rf \
+		--test-alembic \
+		migrations/tests/*
+
 .PHONY: test-system
 test-system: build-test-system ## Run mlrun system tests
 	docker run -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
@@ -422,7 +451,7 @@ lint: flake8 fmt-check ## Run lint on the code
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)
 	@echo "Running black fmt check..."
-	python -m black --check --diff -S .
+	python -m black --check --diff .
 
 .PHONY: flake8
 flake8: ## Run flake8 lint

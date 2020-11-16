@@ -641,6 +641,9 @@ def code_to_function(
         else:
             r = RemoteRuntime()
             r.spec.function_kind = subkind
+        if image:
+            r.spec.image = image
+        r.spec.default_handler = handler
         if embed_code:
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
@@ -674,7 +677,7 @@ def code_to_function(
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, "spec.metadata")
     r.metadata.name = name
-    r.spec.image = get_in(spec, "spec.image", image)
+    r.spec.image = image or get_in(spec, "spec.image", '')
     build = r.spec.build
     build.code_origin = code_origin
     build.base_image = get_in(spec, "spec.build.baseImage")

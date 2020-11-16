@@ -542,7 +542,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
-        base_image = get_in(config, "spec.build.baseImage")
+        base_image = get_in(config, "spec.build.baseImage") or function.spec.image
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
 
@@ -574,6 +574,8 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         )
 
         update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        if function.spec.image:
+            update_in(config, "spec.build.baseImage", enrich_image_url(function.spec.image))
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 

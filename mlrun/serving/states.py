@@ -19,8 +19,9 @@ from requests.packages.urllib3.util.retry import Retry
 import requests
 
 from ..model import ModelObj, ObjectDict
-from ..utils import create_class
+from ..utils import create_class, create_function
 
+callable_prefix = '_'
 
 class StateKinds:
     router = "router"
@@ -37,6 +38,7 @@ _task_state_fields = [
     "resource",
     "comment",
     "end",
+    "full_event",
 ]
 
 
@@ -74,7 +76,7 @@ class BaseState(ModelObj):
         elif key not in self.next:
             self.next.append(key)
 
-    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
 
     def get_children(self):
@@ -97,7 +99,7 @@ class ServingTaskState(BaseState):
     _default_class = ""
 
     def __init__(
-        self, class_name=None, class_args=None, handler=None, name=None, next=None
+        self, class_name=None, class_args=None, handler=None, name=None, next=None, full_event=None
     ):
         super().__init__(name, next)
         self.class_name = class_name
@@ -108,8 +110,9 @@ class ServingTaskState(BaseState):
         self.skip_context = None
         self.context = None
         self._class_object = None
+        self.full_event = full_event
 
-    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         if isinstance(self.class_name, type):
             self._class_object = self.class_name
             self.class_name = self.class_name.__name__
@@ -123,14 +126,31 @@ class ServingTaskState(BaseState):
                     self.class_name or self._default_class, namespace
                 )
 
-        if not self._object:
-            class_args = {k: v for k, v in self.class_args.items()}
+        if not self._object or reset:
+            class_args = {}
+            for key, arg in self.class_args.items():
+                if key.startswith(callable_prefix):
+                    class_args[key[1:]] = get_function(arg, namespace)
+                else:
+                    class_args[key] = arg
             class_args.update(extra_kwargs)
             if self.skip_context is None or not self.skip_context:
                 class_args["name"] = self.name
                 class_args["context"] = self.context
             self._object = self._class_object(**class_args)
-            self._handler = getattr(self._object, self.handler or "do_event", None)
+
+            handler = self.handler
+            if handler:
+                if not hasattr(self._object, handler):
+                    raise ValueError(f'handler ({handler}) specified but doesnt exist in class')
+            else:
+                if hasattr(self._object, 'do'):
+                    handler = 'do'
+                elif hasattr(self._object, 'do_event'):
+                    handler = 'do_event'
+                    self.full_event = True
+            if handler:
+                self._handler = getattr(self._object, handler, None)
 
         if mode != "skip":
             self._post_init(mode)
@@ -139,12 +159,18 @@ class ServingTaskState(BaseState):
     def object(self):
         return self._object
 
+    def clear_object(self):
+        self._object = None
+
     def _post_init(self, mode="sync"):
         if self._object and hasattr(self._object, "post_init"):
             self._object.post_init(mode)
 
     def run(self, event, *args, **kwargs):
-        return self._handler(event, *args, **kwargs)
+        if self.full_event:
+            return self._handler(event, *args, **kwargs)
+        event.body = self._handler(event.body, *args, **kwargs)
+        return event
 
 
 class ServingRouterState(ServingTaskState):
@@ -181,15 +207,15 @@ class ServingRouterState(ServingTaskState):
         for key in routes:
             del self._routes[key]
 
-    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.class_args = self.class_args or {}
         super().init_object(
-            context, namespace, "skip", routes=self._routes, **extra_kwargs
+            context, namespace, "skip", reset=reset, routes=self._routes, **extra_kwargs
         )
 
         for route in self._routes.values():
             route.set_parent(self)
-            route.init_object(context, namespace, mode)
+            route.init_object(context, namespace, mode, reset=reset)
 
         self._post_init(mode)
 
@@ -261,11 +287,11 @@ class ServingFlowState(BaseState):
     def __iter__(self):
         yield from self._states.keys()
 
-    def init_object(self, context, namespace, mode="sync", **extra_kwargs):
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         for state in self._states.values():
             state.set_parent(self)
-            state.init_object(context, namespace, mode)
+            state.init_object(context, namespace, mode, reset=reset)
         self._post_init(mode)
 
     def get_start_state(self, from_state=None):
@@ -337,14 +363,33 @@ def get_class(class_name, namespace):
     if isinstance(class_name, type):
         return class_name
     if class_name in namespace:
-        class_object = namespace[class_name]
-        return class_object
+        return namespace[class_name]
 
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as e:
         raise ImportError(f"state init failed, class {class_name} not found, {e}")
     return class_object
+
+
+def get_function(function, namespace):
+    """return function callable object from function name string"""
+    if callable(function):
+        return function
+
+    function = function.strip()
+    if function.startswith('('):
+        if not function.endswith(')'):
+            raise ValueError('function expression must start with "(" and end with ")"')
+        return eval('lambda event: ' + function[1:-1], {}, {})
+    if function in namespace:
+        return namespace[function]
+
+    try:
+        function_object = create_function(function)
+    except (ImportError, ValueError) as e:
+        raise ImportError(f"state init failed, function {function} not found, {e}")
+    return function_object
 
 
 classes_map = {

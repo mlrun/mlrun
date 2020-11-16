@@ -52,18 +52,23 @@ class MyMap(MapClass):
         return event
 
 
+def my_filter(event):
+    return event['bid'] > 51.96
+
+
 def test_ingestion():
     client = fs.store_client(data_prefix="v3io:///users/admin/fs")
     client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
 
     # add feature set without time column (stock ticker metadata)
     stocks_set = fs.FeatureSet("stocks", entities=[Entity('ticker', ValueType.STRING)])
-    resp = client.ingest(stocks_set, stocks, infer_schema=False, with_stats=False)
+    resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
     print(resp)
 
     quotes_set = FeatureSet("stock-quotes")
     quotes_set.add_flow_step("map", "MyMap", mul=3)
-    quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
+    quotes_set.add_flow_step("filter", "storey.Filter", _fn="(event['bid'] > 51.92)")
+    #quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
     quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
 
     df = quotes_set.infer_from_df(
@@ -90,6 +95,7 @@ def test_realtime_query():
         features, entity_rows=trades, entity_timestamp_column="time"
     )
     print(resp.to_dataframe())
+    return
 
     svc = client.get_online_feature_service(features)
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])

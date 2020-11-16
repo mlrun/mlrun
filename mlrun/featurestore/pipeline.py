@@ -6,7 +6,7 @@ from storey import (
     NoopDriver,
     ReduceToDataFrame,
     build_flow,
-    Persist,
+    WriteToTable,
     DataframeSource,
     WriteToParquet,
     MapWithState,
@@ -44,10 +44,8 @@ def run_ingestion_pipeline(
     )
     controller = flow.run()
     df = controller.await_termination()
-    if featureset.spec.timestamp_key:
-        df.sort_values(featureset.spec.timestamp_key, inplace=True)
     if TargetTypes.parquet in targets:
-        target_path = client._get_target_path(TargetTypes.parquet, featureset)
+        target_path = client._get_target_path(TargetTypes.parquet, featureset, '.parquet')
         target_path = upload_file(client, df, target_path, featureset)
         target = DataTarget(TargetTypes.parquet, target_path)
         featureset.status.update_target(target)
@@ -59,13 +57,6 @@ def process_to_df(df, featureset, entity_column, namespace):
     flow = create_ingest_pipeline(None, featureset, source, namespace=namespace)
     controller = flow.run()
     return controller.await_termination()
-
-
-def enrich(event, state):
-    state["xx"] = event["xx"]
-    event["yy"] = 7
-    state["yy"] = 7
-    return event, state
 
 
 class UpdateState:
@@ -100,8 +91,8 @@ def create_ingest_pipeline(
     for state in featureset.spec.flow.states.values():
         steps.append(state_to_flow_object(state, context=None, namespace=namespace))
 
+    column_list, _ = _clear_aggregators(aggregations, featureset.spec.features.keys())
     if TargetTypes.nosql in targets:
-        column_list, _ = _clear_aggregators(aggregations, featureset.spec.features.keys())
         updater = UpdateState(column_list)
         steps.append(MapWithState(table, updater.do, group_by_key=True))
 
@@ -112,36 +103,30 @@ def create_ingest_pipeline(
     if aggregation_objects:
         steps.append(AggregateByKey(aggregation_objects, table))
 
-    target_states = []
     if TargetTypes.nosql in targets:
-        target_states.append(Persist(table))
+        steps.append([WriteToTable(table)])
     # if TargetTypes.parquet in targets:
-    #     target_path = client._get_target_path(TargetTypes.parquet, featureset)
-    #     target_states.append(WriteToParquet(target_path + '.parquet', partition_cols=[key_column]))
+    #     print('KEY:', key_column)
+    #     target_path = client._get_target_path(TargetTypes.parquet, featureset, '.parquet')
+    #     steps.append([WriteToParquet(target_path, metadata_columns={key_column: 'key'})])
     #     target = DataTarget(TargetTypes.parquet, target_path)
     #     featureset.status.update_target(target)
-    #
+
     if return_df:
-        target_states.append(
+        steps.append([
             ReduceToDataFrame(
                 index=key_column,
                 insert_key_column_as=key_column,
                 insert_time_column_as=featureset.spec.timestamp_key,
-            )
+            )]
         )
 
-    if len(target_states) == 0:
-        raise ValueError("must have at least one target or output df")
-    if len(target_states) == 1:
-        target_states = target_states[0]
-    steps.append(target_states)
     return build_flow(steps)
 
 
 def state_to_flow_object(state: ServingTaskState, context=None, namespace=[]):
-    state._object = None
+    state.clear_object()  # clear the state object due to storey limitations
     if not state.object:
-        # state.skip_context = True
         state.init_object(context, namespace)
 
     return state.object
@@ -177,11 +162,12 @@ def _clear_aggregators(aggregations, column_list):
                     raise ValueError(f'illegal aggregation column {col}, '
                                      'must be in the form {name}_{op}_{window}')
                 if split[0] not in aggregate.operations:
-                    raise ValueError(f'aggregate operation {split[0]} not specified')
-                if split[1] not in aggregate.windows:
-                    raise ValueError(f'aggregate window {split[1]} not specified')
+                    raise ValueError(f'aggregate operation {split[0]} doesnt exist')
                 if split[0] not in operations:
                     operations.append(split[0])
+
+                if split[1] not in aggregate.windows:
+                    raise ValueError(f'aggregate window {split[1]} doesnt exist')
                 if split[1] not in windows:
                     windows.append(split[1])
                 remove_list.append(col)
@@ -196,10 +182,6 @@ def _clear_aggregators(aggregations, column_list):
 
 
 def steps_from_featureset(featureset, column_list, aliases):
-    def join_event(event, data):
-        event.update(data)
-        return event
-
     target = featureset.status.targets[TargetTypes.nosql]
     table = Table(target.path, V3ioDriver())
     entity_list = list(featureset.spec.entities.keys())

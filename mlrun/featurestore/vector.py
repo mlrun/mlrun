@@ -27,6 +27,12 @@ from .model import (
 from .pipeline import steps_from_featureset
 
 
+class FeatureVectorError(Exception):
+    """ feature vector error. """
+    def __init__(self, *args, **kwargs):
+        pass
+
+
 class FeatureVector(ModelObj):
     """Feature Vector"""
 
@@ -135,16 +141,18 @@ class FeatureVector(ModelObj):
 
 
 class OfflineVectorResponse:
-    def __init__(self, client, run_url=None, df=None):
+    def __init__(self, client, merger):
         self._client = client
-        self._df = df
+        self._merger = merger
 
     @property
     def status(self):
-        return "ready"
+        return self._merger.get_status()
 
     def to_dataframe(self):
-        return self._df
+        if self.status != 'ready':
+            raise FeatureVectorError('feature vector dataset is not ready')
+        return self._merger.get_df()
 
 
 def print_event(event):

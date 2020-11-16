@@ -18,7 +18,7 @@ import pandas as pd
 
 class LocalFeatureMerger:
     def __init__(self):
-        pass
+        self._result_df = None
 
     def merge(
         self,
@@ -28,6 +28,11 @@ class LocalFeatureMerger:
         featureset_dfs: List[pd.DataFrame],
     ):
         merged_df = entity_df
+        if entity_df is None:
+            merged_df = featureset_dfs.pop(0)
+            featureset = featuresets.pop(0)
+            entity_timestamp_column = entity_timestamp_column or featureset.spec.timestamp_key
+
         for featureset, featureset_df in zip(featuresets, featureset_dfs):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
@@ -38,7 +43,7 @@ class LocalFeatureMerger:
                 merged_df, entity_timestamp_column, featureset, featureset_df,
             )
 
-        return merged_df
+        self._result_df = merged_df
 
     def _asof_join(
         self,
@@ -67,3 +72,11 @@ class LocalFeatureMerger:
         indexes = list(featureset.spec.entities.keys())
         merged_df = pd.merge(entity_df, featureset_df, on=indexes)
         return merged_df
+
+    def get_status(self):
+        if self._result_df is None:
+            raise RuntimeError('unexpected status, no result df')
+        return 'ready'
+
+    def get_df(self):
+        return self._result_df

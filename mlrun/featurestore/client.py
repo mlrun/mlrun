@@ -11,13 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
-from typing import List
+from typing import List, Union
 from urllib.parse import urlparse
-
 import yaml
-from mlrun import get_run_db
 
+from mlrun import get_run_db
 from mlrun.datastore import store_manager
 from .infer import infer_schema_from_df, get_df_stats
 from .pipeline import run_ingestion_pipeline
@@ -29,7 +27,8 @@ from .vector import (
 )
 from mlrun.featurestore.mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
-from .model import DataTarget, TargetTypes, FeatureClassKind
+from .model import TargetTypes, FeatureClassKind
+from ..utils import get_caller_globals
 
 
 def store_client(data_prefix="", project=None, secrets=None):
@@ -42,6 +41,13 @@ class FeatureStoreClient:
         self.nosql_path_prefix = ""
         self.project = project
         self.parameters = {}
+        self.default_feature_set = ''
+        try:
+            # add v3io:// path prefix support to pandas & dask
+            from v3iofs import V3ioFS
+            self._v3iofs = V3ioFS()
+        except Exception:
+            pass
 
         self._api_address = api_address
         self._db_conn = None
@@ -78,7 +84,7 @@ class FeatureStoreClient:
 
     def ingest(
         self,
-        featureset: FeatureSet,
+        featureset: Union[FeatureSet, str],
         source,
         targets=None,
         namespace=None,
@@ -90,7 +96,9 @@ class FeatureStoreClient:
     ):
         """Read local DataFrame, file, or URL into the feature store"""
         targets = targets or self._default_ingest_targets
-        namespace = namespace or inspect.stack()[1][0].f_globals
+        namespace = namespace or get_caller_globals()
+        if isinstance(featureset, str):
+            featureset = self.get_feature_set(featureset)
         entity_list = list(featureset.spec.entities.keys())
         if not entity_list:
             raise ValueError("Entity columns are not defined for this feature set")
@@ -136,7 +144,7 @@ class FeatureStoreClient:
         df = merger.merge(
             entity_rows, entity_timestamp_column, featuresets, feature_dfs
         )
-        return OfflineVectorResponse(self, df=df)
+        return OfflineVectorResponse(self, merger)
 
     def get_online_feature_service(self, features):
         vector = FeatureVector(self, features=features)
@@ -145,12 +153,24 @@ class FeatureStoreClient:
         service.init()
         return service
 
-    def get_feature_set(self, name, project=None):
+    def get_feature_set(self, name, use_cache=False):
+        if not name and self.default_feature_set:
+            name = self.default_feature_set
+        if not name:
+            raise ValueError('name or client.default_feature_set must be set')
         # todo: if name has "/" split to project/name
+        if use_cache and name in self._fs:
+            return self._fs[name]
+        project = None
+        input_name = name
+        if '/' in name:
+            project, name = name.split('/', 1)
         target = self._get_db_path(FeatureClassKind.FeatureSet, name, project)
         body = self._data_stores.object(url=target + ".yaml").get()
         obj = yaml.load(body, Loader=yaml.FullLoader)
-        return FeatureSet.from_dict(obj)
+        fs = FeatureSet.from_dict(obj)
+        self._fs[input_name] = fs
+        return fs
 
     def list_feature_sets(
         self,

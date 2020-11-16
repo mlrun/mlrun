@@ -17,6 +17,7 @@ import json
 import re
 import sys
 import time
+from typing import Optional
 from datetime import datetime, timezone
 from os import path, environ
 from importlib import import_module
@@ -193,6 +194,18 @@ def match_labels(labels, conditions):
         else:
             match = match and (condition.strip() in labels)
     return match
+
+
+def match_times(time_from, time_to, obj, key):
+    obj_time = get_in(obj, key)
+    if not obj_time:
+        return False
+    obj_time = datetime.fromisoformat(obj_time)
+
+    if (time_from and time_from > obj_time) or (time_to and time_to < obj_time):
+        return False
+
+    return True
 
 
 def match_value(value, obj, key):
@@ -684,3 +697,9 @@ def get_caller_globals(level=2):
         return inspect.stack()[level][0].f_globals
     except Exception:
         return None
+
+
+def datetime_from_iso(time_str: str) -> Optional[datetime]:
+    if not time_str:
+        return
+    return datetime.fromisoformat(time_str)

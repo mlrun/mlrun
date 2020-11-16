@@ -46,9 +46,25 @@ class FileDB(DBInterface):
         sort=True,
         last=0,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         return self._transform_run_db_error(
-            self.db.list_runs, name, uid, project, labels, state, sort, last, iter
+            self.db.list_runs,
+            name,
+            uid,
+            project,
+            labels,
+            state,
+            sort,
+            last,
+            iter,
+            start_time_from,
+            start_time_to,
+            last_update_time_from,
+            last_update_time_to,
         )
 
     def del_run(self, session, uid, project="", iter=0):

@@ -22,7 +22,9 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         name: str,
         project: mlrun.api.schemas.ProjectUpdate,
     ):
-        self._projects[project.name].owner = project.owner
+        self._projects[name] = self._projects[name].copy(
+            update=project.dict(exclude_unset=True)
+        )
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         if name in self._projects:
@@ -36,4 +38,4 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def list_projects(
         self, session: sqlalchemy.orm.Session
     ) -> mlrun.api.schemas.ProjectsOutput:
-        return mlrun.api.schemas.ProjectsOutput(projects=self._projects.values())
+        return mlrun.api.schemas.ProjectsOutput(projects=list(self._projects.values()))

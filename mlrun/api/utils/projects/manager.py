@@ -50,7 +50,7 @@ class ProjectsManager:
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
     ):
-        self._create_project(session, project)
+        self._run_on_all_consumers("create_project", session, project)
 
     def update_project(
         self,
@@ -72,11 +72,6 @@ class ProjectsManager:
         self, session: sqlalchemy.orm.Session
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._master_consumer.list_projects(session)
-
-    def _create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
-    ):
-        self._run_on_all_consumers("create_project", session, project)
 
     def _start_periodic_sync(self):
         if self._periodic_sync_interval_seconds > 0:

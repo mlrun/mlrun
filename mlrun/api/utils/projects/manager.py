@@ -92,7 +92,7 @@ class ProjectsManager:
             master_projects: mlrun.api.schemas.ProjectsOutput
             consumer_projects_map: typing.Dict[str, mlrun.api.schemas.ProjectsOutput]
             master_projects, consumer_projects_map = self._run_on_all_consumers(
-                "list_project", session
+                "list_projects", session
             )
             master_project_names = {
                 project.name for project in master_projects.projects
@@ -133,7 +133,7 @@ class ProjectsManager:
                 )
                 try:
                     self._master_consumer.create_project(
-                        session, mlrun.api.schemas.ProjectCreate(name=project.name)
+                        session, mlrun.api.schemas.ProjectCreate(**project.dict())
                     )
                 except Exception as exc:
                     logger.warning(

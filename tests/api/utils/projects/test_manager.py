@@ -39,6 +39,33 @@ async def nop_master(
     return projects_manager._master_consumer
 
 
+def test_projects_sync_consumer_project_adoption(
+    db: sqlalchemy.orm.Session,
+    projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
+    nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    nop_consumer.create_project(
+        None,
+        mlrun.api.schemas.ProjectCreate(
+            name=project_name, description=project_description
+        ),
+    )
+    _assert_project_in_consumers(
+        [nop_consumer], project_name, project_description
+    )
+    _assert_no_projects_in_consumers(
+        [nop_master]
+    )
+
+    projects_manager._sync_projects()
+    _assert_project_in_consumers(
+        [nop_master, nop_consumer], project_name, project_description
+    )
+
+
 def test_create_project(
     db: sqlalchemy.orm.Session,
     projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,

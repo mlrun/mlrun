@@ -1,4 +1,3 @@
-import collections
 import typing
 
 import humanfriendly
@@ -23,6 +22,7 @@ class ProjectsManager:
         "nuclio": mlrun.api.utils.projects.consumers.nuclio.Consumer,
         # for tests
         "nop": mlrun.api.utils.projects.consumers.nop.Consumer,
+        "nop2": mlrun.api.utils.projects.consumers.nop.Consumer,
     }
 
     def __init__(self):
@@ -97,8 +97,9 @@ class ProjectsManager:
             master_project_names = {
                 project.name for project in master_projects.projects
             }
-            consumer_project_names_map = collections.defaultdict(set)
+            consumer_project_names_map = {}
             for consumer_name, consumer_projects in consumer_projects_map.items():
+                consumer_project_names_map[consumer_name] = set()
                 for project in consumer_projects.projects:
                     consumer_project_names_map[consumer_name].add(project.name)
 
@@ -158,7 +159,7 @@ class ProjectsManager:
                             try:
                                 self._consumers[_consumer_name].create_project(
                                     session,
-                                    mlrun.api.schemas.ProjectCreate(name=project.name),
+                                    mlrun.api.schemas.ProjectCreate(**project.dict()),
                                 )
                             except Exception as exc:
                                 logger.warning(

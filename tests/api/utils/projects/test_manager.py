@@ -16,7 +16,7 @@ async def projects_manager() -> typing.Generator[
 ]:
     logger.info("Creating projects manager")
     mlrun.config.config.httpdb.projects.master_consumer = "nop"
-    mlrun.config.config.httpdb.projects.consumers = "nop"
+    mlrun.config.config.httpdb.projects.consumers = "nop,nop2"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
     projects_manager = mlrun.api.utils.projects.manager.ProjectsManager()
     projects_manager.start()
@@ -33,6 +33,13 @@ async def nop_consumer(
 
 
 @pytest.fixture()
+async def second_nop_consumer(
+    projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
+) -> mlrun.api.utils.projects.consumers.base.Consumer:
+    return projects_manager._consumers["nop2"]
+
+
+@pytest.fixture()
 async def nop_master(
     projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
 ) -> mlrun.api.utils.projects.consumers.base.Consumer:
@@ -43,6 +50,7 @@ def test_projects_sync_consumer_project_adoption(
     db: sqlalchemy.orm.Session,
     projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
     nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    second_nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
     nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
 ):
     project_name = "project-name"
@@ -53,16 +61,14 @@ def test_projects_sync_consumer_project_adoption(
             name=project_name, description=project_description
         ),
     )
-    _assert_project_in_consumers(
-        [nop_consumer], project_name, project_description
-    )
-    _assert_no_projects_in_consumers(
-        [nop_master]
-    )
+    _assert_project_in_consumers([nop_consumer], project_name, project_description)
+    _assert_no_projects_in_consumers([nop_master, second_nop_consumer])
 
     projects_manager._sync_projects()
     _assert_project_in_consumers(
-        [nop_master, nop_consumer], project_name, project_description
+        [nop_master, nop_consumer, second_nop_consumer],
+        project_name,
+        project_description,
     )
 
 

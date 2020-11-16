@@ -1,6 +1,6 @@
 # Setting a Remote Environment <!-- omit in toc -->
 
-MLRun allows you to use write your code on a local machine while running your functions on a remote cluster. This tutorial explains how you can set this up.
+MLRun allows you to use your code on a local machine while running your functions on a remote cluster. This tutorial explains how you can set this up.
 
 - [Prerequisites](#prerequisites)
 - [Configure Remote Environment](#configure-remote-environment)
@@ -26,13 +26,13 @@ Before you begin, ensure that the following prerequisites are met:
     pip install mlrun==<version>
     ```
 
-    If you already installed a previous version of MLRun you should first uninstall it by running:
+    If you already installed a previous version of MLRun, you should first uninstall it by running:
 
     ```sh
     pip uninstall -y mlrun
     ```
 
-2. Ensure that you have remote access to your MLRun service (i.e., to the service's NodePort on the remote Kubernetes cluster).
+2. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
 
 ## Configure Remote Environment
 
@@ -56,7 +56,7 @@ Set environment variables to define your MLRun configuration. As a minimum requi
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-    V3IO_API=<API endpoint of the web-APIs service endpoint; e.g., "https://webapi.default-tenant.app.mycluster.iguazio.com">
+    V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
     V3IO_ACCESS_KEY=<platform access key>
     ```
 
@@ -76,7 +76,7 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
     ![Edit configuration screen](_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
 
-3. Add the environment variables and values of `MLRUN_DBPATH`, `V3IO_USERNAME`, `V3IO_API` and `V3IO_ACCESS_KEY`.
+3. Add the environment variables and values of `MLRUN_DBPATH`, `MLRUN_ARTIFACT_PATH`, `V3IO_USERNAME`, `V3IO_API`, and `V3IO_ACCESS_KEY`.
 
     ![Environment variables](_static/images/pycharm/remote-pycharm-environment_variables.png)
 
@@ -94,7 +94,7 @@ MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}">
 # Iguazio platform username
 V3IO_USERNAME=<username of a platform user with access to the MLRun service>
 # V3IO data access API URL (copy from the services screen)
-V3IO_API=<API endpoint of the web-APIs service endpoint; e.g., "https://webapi.default-tenant.app.mycluster.iguazio.com">
+V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
 # Iguazio V3IO data layer credentials (copy from your user settings)
 V3IO_ACCESS_KEY=<platform access key>
 ```
@@ -167,7 +167,7 @@ export MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}">
 # Iguazio platform username
 export V3IO_USERNAME=<username of a platform user with access to the MLRun service>
 # V3IO data access API URL (copy from the services screen)
-export V3IO_API=<API endpoint of the web-APIs service endpoint; e.g., "https://webapi.default-tenant.app.mycluster.iguazio.com">
+export V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
 # Iguazio V3IO data layer credentials (copy from your user settings)
 export V3IO_ACCESS_KEY=<platform access key>
 ```

@@ -45,7 +45,7 @@ This command supports many options, including the following; for the full list, 
 Use the `run` CLI command to execute a task by using a local or remote function.
 This command supports many options, including the following; for the full list, run `mlrun run --help`:
 
-``` text
+```text
   -p, --param key=val    Parameter name and value tuples; for example, `-p x=37 -p y='text'`
   -i, --inputs key=path  Input artifact; for example, `-i infile.txt=s3://mybucket/infile.txt`
   --in-path TEXT         Base directory path/URL for storing input artifacts
@@ -75,8 +75,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    #commands: ['pip install pandas']
-    base_image: mlrun/mlrun:dev
+    base_image: mlrun/mlrun:0.5.4
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -105,8 +104,8 @@ spec:
   args: []
   image_pull_policy: Always
   build:
-    commands: ['pip install pandas']
-    base_image: mlrun/mlrun:dev
+    commands: []
+    base_image: mlrun/mlrun:0.5.4
     source: git://github.com/mlrun/ci-demo.git
 ```
 
@@ -133,26 +132,30 @@ spec:
   args: []
   image_pull_policy: Always
   build:
-    commands: ['pip install mlrun pandas']
-    base_image: python:3.6-jessie
+    commands: []
+    base_image: mlrun/mlrun:0.5.4
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:
+
 ```sh
 mlrun build <function-configuration file path> -a <archive path/URL> [-s <function-sources path/URL>]
 ```
-> **Note:**
-> - `.` is a shorthand for a **function.yaml** configuration file in the local working directory.
-> - The `-a|--archive` option is used to instruct MLRun to create an archive file from the function-code sources at the location specified by the `-s|--sources` option; the default sources location is the current directory (`./`).
 
 For example, the following command uses the **function.yaml** configuration file (`.`), relies on the default function-sources path (`./`), and sets the target archive path to `v3io:///users/$V3IO_USERNAME/tars`.
 So, for a user named "admin", for example, the function sources from the local working directory will be archived and then extracted into an **admin/tars** directory in the "users" data container of the configured platform cluster (which is accessed via the `v3io` data mount):
+
 ```sh
 mlrun build . -a v3io:///users/$V3IO_USERNAME/tars
 ```
 
+> **Note:**
+> - `.` is a shorthand for a **function.yaml** configuration file in the local working directory.
+> - The `-a|--archive` option is used to instruct MLRun to create an archive file from the function-code sources at the location specified by the `-s|--sources` option; the default sources location is the current directory (`./`).
+
 After the function build completes, you can run the function with some parameters.
 For example:
+
 ```sh
 mlrun run -f . -w -p p1=3
 ```

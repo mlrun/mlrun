@@ -389,15 +389,24 @@ class RemoteRuntime(KubeResource):
             data = json.loads(data)
         return data
 
-    def _raise_mlrun(self):
+    def _pre_run_validate(self):
         if self.spec.function_kind != "mlrun":
             raise RunError(
                 '.run() can only be execute on "mlrun" kind'
                 ', recreate with function kind "mlrun"'
             )
 
+        state = self.status.state
+        if state != 'ready':
+            if state:
+                raise RunError(f'cannot run, function in state {state}')
+            state = self._get_state()
+            if state != 'ready':
+                logger.info('starting nuclio build!')
+                self.deploy()
+
     def _run(self, runobj: RunObject, execution):
-        self._raise_mlrun()
+        self._pre_run_validate()
         self.store_run(runobj)
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
@@ -423,7 +432,7 @@ class RemoteRuntime(KubeResource):
         return self._update_state(resp.json())
 
     def _run_many(self, tasks, execution, runobj: RunObject):
-        self._raise_mlrun()
+        self._pre_run_validate()
         secrets = self._secrets.to_serial() if self._secrets else None
         log_level = execution.log_level
         headers = {"x-nuclio-log-level": log_level}

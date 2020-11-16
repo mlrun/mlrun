@@ -123,7 +123,7 @@ def copy_doc(src, dest, title=""):
 
 def setup(app):
     project_root = path.dirname(path.dirname(path.abspath(__file__)))
-    copy_doc(f"{project_root}/examples/remote.md", "external/remote.md")
+    #copy_doc(f"{project_root}/examples/remote.md", "external/remote.md")
 
 
 #    copy_doc(

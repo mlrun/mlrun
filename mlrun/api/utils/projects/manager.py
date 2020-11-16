@@ -172,6 +172,7 @@ class ProjectsManager:
     def _run_on_all_consumers(
         self, method: str, *args, **kwargs
     ) -> typing.Tuple[typing.Any, typing.Dict[str, typing.Any]]:
+        # TODO: do it concurrently
         master_response = getattr(self._master_consumer, method)(*args, **kwargs)
         consumer_responses = {
             consumer_name: getattr(consumer, method)(*args, **kwargs)

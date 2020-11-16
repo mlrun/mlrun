@@ -22,10 +22,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
     ):
-        body = {
-            "metadata": {"name": project.name},
-            "spec": {"description": project.description},
-        }
+        body = self._generate_request_body(project.name, project.description)
         self._send_request_to_api("POST", "projects", json=body)
 
     def update_project(
@@ -34,14 +31,14 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         name: str,
         project: mlrun.api.schemas.ProjectUpdate,
     ):
-        body = {
-            "metadata": {"name": name},
-            "spec": {"description": project.description},
-        }
-        self._send_request_to_api("PUT", f"projects/{name}", json=body)
+        body = self._generate_request_body(name, project.description)
+        # yup, Nuclio projects API PUT endpoint is /projects, not /projects/{name} - "it's not a bug it's a feature"
+        self._send_request_to_api("PUT", "projects", json=body)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
-        self._send_request_to_api("DELETE", f"projects/{name}")
+        body = self._generate_request_body(name)
+        # yup, Nuclio projects API DELETE endpoint is /projects (with body), not /projects/{name}
+        self._send_request_to_api("DELETE", "projects", json=body)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -97,11 +94,20 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
                     pass
                 else:
                     log_kwargs.update(
-                        {"error": error, "error_stack_trace": error_stack_trace,}
+                        {"error": error, "error_stack_trace": error_stack_trace}
                     )
             logger.warning("Request to nuclio failed", **log_kwargs)
             response.raise_for_status()
         return response
+
+    @staticmethod
+    def _generate_request_body(name, description=None):
+        body = {
+            "metadata": {"name": name},
+        }
+        if description:
+            body["spec"] = {"description": description}
+        return body
 
     @staticmethod
     def _transform_nuclio_project_to_schema(nuclio_project):

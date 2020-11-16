@@ -48,6 +48,7 @@ def client() -> Generator:
         mlconf.httpdb.logs_path = log_dir
         mlconf.runs_monitoring_interval = 0
         mlconf.runtimes_cleanup_interval = 0
+        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
         # in case some test setup already mocked them, don't override it
         if not hasattr(get_k8s(), "v1api"):

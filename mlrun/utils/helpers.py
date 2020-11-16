@@ -19,6 +19,7 @@ import sys
 import time
 from typing import Optional
 from datetime import datetime, timezone
+from dateutil import parser
 from os import path, environ
 from importlib import import_module
 import inspect
@@ -200,7 +201,7 @@ def match_times(time_from, time_to, obj, key):
     obj_time = get_in(obj, key)
     if not obj_time:
         return False
-    obj_time = datetime.fromisoformat(obj_time)
+    obj_time = parser.isoparse(obj_time)
 
     if (time_from and time_from > obj_time) or (time_to and time_to < obj_time):
         return False
@@ -702,4 +703,4 @@ def get_caller_globals(level=2):
 def datetime_from_iso(time_str: str) -> Optional[datetime]:
     if not time_str:
         return
-    return datetime.fromisoformat(time_str)
+    return parser.isoparse(time_str)

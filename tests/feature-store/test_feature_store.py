@@ -68,7 +68,7 @@ def test_ingestion():
     quotes_set = FeatureSet("stock-quotes")
     quotes_set.add_flow_step("map", "MyMap", mul=3)
     quotes_set.add_flow_step("filter", "storey.Filter", _fn="(event['bid'] > 51.92)")
-    #quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
+    quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
     quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
 
     df = quotes_set.infer_from_df(
@@ -95,7 +95,6 @@ def test_realtime_query():
         features, entity_rows=trades, entity_timestamp_column="time"
     )
     print(resp.to_dataframe())
-    return
 
     svc = client.get_online_feature_service(features)
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])

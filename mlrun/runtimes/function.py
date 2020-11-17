@@ -20,6 +20,8 @@ import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
+from nuclio.utils import DeployError
+
 from mlrun.db import RunDBError
 from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
 import nuclio
@@ -615,9 +617,12 @@ def get_nuclio_deploy_status(
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
 
-    state, address, last_log_timestamp, outputs = get_deploy_status(
-        api_address, name, last_log_timestamp, verbose
-    )
+    try:
+        state, address, last_log_timestamp, outputs = get_deploy_status(
+            api_address, name, last_log_timestamp, verbose
+        )
+    except DeployError:
+        return '', '', name, 0, ''
 
     text = "\n".join(outputs) if outputs else ""
     return state, address, name, last_log_timestamp, text

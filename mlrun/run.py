@@ -226,7 +226,10 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
             runtime = yaml.load(data, Loader=yaml.FullLoader)
 
         command = get_in(runtime, "spec.command", "")
+        kind = get_in(runtime, "kind", "")
         code = get_in(runtime, "spec.build.functionSourceCode")
+        if kind in RuntimeKinds.nuclio_runtimes():
+            code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
 
         if code:
             fpath = mktemp(".py")

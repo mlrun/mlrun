@@ -80,5 +80,5 @@ def test_run_local_from_func():
     ymlpath = path.join(out_path, "nbyaml.yaml")
     print("out path:", out_path, ymlpath)
     fn = code_to_function(filename=nbpath, kind="job").export(ymlpath)
-    result = fn.run(spec, workdir=out_path, run_local=True)
+    result = fn.run(spec, workdir=out_path, local=True)
     verify_state(result)

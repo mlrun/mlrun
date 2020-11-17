@@ -227,7 +227,7 @@ class BaseRuntime(ModelObj):
         schedule: Union[str, schemas.ScheduleCronTrigger] = None,
         verbose=None,
         scrape_metrics=False,
-        run_local=False,
+        local=False,
         local_code_path=None,
     ):
         """Run a local or remote task.
@@ -247,14 +247,14 @@ class BaseRuntime(ModelObj):
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param verbose:        add verbose prints/logs
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
-        :param run_local:      run the function locally vs on the runtime/cluster
+        :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
 
         :return: run context object (dict) with run metadata, results and
             status
         """
 
-        if run_local:
+        if local:
             # allow local run simulation with a flip of a flag
             command = self
             if local_code_path:

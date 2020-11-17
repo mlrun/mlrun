@@ -226,11 +226,10 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
             runtime = yaml.load(data, Loader=yaml.FullLoader)
 
         command = get_in(runtime, "spec.command", "")
-        kind = get_in(runtime, "kind", "")
         code = get_in(runtime, "spec.build.functionSourceCode")
+        kind = get_in(runtime, "kind", "")
         if kind in RuntimeKinds.nuclio_runtimes():
             code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
-
         if code:
             fpath = mktemp(".py")
             code = b64decode(code).decode("utf-8")
@@ -680,7 +679,7 @@ def code_to_function(
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, "spec.metadata")
     r.metadata.name = name
-    r.spec.image = image or get_in(spec, "spec.image", '')
+    r.spec.image = image or get_in(spec, "spec.image", "")
     build = r.spec.build
     build.code_origin = code_origin
     build.base_image = get_in(spec, "spec.build.baseImage")

@@ -294,7 +294,9 @@ class RemoteRuntime(KubeResource):
         logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
 
-    def _get_state(self, dashboard="", last_log_timestamp=None, verbose=False):
+    def _get_state(
+        self, dashboard="", last_log_timestamp=None, verbose=False, silent=True
+    ):
         if dashboard:
             state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(
                 self.metadata.name,
@@ -316,6 +318,8 @@ class RemoteRuntime(KubeResource):
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except RunDBError:
+            if silent:
+                return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
 
@@ -397,12 +401,12 @@ class RemoteRuntime(KubeResource):
             )
 
         state = self.status.state
-        if state != 'ready':
+        if state != "ready":
             if state:
-                raise RunError(f'cannot run, function in state {state}')
-            state = self._get_state()
-            if state != 'ready':
-                logger.info('starting nuclio build!')
+                raise RunError(f"cannot run, function in state {state}")
+            state = self._get_state(silent=True)
+            if state != "ready":
+                logger.info("starting nuclio build!")
                 self.deploy()
 
     def _run(self, runobj: RunObject, execution):
@@ -586,7 +590,9 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
 
         update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
         if function.spec.image:
-            update_in(config, "spec.build.baseImage", enrich_image_url(function.spec.image))
+            update_in(
+                config, "spec.build.baseImage", enrich_image_url(function.spec.image)
+            )
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 

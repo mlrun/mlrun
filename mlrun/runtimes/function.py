@@ -20,8 +20,6 @@ import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
-from nuclio.utils import DeployError
-
 from mlrun.db import RunDBError
 from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
 import nuclio
@@ -297,7 +295,11 @@ class RemoteRuntime(KubeResource):
         return self.spec.command
 
     def _get_state(
-        self, dashboard="", last_log_timestamp=None, verbose=False, silent=True
+        self,
+        dashboard="",
+        last_log_timestamp=None,
+        verbose=False,
+        raise_on_exception=True,
     ):
         if dashboard:
             state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(
@@ -320,7 +322,7 @@ class RemoteRuntime(KubeResource):
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except RunDBError:
-            if silent:
+            if raise_on_exception:
                 return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
@@ -395,7 +397,7 @@ class RemoteRuntime(KubeResource):
             data = json.loads(data)
         return data
 
-    def _pre_run_validate(self):
+    def _pre_run_validations(self):
         if self.spec.function_kind != "mlrun":
             raise RunError(
                 '.run() can only be execute on "mlrun" kind'
@@ -412,7 +414,7 @@ class RemoteRuntime(KubeResource):
                 self.deploy()
 
     def _run(self, runobj: RunObject, execution):
-        self._pre_run_validate()
+        self._pre_run_validations()
         self.store_run(runobj)
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
@@ -438,7 +440,7 @@ class RemoteRuntime(KubeResource):
         return self._update_state(resp.json())
 
     def _run_many(self, tasks, execution, runobj: RunObject):
-        self._pre_run_validate()
+        self._pre_run_validations()
         secrets = self._secrets.to_serial() if self._secrets else None
         log_level = execution.log_level
         headers = {"x-nuclio-log-level": log_level}
@@ -617,12 +619,9 @@ def get_nuclio_deploy_status(
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
 
-    try:
-        state, address, last_log_timestamp, outputs = get_deploy_status(
-            api_address, name, last_log_timestamp, verbose
-        )
-    except DeployError:
-        return "", "", name, 0, ""
+    state, address, last_log_timestamp, outputs = get_deploy_status(
+        api_address, name, last_log_timestamp, verbose
+    )
 
     text = "\n".join(outputs) if outputs else ""
     return state, address, name, last_log_timestamp, text

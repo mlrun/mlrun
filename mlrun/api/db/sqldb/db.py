@@ -40,6 +40,7 @@ from mlrun.utils import (
     fill_function_hash,
     fill_object_hash,
     generate_object_uri,
+    match_times,
 )
 import mergedeep
 
@@ -162,9 +163,17 @@ class SQLDB(DBInterface):
         sort=True,
         last=0,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
+        if start_time_from:
+            query = query.filter(Run.start_time >= start_time_from)
+        if start_time_to:
+            query = query.filter(Run.start_time <= start_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
@@ -172,7 +181,9 @@ class SQLDB(DBInterface):
         if not iter:
             query = query.filter(Run.iteration == 0)
 
-        filtered_runs = self._post_query_runs_filter(query, name, state)
+        filtered_runs = self._post_query_runs_filter(
+            query, name, state, last_update_time_from, last_update_time_to
+        )
 
         runs = RunList()
         for run in filtered_runs:
@@ -1194,7 +1205,14 @@ class SQLDB(DBInterface):
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
 
-    def _post_query_runs_filter(self, query, name=None, state=None):
+    def _post_query_runs_filter(
+        self,
+        query,
+        name=None,
+        state=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
+    ):
         """
         This function is hacky and exists to cover on bugs we had with how we save our data in the DB
         We're doing it the hacky way since:
@@ -1206,7 +1224,12 @@ class SQLDB(DBInterface):
         json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
         column
         """
-        if not name and not state:
+        if (
+            not name
+            and not state
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
             return query.all()
 
         filtered_runs = []
@@ -1237,6 +1260,15 @@ class SQLDB(DBInterface):
                 else:
                     if state not in record_state:
                         continue
+            if last_update_time_from or last_update_time_to:
+                if not match_times(
+                    last_update_time_from,
+                    last_update_time_to,
+                    run_json,
+                    "status.last_update",
+                ):
+                    continue
+
             filtered_runs.append(run)
 
         return filtered_runs

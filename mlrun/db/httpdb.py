@@ -17,6 +17,7 @@ import tempfile
 import time
 from os import path, remove, environ
 from typing import List, Dict, Union
+from datetime import datetime
 
 import kfp
 import requests
@@ -28,7 +29,7 @@ from mlrun.api import schemas
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
-from ..utils import dict_to_json, logger, new_pipe_meta
+from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
 from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
@@ -249,6 +250,10 @@ class HTTPRunDB(RunDBInterface):
         sort=True,
         last=0,
         iter=False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
     ):
 
         project = project or default_project
@@ -260,6 +265,10 @@ class HTTPRunDB(RunDBInterface):
             "state": state,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
+            "start_time_from": datetime_to_iso(start_time_from),
+            "start_time_to": datetime_to_iso(start_time_to),
+            "last_update_time_from": datetime_to_iso(last_update_time_from),
+            "last_update_time_to": datetime_to_iso(last_update_time_to),
         }
         error = "list runs"
         resp = self.api_call("GET", "runs", error, params=params)

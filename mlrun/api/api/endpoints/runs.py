@@ -9,6 +9,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.utils import logger
+from mlrun.utils.helpers import datetime_from_iso
 
 router = APIRouter()
 
@@ -96,6 +97,10 @@ def list_runs(
     last: int = 0,
     sort: bool = True,
     iter: bool = True,
+    start_time_from: str = None,
+    start_time_to: str = None,
+    last_update_time_from: str = None,
+    last_update_time_to: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
     runs = get_db().list_runs(
@@ -108,6 +113,10 @@ def list_runs(
         sort=sort,
         last=last,
         iter=iter,
+        start_time_from=datetime_from_iso(start_time_from),
+        start_time_to=datetime_from_iso(start_time_to),
+        last_update_time_from=datetime_from_iso(last_update_time_from),
+        last_update_time_to=datetime_from_iso(last_update_time_to),
     )
     return {
         "runs": runs,

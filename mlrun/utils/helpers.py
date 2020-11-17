@@ -706,3 +706,9 @@ def datetime_from_iso(time_str: str) -> Optional[datetime]:
     if not time_str:
         return
     return parser.isoparse(time_str)
+
+
+def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
+    if not time_obj:
+        return
+    return time_obj.isoformat()

@@ -205,7 +205,7 @@ class SQLDB(RunDBInterface):
     def list_projects(self, owner=None):
         return self._transform_db_error(self.db.list_projects, self.session, owner)
 
-    def store_project(self, name, struct, use_vault):
+    def store_project(self, name, struct, use_vault=False):
         return self._transform_db_error(self.db.add_project, self.session, struct)
 
     @staticmethod

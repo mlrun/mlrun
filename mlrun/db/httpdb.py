@@ -680,8 +680,8 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def store_project(self, name, struct, use_vault):
-        params = {"use_vault": use_vault}
+    def store_project(self, name, struct, use_vault=False):
+        params = {"use-vault": use_vault}
         error_message = f"Failed storing project for {name} ? use-vault={use_vault}"
 
         path = f"project/{name}"

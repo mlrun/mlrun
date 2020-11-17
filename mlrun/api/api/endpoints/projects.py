@@ -1,7 +1,7 @@
 from operator import attrgetter
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Query
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -18,7 +18,7 @@ router = APIRouter()
 @router.post("/project")
 def add_project(
     project: schemas.ProjectCreate,
-    use_vault=False,
+    use_vault: bool = Query(False, alias="use-vault"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     project_id = get_db().add_project(db_session, project.dict())

@@ -117,7 +117,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name, struct, use_vault):
+    def store_project(self, name, struct, use_vault=False):
         pass
 
     @abstractmethod

@@ -389,7 +389,7 @@ class FileRunDB(RunDBInterface):
 
         return results
 
-    def store_project(self, name, struct, use_vault):
+    def store_project(self, name, struct, use_vault=False):
         # TODO - not sure we really need to implement that, need to consider.
         pass
 

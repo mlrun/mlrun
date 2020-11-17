@@ -8,7 +8,7 @@ git_deploy_user_token = "iguazio-prod-git-user-token"
 git_deploy_user_private_key = "iguazio-prod-git-user-private-key"
 git_mlrun_ui_project = "ui"
 
-podTemplate(label: "${git_project}-${label}", inheritFrom: "jnlp-docker-golang-python37") {
+podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
     node("${git_project}-${label}") {
         pipelinex = library(identifier: 'pipelinex@development', retriever: modernSCM(
                 [$class       : 'GitSCMSource',

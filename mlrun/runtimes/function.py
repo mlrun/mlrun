@@ -622,7 +622,7 @@ def get_nuclio_deploy_status(
             api_address, name, last_log_timestamp, verbose
         )
     except DeployError:
-        return '', '', name, 0, ''
+        return "", "", name, 0, ""
 
     text = "\n".join(outputs) if outputs else ""
     return state, address, name, last_log_timestamp, text

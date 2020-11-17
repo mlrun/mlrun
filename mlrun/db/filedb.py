@@ -33,6 +33,7 @@ from ..utils import (
     logger,
     match_labels,
     match_value,
+    match_times,
     update_in,
     fill_function_hash,
     generate_object_uri,
@@ -119,6 +120,10 @@ class FileRunDB(RunDBInterface):
         sort=True,
         last=1000,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
@@ -131,6 +136,15 @@ class FileRunDB(RunDBInterface):
                 and match_labels(get_in(run, "metadata.labels", {}), labels)
                 and match_value(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
+                and match_times(
+                    start_time_from, start_time_to, run, "status.start_time",
+                )
+                and match_times(
+                    last_update_time_from,
+                    last_update_time_to,
+                    run,
+                    "status.last_update",
+                )
                 and (iter or get_in(run, "metadata.iteration", 0) == 0)
             ):
                 results.append(run)

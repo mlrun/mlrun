@@ -200,7 +200,9 @@ def match_labels(labels, conditions):
 def match_times(time_from, time_to, obj, key):
     obj_time = get_in(obj, key)
     if not obj_time:
-        return False
+
+        # if obj doesn't have the required time, return false if either time_from or time_to were given
+        return not time_from and not time_to
     obj_time = parser.isoparse(obj_time)
 
     if (time_from and time_from > obj_time) or (time_to and time_to < obj_time):

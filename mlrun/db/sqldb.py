@@ -30,16 +30,15 @@ from .base import RunDBInterface, RunDBError
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
 class SQLDB(RunDBInterface):
-    def __init__(self, dsn, session=None, projects=None):
+    def __init__(self, dsn, session=None):
         self.session = session
         self.dsn = dsn
-        self.projects = projects
         self.db = None
 
     def connect(self, secrets=None):
         if not self.session:
             self.session = create_session()
-        self.db = SQLAPIDB(self.dsn, self.projects)
+        self.db = SQLAPIDB(self.dsn)
         return self
 
     def store_log(self, uid, project="", body=b"", append=False):

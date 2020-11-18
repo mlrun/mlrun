@@ -12,10 +12,11 @@ import mlrun.api.utils.projects.consumers.nop
 import mlrun.api.utils.projects.consumers.nuclio
 import mlrun.config
 import mlrun.utils
+import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class ProjectsManager:
+class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
 
     CONSUMERS_CLASSES_MAP = {
         "mlrun": mlrun.api.utils.projects.consumers.mlrun.Consumer,

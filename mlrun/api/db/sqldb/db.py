@@ -32,6 +32,7 @@ from mlrun.api.db.sqldb.models import (
     _tagged,
     _labeled,
 )
+from mlrun.api.utils.singletons.projects_manager import get_projects_manager
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.utils import (
@@ -50,28 +51,15 @@ unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
 class SQLDB(DBInterface):
-    def __init__(self, dsn, projects=None):
+    def __init__(self, dsn):
         self.dsn = dsn
 
-        # FIXME: this is a huge hack - the cache is currently not a real cache but a replica of the DB - if the code
-        # can not find a project in the cache it will just try to create it instead of trying to get it from the db
-        # first. in some cases we need several instances of this class (see mlrun.db.sqldb) therefore they all need to
-        # have the same cache, receiving the cache here (set in python passed by reference) to enable that
-        self._projects = projects or set()  # project cache
-
     def initialize(self, session):
-        self._initialize_cache(session)
-
-    def _initialize_cache(self, session):
-        for project in self.list_projects(session):
-            self._projects.add(project.name)
-
-    def get_projects_cache(self):
-        return self._projects
+        return
 
     def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_projects_manager().ensure_project(session, project)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -104,7 +92,7 @@ class SQLDB(DBInterface):
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
-        self._ensure_project(session, project)
+        get_projects_manager().ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -214,7 +202,7 @@ class SQLDB(DBInterface):
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_projects_manager().ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -328,7 +316,7 @@ class SQLDB(DBInterface):
         self, session, function, name, project="", tag="", versioned=False
     ):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_projects_manager().ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -485,7 +473,7 @@ class SQLDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         labels: Dict = None,
     ):
-        self._ensure_project(session, project)
+        get_projects_manager().ensure_project(session, project)
         schedule = Schedule(
             project=project,
             name=name,
@@ -519,7 +507,7 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
     ):
-        self._ensure_project(session, project)
+        get_projects_manager().ensure_project(session, project)
         query = self._query(session, Schedule, project=project, name=name)
         schedule = query.one_or_none()
 
@@ -1021,7 +1009,7 @@ class SQLDB(DBInterface):
         if not name or not project:
             raise ValueError("feature-set missing name or project")
 
-        self._ensure_project(session, project)
+        get_projects_manager().ensure_project(session, project)
         tag = feature_set.metadata.tag or "latest"
 
         feature_set_dict = feature_set.dict()
@@ -1142,16 +1130,6 @@ class SQLDB(DBInterface):
         out = query.one_or_none()
         if out:
             return out[0]
-
-    def _ensure_project(self, session, name):
-        if name not in self._projects:
-
-            # fill cache from DB
-            projects = self.list_projects(session)
-            for project in projects:
-                self._projects.add(project.name)
-            if name not in self._projects:
-                self.add_project(session, {"name": name})
 
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))

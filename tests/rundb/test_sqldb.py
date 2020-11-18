@@ -13,18 +13,17 @@
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
 
-import deepdiff
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from unittest.mock import Mock
 
+import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import _tagged
-import mlrun.api.schemas
 from tests.conftest import new_run
 
 
@@ -182,31 +181,6 @@ def test_projects(db: SQLDB, db_session: Session):
     projects_output = db.list_projects(db_session)
     project_names = {project.name for project in projects_output.projects}
     assert {project.name, project_2.name} == project_names
-
-
-def test_cache_projects(db: SQLDB, db_session: Session):
-    assert 0 == len(db._projects), "empty cache"
-    name = "prj348"
-    db.add_project(db_session, {"name": name})
-    assert {name} == db._projects, "project"
-
-    mock = Mock()
-    with patch(db, add_project=mock):
-        db._ensure_project(db_session, name)
-    mock.assert_not_called()
-
-    mock = Mock()
-    with patch(db, add_project=mock):
-        db._ensure_project(db_session, name + "-new")
-    mock.assert_called_once()
-
-    project_2_name = "project-2"
-    db.add_project(db_session, {"name": project_2_name})
-    db._projects = set()
-    mock = Mock()
-    with patch(db, add_project=mock):
-        db._ensure_project(db_session, name)
-    mock.assert_not_called()
 
 
 # def test_function_latest(db: SQLDB, db_session: Session):

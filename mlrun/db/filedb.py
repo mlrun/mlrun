@@ -471,6 +471,16 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
     def list_feature_sets(
         self,
         project: str = "",
@@ -483,7 +493,14 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def update_feature_set(self, name, feature_set, project="", tag=None, uid=None):
+    def store_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+    ):
+        raise NotImplementedError()
+
+    def update_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
+    ):
         raise NotImplementedError()
 
     def delete_feature_set(self, name, project=""):

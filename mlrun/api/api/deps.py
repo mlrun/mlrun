@@ -43,7 +43,7 @@ class AuthVerifier:
         elif self._bearer_auth_required(cfg):
             if not header.startswith(self._bearer_prefix):
                 log_and_raise(
-                    HTTPStatus.UNAUTHORIZED.valueD, reason="missing bearer auth"
+                    HTTPStatus.UNAUTHORIZED.value, reason="missing bearer auth"
                 )
             token = header[len(self._bearer_prefix) :]
             if token != cfg.token:

@@ -175,8 +175,9 @@ with warnings.catch_warnings():
         state = Column(String)
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String)
+        last_run_uri = Column(String)
         struct = Column(BLOB)
-        labels = relationship(Label)
+        labels = relationship(Label, cascade="all, delete-orphan")
 
         @property
         def scheduled_object(self):
@@ -241,6 +242,9 @@ with warnings.catch_warnings():
         name = Column(String)
         value_type = Column(String)
 
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
+
     class Entity(Base):
         __tablename__ = "entities"
         id = Column(Integer, primary_key=True)
@@ -248,6 +252,9 @@ with warnings.catch_warnings():
 
         name = Column(String)
         value_type = Column(String)
+
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
 
     class FeatureSet(Base):
         __tablename__ = "feature_sets"
@@ -262,7 +269,8 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String)
         uid = Column(String)
-        _status = Column("status", JSON)
+
+        _full_object = Column("object", JSON)
 
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)
@@ -273,13 +281,13 @@ with warnings.catch_warnings():
         entities = relationship(Entity, cascade="all, delete-orphan")
 
         @property
-        def status(self):
-            if self._status:
-                return json.loads(self._status)
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
 
-        @status.setter
-        def status(self, value):
-            self._status = json.dumps(value)
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
 
 
 # Must be after all table definitions

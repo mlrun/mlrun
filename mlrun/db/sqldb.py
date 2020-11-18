@@ -224,6 +224,18 @@ class SQLDB(RunDBInterface):
             self.db.get_feature_set, self.session, project, name, tag, uid
         )
 
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_features, self.session, project, name, tag, entities, labels,
+        )
+
     def list_feature_sets(
         self,
         project: str = "",
@@ -246,15 +258,32 @@ class SQLDB(RunDBInterface):
             labels,
         )
 
-    def update_feature_set(self, name, feature_set, project="", tag=None, uid=None):
+    def store_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+    ):
         return self._transform_db_error(
-            self.db.update_feature_set,
+            self.db.store_feature_set,
             self.session,
             project,
             name,
             feature_set,
             tag,
             uid,
+            versioned,
+        )
+
+    def update_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
+    ):
+        return self._transform_db_error(
+            self.db.patch_feature_set,
+            self.session,
+            project,
+            name,
+            feature_set,
+            tag,
+            uid,
+            patch_mode,
         )
 
     def delete_feature_set(self, name, project=""):

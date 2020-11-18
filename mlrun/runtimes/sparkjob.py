@@ -27,6 +27,7 @@ from mlrun.config import config
 from .base import RunError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
+from .utils import generate_resources
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
@@ -100,6 +101,7 @@ class SparkJobSpec(KubeResourceSpec):
         service_account=None,
         image_pull_secret=None,
         driver_resources=None,
+        executor_resources=None,
         job_type=None,
         python_version=None,
         spark_version=None,
@@ -123,7 +125,8 @@ class SparkJobSpec(KubeResourceSpec):
             image_pull_secret=image_pull_secret,
         )
 
-        self.driver_resources = driver_resources
+        self.driver_resources = driver_resources or {}
+        self.executor_resources = executor_resources or {}
         self.job_type = job_type
         self.python_version = python_version
         self.spark_version = spark_version
@@ -160,11 +163,14 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
-        elif config.igz_version:
-            image_tag = (
-                "" if ":" in config.spark_app_image else ":" + config.igz_version
+        elif config.spark_app_image_tag or config.igz_version:
+            update_in(
+                job,
+                "spec.image",
+                config.spark_app_image
+                + ":"
+                + (config.spark_app_image_tag or config.igz_version),
             )
-            update_in(job, "spec.image", config.spark_app_image + image_tag)
         update_in(job, "spec.volumes", self.spec.volumes)
 
         extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
@@ -177,19 +183,73 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.executor.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.deps", self.spec.deps)
-        if "requests" in self.spec.resources:
-            if "cpu" in self.spec.resources["requests"]:
+        if "limits" in self.spec.executor_resources:
+            if "cpu" in self.spec.executor_resources["limits"]:
                 update_in(
-                    job, "spec.executor.cores", self.spec.resources["requests"]["cpu"]
+                    job,
+                    "spec.executor.coreLimit",
+                    self.spec.executor_resources["limits"]["cpu"],
                 )
-        if "limits" in self.spec.resources:
-            if "cpu" in self.spec.resources["limits"]:
+        if "requests" in self.spec.executor_resources:
+            if "cpu" in self.spec.executor_resources["requests"]:
                 update_in(
-                    job, "spec.executor.coreLimit", self.spec.resources["limits"]["cpu"]
+                    job,
+                    "spec.executor.cores",
+                    self.spec.executor_resources["requests"]["cpu"],
                 )
-            if "memory" in self.spec.resources["limits"]:
+            if "memory" in self.spec.executor_resources["requests"]:
                 update_in(
-                    job, "spec.executor.memory", self.spec.resources["limits"]["memory"]
+                    job,
+                    "spec.executor.memory",
+                    self.spec.executor_resources["requests"]["memory"],
+                )
+            gpu_type = [
+                resource_type
+                for resource_type in self.spec.executor_resources["requests"].keys()
+                if resource_type not in ["cpu", "memory"]
+            ]
+            if len(gpu_type) > 1:
+                raise ValueError("Sparkjob supports only a single gpu type")
+            if gpu_type:
+                update_in(job, "spec.executor.gpu.name", gpu_type[0])
+                update_in(
+                    job,
+                    "spec.executor.gpu.quantity",
+                    self.spec.executor_resources["requests"][gpu_type[0]],
+                )
+        if "limits" in self.spec.driver_resources:
+            if "cpu" in self.spec.driver_resources["limits"]:
+                update_in(
+                    job,
+                    "spec.driver.coreLimit",
+                    self.spec.driver_resources["limits"]["cpu"],
+                )
+        if "requests" in self.spec.driver_resources:
+            if "cpu" in self.spec.driver_resources["requests"]:
+                update_in(
+                    job,
+                    "spec.driver.cores",
+                    self.spec.driver_resources["requests"]["cpu"],
+                )
+            if "memory" in self.spec.driver_resources["requests"]:
+                update_in(
+                    job,
+                    "spec.driver.memory",
+                    self.spec.driver_resources["requests"]["memory"],
+                )
+            gpu_type = [
+                resource_type
+                for resource_type in self.spec.driver_resources["requests"].keys()
+                if resource_type not in ["cpu", "memory"]
+            ]
+            if len(gpu_type) > 1:
+                raise ValueError("Sparkjob supports only a single gpu type")
+            if gpu_type:
+                update_in(job, "spec.driver.gpu.name", gpu_type[0])
+                update_in(
+                    job,
+                    "spec.driver.gpu.quantity",
+                    self.spec.driver_resources["requests"][gpu_type[0]],
                 )
         if self.spec.command:
             if "://" not in self.spec.command:
@@ -318,6 +378,44 @@ class SparkRuntime(KubejobRuntime):
                 v3io_config_configmap="spark-operator-v3io-config",
             )
         )
+
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        raise NotImplementedError(
+            "In spark runtimes, please use with_driver_limits & with_executor_limits"
+        )
+
+    def with_requests(self, mem=None, cpu=None):
+        raise NotImplementedError(
+            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+        )
+
+    def with_executor_requests(
+        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+    ):
+        """set executor pod required cpu/memory/gpu resources"""
+        update_in(
+            self.spec.executor_resources,
+            "requests",
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
+
+    def with_executor_limits(self, cpu=None):
+        """set executor pod cpu limits"""
+        update_in(self.spec.executor_resources, "limits", generate_resources(cpu=cpu))
+
+    def with_driver_requests(
+        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+    ):
+        """set driver pod required cpu/memory/gpu resources"""
+        update_in(
+            self.spec.driver_resources,
+            "requests",
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
+
+    def with_driver_limits(self, cpu=None):
+        """set driver pod cpu limits"""
+        update_in(self.spec.driver_resources, "limits", generate_resources(cpu=cpu))
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

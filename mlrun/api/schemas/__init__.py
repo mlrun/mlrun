@@ -7,16 +7,23 @@ from .schedule import (
     ScheduleOutput,
     ScheduleCronTrigger,
     ScheduleKinds,
+    ScheduleUpdate,
     ScheduleInput,
     ScheduleRecord,
 )
 from .user import User, UserCreate, UserInDB, UserUpdate
 from .feature_store import (
     Feature,
+    FeatureRecord,
+    Entity,
+    EntityRecord,
     FeatureSetSpec,
-    FeatureSetMetadata,
     FeatureSet,
     FeatureSetRecord,
-    FeatureSetUpdate,
     FeatureSetsOutput,
+    FeatureSetDigestOutput,
+    FeatureSetDigestSpec,
+    FeatureListOutput,
+    FeaturesOutput,
 )
+from .object import ObjectMetadata, PatchMode

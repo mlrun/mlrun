@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from mlrun.api import schemas
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.model import RunObject
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -66,12 +67,52 @@ class Scheduler:
             kind=kind,
             scheduled_object=scheduled_object,
             cron_trigger=cron_trigger,
+            labels=labels,
         )
         get_db().create_schedule(
             db_session, project, name, kind, scheduled_object, cron_trigger, labels
         )
         self._create_schedule_in_scheduler(
             project, name, kind, scheduled_object, cron_trigger
+        )
+
+    def update_schedule(
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        scheduled_object: Union[Dict, Callable] = None,
+        cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
+        labels: Dict = None,
+    ):
+        if isinstance(cron_trigger, str):
+            cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+
+        if cron_trigger is not None:
+            self._validate_cron_trigger(cron_trigger)
+
+        logger.debug(
+            "Updating schedule",
+            project=project,
+            name=name,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+        )
+        get_db().update_schedule(
+            db_session, project, name, scheduled_object, cron_trigger, labels
+        )
+        db_schedule = get_db().get_schedule(db_session, project, name)
+        updated_schedule = self._transform_and_enrich_db_schedule(
+            db_session, db_schedule
+        )
+
+        self._update_schedule_in_scheduler(
+            project,
+            name,
+            updated_schedule.kind,
+            updated_schedule.scheduled_object,
+            updated_schedule.cron_trigger,
         )
 
     def list_schedules(
@@ -81,6 +122,7 @@ class Scheduler:
         name: str = None,
         kind: str = None,
         labels: str = None,
+        include_last_run: bool = False,
     ) -> schemas.SchedulesOutput:
         logger.debug(
             "Getting schedules", project=project, name=name, labels=labels, kind=kind
@@ -88,16 +130,24 @@ class Scheduler:
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
-            schedule = self._transform_db_schedule_to_schedule(db_schedule)
+            schedule = self._transform_and_enrich_db_schedule(
+                db_session, db_schedule, include_last_run
+            )
             schedules.append(schedule)
         return schemas.SchedulesOutput(schedules=schedules)
 
     def get_schedule(
-        self, db_session: Session, project: str, name: str
+        self,
+        db_session: Session,
+        project: str,
+        name: str,
+        include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
-        return self._transform_db_schedule_to_schedule(db_schedule)
+        return self._transform_and_enrich_db_schedule(
+            db_session, db_schedule, include_last_run
+        )
 
     def delete_schedule(self, db_session: Session, project: str, name: str):
         logger.debug("Deleting schedule", project=project, name=name)
@@ -109,7 +159,7 @@ class Scheduler:
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         function, args, kwargs = self._resolve_job_function(
-            db_schedule.kind, db_schedule.scheduled_object
+            db_schedule.kind, db_schedule.scheduled_object, name
         )
         return await function(*args, **kwargs)
 
@@ -174,7 +224,9 @@ class Scheduler:
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
-        function, args, kwargs = self._resolve_job_function(kind, scheduled_object)
+        function, args, kwargs = self._resolve_job_function(
+            kind, scheduled_object, name
+        )
         self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -183,6 +235,33 @@ class Scheduler:
             args,
             kwargs,
             job_id,
+        )
+
+    def _update_schedule_in_scheduler(
+        self,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+    ):
+        job_id = self._resolve_job_id(project, name)
+        logger.debug("Updating schedule in scheduler", job_id=job_id)
+        function, args, kwargs = self._resolve_job_function(
+            kind, scheduled_object, name
+        )
+        trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+            cron_trigger
+        )
+        now = datetime.now(self._scheduler.timezone)
+        next_run_time = trigger.get_next_fire_time(None, now)
+        self._scheduler.modify_job(
+            job_id,
+            func=function,
+            args=args,
+            kwargs=kwargs,
+            trigger=trigger,
+            next_run_time=next_run_time,
         )
 
     def _reload_schedules(self, db_session: Session):
@@ -205,17 +284,40 @@ class Scheduler:
                     db_schedule=db_schedule,
                 )
 
-    def _transform_db_schedule_to_schedule(
-        self, schedule_record: schemas.ScheduleRecord
+    def _transform_and_enrich_db_schedule(
+        self,
+        db_session: Session,
+        schedule_record: schemas.ScheduleRecord,
+        include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
+        schedule = schemas.ScheduleOutput(**schedule_record.dict())
+
         job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
         job = self._scheduler.get_job(job_id)
-        schedule = schemas.ScheduleOutput(**schedule_record.dict())
         schedule.next_run_time = job.next_run_time
+
+        if include_last_run:
+            schedule = self._enrich_schedule_with_last_run(db_session, schedule)
+
         return schedule
 
+    @staticmethod
+    def _enrich_schedule_with_last_run(
+        db_session: Session, schedule_output: schemas.ScheduleOutput
+    ):
+        if schedule_output.last_run_uri:
+            run_project, run_uid, iteration, _ = RunObject.parse_uri(
+                schedule_output.last_run_uri
+            )
+            run_data = get_db().read_run(db_session, run_uid, run_project, iteration)
+            schedule_output.last_run = run_data
+        return schedule_output
+
     def _resolve_job_function(
-        self, scheduled_kind: schemas.ScheduleKinds, scheduled_object: Any,
+        self,
+        scheduled_kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        schedule_name: str,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -223,7 +325,11 @@ class Scheduler:
 
         if scheduled_kind == schemas.ScheduleKinds.job:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
-            return Scheduler.submit_run_wrapper, [scheduled_object_copy], {}
+            return (
+                Scheduler.submit_run_wrapper,
+                [scheduled_object_copy, schedule_name],
+                {},
+            )
         if scheduled_kind == schemas.ScheduleKinds.local_function:
             return scheduled_object, [], {}
 
@@ -239,7 +345,7 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
-    async def submit_run_wrapper(scheduled_object):
+    async def submit_run_wrapper(scheduled_object, schedule_name):
         # import here to avoid circular imports
         from mlrun.api.api.utils import submit_run
 
@@ -254,6 +360,14 @@ class Scheduler:
         db_session = create_session()
 
         response = await submit_run(db_session, scheduled_object)
+
+        run_metadata = response["data"]["metadata"]
+        run_uri = RunObject.create_uri(
+            run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
+        )
+        get_db().update_schedule(
+            db_session, run_metadata["project"], schedule_name, last_run_uri=run_uri,
+        )
 
         close_session(db_session)
 

@@ -2,6 +2,7 @@ import asyncio
 import pathlib
 from datetime import datetime, timedelta, timezone
 from typing import Generator
+from dateutil.tz import tzlocal
 
 import pytest
 from deepdiff import DeepDiff
@@ -97,6 +98,11 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
     db_uids = [run["metadata"]["uid"] for run in runs]
     assert DeepDiff(response_uids, db_uids, ignore_order=True,) == {}
 
+    schedule = scheduler.get_schedule(db, project, schedule_name, include_last_run=True)
+    assert schedule.last_run is not None
+    assert schedule.last_run["metadata"]["uid"] == response_uids[-1]
+    assert schedule.last_run["metadata"]["project"] == project
+
 
 @pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
@@ -124,6 +130,11 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed
+
+    expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
+
+    schedule = get_db().get_schedule(db, project, schedule_name)
+    assert schedule.last_run_uri == expected_last_run_uri
 
 
 @pytest.mark.asyncio
@@ -420,6 +431,131 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     await scheduler.start(db)
     await asyncio.sleep(1)
     assert call_counter == 2
+
+
+@pytest.mark.asyncio
+async def test_update_schedule(db: Session, scheduler: Scheduler):
+    labels_1 = {
+        "label1": "value1",
+        "label2": "value2",
+    }
+    labels_2 = {
+        "label3": "value3",
+        "label4": "value4",
+    }
+    inactive_cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 0
+    scheduler.create_schedule(
+        db,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        inactive_cron_trigger,
+        labels=labels_1,
+    )
+
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
+        None,
+        labels_1,
+    )
+
+    # update labels
+    scheduler.update_schedule(
+        db, project, schedule_name, labels=labels_2,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
+        None,
+        labels_2,
+    )
+
+    # update nothing
+    scheduler.update_schedule(
+        db, project, schedule_name,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
+        None,
+        labels_2,
+    )
+
+    # update labels to empty dict
+    scheduler.update_schedule(
+        db, project, schedule_name, labels={},
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        inactive_cron_trigger,
+        None,
+        {},
+    )
+
+    # update it so it runs
+    now = datetime.now()
+    now_plus_1_second = now + timedelta(seconds=1)
+    now_plus_2_second = now + timedelta(seconds=2)
+    # this way we're leaving ourselves one second to create the schedule preventing transient test failure
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second,
+    )
+    scheduler.update_schedule(
+        db, project, schedule_name, cron_trigger=cron_trigger,
+    )
+    schedule = scheduler.get_schedule(db, project, schedule_name)
+
+    next_run_time = datetime(
+        year=now_plus_2_second.year,
+        month=now_plus_2_second.month,
+        day=now_plus_2_second.day,
+        hour=now_plus_2_second.hour,
+        minute=now_plus_2_second.minute,
+        second=now_plus_2_second.second,
+        tzinfo=tzlocal(),
+    )
+
+    _assert_schedule(
+        schedule,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        cron_trigger,
+        next_run_time,
+        {},
+    )
+
+    await asyncio.sleep(2)
+    runs = get_db().list_runs(db, project=project)
+    assert len(runs) == 1
+    assert runs[0]["status"]["state"] == RunStates.completed
 
 
 def _assert_schedule(

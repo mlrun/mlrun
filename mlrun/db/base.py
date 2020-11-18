@@ -139,6 +139,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
     def list_feature_sets(
         self,
         project: str = "",
@@ -152,13 +163,26 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_feature_set(
+    def store_feature_set(
         self,
         name,
-        feature_set: Union[dict, schemas.FeatureSetUpdate],
+        feature_set: Union[dict, schemas.FeatureSet],
         project="",
         tag=None,
         uid=None,
+        versioned=True,
+    ):
+        pass
+
+    @abstractmethod
+    def update_feature_set(
+        self,
+        name,
+        feature_set: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
         pass
 

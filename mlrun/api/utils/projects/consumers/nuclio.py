@@ -22,6 +22,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
     ):
+        logger.debug("Creating project in Nuclio", project=project)
         body = self._generate_request_body(project.name, project.description)
         self._send_request_to_api("POST", "projects", json=body)
 
@@ -31,11 +32,13 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         name: str,
         project: mlrun.api.schemas.ProjectUpdate,
     ):
+        logger.debug("Updating project in Nuclio", name=name, project=project)
         body = self._generate_request_body(name, project.description)
         # yup, Nuclio projects API PUT endpoint is /projects, not /projects/{name} - "it's not a bug it's a feature"
         self._send_request_to_api("PUT", "projects", json=body)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
+        logger.debug("Deleting project in Nuclio", name=name)
         body = self._generate_request_body(name)
         # yup, Nuclio projects API DELETE endpoint is /projects (with body), not /projects/{name}
         self._send_request_to_api("DELETE", "projects", json=body)

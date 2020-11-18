@@ -640,6 +640,7 @@ class SQLDB(DBInterface):
         return tags
 
     def create_project(self, session: Session, project: schemas.ProjectCreate):
+        logger.debug("Creating project in DB", project=project)
         project = Project(
             name=project.name,
             description=project.description,
@@ -653,6 +654,7 @@ class SQLDB(DBInterface):
     def update_project(
         self, session: Session, name: str, project: schemas.ProjectUpdate
     ):
+        logger.debug("Updating project in DB", name=name, project=project)
         project_record = self._get_project(session, name)
         project_dict = project.dict()
         project_dict.setdefault("name", name)
@@ -690,6 +692,7 @@ class SQLDB(DBInterface):
         return project
 
     def delete_project(self, session: Session, name: str):
+        logger.debug("Deleting project from DB", name=name)
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)

@@ -30,6 +30,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         project_names = self.list_projects(session, full=False)
         if name in project_names.projects:
             return
+        logger.info(
+            "Ensure project called, but project does not exist. Creating", name=name
+        )
         self.create_project(session, mlrun.api.schemas.ProjectCreate(name=name))
 
     def create_project(

@@ -1,1 +1,2 @@
 xgboost>=1.1
+scikit-plot~=0.3

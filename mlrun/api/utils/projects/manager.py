@@ -16,23 +16,11 @@ from mlrun.utils import logger
 
 
 class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
-    def __init__(self):
-        self._master_consumer = self._initialize_consumer(
-            mlrun.config.config.httpdb.projects.master_consumer
-        )
-        consumers = (
-            mlrun.config.config.httpdb.projects.consumers.split(",")
-            if mlrun.config.config.httpdb.projects.consumers
-            else []
-        )
-        self._consumers = {
-            consumer: self._initialize_consumer(consumer) for consumer in consumers
-        }
+    def start(self):
+        self._initialize_consumers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
         )
-
-    def start(self):
         self._start_periodic_sync()
 
     def stop(self):
@@ -176,6 +164,19 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
             for consumer_name, consumer in self._consumers.items()
         }
         return master_response, consumer_responses
+
+    def _initialize_consumers(self):
+        self._master_consumer = self._initialize_consumer(
+            mlrun.config.config.httpdb.projects.master_consumer
+        )
+        consumers = (
+            mlrun.config.config.httpdb.projects.consumers.split(",")
+            if mlrun.config.config.httpdb.projects.consumers
+            else []
+        )
+        self._consumers = {
+            consumer: self._initialize_consumer(consumer) for consumer in consumers
+        }
 
     def _initialize_consumer(
         self, name: str

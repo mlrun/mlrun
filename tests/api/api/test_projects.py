@@ -1,46 +1,62 @@
+import deepdiff
 from http import HTTPStatus
 from uuid import uuid4
+import mlrun.api.schemas
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 
-def test_project(db: Session, client: TestClient) -> None:
+def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
-    prj1 = {
-        "name": name1,
-        "owner": "u0",
-        "description": "banana",
-        # 'users': ['u1', 'u2'],
-    }
-    resp = client.post("/api/project", json=prj1)
-    assert resp.status_code == HTTPStatus.OK.value, "add"
-    resp = client.get(f"/api/project/{name1}")
-    out = {key: val for key, val in resp.json()["project"].items() if val}
-    # out['users'].sort()
-    for key, value in prj1.items():
-        assert out[key] == value
+    project_1 = mlrun.api.schemas.ProjectCreate(
+        name=name1, owner="owner", description="banana"
+    )
 
-    data = {"description": "lemon", "name": name1}
-    resp = client.post(f"/api/project/{name1}", json=data)
-    assert resp.status_code == HTTPStatus.OK.value, "update"
-    resp = client.get(f"/api/project/{name1}")
-    assert name1 == resp.json()["project"]["name"], "name after update"
+    # create
+    response = client.post("/api/projects", json=project_1.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # read
+    response = client.get(f"/api/projects/{name1}")
+    project_output = mlrun.api.schemas.ProjectOutput(**response.json())
+    assert (
+        deepdiff.DeepDiff(
+            project_1.dict(),
+            project_output.project.dict(exclude={"id", "created"}),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # update
+    project_update = mlrun.api.schemas.ProjectUpdate(description="lemon")
+    response = client.put(f"/api/projects/{name1}", json=project_update.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # read
+    response = client.get(f"/api/project/{name1}")
+    assert project_update.description == response.json()["project"]["description"]
 
     name2 = f"prj-{uuid4().hex}"
-    prj2 = {
-        "name": name2,
-        "owner": "u0",
-        "description": "banana",
-        # 'users': ['u1', 'u3'],
-    }
-    resp = client.post("/api/project", json=prj2)
-    assert resp.status_code == HTTPStatus.OK.value, "add (2)"
+    project_2 = mlrun.api.schemas.ProjectCreate(
+        name=name2, owner="owner", description="banana"
+    )
 
-    resp = client.get("/api/projects")
-    expected = {name1, name2}
-    assert expected.issubset(set(resp.json()["projects"])), "list"
+    # create
+    response = client.post("/api/projects", json=project_2.dict())
+    assert response.status_code == HTTPStatus.OK.value
 
-    resp = client.get("/api/projects?full=true")
-    projects = resp.json()["projects"]
-    assert {dict} == set(type(p) for p in projects), "dict"
+    # list
+    response = client.get("/api/projects", params={"full": False})
+    expected = [name1, name2]
+    assert expected == response.json()["projects"]
+
+    # delete
+    response = client.delete(f"/api/projects/{name1}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    # list
+    response = client.get("/api/projects", params={"full": False})
+    expected = [name2]
+    assert expected == response.json()["projects"]

@@ -24,7 +24,7 @@ def create_project(
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
 # TODO: remove the wrong route (/project/{name}) before 0.6.0 is out after UI change to new route
 @router.post("/project/{name}")
-@router.post("/projects/{name}", response_model=schemas.ProjectOutput)
+@router.put("/projects/{name}", response_model=schemas.ProjectOutput)
 def update_project(
     project: schemas.ProjectUpdate,
     name: str,

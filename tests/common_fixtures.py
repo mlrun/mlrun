@@ -8,10 +8,18 @@ import v3io.dataplane
 
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.projects_manager
+import mlrun.config
 from mlrun.api.db.sqldb.db import SQLDB
 from tests.conftest import init_sqldb
 
 session_maker: Callable
+
+
+@pytest.fixture(autouse=True)
+# if we'll just call it config it may be overridden by other fixtures with the same name
+def config_do_not_override():
+    # reload config so that values overridden by tests won't pass to other tests
+    mlrun.config.config.reload()
 
 
 @pytest.fixture

@@ -21,19 +21,14 @@ MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``
    quick-start
    general
    install
-   external/remote.md
+   remote.md
    end-to-end-pipeline
    data-management-and-versioning
    projects
+   load-from-marketplace
    job-submission-and-tracking
    model-management-and-serving
    examples
-   api
+   cli
+   api/index
 
-
-Indices and Tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

@@ -1,4 +1,3 @@
-from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List
 
@@ -8,8 +7,9 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.singletons import get_db
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.utils import logger
+from mlrun.utils.helpers import datetime_from_iso
 
 router = APIRouter()
 
@@ -27,7 +27,7 @@ async def store_run(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     logger.debug(data)
     await run_in_threadpool(
@@ -50,7 +50,7 @@ async def update_run(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     logger.debug(data)
     await run_in_threadpool(
@@ -92,15 +92,17 @@ def list_runs(
     project: str = None,
     name: str = None,
     uid: str = None,
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     state: str = None,
     last: int = 0,
-    sort: str = "on",
-    iter: str = "on",
+    sort: bool = True,
+    iter: bool = True,
+    start_time_from: str = None,
+    start_time_to: str = None,
+    last_update_time_from: str = None,
+    last_update_time_to: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    sort = strtobool(sort)
-    iter = strtobool(iter)
     runs = get_db().list_runs(
         db_session,
         name=name,
@@ -111,6 +113,10 @@ def list_runs(
         sort=sort,
         last=last,
         iter=iter,
+        start_time_from=datetime_from_iso(start_time_from),
+        start_time_to=datetime_from_iso(start_time_to),
+        last_update_time_from=datetime_from_iso(last_update_time_from),
+        last_update_time_to=datetime_from_iso(last_update_time_to),
     )
     return {
         "runs": runs,
@@ -122,7 +128,7 @@ def list_runs(
 def del_runs(
     project: str = None,
     name: str = None,
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     state: str = None,
     days_ago: int = 0,
     db_session: Session = Depends(deps.get_db_session),

@@ -15,6 +15,8 @@ ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
@@ -38,13 +40,17 @@ RUN python -m pip install --upgrade --no-cache pip
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/*requirements.txt ./
-
 COPY ./requirements.txt ./
+COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
+COPY ./dev-requirements.txt ./
+COPY ./docs/requirements.txt ./docs-requirements.txt
 
 RUN pip install \
+    -r requirements.txt \
+    -r mlrun-api-requirements.txt \
     -r dev-requirements.txt \
-    -r api-requirements.txt \
-    -r requirements.txt
+    -r docs-requirements.txt
 
 COPY . .
+
+RUN python setup.py develop

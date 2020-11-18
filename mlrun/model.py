@@ -13,12 +13,16 @@
 # limitations under the License.
 
 import inspect
+import warnings
+from collections import OrderedDict
 from copy import deepcopy
 from os import environ
+import re
+import typing
 
+from .config import config
 from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
-from .config import config
 
 
 class ModelObj:
@@ -27,16 +31,16 @@ class ModelObj:
     @staticmethod
     def _verify_list(param, name):
         if not isinstance(param, list):
-            raise ValueError(f'parameter {name} must be a list')
+            raise ValueError(f"parameter {name} must be a list")
 
     @staticmethod
     def _verify_dict(param, name, new_type=None):
         if (
             param is not None
             and not isinstance(param, dict)
-            and not hasattr(param, 'to_dict')
+            and not hasattr(param, "to_dict")
         ):
-            raise ValueError(f'parameter {name} must be a dict or object')
+            raise ValueError(f"parameter {name} must be a dict or object")
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
         return param
@@ -50,7 +54,7 @@ class ModelObj:
             if not exclude or t not in exclude:
                 val = getattr(self, t, None)
                 if val is not None and not (isinstance(val, dict) and not val):
-                    if hasattr(val, 'to_dict'):
+                    if hasattr(val, "to_dict"):
                         val = val.to_dict()
                         if val:
                             struct[t] = val
@@ -78,13 +82,162 @@ class ModelObj:
         return dict_to_json(self.to_dict())
 
     def to_str(self):
-        return '{}'.format(self.to_dict())
+        return "{}".format(self.to_dict())
 
     def __str__(self):
         return str(self.to_dict())
 
     def copy(self):
         return deepcopy(self)
+
+
+# model class for building ModelObj dictionaries
+class ObjectDict:
+    def __init__(self, classes_map, default_kind=""):
+        self._children = OrderedDict()
+        self._default_kind = default_kind
+        self._classes_map = classes_map
+
+    def values(self):
+        return self._children.values()
+
+    def keys(self):
+        return self._children.keys()
+
+    def items(self):
+        return self._children.items()
+
+    def __len__(self):
+        return len(self._children)
+
+    def __iter__(self):
+        yield from self._children.keys()
+
+    def __getitem__(self, name):
+        return self._children[name]
+
+    def __setitem__(self, key, item):
+        self._children[key] = self._get_child_object(item, key)
+
+    def __delitem__(self, key):
+        del self._children[key]
+
+    def update(self, key, item):
+        child = self._get_child_object(item, key)
+        self._children[key] = child
+        return child
+
+    def to_dict(self):
+        return {k: v.to_dict() for k, v in self._children.items()}
+
+    @classmethod
+    def from_dict(cls, classes_map: dict, children=None, default_kind=""):
+        if children is None:
+            return cls(classes_map, default_kind)
+        if not isinstance(children, dict):
+            raise ValueError("children must be a dict")
+
+        new_obj = cls(classes_map, default_kind)
+        for name, child in children.items():
+            child_obj = new_obj._get_child_object(child, name)
+            new_obj._children[name] = child_obj
+
+        return new_obj
+
+    def _get_child_object(self, child, name):
+        if hasattr(child, "kind") and child.kind in self._classes_map.keys():
+            child.name = name
+            return child
+        elif isinstance(child, dict):
+            kind = child.get("kind", self._default_kind)
+            if kind not in self._classes_map.keys():
+                raise ValueError(f"illegal object kind {kind}")
+            child_obj = self._classes_map[kind].from_dict(child)
+            child_obj.name = name
+            return child_obj
+        else:
+            raise ValueError(f"illegal child (should be dict or child kind), {child}")
+
+    def to_yaml(self):
+        return dict_to_yaml(self.to_dict())
+
+    def to_json(self):
+        return dict_to_json(self.to_dict())
+
+    def to_str(self):
+        return "{}".format(self.to_dict())
+
+    def __str__(self):
+        return str(self.to_dict())
+
+    def copy(self):
+        return deepcopy(self)
+
+
+class ObjectList:
+    def __init__(self, child_class):
+        self._children = OrderedDict()
+        self._child_class = child_class
+
+    def values(self):
+        return self._children.values()
+
+    def keys(self):
+        return self._children.keys()
+
+    def items(self):
+        return self._children.items()
+
+    def __len__(self):
+        return len(self._children)
+
+    def __iter__(self):
+        yield from self._children.values()
+
+    def __getitem__(self, name):
+        if isinstance(name, int):
+            return list(self._children.values())[name]
+        return self._children[name]
+
+    def __setitem__(self, key, item):
+        self.update(item, key)
+
+    def __delitem__(self, key):
+        del self._children[key]
+
+    def to_dict(self):
+        # method used by ModelObj class to serialize the object to nested dict
+        return [t.to_dict() for t in self._children.values()]
+
+    @classmethod
+    def from_list(cls, child_class, children=None):
+        if children is None:
+            return cls(child_class)
+        if not isinstance(children, list):
+            raise ValueError("states must be a list")
+
+        new_obj = cls(child_class)
+        for child in children:
+            name, child_obj = new_obj._get_child_object(child)
+            new_obj._children[name] = child_obj
+        return new_obj
+
+    def _get_child_object(self, child):
+        if isinstance(child, self._child_class):
+            return child.name, child
+        elif isinstance(child, dict):
+            if "name" not in child.keys():
+                raise ValueError("illegal object no 'name' field")
+            child_obj = self._child_class.from_dict(child)
+            return child_obj.name, child_obj
+        else:
+            raise ValueError(f"illegal child (should be dict or child kind), {child}")
+
+    def update(self, child, name=None):
+        object_name, child_obj = self._get_child_object(child)
+        child_obj.name = name or object_name
+        self._children[child_obj.name] = child_obj
+        return child_obj
 
 
 class BaseMetadata(ModelObj):
@@ -126,7 +279,7 @@ class ImageBuilder(ModelObj):
         registry=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
-        self.codeEntryType = ''  #: codeEntryType
+        self.codeEntryType = ""  #: codeEntryType
         self.source = source  #: course
         self.code_origin = code_origin  #: code_origin
         self.image = image  #: image
@@ -184,6 +337,7 @@ class RunSpec(ModelObj):
         data_stores=None,
         tuning_strategy=None,
         verbose=None,
+        scrape_metrics=False,
     ):
 
         self.parameters = parameters or {}
@@ -200,11 +354,12 @@ class RunSpec(ModelObj):
         self._secret_sources = secret_sources or []
         self._data_stores = data_stores
         self.verbose = verbose
+        self.scrape_metrics = scrape_metrics
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=['handler'])
+        struct = super().to_dict(fields, exclude=["handler"])
         if self.handler and isinstance(self.handler, str):
-            struct['handler'] = self.handler
+            struct["handler"] = self.handler
         return struct
 
     @property
@@ -213,7 +368,7 @@ class RunSpec(ModelObj):
 
     @inputs.setter
     def inputs(self, inputs):
-        self._inputs = self._verify_dict(inputs, 'inputs')
+        self._inputs = self._verify_dict(inputs, "inputs")
 
     @property
     def outputs(self):
@@ -221,7 +376,7 @@ class RunSpec(ModelObj):
 
     @outputs.setter
     def outputs(self, outputs):
-        self._verify_list(outputs, 'outputs')
+        self._verify_list(outputs, "outputs")
         self._outputs = outputs
 
     @property
@@ -230,7 +385,7 @@ class RunSpec(ModelObj):
 
     @secret_sources.setter
     def secret_sources(self, secret_sources):
-        self._verify_list(secret_sources, 'secret_sources')
+        self._verify_list(secret_sources, "secret_sources")
         self._secret_sources = secret_sources
 
     @property
@@ -239,7 +394,7 @@ class RunSpec(ModelObj):
 
     @data_stores.setter
     def data_stores(self, data_stores):
-        self._verify_list(data_stores, 'data_stores')
+        self._verify_list(data_stores, "data_stores")
         self._data_stores = data_stores
 
     @property
@@ -249,7 +404,7 @@ class RunSpec(ModelObj):
                 return self.handler.__name__
             else:
                 return str(self.handler)
-        return ''
+        return ""
 
 
 class RunStatus(ModelObj):
@@ -268,7 +423,7 @@ class RunStatus(ModelObj):
         last_update=None,
         iterations=None,
     ):
-        self.state = state or 'created'
+        self.state = state or "created"
         self.status_text = status_text
         self.error = error
         self.host = host
@@ -295,7 +450,7 @@ class RunTemplate(ModelObj):
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', RunSpec)
+        self._spec = self._verify_dict(spec, "spec", RunSpec)
 
     @property
     def metadata(self) -> RunMetadata:
@@ -303,7 +458,7 @@ class RunTemplate(ModelObj):
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, 'metadata', RunMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", RunMetadata)
 
     def with_params(self, **kwargs):
         self.spec.parameters = kwargs
@@ -341,7 +496,7 @@ class RunTemplate(ModelObj):
 
         :returns: project object
         """
-        self.spec.secret_sources.append({'kind': kind, 'source': source})
+        self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
     def set_label(self, key, value):
@@ -349,7 +504,7 @@ class RunTemplate(ModelObj):
         return self
 
     def to_env(self):
-        environ['MLRUN_EXEC_CONFIG'] = self.to_json()
+        environ["MLRUN_EXEC_CONFIG"] = self.to_json()
 
 
 class RunObject(RunTemplate):
@@ -375,7 +530,7 @@ class RunObject(RunTemplate):
 
     @status.setter
     def status(self, status):
-        self._status = self._verify_dict(status, 'status', RunStatus)
+        self._status = self._verify_dict(status, "status", RunStatus)
 
     def output(self, key):
         if self.status.results and key in self.status.results:
@@ -392,13 +547,13 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                outputs[a['key']] = get_artifact_target(a, self.metadata.project)
+                outputs[a["key"]] = get_artifact_target(a, self.metadata.project)
         return outputs
 
     def artifact(self, key):
         if self.status.artifacts:
             for a in self.status.artifacts:
-                if a['key'] == key:
+                if a["key"] == key:
                     return a
         return None
 
@@ -413,7 +568,7 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            return get_in(run, 'status.state', 'unknown')
+            return get_in(run, "status.state", "unknown")
 
     def show(self):
         db = get_run_db().connect()
@@ -423,10 +578,10 @@ class RunObject(RunTemplate):
         if not db:
             db = get_run_db().connect()
         if not db:
-            print('DB is not configured, cannot show logs')
+            print("DB is not configured, cannot show logs")
             return None
 
-        if db.kind == 'http':
+        if db.kind == "http":
             state = db.watch_log(self.metadata.uid, self.metadata.project, watch=watch)
         else:
             state, text = db.get_log(self.metadata.uid, self.metadata.project)
@@ -434,10 +589,35 @@ class RunObject(RunTemplate):
                 print(text.decode())
 
         if state:
-            print('final state: {}'.format(state))
+            print("final state: {}".format(state))
         return state
 
+    @staticmethod
+    def create_uri(project: str, uid: str, iteration: str, tag: str = ""):
+        if tag:
+            tag = f":{tag}"
+        return f"{project}@{uid}#{iteration}{tag}"
 
+    @staticmethod
+    def parse_uri(uri: str) -> typing.Tuple[str, str, str, str]:
+        uri_pattern = (
+            r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
+        )
+        match = re.match(uri_pattern, uri)
+        if not match:
+            raise ValueError(
+                "Uri not in supported format <project>@<uid>#<iteration>[:tag]"
+            )
+        group_dict = match.groupdict()
+        return (
+            group_dict["project"],
+            group_dict["uid"],
+            group_dict["iteration"],
+            group_dict["tag"],
+        )
+
+
+# TODO: remove in 0.9.0
 def NewTask(
     name=None,
     project=None,
@@ -455,7 +635,73 @@ def NewTask(
     secrets=None,
     base=None,
 ):
-    """Create new task"""
+    """Creates a new task - see new_task
+    """
+    warnings.warn(
+        "NewTask will be deprecated in 0.7.0, and will be removed in 0.9.0, use new_task instead",
+        # TODO: In 0.7.0 and replace NewTask to new_task in examples & demos
+        PendingDeprecationWarning,
+    )
+    return new_task(
+        name,
+        project,
+        handler,
+        params,
+        hyper_params,
+        param_file,
+        selector,
+        tuning_strategy,
+        inputs,
+        outputs,
+        in_path,
+        out_path,
+        artifact_path,
+        secrets,
+        base,
+    )
+
+
+def new_task(
+    name=None,
+    project=None,
+    handler=None,
+    params=None,
+    hyper_params=None,
+    param_file=None,
+    selector=None,
+    tuning_strategy=None,
+    inputs=None,
+    outputs=None,
+    in_path=None,
+    out_path=None,
+    artifact_path=None,
+    secrets=None,
+    base=None,
+):
+    """Creates a new task
+
+    :param name:            task name
+    :param project:         task project
+    :param handler          code entry-point/hanfler name
+    :param params:          input parameters (dict)
+    :param hyper_params:    dictionary of hyper parameters and list values, each
+                            hyper param holds a list of values, the run will be
+                            executed for every parameter combination (GridSearch)
+    :param param_file:      a csv file with parameter combinations, first row hold
+                            the parameter names, following rows hold param values
+    :param selector:        selection criteria for hyper params e.g. "max.accuracy"
+    :param tuning_strategy: selection strategy for hyper params e.g. list, grid, random
+    :param inputs:          dictionary of input objects + optional paths (if path is
+                            omitted the path will be the in_path/key.
+    :param outputs:         dictionary of input objects + optional paths (if path is
+                            omitted the path will be the out_path/key.
+    :param in_path:         default input path/url (prefix) for inputs
+    :param out_path:        default output path/url (prefix) for artifacts
+    :param artifact_path:   default artifact output path
+    :param secrets:         extra secrets specs, will be injected into the runtime
+                            e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
+    :param base:            task instance to use as a base instead of a fresh new task instance
+    """
 
     if base:
         run = deepcopy(base)

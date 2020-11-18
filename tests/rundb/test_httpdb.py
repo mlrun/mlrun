@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import codecs
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -30,45 +31,45 @@ from mlrun import RunObject
 from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
-Server = namedtuple('Server', 'url conn workdir')
+Server = namedtuple("Server", "url conn workdir")
 
-docker_tag = 'mlrun/test-api'
+docker_tag = "mlrun/test-api"
 
 
 def free_port():
     with socket() as sock:
-        sock.bind(('localhost', 0))
+        sock.bind(("localhost", 0))
         return sock.getsockname()[1]
 
 
 def check_server_up(url):
-    health_url = f'{url}/api/healthz'
+    health_url = f"{url}/api/healthz"
     timeout = 30
     if not wait_for_server(health_url, timeout):
-        raise RuntimeError(f'server did not start after {timeout} sec')
+        raise RuntimeError(f"server did not start after {timeout} sec")
 
 
-def create_workdir(root_dir='/tmp'):
-    return mkdtemp(prefix='mlrun-test-', dir=root_dir)
+def create_workdir(root_dir="/tmp"):
+    return mkdtemp(prefix="mlrun-test-", dir=root_dir)
 
 
 def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
-    env['MLRUN_httpdb__port'] = str(port)
+    env["MLRUN_httpdb__port"] = str(port)
     env[
-        'MLRUN_httpdb__dsn'
-    ] = f'sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false'
-    env['MLRUN_httpdb__logs_path'] = workdir
+        "MLRUN_httpdb__dsn"
+    ] = f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
+    env["MLRUN_httpdb__logs_path"] = workdir
     env.update(env_config or {})
     cmd = [
         executable,
-        '-m',
-        'mlrun.api.main',
+        "-m",
+        "mlrun.api.main",
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
-    url = f'http://localhost:{port}'
+    url = f"http://localhost:{port}"
     check_server_up(url)
 
     return proc, url
@@ -82,41 +83,41 @@ def docker_fixture():
 
         env_config = {} if env_config is None else env_config
         cmd = [
-            'docker',
-            'build',
-            '-f',
-            'dockerfiles/mlrun-api/Dockerfile',
-            '--tag',
+            "docker",
+            "build",
+            "-f",
+            "dockerfiles/mlrun-api/Dockerfile",
+            "--tag",
             docker_tag,
-            '.',
+            ".",
         ]
         run(cmd, check=True, stdout=PIPE, cwd=project_dir_path)
-        workdir = create_workdir(root_dir='/tmp')
+        workdir = create_workdir(root_dir="/tmp")
 
         cmd = [
-            'docker',
-            'run',
-            '--detach',
-            '--publish',
-            '8080',
+            "docker",
+            "run",
+            "--detach",
+            "--publish",
+            "8080",
             # For debugging
-            '--volume',
-            f'{workdir}:/tmp',
+            "--volume",
+            f"{workdir}:/tmp",
         ]
 
-        env_config.setdefault('MLRUN_httpdb__logs_path', '/tmp')
+        env_config.setdefault("MLRUN_httpdb__logs_path", "/tmp")
         for key, value in env_config.items():
-            cmd.extend(['--env', f'{key}={value}'])
+            cmd.extend(["--env", f"{key}={value}"])
         cmd.append(docker_tag)
         out = run(cmd, stdout=PIPE, check=True)
-        container_id = out.stdout.decode('utf-8').strip()
+        container_id = out.stdout.decode("utf-8").strip()
 
         # retrieve container bind port + host
-        out = run(['docker', 'port', container_id, '8080'], stdout=PIPE, check=True)
-        host = out.stdout.decode('utf-8').strip()
+        out = run(["docker", "port", container_id, "8080"], stdout=PIPE, check=True)
+        host = out.stdout.decode("utf-8").strip()
 
-        url = f'http://{host}'
-        print(f'api url: {url}')
+        url = f"http://{host}"
+        print(f"api url: {url}")
         check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
@@ -124,7 +125,7 @@ def docker_fixture():
 
     def cleanup():
         if container_id:
-            run(['docker', 'rm', '--force', container_id], stdout=DEVNULL)
+            run(["docker", "rm", "--force", container_id], stdout=DEVNULL)
         if workdir:
             rmtree(workdir)
 
@@ -132,20 +133,26 @@ def docker_fixture():
 
 
 def server_fixture():
-    proc = None
+    process = None
     workdir = None
 
     def create(env=None):
-        nonlocal proc, workdir
+        nonlocal process, workdir
         workdir = create_workdir()
-        proc, url = start_server(workdir, env)
+        process, url = start_server(workdir, env)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(url, conn, workdir)
 
     def cleanup():
-        if proc:
-            proc.terminate()
+        if process:
+            process.terminate()
+            stdout = process.stdout.read()
+            human_readable_stdout = codecs.escape_decode(stdout)[0].decode("utf-8")
+            stderr = process.stderr.read()
+            human_readable_stderr = codecs.escape_decode(stderr)[0].decode("utf-8")
+            print(f"Stdout from server {human_readable_stdout}")
+            print(f"Stderr from server {human_readable_stderr}")
         if workdir:
             rmtree(workdir)
 
@@ -153,14 +160,14 @@ def server_fixture():
 
 
 servers = [
-    'server',
-    'docker',
+    "server",
+    "docker",
 ]
 
 
-@pytest.fixture(scope='function', params=servers)
+@pytest.fixture(scope="function", params=servers)
 def create_server(request):
-    if request.param == 'server':
+    if request.param == "server":
         create, cleanup = server_fixture()
     else:
         create, cleanup = docker_fixture()
@@ -174,29 +181,30 @@ def create_server(request):
 def test_log(create_server):
     server: Server = create_server()
     db = server.conn
-    prj, uid, body = 'p19', '3920', b'log data'
+    prj, uid, body = "p19", "3920", b"log data"
+    db.store_run({"asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
     state, data = db.get_log(uid, prj)
-    assert data == body, 'bad log data'
+    assert data == body, "bad log data"
 
 
 def test_run(create_server):
     server: Server = create_server()
     db = server.conn
-    prj, uid = 'p18', '3i920'
+    prj, uid = "p18", "3i920"
     run_as_dict = RunObject().to_dict()
-    run_as_dict['metadata'].update({'algorithm': 'svm', 'C': 3})
+    run_as_dict["metadata"].update({"algorithm": "svm", "C": 3})
     db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)
-    assert data == run_as_dict, 'read_run'
+    assert data == run_as_dict, "read_run"
 
     new_c = 4
-    updates = {'metadata.C': new_c}
+    updates = {"metadata.C": new_c}
     db.update_run(updates, uid, prj)
     data = db.read_run(uid, prj)
-    assert data['metadata']['C'] == new_c, 'update_run'
+    assert data["metadata"]["C"] == new_c, "update_run"
 
     db.del_run(uid, prj)
 
@@ -206,28 +214,28 @@ def test_runs(create_server):
     db = server.conn
 
     runs = db.list_runs()
-    assert not runs, 'found runs in new db'
+    assert not runs, "found runs in new db"
     count = 7
 
-    prj = 'p180'
+    prj = "p180"
     run_as_dict = RunObject().to_dict()
     for i in range(count):
-        uid = f'uid_{i}'
+        uid = f"uid_{i}"
         db.store_run(run_as_dict, uid, prj)
 
     runs = db.list_runs(project=prj)
-    assert len(runs) == count, 'bad number of runs'
+    assert len(runs) == count, "bad number of runs"
 
-    db.del_runs(project=prj, state='created')
+    db.del_runs(project=prj, state="created")
     runs = db.list_runs(project=prj)
-    assert not runs, 'found runs in after delete'
+    assert not runs, "found runs in after delete"
 
 
 def test_artifact(create_server):
     server: Server = create_server()
     db = server.conn
 
-    prj, uid, key, body = 'p7', 'u199', 'k800', 'cucumber'
+    prj, uid, key, body = "p7", "u199", "k800", "cucumber"
     artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
@@ -238,23 +246,23 @@ def test_artifact(create_server):
 def test_artifacts(create_server):
     server: Server = create_server()
     db = server.conn
-    prj, uid, key, body = 'p9', 'u19', 'k802', 'tomato'
+    prj, uid, key, body = "p9", "u19", "k802", "tomato"
     artifact = Artifact(key, body)
 
     db.store_artifact(key, artifact, uid, project=prj)
-    artifacts = db.list_artifacts(project=prj, tag='*')
-    assert len(artifacts) == 1, 'bad number of artifacs'
+    artifacts = db.list_artifacts(project=prj, tag="*")
+    assert len(artifacts) == 1, "bad number of artifacs"
 
-    db.del_artifacts(project=prj, tag='*')
-    artifacts = db.list_artifacts(project=prj, tag='*')
-    assert len(artifacts) == 0, 'bad number of artifacs after del'
+    db.del_artifacts(project=prj, tag="*")
+    artifacts = db.list_artifacts(project=prj, tag="*")
+    assert len(artifacts) == 0, "bad number of artifacs after del"
 
 
 def test_basic_auth(create_server):
-    user, passwd = 'bugs', 'bunny'
+    user, passwd = "bugs", "bunny"
     env = {
-        'MLRUN_httpdb__user': user,
-        'MLRUN_httpdb__password': passwd,
+        "MLRUN_httpdb__user": user,
+        "MLRUN_httpdb__password": passwd,
     }
     server: Server = create_server(env)
 
@@ -269,8 +277,8 @@ def test_basic_auth(create_server):
 
 
 def test_bearer_auth(create_server):
-    token = 'banana'
-    env = {'MLRUN_httpdb__token': token}
+    token = "banana"
+    env = {"MLRUN_httpdb__token": token}
     server: Server = create_server(env)
 
     db: HTTPRunDB = server.conn
@@ -286,31 +294,101 @@ def test_set_get_function(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 
-    func, name, proj = {'x': 1, 'y': 2}, 'f1', 'p2'
+    func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
     tag = uuid4().hex
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
 
     # db methods enriches metadata and status
-    del db_func['metadata']
-    del db_func['status']
-    assert db_func == func, 'wrong func'
+    del db_func["metadata"]
+    del db_func["status"]
+    assert db_func == func, "wrong func"
 
 
 def test_list_functions(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 
-    proj = 'p4'
+    proj = "p4"
     count = 5
     for i in range(count):
-        name = f'func{i}'
-        func = {'fid': i}
+        name = f"func{i}"
+        func = {"fid": i}
         tag = uuid4().hex
         db.store_function(func, name, proj, tag=tag)
-    db.store_function({}, 'f2', 'p7', tag=uuid4().hex)
+    db.store_function({}, "f2", "p7", tag=uuid4().hex)
 
     functions = db.list_functions(project=proj)
     for function in functions:
-        assert function['metadata']['tag'] is not None
-    assert len(functions) == count, 'bad list'
+        assert function["metadata"]["tag"] is not None
+    assert len(functions) == count, "bad list"
+
+
+def _create_feature_set(name):
+    return {
+        "metadata": {
+            "name": name,
+            "labels": {"owner": "saarc", "group": "dev"},
+            "tag": "latest",
+        },
+        "spec": {
+            "entities": [
+                {
+                    "name": "ticker",
+                    "value_type": "str",
+                    "labels": {"type": "prod"},
+                    "extra_field": 100,
+                }
+            ],
+            "features": [
+                {"name": "time", "value_type": "datetime", "extra_field": "value1"},
+                {"name": "bid", "value_type": "float"},
+                {"name": "ask", "value_type": "time"},
+            ],
+        },
+        "status": {
+            "state": "created",
+            "stats": {
+                "time": {
+                    "count": "8",
+                    "unique": "7",
+                    "top": "2016-05-25 13:30:00.222222",
+                }
+            },
+        },
+        "some_other_field": "blabla",
+    }
+
+
+def test_feature_sets(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    count = 5
+    for i in range(count):
+        name = f"fs_{i}"
+        feature_set = _create_feature_set(name)
+        db.create_feature_set(feature_set, project=project, versioned=True)
+
+    # Test store_feature_set, which allows updates as well as inserts
+    db.store_feature_set(name, feature_set, project=project, versioned=True)
+
+    feature_set_update = {
+        "spec": {
+            "features": [{"name": "looks", "value_type": "str", "description": "good"}],
+        }
+    }
+
+    # additive mode means add the feature to the features-list
+    db.update_feature_set(
+        name, feature_set_update, project, tag="latest", patch_mode="additive"
+    )
+    feature_sets = db.list_feature_sets(project=project)
+
+    assert (
+        len(feature_sets.feature_sets) == count
+    ), "bad list results - wrong number of members"
+
+    feature_set = db.get_feature_set(name, project)
+    assert len(feature_set.spec.features) == 4

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.sqldb.helpers import to_dict as db2dict, table2cls
-from mlrun.api.singletons import get_db
+from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ async def tag_objects(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     objs = await run_in_threadpool(_tag_objects, db_session, data, project, name)
     return {
@@ -72,7 +72,7 @@ def _tag_objects(db_session, data, project, name):
         cls = table2cls(typ)
         if cls is None:
             err = f"unknown type - {typ}"
-            log_and_raise(HTTPStatus.BAD_REQUEST, reason=err)
+            log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=err)
         # {"name": "bugs"} -> [Function.name=="bugs"]
         db_query = [getattr(cls, key) == value for key, value in query.items()]
         # TODO: Change _query to query?

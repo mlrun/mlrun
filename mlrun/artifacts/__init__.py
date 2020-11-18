@@ -15,10 +15,10 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 # Don't remove this, used by sphinx documentation
-__all__ = ['get_model', 'update_model']
+__all__ = ["get_model", "update_model"]
 
 from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
-from .base import Artifact
+from .base import Artifact, get_artifact_meta
 from .plots import PlotArtifact, ChartArtifact
-from .dataset import TableArtifact, DatasetArtifact
+from .dataset import TableArtifact, DatasetArtifact, update_dataset_meta
 from .model import ModelArtifact, get_model, update_model

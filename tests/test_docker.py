@@ -19,10 +19,10 @@ from uuid import uuid4
 
 import pytest
 
-from tests.conftest import here, in_docker, wait_for_server
+from tests.conftest import tests_root_directory, in_docker, wait_for_server
 
-prj_dir = here.parent
-is_ci = 'CI' in environ
+prj_dir = tests_root_directory.parent
+is_ci = "CI" in environ
 
 
 should_run = (not in_docker) and is_ci
@@ -31,24 +31,24 @@ should_run = (not in_docker) and is_ci
 @contextmanager
 def clean_docker(cmd, tag):
     yield
-    run(['docker', cmd, '-f', tag])
+    run(["docker", cmd, "-f", tag])
 
 
-@pytest.mark.skipif(not should_run, reason='in docker container or not CI')
+@pytest.mark.skipif(not should_run, reason="in docker container or not CI")
 def test_docker():
-    tag = f'mlrun/test-{uuid4().hex}'
+    tag = f"mlrun/test-{uuid4().hex}"
     cid = None
 
-    cmd = ['docker', 'build', '-f', 'dockerfiles/mlrun-api/Dockerfile', '-t', tag, '.']
+    cmd = ["docker", "build", "-f", "dockerfiles/mlrun-api/Dockerfile", "-t", tag, "."]
     run(cmd, cwd=prj_dir, check=True)
-    with clean_docker('rmi', tag):
+    with clean_docker("rmi", tag):
         port = 8080
-        cmd = ['docker', 'run', '--detach', '-p', f'{port}:{port}', tag]
+        cmd = ["docker", "run", "--detach", "-p", f"{port}:{port}", tag]
         out = run(cmd, stdout=PIPE, check=True)
-        cid = out.stdout.decode('utf-8').strip()
-        with clean_docker('rm', cid):
-            url = f'http://localhost:{port}/api/healthz'
+        cid = out.stdout.decode("utf-8").strip()
+        with clean_docker("rm", cid):
+            url = f"http://localhost:{port}/api/healthz"
             timeout = 30
             assert wait_for_server(
                 url, timeout
-            ), f'server failed to start after {timeout} seconds, url={url}'
+            ), f"server failed to start after {timeout} seconds, url={url}"

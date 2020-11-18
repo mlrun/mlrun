@@ -14,6 +14,9 @@
 
 import warnings
 from abc import ABC, abstractmethod
+from typing import List, Any, Dict
+
+from mlrun.api import schemas
 
 
 class DBError(Exception):
@@ -57,6 +60,10 @@ class DBInterface(ABC):
         sort=True,
         last=0,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         pass
 
@@ -80,7 +87,16 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_artifacts(
-        self, session, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        session,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        kind=None,
+        category: schemas.ArtifactCategories = None,
     ):
         pass
 
@@ -112,19 +128,146 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, session, name, project="", tag="", labels=None):
+    def delete_function(self, session, project: str, name: str):
         pass
 
     @abstractmethod
-    def store_schedule(self, session, data):
+    def list_functions(self, session, name=None, project="", tag="", labels=None):
         pass
 
     @abstractmethod
-    def list_schedules(self, session):
+    def create_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+        labels: Dict = None,
+    ):
         pass
 
-    def list_projects(self, session):
+    @abstractmethod
+    def update_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        scheduled_object: Any = None,
+        cron_trigger: schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+    ):
+        pass
+
+    @abstractmethod
+    def list_schedules(
+        self,
+        session,
+        project: str = None,
+        name: str = None,
+        labels: str = None,
+        kind: schemas.ScheduleKinds = None,
+    ) -> List[schemas.ScheduleRecord]:
+        pass
+
+    @abstractmethod
+    def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleRecord:
+        pass
+
+    @abstractmethod
+    def delete_schedule(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def list_projects(self, session, owner=None):
         return []
+
+    @abstractmethod
+    def get_project(self, session, name=None, project_id=None):
+        pass
+
+    @abstractmethod
+    def add_project(self, session, project: dict):
+        pass
+
+    @abstractmethod
+    def update_project(self, session, name, data: dict):
+        pass
+
+    @abstractmethod
+    def delete_project(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def create_feature_set(
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    ):
+        pass
+
+    @abstractmethod
+    def store_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set: schemas.FeatureSet,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        pass
+
+    @abstractmethod
+    def get_feature_set(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
+        pass
+
+    @abstractmethod
+    def list_features(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_feature_sets(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureSetsOutput:
+        pass
+
+    @abstractmethod
+    def patch_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set_update: dict,
+        tag=None,
+        uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_feature_set(self, session, project, name):
+        pass
 
     def list_artifact_tags(self, session, project):
         return []

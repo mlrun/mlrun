@@ -2,14 +2,10 @@ ARG CUDA_VER=10.1
 
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
-
-ARG OMPI=4.0.3
-ARG MLRUN_GITHUB_REPO=mlrun
-
-ARG MLRUN_PACKAGE_TAG=development
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
@@ -18,6 +14,7 @@ ENV PATH /opt/conda/bin:$PATH
 SHELL ["/bin/bash", "-cu"]
 
 RUN apt-get update && \
+    apt-mark hold libcublas-dev libcublas10 && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -62,6 +59,8 @@ RUN mkdir -p /var/run/sshd && \
     mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config && \
     svn checkout https://github.com/horovod/horovod/trunk/examples && \
     rm -rf /examples/.svn
+
+ARG OMPI=4.0.3
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -121,18 +120,24 @@ RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
 RUN conda clean -aqy
 
+# TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
+    #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
-    HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
+    MAKEFLAGS="-j1" HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install horovod && \
     ldconfig
+
+WORKDIR /mlrun
 
 # remove dask verify version mismatch warnings
 COPY ./dockerfiles/models-gpu/requirements.txt ./
 
 RUN python -m pip install -r requirements.txt
 
-RUN python -m pip install \
-    git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+COPY . .
+RUN python -m pip install .
 
+ARG MLRUN_MLUTILS_GITHUB_TAG=development
+ARG MLRUN_MLUTILS_CACHE_DATE=initial
 RUN python -m pip install \
     git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

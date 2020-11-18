@@ -5,16 +5,16 @@ from mlrun import get_or_create_ctx
 from pyspark.sql import SparkSession
 
 # Acquire MLRun context
-mlctx = get_or_create_ctx('spark-function')
+mlctx = get_or_create_ctx("spark-function")
 
 # Get MLRun parameters
-mlctx.logger.info('!@!@!@!@!@ Getting env variables')
-READ_OPTIONS = mlctx.get_param('data_sources')
-QUERY = mlctx.get_param('query')
-WRITE_OPTIONS = mlctx.get_param('write_options')
+mlctx.logger.info("!@!@!@!@!@ Getting env variables")
+READ_OPTIONS = mlctx.get_param("data_sources")
+QUERY = mlctx.get_param("query")
+WRITE_OPTIONS = mlctx.get_param("write_options")
 
 # Create spark session
-spark = SparkSession.builder.appName('Spark function').getOrCreate()
+spark = SparkSession.builder.appName("Spark function").getOrCreate()
 
 
 # Loading data from a JDBC source
@@ -25,5 +25,5 @@ for data_source in READ_OPTIONS:
 spark.sql(QUERY).write.save(**WRITE_OPTIONS)
 
 # write the result datadrame to destination
-mlctx.logger.info('!@!@!@!@!@ Saved')
+mlctx.logger.info("!@!@!@!@!@ Saved")
 spark.stop()

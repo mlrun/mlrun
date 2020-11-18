@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends, Request, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.api.singletons import get_db
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -29,7 +30,7 @@ async def store_artifact(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     logger.debug(data)
     await run_in_threadpool(
@@ -91,10 +92,14 @@ def list_artifacts(
     project: str = config.default_project,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query([], alias='label'),
+    kind: str = None,
+    category: schemas.ArtifactCategories = None,
+    labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    artifacts = get_db().list_artifacts(db_session, name, project, tag, labels)
+    artifacts = get_db().list_artifacts(
+        db_session, name, project, tag, labels, kind=kind, category=category,
+    )
     return {
         "artifacts": artifacts,
     }
@@ -106,7 +111,7 @@ def del_artifacts(
     project: str = "",
     name: str = "",
     tag: str = "",
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     get_db().del_artifacts(db_session, name, project, tag, labels)

@@ -16,6 +16,7 @@ from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
 from .base import RunDBInterface, RunDBError
+from typing import List
 
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
@@ -39,22 +40,22 @@ class SQLDB(RunDBInterface):
         self.db = SQLAPIDB(self.dsn, self.projects)
         return self
 
-    def store_log(self, uid, project='', body=b'', append=False):
+    def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(
             self.db.store_log, self.session, uid, project, body, append
         )
 
-    def get_log(self, uid, project='', offset=0, size=0):
+    def get_log(self, uid, project="", offset=0, size=0):
         return self._transform_db_error(
             self.db.get_log, self.session, uid, project, offset, size
         )
 
-    def store_run(self, struct, uid, project='', iter=0):
+    def store_run(self, struct, uid, project="", iter=0):
         return self._transform_db_error(
             self.db.store_run, self.session, struct, uid, project, iter
         )
 
-    def update_run(self, updates: dict, uid, project='', iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0):
         return self._transform_db_error(
             self.db.update_run, self.session, updates, uid, project, iter
         )
@@ -98,12 +99,12 @@ class SQLDB(RunDBInterface):
             self.db.del_runs, self.session, name, project, labels, state, days_ago
         )
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag='', project=''):
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         return self._transform_db_error(
             self.db.store_artifact, self.session, key, artifact, uid, iter, tag, project
         )
 
-    def read_artifact(self, key, tag='', iter=None, project=''):
+    def read_artifact(self, key, tag="", iter=None, project=""):
         return self._transform_db_error(
             self.db.read_artifact, self.session, key, tag, iter, project
         )
@@ -122,17 +123,17 @@ class SQLDB(RunDBInterface):
             until,
         )
 
-    def del_artifact(self, key, tag='', project=''):
+    def del_artifact(self, key, tag="", project=""):
         return self._transform_db_error(
             self.db.del_artifact, self.session, key, tag, project
         )
 
-    def del_artifacts(self, name='', project='', tag='', labels=None):
+    def del_artifacts(self, name="", project="", tag="", labels=None):
         return self._transform_db_error(
             self.db.del_artifacts, self.session, name, project, tag, labels
         )
 
-    def store_function(self, function, name, project='', tag='', versioned=False):
+    def store_function(self, function, name, project="", tag="", versioned=False):
         return self._transform_db_error(
             self.db.store_function,
             self.session,
@@ -143,12 +144,17 @@ class SQLDB(RunDBInterface):
             versioned,
         )
 
-    def get_function(self, name, project='', tag='', hash_key=''):
+    def get_function(self, name, project="", tag="", hash_key=""):
         return self._transform_db_error(
             self.db.get_function, self.session, name, project, tag, hash_key
         )
 
-    def list_functions(self, name, project=None, tag=None, labels=None):
+    def delete_function(self, name: str, project: str = ""):
+        return self._transform_db_error(
+            self.db.delete_function, self.session, project, name
+        )
+
+    def list_functions(self, name=None, project=None, tag=None, labels=None):
         return self._transform_db_error(
             self.db.list_functions, self.session, name, project, tag, labels
         )
@@ -188,6 +194,9 @@ class SQLDB(RunDBInterface):
             self.db.update_project, self.session, name, data
         )
 
+    def delete_project(self, name: str):
+        return self._transform_db_error(self.db.delete_project, self.session, name)
+
     def get_project(self, name=None, project_id=None):
         return self._transform_db_error(
             self.db.get_project, self.session, name, project_id
@@ -202,3 +211,82 @@ class SQLDB(RunDBInterface):
             return func(*args, **kwargs)
         except DBError as exc:
             raise RunDBError(exc.args)
+
+    def create_feature_set(self, feature_set, project="", versioned=True):
+        return self._transform_db_error(
+            self.db.create_feature_set, self.session, project, feature_set, versioned
+        )
+
+    def get_feature_set(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ):
+        return self._transform_db_error(
+            self.db.get_feature_set, self.session, project, name, tag, uid
+        )
+
+    def list_features(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_features, self.session, project, name, tag, entities, labels,
+        )
+
+    def list_feature_sets(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_feature_sets,
+            self.session,
+            project,
+            name,
+            tag,
+            state,
+            entities,
+            features,
+            labels,
+        )
+
+    def store_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+    ):
+        return self._transform_db_error(
+            self.db.store_feature_set,
+            self.session,
+            project,
+            name,
+            feature_set,
+            tag,
+            uid,
+            versioned,
+        )
+
+    def update_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
+    ):
+        return self._transform_db_error(
+            self.db.patch_feature_set,
+            self.session,
+            project,
+            name,
+            feature_set,
+            tag,
+            uid,
+            patch_mode,
+        )
+
+    def delete_feature_set(self, name, project=""):
+        return self._transform_db_error(
+            self.db.delete_feature_set, self.session, project, name
+        )

@@ -2,7 +2,7 @@ from sklearn import metrics
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from ..artifacts import PlotArtifact, TableArtifact
+from ..artifacts import PlotArtifact
 import pandas as pd
 import numpy as np
 from scipy import interp
@@ -47,7 +47,7 @@ def feature_importances(model, header):
 
     return (
         PlotArtifact(
-            "feature-importances", body=plt.gcf(), title='Feature Importances'
+            "feature-importances", body=plt.gcf(), title="Feature Importances"
         ),
         feature_imp,
     )
@@ -87,9 +87,7 @@ def plot_importance(
 
     # feature importances are also saved as a csv table (generally small):
     fname = key + "-tbl.csv"
-    return context.log_artifact(
-        TableArtifact(key + "-tbl", df=feature_imp), local_path=fname
-    )
+    return context.log_dataset(key + "-tbl", df=feature_imp, local_path=fname)
 
 
 def learning_curves(model):
@@ -122,22 +120,22 @@ def learning_curves(model):
 
         plt.clf()  # gcf_clear(plt)
         fig, ax = plt.subplots()
-        plt.xlabel('# training examples')
-        plt.ylabel('auc')
-        plt.title('learning curve - auc')
-        ax.plot(learning_curves.train_auc, label='train')
-        ax.plot(learning_curves.valid_auc, label='valid')
-        ax.legend(loc='lower left')
+        plt.xlabel("# training examples")
+        plt.ylabel("auc")
+        plt.title("learning curve - auc")
+        ax.plot(learning_curves.train_auc, label="train")
+        ax.plot(learning_curves.valid_auc, label="valid")
+        ax.legend(loc="lower left")
         plots.append(PlotArtifact("learning curve - auc", body=plt.gcf()))
 
         plt.clf()  # gcf_clear(plt)
         fig, ax = plt.subplots()
-        plt.xlabel('# training examples')
-        plt.ylabel('error rate')
-        plt.title('learning curve - error')
-        ax.plot(learning_curves.train_error, label='train')
-        ax.plot(learning_curves.valid_error, label='valid')
-        ax.legend(loc='lower left')
+        plt.xlabel("# training examples")
+        plt.ylabel("error rate")
+        plt.title("learning curve - error")
+        ax.plot(learning_curves.train_error, label="train")
+        ax.plot(learning_curves.valid_error, label="valid")
+        ax.legend(loc="lower left")
         plots.append(PlotArtifact("learning curve - taoot", body=plt.gcf()))
 
     # elif some other model history api...
@@ -145,13 +143,13 @@ def learning_curves(model):
     return plots
 
 
-def confusion_matrix(model, xtest, ytest, cmap='Blues'):
+def confusion_matrix(model, xtest, ytest, cmap="Blues"):
     cmd = metrics.plot_confusion_matrix(
         model,
         xtest,
         ytest,
-        normalize='all',
-        values_format='.2g',
+        normalize="all",
+        values_format=".2g",
         cmap=plt.get_cmap(cmap),
     )
     # for now only 1, add different views to this array for display in UI
@@ -159,13 +157,12 @@ def confusion_matrix(model, xtest, ytest, cmap='Blues'):
     return PlotArtifact(
         "confusion-matrix-normalized",
         body=cmd.figure_,
-        title='Confusion Matrix - Normalized Plot',
+        title="Confusion Matrix - Normalized Plot",
     )
 
 
 def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
-    """
-    """
+    """"""
     n_classes = len(labels)
 
     precision = dict()
@@ -184,7 +181,7 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     # model_metrics.update({'precision-micro-avg-classes': ap_micro})
 
     # gcf_clear(plt)
-    colors = cycle(['navy', 'turquoise', 'darkorange', 'cornflowerblue', 'teal'])
+    colors = cycle(["navy", "turquoise", "darkorange", "cornflowerblue", "teal"])
     plt.figure()
     f_scores = np.linspace(0.2, 0.8, num=4)
     lines = []
@@ -192,39 +189,38 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     for f_score in f_scores:
         x = np.linspace(0.01, 1)
         y = f_score * x / (2 * x - f_score)
-        (l,) = plt.plot(x[y >= 0], y[y >= 0], color='gray', alpha=0.2)
-        plt.annotate('f1={0:0.1f}'.format(f_score), xy=(0.9, y[45] + 0.02))
+        (l,) = plt.plot(x[y >= 0], y[y >= 0], color="gray", alpha=0.2)
+        plt.annotate("f1={0:0.1f}".format(f_score), xy=(0.9, y[45] + 0.02))
 
     lines.append(l)
-    labels.append('iso-f1 curves')
-    (l,) = plt.plot(recall["micro"], precision["micro"], color='gold', lw=10)
+    labels.append("iso-f1 curves")
+    (l,) = plt.plot(recall["micro"], precision["micro"], color="gold", lw=10)
     lines.append(l)
-    labels.append(f'micro-average precision-recall (area = {ap_micro:0.2f})')
+    labels.append(f"micro-average precision-recall (area = {ap_micro:0.2f})")
 
     for i, color in zip(range(n_classes), colors):
         (l,) = plt.plot(recall[i], precision[i], color=color, lw=2)
         lines.append(l)
-        labels.append(f'precision-recall for class {i} (area = {avg_prec[i]:0.2f})')
+        labels.append(f"precision-recall for class {i} (area = {avg_prec[i]:0.2f})")
 
     # fig = plt.gcf()
     # fig.subplots_adjust(bottom=0.25)
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
-    plt.xlabel('recall')
-    plt.ylabel('precision')
-    plt.title('precision recall - multiclass')
+    plt.xlabel("recall")
+    plt.ylabel("precision")
+    plt.title("precision recall - multiclass")
     plt.legend(lines, labels, loc=(0, -0.41), prop=dict(size=10))
 
     return PlotArtifact(
         "precision-recall-multiclass",
         body=plt.gcf(),
-        title='Multiclass Precision Recall',
+        title="Multiclass Precision Recall",
     )
 
 
 def roc_multi(ytest_b, yprob, labels):
-    """
-    """
+    """"""
     n_classes = len(labels)
 
     # Compute ROC curve and ROC area for each class
@@ -260,72 +256,70 @@ def roc_multi(ytest_b, yprob, labels):
     plt.plot(
         fpr["micro"],
         tpr["micro"],
-        label='micro-average ROC curve (area = {0:0.2f})' ''.format(roc_auc["micro"]),
-        color='deeppink',
-        linestyle=':',
+        label="micro-average ROC curve (area = {0:0.2f})" "".format(roc_auc["micro"]),
+        color="deeppink",
+        linestyle=":",
         linewidth=4,
     )
 
     plt.plot(
         fpr["macro"],
         tpr["macro"],
-        label='macro-average ROC curve (area = {0:0.2f})' ''.format(roc_auc["macro"]),
-        color='navy',
-        linestyle=':',
+        label="macro-average ROC curve (area = {0:0.2f})" "".format(roc_auc["macro"]),
+        color="navy",
+        linestyle=":",
         linewidth=4,
     )
 
-    colors = cycle(['aqua', 'darkorange', 'cornflowerblue'])
+    colors = cycle(["aqua", "darkorange", "cornflowerblue"])
     for i, color in zip(range(n_classes), colors):
         plt.plot(
             fpr[i],
             tpr[i],
             color=color,
             lw=2,
-            label='ROC curve of class {0} (area = {1:0.2f})' ''.format(i, roc_auc[i]),
+            label="ROC curve of class {0} (area = {1:0.2f})" "".format(i, roc_auc[i]),
         )
 
-    plt.plot([0, 1], [0, 1], 'k--', lw=2)
+    plt.plot([0, 1], [0, 1], "k--", lw=2)
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('receiver operating characteristic - multiclass')
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("receiver operating characteristic - multiclass")
     plt.legend(loc=(0, -0.68), prop=dict(size=10))
 
-    return PlotArtifact("roc-multiclass", body=plt.gcf(), title='Multiclass ROC Curve')
+    return PlotArtifact("roc-multiclass", body=plt.gcf(), title="Multiclass ROC Curve")
 
 
 def roc_bin(ytest, yprob, clear: bool = False):
-    """
-    """
+    """"""
     # ROC plot
     if clear:
         gcf_clear(plt)
     fpr, tpr, _ = metrics.roc_curve(ytest, yprob)
     plt.figure()
-    plt.plot([0, 1], [0, 1], 'k--')
-    plt.plot(fpr, tpr, label='a label')
-    plt.xlabel('false positive rate')
-    plt.ylabel('true positive rate')
-    plt.title('roc curve')
-    plt.legend(loc='best')
+    plt.plot([0, 1], [0, 1], "k--")
+    plt.plot(fpr, tpr, label="a label")
+    plt.xlabel("false positive rate")
+    plt.ylabel("true positive rate")
+    plt.title("roc curve")
+    plt.legend(loc="best")
 
-    return PlotArtifact("roc-binary", body=plt.gcf(), title='Binary ROC Curve')
+    return PlotArtifact("roc-binary", body=plt.gcf(), title="Binary ROC Curve")
 
 
 def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
-    """
-    """
+    """"""
     if clear:
         gcf_clear(plt)
     disp = metrics.plot_precision_recall_curve(model, xtest, ytest)
     disp.ax_.set_title(
-        f'precision recall: AP={metrics.average_precision_score(ytest, yprob):0.2f}'
+        f"precision recall: AP={metrics.average_precision_score(ytest, yprob):0.2f}"
     )
 
     return PlotArtifact(
-        "precision-recall-binary", body=disp.figure_, title='Binary Precision Recall'
+        "precision-recall-binary", body=disp.figure_, title="Binary Precision Recall"
     )
 
 

@@ -14,11 +14,9 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from mlrun.config import config
-from mlrun.k8s_utils import get_k8s_helper
 from .base import RunError, BaseRuntime, BaseRuntimeHandler  # noqa
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
-from .function import RemoteRuntime, new_model_server  # noqa
+from .function import RemoteRuntime
 from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import (
@@ -29,24 +27,68 @@ from .mpijob import (
 )  # noqa
 from .constants import MPIJobCRDVersions
 from .nuclio import nuclio_init_hook
-from .serving import MLModelServer
+from .serving import ServingRuntime, new_v2_model_server
+
+# for legacy imports (MLModelServer moved from here to /serving)
+from ..serving import MLModelServer, new_v1_model_server  # noqa
 from .sparkjob import SparkRuntime, SparkRuntimeHandler  # noqa
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
 
+def new_model_server(
+    name,
+    model_class: str,
+    models: dict = None,
+    filename="",
+    protocol="",
+    image="",
+    endpoint="",
+    explainer=False,
+    workers=8,
+    canary=None,
+    handler=None,
+):
+    if protocol:
+        return new_v2_model_server(
+            name,
+            model_class,
+            models=models,
+            filename=filename,
+            protocol=protocol,
+            image=image,
+            endpoint=endpoint,
+            workers=workers,
+            canary=canary,
+        )
+    else:
+        return new_v1_model_server(
+            name,
+            model_class,
+            models=models,
+            filename=filename,
+            protocol=protocol,
+            image=image,
+            endpoint=endpoint,
+            workers=workers,
+            canary=canary,
+        )
+
+
 class RuntimeKinds(object):
-    remote = 'remote'
-    nuclio = 'nuclio'
-    dask = 'dask'
-    job = 'job'
-    spark = 'spark'
-    mpijob = 'mpijob'
+    remote = "remote"
+    nuclio = "nuclio"
+    dask = "dask"
+    job = "job"
+    spark = "spark"
+    mpijob = "mpijob"
+    serving = "serving"
 
     @staticmethod
     def all():
         return [
             RuntimeKinds.remote,
             RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
             RuntimeKinds.dask,
             RuntimeKinds.job,
             RuntimeKinds.spark,
@@ -60,6 +102,14 @@ class RuntimeKinds(object):
             RuntimeKinds.job,
             RuntimeKinds.spark,
             RuntimeKinds.mpijob,
+        ]
+
+    @staticmethod
+    def nuclio_runtimes():
+        return [
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
         ]
 
 
@@ -108,6 +158,7 @@ def get_runtime_class(kind: str):
     kind_runtime_map = {
         RuntimeKinds.remote: RemoteRuntime,
         RuntimeKinds.nuclio: RemoteRuntime,
+        RuntimeKinds.serving: ServingRuntime,
         RuntimeKinds.dask: DaskCluster,
         RuntimeKinds.job: KubejobRuntime,
         RuntimeKinds.spark: SparkRuntime,

@@ -26,15 +26,15 @@ class SecretsStore:
         store = cls()
         if src_list and isinstance(src_list, list):
             for src in src_list:
-                store.add_source(src['kind'], src.get('source'), src.get('prefix', ''))
+                store.add_source(src["kind"], src.get("source"), src.get("prefix", ""))
         return store
 
     def to_dict(self, struct):
         pass
 
-    def add_source(self, kind, source='', prefix=''):
+    def add_source(self, kind, source="", prefix=""):
 
-        if kind == 'inline':
+        if kind == "inline":
             if isinstance(source, str):
                 source = literal_eval(source)
             if not isinstance(source, dict):
@@ -42,24 +42,24 @@ class SecretsStore:
             for k, v in source.items():
                 self._secrets[prefix + k] = str(v)
 
-        elif kind == 'file':
+        elif kind == "file":
             with open(source) as fp:
                 lines = fp.read().splitlines()
                 secrets_dict = list2dict(lines)
                 for k, v in secrets_dict.items():
                     self._secrets[prefix + k] = str(v)
 
-        elif kind == 'env':
-            for key in source.split(','):
+        elif kind == "env":
+            for key in source.split(","):
                 k = key.strip()
                 self._secrets[prefix + k] = environ.get(k)
 
     def get(self, key, default=None):
         return self._secrets.get(key, default)
 
-    def get_all(self):
-        return self._secrets.copy()
+    def items(self):
+        return self._secrets.copy().items()
 
     def to_serial(self):
         # todo: use encryption
-        return [{'kind': 'inline', 'source': self._secrets.copy()}]
+        return [{"kind": "inline", "source": self._secrets.copy()}]

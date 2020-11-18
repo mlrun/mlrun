@@ -15,61 +15,61 @@
 from sys import executable, stderr
 from subprocess import run, PIPE
 from tests.conftest import (
-    here,
+    tests_root_directory,
     examples_path,
     root_path,
 )
 
 
 def exec_main(op, args):
-    cmd = [executable, '-m', 'mlrun', op]
+    cmd = [executable, "-m", "mlrun", op]
     if args:
         cmd += args
     out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=root_path)
     if out.returncode != 0:
-        print(out.stderr.decode('utf-8'), file=stderr)
-        raise Exception(out.stderr.decode('utf-8'))
-    return out.stdout.decode('utf-8')
+        print(out.stderr.decode("utf-8"), file=stderr)
+        raise Exception(out.stderr.decode("utf-8"))
+    return out.stdout.decode("utf-8")
 
 
 def exec_run(cmd, args, test):
-    args = args + ['--name', test, '--dump', cmd]
-    return exec_main('run', args)
+    args = args + ["--name", test, "--dump", cmd]
+    return exec_main("run", args)
 
 
-def compose_param_list(params: dict, flag='-p'):
+def compose_param_list(params: dict, flag="-p"):
     composed_params = []
     for k, v in params.items():
-        composed_params += [flag, f'{k}={v}']
+        composed_params += [flag, f"{k}={v}"]
     return composed_params
 
 
 def test_main_run_basic():
     out = exec_run(
-        f'{examples_path}/training.py',
+        f"{examples_path}/training.py",
         compose_param_list(dict(p1=5, p2='"aaa"')),
-        'test_main_run_basic',
+        "test_main_run_basic",
     )
     print(out)
-    assert out.find('state: completed') != -1, out
+    assert out.find("state: completed") != -1, out
 
 
 def test_main_run_hyper():
     out = exec_run(
-        f'{examples_path}/training.py',
-        compose_param_list(dict(p2=[4, 5, 6]), '-x'),
-        'test_main_run_hyper',
+        f"{examples_path}/training.py",
+        compose_param_list(dict(p2=[4, 5, 6]), "-x"),
+        "test_main_run_hyper",
     )
     print(out)
-    assert out.find('state: completed') != -1, out
-    assert out.find('iterations:') != -1, out
+    assert out.find("state: completed") != -1, out
+    assert out.find("iterations:") != -1, out
 
 
 def test_main_run_noctx():
     out = exec_run(
-        f'{here}/no_ctx.py',
-        ['--mode', 'noctx'] + compose_param_list(dict(p1=5, p2='"aaa"')),
-        'test_main_run_noctx',
+        f"{tests_root_directory}/no_ctx.py",
+        ["--mode", "noctx"] + compose_param_list(dict(p1=5, p2='"aaa"')),
+        "test_main_run_noctx",
     )
     print(out)
-    assert out.find('state: completed') != -1, out
+    assert out.find("state: completed") != -1, out

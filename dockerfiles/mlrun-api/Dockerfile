@@ -15,25 +15,30 @@ ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
 RUN apt-get update && apt-get install -y \
   gcc \
   git-core \
-  vim
+  sqlite3 \
+  procps \
+  vim \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade --no-cache pip
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/*requirements.txt ./
+COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
 
 COPY ./requirements.txt ./
 
 RUN python -m pip install \
-    -r api-requirements.txt \
-    -r requirements.txt
+    -r requirements.txt \
+    -r mlrun-api-requirements.txt
 
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080

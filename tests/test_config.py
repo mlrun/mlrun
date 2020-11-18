@@ -20,7 +20,7 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 
-ns_env_key = f'{mlconf.env_prefix}NAMESPACE'
+ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 
 
 @pytest.fixture
@@ -55,38 +55,38 @@ def patch_env(kw):
 
 
 def test_nothing(config):
-    expected = mlconf.default_config['namespace']
-    assert config.namespace == expected, 'namespace changed'
+    expected = mlconf.default_config["namespace"]
+    assert config.namespace == expected, "namespace changed"
 
 
 def create_yaml_config(**kw):
-    tmp = NamedTemporaryFile(mode='wt', suffix='.yml', delete=False)
+    tmp = NamedTemporaryFile(mode="wt", suffix=".yml", delete=False)
     yaml.dump(kw, tmp, default_flow_style=False)
     tmp.flush()
     return tmp.name
 
 
 def test_file(config):
-    ns = 'banana'
+    ns = "banana"
     config_path = create_yaml_config(namespace=ns)
 
     with patch_env({mlconf.env_file_key: config_path}):
         mlconf.config.reload()
 
-    assert config.namespace == ns, 'not populated from file'
+    assert config.namespace == ns, "not populated from file"
 
 
 def test_env(config):
-    ns = 'orange'
+    ns = "orange"
     with patch_env({ns_env_key: ns}):
         mlconf.config.reload()
 
-    assert config.namespace == ns, 'not populated from env'
+    assert config.namespace == ns, "not populated from env"
 
 
 def test_env_override(config):
-    env_ns = 'daffy'
-    config_ns = 'bugs'
+    env_ns = "daffy"
+    config_ns = "bugs"
 
     config_path = create_yaml_config(namespace=config_ns)
     env = {
@@ -97,11 +97,11 @@ def test_env_override(config):
     with patch_env(env):
         mlconf.config.reload()
 
-    assert config.namespace == env_ns, 'env did not override'
+    assert config.namespace == env_ns, "env did not override"
 
 
 def test_can_set(config):
-    config._cfg['x'] = {'y': 10}
+    config._cfg["x"] = {"y": 10}
     val = 90
     config.x.y = val
-    assert config.x.y == val, 'bad config update'
+    assert config.x.y == val, "bad config update"

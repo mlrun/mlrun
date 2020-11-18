@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import orjson
+import json
 import pickle
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     BLOB,
+    JSON,
     TIMESTAMP,
     Column,
     ForeignKey,
@@ -28,6 +31,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+
+from mlrun.api import schemas
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -156,11 +161,39 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         labels = relationship(Label)
 
-    class Schedule(Base, HasStruct):
-        __tablename__ = "schedules"
+    class Schedule(Base):
+        __tablename__ = "schedules_v2"
+        __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
+
+        Label = make_label(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        body = Column(BLOB)
+        project = Column(String, nullable=False)
+        name = Column(String, nullable=False)
+        kind = Column(String)
+        desired_state = Column(String)
+        state = Column(String)
+        creation_time = Column(TIMESTAMP)
+        cron_trigger_str = Column(String)
+        last_run_uri = Column(String)
+        struct = Column(BLOB)
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+        @property
+        def scheduled_object(self):
+            return pickle.loads(self.struct)
+
+        @scheduled_object.setter
+        def scheduled_object(self, value):
+            self.struct = pickle.dumps(value)
+
+        @property
+        def cron_trigger(self) -> schemas.ScheduleCronTrigger:
+            return orjson.loads(self.cron_trigger_str)
+
+        @cron_trigger.setter
+        def cron_trigger(self, trigger: schemas.ScheduleCronTrigger):
+            self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
 
     # Define "many to many" users/projects
     project_users = Table(
@@ -201,7 +234,64 @@ with warnings.catch_warnings():
         def spec(self, value):
             self._spec = pickle.dumps(value)
 
+    class Feature(Base):
+        __tablename__ = "features"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+
+        name = Column(String)
+        value_type = Column(String)
+
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+    class Entity(Base):
+        __tablename__ = "entities"
+        id = Column(Integer, primary_key=True)
+        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+
+        name = Column(String)
+        value_type = Column(String)
+
+        Label = make_label(__tablename__)
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+    class FeatureSet(Base):
+        __tablename__ = "feature_sets"
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String)
+        uid = Column(String)
+
+        _full_object = Column("object", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+        features = relationship(Feature, cascade="all, delete-orphan")
+        entities = relationship(Entity, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
+
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]
+_labeled = [cls for cls in Base.__subclasses__() if hasattr(cls, "Label")]
+_classes = [cls for cls in Base.__subclasses__()]
 _table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}

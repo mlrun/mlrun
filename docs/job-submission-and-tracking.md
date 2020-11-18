@@ -20,11 +20,11 @@
   - [Using the MLRun CLI to Run an MLRun Service](#using-the-mlrun-cli-to-run-an-mlrun-service)
 
 ##  Experiment Tracking
-Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find 3 main sections within the your project:
-1. [**Artifacts**](#artifact): Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs
-2. [**Functions**](#functions): The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions)
-3. [**Jobs**](#jobs): Allows you to review anything you executed, and review the execution outcome
-4. [**Pipelines**](#pipelines): Reusable end-to-end ML workflows
+Experiment tracking enables you to store every action and result in your project. It is a convenient way to go back to previous results and compare different artifacts. You will find the following sections within your project:
+1. [**Artifacts**](#artifact): Any data stored is considered an artifact. Artifacts are versioned and enable you to compare different outputs of the executed Jobs.
+2. [**Functions**](#functions): The code in your project is stored in functions that are versioned. Functions can the functions you wrote, or externally loaded functions, such as functions that originate from the [MLRun Functions Marketplace](https://github.com/mlrun/functions).
+3. [**Jobs**](#jobs): Allows you to review anything you executed, and review the execution outcome.
+4. [**Pipelines**](#pipelines): Reusable end-to-end ML workflows.
 
 You can compare different experiments and review these results. When using experiment tracking you don't have to worry about saving your work as you try out different models and various configurations, you can always compare your different results and choose the best strategy based on your current and past experiments.
 
@@ -134,7 +134,7 @@ from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 import numpy as np
 from sklearn.metrics import accuracy_score
-from mlrun.artifacts import TableArtifact, PlotArtifact
+from mlrun.artifacts import PlotArtifact
 import pandas as pd
 
 
@@ -144,7 +144,7 @@ def iris_generator(context):
     iris_labels = pd.DataFrame(data=iris.target, columns=['label'])
     iris_dataset = pd.concat([iris_dataset, iris_labels], axis=1)
     context.logger.info('Saving Iris data set to "{}"'.format(context.out_path))
-    context.log_artifact(TableArtifact('iris_dataset', df=iris_dataset))
+    context.log_dataset('iris_dataset', df=iris_dataset)
 
 
 def xgb_train(context,
@@ -194,7 +194,7 @@ The code also demonstrates how you can use the context object to read and write 
 
 ```python
 from mlrun import get_or_create_ctx
-from mlrun.artifacts import ChartArtifact, TableArtifact
+from mlrun.artifacts import ChartArtifact
 import pandas as pd
 
 
@@ -219,8 +219,6 @@ def my_job(context, p1=1, p2='x'):
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
     context.log_artifact('model', body=b'abc is 123', local_path='model.txt', labels={'framework': 'xgboost'})
     context.log_artifact('html_result', body=b'<b> Some HTML <b>', local_path='result.html')
-    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', visible=True,
-                                        header=['A', 'B', 'C']), local_path='dataset.csv')
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart')

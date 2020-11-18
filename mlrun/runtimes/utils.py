@@ -35,7 +35,7 @@ class RunError(Exception):
     pass
 
 
-mlrun_key = 'mlrun/'
+mlrun_key = "mlrun/"
 
 
 class _ContextStore:
@@ -77,12 +77,12 @@ def resolve_mpijob_crd_version(api_context=False):
 
                 # try resolving according to mpi-operator that's running
                 res = k8s_helper.list_pods(
-                    namespace=namespace, selector='component=mpi-operator'
+                    namespace=namespace, selector="component=mpi-operator"
                 )
                 if len(res) > 0:
                     mpi_operator_pod = res[0]
                     mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
-                        'crd-version'
+                        "crd-version"
                     )
             elif not in_k8s_cluster and not api_context:
                 # connect will populate the config from the server config
@@ -96,20 +96,20 @@ def resolve_mpijob_crd_version(api_context=False):
 
         if mpijob_crd_version not in MPIJobCRDVersions.all():
             raise ValueError(
-                f'unsupported mpijob crd version: {mpijob_crd_version}. '
-                f'supported versions: {MPIJobCRDVersions.all()}'
+                f"unsupported mpijob crd version: {mpijob_crd_version}. "
+                f"supported versions: {MPIJobCRDVersions.all()}"
             )
         cached_mpijob_crd_version = mpijob_crd_version
 
     return cached_mpijob_crd_version
 
 
-def calc_hash(func, tag=''):
+def calc_hash(func, tag=""):
     # remove tag, hash, date from calculation
     tag = tag or func.metadata.tag
     status = func.status
-    func.metadata.tag = ''
-    func.metadata.hash = ''
+    func.metadata.tag = ""
+    func.metadata.hash = ""
     func.status = None
     func.metadata.updated = None
 
@@ -123,8 +123,8 @@ def calc_hash(func, tag=''):
     return hashkey
 
 
-def log_std(db, runobj, out, err='', skip=False, show=True):
-    line = '> ' + '-' * 15 + ' Iteration: ({}) ' + '-' * 15 + '\n'
+def log_std(db, runobj, out, err="", skip=False, show=True):
+    line = "> " + "-" * 15 + " Iteration: ({}) " + "-" * 15 + "\n"
     if out:
         iter = runobj.metadata.iteration
         if iter:
@@ -133,10 +133,10 @@ def log_std(db, runobj, out, err='', skip=False, show=True):
             print(out)
         if db and not skip:
             uid = runobj.metadata.uid
-            project = runobj.metadata.project or ''
+            project = runobj.metadata.project or ""
             db.store_log(uid, project, out.encode(), append=True)
     if err:
-        logger.error('exec error - {}'.format(err))
+        logger.error("exec error - {}".format(err))
         print(err, file=stderr)
         raise RunError(err)
 
@@ -145,7 +145,7 @@ class AsyncLogWriter:
     def __init__(self, db, runobj):
         self.db = db
         self.uid = runobj.metadata.uid
-        self.project = runobj.metadata.project or ''
+        self.project = runobj.metadata.project or ""
         self.iter = runobj.metadata.iteration
 
     def write(self, data):
@@ -157,13 +157,13 @@ class AsyncLogWriter:
         pass
 
 
-def add_code_metadata(path=''):
+def add_code_metadata(path=""):
     if path:
-        if '://' in path:
+        if "://" in path:
             return None
         if os.path.isfile(path):
             path = os.path.dirname(path)
-    path = path or './'
+    path = path or "./"
 
     try:
         from git import (
@@ -179,7 +179,7 @@ def add_code_metadata(path=''):
         repo = Repo(path, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
-            return '{}#{}'.format(remotes[0], repo.head.commit.hexsha)
+            return "{}#{}".format(remotes[0], repo.head.commit.hexsha)
     except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):
         pass
     return None
@@ -192,7 +192,7 @@ def set_if_none(struct, key, value):
 
 def results_to_iter(results, runspec, execution):
     if not results:
-        logger.error('got an empty results list in to_iter')
+        logger.error("got an empty results list in to_iter")
         return
 
     iter = []
@@ -200,32 +200,32 @@ def results_to_iter(results, runspec, execution):
     running = 0
     for task in results:
         if task:
-            state = get_in(task, ['status', 'state'])
-            id = get_in(task, ['metadata', 'iteration'])
+            state = get_in(task, ["status", "state"])
+            id = get_in(task, ["metadata", "iteration"])
             struct = {
-                'param': get_in(task, ['spec', 'parameters'], {}),
-                'output': get_in(task, ['status', 'results'], {}),
-                'state': state,
-                'iter': id,
+                "param": get_in(task, ["spec", "parameters"], {}),
+                "output": get_in(task, ["status", "results"], {}),
+                "state": state,
+                "iter": id,
             }
-            if state == 'error':
+            if state == "error":
                 failed += 1
-                err = get_in(task, ['status', 'error'], '')
-                logger.error('error in task  {}:{} - {}'.format(execution.uid, id, err))
-            elif state != 'completed':
+                err = get_in(task, ["status", "error"], "")
+                logger.error("error in task  {}:{} - {}".format(execution.uid, id, err))
+            elif state != "completed":
                 running += 1
 
             iter.append(struct)
 
     if not iter:
-        execution.set_state('completed', commit=True)
-        logger.warning('warning!, zero iteration results')
+        execution.set_state("completed", commit=True)
+        logger.warning("warning!, zero iteration results")
         return
 
-    if hasattr(pd, 'json_normalize'):
-        df = pd.json_normalize(iter).sort_values('iter')
+    if hasattr(pd, "json_normalize"):
+        df = pd.json_normalize(iter).sort_values("iter")
     else:
-        df = pd.io.json.json_normalize(iter).sort_values('iter')
+        df = pd.io.json.json_normalize(iter).sort_values("iter")
     header = df.columns.values.tolist()
     summary = [header] + df.values.tolist()
     if not runspec:
@@ -235,50 +235,50 @@ def results_to_iter(results, runspec, execution):
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
         logger.warning(
-            f'no best result selected, check selector ({criteria}) or results'
+            f"no best result selected, check selector ({criteria}) or results"
         )
     if id:
-        logger.info(f'best iteration={id}, used criteria {criteria}')
+        logger.info(f"best iteration={id}, used criteria {criteria}")
     task = results[item] if id and results else None
     execution.log_iteration_results(id, summary, task)
 
     csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False, line_terminator='\n', encoding='utf-8')
+    df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
     execution.log_artifact(
         TableArtifact(
-            'iteration_results',
+            "iteration_results",
             body=csv_buffer.getvalue(),
             header=header,
-            viewer='table',
+            viewer="table",
         ),
-        local_path='iteration_results.csv',
+        local_path="iteration_results.csv",
     )
     if failed:
         execution.set_state(
-            error='{} or {} tasks failed, check logs in db for details'.format(
+            error="{} or {} tasks failed, check logs in db for details".format(
                 failed, len(results)
             ),
             commit=False,
         )
     elif running == 0:
-        execution.set_state('completed', commit=False)
+        execution.set_state("completed", commit=False)
     execution.commit()
 
 
 def default_image_name(function):
     meta = function.metadata
     proj = meta.project or config.default_project
-    return '.mlrun/func-{}-{}-{}'.format(proj, meta.name, meta.tag or 'latest')
+    return ".mlrun/func-{}-{}-{}".format(proj, meta.name, meta.tag or "latest")
 
 
 def set_named_item(obj, item):
     if isinstance(item, dict):
-        obj[item['name']] = item
+        obj[item["name"]] = item
     else:
         obj[item.name] = item
 
 
-def get_item_name(item, attr='name'):
+def get_item_name(item, attr="name"):
     if isinstance(item, dict):
         return item[attr]
     else:
@@ -294,10 +294,10 @@ def apply_kfp(modify, cop, runtime):
         runtime.metadata.annotations[k] = v
     if cop.container.env:
         env_names = [
-            e.name if hasattr(e, 'name') else e['name'] for e in runtime.spec.env
+            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
         ]
         for e in api.sanitize_for_serialization(cop.container.env):
-            name = e['name']
+            name = e["name"]
             if name in env_names:
                 runtime.spec.env[env_names.index(name)] = e
             else:
@@ -315,33 +315,54 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def get_resource_labels(function, uid=None, name=None):
-    meta = function.metadata
-    labels = deepcopy(meta.labels)
-    labels[mlrun_key + 'class'] = function.kind
-    labels[mlrun_key + 'project'] = meta.project
-    labels[mlrun_key + 'function'] = '{}'.format(meta.name)
-    labels[mlrun_key + 'tag'] = '{}'.format(meta.tag or 'latest')
+def get_resource_labels(function, run=None, scrape_metrics=False):
+    run_uid, run_name, run_project, run_owner = None, None, None, None
+    if run:
+        run_uid = run.metadata.uid
+        run_name = run.metadata.name
+        run_project = run.metadata.project
+        run_owner = run.metadata.labels.get("owner")
+    labels = deepcopy(function.metadata.labels)
+    labels[mlrun_key + "class"] = function.kind
+    labels[mlrun_key + "project"] = run_project or function.metadata.project
+    labels[mlrun_key + "function"] = "{}".format(function.metadata.name)
+    labels[mlrun_key + "tag"] = "{}".format(function.metadata.tag or "latest")
+    labels[mlrun_key + "scrape-metrics"] = str(scrape_metrics)
 
-    if uid:
-        labels[mlrun_key + 'uid'] = uid
+    if run_uid:
+        labels[mlrun_key + "uid"] = run_uid
 
-    if name:
-        labels[mlrun_key + 'name'] = name
+    if run_name:
+        labels[mlrun_key + "name"] = run_name
+
+    if run_owner:
+        labels[mlrun_key + "owner"] = run_owner
 
     return labels
 
 
+def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    """get pod cpu/memory/gpu resources dict"""
+    resources = {}
+    if gpus:
+        resources[gpu_type] = gpus
+    if mem:
+        resources["memory"] = mem
+    if cpu:
+        resources["cpu"] = cpu
+    return resources
+
+
 def get_func_selector(project, name=None, tag=None):
-    s = ['{}project={}'.format(mlrun_key, project)]
+    s = ["{}project={}".format(mlrun_key, project)]
     if name:
-        s.append('{}function={}'.format(mlrun_key, name))
-        s.append('{}tag={}'.format(mlrun_key, tag or 'latest'))
+        s.append("{}function={}".format(mlrun_key, name))
+        s.append("{}tag={}".format(mlrun_key, tag or "latest"))
     return s
 
 
 class k8s_resource:
-    kind = ''
+    kind = ""
     per_run = False
     per_function = False
     k8client = None
@@ -372,7 +393,7 @@ class k8s_resource:
 
     def clean_objects(self, namespace=None, selector=[], states=None):
         if not selector and not states:
-            raise ValueError('labels selector or states list must be specified')
+            raise ValueError("labels selector or states list must be specified")
         items = self.list_objects(namespace, selector, states)
         for item in items:
             self.del_object(item.metadata.name, item.metadata.namespace)

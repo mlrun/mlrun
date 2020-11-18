@@ -16,41 +16,14 @@
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import Callable
-from typing import Generator
 from unittest.mock import Mock
 
 import pytest
-from tests.conftest import new_run, init_sqldb
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import _tagged
-
-session_maker: Callable
-
-
-@pytest.fixture
-def db():
-    global session_maker
-    dsn = "sqlite:///:memory:?check_same_thread=false"
-    try:
-        session_maker = init_sqldb(dsn)
-        db_session = session_maker()
-        db = SQLDB(dsn)
-        db.initialize(db_session)
-    finally:
-        db_session.close()
-    return db
-
-
-@pytest.fixture()
-def db_session() -> Generator:
-    try:
-        db_session = session_maker()
-        yield db_session
-    finally:
-        db_session.close()
+from tests.conftest import new_run
 
 
 @contextmanager
@@ -67,93 +40,82 @@ def patch(obj, **kw):
 
 
 def test_list_artifact_tags(db: SQLDB, db_session: Session):
-    db.store_artifact(db_session, 'k1', {}, '1', tag='t1', project='p1')
-    db.store_artifact(db_session, 'k1', {}, '2', tag='t2', project='p1')
-    db.store_artifact(db_session, 'k1', {}, '2', tag='t2', project='p2')
+    db.store_artifact(db_session, "k1", {}, "1", tag="t1", project="p1")
+    db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p1")
+    db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p2")
 
-    tags = db.list_artifact_tags(db_session, 'p1')
-    assert {'t1', 't2'} == set(tags), 'bad tags'
+    tags = db.list_artifact_tags(db_session, "p1")
+    assert {"t1", "t2"} == set(tags), "bad tags"
 
 
 def test_list_artifact_date(db: SQLDB, db_session: Session):
     t1 = datetime(2020, 2, 16)
     t2 = t1 - timedelta(days=7)
     t3 = t2 - timedelta(days=7)
-    prj = 'p7'
+    prj = "p7"
 
-    db.store_artifact(db_session, 'k1', {'updated': t1}, 'u1', project=prj)
-    db.store_artifact(db_session, 'k2', {'updated': t2}, 'u2', project=prj)
-    db.store_artifact(db_session, 'k3', {'updated': t3}, 'u3', project=prj)
+    db.store_artifact(db_session, "k1", {"updated": t1}, "u1", project=prj)
+    db.store_artifact(db_session, "k2", {"updated": t2}, "u2", project=prj)
+    db.store_artifact(db_session, "k3", {"updated": t3}, "u3", project=prj)
 
-    arts = db.list_artifacts(db_session, project=prj, since=t3, tag='*')
-    assert 3 == len(arts), 'since t3'
+    arts = db.list_artifacts(db_session, project=prj, since=t3, tag="*")
+    assert 3 == len(arts), "since t3"
 
-    arts = db.list_artifacts(db_session, project=prj, since=t2, tag='*')
-    assert 2 == len(arts), 'since t2'
+    arts = db.list_artifacts(db_session, project=prj, since=t2, tag="*")
+    assert 2 == len(arts), "since t2"
 
     arts = db.list_artifacts(
-        db_session, project=prj, since=t1 + timedelta(days=1), tag='*'
+        db_session, project=prj, since=t1 + timedelta(days=1), tag="*"
     )
-    assert not arts, 'since t1+'
+    assert not arts, "since t1+"
 
-    arts = db.list_artifacts(db_session, project=prj, until=t2, tag='*')
-    assert 2 == len(arts), 'until t2'
+    arts = db.list_artifacts(db_session, project=prj, until=t2, tag="*")
+    assert 2 == len(arts), "until t2"
 
-    arts = db.list_artifacts(db_session, project=prj, since=t2, until=t2, tag='*')
-    assert 1 == len(arts), 'since/until t2'
+    arts = db.list_artifacts(db_session, project=prj, since=t2, until=t2, tag="*")
+    assert 1 == len(arts), "since/until t2"
 
 
 def test_list_projects(db: SQLDB, db_session: Session):
     for i in range(10):
-        run = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, x=1)
-        db.store_run(db_session, run, 'u7', project=f'prj{i % 3}', iter=i)
+        run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
+        db.store_run(db_session, run, "u7", project=f"prj{i % 3}", iter=i)
 
-    assert {'prj0', 'prj1', 'prj2'} == {p.name for p in db.list_projects(db_session)}
-
-
-def test_schedules(db: SQLDB, db_session: Session):
-    count = 7
-    for i in range(count):
-        data = {'i': i}
-        db.store_schedule(db_session, data)
-
-    scheds = list(db.list_schedules(db_session))
-    assert count == len(scheds), 'wrong number of schedules'
-    assert set(range(count)) == set(s['i'] for s in scheds), 'bad scheds'
+    assert {"prj0", "prj1", "prj2"} == {p.name for p in db.list_projects(db_session)}
 
 
 def test_run_iter0(db: SQLDB, db_session: Session):
-    uid, prj = 'uid39', 'lemon'
-    run = new_run('s1', {'l1': 'v1', 'l2': 'v2'}, x=1)
+    uid, prj = "uid39", "lemon"
+    run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
     for i in range(7):
         db.store_run(db_session, run, uid, prj, i)
     db._get_run(db_session, uid, prj, 0)  # See issue 140
 
 
 def test_artifacts_latest(db: SQLDB, db_session: Session):
-    k1, u1, art1 = 'k1', 'u1', {'a': 1}
-    prj = 'p38'
+    k1, u1, art1 = "k1", "u1", {"a": 1}
+    prj = "p38"
     db.store_artifact(db_session, k1, art1, u1, project=prj)
 
-    arts = db.list_artifacts(db_session, project=prj, tag='latest')
-    assert art1['a'] == arts[0]['a'], 'bad artifact'
+    arts = db.list_artifacts(db_session, project=prj, tag="latest")
+    assert art1["a"] == arts[0]["a"], "bad artifact"
 
-    u2, art2 = 'u2', {'a': 17}
+    u2, art2 = "u2", {"a": 17}
     db.store_artifact(db_session, k1, art2, u2, project=prj)
-    arts = db.list_artifacts(db_session, project=prj, tag='latest')
-    assert 1 == len(arts), 'count'
-    assert art2['a'] == arts[0]['a'], 'bad artifact'
+    arts = db.list_artifacts(db_session, project=prj, tag="latest")
+    assert 2 == len(arts), "count"
+    assert art2["a"] == arts[1]["a"], "bad artifact"
 
-    k2, u3, art3 = 'k2', 'u3', {'a': 99}
+    k2, u3, art3 = "k2", "u3", {"a": 99}
     db.store_artifact(db_session, k2, art3, u3, project=prj)
-    arts = db.list_artifacts(db_session, project=prj, tag='latest')
-    assert 2 == len(arts), 'number'
-    assert {17, 99} == set(art['a'] for art in arts), 'latest'
+    arts = db.list_artifacts(db_session, project=prj, tag="latest")
+    assert 3 == len(arts), "number"
+    assert {1, 17, 99} == set(art["a"] for art in arts), "latest"
 
 
-@pytest.mark.parametrize('cls', _tagged)
+@pytest.mark.parametrize("cls", _tagged)
 def test_tags(db: SQLDB, db_session: Session, cls):
-    p1, n1 = 'prj1', 'name1'
+    p1, n1 = "prj1", "name1"
     obj1, obj2, obj3 = cls(), cls(), cls()
     db_session.add(obj1)
     db_session.add(obj2)
@@ -162,11 +124,11 @@ def test_tags(db: SQLDB, db_session: Session, cls):
 
     db.tag_objects(db_session, [obj1, obj2], p1, n1)
     objs = db.find_tagged(db_session, p1, n1)
-    assert {obj1, obj2} == set(objs), 'find tags'
+    assert {obj1, obj2} == set(objs), "find tags"
 
     db.del_tag(db_session, p1, n1)
     objs = db.find_tagged(db_session, p1, n1)
-    assert [] == objs, 'find tags after del'
+    assert [] == objs, "find tags after del"
 
 
 def _tag_objs(db: SQLDB, db_session: Session, count, project, tags):
@@ -182,70 +144,70 @@ def _tag_objs(db: SQLDB, db_session: Session, count, project, tags):
 
 
 def test_list_tags(db: SQLDB, db_session: Session):
-    p1, tags1 = 'prj1', ['a', 'b', 'c']
+    p1, tags1 = "prj1", ["a", "b", "c"]
     _tag_objs(db, db_session, 17, p1, tags1)
-    p2, tags2 = 'prj2', ['b', 'c', 'd', 'e']
+    p2, tags2 = "prj2", ["b", "c", "d", "e"]
     _tag_objs(db, db_session, 11, p2, tags2)
 
     tags = db.list_tags(db_session, p1)
-    assert set(tags) == set(tags1), 'tags'
+    assert set(tags) == set(tags1), "tags"
 
 
 def test_projects(db: SQLDB, db_session: Session):
     prj1 = {
-        'name': 'p1',
-        'description': 'banana',
+        "name": "p1",
+        "description": "banana",
         # 'users': ['u1', 'u2'],
-        'spec': {'company': 'ACME'},
-        'state': 'active',
-        'created': datetime.now(),
+        "spec": {"company": "ACME"},
+        "state": "active",
+        "created": datetime.now(),
     }
     pid1 = db.add_project(db_session, prj1)
     p1 = db.get_project(db_session, project_id=pid1)
-    assert p1, f'project {pid1} not found'
+    assert p1, f"project {pid1} not found"
     out = {
-        'name': p1.name,
-        'description': p1.description,
+        "name": p1.name,
+        "description": p1.description,
         # 'users': sorted(u.name for u in p1.users),
-        'spec': p1.spec,
-        'state': p1.state,
-        'created': p1.created,
+        "spec": p1.spec,
+        "state": p1.state,
+        "created": p1.created,
     }
-    assert prj1 == out, 'bad project'
+    assert prj1 == out, "bad project"
 
-    data = {'description': 'lemon'}
+    data = {"description": "lemon"}
     db.update_project(db_session, p1.name, data)
     p1 = db.get_project(db_session, project_id=pid1)
-    assert data['description'] == p1.description, 'bad update'
+    assert data["description"] == p1.description, "bad update"
 
-    prj2 = {'name': 'p2'}
+    prj2 = {"name": "p2"}
     db.add_project(db_session, prj2)
     prjs = {p.name for p in db.list_projects(db_session)}
-    assert {prj1['name'], prj2['name']} == prjs, 'list'
+    assert {prj1["name"], prj2["name"]} == prjs, "list"
 
 
 def test_cache_projects(db: SQLDB, db_session: Session):
-    assert 0 == len(db._projects), 'empty cache'
-    name = 'prj348'
-    db.add_project(db_session, {'name': name})
-    assert {name} == db._projects, 'project'
+    assert 0 == len(db._projects), "empty cache"
+    name = "prj348"
+    db.add_project(db_session, {"name": name})
+    assert {name} == db._projects, "project"
 
     mock = Mock()
     with patch(db, add_project=mock):
-        db._create_project_if_not_exists(db_session, name)
+        db._ensure_project(db_session, name)
     mock.assert_not_called()
 
     mock = Mock()
     with patch(db, add_project=mock):
-        db._create_project_if_not_exists(db_session, name + '-new')
+        db._ensure_project(db_session, name + "-new")
     mock.assert_called_once()
 
     project_2_name = "project-2"
-    db.add_project(db_session, {'name': project_2_name})
+    db.add_project(db_session, {"name": project_2_name})
     db._projects = set()
     mock = Mock()
     with patch(db, add_project=mock):
-        db._create_project_if_not_exists(db_session, name)
+        db._ensure_project(db_session, name)
     mock.assert_not_called()
 
 

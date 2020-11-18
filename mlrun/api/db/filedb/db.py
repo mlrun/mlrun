@@ -1,3 +1,6 @@
+from typing import List, Any, Dict
+
+from mlrun.api import schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.base import DBInterface
 from mlrun.db.base import RunDBError
@@ -43,9 +46,25 @@ class FileDB(DBInterface):
         sort=True,
         last=0,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         return self._transform_run_db_error(
-            self.db.list_runs, name, uid, project, labels, state, sort, last, iter
+            self.db.list_runs,
+            name,
+            uid,
+            project,
+            labels,
+            state,
+            sort,
+            last,
+            iter,
+            start_time_from,
+            start_time_to,
+            last_update_time_from,
+            last_update_time_to,
         )
 
     def del_run(self, session, uid, project="", iter=0):
@@ -69,7 +88,16 @@ class FileDB(DBInterface):
         )
 
     def list_artifacts(
-        self, session, name="", project="", tag="", labels=None, since=None, until=None
+        self,
+        session,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        kind=None,
+        category: schemas.ArtifactCategories = None,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until
@@ -95,7 +123,10 @@ class FileDB(DBInterface):
             self.db.get_function, name, project, tag, hash_key
         )
 
-    def list_functions(self, session, name, project="", tag="", labels=None):
+    def delete_function(self, session, project: str, name: str):
+        raise NotImplementedError()
+
+    def list_functions(self, session, name=None, project="", tag="", labels=None):
         return self._transform_run_db_error(
             self.db.list_functions, name, project, tag, labels
         )
@@ -103,14 +134,125 @@ class FileDB(DBInterface):
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
-    def list_schedules(self, session):
-        return self._transform_run_db_error(self.db.list_schedules)
-
-    def list_projects(self, session):
+    def list_projects(self, session, owner=None):
         return self._transform_run_db_error(self.db.list_projects)
+
+    def add_project(self, session, project: dict):
+        raise NotImplementedError()
+
+    def update_project(self, session, name, data: dict):
+        raise NotImplementedError()
+
+    def get_project(self, session, name=None, project_id=None):
+        raise NotImplementedError()
+
+    def delete_project(self, session, name: str):
+        raise NotImplementedError()
+
+    def create_feature_set(
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    ):
+        raise NotImplementedError()
+
+    def store_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set: schemas.FeatureSet,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        raise NotImplementedError()
+
+    def get_feature_set(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureSet:
+        raise NotImplementedError()
+
+    def list_features(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeaturesOutput:
+        raise NotImplementedError()
+
+    def list_feature_sets(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        entities: List[str] = None,
+        features: List[str] = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureSetsOutput:
+        raise NotImplementedError()
+
+    def patch_feature_set(
+        self,
+        session,
+        project,
+        name,
+        feature_set_update: dict,
+        tag=None,
+        uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        raise NotImplementedError()
+
+    def delete_feature_set(self, session, project, name):
+        raise NotImplementedError()
 
     def list_artifact_tags(self, session, project):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
+
+    def create_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: schemas.ScheduleCronTrigger,
+        labels: Dict = None,
+    ):
+        raise NotImplementedError()
+
+    def update_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        scheduled_object: Any = None,
+        cron_trigger: schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+    ):
+        raise NotImplementedError()
+
+    def list_schedules(
+        self,
+        session,
+        project: str = None,
+        name: str = None,
+        labels: str = None,
+        kind: schemas.ScheduleKinds = None,
+    ) -> List[schemas.ScheduleRecord]:
+        raise NotImplementedError()
+
+    def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleRecord:
+        raise NotImplementedError()
+
+    def delete_schedule(self, session, project: str, name: str):
+        raise NotImplementedError()
 
     @staticmethod
     def _transform_run_db_error(func, *args, **kwargs):

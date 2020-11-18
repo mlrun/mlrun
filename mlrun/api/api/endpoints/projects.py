@@ -1,14 +1,14 @@
-from distutils.util import strtobool
 from operator import attrgetter
+from http import HTTPStatus
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.db.sqldb.helpers import to_dict as db2dict
-from mlrun.api.singletons import get_db
+from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
 
@@ -50,10 +50,19 @@ def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
     }
 
 
+@router.delete("/projects/{name}", status_code=HTTPStatus.NO_CONTENT.value)
+def delete_project(
+    name: str, db_session: Session = Depends(deps.get_db_session),
+):
+    get_db().delete_project(db_session, name)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects")
-def list_projects(full: str = "no", db_session: Session = Depends(deps.get_db_session)):
-    full = strtobool(full)
+def list_projects(
+    full: bool = False, db_session: Session = Depends(deps.get_db_session)
+):
     fn = db2dict if full else attrgetter("name")
     projects = []
     for p in get_db().list_projects(db_session):

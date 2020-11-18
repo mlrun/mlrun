@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise, get_run_db_instance
-from mlrun.api.singletons import get_db, get_k8s
+from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.run import new_function
-from mlrun.runtimes import runtime_resources_map
+from mlrun.runtimes import runtime_resources_map, RuntimeKinds
+from mlrun.runtimes.function import get_nuclio_deploy_status, deploy_nuclio_function
 from mlrun.utils import get_in, logger, parse_function_uri, update_in
 
 router = APIRouter()
@@ -33,7 +35,7 @@ async def store_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     logger.debug(data)
     logger.info("store function: project=%s, name=%s, tag=%s", project, name, tag)
@@ -47,7 +49,7 @@ async def store_function(
         versioned=versioned,
     )
     return {
-        'hash_key': hash_key,
+        "hash_key": hash_key,
     }
 
 
@@ -66,13 +68,23 @@ def get_function(
     }
 
 
+@router.delete(
+    "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
+)
+def delete_function(
+    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+):
+    get_db().delete_function(db_session, project, name)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
 # curl http://localhost:8080/funcs?project=p1&name=x&label=l1&label=l2
 @router.get("/funcs")
 def list_functions(
     project: str = config.default_project,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query([], alias='label'),
+    labels: List[str] = Query([], alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
     funcs = get_db().list_functions(db_session, name, project, tag, labels)
@@ -91,7 +103,7 @@ async def build_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     logger.info("build_function:\n{}".format(data))
     function = data.get("function")
@@ -115,7 +127,7 @@ async def start_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     fn = await run_in_threadpool(_start_function, db_session, data)
 
@@ -132,7 +144,7 @@ async def function_status(request: Request):
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="bad JSON body")
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     resp = await run_in_threadpool(_get_function_status, data)
     return {
@@ -148,14 +160,52 @@ def build_status(
     project: str = "",
     tag: str = "",
     offset: int = 0,
-    logs: str = "on",
+    logs: bool = True,
+    last_log_timestamp: float = 0.0,
+    verbose: bool = False,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    logs = strtobool(logs)
     fn = get_db().get_function(db_session, name, project, tag)
     if not fn:
-        log_and_raise(HTTPStatus.NOT_FOUND, name=name, project=project, tag=tag)
+        log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
 
+    # nuclio deploy status
+    if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
+        (
+            state,
+            address,
+            nuclio_name,
+            last_log_timestamp,
+            text,
+        ) = get_nuclio_deploy_status(
+            name, project, tag, last_log_timestamp=last_log_timestamp, verbose=verbose
+        )
+        if state == "ready":
+            logger.info("Nuclio function deployed successfully", name=name)
+        if state == "error":
+            logger.error(f"Nuclio deploy error, {text}", name=name)
+        update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.state", state)
+        update_in(fn, "status.address", address)
+
+        versioned = False
+        if state == "ready":
+            # Versioned means the version will be saved in the DB forever, we don't want to spam
+            # the DB with intermediate or unusable versions, only successfully deployed versions
+            versioned = True
+        get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
+        return Response(
+            content=text,
+            media_type="text/plain",
+            headers={
+                "x-mlrun-function-status": state,
+                "x-mlrun-last-timestamp": str(last_log_timestamp),
+                "x-mlrun-address": address,
+                "x-mlrun-name": nuclio_name,
+            },
+        )
+
+    # job deploy status
     state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
     image = get_in(fn, "spec.build.image", "")
@@ -192,12 +242,20 @@ def build_status(
     if state == "ready":
         update_in(fn, "spec.image", image)
 
-    get_db().store_function(db_session, fn, name, project, tag)
+    versioned = False
+    if state == "ready":
+        versioned = True
+    get_db().store_function(db_session, fn, name, project, tag, versioned=versioned)
 
     return Response(
         content=out,
         media_type="text/plain",
-        headers={"function_status": state, "function_image": image, "builder_pod": pod},
+        headers={
+            "x-mlrun-function-status": state,
+            "function_status": state,
+            "function_image": image,
+            "builder_pod": pod,
+        },
     )
 
 
@@ -210,13 +268,19 @@ def _build_function(db_session, function, with_mlrun):
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
-
-        ready = build_runtime(fn, with_mlrun)
-        fn.save(versioned=False)
+        if fn.kind in RuntimeKinds.nuclio_runtimes():
+            deploy_nuclio_function(fn)
+            # deploy only start the process, the get status API is used to check readiness
+            ready = False
+        else:
+            ready = build_runtime(fn, with_mlrun)
+        fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
+        )
     return fn, ready
 
 
@@ -225,14 +289,15 @@ def _start_function(db_session, data):
     url = data.get("functionUrl")
     if not url:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST, reason="runtime error: functionUrl not specified"
+            HTTPStatus.BAD_REQUEST.value,
+            reason="runtime error: functionUrl not specified",
         )
 
     project, name, tag, hash_key = parse_function_uri(url)
     runtime = get_db().get_function(db_session, name, project, tag, hash_key)
     if not runtime:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.BAD_REQUEST.value,
             reason="runtime error: function {} not found".format(url),
         )
 
@@ -240,7 +305,7 @@ def _start_function(db_session, data):
     resource = runtime_resources_map.get(fn.kind)
     if "start" not in resource:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.BAD_REQUEST.value,
             reason="runtime error: 'start' not supported by this runtime",
         )
 
@@ -254,7 +319,9 @@ def _start_function(db_session, data):
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
+        )
 
     return fn
 
@@ -265,14 +332,14 @@ def _get_function_status(data):
     kind = data.get("kind")
     if not selector or not kind:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.BAD_REQUEST.value,
             reason="runtime error: selector or runtime kind not specified",
         )
 
     resource = runtime_resources_map.get(kind)
     if "status" not in resource:
         log_and_raise(
-            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.BAD_REQUEST.value,
             reason="runtime error: 'status' not supported by this runtime",
         )
 
@@ -282,4 +349,6 @@ def _get_function_status(data):
         logger.info("status: %s", resp)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST, reason="runtime error: {}".format(err))
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
+        )

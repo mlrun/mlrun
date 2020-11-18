@@ -28,55 +28,69 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
-from . import __version__
-
 import yaml
 
-env_prefix = 'MLRUN_'
-env_file_key = '{}CONIFG_FILE'.format(env_prefix)
+env_prefix = "MLRUN_"
+env_file_key = "{}CONIFG_FILE".format(env_prefix)
 _load_lock = Lock()
 _none_type = type(None)
 
 
 default_config = {
-    'namespace': 'default-tenant',  # default kubernetes namespace
-    'dbpath': '',  # db/api url
+    "namespace": "default-tenant",  # default kubernetes namespace
+    "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
-    'nuclio_dashboard_url': '',
-    'ui_url': '',  # remote/external mlrun UI url (for hyperlinks)
-    'remote_host': '',
-    'version': '',  # will be set to current version
-    'images_tag': '',  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
-    'kfp_ttl': '86400',  # KFP ttl in sec, after that completed PODs will be deleted
-    'kfp_image': '',  # image to use for KFP runner (defaults to mlrun/mlrun)
-    'kaniko_version': 'v0.19.0',  # kaniko builder version
-    'package_path': 'mlrun',  # mlrun pip package
-    'default_image': 'python:3.6-jessie',
-    'default_project': 'default',  # default project name
-    'default_archive': '',  # default remote archive URL (for build tar.gz)
-    'mpijob_crd_version': '',  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
-    'hub_url': 'https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml',
-    'ipython_widget': True,
-    'log_level': 'INFO',
-    'submit_timeout': '180',  # timeout when submitting a new k8s resource
+    "nuclio_dashboard_url": "",
+    "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
+    "ui_url": "",  # remote/external mlrun UI url (for hyperlinks)
+    "remote_host": "",
+    "version": "",  # will be set to current version
+    "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
+    "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
+    "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
+    "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
+    "igz_version": "",  # the version of the iguazio system the API is running on
+    "spark_app_image": "iguazio/spark-app",  # image to use for spark operator app runtime
+    "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime (default taken from igz_version)
+    "kaniko_version": "v0.19.0",  # kaniko builder version
+    "package_path": "mlrun",  # mlrun pip package
+    "default_image": "python:3.6-jessie",
+    "default_project": "default",  # default project name
+    "default_archive": "",  # default remote archive URL (for build tar.gz)
+    "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
+    "hub_url": "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml",
+    "ipython_widget": True,
+    "log_level": "INFO",
+    # log formatter (options: human | json)
+    "log_formatter": "human",
+    "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
-    'runtimes_cleanup_interval': '300',
-    # the grace period (in seconds) that will be given to runtime resources (after they're in stable state)
+    "runtimes_cleanup_interval": "300",
+    # runs monitoring interval in seconds
+    "runs_monitoring_interval": "5",
+    # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
-    'runtime_resources_deletion_grace_period': '14400',
-    'artifact_path': '',  # default artifacts path/url
-    'httpdb': {
-        'port': 8080,
-        'dirpath': expanduser('~/.mlrun/db'),
-        'dsn': 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false',
-        'debug': False,
-        'user': '',
-        'password': '',
-        'token': '',
-        'logs_path': '/mlrun/db/logs',
-        'data_volume': '',
-        'real_path': '',
-        'db_type': 'sqldb',
+    "runtime_resources_deletion_grace_period": "14400",
+    # sets the background color that is used in printed tables in jupyter
+    "background_color": "#4EC64B",
+    "artifact_path": "",  # default artifacts path/url
+    "httpdb": {
+        "port": 8080,
+        "dirpath": expanduser("~/.mlrun/db"),
+        "dsn": "sqlite:////mlrun/db/mlrun.db?check_same_thread=false",
+        "debug": False,
+        "user": "",
+        "password": "",
+        "token": "",
+        "logs_path": "/mlrun/db/logs",
+        "data_volume": "",
+        "real_path": "",
+        "db_type": "sqldb",
+        "scheduling": {
+            # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
+            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
+            "min_allowed_interval": "10 minutes"
+        },
     },
 }
 
@@ -88,7 +102,7 @@ class Config:
         cfg = {} if cfg is None else cfg
 
         # Can't use self._cfg = cfg → infinite recursion
-        object.__setattr__(self, '_cfg', cfg)
+        object.__setattr__(self, "_cfg", cfg)
 
     def __getattr__(self, attr):
         val = self._cfg.get(attr, self._missing)
@@ -107,7 +121,7 @@ class Config:
 
     def __repr__(self):
         name = self.__class__.__name__
-        return f'{name}({self._cfg!r})'
+        return f"{name}({self._cfg!r})"
 
     def update(self, cfg):
         for key, value in cfg.items():
@@ -123,6 +137,27 @@ class Config:
     @staticmethod
     def reload():
         _populate()
+
+    @property
+    def version(self):
+        # importing here to avoid circular dependency
+        from mlrun.utils.version import Version
+
+        return Version().get()["version"]
+
+    @property
+    def kfp_image(self):
+        """
+        When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the enrich_image method.
+        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must import the
+        module inside this function (and not on initialization), and then calculate this property value here.
+        """
+        if not self._kfp_image:
+            # importing here to avoid circular dependency
+            import mlrun.utils.helpers
+
+            return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
+        return self._kfp_image
 
 
 # Global configuration
@@ -151,13 +186,18 @@ def _do_populate(env=None):
             data = yaml.safe_load(fp)
 
         if not isinstance(data, dict):
-            raise TypeError(f'configuration in {config_path} not a dict')
+            raise TypeError(f"configuration in {config_path} not a dict")
 
         config.update(data)
 
     data = read_env(env)
     if data:
         config.update(data)
+
+    # HACK to enable kfp_image property to both have dynamic default and to use the value from dict/env like
+    # other configurations
+    config._cfg["_kfp_image"] = config._cfg["kfp_image"]
+    del config._cfg["kfp_image"]
 
 
 def _convert_str(value, typ):
@@ -184,7 +224,7 @@ def read_env(env=None, prefix=env_prefix):
         except ValueError:
             pass  # Leave as string
         key = key[len(env_prefix) :]  # Trim MLRUN_
-        path = key.lower().split('__')  # 'A__B' → ['a', 'b']
+        path = key.lower().split("__")  # 'A__B' → ['a', 'b']
         cfg = config
         while len(path) > 1:
             name, *path = path
@@ -192,40 +232,41 @@ def read_env(env=None, prefix=env_prefix):
         cfg[path[0]] = value
 
     # check for mlrun-api or db kubernetes service
-    svc = env.get('MLRUN_API_PORT')
-    if svc and not config.get('dbpath'):
-        config['dbpath'] = 'http://mlrun-api:{}'.format(
-            default_config['httpdb']['port'] or 8080
+    svc = env.get("MLRUN_API_PORT")
+    if svc and not config.get("dbpath"):
+        config["dbpath"] = "http://mlrun-api:{}".format(
+            default_config["httpdb"]["port"] or 8080
         )
 
-    uisvc = env.get('MLRUN_UI_SERVICE_HOST')
-    igz_domain = env.get('IGZ_NAMESPACE_DOMAIN')
+    uisvc = env.get("MLRUN_UI_SERVICE_HOST")
+    igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
 
     # workaround to try and detect IGZ domain in 2.8
-    if not igz_domain and 'DEFAULT_DOCKER_REGISTRY' in env:
-        registry = env['DEFAULT_DOCKER_REGISTRY']
-        if registry.startswith('docker-registry.default-tenant'):
-            igz_domain = registry[len('docker-registry.') :]
-            if ':' in igz_domain:
-                igz_domain = igz_domain[: igz_domain.rfind(':')]
-            env['IGZ_NAMESPACE_DOMAIN'] = igz_domain
+    if not igz_domain and "DEFAULT_DOCKER_REGISTRY" in env:
+        registry = env["DEFAULT_DOCKER_REGISTRY"]
+        if registry.startswith("docker-registry.default-tenant"):
+            igz_domain = registry[len("docker-registry.") :]
+            if ":" in igz_domain:
+                igz_domain = igz_domain[: igz_domain.rfind(":")]
+            env["IGZ_NAMESPACE_DOMAIN"] = igz_domain
 
     # workaround wrongly sqldb dsn in 2.8
     if (
-        config.get('httpdb', {}).get('dsn')
-        == 'sqlite:///mlrun.sqlite3?check_same_thread=false'
+        config.get("httpdb", {}).get("dsn")
+        == "sqlite:///mlrun.sqlite3?check_same_thread=false"
     ):
-        config['httpdb']['dsn'] = 'sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
+        config["httpdb"]["dsn"] = "sqlite:////mlrun/db/mlrun.db?check_same_thread=false"
 
-    if uisvc and not config.get('ui_url'):
+    # "disabled" is the helm chart default value, we don't want that value to be set cause when this value is set we
+    # use it in calls to the Nuclio package, and when the Nuclio package receives a value it simply uses it, and
+    # obviously "disabled" is not the right address.. when the Nuclio package doesn't receive a value it doing "best
+    # effort" to try and determine the URL, we want this "best effort" so overriding the "disabled" value
+    if config.get("nuclio_dashboard_url") == "disabled":
+        config["nuclio_dashboard_url"] = ""
+
+    if uisvc and not config.get("ui_url"):
         if igz_domain:
-            config['ui_url'] = 'https://mlrun-ui.{}'.format(igz_domain)
-
-    if not config.get('kfp_image'):
-        tag = __version__ or 'latest'
-        config['kfp_image'] = 'mlrun/mlrun:{}'.format(tag)
-
-    config['version'] = __version__
+            config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
 
     return config
 

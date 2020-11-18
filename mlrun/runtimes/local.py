@@ -24,12 +24,12 @@ from tempfile import mktemp
 
 from .kubejob import KubejobRuntime
 from ..model import RunObject
-from ..utils import logger, set_logger_level
+from ..utils import logger
 from ..execution import MLClientCtx
 from .base import BaseRuntime
 from .utils import log_std, global_context, RunError
 from sys import executable
-from subprocess import run, PIPE
+from subprocess import PIPE, Popen
 
 import importlib.util as imputil
 from io import StringIO
@@ -39,13 +39,13 @@ from nuclio import Event
 
 
 class HandlerRuntime(BaseRuntime):
-    kind = 'handler'
+    kind = "handler"
 
     def _run(self, runobj: RunObject, execution):
         handler = runobj.spec.handler
         self._force_handler(handler)
-        tmp = mktemp('.json')
-        environ['MLRUN_META_TMPFILE'] = tmp
+        tmp = mktemp(".json")
+        environ["MLRUN_META_TMPFILE"] = tmp
         if self.spec.pythonpath:
             set_paths(self.spec.pythonpath)
 
@@ -58,15 +58,15 @@ class HandlerRuntime(BaseRuntime):
         )
         global_context.set(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
-        log_std(self._db_conn, runobj, sout, serr)
+        log_std(self._db_conn, runobj, sout, serr, show=False)
         return context.to_dict()
 
 
 class LocalRuntime(BaseRuntime):
-    kind = 'local'
+    kind = "local"
     _is_remote = False
 
-    def to_job(self, image=''):
+    def to_job(self, image=""):
         struct = self.to_dict()
         obj = KubejobRuntime.from_dict(struct)
         if image:
@@ -78,15 +78,15 @@ class LocalRuntime(BaseRuntime):
         return True
 
     def _run(self, runobj: RunObject, execution):
-        environ['MLRUN_EXEC_CONFIG'] = runobj.to_json()
-        tmp = mktemp('.json')
-        environ['MLRUN_META_TMPFILE'] = tmp
+        environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
+        tmp = mktemp(".json")
+        environ["MLRUN_META_TMPFILE"] = tmp
         if self.spec.rundb:
-            environ['MLRUN_DBPATH'] = self.spec.rundb
+            environ["MLRUN_DBPATH"] = self.spec.rundb
 
         handler = runobj.spec.handler
         logger.debug(
-            'starting local run: {} # {}'.format(self.spec.command, handler or 'main')
+            "starting local run: {} # {}".format(self.spec.command, handler or "main")
         )
 
         if handler:
@@ -104,28 +104,28 @@ class LocalRuntime(BaseRuntime):
             mod.global_mlrun_context = context
             global_context.set(context)
             sout, serr = exec_from_params(fn, runobj, context, self.spec.workdir)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
             return context.to_dict()
 
         else:
-            if self.spec.mode == 'pass':
+            if self.spec.mode == "pass":
                 cmd = [self.spec.command]
             else:
-                cmd = [executable, self.spec.command]
+                cmd = [executable, "-u", self.spec.command]
 
             env = None
             if self.spec.pythonpath:
                 pypath = self.spec.pythonpath
-                if 'PYTHONPATH' in environ:
-                    pypath = '{}:{}'.format(environ['PYTHONPATH'], pypath)
-                env = {'PYTHONPATH': pypath}
+                if "PYTHONPATH" in environ:
+                    pypath = "{}:{}".format(environ["PYTHONPATH"], pypath)
+                env = {"PYTHONPATH": pypath}
             if runobj.spec.verbose:
                 if not env:
                     env = {}
-                env['MLRUN_LOG_LEVEL'] = 'debug'
+                env["MLRUN_LOG_LEVEL"] = "debug"
 
             sout, serr = run_exec(cmd, self.spec.args, env=env, cwd=self.spec.workdir)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
             try:
                 with open(tmp) as fp:
@@ -133,14 +133,14 @@ class LocalRuntime(BaseRuntime):
                 remove(tmp)
                 if resp:
                     return json.loads(resp)
-                logger.error('empty context tmp file')
+                logger.error("empty context tmp file")
             except FileNotFoundError:
-                logger.info('no context file found')
+                logger.info("no context file found")
             return runobj.to_dict()
 
 
-def set_paths(pythonpath=''):
-    paths = pythonpath.split(':')
+def set_paths(pythonpath=""):
+    paths = pythonpath.split(":")
     if not paths:
         return
     for p in paths:
@@ -157,13 +157,13 @@ def load_module(file_name, handler):
         mod_name = mod_name[: -len(path.suffix)]
     spec = imputil.spec_from_file_location(mod_name, file_name)
     if spec is None:
-        raise RunError(f'cannot import from {file_name!r}')
+        raise RunError(f"cannot import from {file_name!r}")
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
     try:
         fn = getattr(mod, handler)  # Will raise if name not found
     except AttributeError:
-        raise RunError('handler {} not found in {}'.format(handler, file_name))
+        raise RunError("handler {} not found in {}".format(handler, file_name))
 
     return mod, fn
 
@@ -171,20 +171,42 @@ def load_module(file_name, handler):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
+    out = ""
+    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=env, cwd=cwd)
+    while True:
+        nextline = process.stdout.readline()
+        if not nextline and process.poll() is not None:
+            break
+        print(nextline.decode("utf-8"), end="")
+        sys.stdout.flush()
+        out += nextline.decode("utf-8")
+    code = process.poll()
 
-    err = out.stderr.decode('utf-8') if out.returncode != 0 else ''
-    return out.stdout.decode('utf-8'), err
+    err = process.stderr.read().decode("utf-8") if code != 0 else ""
+    return out, err
+
+
+class _DupStdout(object):
+    def __init__(self):
+        self.terminal = sys.stdout
+        self.buf = StringIO()
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.buf.write(message)
+
+    def flush(self):
+        pass
 
 
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
     old_level = logger.level
     if runobj.spec.verbose:
-        set_logger_level('DEBUG')
+        logger.set_logger_level("DEBUG")
     args_list = get_func_arg(handler, runobj, context)
 
-    stdout = StringIO()
-    err = ''
+    stdout = _DupStdout()
+    err = ""
     val = None
     old_dir = os.getcwd()
     with redirect_stdout(stdout):
@@ -193,21 +215,21 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             if cwd:
                 os.chdir(cwd)
             val = handler(*args_list)
-            context.set_state('completed', commit=False)
+            context.set_state("completed", commit=False)
         except Exception as e:
             err = str(e)
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
-            set_logger_level(old_level)
+            logger.set_logger_level(old_level)
 
     if cwd:
         os.chdir(old_dir)
     context.set_logger_stream(sys.stdout)
     if val:
-        context.log_result('return', val)
+        context.log_result("return", val)
     context.commit()
-    set_logger_level(old_level)
-    return stdout.getvalue(), err
+    logger.set_logger_level(old_level)
+    return stdout.buf.getvalue(), err
 
 
 def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
@@ -216,10 +238,10 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
     args_list = []
     i = 0
     args = inspect.signature(handler).parameters
-    if len(args) > 0 and list(args.keys())[0] == 'context':
+    if len(args) > 0 and list(args.keys())[0] == "context":
         args_list.append(context)
         i += 1
-    if len(args) > i + 1 and list(args.keys())[i] == 'event':
+    if len(args) > i + 1 and list(args.keys())[i] == "event":
         event = Event(runobj.to_dict())
         args_list.append(event)
         i += 1

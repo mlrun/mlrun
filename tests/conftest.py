@@ -24,35 +24,40 @@ from urllib.request import URLError, urlopen
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from mlrun.api.db.sqldb.models import Base
-from mlrun.api.db.sqldb.db import run_time_fmt
-
-
-here = Path(__file__).absolute().parent
-results = here / 'test_results'
-is_ci = 'CI' in environ
+tests_root_directory = Path(__file__).absolute().parent
+results = tests_root_directory / "test_results"
+is_ci = "CI" in environ
 
 shutil.rmtree(results, ignore_errors=True, onerror=None)
-Path(f'{results}/kfp').mkdir(parents=True, exist_ok=True)
-environ['KFPMETA_OUT_DIR'] = f'{results}/kfp/'
-print(f'KFP: {results}/kfp/')
+Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
+environ["KFPMETA_OUT_DIR"] = f"{results}/kfp/"
+environ["KFP_ARTIFACTS_DIR"] = f"{results}/kfp/"
+print(f"KFP: {results}/kfp/")
 
-rundb_path = f'{results}/rundb'
-out_path = f'{results}/out'
-root_path = str(Path(here).parent)
-examples_path = Path(here).parent.joinpath('examples')
-environ['PYTHONPATH'] = root_path
-environ['MLRUN_DBPATH'] = rundb_path
-environ['MLRUN_httpdb__dirpath'] = rundb_path
+rundb_path = f"{results}/rundb"
+logs_path = f"{results}/logs"
+out_path = f"{results}/out"
+root_path = str(Path(tests_root_directory).parent)
+examples_path = Path(tests_root_directory).parent.joinpath("examples")
+environ["PYTHONPATH"] = root_path
+environ["MLRUN_DBPATH"] = rundb_path
+environ["MLRUN_httpdb__dirpath"] = rundb_path
+environ["MLRUN_httpdb__logs_path"] = logs_path
+environ["MLRUN_log_level"] = "DEBUG"
+pytest_plugins = ["tests.common_fixtures"]
+
+# import package stuff after setting env vars so it will take effect
+from mlrun.api.db.sqldb.db import run_time_fmt  # noqa: E402
+from mlrun.api.db.sqldb.models import Base  # noqa: E402
 
 
 def check_docker():
-    if not platform.startswith('linux'):
+    if not platform.startswith("linux"):
         return False
 
-    with open('/proc/1/cgroup') as fp:
+    with open("/proc/1/cgroup") as fp:
         for line in fp:
-            if '/docker/' in line:
+            if "/docker/" in line:
                 return True
     return False
 
@@ -66,17 +71,17 @@ from mlrun import RunObject, RunTemplate  # noqa
 def tag_test(spec: RunTemplate, name) -> RunTemplate:
     spec = spec.copy()
     spec.metadata.name = name
-    spec.metadata.labels['test'] = name
+    spec.metadata.labels["test"] = name
     return spec
 
 
 def has_secrets():
-    return Path('secrets.txt').is_file()
+    return Path("secrets.txt").is_file()
 
 
 def verify_state(result: RunObject):
     state = result.status.state
-    assert state == 'completed', 'wrong state ({}) {}'.format(
+    assert state == "completed", "wrong state ({}) {}".format(
         state, result.status.error
     )
 
@@ -86,7 +91,7 @@ def wait_for_server(url, timeout_sec):
     while monotonic() - start <= timeout_sec:
         try:
             with urlopen(url) as resp:
-                if resp.status == HTTPStatus.OK:
+                if resp.status == HTTPStatus.OK.value:
                     return True
         except (URLError, ConnectionError):
             pass
@@ -100,11 +105,11 @@ def run_now():
 
 def new_run(state, labels, uid=None, **kw):
     obj = {
-        'metadata': {'labels': labels},
-        'status': {'state': state, 'start_time': run_now()},
+        "metadata": {"labels": labels},
+        "status": {"state": state, "start_time": run_now()},
     }
     if uid:
-        obj['metadata']['uid'] = uid
+        obj["metadata"]["uid"] = uid
     obj.update(kw)
     return obj
 

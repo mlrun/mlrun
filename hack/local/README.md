@@ -24,15 +24,14 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 > - Using Docker is limited to local runtimes.
 
 ```
-MLRUN_IP=localhost
-SHARED_DIR=/home/me/data
-# On Windows, use host.docker.internal for MLRUN_IP
+SHARED_DIR=~/mlrun-data
 
-docker pull quay.io/iguazio/mlrun-ui:latest
-docker pull mlrun/jupy:latest
+docker pull mlrun/jupyter:0.5.4
+docker pull mlrun/mlrun-ui:0.5.4
 
-docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 quay.io/iguazio/mlrun-ui:latest
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupy:latest
+docker network create mlrun-network
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.4
+docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.5.4
 ```
 
 When the execution completes &mdash;
@@ -59,7 +58,7 @@ The following example uses a shared NFS server and a Helm chart for the installa
 1. Run the following commands (provided Helm is installed):
     ```sh
     helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-    helm install stable/nfs-server-provisioner --name nfsprov
+    helm install nfsprov stable/nfs-server-provisioner
     ```
 2. Create a `PersistentVolumeClaim` (PVC) for a shared NFS volume: copy the [**nfs-pvc.yaml**](nfs-pvc.yaml) file to you cluster and run the following command:
     ```sh
@@ -97,7 +96,7 @@ Copy the [**mljupy.yaml**](mljupy.yaml) file to you cluster and run the followin
 kubectl apply -n <namespace> -f mljupy.yaml
 ```
 
-To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](Dockerfile.jupy)).
+To change or add packages, see the Jupyter Dockerfile ([**Dockerfile.jupy**](dockerfiles/jupyter/Dockerfile)).
 
 <a id="k8s-install-start-working"></a>
 ### Start Working

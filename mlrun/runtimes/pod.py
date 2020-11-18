@@ -18,7 +18,13 @@ from copy import deepcopy
 from kubernetes import client
 from kfp.dsl import ContainerOp
 
-from .utils import apply_kfp, set_named_item, get_item_name, get_resource_labels
+from .utils import (
+    apply_kfp,
+    set_named_item,
+    get_item_name,
+    get_resource_labels,
+    generate_resources,
+)
 from ..utils import normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec
 
@@ -99,12 +105,12 @@ class KubeResourceSpec(FunctionSpec):
 
 
 class KubeResource(BaseRuntime):
-    kind = 'job'
+    kind = "job"
     _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
-        self._cop = ContainerOp('name', 'image')
+        self._cop = ContainerOp("name", "image")
         self.verbose = False
 
     @property
@@ -113,21 +119,21 @@ class KubeResource(BaseRuntime):
 
     @spec.setter
     def spec(self, spec):
-        self._spec = self._verify_dict(spec, 'spec', KubeResourceSpec)
+        self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude, strip=strip)
         api = client.ApiClient()
         struct = api.sanitize_for_serialization(struct)
         if strip:
-            spec = struct['spec']
-            for attr in ['volumes', 'volume_mounts']:
+            spec = struct["spec"]
+            for attr in ["volumes", "volume_mounts"]:
                 if attr in spec:
                     del spec[attr]
-            if 'env' in spec and spec['env']:
-                for ev in spec['env']:
-                    if ev['name'].startswith('V3IO_'):
-                        ev['value'] = ''
+            if "env" in spec and spec["env"]:
+                for ev in spec["env"]:
+                    if ev["name"].startswith("V3IO_"):
+                        ev["value"] = ""
         return struct
 
     def apply(self, modify):
@@ -143,7 +149,7 @@ class KubeResource(BaseRuntime):
 
     def set_env(self, name, value):
         """set pod environment var from value"""
-        return self._set_env(name, value=value)
+        return self._set_env(name, value=str(value))
 
     def _set_env(self, name, value=None, value_from=None):
         new_var = client.V1EnvVar(name=name, value=value, value_from=value_from)
@@ -162,42 +168,33 @@ class KubeResource(BaseRuntime):
             self.set_env(name, value)
         return self
 
-    def gpus(self, gpus, gpu_type='nvidia.com/gpu'):
-        update_in(self.spec.resources, ['limits', gpu_type], gpus)
+    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
+        update_in(self.spec.resources, ["limits", gpu_type], gpus)
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type='nvidia.com/gpu'):
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        limits = {}
-        if gpus:
-            limits[gpu_type] = gpus
-        if mem:
-            limits['memory'] = mem
-        if cpu:
-            limits['cpu'] = cpu
-        update_in(self.spec.resources, 'limits', limits)
+        update_in(
+            self.spec.resources,
+            "limits",
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
-        requests = {}
-        if mem:
-            requests['memory'] = mem
-        if cpu:
-            requests['cpu'] = cpu
-        update_in(self.spec.resources, 'requests', requests)
+        update_in(self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu))
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
-        uid = runobj.metadata.uid
-        name = runobj.metadata.name
-        labels = get_resource_labels(self, uid, name)
+
+        labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
         new_meta = client.V1ObjectMeta(namespace=namespace, labels=labels)
 
-        name = runobj.metadata.name or 'mlrun'
-        norm_name = '{}-'.format(normalize_name(name))
+        name = runobj.metadata.name or "mlrun"
+        norm_name = "{}-".format(normalize_name(name))
         if unique:
             norm_name += uuid.uuid4().hex[:8]
             new_meta.name = norm_name
-            runobj.set_label('mlrun/job', norm_name)
+            runobj.set_label("mlrun/job", norm_name)
         else:
             new_meta.generate_name = norm_name
         return new_meta
@@ -205,6 +202,6 @@ class KubeResource(BaseRuntime):
     def copy(self):
         self._cop = None
         fn = deepcopy(self)
-        self._cop = ContainerOp('name', 'image')
-        fn._cop = ContainerOp('name', 'image')
+        self._cop = ContainerOp("name", "image")
+        fn._cop = ContainerOp("name", "image")
         return fn

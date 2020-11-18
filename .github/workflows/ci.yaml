@@ -1,6 +1,15 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches:
+    - development
+    - '[0-9]+.[0-9]+.x'
+
+  # Run CI also on push to master
+  push:
+    branches:
+    - master
 
 jobs:
   lint:
@@ -15,34 +24,45 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-    - uses: actions/cache@v1
-      id: cache-dev-deps
+    - uses: actions/cache@v2
       with:
-        path: .venv
-        key: venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/dev-requirements.txt') }}
         restore-keys: |
-          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-poetry-
-          venv-dev-${{ runner.os }}-py-${{ matrix.python-version }}-
-          venv-dev-${{ runner.os }}-py-
-          venv-dev-${{ runner.os }}-
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
     - name: Install dependencies
-      if: steps.cache-dev-deps.outputs.cache-hit != 'true'
       run: |
         python -m pip install --upgrade pip
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
+
   tests:
     name: Run Dockerized Tests
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Run Dockerized tests
-      run: make test-dockerized
-    - name: Generate HTML docs
-      run: make html-docs-dockerized
-    - name: Upload generated docs
-      uses: actions/upload-artifact@v2
-      with:
-        name: docs
-        path: docs/_build/html
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make test-dockerized
+
+  migrations-tests:
+    name: Run Dockerized Migrations Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run Dockerized DB Migration tests
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make test-migrations-dockerized
+
+  docs:
+    name: Build Project Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Generate HTML docs
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache make html-docs-dockerized
+      - name: Upload generated docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: docs/_build/html

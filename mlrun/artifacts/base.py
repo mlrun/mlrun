@@ -13,8 +13,12 @@
 # limitations under the License.
 import os
 import hashlib
+
+import yaml
+
+import mlrun
 from ..model import ModelObj
-from ..datastore import StoreManager
+from ..datastore import StoreManager, store_manager
 from ..utils import DB_SCHEMA
 
 calc_hash = True
@@ -23,21 +27,22 @@ calc_hash = True
 class Artifact(ModelObj):
 
     _dict_fields = [
-        'key',
-        'kind',
-        'iter',
-        'tree',
-        'src_path',
-        'target_path',
-        'hash',
-        'description',
-        'viewer',
-        'inline',
-        'format',
-        'size',
-        'db_key',
+        "key",
+        "kind",
+        "iter",
+        "tree",
+        "src_path",
+        "target_path",
+        "hash",
+        "description",
+        "viewer",
+        "inline",
+        "format",
+        "size",
+        "db_key",
+        "extra_data",
     ]
-    kind = ''
+    kind = ""
 
     def __init__(
         self,
@@ -50,7 +55,7 @@ class Artifact(ModelObj):
         target_path=None,
     ):
         self.key = key
-        self.project = ''
+        self.project = ""
         self.db_key = None
         self.size = size
         self.iter = None
@@ -69,7 +74,8 @@ class Artifact(ModelObj):
         self.producer = None
         self.hash = None
         self._inline = is_inline
-        self.license = ''
+        self.license = ""
+        self.extra_data = {}
 
     def before_log(self):
         pass
@@ -92,9 +98,10 @@ class Artifact(ModelObj):
         return self._body
 
     def get_store_url(self, with_tag=True, project=None):
-        url = '{}://{}/{}'.format(DB_SCHEMA, project or self.project, self.db_key)
+        url = "{}://{}/{}".format(DB_SCHEMA, project or self.project, self.db_key)
         if with_tag:
-            url += '#' + self.tree
+            url += "#" + self.tree
+        return url
 
     def base_dict(self):
         return super().to_dict()
@@ -102,18 +109,18 @@ class Artifact(ModelObj):
     def to_dict(self, fields=None):
         return super().to_dict(
             self._dict_fields
-            + ['updated', 'labels', 'annotations', 'producer', 'sources', 'project']
+            + ["updated", "labels", "annotations", "producer", "sources", "project"]
         )
 
     @classmethod
     def from_dict(cls, struct=None, fields=None):
         fields = fields or cls._dict_fields + [
-            'updated',
-            'labels',
-            'annotations',
-            'producer',
-            'sources',
-            'project',
+            "updated",
+            "labels",
+            "annotations",
+            "producer",
+            "sources",
+            "project",
         ]
         return super().from_dict(struct, fields=fields)
 
@@ -144,16 +151,16 @@ class Artifact(ModelObj):
 
 class DirArtifact(Artifact):
     _dict_fields = [
-        'key',
-        'kind',
-        'iter',
-        'tree',
-        'src_path',
-        'target_path',
-        'description',
-        'db_key',
+        "key",
+        "kind",
+        "iter",
+        "tree",
+        "src_path",
+        "target_path",
+        "description",
+        "db_key",
     ]
-    kind = 'dir'
+    kind = "dir"
 
     @property
     def is_dir(self):
@@ -161,25 +168,25 @@ class DirArtifact(Artifact):
 
     def upload(self, data_stores):
         if not self.src_path:
-            raise ValueError('local/source path not specified')
+            raise ValueError("local/source path not specified")
 
         files = os.listdir(self.src_path)
         for f in files:
             file_path = os.path.join(self.src_path, f)
             if not os.path.isfile(file_path):
-                raise ValueError('file {} not found, cant upload'.format(file_path))
+                raise ValueError("file {} not found, cant upload".format(file_path))
             target = os.path.join(self.target_path, f)
             data_stores.object(url=target).upload(file_path)
 
 
 class LinkArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ['link_iteration', 'link_key', 'link_tree']
-    kind = 'link'
+    _dict_fields = Artifact._dict_fields + ["link_iteration", "link_key", "link_tree"]
+    kind = "link"
 
     def __init__(
         self,
         key=None,
-        target_path='',
+        target_path="",
         link_iteration=None,
         link_key=None,
         link_tree=None,
@@ -196,7 +203,7 @@ def file_hash(filename):
     h = hashlib.sha1()
     b = bytearray(128 * 1024)
     mv = memoryview(b)
-    with open(filename, 'rb', buffering=0) as f:
+    with open(filename, "rb", buffering=0) as f:
         for n in iter(lambda: f.readinto(mv), 0):
             h.update(mv[:n])
     return h.hexdigest()
@@ -208,3 +215,66 @@ def blob_hash(data):
     h = hashlib.sha1()
     h.update(data)
     return h.hexdigest()
+
+
+def upload_extra_data(
+    artifact_spec: Artifact,
+    extra_data: dict,
+    data_stores,
+    prefix="",
+    update_spec=False,
+):
+    if not extra_data:
+        return
+    target_path = artifact_spec.target_path
+    for key, item in extra_data.items():
+
+        if isinstance(item, bytes):
+            target = os.path.join(target_path, key)
+            data_stores.object(url=target).put(item)
+            artifact_spec.extra_data[prefix + key] = target
+            continue
+
+        if not (item.startswith("/") or "://" in item):
+            src_path = (
+                os.path.join(artifact_spec.src_path, item)
+                if artifact_spec.src_path
+                else item
+            )
+            if not os.path.isfile(src_path):
+                raise ValueError("extra data file {} not found".format(src_path))
+            target = os.path.join(target_path, item)
+            data_stores.object(url=target).upload(src_path)
+
+        if update_spec:
+            artifact_spec.extra_data[prefix + key] = item
+
+
+def get_artifact_meta(artifact):
+    """return artifact object, and list of extra data items
+
+
+    :param artifact:   artifact path (store://..) or DataItem
+
+    :returns: artifact object, extra data dict
+
+    """
+    if hasattr(artifact, "artifact_url"):
+        artifact = artifact.artifact_url
+
+    if artifact.startswith(DB_SCHEMA + "://"):
+        artifact_spec, target = store_manager.get_store_artifact(artifact)
+
+    elif artifact.lower().endswith(".yaml"):
+        data = store_manager.object(url=artifact).get()
+        spec = yaml.load(data, Loader=yaml.FullLoader)
+        artifact_spec = mlrun.artifacts.dict_to_artifact(spec)
+
+    else:
+        raise ValueError("cant resolve artifact file for {}".format(artifact))
+
+    extra_dataitems = {}
+    for k, v in artifact_spec.extra_data.items():
+        extra_dataitems[k] = store_manager.object(v, key=k)
+
+    return artifact_spec, extra_dataitems

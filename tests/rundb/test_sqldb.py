@@ -85,7 +85,9 @@ def test_list_projects(db: SQLDB, db_session: Session):
 
     projects_output = db.list_projects(db_session)
 
-    assert {"prj0", "prj1", "prj2"} == {project.name for project in projects_output.projects}
+    assert {"prj0", "prj1", "prj2"} == {
+        project.name for project in projects_output.projects
+    }
 
 
 def test_run_iter0(db: SQLDB, db_session: Session):
@@ -158,19 +160,24 @@ def test_list_tags(db: SQLDB, db_session: Session):
 
 
 def test_projects(db: SQLDB, db_session: Session):
-    project = mlrun.api.schemas.ProjectCreate(name='p1', description='banana', spec={'other_field': 'value'}, state='active')
+    project = mlrun.api.schemas.ProjectCreate(
+        name="p1", description="banana", spec={"other_field": "value"}, state="active"
+    )
     db.create_project(db_session, project)
     project_output = db.get_project(db_session, name=project.name)
     assert (
-            deepdiff.DeepDiff(project.dict(), project_output.project.dict(), ignore_order=True) == {}
+        deepdiff.DeepDiff(
+            project.dict(), project_output.project.dict(), ignore_order=True
+        )
+        == {}
     )
 
-    project_update = mlrun.api.schemas.ProjectUpdate(description='lemon')
+    project_update = mlrun.api.schemas.ProjectUpdate(description="lemon")
     db.update_project(db_session, project.name, project_update)
     project_output = db.get_project(db_session, name=project.name)
     assert project_output.project.description == project_update.description
 
-    project_2 = mlrun.api.schemas.ProjectCreate(name='p2')
+    project_2 = mlrun.api.schemas.ProjectCreate(name="p2")
     db.create_project(db_session, project)
     projects_output = db.list_projects(db_session)
     project_names = {project.name for project in projects_output.projects}

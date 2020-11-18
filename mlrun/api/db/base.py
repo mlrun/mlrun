@@ -181,11 +181,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_projects(self, session, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+    def list_projects(
+        self, session, owner: str = None, full: bool = False
+    ) -> schemas.ProjectsOutput:
         pass
 
     @abstractmethod
-    def get_project(self, session, name: str = None, project_id: int = None) -> schemas.ProjectOutput:
+    def get_project(
+        self, session, name: str = None, project_id: int = None
+    ) -> schemas.ProjectOutput:
         pass
 
     @abstractmethod

@@ -821,15 +821,15 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 
-    def list_projects(self, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+    def list_projects(
+        self, owner: str = None, full: bool = False
+    ) -> schemas.ProjectsOutput:
         params = {
             "owner": owner,
             "full": full,
         }
 
-        error_message = (
-            f"Failed listing projects, query: {params}"
-        )
+        error_message = f"Failed listing projects, query: {params}"
         resp = self.api_call("GET", "projects", error_message, params=params)
         return schemas.ProjectsOutput(**resp.json())
 
@@ -847,17 +847,19 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 
-    def update_project(self, name: str, project: Union[dict, mlrun.api.schemas.ProjectUpdate]) -> mlrun.api.schemas.ProjectOutput:
+    def update_project(
+        self, name: str, project: Union[dict, mlrun.api.schemas.ProjectUpdate]
+    ) -> mlrun.api.schemas.ProjectOutput:
         path = f"projects/{name}"
         error_message = f"Failed updating project {name}"
         if isinstance(project, mlrun.api.schemas.ProjectUpdate):
             project = project.dict()
-        resp = self.api_call(
-            "PUT", path, error_message, body=json.dumps(project),
-        )
+        resp = self.api_call("PUT", path, error_message, body=json.dumps(project),)
         return schemas.ProjectOutput(**resp.json())
 
-    def create_project(self, project: Union[dict, mlrun.api.schemas.ProjectCreate]) -> mlrun.api.schemas.ProjectOutput:
+    def create_project(
+        self, project: Union[dict, mlrun.api.schemas.ProjectCreate]
+    ) -> mlrun.api.schemas.ProjectOutput:
         if isinstance(project, mlrun.api.schemas.ProjectUpdate):
             project = project.dict()
         error_message = f"Failed creating project {project['name']}"

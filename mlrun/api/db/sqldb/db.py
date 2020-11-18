@@ -662,7 +662,9 @@ class SQLDB(DBInterface):
         )
         self._upsert(session, project)
 
-    def update_project(self, session: Session, name: str, project: schemas.ProjectUpdate):
+    def update_project(
+        self, session: Session, name: str, project: schemas.ProjectUpdate
+    ):
         project_record = self.get_project(session, name)
         project_dict = project.dict()
         project_record.spec = project_dict
@@ -671,9 +673,13 @@ class SQLDB(DBInterface):
         project_record.state = project.state
         self._upsert(session, project_record)
 
-    def get_project(self, session: Session, name: str = None, project_id: int = None) -> schemas.ProjectOutput:
+    def get_project(
+        self, session: Session, name: str = None, project_id: int = None
+    ) -> schemas.ProjectOutput:
         if (project_id and name) or (not project_id and not name):
-            raise mlrun.errors.MLRunInvalidArgumentError("One of name or project id must be provided")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "One of name or project id must be provided"
+            )
         if name:
             project = self._query(session, Project, name=name).one_or_none()
         else:
@@ -683,7 +689,9 @@ class SQLDB(DBInterface):
                 f"Project not found {name}, {project_id}"
             )
 
-        return schemas.ProjectOutput(project=self._transform_project_model_to_schema(project))
+        return schemas.ProjectOutput(
+            project=self._transform_project_model_to_schema(project)
+        )
 
     def delete_project(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
@@ -699,7 +707,9 @@ class SQLDB(DBInterface):
         self._delete_resources_labels(session, name)
         self._delete(session, Project, name=name)
 
-    def list_projects(self, session: Session, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+    def list_projects(
+        self, session: Session, owner: str = None, full: bool = False
+    ) -> schemas.ProjectsOutput:
         project_records = self._query(session, Project, owner=owner)
         projects = []
         for project_record in project_records:
@@ -1463,8 +1473,6 @@ class SQLDB(DBInterface):
         return feature_set_resp
 
     @staticmethod
-    def _transform_project_model_to_schema(
-            project_record: Project
-    ) -> schemas.Project:
+    def _transform_project_model_to_schema(project_record: Project) -> schemas.Project:
         project_full_dict = project_record.spec
         return schemas.Project(**project_full_dict)

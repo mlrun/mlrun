@@ -188,19 +188,27 @@ class SQLDB(RunDBInterface):
     def list_tags(self, project: str):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
-    def update_project(self, name: str, project: mlrun.api.schemas.ProjectUpdate) -> mlrun.api.schemas.ProjectOutput:
+    def update_project(
+        self, name: str, project: mlrun.api.schemas.ProjectUpdate
+    ) -> mlrun.api.schemas.ProjectOutput:
         raise NotImplementedError()
 
-    def create_project(self, project: mlrun.api.schemas.ProjectCreate) -> mlrun.api.schemas.ProjectOutput:
+    def create_project(
+        self, project: mlrun.api.schemas.ProjectCreate
+    ) -> mlrun.api.schemas.ProjectOutput:
         raise NotImplementedError()
 
     def delete_project(self, name: str):
         raise NotImplementedError()
 
-    def get_project(self, name: str = None, project_id: int = None) -> mlrun.api.schemas.ProjectOutput:
+    def get_project(
+        self, name: str = None, project_id: int = None
+    ) -> mlrun.api.schemas.ProjectOutput:
         raise NotImplementedError()
 
-    def list_projects(self, owner: str = None, full: bool = False) -> mlrun.api.schemas.ProjectsOutput:
+    def list_projects(
+        self, owner: str = None, full: bool = False
+    ) -> mlrun.api.schemas.ProjectsOutput:
         raise NotImplementedError()
 
     @staticmethod

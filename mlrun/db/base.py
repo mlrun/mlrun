@@ -122,7 +122,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_project(self, name: str, project: schemas.ProjectUpdate) -> schemas.ProjectOutput:
+    def update_project(
+        self, name: str, project: schemas.ProjectUpdate
+    ) -> schemas.ProjectOutput:
         pass
 
     @abstractmethod
@@ -130,7 +132,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_projects(self, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+    def list_projects(
+        self, owner: str = None, full: bool = False
+    ) -> schemas.ProjectsOutput:
         pass
 
     @abstractmethod

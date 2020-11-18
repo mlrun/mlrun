@@ -412,13 +412,17 @@ class FileRunDB(RunDBInterface):
         project = project or config.default_project
         return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
 
-    def list_projects(self, owner: str = None, full: bool = False) -> mlrun.api.schemas.ProjectsOutput:
+    def list_projects(
+        self, owner: str = None, full: bool = False
+    ) -> mlrun.api.schemas.ProjectsOutput:
         if owner or full:
             raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
             return mlrun.api.schemas.ProjectsOutput(projects=[])
-        project_names = [d for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))]
+        project_names = [
+            d for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
+        ]
         return mlrun.api.schemas.ProjectsOutput(projects=project_names)
 
     def get_project(self, name: str) -> mlrun.api.schemas.ProjectOutput:
@@ -427,10 +431,14 @@ class FileRunDB(RunDBInterface):
     def delete_project(self, name: str):
         raise NotImplementedError()
 
-    def update_project(self, name: str, project: mlrun.api.schemas.ProjectUpdate) -> mlrun.api.schemas.ProjectOutput:
+    def update_project(
+        self, name: str, project: mlrun.api.schemas.ProjectUpdate
+    ) -> mlrun.api.schemas.ProjectOutput:
         raise NotImplementedError()
 
-    def create_project(self, project: mlrun.api.schemas.ProjectCreate) -> mlrun.api.schemas.ProjectOutput:
+    def create_project(
+        self, project: mlrun.api.schemas.ProjectCreate
+    ) -> mlrun.api.schemas.ProjectOutput:
         raise NotImplementedError()
 
     @property

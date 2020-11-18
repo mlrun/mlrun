@@ -134,7 +134,9 @@ class FileDB(DBInterface):
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
-    def list_projects(self, session, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+    def list_projects(
+        self, session, owner: str = None, full: bool = False
+    ) -> schemas.ProjectsOutput:
         return self._transform_run_db_error(self.db.list_projects, owner, full)
 
     def update_project(self, session, name: str, project: schemas.ProjectUpdate):
@@ -143,7 +145,9 @@ class FileDB(DBInterface):
     def create_project(self, session, project: schemas.ProjectCreate):
         raise NotImplementedError()
 
-    def get_project(self, session, name: str = None, project_id: int = None) -> schemas.ProjectOutput:
+    def get_project(
+        self, session, name: str = None, project_id: int = None
+    ) -> schemas.ProjectOutput:
         raise NotImplementedError()
 
     def delete_project(self, session, name: str):

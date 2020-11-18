@@ -91,6 +91,27 @@ def test_create_project(
     )
 
 
+def test_ensure_project(
+    db: sqlalchemy.orm.Session,
+    projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
+    nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
+):
+    project_name = "project-name"
+    projects_manager.ensure_project(
+        None, project_name,
+    )
+    _assert_project_in_consumers([nop_master, nop_consumer], project_name)
+
+    # further calls should do nothing
+    projects_manager.ensure_project(
+        None, project_name,
+    )
+    projects_manager.ensure_project(
+        None, project_name,
+    )
+
+
 def test_update_project(
     db: sqlalchemy.orm.Session,
     projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,

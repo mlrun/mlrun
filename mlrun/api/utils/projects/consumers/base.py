@@ -28,7 +28,7 @@ class Consumer(abc.ABC):
     @abc.abstractmethod
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectOut:
+    ) -> mlrun.api.schemas.ProjectOutput:
         pass
 
     @abc.abstractmethod

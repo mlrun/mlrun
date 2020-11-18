@@ -23,7 +23,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectOut:
+    ) -> mlrun.api.schemas.ProjectOutput:
         pass
 
     def list_projects(

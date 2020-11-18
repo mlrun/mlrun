@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
+import mlrun.api.schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
 from .base import RunDBInterface, RunDBError
-from typing import List
 
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
@@ -186,24 +188,20 @@ class SQLDB(RunDBInterface):
     def list_tags(self, project: str):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
-    def add_project(self, project: dict):
-        return self._transform_db_error(self.db.add_project, self.session, project)
+    def update_project(self, name: str, project: mlrun.api.schemas.ProjectUpdate) -> mlrun.api.schemas.ProjectOutput:
+        raise NotImplementedError()
 
-    def update_project(self, name, data: dict):
-        return self._transform_db_error(
-            self.db.update_project, self.session, name, data
-        )
+    def create_project(self, project: mlrun.api.schemas.ProjectCreate) -> mlrun.api.schemas.ProjectOutput:
+        raise NotImplementedError()
 
     def delete_project(self, name: str):
-        return self._transform_db_error(self.db.delete_project, self.session, name)
+        raise NotImplementedError()
 
-    def get_project(self, name=None, project_id=None):
-        return self._transform_db_error(
-            self.db.get_project, self.session, name, project_id
-        )
+    def get_project(self, name: str = None, project_id: int = None) -> mlrun.api.schemas.ProjectOutput:
+        raise NotImplementedError()
 
-    def list_projects(self, owner=None):
-        return self._transform_db_error(self.db.list_projects, self.session, owner)
+    def list_projects(self, owner: str = None, full: bool = False) -> mlrun.api.schemas.ProjectsOutput:
+        raise NotImplementedError()
 
     @staticmethod
     def _transform_db_error(func, *args, **kwargs):

@@ -65,7 +65,7 @@ class ProjectsManager:
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectOut:
+    ) -> mlrun.api.schemas.ProjectOutput:
         return self._master_consumer.get_project(session, name)
 
     def list_projects(

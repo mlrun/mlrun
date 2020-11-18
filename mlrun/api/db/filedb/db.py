@@ -134,16 +134,16 @@ class FileDB(DBInterface):
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
-    def list_projects(self, session, owner=None):
-        return self._transform_run_db_error(self.db.list_projects)
+    def list_projects(self, session, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+        return self._transform_run_db_error(self.db.list_projects, owner, full)
 
-    def add_project(self, session, project: dict):
+    def update_project(self, session, name: str, project: schemas.ProjectUpdate):
         raise NotImplementedError()
 
-    def update_project(self, session, name, data: dict):
+    def create_project(self, session, project: schemas.ProjectCreate):
         raise NotImplementedError()
 
-    def get_project(self, session, name=None, project_id=None):
+    def get_project(self, session, name: str = None, project_id: int = None) -> schemas.ProjectOutput:
         raise NotImplementedError()
 
     def delete_project(self, session, name: str):

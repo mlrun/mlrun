@@ -15,22 +15,22 @@
 import json
 import tempfile
 import time
+from datetime import datetime
 from os import path, remove, environ
 from typing import List, Dict, Union
-from datetime import datetime
 
 import kfp
 import requests
-import mlrun
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun
 from mlrun.api import schemas
+from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
-from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
 
@@ -496,11 +496,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
 
-    def delete_project(self, name: str):
-        path = f"projects/{name}"
-        error_message = f"Failed deleting project {name}"
-        self.api_call("DELETE", path, error_message)
-
     def remote_builder(self, func, with_mlrun):
         try:
             req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
@@ -825,6 +820,51 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}"
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
+
+    def list_projects(self, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+        params = {
+            "owner": owner,
+            "full": full,
+        }
+
+        error_message = (
+            f"Failed listing projects, query: {params}"
+        )
+        resp = self.api_call("GET", "projects", error_message, params=params)
+        return schemas.ProjectsOutput(**resp.json())
+
+    def get_project(self, name: str) -> schemas.ProjectOutput:
+        if not name:
+            raise MLRunInvalidArgumentError("Name must be provided")
+
+        path = f"projects/{name}"
+        error_message = f"Failed retrieving project {name}"
+        resp = self.api_call("GET", path, error_message)
+        return schemas.ProjectOutput(**resp.json())
+
+    def delete_project(self, name: str):
+        path = f"projects/{name}"
+        error_message = f"Failed deleting project {name}"
+        self.api_call("DELETE", path, error_message)
+
+    def update_project(self, name: str, project: Union[dict, mlrun.api.schemas.ProjectUpdate]) -> mlrun.api.schemas.ProjectOutput:
+        path = f"projects/{name}"
+        error_message = f"Failed updating project {name}"
+        if isinstance(project, mlrun.api.schemas.ProjectUpdate):
+            project = project.dict()
+        resp = self.api_call(
+            "PUT", path, error_message, body=json.dumps(project),
+        )
+        return schemas.ProjectOutput(**resp.json())
+
+    def create_project(self, project: Union[dict, mlrun.api.schemas.ProjectCreate]) -> mlrun.api.schemas.ProjectOutput:
+        if isinstance(project, mlrun.api.schemas.ProjectUpdate):
+            project = project.dict()
+        error_message = f"Failed creating project {project['name']}"
+        resp = self.api_call(
+            "POST", "projects", error_message, body=json.dumps(project),
+        )
+        return schemas.ProjectOutput(**resp.json())
 
 
 def _as_json(obj):

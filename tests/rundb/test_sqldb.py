@@ -13,6 +13,7 @@
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
 
+import deepdiff
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -23,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import _tagged
+import mlrun.api.schemas
 from tests.conftest import new_run
 
 
@@ -81,7 +83,9 @@ def test_list_projects(db: SQLDB, db_session: Session):
         run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
         db.store_run(db_session, run, "u7", project=f"prj{i % 3}", iter=i)
 
-    assert {"prj0", "prj1", "prj2"} == {p.name for p in db.list_projects(db_session)}
+    projects_output = db.list_projects(db_session)
+
+    assert {"prj0", "prj1", "prj2"} == {project.name for project in projects_output.projects}
 
 
 def test_run_iter0(db: SQLDB, db_session: Session):
@@ -154,36 +158,23 @@ def test_list_tags(db: SQLDB, db_session: Session):
 
 
 def test_projects(db: SQLDB, db_session: Session):
-    prj1 = {
-        "name": "p1",
-        "description": "banana",
-        # 'users': ['u1', 'u2'],
-        "spec": {"company": "ACME"},
-        "state": "active",
-        "created": datetime.now(),
-    }
-    pid1 = db.add_project(db_session, prj1)
-    p1 = db.get_project(db_session, project_id=pid1)
-    assert p1, f"project {pid1} not found"
-    out = {
-        "name": p1.name,
-        "description": p1.description,
-        # 'users': sorted(u.name for u in p1.users),
-        "spec": p1.spec,
-        "state": p1.state,
-        "created": p1.created,
-    }
-    assert prj1 == out, "bad project"
+    project = mlrun.api.schemas.ProjectCreate(name='p1', description='banana', spec={'other_field': 'value'}, state='active')
+    db.create_project(db_session, project)
+    project_output = db.get_project(db_session, name=project.name)
+    assert (
+            deepdiff.DeepDiff(project.dict(), project_output.project.dict(), ignore_order=True) == {}
+    )
 
-    data = {"description": "lemon"}
-    db.update_project(db_session, p1.name, data)
-    p1 = db.get_project(db_session, project_id=pid1)
-    assert data["description"] == p1.description, "bad update"
+    project_update = mlrun.api.schemas.ProjectUpdate(description='lemon')
+    db.update_project(db_session, project.name, project_update)
+    project_output = db.get_project(db_session, name=project.name)
+    assert project_output.project.description == project_update.description
 
-    prj2 = {"name": "p2"}
-    db.add_project(db_session, prj2)
-    prjs = {p.name for p in db.list_projects(db_session)}
-    assert {prj1["name"], prj2["name"]} == prjs, "list"
+    project_2 = mlrun.api.schemas.ProjectCreate(name='p2')
+    db.create_project(db_session, project)
+    projects_output = db.list_projects(db_session)
+    project_names = {project.name for project in projects_output.projects}
+    assert {project.name, project_2.name} == project_names
 
 
 def test_cache_projects(db: SQLDB, db_session: Session):

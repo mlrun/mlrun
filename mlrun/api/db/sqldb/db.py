@@ -2,6 +2,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Dict
 
+import mergedeep
 import pytz
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
@@ -42,7 +43,6 @@ from mlrun.utils import (
     generate_object_uri,
     match_times,
 )
-import mergedeep
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -651,51 +651,41 @@ class SQLDB(DBInterface):
                 tags.add(tag.name)
         return tags
 
-    def add_project(self, session, project: dict):
-        project = project.copy()
-        name = project.get("name")
-        if not name:
-            raise ValueError("project missing name")
+    def create_project(self, session: Session, project: schemas.ProjectCreate):
+        project = Project(
+            name=project.name,
+            description=project.description,
+            owner=project.owner,
+            source=project.source,
+            state=project.state,
+            spec=project.dict(),
+        )
+        self._upsert(session, project)
 
-        project.pop("users", [])
-        prj = Project(**project)
-        users = (
-            []
-        )  # self._find_or_create_users(session, user_names) - user_names are previously popped users
-        prj.users.extend(users)
-        self._upsert(session, prj)
-        self._projects.add(prj.name)
-        return prj.id
+    def update_project(self, session: Session, name: str, project: schemas.ProjectUpdate):
+        project_record = self.get_project(session, name)
+        project_dict = project.dict()
+        project_record.spec = project_dict
+        project_record.description = project.description
+        project_record.source = project.source
+        project_record.state = project.state
+        self._upsert(session, project_record)
 
-    def update_project(self, session, name, data: dict):
-        prj = self.get_project(session, name)
-        if not prj:
-            raise DBError(f"unknown project - {name}")
+    def get_project(self, session: Session, name: str = None, project_id: int = None) -> schemas.ProjectOutput:
+        if (project_id and name) or (not project_id and not name):
+            raise mlrun.errors.MLRunInvalidArgumentError("One of name or project id must be provided")
+        if name:
+            project = self._query(session, Project, name=name).one_or_none()
+        else:
+            project = self._query(session, Project).get(project_id)
+        if not project:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Project not found {name}, {project_id}"
+            )
 
-        data = data.copy()
-        data.pop("users", [])
-        for key, value in data.items():
-            if not hasattr(prj, key):
-                raise DBError(f"unknown project attribute - {key}")
-            setattr(prj, key, value)
+        return schemas.ProjectOutput(project=self._transform_project_model_to_schema(project))
 
-        users = (
-            []
-        )  # self._find_or_create_users(session, user_names) - user_names are previously popped users
-        prj.users.clear()
-        prj.users.extend(users)
-        self._upsert(session, prj, ignore=True)
-
-    def get_project(self, session, name=None, project_id=None):
-        if not (project_id or name):
-            raise ValueError("need at least one of project_id or name")
-
-        if project_id:
-            return self._query(session, Project).get(project_id)
-
-        return self._query(session, Project, name=name).one_or_none()
-
-    def delete_project(self, session, name: str):
+    def delete_project(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)
@@ -709,8 +699,15 @@ class SQLDB(DBInterface):
         self._delete_resources_labels(session, name)
         self._delete(session, Project, name=name)
 
-    def list_projects(self, session, owner=None):
-        return self._query(session, Project, owner=owner)
+    def list_projects(self, session: Session, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
+        project_records = self._query(session, Project, owner=owner)
+        projects = []
+        for project_record in project_records:
+            if full:
+                projects.append(self._transform_project_model_to_schema(project_record))
+            else:
+                projects.append(project_record.name)
+        return schemas.ProjectsOutput(projects=projects)
 
     def _get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None,
@@ -1464,3 +1461,10 @@ class SQLDB(DBInterface):
 
         feature_set_resp.metadata.tag = tag
         return feature_set_resp
+
+    @staticmethod
+    def _transform_project_model_to_schema(
+            project_record: Project
+    ) -> schemas.Project:
+        project_full_dict = project_record.spec
+        return schemas.Project(**project_full_dict)

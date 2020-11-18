@@ -181,19 +181,19 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_projects(self, session, owner=None):
-        return []
-
-    @abstractmethod
-    def get_project(self, session, name=None, project_id=None):
+    def list_projects(self, session, owner: str = None, full: bool = False) -> schemas.ProjectsOutput:
         pass
 
     @abstractmethod
-    def add_project(self, session, project: dict):
+    def get_project(self, session, name: str = None, project_id: int = None) -> schemas.ProjectOutput:
         pass
 
     @abstractmethod
-    def update_project(self, session, name, data: dict):
+    def create_project(self, session, project: schemas.ProjectCreate):
+        pass
+
+    @abstractmethod
+    def update_project(self, session, name: str, project: schemas.ProjectUpdate):
         pass
 
     @abstractmethod

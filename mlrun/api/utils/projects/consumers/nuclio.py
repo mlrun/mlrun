@@ -42,11 +42,11 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectOut:
+    ) -> mlrun.api.schemas.ProjectOutput:
         response = self._send_request_to_api("GET", f"projects/{name}")
         response_body = response.json()
         project = self._transform_nuclio_project_to_schema(response_body)
-        return mlrun.api.schemas.ProjectOut(project=project)
+        return mlrun.api.schemas.ProjectOutput(project=project)
 
     def list_projects(
         self, session: sqlalchemy.orm.Session

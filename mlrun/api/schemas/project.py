@@ -1,47 +1,41 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Union
 
-from pydantic import BaseModel
-
-from mlrun.api.schemas.user import User
+from pydantic import BaseModel, Extra
 
 
-# Shared properties
-class ProjectBase(BaseModel):
+class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     source: Optional[str] = None
-    created: Optional[datetime] = None
     state: Optional[str] = None
-    users: List[User] = []
+
+    class Config:
+        extra = Extra.allow
 
 
 # Properties to receive via API on creation
-class ProjectCreate(ProjectBase):
+class ProjectCreate(ProjectUpdate):
     name: str
     owner: Optional[str] = None
 
 
-# Properties to receive via API on update
-class ProjectUpdate(ProjectBase):
-    name: Optional[str] = None
-    owner: Optional[str] = None
-
-
-class ProjectInDB(ProjectCreate):
+class ProjectRecord(ProjectCreate):
     id: int = None
+    created: Optional[datetime] = None
 
     class Config:
         orm_mode = True
 
 
 # Additional properties to return via API
-class Project(ProjectInDB):
+class Project(ProjectRecord):
     pass
 
 
-class ProjectOut(BaseModel):
+class ProjectOutput(BaseModel):
     project: Project
 
 
 class ProjectsOutput(BaseModel):
-    projects: List[Project]
+    # use the full query param to control whether the full object will be returned or only the names
+    projects: List[Union[Project, str]]

@@ -105,7 +105,7 @@ class Config:
     _missing = object()
 
     def __init__(self, cfg=None):
-        cfg = {} if cfg is None else copy.deepcopy(cfg)
+        cfg = {} if cfg is None else cfg
 
         # Can't use self._cfg = cfg → infinite recursion
         object.__setattr__(self, "_cfg", cfg)
@@ -167,7 +167,7 @@ class Config:
 
 
 # Global configuration
-config = Config(default_config)
+config = Config(copy.deepcopy(default_config))
 
 
 def _populate():
@@ -186,7 +186,7 @@ def _do_populate(env=None):
     global config
 
     if not config:
-        config = Config(default_config)
+        config = Config(copy.deepcopy(default_config))
     else:
         config.update(default_config)
     config_path = os.environ.get(env_file_key)

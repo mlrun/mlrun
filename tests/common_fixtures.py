@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from os import environ
 from typing import Callable, Generator
 from unittest.mock import Mock
 
@@ -10,7 +11,7 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.projects_manager
 import mlrun.config
 from mlrun.api.db.sqldb.db import SQLDB
-from tests.conftest import init_sqldb
+from tests.conftest import init_sqldb, root_path, rundb_path, logs_path
 
 session_maker: Callable
 
@@ -18,6 +19,12 @@ session_maker: Callable
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
 def config_do_not_override():
+    environ["PYTHONPATH"] = root_path
+    environ["MLRUN_DBPATH"] = rundb_path
+    environ["MLRUN_httpdb__dirpath"] = rundb_path
+    environ["MLRUN_httpdb__logs_path"] = logs_path
+    environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
+    environ["MLRUN_log_level"] = "DEBUG"
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
 

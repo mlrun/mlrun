@@ -39,12 +39,6 @@ logs_path = f"{results}/logs"
 out_path = f"{results}/out"
 root_path = str(Path(tests_root_directory).parent)
 examples_path = Path(tests_root_directory).parent.joinpath("examples")
-environ["PYTHONPATH"] = root_path
-environ["MLRUN_DBPATH"] = rundb_path
-environ["MLRUN_httpdb__dirpath"] = rundb_path
-environ["MLRUN_httpdb__logs_path"] = logs_path
-environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
-environ["MLRUN_log_level"] = "DEBUG"
 pytest_plugins = ["tests.common_fixtures"]
 
 # import package stuff after setting env vars so it will take effect

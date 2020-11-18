@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from contextlib import contextmanager
 from os import environ
 from tempfile import NamedTemporaryFile
@@ -27,7 +28,7 @@ ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 @pytest.fixture
 def config():
     old = mlconf.config
-    mlconf.config = mlconf.Config(mlconf.default_config)
+    mlconf.config = mlconf.Config(copy.deepcopy(mlconf.default_config))
     mlconf._loaded = False
 
     yield mlconf.config

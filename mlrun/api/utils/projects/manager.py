@@ -47,6 +47,12 @@ class ProjectsManager:
     def stop(self):
         self._stop_periodic_sync()
 
+    def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
+        project_names = self.list_projects(session, full=False)
+        if name in project_names:
+            return
+        self.create_project(session, mlrun.api.schemas.ProjectCreate(name=name))
+
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
     ):
@@ -69,9 +75,7 @@ class ProjectsManager:
         return self._master_consumer.get_project(session, name)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session,
-        owner: str = None,
-        full: bool = False,
+        self, session: sqlalchemy.orm.Session, owner: str = None, full: bool = True,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._master_consumer.list_projects(session, owner, full)
 

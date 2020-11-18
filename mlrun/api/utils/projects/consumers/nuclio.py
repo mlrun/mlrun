@@ -49,9 +49,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         return mlrun.api.schemas.ProjectOutput(project=project)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session,
-        owner: str = None,
-        full: bool = False,
+        self, session: sqlalchemy.orm.Session, owner: str = None, full: bool = True,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError()
@@ -63,7 +61,9 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         if full:
             return mlrun.api.schemas.ProjectsOutput(projects=projects)
         else:
-            return mlrun.api.schemas.ProjectsOutput(projects=[project.name for project in projects])
+            return mlrun.api.schemas.ProjectsOutput(
+                projects=[project.name for project in projects]
+            )
 
     def _send_request_to_api(
         self, method, path, params=None, body=None, json=None, headers=None, timeout=20

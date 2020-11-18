@@ -27,8 +27,6 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         pass
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session,
-        owner: str = None,
-        full: bool = False,
+        self, session: sqlalchemy.orm.Session, owner: str = None, full: bool = True,
     ) -> mlrun.api.schemas.ProjectsOutput:
         pass

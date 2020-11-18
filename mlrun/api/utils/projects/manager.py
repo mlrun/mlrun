@@ -69,9 +69,11 @@ class ProjectsManager:
         return self._master_consumer.get_project(session, name)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session
+        self, session: sqlalchemy.orm.Session,
+        owner: str = None,
+        full: bool = False,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        return self._master_consumer.list_projects(session)
+        return self._master_consumer.list_projects(session, owner, full)
 
     def _start_periodic_sync(self):
         if self._periodic_sync_interval_seconds > 0:

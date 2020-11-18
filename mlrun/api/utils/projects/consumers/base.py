@@ -33,6 +33,8 @@ class Consumer(abc.ABC):
 
     @abc.abstractmethod
     def list_projects(
-        self, session: sqlalchemy.orm.Session
+        self, session: sqlalchemy.orm.Session,
+        owner: str = None,
+        full: bool = False,
     ) -> mlrun.api.schemas.ProjectsOutput:
         pass

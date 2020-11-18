@@ -822,7 +822,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error_message)
 
     def list_projects(
-        self, owner: str = None, full: bool = False
+        self, owner: str = None, full: bool = True
     ) -> schemas.ProjectsOutput:
         params = {
             "owner": owner,

@@ -7,7 +7,6 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.consumers.base
-import mlrun.api.utils.projects.consumers.mlrun
 import mlrun.api.utils.projects.consumers.nop
 import mlrun.api.utils.projects.consumers.nuclio
 import mlrun.config
@@ -17,15 +16,6 @@ from mlrun.utils import logger
 
 
 class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
-
-    CONSUMERS_CLASSES_MAP = {
-        "mlrun": mlrun.api.utils.projects.consumers.mlrun.Consumer,
-        "nuclio": mlrun.api.utils.projects.consumers.nuclio.Consumer,
-        # for tests
-        "nop": mlrun.api.utils.projects.consumers.nop.Consumer,
-        "nop2": mlrun.api.utils.projects.consumers.nop.Consumer,
-    }
-
     def __init__(self):
         self._master_consumer = self._initialize_consumer(
             mlrun.config.config.httpdb.projects.master_consumer
@@ -50,7 +40,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
 
     def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
         project_names = self.list_projects(session, full=False)
-        if name in project_names:
+        if name in project_names.projects:
             return
         self.create_project(session, mlrun.api.schemas.ProjectCreate(name=name))
 
@@ -190,6 +180,16 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
     def _initialize_consumer(
         self, name: str
     ) -> mlrun.api.utils.projects.consumers.base.Consumer:
-        if name not in self.CONSUMERS_CLASSES_MAP:
+        # importing here to avoid circular import (db using project manager using mlrun consumer using db)
+        import mlrun.api.utils.projects.consumers.mlrun
+
+        consumers_classes_map = {
+            "mlrun": mlrun.api.utils.projects.consumers.mlrun.Consumer,
+            "nuclio": mlrun.api.utils.projects.consumers.nuclio.Consumer,
+            # for tests
+            "nop": mlrun.api.utils.projects.consumers.nop.Consumer,
+            "nop2": mlrun.api.utils.projects.consumers.nop.Consumer,
+        }
+        if name not in consumers_classes_map:
             raise ValueError(f"Unknown consumer name: {name}")
-        return self.CONSUMERS_CLASSES_MAP[name]()
+        return consumers_classes_map[name]()

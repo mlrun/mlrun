@@ -6,6 +6,8 @@ import pytest
 import requests
 import v3io.dataplane
 
+import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.projects_manager
 from mlrun.api.db.sqldb.db import SQLDB
 from tests.conftest import init_sqldb
 
@@ -25,6 +27,8 @@ def db():
     finally:
         if db_session is not None:
             db_session.close()
+    mlrun.api.utils.singletons.db.initialize_db(db)
+    mlrun.api.utils.singletons.projects_manager.initialize_projects_manager()
     return db
 
 

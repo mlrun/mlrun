@@ -133,7 +133,7 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_projects(
-        self, owner: str = None, full: bool = False
+        self, owner: str = None, full: bool = True
     ) -> schemas.ProjectsOutput:
         pass
 

@@ -166,7 +166,9 @@ def test_projects(db: SQLDB, db_session: Session):
     project_output = db.get_project(db_session, name=project.name)
     assert (
         deepdiff.DeepDiff(
-            project.dict(), project_output.project.dict(), ignore_order=True
+            project.dict(),
+            project_output.project.dict(exclude={"created", "id"}),
+            ignore_order=True,
         )
         == {}
     )
@@ -177,10 +179,9 @@ def test_projects(db: SQLDB, db_session: Session):
     assert project_output.project.description == project_update.description
 
     project_2 = mlrun.api.schemas.ProjectCreate(name="p2")
-    db.create_project(db_session, project)
-    projects_output = db.list_projects(db_session)
-    project_names = {project.name for project in projects_output.projects}
-    assert {project.name, project_2.name} == project_names
+    db.create_project(db_session, project_2)
+    projects_output = db.list_projects(db_session, full=False)
+    assert [project.name, project_2.name] == projects_output.projects
 
 
 # def test_function_latest(db: SQLDB, db_session: Session):

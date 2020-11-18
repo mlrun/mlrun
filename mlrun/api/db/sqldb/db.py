@@ -653,8 +653,9 @@ class SQLDB(DBInterface):
     def update_project(
         self, session: Session, name: str, project: schemas.ProjectUpdate
     ):
-        project_record = self.get_project(session, name)
+        project_record = self._get_project(session, name)
         project_dict = project.dict()
+        project_dict.setdefault("name", name)
         project_record.spec = project_dict
         project_record.description = project.description
         project_record.source = project.source
@@ -664,6 +665,15 @@ class SQLDB(DBInterface):
     def get_project(
         self, session: Session, name: str = None, project_id: int = None
     ) -> schemas.ProjectOutput:
+        project_record = self._get_project(session, name, project_id)
+
+        return schemas.ProjectOutput(
+            project=self._transform_project_model_to_schema(project_record)
+        )
+
+    def _get_project(
+        self, session: Session, name: str = None, project_id: int = None
+    ) -> Project:
         if (project_id and name) or (not project_id and not name):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of name or project id must be provided"
@@ -677,9 +687,7 @@ class SQLDB(DBInterface):
                 f"Project not found {name}, {project_id}"
             )
 
-        return schemas.ProjectOutput(
-            project=self._transform_project_model_to_schema(project)
-        )
+        return project
 
     def delete_project(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
@@ -696,7 +704,7 @@ class SQLDB(DBInterface):
         self._delete(session, Project, name=name)
 
     def list_projects(
-        self, session: Session, owner: str = None, full: bool = False
+        self, session: Session, owner: str = None, full: bool = True
     ) -> schemas.ProjectsOutput:
         project_records = self._query(session, Project, owner=owner)
         projects = []

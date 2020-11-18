@@ -43,6 +43,7 @@ environ["PYTHONPATH"] = root_path
 environ["MLRUN_DBPATH"] = rundb_path
 environ["MLRUN_httpdb__dirpath"] = rundb_path
 environ["MLRUN_httpdb__logs_path"] = logs_path
+environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
 environ["MLRUN_log_level"] = "DEBUG"
 pytest_plugins = ["tests.common_fixtures"]
 

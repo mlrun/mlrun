@@ -413,7 +413,7 @@ class FileRunDB(RunDBInterface):
         return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
 
     def list_projects(
-        self, owner: str = None, full: bool = False
+        self, owner: str = None, full: bool = True
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner or full:
             raise NotImplementedError()

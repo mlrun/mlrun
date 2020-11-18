@@ -53,7 +53,7 @@ def delete_project(
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects", response_model=schemas.ProjectsOutput)
 def list_projects(
-    full: bool = False,
+    full: bool = True,
     owner: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):

@@ -7,6 +7,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.projects.consumers.base
 import mlrun.api.utils.projects.manager
 import mlrun.config
+import mlrun.errors
 from mlrun.utils import logger
 
 
@@ -133,6 +134,29 @@ def test_update_project(
     )
     _assert_project_in_consumers(
         [nop_master, nop_consumer], project_name, project_description
+    )
+
+
+def test_update_project_failure_conflict_body_path_name(
+    db: sqlalchemy.orm.Session,
+    projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
+    nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
+):
+    project_name = "project-name"
+    projects_manager.create_project(
+        None, mlrun.api.schemas.ProjectCreate(name=project_name),
+    )
+    _assert_project_in_consumers([nop_master, nop_consumer], project_name)
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        projects_manager.update_project(
+            None,
+            project_name,
+            mlrun.api.schemas.ProjectUpdate(name="different-name"),
+        )
+    _assert_project_in_consumers(
+        [nop_master, nop_consumer], project_name
     )
 
 

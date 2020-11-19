@@ -10,6 +10,7 @@ import mlrun.api.utils.projects.consumers.base
 import mlrun.api.utils.projects.consumers.nop
 import mlrun.api.utils.projects.consumers.nuclio
 import mlrun.config
+import mlrun.errors
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun.utils import logger
@@ -46,6 +47,11 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         name: str,
         project: mlrun.api.schemas.ProjectUpdate,
     ):
+        # ProjectUpdate allows extra fields therefore name may be there
+        if hasattr(project, 'name') and name != getattr(project, 'name'):
+            message = "Conflict between name in body and name in path"
+            logger.warning(message, path_name=name, body_name=getattr(project, 'name'))
+            raise mlrun.errors.MLRunConflictError(message)
         self._run_on_all_consumers("update_project", session, name, project)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):

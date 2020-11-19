@@ -81,31 +81,31 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
     def _sync_projects(self):
         session = mlrun.api.db.session.create_session()
         try:
-
-            # preparations - build maps for easier searches
-            master_projects: mlrun.api.schemas.ProjectsOutput
-            consumer_projects_map: typing.Dict[str, mlrun.api.schemas.ProjectsOutput]
-            master_projects, consumer_projects_map = self._run_on_all_consumers(
-                "list_projects", session
-            )
-            master_project_names = {
-                project.name for project in master_projects.projects
-            }
-            consumer_project_names_map = {}
-            for consumer_name, consumer_projects in consumer_projects_map.items():
-                consumer_project_names_map[consumer_name] = set()
-                for project in consumer_projects.projects:
-                    consumer_project_names_map[consumer_name].add(project.name)
-
             # search for projects created only in consumers
-            for consumer_name, consumer_projects in consumer_projects_map.items():
+            for consumer_name in self._consumers.keys():
+                # re-generating all of the maps every time since _ensure_consumer_projects_synced might cause changes
+                # preparations - build maps for easier searches
+                master_projects: mlrun.api.schemas.ProjectsOutput
+                consumer_projects_map: typing.Dict[str, mlrun.api.schemas.ProjectsOutput]
+                master_projects, consumer_projects_map = self._run_on_all_consumers(
+                    "list_projects", session
+                )
+                master_project_names = {
+                    project.name for project in master_projects.projects
+                }
+                consumer_project_names_map = {}
+                for _consumer_name, consumer_projects in consumer_projects_map.items():
+                    consumer_project_names_map[_consumer_name] = set()
+                    for project in consumer_projects.projects:
+                        consumer_project_names_map[_consumer_name].add(project.name)
+
                 # use helper function to decrease nesting
                 self._ensure_consumer_projects_synced(
                     session,
                     master_project_names,
                     consumer_project_names_map,
                     consumer_name,
-                    consumer_projects,
+                    consumer_projects_map[consumer_name],
                 )
 
         finally:
@@ -138,8 +138,6 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
                         exc=str(exc),
                     )
                 else:
-                    # keep master project names list updated
-                    master_project_names.add(project.name)
                     # only if we successfully created in master - align the rest of consumers
                     for (
                         _consumer_name,

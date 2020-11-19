@@ -96,7 +96,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                         // dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${mlrun_github_client.tag.docker}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
                     }
                     container('jnlp') {
-                        common.conditional_stage('Create mlrun/ui release', "${github.TAG_VERSION}" != "unstable") {
+                        common.conditional_stage('Create mlrun/ui release', "${mlrun_github_client.tag.toString()}" != "unstable") {
                             def source_branch = mlrun_github_client.getReleasecommittish(mlrun_github_client.tag.toString())
                             
                             print("source branch is: ${source_branch}, using this as source for mlrun/ui")

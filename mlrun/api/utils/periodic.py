@@ -46,6 +46,7 @@ def cancel_periodic_function(name: str):
     logger.debug("Canceling periodic function", name=name)
     if name in tasks:
         tasks[name].cancel()
+        del tasks[name]
 
 
 def cancel_periodic_functions():
@@ -53,3 +54,4 @@ def cancel_periodic_functions():
     logger.debug("Canceling periodic functions", functions=tasks.keys())
     for task in tasks.values():
         task.cancel()
+    tasks = {}

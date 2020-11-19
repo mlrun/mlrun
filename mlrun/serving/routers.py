@@ -16,6 +16,10 @@ import json
 import mlrun
 
 from io import BytesIO
+from numpy.core.fromnumeric import mean
+from datetime import datetime
+import copy
+import concurrent
 
 
 class BaseModelRouter:
@@ -156,4 +160,257 @@ class ModelRouter(BaseModelRouter):
         event.path = subpath
         response = route.run(event)
         event.body = response.body if response else None
+        return event
+
+
+class VotingEnsemble(mlrun.serving.ModelRouter):
+    """Voting Ensemble class
+        
+        The `VotingEnsemble` class enables you to apply prediction logic on top of 
+        the different added models.
+
+        You can use it by calling:
+        - <prefix>/<model>[/versions/<ver>]/operation
+            Sends the event to the specific <model>[/versions/<ver>]
+        - <prefix>/operation
+            Sends the event to all models and applies `vote(self, event)`
+        
+        The `VotingEnsemble` applies the following logic:
+        Incoming Event -> Router Preprocessing -> Send to models (or model) ->
+        Apply all model logic (Preprocessing -> Prediction -> Postprocessing) ->
+        Router Voting logic -> Router Postprocessing -> Response
+
+        This enables you to do the general preprocessing and postprocessing steps
+        once on the router level, with only model-specific adjustments at the 
+        model level.
+    """
+
+    def __init__(
+        self,
+        context,
+        name,
+        routes=None,
+        protocol=None,
+        url_prefix=None,
+        health_prefix=None,
+        vote_type=None,
+        executor_type=None,
+        **kwargs,
+    ):
+        super().__init__(
+            context, name, routes, protocol, url_prefix, health_prefix, **kwargs
+        )
+        self.url_prefix = url_prefix or f"/{self.protocol}/models"
+        self.name = "VoteRouter"
+        self.vote_type = vote_type
+        self.vote_flag = True if self.vote_type is not None else False
+        self.executor_type = executor_type
+        self._model_logger = _ModelLogPusher(self, context)
+        self.version = kwargs.get("version", "v1")
+        self.log_router = True
+
+    def _resolve_route(self, body, urlpath):
+        """Resolves the appropriate model to send the event to.
+        Supports:
+        - <prefix>/<model>[/versions/<ver>]/operation
+        Sends the event to the specific <model>[/versions/<ver>]
+
+        - <prefix>/operation
+        Sends the event to all models
+
+        Args:
+            body (dict): event body
+            urlpath (string): url path
+
+        Raises:
+            ValueError: [description]
+
+        Returns:
+            [type]: [description]
+        """
+        subpath = None
+        model = ""
+        if urlpath and not urlpath == "/":
+            # process the url <prefix>/<model>[/versions/<ver>]/operation
+            subpath = ""
+            urlpath = urlpath[len(self.url_prefix) :].strip("/")
+            if not urlpath:
+                # Only self.url_prefix was given
+                return "", None, ""
+            segments = urlpath.split("/")
+            if len(segments) == 1:
+                # Are we looking at a router level operation?
+                if segments[0] in ["infer", "predict", "explain"]:
+                    # We are given an operation
+                    return self.name, None, segments[0]
+            model = segments[0]
+            if len(segments) > 2 and segments[1] == "versions":
+                model = model + ":" + segments[2]
+                segments = segments[2:]
+            if len(segments) > 1:
+                subpath = "/".join(segments[1:])
+
+        if isinstance(body, dict):
+            # accepting route information from body as well
+            # to support streaming protocols (e.g. Kafka).
+            model = model or self.name
+            subpath = body.get("operation", subpath)
+        if subpath is None:
+            subpath = "infer"
+
+        if model in self.routes:
+            self.log_router = False
+        elif model != self.name:
+            models = " | ".join(self.routes.keys())
+            raise ValueError(
+                f"model {model} doesnt exist, available models: {models} or an operation alone for ensemble operation"
+            )
+        else:
+            self.log_router = True
+        return model, self.routes[model], subpath
+
+    def _max_vote(self, all_predictions):
+        """Returns an argmax"""
+        return [
+            max(predictions, key=predictions.count) for predictions in all_predictions
+        ]
+
+    def _mean_vote(self, all_predictions):
+        return [mean(predictions) for predictions in all_predictions]
+
+    def _is_int(self, n):
+        return float(n).is_integer()
+
+    def _vote(self, events):
+        if "outputs" in events.body:
+            # Dealing with a specific model prediction
+            return events
+        predictions = [
+            model.body["outputs"]["prediction"] for _, model in events.body.items()
+        ]
+
+        flattened_predictions = [
+            [predictions[j][i] for j in range(len(predictions))]
+            for i in range(len(predictions[0]))
+        ]
+        if self.vote_flag is None:
+            if all(
+                [
+                    all(res)
+                    for res in [
+                        list(map(self._is_int, prediction_arr))
+                        for prediction_arr in predictions
+                    ]
+                ]
+            ):
+                self.vote_type = "classificartion"
+            else:
+                self.vote_type = "regression"
+            self.vote_flag = True
+        if self.vote_type == "classification":
+            flattened_predictions = list(map(int, flattened_predictions))
+            result = self._max_vote(flattened_predictions)
+        else:
+            result = self._mean_vote(flattened_predictions)
+
+        event = {
+            "model_name": self.name,
+            "outputs": {
+                "id": events.body[list(events.body.keys())[0]].body["id"],
+                "inputs": events.body[list(events.body.keys())[0]].body["outputs"][
+                    "inputs"
+                ],
+                "prediction": result,
+            },
+            "id": events.body[list(events.body.keys())[0]].body["id"],
+        }
+
+        events.body = event
+        return events
+
+    def do_event(self, event, *args, **kwargs):
+        """handle incoming events, event is nuclio event class"""
+        start = datetime.now()
+        method = event.method or "POST"
+        if event.body and method != "GET":
+            event.body = self.parse_event(event)
+        urlpath = getattr(event, "path", "")
+
+        # if health check or "/" return Ok + metadata
+        if method == "GET" and (
+            urlpath == "/" or urlpath.startswith(self.health_prefix)
+        ):
+            setattr(event, "terminated", True)
+            event.body = self.get_metadata()
+            return event
+
+        # check for legal path prefix
+        if urlpath and not urlpath.startswith(self.url_prefix) and not urlpath == "/":
+            raise ValueError(
+                f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
+            )
+
+        request = self._pre_event_processing_actions(event)
+        response = self.postprocess(self._vote(self._handle_event(event)))
+        if self._model_logger and self.log_router:
+            self._model_logger.push(start, request, response.body)
+        return response
+
+    def _parallel_run(self, event, how="thread"):
+        if how == "array":
+            results = {
+                model_name: model.run(copy.deepcopy(event))
+                for model_name, model in self.routes.items()
+            }
+        else:
+            pool = concurrent.futures.ThreadPoolExecutor(
+                max_workers=len(self.routes) * 2
+            )
+            with pool as executor:
+                results = []
+                futures = {
+                    executor.submit(self.routes[model].run, copy.deepcopy(event)): model
+                    for model in self.routes.keys()
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    child = futures[future]
+                    try:
+                        results.append(future.result())
+                    except Exception as exc:
+                        print("%r generated an exception: %s" % (child.fullname, exc))
+                results = {event.body["model_name"]: event for event in results}
+        return results
+
+    def validate(self, request):
+        """validate the event body (after preprocess)"""
+        if self.protocol == "v2":
+            if "inputs" not in request:
+                raise Exception('Expected key "inputs" in request body')
+
+            if not isinstance(request["inputs"], list):
+                raise Exception('Expected "inputs" to be a list')
+        return request
+
+    def _pre_event_processing_actions(self, event):
+        request = self.preprocess(event.body)
+        if "id" not in request:
+            request["id"] = event.id
+        return self.validate(request)
+
+    def _handle_event(self, event):
+        name, route, subpath = self._resolve_route(event.body, event.path)
+        if not route and name != self.name:
+            # if model wasn't specified return model list
+            setattr(event, "terminated", True)
+            event.body = {"models": list(self.routes.keys())}
+            return event
+
+        self.context.logger.debug(f"router run model {name}, op={subpath}")
+        event.path = subpath
+        if name == self.name:
+            response = self._parallel_run(event)
+            event.body = response
+        else:
+            response = route.run(event)
+            event.body = response.body if response else None
         return event

@@ -647,7 +647,7 @@ class SQLDB(DBInterface):
             owner=project.owner,
             source=project.source,
             state=project.state,
-            spec=project.dict(),
+            full_object=project.dict(),
         )
         self._upsert(session, project)
 

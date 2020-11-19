@@ -74,8 +74,8 @@ def test_create_project(
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
         db, project_name
     )
-    assert project_output.project.name == project_name
-    assert project_output.project.description == project_description
+    assert project_output.name == project_name
+    assert project_output.description == project_description
 
 
 def test_update_project(
@@ -100,8 +100,8 @@ def test_update_project(
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
         db, project_name
     )
-    assert project_output.project.name == project_name
-    assert project_output.project.description == updated_project_description
+    assert project_output.name == project_name
+    assert project_output.description == updated_project_description
 
 
 def test_delete_project(

@@ -122,7 +122,9 @@ def test_projects_sync_multiple_consumer_project_adoption(
         ),
     )
     nop_master.create_project = unittest.mock.Mock(wraps=nop_master.create_project)
-    _assert_project_in_consumers([nop_consumer, second_nop_consumer], project_name, project_description)
+    _assert_project_in_consumers(
+        [nop_consumer, second_nop_consumer], project_name, project_description
+    )
     _assert_no_projects_in_consumers([nop_master])
 
     projects_manager._sync_projects()
@@ -214,13 +216,9 @@ def test_update_project_failure_conflict_body_path_name(
 
     with pytest.raises(mlrun.errors.MLRunConflictError):
         projects_manager.update_project(
-            None,
-            project_name,
-            mlrun.api.schemas.ProjectUpdate(name="different-name"),
+            None, project_name, mlrun.api.schemas.ProjectUpdate(name="different-name"),
         )
-    _assert_project_in_consumers(
-        [nop_master, nop_consumer], project_name
-    )
+    _assert_project_in_consumers([nop_master, nop_consumer], project_name)
 
 
 def test_delete_project(

@@ -51,9 +51,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         project: mlrun.api.schemas.ProjectUpdate,
     ):
         # ProjectUpdate allows extra fields therefore name may be there
-        if hasattr(project, 'name') and name != getattr(project, 'name'):
+        if hasattr(project, "name") and name != getattr(project, "name"):
             message = "Conflict between name in body and name in path"
-            logger.warning(message, path_name=name, body_name=getattr(project, 'name'))
+            logger.warning(message, path_name=name, body_name=getattr(project, "name"))
             raise mlrun.errors.MLRunConflictError(message)
         self._run_on_all_consumers("update_project", session, name, project)
 
@@ -122,7 +122,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
                     project_consumer_names_map[project],
                     project,
                     consumers_projects_map,
-                    master_projects_map
+                    master_projects_map,
                 )
         finally:
             mlrun.api.db.session.close_session(session)
@@ -133,7 +133,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         master_project_names: typing.Set[str],
         consumer_names: typing.Set[str],
         project_name: str,
-        consumers_projects_map: typing.Dict[str, typing.Dict[str, mlrun.api.schemas.Project]],
+        consumers_projects_map: typing.Dict[
+            str, typing.Dict[str, mlrun.api.schemas.Project]
+        ],
         master_projects_map: typing.Dict[str, mlrun.api.schemas.Project],
     ):
         # FIXME: This function only handles syncing project existence, i.e. if a user updates a project attribute
@@ -172,7 +174,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
 
         # only if project in master - align the rest of consumers
         if project_in_master:
-            missing_consumers = set(consumer_names).symmetric_difference(self._consumers.keys())
+            missing_consumers = set(consumer_names).symmetric_difference(
+                self._consumers.keys()
+            )
             if missing_consumers:
                 for missing_consumer in missing_consumers:
                     logger.debug(
@@ -184,8 +188,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
                     )
                     try:
                         self._consumers[missing_consumer].create_project(
-                            session,
-                            mlrun.api.schemas.ProjectCreate(**project.dict()),
+                            session, mlrun.api.schemas.ProjectCreate(**project.dict()),
                         )
                     except Exception as exc:
                         logger.warning(

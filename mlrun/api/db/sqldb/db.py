@@ -678,10 +678,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of name or project id must be provided"
             )
-        if name:
-            project = self._query(session, Project, name=name).one_or_none()
-        else:
-            project = self._query(session, Project).get(project_id)
+        project = self._query(session, Project, name=name, id=project_id).one_or_none()
         if not project:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Project not found {name}, {project_id}"

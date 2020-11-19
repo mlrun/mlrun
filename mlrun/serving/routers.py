@@ -15,6 +15,8 @@
 import json
 import mlrun
 
+from v2_serving import _ModelLogPusher
+
 from io import BytesIO
 from numpy.core.fromnumeric import mean
 from datetime import datetime
@@ -163,7 +165,7 @@ class ModelRouter(BaseModelRouter):
         return event
 
 
-class VotingEnsemble(mlrun.serving.ModelRouter):
+class VotingEnsemble(ModelRouter):
     """Voting Ensemble class
         
         The `VotingEnsemble` class enables you to apply prediction logic on top of 

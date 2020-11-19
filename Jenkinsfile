@@ -97,7 +97,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                     }
                     container('jnlp') {
                         common.conditional_stage('Create mlrun/ui release', "${mlrun_github_client.tag.toString()}" != "unstable") {
-                            def source_branch = mlrun_github_client.getReleasecommittish(mlrun_github_client.tag.toString())
+                            def source_branch = mlrun_github_client.getReleasecommittish()
                             
                             print("source branch is: ${source_branch}, using this as source for mlrun/ui")
                             if (!source_branch) {

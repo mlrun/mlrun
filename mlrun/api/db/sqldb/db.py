@@ -658,7 +658,7 @@ class SQLDB(DBInterface):
         project_record = self._get_project(session, name)
         project_dict = project.dict()
         project_dict.setdefault("name", name)
-        project_record.spec = project_dict
+        project_record.full_object = project_dict
         project_record.description = project.description
         project_record.source = project.source
         project_record.state = project.state
@@ -1463,5 +1463,5 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_project_model_to_schema(project_record: Project) -> schemas.Project:
-        project_full_dict = project_record.spec
+        project_full_dict = project_record.full_object
         return schemas.Project(**project_full_dict)

@@ -220,19 +220,21 @@ with warnings.catch_warnings():
         description = Column(String)
         owner = Column(String)
         source = Column(String)
-        _spec = Column("spec", BLOB)
+        # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
+        # leaving the column as is to prevent redundant migration
+        _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
         state = Column(String)
         users = relationship(User, secondary=project_users)
 
         @property
-        def spec(self):
-            if self._spec:
-                return pickle.loads(self._spec)
+        def full_object(self):
+            if self._full_object:
+                return pickle.loads(self._full_object)
 
-        @spec.setter
-        def spec(self, value):
-            self._spec = pickle.dumps(value)
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = pickle.dumps(value)
 
     class Feature(Base):
         __tablename__ = "features"

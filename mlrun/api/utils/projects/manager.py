@@ -70,7 +70,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         return self._master_consumer.list_projects(session, owner, full)
 
     def _start_periodic_sync(self):
-        if self._periodic_sync_interval_seconds > 0:
+        # if no consumers no need for sync
+        # the > 0 condition is to allow ourselves to disable the sync fomr configuration
+        if self._periodic_sync_interval_seconds > 0 and self._consumers:
             mlrun.api.utils.periodic.run_function_periodically(
                 self._periodic_sync_interval_seconds,
                 self._sync_projects.__name__,

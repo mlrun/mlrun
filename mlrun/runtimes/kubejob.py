@@ -111,6 +111,7 @@ class KubejobRuntime(KubeResource):
 
         if skip_deployed and self.is_deployed:
             self.status.state = "ready"
+            self.save(versioned=False)
             return True
 
         build = self.spec.build
@@ -121,6 +122,7 @@ class KubejobRuntime(KubeResource):
                     "please set the function image or build args"
                 )
             self.status.state = "ready"
+            self.save(versioned=False)
             return True
 
         if not build.source and not build.commands and with_mlrun:

@@ -138,6 +138,8 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
                         exc=str(exc),
                     )
                 else:
+                    # keep master project names list updated
+                    master_project_names.add(project.name)
                     # only if we successfully created in master - align the rest of consumers
                     for (
                         _consumer_name,

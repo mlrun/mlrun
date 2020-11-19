@@ -4,6 +4,7 @@ import sqlalchemy.orm
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.consumers.base
+import mlrun.errors
 
 
 class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
@@ -14,6 +15,8 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
     ):
+        if project.name in self._projects:
+            raise mlrun.errors.MLRunConflictError("Project already exists")
         self._projects[project.name] = mlrun.api.schemas.Project(**project.dict())
 
     def update_project(

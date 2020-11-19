@@ -1,4 +1,5 @@
 import typing
+import unittest.mock
 
 import pytest
 import sqlalchemy.orm
@@ -71,6 +72,42 @@ def test_projects_sync_consumer_project_adoption(
         project_name,
         project_description,
     )
+
+
+def test_projects_sync_multiple_consumer_project_adoption(
+    db: sqlalchemy.orm.Session,
+    projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
+    nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    second_nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    nop_consumer.create_project(
+        None,
+        mlrun.api.schemas.ProjectCreate(
+            name=project_name, description=project_description
+        ),
+    )
+    second_nop_consumer.create_project(
+        None,
+        mlrun.api.schemas.ProjectCreate(
+            name=project_name, description=project_description
+        ),
+    )
+    nop_master.create_project = unittest.mock.Mock(wraps=nop_master.create_project)
+    _assert_project_in_consumers([nop_consumer, second_nop_consumer], project_name, project_description)
+    _assert_no_projects_in_consumers([nop_master])
+
+    projects_manager._sync_projects()
+    _assert_project_in_consumers(
+        [nop_master, nop_consumer, second_nop_consumer],
+        project_name,
+        project_description,
+    )
+
+    # assert not tried to create project in master twice
+    assert nop_master.create_project.call_count == 1
 
 
 def test_create_project(

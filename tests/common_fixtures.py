@@ -10,6 +10,7 @@ import v3io.dataplane
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.projects_manager
 import mlrun.config
+import mlrun.utils
 from mlrun.api.db.sqldb.db import SQLDB
 from tests.conftest import init_sqldb, root_path, rundb_path, logs_path
 
@@ -24,9 +25,13 @@ def config_do_not_override():
     environ["MLRUN_httpdb__dirpath"] = rundb_path
     environ["MLRUN_httpdb__logs_path"] = logs_path
     environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
-    environ["MLRUN_log_level"] = "DEBUG"
+    log_level = "DEBUG"
+    environ["MLRUN_log_level"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
+    # logger created (because of imports mass) before the config is loaded (in tests), therefore we're changing its
+    # level manually
+    mlrun.utils.logger.set_logger_level(log_level)
 
 
 @pytest.fixture

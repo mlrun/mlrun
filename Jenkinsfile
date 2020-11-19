@@ -104,13 +104,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                                 error("Could not get source branch from tag")
                             }
 
-                            // github.create_prerelease(
-                            //         git_mlrun_ui_project,
-                            //         git_project_user,
-                            //         "${github.TAG_VERSION}",
-                            //         GIT_TOKEN,
-                            //         "${source_branch}"
-                            // )
+                            ui_github_client.createRelease(source_branch, mlrun_github_client.tag.toString(), true)
+
                             // github.wait_for_release(
                             //         git_mlrun_ui_project,
                             //         git_project_user,
@@ -120,7 +115,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                         }
                     }
 
-                    // common.conditional_stage('Upload to PyPi', "${github.TAG_VERSION}" != "unstable") {
+                    // common.conditional_stage('Upload to PyPi', "${mlrun_github_client.tag.toString()}" != "unstable") {
                     //     container('python37') {
                     //         withCredentials([
                     //             usernamePassword(credentialsId: "iguazio-prod-pypi-credentials",

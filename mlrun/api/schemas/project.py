@@ -8,6 +8,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     source: Optional[str] = None
     state: Optional[str] = None
+    owner: Optional[str] = None
 
     class Config:
         extra = Extra.allow
@@ -16,7 +17,6 @@ class ProjectUpdate(BaseModel):
 # Properties to receive via API on creation
 class ProjectCreate(ProjectUpdate):
     name: str
-    owner: Optional[str] = None
 
 
 class ProjectRecord(ProjectCreate):

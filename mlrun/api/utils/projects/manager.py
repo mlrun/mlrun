@@ -136,6 +136,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         consumers_projects_map: typing.Dict[str, typing.Dict[str, mlrun.api.schemas.Project]],
         master_projects_map: typing.Dict[str, mlrun.api.schemas.Project],
     ):
+        # FIXME: This function only handles syncing project existence, i.e. if a user updates a project attribute
+        #  through one of the consumers this change won't be synced and the projects will be left with this discrepancy
+        #  for ever
         project = None
         project_consumer_name = None
         # first verify that the master have this project

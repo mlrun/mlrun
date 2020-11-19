@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.projects_manager import get_projects_manager
 
 router = APIRouter()
 
@@ -15,8 +15,8 @@ router = APIRouter()
 def create_project(
     project: schemas.ProjectCreate, db_session: Session = Depends(deps.get_db_session)
 ):
-    get_db().create_project(db_session, project)
-    return get_db().get_project(db_session, project.name)
+    get_projects_manager().create_project(db_session, project)
+    return get_projects_manager().get_project(db_session, project.name)
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
@@ -26,21 +26,21 @@ def update_project(
     name: str,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().update_project(db_session, name, project)
-    return get_db().get_project(db_session, name)
+    get_projects_manager().update_project(db_session, name, project)
+    return get_projects_manager().get_project(db_session, name)
 
 
 # curl http://localhost:8080/project/<name>
 @router.get("/projects/{name}", response_model=schemas.Project)
 def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
-    return get_db().get_project(db_session, name)
+    return get_projects_manager().get_project(db_session, name)
 
 
 @router.delete("/projects/{name}", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_project(
     name: str, db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().delete_project(db_session, name)
+    get_projects_manager().delete_project(db_session, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -51,4 +51,4 @@ def list_projects(
     owner: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_db().list_projects(db_session, owner, full)
+    return get_projects_manager().list_projects(db_session, owner, full)

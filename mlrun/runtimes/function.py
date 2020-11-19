@@ -281,6 +281,7 @@ class RemoteRuntime(KubeResource):
 
             if self.status.address:
                 self.spec.command = "http://{}".format(self.status.address)
+                self.save(versioned=False)
 
         else:
             self.save(versioned=False)

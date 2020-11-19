@@ -347,7 +347,7 @@ class BaseRuntime(ModelObj):
             )
             meta.labels["kind"] = self.kind
             if "owner" not in meta.labels:
-                meta.labels["owner"] = environ.get("V3IO_USERNAME", getpass.getuser())
+                meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
             if runspec.spec.output_path:
                 runspec.spec.output_path = runspec.spec.output_path.replace(
                     "{{run.user}}", meta.labels["owner"]

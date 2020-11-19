@@ -317,7 +317,7 @@ def mlrun_op(
     if "V3IO_USERNAME" in environ and "v3io_user" not in labels:
         labels["v3io_user"] = environ.get("V3IO_USERNAME")
     if "owner" not in labels:
-        labels["owner"] = environ.get("V3IO_USERNAME", getpass.getuser())
+        labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
 
     if name:
         cmd += ["--name", name]

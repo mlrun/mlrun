@@ -124,11 +124,11 @@ class RunDBInterface(ABC):
     @abstractmethod
     def update_project(
         self, name: str, project: schemas.ProjectUpdate
-    ) -> schemas.ProjectOutput:
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.ProjectCreate) -> schemas.ProjectOutput:
+    def create_project(self, project: schemas.ProjectCreate) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -138,7 +138,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_project(self, name: str) -> schemas.ProjectOutput:
+    def get_project(self, name: str) -> schemas.Project:
         pass
 
     def list_artifact_tags(self, project):

@@ -18,7 +18,6 @@ from .feature_store import (
 from .object import ObjectMetadata, PatchMode
 from .project import (
     Project,
-    ProjectOutput,
     ProjectsOutput,
     ProjectCreate,
     ProjectRecord,

@@ -59,7 +59,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         return self._master_consumer.get_project(session, name)
 
     def list_projects(

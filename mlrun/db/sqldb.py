@@ -189,12 +189,12 @@ class SQLDB(RunDBInterface):
 
     def update_project(
         self, name: str, project: mlrun.api.schemas.ProjectUpdate
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     def create_project(
         self, project: mlrun.api.schemas.ProjectCreate
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     def delete_project(self, name: str):
@@ -202,7 +202,7 @@ class SQLDB(RunDBInterface):
 
     def get_project(
         self, name: str = None, project_id: int = None
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     def list_projects(

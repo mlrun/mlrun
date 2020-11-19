@@ -38,15 +38,15 @@ def test_get_project(
     )
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
     project = nuclio_consumer.get_project(None, project_name)
-    assert project.project.name == project_name
-    assert project.project.description == project_description
+    assert project.name == project_name
+    assert project.description == project_description
 
     # now without description
     response_body = _generate_project_body(project_name, with_spec=True)
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
     project = nuclio_consumer.get_project(None, project_name)
-    assert project.project.name == project_name
-    assert project.project.description is None
+    assert project.name == project_name
+    assert project.description is None
 
 
 def test_list_project(

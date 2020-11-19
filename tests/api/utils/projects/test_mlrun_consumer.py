@@ -30,8 +30,8 @@ def test_get_project(
     )
 
     project_output = mlrun_consumer.get_project(db, project_name)
-    assert project_output.project.name == project_name
-    assert project_output.project.description == project_description
+    assert project_output.name == project_name
+    assert project_output.description == project_description
 
 
 def test_list_project(

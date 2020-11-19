@@ -147,7 +147,7 @@ class FileDB(DBInterface):
 
     def get_project(
         self, session, name: str = None, project_id: int = None
-    ) -> schemas.ProjectOutput:
+    ) -> schemas.Project:
         raise NotImplementedError()
 
     def delete_project(self, session, name: str):

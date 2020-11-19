@@ -226,8 +226,8 @@ def test_get_project(
 
     # assert list considers only the master
     project = projects_manager.get_project(None, project_name)
-    assert project.project.name == project_name
-    assert project.project.description == project_description
+    assert project.name == project_name
+    assert project.description == project_description
 
 
 def _assert_no_projects_in_consumers(consumers):

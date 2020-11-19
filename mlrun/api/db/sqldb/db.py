@@ -666,12 +666,10 @@ class SQLDB(DBInterface):
 
     def get_project(
         self, session: Session, name: str = None, project_id: int = None
-    ) -> schemas.ProjectOutput:
+    ) -> schemas.Project:
         project_record = self._get_project(session, name, project_id)
 
-        return schemas.ProjectOutput(
-            project=self._transform_project_model_to_schema(project_record)
-        )
+        return self._transform_project_model_to_schema(project_record)
 
     def _get_project(
         self, session: Session, name: str = None, project_id: int = None

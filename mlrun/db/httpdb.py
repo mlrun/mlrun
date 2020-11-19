@@ -833,14 +833,14 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", "projects", error_message, params=params)
         return schemas.ProjectsOutput(**resp.json())
 
-    def get_project(self, name: str) -> schemas.ProjectOutput:
+    def get_project(self, name: str) -> schemas.Project:
         if not name:
             raise MLRunInvalidArgumentError("Name must be provided")
 
         path = f"projects/{name}"
         error_message = f"Failed retrieving project {name}"
         resp = self.api_call("GET", path, error_message)
-        return schemas.ProjectOutput(**resp.json())
+        return schemas.Project(**resp.json())
 
     def delete_project(self, name: str):
         path = f"projects/{name}"
@@ -849,24 +849,24 @@ class HTTPRunDB(RunDBInterface):
 
     def update_project(
         self, name: str, project: Union[dict, mlrun.api.schemas.ProjectUpdate]
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         path = f"projects/{name}"
         error_message = f"Failed updating project {name}"
         if isinstance(project, mlrun.api.schemas.ProjectUpdate):
             project = project.dict()
         resp = self.api_call("PUT", path, error_message, body=json.dumps(project),)
-        return schemas.ProjectOutput(**resp.json())
+        return schemas.Project(**resp.json())
 
     def create_project(
         self, project: Union[dict, mlrun.api.schemas.ProjectCreate]
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         if isinstance(project, mlrun.api.schemas.ProjectUpdate):
             project = project.dict()
         error_message = f"Failed creating project {project['name']}"
         resp = self.api_call(
             "POST", "projects", error_message, body=json.dumps(project),
         )
-        return schemas.ProjectOutput(**resp.json())
+        return schemas.Project(**resp.json())
 
 
 def _as_json(obj):

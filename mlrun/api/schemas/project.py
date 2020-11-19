@@ -32,10 +32,6 @@ class Project(ProjectRecord):
     pass
 
 
-class ProjectOutput(BaseModel):
-    project: Project
-
-
 class ProjectsOutput(BaseModel):
     # use the full query param to control whether the full object will be returned or only the names
     projects: List[Union[Project, str]]

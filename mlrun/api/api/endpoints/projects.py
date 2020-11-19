@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
-@router.post("/projects", response_model=schemas.ProjectOutput)
+@router.post("/projects", response_model=schemas.Project)
 def create_project(
     project: schemas.ProjectCreate, db_session: Session = Depends(deps.get_db_session)
 ):
@@ -20,7 +20,7 @@ def create_project(
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
-@router.put("/projects/{name}", response_model=schemas.ProjectOutput)
+@router.put("/projects/{name}", response_model=schemas.Project)
 def update_project(
     project: schemas.ProjectUpdate,
     name: str,
@@ -31,7 +31,7 @@ def update_project(
 
 
 # curl http://localhost:8080/project/<name>
-@router.get("/projects/{name}", response_model=schemas.ProjectOutput)
+@router.get("/projects/{name}", response_model=schemas.Project)
 def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
     return get_db().get_project(db_session, name)
 

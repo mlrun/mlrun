@@ -425,7 +425,7 @@ class FileRunDB(RunDBInterface):
         ]
         return mlrun.api.schemas.ProjectsOutput(projects=project_names)
 
-    def get_project(self, name: str) -> mlrun.api.schemas.ProjectOutput:
+    def get_project(self, name: str) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     def delete_project(self, name: str):
@@ -433,12 +433,12 @@ class FileRunDB(RunDBInterface):
 
     def update_project(
         self, name: str, project: mlrun.api.schemas.ProjectUpdate
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     def create_project(
         self, project: mlrun.api.schemas.ProjectCreate
-    ) -> mlrun.api.schemas.ProjectOutput:
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     @property

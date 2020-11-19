@@ -11,8 +11,6 @@ router = APIRouter()
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
-# TODO: remove the wrong route (/project) before 0.6.0 is out after UI change to new route
-@router.post("/project")
 @router.post("/projects", response_model=schemas.ProjectOutput)
 def create_project(
     project: schemas.ProjectCreate, db_session: Session = Depends(deps.get_db_session)
@@ -22,8 +20,6 @@ def create_project(
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
-# TODO: remove the wrong route (/project/{name}) before 0.6.0 is out after UI change to new route
-@router.post("/project/{name}")
 @router.put("/projects/{name}", response_model=schemas.ProjectOutput)
 def update_project(
     project: schemas.ProjectUpdate,
@@ -35,8 +31,6 @@ def update_project(
 
 
 # curl http://localhost:8080/project/<name>
-# TODO: remove the wrong route (/project/{name}) before 0.6.0 is out after UI change to new route
-@router.get("/project/{name}", response_model=schemas.ProjectOutput)
 @router.get("/projects/{name}", response_model=schemas.ProjectOutput)
 def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
     return get_db().get_project(db_session, name)

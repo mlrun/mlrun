@@ -15,7 +15,7 @@
 import json
 import mlrun
 
-from v2_serving import _ModelLogPusher
+from .v2_serving import _ModelLogPusher
 
 from io import BytesIO
 from numpy.core.fromnumeric import mean

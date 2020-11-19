@@ -22,6 +22,8 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
         )
+        # run one sync to start off on the right foot
+        self._sync_projects()
         self._start_periodic_sync()
 
     def stop(self):

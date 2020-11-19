@@ -25,7 +25,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                     container('docker-python') {
                         stage("build ${git_project}/api in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make api"))
+                                println("TEST")
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make api"))
                             }
                         }
 
@@ -33,7 +34,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/mlrun in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make mlrun"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make mlrun"))
+                                println("TEST")
                             }
                         }
 
@@ -41,7 +43,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/jupyter in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make jupyter"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make jupyter"))
+                                println("TEST")
                             }
                         }
 
@@ -49,7 +52,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/base in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base"))
+                                println("TEST")
                             }
                         }
 
@@ -57,7 +61,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/base-legacy in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base-legacy"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base-legacy"))
+                                println("TEST")
                             }
                         }
 
@@ -65,7 +70,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/models in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models"))
+                                println("TEST")
                             }
                         }
 
@@ -73,7 +79,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/models-legacy in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-legacy"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-legacy"))
+                                println("TEST")
                             }
                         }
 
@@ -81,7 +88,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/models-gpu in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu"))
+                                println("TEST")
                             }
                         }
 
@@ -89,7 +97,8 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/models-gpu-legacy in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu-legacy"))
+                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu-legacy"))
+                                println("TEST")
                             }
                         }
 

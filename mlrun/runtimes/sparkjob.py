@@ -177,9 +177,7 @@ class SparkRuntime(KubejobRuntime):
             update_in(
                 job,
                 "spec.image",
-                config.spark_app_image
-                + ":"
-                + config.spark_app_image_tag,
+                config.spark_app_image + ":" + config.spark_app_image_tag,
             )
         update_in(job, "spec.volumes", self.spec.volumes)
 

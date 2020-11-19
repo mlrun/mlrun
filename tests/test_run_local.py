@@ -42,10 +42,11 @@ def test_run_local_with_uid_does_not_exist(monkeypatch):
     instead of
     environ.get("V3IO_USERNAME") or getpass.getuser()
     """
-    def mock_getpwuid_raise(*args, **kwargs):
-        raise KeyError('getpwuid(): uid not found: 400')
 
-    environ['V3IO_USERNAME'] = 'some_user'
+    def mock_getpwuid_raise(*args, **kwargs):
+        raise KeyError("getpwuid(): uid not found: 400")
+
+    environ["V3IO_USERNAME"] = "some_user"
     monkeypatch.setattr(getpass, "getuser", mock_getpwuid_raise)
     spec = tag_test(base_spec, "test_run_local")
     result = run_local(

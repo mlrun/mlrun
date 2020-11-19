@@ -4,6 +4,7 @@ import typing
 
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.errors
 from mlrun.utils import logger
 
 tasks: typing.Dict = {}
@@ -29,6 +30,10 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
 def run_function_periodically(interval: int, name: str, function, *args, **kwargs):
     global tasks
     logger.debug("Submitting function to run periodically", name=name)
+    if name in tasks:
+        message = "Task with that name already exists"
+        logger.warning(message, name=name)
+        raise mlrun.errors.MLRunInvalidArgumentError(message)
     loop = asyncio.get_running_loop()
     task = loop.create_task(
         _periodic_function_wrapper(interval, function, *args, **kwargs)

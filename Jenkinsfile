@@ -1,6 +1,4 @@
 
-@Library('pipelinex@_refactor_github') _
-
 label = "${UUID.randomUUID().toString()}"
 git_project = "mlrun"
 git_project_user = "mlrun"
@@ -10,7 +8,7 @@ git_mlrun_ui_project = "ui"
 
 podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
     node("${git_project}-${label}") {
-        pipelinex = library(identifier: 'pipelinex@_refactor_github', retriever: modernSCM(
+        pipelinex = library(identifier: 'pipelinex@development', retriever: modernSCM(
                 [$class       : 'GitSCMSource',
                  credentialsId: git_deploy_user_private_key,
                  remote       : "git@github.com:iguazio/pipelinex.git"])).com.iguazio.pipelinex

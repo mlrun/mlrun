@@ -12,7 +12,11 @@ import mlrun.api.utils.singletons.projects_manager
 import mlrun.config
 import mlrun.utils
 from mlrun.api.db.sqldb.db import SQLDB
-from tests.conftest import init_sqldb, root_path, rundb_path, logs_path
+from mlrun.api.db.sqldb.session import create_session, _init_engine
+from mlrun.api.initial_data import init_data
+from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.config import config
+from tests.conftest import root_path, rundb_path, logs_path
 
 session_maker: Callable
 
@@ -40,8 +44,11 @@ def db():
     dsn = "sqlite:///:memory:?check_same_thread=false"
     db_session = None
     try:
-        session_maker = init_sqldb(dsn)
-        db_session = session_maker()
+        config.httpdb.dsn = dsn
+        _init_engine(dsn)
+        init_data()
+        initialize_db()
+        db_session = create_session()
         db = SQLDB(dsn)
         db.initialize(db_session)
     finally:
@@ -56,7 +63,7 @@ def db():
 def db_session() -> Generator:
     db_session = None
     try:
-        db_session = session_maker()
+        db_session = create_session()
         yield db_session
     finally:
         if db_session is not None:

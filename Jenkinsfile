@@ -108,13 +108,16 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                         common.conditional_stage('Create mlrun/ui release', "${mlrun_github_client.tag.toString()}" != "unstable") {
                             def source_branch = mlrun_github_client.getReleasecommittish()
                             
-                            print("source branch is: ${source_branch}, using this as source for mlrun/ui")
+                            println("Source branch is: ${source_branch}, using this as source for ${git_project}/${git_mlrun_ui_project}")
+                            println("You are responsible to make sure that this branch exists in ${git_project}/${git_mlrun_ui_project}!")
+
                             if (!source_branch) {
                                 error("Could not get source branch from tag")
                             }
 
                             ui_github_client.createRelease(source_branch, mlrun_github_client.tag.toString(), true)
 
+                            // TODO: is this really necessary??
                             // github.wait_for_release(
                             //         git_mlrun_ui_project,
                             //         git_project_user,

@@ -25,85 +25,68 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                     container('docker-python') {
                         stage("build ${git_project}/api in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println("TEST")
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make api"))
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make api"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/mlrun-api:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/mlrun-api:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/mlrun in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make mlrun"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make mlrun"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/mlrun:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/mlrun:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/jupyter in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make jupyter"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make jupyter")
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/jupyter:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/jupyter:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/base in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/ml-base:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/ml-base:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/base-legacy in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base-legacy"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make base-legacy"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/ml-base:${mlrun_github_client.tag.docker}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/ml-base:${mlrun_github_client.tag.docker}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/models in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/ml-models:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/models-legacy in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-legacy"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-legacy"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/ml-models:${mlrun_github_client.tag.docker}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models:${mlrun_github_client.tag.docker}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/models-gpu in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
 
                         stage("build ${git_project}/models-gpu-legacy in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                // println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu-legacy"))
-                                println("TEST")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make models-gpu-legacy"))
                             }
                         }
-
-                        // dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${mlrun_github_client.tag.docker}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
+                        dockerx.images_push_multi_registries(["${git_project}/ml-models-gpu:${mlrun_github_client.tag.docker}-py36"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])
                     }
+                    
                     container('jnlp') {
                         common.conditional_stage('Create mlrun/ui release', "${mlrun_github_client.tag.toString()}" != "unstable") {
                             def source_branch = mlrun_github_client.getReleasecommittish()
@@ -127,19 +110,19 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                         }
                     }
 
-                    // common.conditional_stage('Upload to PyPi', "${mlrun_github_client.tag.toString()}" != "unstable") {
-                    //     container('python37') {
-                    //         withCredentials([
-                    //             usernamePassword(credentialsId: "iguazio-prod-pypi-credentials",
-                    //                                 passwordVariable: 'TWINE_PASSWORD',
-                    //                                 usernameVariable: 'TWINE_USERNAME')]) {
-                    //             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                    //                 println(common.shellc("pip install twine"))
-                    //                 println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make publish-package"))
-                    //             }
-                    //         }
-                    //     }
-                    // }
+                    common.conditional_stage('Upload to PyPi', "${mlrun_github_client.tag.toString()}" != "unstable") {
+                        container('python37') {
+                            withCredentials([
+                                usernamePassword(credentialsId: "iguazio-prod-pypi-credentials",
+                                                    passwordVariable: 'TWINE_PASSWORD',
+                                                    usernameVariable: 'TWINE_USERNAME')]) {
+                                dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
+                                    println(common.shellc("pip install twine"))
+                                    println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make publish-package"))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

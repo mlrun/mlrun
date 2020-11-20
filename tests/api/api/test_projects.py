@@ -35,8 +35,8 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK.value
 
     # read
-    response = client.get(f"/api/project/{name1}")
-    assert project_update.description == response.json()["project"]["description"]
+    response = client.get(f"/api/projects/{name1}")
+    assert project_update.description == response.json()["description"]
 
     name2 = f"prj-{uuid4().hex}"
     project_2 = mlrun.api.schemas.ProjectCreate(

@@ -29,15 +29,14 @@ def infer_schema_from_df(
 ):
     """infer feature set schema from dataframe"""
     features = []
-    entities = []
     timestamp_fields = []
 
     for column, s in df.items():
         value_type = _get_column_type(s)
         is_entity = entity_columns and column in entity_columns
         if is_entity:
-            entities.append(Entity(name=column, value_type=value_type))
-        elif with_features:
+            featureset_spec.entities[column] = Entity(value_type=value_type)
+        elif with_features and column != featureset_spec.timestamp_key:
             features.append(Feature(name=column, value_type=value_type))
         if value_type == "datetime":
             timestamp_fields.append((column, is_entity))
@@ -46,19 +45,18 @@ def infer_schema_from_df(
         # infer types of index fields
         if df.index.name:
             value_type = _get_column_type(df.index)
-            entities.append(Entity(name=df.index.name, value_type=value_type))
+            featureset_spec.entities[df.index.name] = Entity(value_type=value_type)
             if value_type == "datetime":
                 timestamp_fields.append((df.index.name, True))
         elif df.index.nlevels > 1:
             for level, name in zip(df.index.levels, df.index.names):
                 value_type = _get_column_type(level)
-                entities.append(Entity(name=name, value_type=value_type))
+                featureset_spec.entities[name] = Entity(value_type=value_type)
                 if value_type == "datetime":
                     timestamp_fields.append((name, True))
 
     if with_features:
         featureset_spec.features = features
-    featureset_spec.entities = entities
     if len(timestamp_fields) == 1 and not featureset_spec.timestamp_key:
         featureset_spec.timestamp_key = timestamp_fields[0][0]
 

@@ -36,6 +36,8 @@ class Entity(ModelObj):
         self.name = name
         self.description = description
         self.value_type = value_type
+        if name and not value_type:
+            self.value_type = ValueType.STRING
         self.labels = labels or {}
 
 

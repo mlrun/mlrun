@@ -717,6 +717,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
+        print(resp.content)
         return schemas.FeatureSet(**resp.json())
 
     def list_features(

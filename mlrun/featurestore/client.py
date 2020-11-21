@@ -31,12 +31,12 @@ from .model import TargetTypes, FeatureClassKind
 from ..utils import get_caller_globals
 
 
-def store_client(data_prefix="", project=None, secrets=None):
-    return FeatureStoreClient(data_prefix, project, secrets)
+def store_client(data_prefix="", project=None, secrets=None, api_address=None):
+    return FeatureStoreClient(data_prefix, project, secrets, api_address)
 
 
 class FeatureStoreClient:
-    def __init__(self, data_prefix="", project=None, secrets=None, api_address=""):
+    def __init__(self, data_prefix="", project=None, secrets=None, api_address=None):
         self.data_prefix = data_prefix or "./store"
         self.nosql_path_prefix = ""
         self.project = project
@@ -153,7 +153,7 @@ class FeatureStoreClient:
         service.init()
         return service
 
-    def get_feature_set(self, name, use_cache=False):
+    def get_feature_set(self, name, tag=None, use_cache=False):
         if not name and self.default_feature_set:
             name = self.default_feature_set
         if not name:
@@ -161,38 +161,55 @@ class FeatureStoreClient:
         # todo: if name has "/" split to project/name
         if use_cache and name in self._fs:
             return self._fs[name]
-        project = None
+        project = self.project
         input_name = name
         if '/' in name:
             project, name = name.split('/', 1)
-        target = self._get_db_path(FeatureClassKind.FeatureSet, name, project)
-        body = self._data_stores.object(url=target + ".yaml").get()
-        obj = yaml.load(body, Loader=yaml.FullLoader)
-        fs = FeatureSet.from_dict(obj)
+
+        obj = self._get_db().get_feature_set(name, project, tag)
+
+        #target = self._get_db_path(FeatureClassKind.FeatureSet, name, project)
+        #body = self._data_stores.object(url=target + ".yaml").get()
+        #obj = yaml.load(body, Loader=yaml.FullLoader)
+        fs = FeatureSet.from_dict(obj.dict())
         self._fs[input_name] = fs
         return fs
 
     def list_feature_sets(
         self,
         name: str = None,
+        project: str = None,
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
     ):
         """list feature sets with optional filter"""
+        project = project or self.project
+        resp = self._get_db().list_feature_sets(project, name, tag, state, labels=labels)
+        print(resp.dict())
+        if resp:
+            return [FeatureSet.from_dict(obj) for obj in resp.dict()['feature_sets']]
+
 
     def get_feature_vector(self, name, project=None):
-        pass
+        raise NotImplementedError("api not yet not supported")
 
-    def save_object(self, obj):
+    def save_object(self, obj, versioned=False):
         """save feature set/vector or other definitions into the DB"""
-        if obj.kind not in [
-            FeatureClassKind.FeatureSet,
-            FeatureClassKind.FeatureVector,
-        ]:
+        db = self._get_db()
+        if obj.kind == FeatureClassKind.FeatureSet:
+            obj.metadata.project = obj.metadata.project or self.project
+            obj_dict = obj.to_dict()
+            obj_dict['metadata']['labels'] = obj_dict['metadata'].get('labels', {})  # bypass DB bug
+            db.store_feature_set(obj.metadata.name, obj_dict, obj.metadata.project,
+                                 tag=obj.metadata.tag, versioned=versioned)
+            #db.create_feature_set(objdeict, obj.metadata.project, versioned=False)
+        elif obj.kind == FeatureClassKind.FeatureVector:
+            # TODO: write to mlrun db
+            target = self._get_db_path(obj.kind, obj.metadata.name, obj.metadata.project)
+            self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())
+        else:
             raise NotImplementedError(f"object kind not supported ({obj.kind})")
-        target = self._get_db_path(obj.kind, obj.metadata.name, obj.metadata.project,)
-        self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())
 
 
 def nosql_path(url):

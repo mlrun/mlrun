@@ -59,18 +59,6 @@ def process_to_df(df, featureset, entity_column, namespace):
     return controller.await_termination()
 
 
-class UpdateState:
-    def __init__(self, fields):
-        self.fields = fields
-
-    def do(self, event, state):
-        for field in self.fields:
-            value = event.get(field, None)
-            if value is not None:
-                state[field] = value
-        return event, state
-
-
 def create_ingest_pipeline(
     client, featureset, source, targets=None, namespace=[], return_df=True
 ):
@@ -92,23 +80,20 @@ def create_ingest_pipeline(
         steps.append(state_to_flow_object(state, context=None, namespace=namespace))
 
     column_list, _ = _clear_aggregators(aggregations, featureset.spec.features.keys())
-    if TargetTypes.nosql in targets:
-        updater = UpdateState(column_list)
-        steps.append(MapWithState(table, updater.do, group_by_key=True))
-
     aggregation_objects = []
     for aggregate in aggregations.values():
-        aggregation_objects.append(state_to_field_aggregator(aggregate))
+        aggregation_objects.append(aggregate.to_dict())
 
     if aggregation_objects:
         steps.append(AggregateByKey(aggregation_objects, table))
 
     if TargetTypes.nosql in targets:
-        steps.append([WriteToTable(table)])
+        steps.append([WriteToTable(table, columns=column_list)])
+
     # if TargetTypes.parquet in targets:
     #     print('KEY:', key_column)
     #     target_path = client._get_target_path(TargetTypes.parquet, featureset, '.parquet')
-    #     steps.append([WriteToParquet(target_path, metadata_columns={key_column: 'key'})])
+    #     steps.append([WriteToParquet(target_path, index_cols=key_column)])
     #     target = DataTarget(TargetTypes.parquet, target_path)
     #     featureset.status.update_target(target)
 
@@ -130,17 +115,6 @@ def state_to_flow_object(state: ServingTaskState, context=None, namespace=[]):
         state.init_object(context, namespace)
 
     return state.object
-
-
-def state_to_field_aggregator(aggregate):
-    if aggregate.period:
-        windows = SlidingWindows(aggregate.windows, aggregate.period)
-    else:
-        windows = FixedWindows(aggregate.windows)
-
-    return FieldAggregator(
-        aggregate.name, aggregate.column, aggregate.operations, windows
-    )
 
 
 def _clear_aggregators2(aggregations, column_list):
@@ -193,7 +167,7 @@ def steps_from_featureset(featureset, column_list, aliases):
         aggregation_objects = []
         column_list, aggregates_list = _clear_aggregators(aggregations, column_list)
         for aggregate in aggregates_list:
-            aggregation_objects.append(state_to_field_aggregator(aggregate))
+            aggregation_objects.append(aggregate.to_dict())
 
         steps.append(
             QueryAggregationByKey(

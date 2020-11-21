@@ -324,7 +324,7 @@ def get_tblframe(df, display, classes=None):
     return ipython_display(html, display)
 
 
-uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/{}/info" target="_blank" >...{}</a></div>'
+uid_template = '<div title="{}"><a href="{}/projects/{}/jobs/monitor/{}/info" target="_blank" >...{}</a></div>'
 
 
 def runs_to_html(df, display=True, classes=None, short=False):

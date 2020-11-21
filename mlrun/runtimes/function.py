@@ -61,6 +61,7 @@ class NuclioSpec(KubeResourceSpec):
         function_kind=None,
         service_account=None,
         readiness_timeout=None,
+        default_handler=None,
     ):
 
         super().__init__(
@@ -77,6 +78,7 @@ class NuclioSpec(KubeResourceSpec):
             service_account=service_account,
             entry_points=entry_points,
             description=description,
+            default_handler=default_handler,
         )
 
         self.base_spec = base_spec or ""
@@ -279,6 +281,7 @@ class RemoteRuntime(KubeResource):
 
             if self.status.address:
                 self.spec.command = "http://{}".format(self.status.address)
+                self.save(versioned=False)
 
         else:
             self.save(versioned=False)
@@ -292,7 +295,13 @@ class RemoteRuntime(KubeResource):
         logger.info(f"function deployed, address={self.status.address}")
         return self.spec.command
 
-    def _get_state(self, dashboard="", last_log_timestamp=None, verbose=False):
+    def _get_state(
+        self,
+        dashboard="",
+        last_log_timestamp=None,
+        verbose=False,
+        raise_on_exception=True,
+    ):
         if dashboard:
             state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(
                 self.metadata.name,
@@ -314,6 +323,8 @@ class RemoteRuntime(KubeResource):
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except RunDBError:
+            if raise_on_exception:
+                return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
 
@@ -387,15 +398,24 @@ class RemoteRuntime(KubeResource):
             data = json.loads(data)
         return data
 
-    def _raise_mlrun(self):
+    def _pre_run_validations(self):
         if self.spec.function_kind != "mlrun":
             raise RunError(
                 '.run() can only be execute on "mlrun" kind'
                 ', recreate with function kind "mlrun"'
             )
 
+        state = self.status.state
+        if state != "ready":
+            if state:
+                raise RunError(f"cannot run, function in state {state}")
+            state = self._get_state(raise_on_exception=True)
+            if state != "ready":
+                logger.info("starting nuclio build!")
+                self.deploy()
+
     def _run(self, runobj: RunObject, execution):
-        self._raise_mlrun()
+        self._pre_run_validations()
         self.store_run(runobj)
         if self._secrets:
             runobj.spec.secret_sources = self._secrets.to_serial()
@@ -421,7 +441,7 @@ class RemoteRuntime(KubeResource):
         return self._update_state(resp.json())
 
     def _run_many(self, tasks, execution, runobj: RunObject):
-        self._raise_mlrun()
+        self._pre_run_validations()
         secrets = self._secrets.to_serial() if self._secrets else None
         log_level = execution.log_level
         headers = {"x-nuclio-log-level": log_level}
@@ -542,7 +562,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
-        base_image = get_in(config, "spec.build.baseImage")
+        base_image = get_in(config, "spec.build.baseImage") or function.spec.image
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
 
@@ -574,6 +594,10 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
         )
 
         update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        if function.spec.image:
+            update_in(
+                config, "spec.build.baseImage", enrich_image_url(function.spec.image)
+            )
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 

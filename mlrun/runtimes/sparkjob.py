@@ -108,6 +108,11 @@ class SparkJobSpec(KubeResourceSpec):
         restart_policy=None,
         deps=None,
         main_class=None,
+        default_handler=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        build=None,
     ):
 
         super().__init__(
@@ -123,6 +128,11 @@ class SparkJobSpec(KubeResourceSpec):
             image_pull_policy=image_pull_policy,
             service_account=service_account,
             image_pull_secret=image_pull_secret,
+            default_handler=default_handler,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            build=build,
         )
 
         self.driver_resources = driver_resources or {}
@@ -163,13 +173,11 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
-        elif config.spark_app_image_tag or config.igz_version:
+        elif config.spark_app_image_tag and config.spark_app_image:
             update_in(
                 job,
                 "spec.image",
-                config.spark_app_image
-                + ":"
-                + (config.spark_app_image_tag or config.igz_version),
+                config.spark_app_image + ":" + config.spark_app_image_tag,
             )
         update_in(job, "spec.volumes", self.spec.volumes)
 

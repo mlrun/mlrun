@@ -39,6 +39,7 @@ class FeatureSetStatus(BaseModel):
 
 
 class FeatureSet(BaseModel):
+    kind: str = "FeatureSet"
     metadata: ObjectMetadata
     spec: FeatureSetSpec
     status: FeatureSetStatus

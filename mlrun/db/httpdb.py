@@ -691,24 +691,26 @@ class HTTPRunDB(RunDBInterface):
 
     def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
-    ) -> schemas.FeatureSet:
-        project = project or default_project
-        path = f"projects/{project}/feature-sets"
-        params = {"versioned": versioned}
-
+    ) -> dict:
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
+
+        project = (
+            project or feature_set["metadata"].get("project", None) or default_project
+        )
+        path = f"projects/{project}/feature-sets"
+        params = {"versioned": versioned}
 
         name = feature_set["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         resp = self.api_call(
             "POST", path, error_message, params=params, body=json.dumps(feature_set),
         )
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> schemas.FeatureSet:
+    ) -> dict:
         if uid and tag:
             raise MLRunInvalidArgumentError("both uid and tag were provided")
 
@@ -717,7 +719,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
     def list_features(
         self,
@@ -750,7 +752,7 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeatureSetsOutput:
+    ) -> List[dict]:
         project = project or default_project
         params = {
             "name": name,
@@ -767,12 +769,12 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-sets, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return schemas.FeatureSetsOutput(**resp.json())
+        return resp.json()["feature_sets"]
 
     def store_feature_set(
         self,
-        name,
         feature_set: Union[dict, schemas.FeatureSet],
+        name=None,
         project="",
         tag=None,
         uid=None,
@@ -786,7 +788,8 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
 
-        project = project or default_project
+        name = name or feature_set["metadata"]["name"]
+        project = project or feature_set["metadata"].get("project") or default_project
         reference = uid or tag or "latest"
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"

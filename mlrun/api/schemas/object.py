@@ -6,6 +6,7 @@ from pydantic import BaseModel, Extra
 
 class ObjectMetadata(BaseModel):
     name: str
+    project: Optional[str]
     tag: Optional[str]
     labels: Optional[dict]
     updated: Optional[datetime]

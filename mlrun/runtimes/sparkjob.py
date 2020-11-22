@@ -173,13 +173,11 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
-        elif config.spark_app_image_tag or config.igz_version:
+        elif config.spark_app_image_tag and config.spark_app_image:
             update_in(
                 job,
                 "spec.image",
-                config.spark_app_image
-                + ":"
-                + (config.spark_app_image_tag or config.igz_version),
+                config.spark_app_image + ":" + config.spark_app_image_tag,
             )
         update_in(job, "spec.volumes", self.spec.volumes)
 

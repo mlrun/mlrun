@@ -20,46 +20,38 @@ from .model import TargetTypes, DataTarget
 from mlrun.serving.states import ServingTaskState
 
 
-def run_ingestion_pipeline(
+def create_ingestion_pipeline(
     client, featureset, source, targets=None, namespace=[], return_df=True
 ):
     if not targets:
         raise ValueError("ingestion target(s) were not specified")
-
-    if isinstance(source, str):
-        # if source is a path/url convert to DataFrame
-        source = client.get_data_stores().object(url=source).as_df()
 
     entity_columns = list(featureset.spec.entities.keys())
     if not entity_columns:
         raise ValueError("entity column(s) are not defined in feature set")
     source = DataframeSource(source, entity_columns[0], featureset.spec.timestamp_key)
 
-    flow = create_ingest_pipeline(
+    flow = _create_ingest_pipeline(
         client,
         featureset,
         source,
         targets,
         namespace=namespace,  # , return_df=return_df
     )
-    controller = flow.run()
-    df = controller.await_termination()
-    if TargetTypes.parquet in targets:
-        target_path = client._get_target_path(TargetTypes.parquet, featureset, '.parquet')
-        target_path = upload_file(client, df, target_path, featureset)
-        target = DataTarget(TargetTypes.parquet, target_path)
-        featureset.status.update_target(target)
-    return df
+    return flow.run()
 
 
-def process_to_df(df, featureset, entity_column, namespace):
-    source = DataframeSource(df, entity_column, featureset.spec.timestamp_key)
-    flow = create_ingest_pipeline(None, featureset, source, namespace=namespace)
+def process_to_df(df, featureset, namespace):
+    entity_columns = list(featureset.spec.entities.keys())
+    if not entity_columns:
+        raise ValueError("entity column(s) are not defined in feature set")
+    source = DataframeSource(df, entity_columns[0], featureset.spec.timestamp_key)
+    flow = _create_ingest_pipeline(None, featureset, source, namespace=namespace)
     controller = flow.run()
     return controller.await_termination()
 
 
-def create_ingest_pipeline(
+def _create_ingest_pipeline(
     client, featureset, source, targets=None, namespace=[], return_df=True
 ):
 
@@ -67,12 +59,13 @@ def create_ingest_pipeline(
     if TargetTypes.nosql in targets:
         target_path = client._get_target_path(TargetTypes.nosql, featureset, "/")
         table = Table(target_path, V3ioDriver())
-        target = DataTarget(TargetTypes.nosql, target_path)
+        target = DataTarget('nosql', TargetTypes.nosql, target_path)
         featureset.status.update_target(target)
     else:
         table = Table("", NoopDriver())
 
     key_column = featureset.spec.entities[0].name
+    timestamp_key = featureset.spec.timestamp_key
     aggregations = featureset.spec.aggregations
     steps = [source]
 
@@ -90,12 +83,14 @@ def create_ingest_pipeline(
     if TargetTypes.nosql in targets:
         steps.append([WriteToTable(table, columns=column_list)])
 
-    # if TargetTypes.parquet in targets:
-    #     print('KEY:', key_column)
-    #     target_path = client._get_target_path(TargetTypes.parquet, featureset, '.parquet')
-    #     steps.append([WriteToParquet(target_path, index_cols=key_column)])
-    #     target = DataTarget(TargetTypes.parquet, target_path)
-    #     featureset.status.update_target(target)
+    if TargetTypes.parquet in targets:
+        target_path = client._get_target_path(TargetTypes.parquet, featureset, '.parquet')
+        column_list = list(featureset.spec.features.keys())
+        if timestamp_key:
+            column_list = [timestamp_key + '=$time'] + column_list
+        steps.append([WriteToParquet(target_path, index_cols=key_column+'=$key', columns=column_list)])
+        target = DataTarget('parquet', TargetTypes.parquet, target_path)
+        featureset.status.update_target(target)
 
     if return_df:
         steps.append([

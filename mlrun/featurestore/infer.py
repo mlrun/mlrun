@@ -30,35 +30,38 @@ def infer_schema_from_df(
     """infer feature set schema from dataframe"""
     features = []
     timestamp_fields = []
+    current_entities = list(featureset_spec.entities.keys())
+    entity_columns = entity_columns or []
 
     for column, s in df.items():
         value_type = _get_column_type(s)
-        is_entity = entity_columns and column in entity_columns
+        is_entity = column in entity_columns or column in current_entities
         if is_entity:
-            featureset_spec.entities[column] = Entity(value_type=value_type)
+            if column not in current_entities:
+                featureset_spec.entities[column] = Entity(value_type=value_type)
         elif with_features and column != featureset_spec.timestamp_key:
             features.append(Feature(name=column, value_type=value_type))
-        if value_type == "datetime":
-            timestamp_fields.append((column, is_entity))
+        if value_type == "datetime" and not is_entity:
+            timestamp_fields.append(column)
 
     if with_index:
         # infer types of index fields
         if df.index.name:
-            value_type = _get_column_type(df.index)
-            featureset_spec.entities[df.index.name] = Entity(value_type=value_type)
-            if value_type == "datetime":
-                timestamp_fields.append((df.index.name, True))
+            if column not in current_entities:
+                value_type = _get_column_type(df.index)
+                featureset_spec.entities[df.index.name] = Entity(value_type=value_type)
         elif df.index.nlevels > 1:
             for level, name in zip(df.index.levels, df.index.names):
-                value_type = _get_column_type(level)
-                featureset_spec.entities[name] = Entity(value_type=value_type)
-                if value_type == "datetime":
-                    timestamp_fields.append((name, True))
+                if column not in current_entities:
+                    value_type = _get_column_type(level)
+                    featureset_spec.entities[name] = Entity(value_type=value_type)
+                    if value_type == "datetime":
+                        timestamp_fields.append(name)
 
     if with_features:
         featureset_spec.features = features
     if len(timestamp_fields) == 1 and not featureset_spec.timestamp_key:
-        featureset_spec.timestamp_key = timestamp_fields[0][0]
+        featureset_spec.timestamp_key = timestamp_fields[0]
 
 
 def _get_column_type(column):
@@ -68,11 +71,8 @@ def _get_column_type(column):
 
 def get_df_stats(
     df,
-    featureset_status: FeatureSetStatus,
     with_index=True,
     with_histogram=False,
-    with_preview=False,
-    preview_lines=20,
 ):
     """get per column data stats from dataframe"""
 
@@ -101,16 +101,14 @@ def get_df_stats(
                 pass
 
         results_dict[col] = stats_dict
-    featureset_status.stats = results_dict
-
-    if with_preview:
-        # record sample rows from the dataframe
-        length = df.shape[0]
-        shortdf = df
-        if length > preview_lines:
-            shortdf = df.head(preview_lines)
-        featureset_status.preview = [
-            shortdf.columns.values.tolist()
-        ] + shortdf.values.tolist()
-
     return results_dict
+
+
+def get_df_preview(df, preview_lines=20):
+    """capture preview data from df"""
+    # record sample rows from the dataframe
+    length = df.shape[0]
+    shortdf = df
+    if length > preview_lines:
+        shortdf = df.head(preview_lines)
+    return [shortdf.columns.values.tolist()] + shortdf.values.tolist()

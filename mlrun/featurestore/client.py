@@ -17,8 +17,8 @@ import yaml
 
 from mlrun import get_run_db
 from mlrun.datastore import store_manager
-from .infer import infer_schema_from_df, get_df_stats
-from .pipeline import run_ingestion_pipeline
+from .infer import get_df_stats, get_df_preview
+from .pipeline import create_ingestion_pipeline
 
 from .vector import (
     OfflineVectorResponse,
@@ -28,7 +28,7 @@ from .vector import (
 from mlrun.featurestore.mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
 from .model import TargetTypes, FeatureClassKind
-from ..utils import get_caller_globals
+from ..utils import get_caller_globals, parse_function_uri
 
 
 def store_client(data_prefix="", project=None, secrets=None, api_address=None):
@@ -103,11 +103,17 @@ class FeatureStoreClient:
         if not entity_list:
             raise ValueError("Entity columns are not defined for this feature set")
 
-        df = run_ingestion_pipeline(self, featureset, source, targets, namespace)
+        if isinstance(source, str):
+            # if source is a path/url convert to DataFrame
+            source = self.get_data_stores().object(url=source).as_df()
+
         if infer_schema:
-            infer_schema_from_df(source, featureset.spec, entity_list, False)
+            featureset.infer_from_df(source)
+        df = create_ingestion_pipeline(self, featureset, source, targets, namespace).await_termination()
         if with_stats:
-            get_df_stats(df, featureset.status, with_histogram, with_preview)
+            featureset.status.stats = get_df_stats(df, with_histogram)
+        if with_preview:
+            featureset.status.preview = get_df_preview(df)
         self.save_object(featureset)
         if return_df:
             return df
@@ -153,26 +159,19 @@ class FeatureStoreClient:
         service.init()
         return service
 
-    def get_feature_set(self, name, tag=None, use_cache=False):
-        if not name and self.default_feature_set:
-            name = self.default_feature_set
-        if not name:
+    def get_feature_set(self, uri, use_cache=False):
+        if not uri and self.default_feature_set:
+            uri = self.default_feature_set
+        if not uri:
             raise ValueError('name or client.default_feature_set must be set')
-        # todo: if name has "/" split to project/name
-        if use_cache and name in self._fs:
-            return self._fs[name]
-        project = self.project
-        input_name = name
-        if '/' in name:
-            project, name = name.split('/', 1)
 
-        obj = self._get_db().get_feature_set(name, project, tag)
-
-        #target = self._get_db_path(FeatureClassKind.FeatureSet, name, project)
-        #body = self._data_stores.object(url=target + ".yaml").get()
-        #obj = yaml.load(body, Loader=yaml.FullLoader)
+        if use_cache and uri in self._fs:
+            return self._fs[uri]
+        project, name, tag, uid = parse_function_uri(uri)
+        project = project or self.project
+        obj = self._get_db().get_feature_set(name, project, tag, uid)
         fs = FeatureSet.from_dict(obj.dict())
-        self._fs[input_name] = fs
+        self._fs[uri] = fs
         return fs
 
     def list_feature_sets(
@@ -189,7 +188,6 @@ class FeatureStoreClient:
         print(resp.dict())
         if resp:
             return [FeatureSet.from_dict(obj) for obj in resp.dict()['feature_sets']]
-
 
     def get_feature_vector(self, name, project=None):
         raise NotImplementedError("api not yet not supported")

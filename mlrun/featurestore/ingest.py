@@ -23,23 +23,24 @@ from ..config import config as mlconf
 
 def write_to_target_store(client, kind, source, target_path, featureset, **kw):
     """write/ingest data to a target store"""
+    data_stores = client.get_data_stores()
     if kind == TargetTypes.parquet:
-        return upload_file(client, source, target_path, featureset, **kw)
+        return upload_file(source, data_stores, target_path, **kw)
     if kind == TargetTypes.nosql:
-        return upload_nosql(client, source, target_path, featureset, **kw)
+        index = list(featureset.spec.entities.keys())
+        return upload_nosql(source, data_stores, target_path, index)
     raise NotImplementedError(
         "currently only parquet/file and nosql targets are supported"
     )
 
 
-def upload_nosql(client, source, target_path, featureset, **kw):
+def upload_nosql(source, data_stores, target_path, index):
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
-        source = client.get_data_stores().object(url=source).as_df()
+        source = data_stores.object(url=source).as_df()
 
     container, subpath = split_path(target_path)
     client = v3f.Client(mlconf.frames_url, container=container)
-    index = featureset.spec.entities.keys()
     if len(index) != 1:
         raise ValueError("currently only support single column NoSQL index")
     client.write(
@@ -47,8 +48,7 @@ def upload_nosql(client, source, target_path, featureset, **kw):
     )
 
 
-def upload_file(client, source, target_path, featureset, format="parquet", **kw):
-    data_stores = client.get_data_stores()
+def upload_file(source, data_stores, target_path, format="parquet", **kw):
     suffix = pathlib.Path(target_path).suffix
     if not suffix:
         target_path = target_path + "." + format

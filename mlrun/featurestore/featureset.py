@@ -21,7 +21,7 @@ from .model import (
     FeatureSetMetadata,
     FeatureAggregation,
 )
-from .infer import infer_schema_from_df, get_df_stats
+from .infer import infer_schema_from_df, get_df_stats, get_df_preview
 from .pipeline import process_to_df
 from ..model import ModelObj
 from ..serving.states import ServingTaskState
@@ -69,6 +69,12 @@ class FeatureSet(ModelObj):
     def status(self, status):
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
+    def uri(self):
+        uri = f'{self._metadata.project}/{self._metadata.name}'
+        if self._metadata.tag:
+            uri += ':' + self._metadata.tag
+        return uri
+
     def infer_from_df(
         self,
         df,
@@ -91,14 +97,13 @@ class FeatureSet(ModelObj):
             infer_schema_from_df(
                 df, self._spec, entity_columns, with_index, with_features=False
             )
-            entity_columns = list(self._spec.entities.keys())
-            if not entity_columns:
-                raise ValueError("entity column(s) are not defined in feature set")
-            df = process_to_df(df, self, entity_columns[0], namespace)
+            df = process_to_df(df, self, namespace)
 
         infer_schema_from_df(df, self._spec, entity_columns, with_index)
         if with_stats:
-            get_df_stats(df, self._status, with_histogram, with_preview)
+            self._status.stats = get_df_stats(df, with_histogram)
+        if with_preview:
+            self._status.preview = get_df_preview(df)
         if label_column:
             self._spec.label_column = label_column
         return df

@@ -84,6 +84,11 @@ class TargetTypes:
     stream = "stream"
 
 
+class SourceTypes:
+    offline = "offline"
+    realtime = "realtime"
+
+
 def is_online_store(target_type):
     return target_type in [TargetTypes.nosql]
 
@@ -117,10 +122,11 @@ def get_online_store(type_list):
 
 
 class DataTarget(ModelObj):
-    _dict_fields = ["name", "path", "start_time", "num_rows", "size", "status"]
+    _dict_fields = ["name", "kind", "path", "start_time", "num_rows", "size", "status"]
 
-    def __init__(self, name: TargetTypes = None, path=None):
-        self.name: TargetTypes = name
+    def __init__(self, name: str = '', kind: TargetTypes = None, path=None):
+        self.name = name
+        self.kind: TargetTypes = kind
         self.status = ""
         self.updated = None
         self.path = path
@@ -138,6 +144,14 @@ class DataTarget(ModelObj):
     @producer.setter
     def producer(self, producer):
         self._producer = self._verify_dict(producer, "producer", FeatureSetProducer)
+
+
+class DataSource(ModelObj):
+    def __init__(self, name: str = '', kind: TargetTypes = None, path=None):
+        self.name = name
+        self.kind: SourceTypes = kind
+        self.path = path
+        self.max_age = None
 
 
 class FeatureAggregation(ModelObj):
@@ -182,12 +196,15 @@ class FeatureSetSpec(ModelObj):
         label_column=None,
         relations=None,
         aggregations=None,
+        sources=None,
+        targets=None,
         flow=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._aggregations = None
         self._flow: ServingRootFlowState = None
+        self._sources = None
 
         self.description = description
         self.entities = entities or []
@@ -196,6 +213,8 @@ class FeatureSetSpec(ModelObj):
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.relations = relations or {}
+        self.sources = sources or []
+        self.targets = targets or {}
         self.flow = flow
         self.label_column = label_column
 
@@ -230,6 +249,14 @@ class FeatureSetSpec(ModelObj):
     @flow.setter
     def flow(self, flow):
         self._flow = self._verify_dict(flow, "flow", ServingRootFlowState)
+
+    @property
+    def sources(self) -> List[DataSource]:
+        return self._targets
+
+    @sources.setter
+    def sources(self, sources: List[DataSource]):
+        self._sources = ObjectList.from_list(DataSource, sources)
 
     def require_processing(self):
         return len(self._flow.states) > 0 or len(self._aggregations) > 0

@@ -387,9 +387,7 @@ def test_feature_sets(create_server):
     )
     feature_sets = db.list_feature_sets(project=project)
 
-    assert (
-        len(feature_sets) == count
-    ), "bad list results - wrong number of members"
+    assert len(feature_sets) == count, "bad list results - wrong number of members"
 
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set["spec"]["features"]) == 4

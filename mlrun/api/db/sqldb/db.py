@@ -1026,7 +1026,9 @@ class SQLDB(DBInterface):
     ):
         name = feature_set.metadata.name
         if not name or not project:
-            raise mlrun.errors.MLRunInvalidArgumentError("feature-set missing name or project")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "feature-set missing name or project"
+            )
         self._validate_feature_set_kind(feature_set.kind)
 
         feature_set_project = feature_set.metadata.project

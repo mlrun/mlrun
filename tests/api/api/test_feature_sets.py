@@ -404,11 +404,17 @@ def test_feature_set_create_without_labels(db: Session, client: TestClient) -> N
     feature_set_update = {
         "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
     }
-    feature_set_response = _patch_feature_set(client, project_name, name, feature_set_update)
-    assert len(feature_set_response["metadata"]["labels"]) == 2, "Labels didn't get updated"
+    feature_set_response = _patch_feature_set(
+        client, project_name, name, feature_set_update
+    )
+    assert (
+        len(feature_set_response["metadata"]["labels"]) == 2
+    ), "Labels didn't get updated"
 
 
-def test_feature_set_project_name_mismatch_failure(db: Session, client: TestClient) -> None:
+def test_feature_set_project_name_mismatch_failure(
+    db: Session, client: TestClient
+) -> None:
     project_name = f"prj-{uuid4().hex}"
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -421,7 +427,9 @@ def test_feature_set_project_name_mismatch_failure(db: Session, client: TestClie
 
     # When POSTing without project name, project name should be implanted in the response
     feature_set["metadata"].pop("project")
-    feature_set_response = _feature_set_create_and_assert(client, project_name, feature_set)
+    feature_set_response = _feature_set_create_and_assert(
+        client, project_name, feature_set
+    )
     assert feature_set_response["metadata"]["project"] == project_name
 
     feature_set["metadata"]["project"] = "woohoo"

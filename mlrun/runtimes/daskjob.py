@@ -299,9 +299,8 @@ class DaskCluster(KubejobRuntime):
         handler = runobj.spec.handler
         self._force_handler(handler)
 
-        environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
-        if self.spec.rundb:
-            environ["MLRUN_DBPATH"] = self.spec.rundb
+        extra_env = self._generate_runtime_env(runobj)
+        environ.update(extra_env)
 
         if not inspect.isfunction(handler):
             if not self.spec.command:

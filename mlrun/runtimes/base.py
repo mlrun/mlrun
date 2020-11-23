@@ -205,8 +205,11 @@ class BaseRuntime(ModelObj):
             hash_key=hash_key,
         )
 
-    def _get_db(self):
+    def _ensure_run_db(self):
         self.spec.rundb = self.spec.rundb or get_or_set_dburl()
+
+    def _get_db(self):
+        self._ensure_run_db()
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
@@ -497,10 +500,18 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
-        extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
+    def _generate_runtime_env(self, runobj: RunObject):
+        runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
-            extra_env["MLRUN_LOG_LEVEL"] = "debug"
+            runtime_env["MLRUN_LOG_LEVEL"] = "debug"
+        if self.spec.rundb:
+            runtime_env["MLRUN_DBPATH"] = self.spec.rundb
+        if self.spec.rundb:
+            runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
+        return runtime_env
+
+    def _get_cmd_args(self, runobj: RunObject, with_mlrun: bool):
+        extra_env = self._generate_runtime_env(runobj)
         if self.spec.pythonpath:
             extra_env["PYTHONPATH"] = self.spec.pythonpath
         args = []

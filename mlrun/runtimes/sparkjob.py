@@ -113,6 +113,7 @@ class SparkJobSpec(KubeResourceSpec):
         description=None,
         workdir=None,
         build=None,
+        rundb=None,
     ):
 
         super().__init__(
@@ -133,6 +134,7 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
+            rundb=rundb,
         )
 
         self.driver_resources = driver_resources or {}
@@ -181,9 +183,7 @@ class SparkRuntime(KubejobRuntime):
             )
         update_in(job, "spec.volumes", self.spec.volumes)
 
-        extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
-        if runobj.spec.verbose:
-            extra_env["MLRUN_LOG_LEVEL"] = "debug"
+        extra_env = self._generate_runtime_env(runobj)
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
 
         update_in(job, "spec.driver.env", extra_env + self.spec.env)

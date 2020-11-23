@@ -113,6 +113,7 @@ class SparkJobSpec(KubeResourceSpec):
         description=None,
         workdir=None,
         build=None,
+        rundb=None,
     ):
 
         super().__init__(
@@ -133,6 +134,7 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
+            rundb=rundb,
         )
 
         self.driver_resources = driver_resources or {}

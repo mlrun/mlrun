@@ -43,6 +43,7 @@ class KubeResourceSpec(FunctionSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
+        rundb=None,
     ):
         super().__init__(
             command=command,
@@ -54,6 +55,7 @@ class KubeResourceSpec(FunctionSpec):
             description=description,
             workdir=workdir,
             default_handler=default_handler,
+            rundb=rundb,
         )
         self._volumes = {}
         self._volume_mounts = {}

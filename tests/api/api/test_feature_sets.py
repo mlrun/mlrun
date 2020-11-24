@@ -170,9 +170,11 @@ def _patch_feature_set(
     patch_mode = "replace"
     if additive:
         patch_mode = "additive"
+    headers = {"x-mlrun-patch-mode": patch_mode}
     response = client.patch(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest?patch-mode={patch_mode}",
+        f"/api/projects/{project_name}/feature-sets/{name}/references/latest",
         json=feature_set_update,
+        headers=headers,
     )
     assert response.status_code == HTTPStatus.OK.value
     response = client.get(

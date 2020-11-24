@@ -381,7 +381,7 @@ def test_feature_sets(create_server):
     }
 
     # additive mode means add the feature to the features-list
-    db.update_feature_set(
+    db.patch_feature_set(
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)

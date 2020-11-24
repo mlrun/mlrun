@@ -236,7 +236,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         logger.debug(
             "Initialized master and consumers",
             master=master_name,
-            consumers=self._consumers.keys(),
+            consumers=list(self._consumers.keys()),
         )
 
     def _initialize_consumer(

@@ -1,3 +1,4 @@
+import datetime
 import pytest
 import sqlalchemy.orm
 
@@ -72,6 +73,59 @@ def test_create_project(
     )
     assert project_output.name == project_name
     assert project_output.description == project_description
+
+
+def test_create_and_store_project_with_created(
+    db: sqlalchemy.orm.Session,
+    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+):
+    project_name = "project-name"
+    project_created = datetime.datetime.utcnow()
+
+    mlrun_consumer.create_project(
+        db,
+        mlrun.api.schemas.Project(name=project_name, created=project_created),
+    )
+
+    project_output = mlrun.api.utils.singletons.db.get_db().get_project(
+        db, project_name
+    )
+    assert project_output.name == project_name
+
+    # Created in request body should be ignored and set by the DB layer
+    assert project_output.created != project_created
+
+    project_name_2 = "project-name-2"
+    # first time - store will create
+    mlrun_consumer.store_project(
+        db,
+        project_name_2,
+        mlrun.api.schemas.Project(name=project_name_2, created=project_created),
+    )
+
+    project_output = mlrun.api.utils.singletons.db.get_db().get_project(
+        db, project_name_2
+    )
+    assert project_output.name == project_name_2
+
+    # Created in request body should be ignored and set by the DB layer
+    assert project_output.created != project_created
+
+    # another time - this time store will update
+    mlrun_consumer.store_project(
+        db,
+        project_name_2,
+        mlrun.api.schemas.Project(name=project_name_2, created=project_created),
+    )
+
+    project_output = mlrun.api.utils.singletons.db.get_db().get_project(
+        db, project_name_2
+    )
+    assert project_output.name == project_name_2
+
+    # Created in request body should be ignored and set by the DB layer
+    assert project_output.created != project_created
+
 
 
 def test_store_project_creation(

@@ -644,12 +644,15 @@ class SQLDB(DBInterface):
 
     def _create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
+        created = datetime.utcnow()
+        project.created = created
         project = Project(
             name=project.name,
             description=project.description,
             owner=project.owner,
             source=project.source,
             state=project.state,
+            created=created,
             full_object=project.dict(),
         )
         self._upsert(session, project)
@@ -660,6 +663,7 @@ class SQLDB(DBInterface):
         if not project_record:
             self._create_project(session, project)
         else:
+            project.created = project_record.created
             project_dict = project.dict()
             project_record.full_object = project_dict
             project_record.description = project.description

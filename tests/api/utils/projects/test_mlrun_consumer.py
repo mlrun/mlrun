@@ -1,4 +1,5 @@
 import datetime
+
 import pytest
 import sqlalchemy.orm
 
@@ -83,8 +84,7 @@ def test_create_and_store_project_with_created(
     project_created = datetime.datetime.utcnow()
 
     mlrun_consumer.create_project(
-        db,
-        mlrun.api.schemas.Project(name=project_name, created=project_created),
+        db, mlrun.api.schemas.Project(name=project_name, created=project_created),
     )
 
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
@@ -125,7 +125,6 @@ def test_create_and_store_project_with_created(
 
     # Created in request body should be ignored and set by the DB layer
     assert project_output.created != project_created
-
 
 
 def test_store_project_creation(

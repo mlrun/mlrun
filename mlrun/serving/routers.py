@@ -167,8 +167,8 @@ class ModelRouter(BaseModelRouter):
 
 class VotingEnsemble(ModelRouter):
     """Voting Ensemble class
-        
-        The `VotingEnsemble` class enables you to apply prediction logic on top of 
+
+        The `VotingEnsemble` class enables you to apply prediction logic on top of
         the different added models.
 
         You can use it by calling:
@@ -176,14 +176,14 @@ class VotingEnsemble(ModelRouter):
             Sends the event to the specific <model>[/versions/<ver>]
         - <prefix>/operation
             Sends the event to all models and applies `vote(self, event)`
-        
+
         The `VotingEnsemble` applies the following logic:
         Incoming Event -> Router Preprocessing -> Send to models (or model) ->
         Apply all model logic (Preprocessing -> Prediction -> Postprocessing) ->
         Router Voting logic -> Router Postprocessing -> Response
 
         This enables you to do the general preprocessing and postprocessing steps
-        once on the router level, with only model-specific adjustments at the 
+        once on the router level, with only model-specific adjustments at the
         model level.
     """
 

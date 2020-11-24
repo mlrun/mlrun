@@ -33,9 +33,6 @@ def config_do_not_override():
     environ["MLRUN_log_level"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
-    # logger created (because of imports mass) before the config is loaded (in tests), therefore we're changing its
-    # level manually
-    mlrun.utils.logger.set_logger_level(log_level)
 
 
 @pytest.fixture

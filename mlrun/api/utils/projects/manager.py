@@ -37,25 +37,31 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         logger.info(
             "Ensure project called, but project does not exist. Creating", name=name
         )
-        self.create_project(session, mlrun.api.schemas.ProjectCreate(name=name))
+        self.create_project(session, mlrun.api.schemas.Project(name=name))
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
+        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
         self._run_on_all_consumers("create_project", session, project)
 
-    def update_project(
+    def store_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectUpdate,
+        project: mlrun.api.schemas.Project,
     ):
-        # ProjectUpdate allows extra fields therefore name may be there
-        if hasattr(project, "name") and name != getattr(project, "name"):
-            message = "Conflict between name in body and name in path"
-            logger.warning(message, path_name=name, body_name=getattr(project, "name"))
-            raise mlrun.errors.MLRunConflictError(message)
-        self._run_on_all_consumers("update_project", session, name, project)
+        self._validate_body_and_path_names_matches(name, project)
+        self._run_on_all_consumers("store_project", session, name, project)
+
+    def patch_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ):
+        self._validate_body_and_path_names_matches(name, project)
+        self._run_on_all_consumers("patch_project", session, name, project, patch_mode)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         self._run_on_all_consumers("delete_project", session, name)
@@ -156,7 +162,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
                 project_consumer_name = list(consumer_names)[0]
                 project = consumers_projects_map[project_consumer_name][project_name]
                 self._master_consumer.create_project(
-                    session, mlrun.api.schemas.ProjectCreate(**project.dict())
+                    session, mlrun.api.schemas.Project(**project.dict())
                 )
             except Exception as exc:
                 logger.warning(
@@ -188,7 +194,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
                     )
                     try:
                         self._consumers[missing_consumer].create_project(
-                            session, mlrun.api.schemas.ProjectCreate(**project.dict()),
+                            session, mlrun.api.schemas.Project(**project.dict()),
                         )
                     except Exception as exc:
                         logger.warning(
@@ -240,3 +246,11 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         if name not in consumers_classes_map:
             raise ValueError(f"Unknown consumer name: {name}")
         return consumers_classes_map[name]()
+
+    @staticmethod
+    def _validate_body_and_path_names_matches(name: str, project: mlrun.api.schemas.ProjectPatch):
+        # ProjectPatch allow extra fields, therefore although it doesn't have name in the schema, name might be there
+        if hasattr(project, "name") and name != getattr(project, "name"):
+            message = "Conflict between name in body and name in path"
+            logger.warning(message, path_name=name, body_name=getattr(project, "name"))
+            raise mlrun.errors.MLRunConflictError(message)

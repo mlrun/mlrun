@@ -122,13 +122,19 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_project(
-        self, name: str, project: schemas.ProjectUpdate
+    def store_project(
+        self, name: str, project: schemas.Project
     ) -> schemas.Project:
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.ProjectCreate) -> schemas.Project:
+    def patch_project(
+            self, name: str, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode = schemas.PatchMode.replace
+    ) -> schemas.Project:
+        pass
+
+    @abstractmethod
+    def create_project(self, project: schemas.Project) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -193,7 +199,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_feature_set(
+    def patch_feature_set(
         self,
         name,
         feature_set: dict,

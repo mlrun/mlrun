@@ -790,7 +790,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return schemas.FeatureSet(**resp.json())
 
-    def update_feature_set(
+    def patch_feature_set(
         self,
         name,
         feature_set_update: dict,
@@ -804,7 +804,9 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or default_project
         reference = uid or tag or "latest"
-        params = {"patch-mode": patch_mode}
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
+        headers = {"x-mlrun-patch-mode": patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
@@ -812,7 +814,7 @@ class HTTPRunDB(RunDBInterface):
             path,
             error_message,
             body=json.dumps(feature_set_update),
-            params=params,
+            headers=headers,
         )
 
     def delete_feature_set(self, name, project=""):
@@ -830,8 +832,8 @@ class HTTPRunDB(RunDBInterface):
         }
 
         error_message = f"Failed listing projects, query: {params}"
-        resp = self.api_call("GET", "projects", error_message, params=params)
-        return schemas.ProjectsOutput(**resp.json())
+        response = self.api_call("GET", "projects", error_message, params=params)
+        return schemas.ProjectsOutput(**response.json())
 
     def get_project(self, name: str) -> schemas.Project:
         if not name:
@@ -839,34 +841,47 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{name}"
         error_message = f"Failed retrieving project {name}"
-        resp = self.api_call("GET", path, error_message)
-        return schemas.Project(**resp.json())
+        response = self.api_call("GET", path, error_message)
+        return schemas.Project(**response.json())
 
     def delete_project(self, name: str):
         path = f"projects/{name}"
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 
-    def update_project(
-        self, name: str, project: Union[dict, mlrun.api.schemas.ProjectUpdate]
+    def store_project(
+        self, name: str, project: Union[dict, mlrun.api.schemas.Project]
     ) -> mlrun.api.schemas.Project:
         path = f"projects/{name}"
-        error_message = f"Failed updating project {name}"
-        if isinstance(project, mlrun.api.schemas.ProjectUpdate):
+        error_message = f"Failed storing project {name}"
+        if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
-        resp = self.api_call("PUT", path, error_message, body=json.dumps(project),)
-        return schemas.Project(**resp.json())
+        response = self.api_call("PUT", path, error_message, body=json.dumps(project),)
+        return schemas.Project(**response.json())
+
+    def patch_project(
+        self, name: str, project: Union[dict, mlrun.api.schemas.ProjectPatch], patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+    ) -> mlrun.api.schemas.Project:
+        path = f"projects/{name}"
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
+        headers = {"x-mlrun-patch-mode": patch_mode}
+        error_message = f"Failed patching project {name}"
+        if isinstance(project, mlrun.api.schemas.Project):
+            project = project.dict()
+        response = self.api_call("PATCH", path, error_message, body=json.dumps(project), headers=headers)
+        return schemas.Project(**response.json())
 
     def create_project(
-        self, project: Union[dict, mlrun.api.schemas.ProjectCreate]
+        self, project: Union[dict, mlrun.api.schemas.Project]
     ) -> mlrun.api.schemas.Project:
-        if isinstance(project, mlrun.api.schemas.ProjectUpdate):
+        if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
         error_message = f"Failed creating project {project['name']}"
-        resp = self.api_call(
+        response = self.api_call(
             "POST", "projects", error_message, body=json.dumps(project),
         )
-        return schemas.Project(**resp.json())
+        return schemas.Project(**response.json())
 
 
 def _as_json(obj):

@@ -159,7 +159,7 @@ def test_list_tags(db: SQLDB, db_session: Session):
 
 
 def test_projects(db: SQLDB, db_session: Session):
-    project = mlrun.api.schemas.ProjectCreate(
+    project = mlrun.api.schemas.Project(
         name="p1", description="banana", spec={"other_field": "value"}, state="active"
     )
     db.create_project(db_session, project)
@@ -167,18 +167,18 @@ def test_projects(db: SQLDB, db_session: Session):
     assert (
         deepdiff.DeepDiff(
             project.dict(),
-            project_output.dict(exclude={"created", "id"}),
+            project_output.dict(exclude={"id"}),
             ignore_order=True,
         )
         == {}
     )
 
-    project_update = mlrun.api.schemas.ProjectUpdate(description="lemon")
-    db.update_project(db_session, project.name, project_update)
+    project_update = mlrun.api.schemas.ProjectPatch(description="lemon")
+    db.patch_project(db_session, project.name, project_update)
     project_output = db.get_project(db_session, name=project.name)
     assert project_output.description == project_update.description
 
-    project_2 = mlrun.api.schemas.ProjectCreate(name="p2")
+    project_2 = mlrun.api.schemas.Project(name="p2")
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(db_session, full=False)
     assert [project.name, project_2.name] == projects_output.projects

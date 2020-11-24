@@ -97,13 +97,13 @@ def test_create_project(
     requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
     nuclio_consumer.create_project(
         None,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
 
 
-def test_update_project(
+def test_store_project_creation(
     api_url: str,
     nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
     requests_mock: requests_mock_package.Mocker,
@@ -111,7 +111,7 @@ def test_update_project(
     project_name = "project-name"
     project_description = "some description"
 
-    def verify_update(request, context):
+    def verify_store_creation(request, context):
         assert (
             deepdiff.DeepDiff(
                 _generate_project_body(
@@ -124,11 +124,81 @@ def test_update_project(
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
-    requests_mock.put(f"{api_url}/api/projects", json=verify_update)
-    nuclio_consumer.update_project(
+    # mock project not found so store will create
+    requests_mock.get(f"{api_url}/api/projects/{project_name}", status_code=http.HTTPStatus.NOT_FOUND.value)
+    requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
+    nuclio_consumer.store_project(
         None,
         project_name,
-        mlrun.api.schemas.ProjectUpdate(description=project_description),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
+    )
+
+
+def test_store_project_update(
+    api_url: str,
+    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    mocked_project_body = _generate_project_body(
+        project_name, labels={'label-key': 'label-value'}, with_spec=True
+    )
+
+    def verify_store_update(request, context):
+        assert (
+            deepdiff.DeepDiff(
+                _generate_project_body(
+                    project_name, project_description, with_namespace=False
+                ),
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
+        )
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
+
+    # mock project response so store will update
+    requests_mock.get(f"{api_url}/api/projects/{project_name}", json=mocked_project_body)
+    requests_mock.put(f"{api_url}/api/projects", json=verify_store_update)
+    nuclio_consumer.store_project(
+        None,
+        project_name,
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
+    )
+
+
+def test_patch_project(
+    api_url: str,
+    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    mocked_project_body = _generate_project_body(
+        project_name, labels={'label-key': 'label-value'}, with_spec=True
+    )
+
+    def verify_patch(request, context):
+        # verifying the patch kept the labels and only patched the description
+        expected_body = mocked_project_body
+        expected_body['spec']['description'] = project_description
+        assert (
+            deepdiff.DeepDiff(
+                expected_body,
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
+        )
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
+
+    requests_mock.get(f"{api_url}/api/projects/{project_name}", json=mocked_project_body)
+    requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
+    nuclio_consumer.patch_project(
+        None,
+        project_name,
+        mlrun.api.schemas.ProjectPatch(description=project_description),
     )
 
 
@@ -155,7 +225,7 @@ def test_delete_project(
 
 
 def _generate_project_body(
-    name=None, description=None, with_namespace=True, with_spec=False
+    name=None, description=None, labels=None, with_namespace=True, with_spec=False
 ):
     body = {
         "metadata": {"name": name},
@@ -166,4 +236,6 @@ def _generate_project_body(
         body["spec"] = {}
     if with_namespace:
         body["metadata"]["namespace"] = "default-tenant"
+    if labels:
+        body["metadata"]["labels"] = labels
     return body

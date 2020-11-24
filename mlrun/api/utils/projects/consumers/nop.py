@@ -1,5 +1,6 @@
 import typing
 
+import mergedeep
 import sqlalchemy.orm
 
 import mlrun.api.schemas
@@ -13,21 +14,31 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
+        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
         if project.name in self._projects:
             raise mlrun.errors.MLRunConflictError("Project already exists")
-        self._projects[project.name] = mlrun.api.schemas.Project(**project.dict())
+        self._projects[project.name] = project
 
-    def update_project(
+    def store_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectUpdate,
+        project: mlrun.api.schemas.Project,
     ):
-        self._projects[name] = self._projects[name].copy(
-            update=project.dict(exclude_unset=True)
-        )
+        self._projects[name] = project
+
+    def patch_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ):
+        existing_project_dict = self._projects[name].dict()
+        strategy = patch_mode.to_mergedeep_strategy()
+        mergedeep.merge(existing_project_dict, project.dict(exclude_unset=True), strategy=strategy)
+        self._projects[name] = mlrun.api.schemas.Project(**existing_project_dict)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         if name in self._projects:

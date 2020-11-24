@@ -8,16 +8,26 @@ import mlrun.api.schemas
 class Consumer(abc.ABC):
     @abc.abstractmethod
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
+        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
         pass
 
     @abc.abstractmethod
-    def update_project(
+    def store_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectUpdate,
+        project: mlrun.api.schemas.Project,
+    ):
+        pass
+
+    @abc.abstractmethod
+    def patch_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
         pass
 

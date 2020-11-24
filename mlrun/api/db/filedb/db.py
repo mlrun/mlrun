@@ -139,10 +139,13 @@ class FileDB(DBInterface):
     ) -> schemas.ProjectsOutput:
         return self._transform_run_db_error(self.db.list_projects, owner, full)
 
-    def update_project(self, session, name: str, project: schemas.ProjectUpdate):
+    def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()
 
-    def create_project(self, session, project: schemas.ProjectCreate):
+    def patch_project(self, session, name: str, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode = schemas.PatchMode.replace):
+        raise NotImplementedError()
+
+    def create_project(self, session, project: schemas.Project):
         raise NotImplementedError()
 
     def get_project(

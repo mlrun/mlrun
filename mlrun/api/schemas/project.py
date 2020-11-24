@@ -4,32 +4,26 @@ from typing import Optional, List, Union
 from pydantic import BaseModel, Extra
 
 
-class ProjectUpdate(BaseModel):
+class ProjectPatch(BaseModel):
     description: Optional[str] = None
     source: Optional[str] = None
     state: Optional[str] = None
     owner: Optional[str] = None
+    created: Optional[datetime] = None
 
     class Config:
         extra = Extra.allow
 
 
-# Properties to receive via API on creation
-class ProjectCreate(ProjectUpdate):
+class Project(ProjectPatch):
     name: str
 
 
-class ProjectRecord(ProjectCreate):
+class ProjectRecord(Project):
     id: int = None
-    created: Optional[datetime] = None
 
     class Config:
         orm_mode = True
-
-
-# Additional properties to return via API
-class Project(ProjectRecord):
-    pass
 
 
 class ProjectsOutput(BaseModel):

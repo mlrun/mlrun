@@ -1,6 +1,6 @@
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Header
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -13,7 +13,7 @@ router = APIRouter()
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
 @router.post("/projects", response_model=schemas.Project)
 def create_project(
-    project: schemas.ProjectCreate, db_session: Session = Depends(deps.get_db_session)
+    project: schemas.Project, db_session: Session = Depends(deps.get_db_session)
 ):
     get_projects_manager().create_project(db_session, project)
     return get_projects_manager().get_project(db_session, project.name)
@@ -21,12 +21,25 @@ def create_project(
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
 @router.put("/projects/{name}", response_model=schemas.Project)
-def update_project(
-    project: schemas.ProjectUpdate,
+def store_project(
+    project: schemas.Project,
     name: str,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_projects_manager().update_project(db_session, name, project)
+    get_projects_manager().store_project(db_session, name, project)
+    return get_projects_manager().get_project(db_session, name)
+
+
+@router.patch("/projects/{name}", response_model=schemas.Project)
+def patch_project(
+    project: schemas.ProjectPatch,
+    name: str,
+    patch_mode: schemas.PatchMode = Header(
+        schemas.PatchMode.replace, alias="x-mlrun-patch-mode"
+    ),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    get_projects_manager().patch_project(db_session, name, project, patch_mode)
     return get_projects_manager().get_project(db_session, name)
 
 

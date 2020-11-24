@@ -59,7 +59,7 @@ def test_projects_sync_consumer_project_adoption(
     project_description = "some description"
     nop_consumer.create_project(
         None,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
@@ -85,7 +85,7 @@ def test_projects_sync_master_project_syncing(
     project_description = "some description"
     nop_master.create_project(
         None,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
@@ -111,13 +111,13 @@ def test_projects_sync_multiple_consumer_project_adoption(
     project_description = "some description"
     nop_consumer.create_project(
         None,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
     second_nop_consumer.create_project(
         None,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
@@ -148,7 +148,7 @@ def test_create_project(
     project_description = "some description"
     projects_manager.create_project(
         None,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
@@ -178,31 +178,51 @@ def test_ensure_project(
     )
 
 
-def test_update_project(
+def test_store_project_creation(
     db: sqlalchemy.orm.Session,
     projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
     nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
     nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
 ):
     project_name = "project-name"
-    projects_manager.create_project(
-        None, mlrun.api.schemas.ProjectCreate(name=project_name),
-    )
-    _assert_project_in_consumers([nop_master, nop_consumer], project_name)
-
-    # Adding description to the projects
     project_description = "some description"
-    projects_manager.update_project(
+    _assert_no_projects_in_consumers([nop_master, nop_consumer])
+
+    projects_manager.store_project(
         None,
         project_name,
-        mlrun.api.schemas.ProjectUpdate(description=project_description),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     _assert_project_in_consumers(
         [nop_master, nop_consumer], project_name, project_description
     )
 
 
-def test_update_project_failure_conflict_body_path_name(
+def test_store_project_update(
+    db: sqlalchemy.orm.Session,
+    projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
+    nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    projects_manager.create_project(
+        None, mlrun.api.schemas.Project(name=project_name, description=project_description),
+    )
+    _assert_project_in_consumers([nop_master, nop_consumer], project_name, project_description)
+
+    # removing description from the projects
+    projects_manager.store_project(
+        None,
+        project_name,
+        mlrun.api.schemas.Project(name=project_name),
+    )
+    _assert_project_in_consumers(
+        [nop_master, nop_consumer], project_name
+    )
+
+
+def test_patch_project(
     db: sqlalchemy.orm.Session,
     projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
     nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
@@ -210,13 +230,41 @@ def test_update_project_failure_conflict_body_path_name(
 ):
     project_name = "project-name"
     projects_manager.create_project(
-        None, mlrun.api.schemas.ProjectCreate(name=project_name),
+        None, mlrun.api.schemas.Project(name=project_name),
+    )
+    _assert_project_in_consumers([nop_master, nop_consumer], project_name)
+
+    # Adding description to the projects
+    project_description = "some description"
+    projects_manager.patch_project(
+        None,
+        project_name,
+        mlrun.api.schemas.ProjectPatch(description=project_description),
+    )
+    _assert_project_in_consumers(
+        [nop_master, nop_consumer], project_name, project_description
+    )
+
+
+def test_store_and_patch_project_failure_conflict_body_path_name(
+    db: sqlalchemy.orm.Session,
+    projects_manager: mlrun.api.utils.projects.manager.ProjectsManager,
+    nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
+    nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
+):
+    project_name = "project-name"
+    projects_manager.create_project(
+        None, mlrun.api.schemas.Project(name=project_name),
     )
     _assert_project_in_consumers([nop_master, nop_consumer], project_name)
 
     with pytest.raises(mlrun.errors.MLRunConflictError):
-        projects_manager.update_project(
-            None, project_name, mlrun.api.schemas.ProjectUpdate(name="different-name"),
+        projects_manager.store_project(
+            None, project_name, mlrun.api.schemas.Project(name="different-name"),
+        )
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        projects_manager.patch_project(
+            None, project_name, mlrun.api.schemas.ProjectPatch(name="different-name"),
         )
     _assert_project_in_consumers([nop_master, nop_consumer], project_name)
 
@@ -229,7 +277,7 @@ def test_delete_project(
 ):
     project_name = "project-name"
     projects_manager.create_project(
-        None, mlrun.api.schemas.ProjectCreate(name=project_name),
+        None, mlrun.api.schemas.Project(name=project_name),
     )
     _assert_project_in_consumers([nop_master, nop_consumer], project_name)
 
@@ -245,13 +293,13 @@ def test_list_projects(
 ):
     project_name = "project-name"
     projects_manager.create_project(
-        None, mlrun.api.schemas.ProjectCreate(name=project_name),
+        None, mlrun.api.schemas.Project(name=project_name),
     )
     _assert_project_in_consumers([nop_master, nop_consumer], project_name)
 
     # add some project to consumer
     nop_consumer.create_project(
-        None, mlrun.api.schemas.ProjectCreate(name="some-other-project")
+        None, mlrun.api.schemas.Project(name="some-other-project")
     )
 
     # assert list considers only the master
@@ -270,7 +318,7 @@ def test_get_project(
     project_description = "some description"
     projects_manager.create_project(
         None,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
@@ -279,10 +327,10 @@ def test_get_project(
     )
 
     # change project description in consumer
-    nop_consumer.update_project(
+    nop_consumer.patch_project(
         None,
         project_name,
-        mlrun.api.schemas.ProjectUpdate(description="updated description"),
+        mlrun.api.schemas.ProjectPatch(description="updated description"),
     )
 
     # assert list considers only the master

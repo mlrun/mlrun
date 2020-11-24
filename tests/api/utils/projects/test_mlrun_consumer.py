@@ -24,7 +24,7 @@ def test_get_project(
     project_description = "some description"
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
@@ -47,7 +47,7 @@ def test_list_project(
     for project in expected_projects:
         mlrun.api.utils.singletons.db.get_db().create_project(
             db,
-            mlrun.api.schemas.ProjectCreate(
+            mlrun.api.schemas.Project(
                 name=project["name"], description=project.get("description")
             ),
         )
@@ -66,7 +66,7 @@ def test_create_project(
 
     mlrun_consumer.create_project(
         db,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
@@ -78,7 +78,25 @@ def test_create_project(
     assert project_output.description == project_description
 
 
-def test_update_project(
+def test_store_project_creation(
+    db: sqlalchemy.orm.Session,
+    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    mlrun_consumer.store_project(
+        db,
+        project_name,
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
+    )
+    project_output = mlrun.api.utils.singletons.db.get_db().get_project(
+        db, project_name
+    )
+    assert project_output.name == project_name
+    assert project_output.description == project_description
+
+
+def test_store_project_update(
     db: sqlalchemy.orm.Session,
     mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
 ):
@@ -86,16 +104,41 @@ def test_update_project(
     project_description = "some description"
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
+            name=project_name, description=project_description
+        ),
+    )
+
+    mlrun_consumer.store_project(
+        db,
+        project_name,
+        mlrun.api.schemas.Project(name=project_name),
+    )
+    project_output = mlrun.api.utils.singletons.db.get_db().get_project(
+        db, project_name
+    )
+    assert project_output.name == project_name
+    assert project_output.description is None
+
+
+def test_patch_project(
+    db: sqlalchemy.orm.Session,
+    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+):
+    project_name = "project-name"
+    project_description = "some description"
+    mlrun.api.utils.singletons.db.get_db().create_project(
+        db,
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )
 
     updated_project_description = "some description 2"
-    mlrun_consumer.update_project(
+    mlrun_consumer.patch_project(
         db,
         project_name,
-        mlrun.api.schemas.ProjectUpdate(description=updated_project_description),
+        mlrun.api.schemas.ProjectPatch(description=updated_project_description),
     )
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
         db, project_name
@@ -112,7 +155,7 @@ def test_delete_project(
     project_description = "some description"
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.ProjectCreate(
+        mlrun.api.schemas.Project(
             name=project_name, description=project_description
         ),
     )

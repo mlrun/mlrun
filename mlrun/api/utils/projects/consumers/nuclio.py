@@ -1,6 +1,8 @@
+import http
+
 import requests.adapters
-import requests.packages.urllib3.util.retry
 import sqlalchemy.orm
+import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.consumers.base
@@ -11,8 +13,8 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=requests.packages.urllib3.util.retry.Retry(
-                total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504]
+            max_retries=urllib3.util.retry.Retry(
+                total=3, backoff_factor=1
             )
         )
         self._session = requests.Session()
@@ -20,22 +22,41 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         self._api_url = mlrun.config.config.nuclio_dashboard_url
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
+        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
         logger.debug("Creating project in Nuclio", project=project)
         body = self._generate_request_body(project.name, project.description)
-        self._send_request_to_api("POST", "projects", json=body)
+        self._post_project_to_nuclio(body)
 
-    def update_project(
+    def store_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectUpdate,
+        project: mlrun.api.schemas.Project,
     ):
-        logger.debug("Updating project in Nuclio", name=name, project=project)
+        logger.debug("Storing project in Nuclio", name=name, project=project)
         body = self._generate_request_body(name, project.description)
-        # yup, Nuclio projects API PUT endpoint is /projects, not /projects/{name} - "it's not a bug it's a feature"
-        self._send_request_to_api("PUT", "projects", json=body)
+        try:
+            self._get_project_from_nuclio(name)
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._post_project_to_nuclio(body)
+        else:
+            self._put_project_to_nuclio(body)
+
+    def patch_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ):
+        response = self._get_project_from_nuclio(name)
+        response_body = response.json()
+        if project.description is not None:
+            response_body.setdefault("spec", {})["description"] = project.description
+        self._put_project_to_nuclio(response_body)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         logger.debug("Deleting project in Nuclio", name=name)
@@ -46,7 +67,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.api.schemas.Project:
-        response = self._send_request_to_api("GET", f"projects/{name}")
+        response = self._get_project_from_nuclio(name)
         response_body = response.json()
         return self._transform_nuclio_project_to_schema(response_body)
 
@@ -66,6 +87,16 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
             return mlrun.api.schemas.ProjectsOutput(
                 projects=[project.name for project in projects]
             )
+
+    def _get_project_from_nuclio(self, name):
+        return self._send_request_to_api("GET", f"projects/{name}")
+
+    def _post_project_to_nuclio(self, body):
+        return self._send_request_to_api("POST", "projects", json=body)
+
+    def _put_project_to_nuclio(self, body):
+        # yup, Nuclio projects API PUT endpoint is /projects, not /projects/{name} - "it's not a bug it's a feature"
+        self._send_request_to_api("PUT", "projects", json=body)
 
     def _send_request_to_api(
         self, method, path, params=None, body=None, json=None, headers=None, timeout=20

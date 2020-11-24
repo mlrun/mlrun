@@ -188,12 +188,18 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
     def update_project(
-        self, name: str, project: mlrun.api.schemas.ProjectUpdate
+        self, name: str, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def patch_project(
+            self, name: str, project: mlrun.api.schemas.ProjectPatch,
+            patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.ProjectCreate
+        self, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -277,7 +283,7 @@ class SQLDB(RunDBInterface):
             versioned,
         )
 
-    def update_feature_set(
+    def patch_feature_set(
         self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
     ):
         return self._transform_db_error(

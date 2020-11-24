@@ -7,17 +7,26 @@ import mlrun.api.utils.singletons.db
 
 class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.ProjectCreate
+        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
         mlrun.api.utils.singletons.db.get_db().create_project(session, project)
 
-    def update_project(
+    def store_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectUpdate,
+        project: mlrun.api.schemas.Project,
     ):
-        mlrun.api.utils.singletons.db.get_db().update_project(session, name, project)
+        mlrun.api.utils.singletons.db.get_db().store_project(session, name, project)
+
+    def patch_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ):
+        mlrun.api.utils.singletons.db.get_db().patch_project(session, name, project, patch_mode)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         mlrun.api.utils.singletons.db.get_db().delete_project(session, name)

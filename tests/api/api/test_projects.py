@@ -1,15 +1,16 @@
-import deepdiff
 from http import HTTPStatus
 from uuid import uuid4
-import mlrun.api.schemas
 
+import deepdiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
+import mlrun.api.schemas
 
 
 def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
-    project_1 = mlrun.api.schemas.ProjectCreate(
+    project_1 = mlrun.api.schemas.Project(
         name=name1, owner="owner", description="banana"
     )
 
@@ -23,15 +24,15 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     assert (
         deepdiff.DeepDiff(
             project_1.dict(),
-            project_output.dict(exclude={"id", "created"}),
+            project_output.dict(exclude={"id"}),
             ignore_order=True,
         )
         == {}
     )
 
-    # update
-    project_update = mlrun.api.schemas.ProjectUpdate(description="lemon")
-    response = client.put(f"/api/projects/{name1}", json=project_update.dict())
+    # patch
+    project_update = mlrun.api.schemas.ProjectPatch(description="lemon")
+    response = client.patch(f"/api/projects/{name1}", json=project_update.dict())
     assert response.status_code == HTTPStatus.OK.value
 
     # read
@@ -39,12 +40,12 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     assert project_update.description == response.json()["description"]
 
     name2 = f"prj-{uuid4().hex}"
-    project_2 = mlrun.api.schemas.ProjectCreate(
+    project_2 = mlrun.api.schemas.Project(
         name=name2, owner="owner", description="banana"
     )
 
-    # create
-    response = client.post("/api/projects", json=project_2.dict())
+    # store
+    response = client.put(f"/api/projects/{name2}", json=project_2.dict())
     assert response.status_code == HTTPStatus.OK.value
 
     # list

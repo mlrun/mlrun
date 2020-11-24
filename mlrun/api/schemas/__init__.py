@@ -19,9 +19,8 @@ from .object import ObjectMetadata, PatchMode
 from .project import (
     Project,
     ProjectsOutput,
-    ProjectCreate,
     ProjectRecord,
-    ProjectUpdate,
+    ProjectPatch,
 )
 from .schedule import (
     SchedulesOutput,

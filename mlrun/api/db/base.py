@@ -193,11 +193,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, session, project: schemas.ProjectCreate):
+    def create_project(self, session, project: schemas.Project):
         pass
 
     @abstractmethod
-    def update_project(self, session, name: str, project: schemas.ProjectUpdate):
+    def store_project(self, session, name: str, project: schemas.Project):
+        pass
+
+    @abstractmethod
+    def patch_project(self, session, name: str, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode = schemas.PatchMode.replace):
         pass
 
     @abstractmethod

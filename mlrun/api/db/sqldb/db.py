@@ -639,7 +639,10 @@ class SQLDB(DBInterface):
                 tags.add(tag.name)
         return tags
 
-    def create_project(self, session: Session, project: schemas.ProjectCreate):
+    def create_project(self, session: Session, project: schemas.Project):
+        self._create_project(session, project)
+
+    def _create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
         project = Project(
             name=project.name,
@@ -651,17 +654,34 @@ class SQLDB(DBInterface):
         )
         self._upsert(session, project)
 
-    def update_project(
-        self, session: Session, name: str, project: schemas.ProjectUpdate
-    ):
-        logger.debug("Updating project in DB", name=name, project=project)
+    def store_project(self, session: Session, name: str, project: schemas.Project):
+        logger.debug("Storing project in DB", name=name, project=project)
+        project_record = self._get_project(session, name, raise_on_not_found=False)
+        if not project_record:
+            self._create_project(session, project)
+        else:
+            project_dict = project.dict()
+            project_record.full_object = project_dict
+            project_record.description = project.description
+            project_record.source = project.source
+            project_record.state = project.state
+            self._upsert(session, project_record)
+
+    def patch_project(self, session, name: str, project: schemas.ProjectPatch,
+                      patch_mode: schemas.PatchMode = schemas.PatchMode.replace):
+        logger.debug("Patching project in DB", name=name, project=project, patch_mode=patch_mode)
         project_record = self._get_project(session, name)
         project_dict = project.dict()
-        project_dict.setdefault("name", name)
-        project_record.full_object = project_dict
-        project_record.description = project.description
-        project_record.source = project.source
-        project_record.state = project.state
+        if project.description:
+            project_record.description = project.description
+        if project.source:
+            project_record.source = project.source
+        if project.state:
+            project_record.state = project.state
+        strategy = patch_mode.to_mergedeep_strategy()
+        project_record_full_object = project_record.full_object
+        mergedeep.merge(project_record_full_object, project_dict, strategy=strategy)
+        project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
 
     def get_project(
@@ -672,7 +692,7 @@ class SQLDB(DBInterface):
         return self._transform_project_model_to_schema(project_record)
 
     def _get_project(
-        self, session: Session, name: str = None, project_id: int = None
+        self, session: Session, name: str = None, project_id: int = None, raise_on_not_found: bool = True
     ) -> Project:
         if (project_id and name) or (not project_id and not name):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -680,6 +700,8 @@ class SQLDB(DBInterface):
             )
         project = self._query(session, Project, name=name, id=project_id).one_or_none()
         if not project:
+            if not raise_on_not_found:
+                return None
             raise mlrun.errors.MLRunNotFoundError(
                 f"Project not found {name}, {project_id}"
             )
@@ -1070,9 +1092,7 @@ class SQLDB(DBInterface):
 
         feature_set_struct = feature_set_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary
-        strategy = mergedeep.Strategy.REPLACE
-        if patch_mode.value == "additive":
-            strategy = mergedeep.Strategy.ADDITIVE
+        strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
 
         versioned = not feature_set_record.metadata.uid.startswith(

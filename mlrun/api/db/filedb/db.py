@@ -142,7 +142,13 @@ class FileDB(DBInterface):
     def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()
 
-    def patch_project(self, session, name: str, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode = schemas.PatchMode.replace):
+    def patch_project(
+        self,
+        session,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
         raise NotImplementedError()
 
     def create_project(self, session, project: schemas.Project):

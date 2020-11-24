@@ -29,4 +29,6 @@ class PatchMode(str, Enum):
         elif self.value == PatchMode.additive:
             return mergedeep.Strategy.ADDITIVE
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Unknown patch mode: {self.value}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown patch mode: {self.value}"
+            )

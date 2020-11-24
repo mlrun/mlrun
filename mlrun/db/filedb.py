@@ -437,7 +437,10 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def patch_project(
-            self, name: str, project: mlrun.api.schemas.ProjectPatch, patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace
+        self,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 

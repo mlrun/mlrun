@@ -24,9 +24,7 @@ def test_get_project(
     project_description = "some description"
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
 
     project_output = mlrun_consumer.get_project(db, project_name)
@@ -66,9 +64,7 @@ def test_create_project(
 
     mlrun_consumer.create_project(
         db,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
 
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
@@ -104,15 +100,11 @@ def test_store_project_update(
     project_description = "some description"
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
 
     mlrun_consumer.store_project(
-        db,
-        project_name,
-        mlrun.api.schemas.Project(name=project_name),
+        db, project_name, mlrun.api.schemas.Project(name=project_name),
     )
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
         db, project_name
@@ -129,9 +121,7 @@ def test_patch_project(
     project_description = "some description"
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
 
     updated_project_description = "some description 2"
@@ -155,9 +145,7 @@ def test_delete_project(
     project_description = "some description"
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     mlrun_consumer.delete_project(db, project_name)
 

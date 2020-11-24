@@ -37,7 +37,9 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     ):
         existing_project_dict = self._projects[name].dict()
         strategy = patch_mode.to_mergedeep_strategy()
-        mergedeep.merge(existing_project_dict, project.dict(exclude_unset=True), strategy=strategy)
+        mergedeep.merge(
+            existing_project_dict, project.dict(exclude_unset=True), strategy=strategy
+        )
         self._projects[name] = mlrun.api.schemas.Project(**existing_project_dict)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):

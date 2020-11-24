@@ -23,9 +23,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     project_output = mlrun.api.schemas.Project(**response.json())
     assert (
         deepdiff.DeepDiff(
-            project_1.dict(),
-            project_output.dict(exclude={"id"}),
-            ignore_order=True,
+            project_1.dict(), project_output.dict(exclude={"id"}), ignore_order=True,
         )
         == {}
     )

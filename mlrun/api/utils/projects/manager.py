@@ -248,7 +248,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         return consumers_classes_map[name]()
 
     @staticmethod
-    def _validate_body_and_path_names_matches(name: str, project: mlrun.api.schemas.ProjectPatch):
+    def _validate_body_and_path_names_matches(
+        name: str, project: mlrun.api.schemas.ProjectPatch
+    ):
         # ProjectPatch allow extra fields, therefore although it doesn't have name in the schema, name might be there
         if hasattr(project, "name") and name != getattr(project, "name"):
             message = "Conflict between name in body and name in path"

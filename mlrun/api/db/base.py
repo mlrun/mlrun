@@ -201,7 +201,13 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def patch_project(self, session, name: str, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode = schemas.PatchMode.replace):
+    def patch_project(
+        self,
+        session,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
         pass
 
     @abstractmethod

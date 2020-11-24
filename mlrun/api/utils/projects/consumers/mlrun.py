@@ -26,7 +26,9 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         project: mlrun.api.schemas.ProjectPatch,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
-        mlrun.api.utils.singletons.db.get_db().patch_project(session, name, project, patch_mode)
+        mlrun.api.utils.singletons.db.get_db().patch_project(
+            session, name, project, patch_mode
+        )
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         mlrun.api.utils.singletons.db.get_db().delete_project(session, name)

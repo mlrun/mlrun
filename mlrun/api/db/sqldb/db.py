@@ -667,9 +667,16 @@ class SQLDB(DBInterface):
             project_record.state = project.state
             self._upsert(session, project_record)
 
-    def patch_project(self, session, name: str, project: schemas.ProjectPatch,
-                      patch_mode: schemas.PatchMode = schemas.PatchMode.replace):
-        logger.debug("Patching project in DB", name=name, project=project, patch_mode=patch_mode)
+    def patch_project(
+        self,
+        session,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        logger.debug(
+            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
+        )
         project_record = self._get_project(session, name)
         project_dict = project.dict()
         if project.description:
@@ -692,7 +699,11 @@ class SQLDB(DBInterface):
         return self._transform_project_model_to_schema(project_record)
 
     def _get_project(
-        self, session: Session, name: str = None, project_id: int = None, raise_on_not_found: bool = True
+        self,
+        session: Session,
+        name: str = None,
+        project_id: int = None,
+        raise_on_not_found: bool = True,
     ) -> Project:
         if (project_id and name) or (not project_id and not name):
             raise mlrun.errors.MLRunInvalidArgumentError(

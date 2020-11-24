@@ -59,9 +59,7 @@ def test_projects_sync_consumer_project_adoption(
     project_description = "some description"
     nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     _assert_project_in_consumers([nop_consumer], project_name, project_description)
     _assert_no_projects_in_consumers([nop_master, second_nop_consumer])
@@ -85,9 +83,7 @@ def test_projects_sync_master_project_syncing(
     project_description = "some description"
     nop_master.create_project(
         None,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     _assert_project_in_consumers([nop_master], project_name, project_description)
     _assert_no_projects_in_consumers([nop_consumer, second_nop_consumer])
@@ -111,15 +107,11 @@ def test_projects_sync_multiple_consumer_project_adoption(
     project_description = "some description"
     nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     second_nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     nop_master.create_project = unittest.mock.Mock(wraps=nop_master.create_project)
     _assert_project_in_consumers(
@@ -148,9 +140,7 @@ def test_create_project(
     project_description = "some description"
     projects_manager.create_project(
         None,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     _assert_project_in_consumers(
         [nop_master, nop_consumer], project_name, project_description
@@ -207,19 +197,18 @@ def test_store_project_update(
     project_name = "project-name"
     project_description = "some description"
     projects_manager.create_project(
-        None, mlrun.api.schemas.Project(name=project_name, description=project_description),
+        None,
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
-    _assert_project_in_consumers([nop_master, nop_consumer], project_name, project_description)
+    _assert_project_in_consumers(
+        [nop_master, nop_consumer], project_name, project_description
+    )
 
     # removing description from the projects
     projects_manager.store_project(
-        None,
-        project_name,
-        mlrun.api.schemas.Project(name=project_name),
+        None, project_name, mlrun.api.schemas.Project(name=project_name),
     )
-    _assert_project_in_consumers(
-        [nop_master, nop_consumer], project_name
-    )
+    _assert_project_in_consumers([nop_master, nop_consumer], project_name)
 
 
 def test_patch_project(
@@ -318,9 +307,7 @@ def test_get_project(
     project_description = "some description"
     projects_manager.create_project(
         None,
-        mlrun.api.schemas.Project(
-            name=project_name, description=project_description
-        ),
+        mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
     _assert_project_in_consumers(
         [nop_master, nop_consumer], project_name, project_description

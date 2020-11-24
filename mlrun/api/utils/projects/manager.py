@@ -19,6 +19,7 @@ from mlrun.utils import logger
 
 class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
     def start(self):
+        logger.info("Starting projects manager")
         self._initialize_consumers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
@@ -80,6 +81,10 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         # if no consumers no need for sync
         # the > 0 condition is to allow ourselves to disable the sync fomr configuration
         if self._periodic_sync_interval_seconds > 0 and self._consumers:
+            logger.info(
+                "Starting periodic projects sync",
+                interval=self._periodic_sync_interval_seconds,
+            )
             mlrun.api.utils.periodic.run_function_periodically(
                 self._periodic_sync_interval_seconds,
                 self._sync_projects.__name__,
@@ -218,9 +223,8 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         return master_response, consumer_responses
 
     def _initialize_consumers(self):
-        self._master_consumer = self._initialize_consumer(
-            mlrun.config.config.httpdb.projects.master_consumer
-        )
+        master_name = mlrun.config.config.httpdb.projects.master_consumer
+        self._master_consumer = self._initialize_consumer(master_name)
         consumers = (
             mlrun.config.config.httpdb.projects.consumers.split(",")
             if mlrun.config.config.httpdb.projects.consumers
@@ -229,6 +233,11 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         self._consumers = {
             consumer: self._initialize_consumer(consumer) for consumer in consumers
         }
+        logger.debug(
+            "Initialized master and consumers",
+            master=master_name,
+            consumers=self._consumers.keys(),
+        )
 
     def _initialize_consumer(
         self, name: str

@@ -431,7 +431,7 @@ class FileRunDB(RunDBInterface):
     def delete_project(self, name: str):
         raise NotImplementedError()
 
-    def update_project(
+    def store_project(
         self, name: str, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()

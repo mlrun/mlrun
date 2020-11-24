@@ -187,7 +187,7 @@ class SQLDB(RunDBInterface):
     def list_tags(self, project: str):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
-    def update_project(
+    def store_project(
         self, name: str, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()

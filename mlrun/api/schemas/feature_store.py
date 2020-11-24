@@ -1,8 +1,13 @@
-from datetime import datetime
 from typing import Optional, List
 
 from pydantic import BaseModel, Extra
-from .object import ObjectMetadata
+from .object import (
+    ObjectMetadata,
+    ObjectStatus,
+    ObjectSpec,
+    ObjectRecord,
+    LabelRecord,
+)
 
 
 class Feature(BaseModel):
@@ -23,35 +28,16 @@ class Entity(BaseModel):
         extra = Extra.allow
 
 
-class FeatureSetSpec(BaseModel):
+class FeatureSetSpec(ObjectSpec):
     entities: List[Entity]
     features: List[Feature]
-
-    class Config:
-        extra = Extra.allow
-
-
-class FeatureSetStatus(BaseModel):
-    state: Optional[str]
-
-    class Config:
-        extra = Extra.allow
 
 
 class FeatureSet(BaseModel):
     kind: str = "FeatureSet"
     metadata: ObjectMetadata
     spec: FeatureSetSpec
-    status: FeatureSetStatus
-
-
-class LabelRecord(BaseModel):
-    id: int
-    name: str
-    value: str
-
-    class Config:
-        orm_mode = True
+    status: ObjectStatus
 
 
 class EntityRecord(BaseModel):
@@ -72,18 +58,9 @@ class FeatureRecord(BaseModel):
         orm_mode = True
 
 
-class FeatureSetRecord(BaseModel):
-    id: int
-    name: str
-    project: str
-    uid: str
-    updated: Optional[datetime] = None
+class FeatureSetRecord(ObjectRecord):
     entities: List[EntityRecord]
     features: List[FeatureRecord]
-    labels: List[LabelRecord]
-    # state is extracted from the full status dict to enable queries
-    state: Optional[str] = None
-    full_object: Optional[dict] = None
 
     class Config:
         orm_mode = True
@@ -109,3 +86,18 @@ class FeatureListOutput(BaseModel):
 
 class FeaturesOutput(BaseModel):
     features: List[FeatureListOutput]
+
+
+class FeatureVector(BaseModel):
+    kind: str = "FeatureVector"
+    metadata: ObjectMetadata
+    spec: ObjectSpec
+    status: ObjectStatus
+
+
+class FeatureVectorRecord(ObjectRecord):
+    pass
+
+
+class FeatureVectorsOutput(BaseModel):
+    feature_vectors: List[FeatureVector]

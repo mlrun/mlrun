@@ -25,5 +25,8 @@ from .feature_store import (
     FeatureSetDigestSpec,
     FeatureListOutput,
     FeaturesOutput,
+    FeatureVector,
+    FeatureVectorRecord,
+    FeatureVectorsOutput,
 )
-from .object import ObjectMetadata, PatchMode
+from .object import ObjectMetadata, ObjectSpec, ObjectStatus, PatchMode

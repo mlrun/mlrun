@@ -779,7 +779,7 @@ class HTTPRunDB(RunDBInterface):
         tag=None,
         uid=None,
         versioned=True,
-    ) -> schemas.FeatureSet:
+    ) -> dict:
         if uid and tag:
             raise MLRunInvalidArgumentError("both uid and tag were provided")
 
@@ -796,7 +796,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(
             "PUT", path, error_message, params=params, body=json.dumps(feature_set)
         )
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
     def update_feature_set(
         self,
@@ -826,7 +826,128 @@ class HTTPRunDB(RunDBInterface):
     def delete_feature_set(self, name, project=""):
         project = project or default_project
         path = f"projects/{project}/feature-sets/{name}"
-        error_message = f"Failed deleting project {name}"
+        error_message = f"Failed deleting feature-set {name}"
+        self.api_call("DELETE", path, error_message)
+
+    def create_feature_vector(
+        self,
+        feature_vector: Union[dict, schemas.FeatureVector],
+        project="",
+        versioned=True,
+    ) -> dict:
+        if isinstance(feature_vector, schemas.FeatureVector):
+            feature_vector = feature_vector.dict()
+
+        project = (
+            project
+            or feature_vector["metadata"].get("project", None)
+            or default_project
+        )
+        path = f"projects/{project}/feature-vectors"
+        params = {"versioned": versioned}
+
+        name = feature_vector["metadata"]["name"]
+        error_message = f"Failed creating feature-vector {project}/{name}"
+        resp = self.api_call(
+            "POST", path, error_message, params=params, body=json.dumps(feature_vector),
+        )
+        return resp.json()
+
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> dict:
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        project = project or default_project
+        reference = uid or tag or "latest"
+        path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
+        error_message = f"Failed retrieving feature-vector {project}/{name}"
+        resp = self.api_call("GET", path, error_message)
+        return resp.json()
+
+    def list_feature_vectors(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> List[dict]:
+        project = project or default_project
+        params = {
+            "name": name,
+            "state": state,
+            "tag": tag,
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/feature-vectors"
+
+        error_message = (
+            f"Failed listing feature-vectors, project: {project}, query: {params}"
+        )
+        resp = self.api_call("GET", path, error_message, params=params)
+        return resp.json()["feature_vectors"]
+
+    def store_feature_vector(
+        self,
+        feature_vector: Union[dict, schemas.FeatureVector],
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
+    ) -> dict:
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        params = {"versioned": versioned}
+
+        if isinstance(feature_vector, schemas.FeatureVector):
+            feature_vector = feature_vector.dict()
+
+        name = name or feature_vector["metadata"]["name"]
+        project = (
+            project or feature_vector["metadata"].get("project") or default_project
+        )
+        reference = uid or tag or "latest"
+        path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
+        error_message = f"Failed storing feature-vector {project}/{name}"
+        resp = self.api_call(
+            "PUT", path, error_message, params=params, body=json.dumps(feature_vector)
+        )
+        return resp.json()
+
+    def update_feature_vector(
+        self,
+        name,
+        feature_vector_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+    ):
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+
+        project = project or default_project
+        reference = uid or tag or "latest"
+        params = {"patch-mode": patch_mode}
+        path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
+        error_message = f"Failed updating feature-vector {project}/{name}"
+        self.api_call(
+            "PATCH",
+            path,
+            error_message,
+            body=json.dumps(feature_vector_update),
+            params=params,
+        )
+
+    def delete_feature_vector(self, name, project=""):
+        project = project or default_project
+        path = f"projects/{project}/feature-vectors/{name}"
+        error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
 
 

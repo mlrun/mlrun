@@ -269,5 +269,60 @@ class DBInterface(ABC):
     def delete_feature_set(self, session, project, name):
         pass
 
+    @abstractmethod
+    def create_feature_vector(
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+    ):
+        pass
+
+    @abstractmethod
+    def get_feature_vector(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureVector:
+        pass
+
+    @abstractmethod
+    def list_feature_vectors(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureVectorsOutput:
+        pass
+
+    @abstractmethod
+    def store_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector: schemas.FeatureVector,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        pass
+
+    @abstractmethod
+    def patch_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector_update: dict,
+        tag=None,
+        uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_feature_vector(self, session, project, name):
+        pass
+
     def list_artifact_tags(self, session, project):
         return []

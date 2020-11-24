@@ -277,11 +277,12 @@ def read_env(env=None, prefix=env_prefix):
         if igz_domain:
             config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
 
-    if config.get('log_level'):
+    if config.get("log_level"):
         import mlrun.utils.logger
+
         # logger created (because of imports mass) before the config is loaded (in tests), therefore we're changing its
         # level manually
-        mlrun.utils.logger.set_logger_level(config['log_level'])
+        mlrun.utils.logger.set_logger_level(config["log_level"])
 
     return config
 

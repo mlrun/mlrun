@@ -40,7 +40,7 @@ Before you begin, ensure that the following prerequisites are met:
 
 Set environment variables to define your MLRun configuration. As a minimum requirement &mdash;
 
-1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API ervice; replace the `<...>` placeholders to identify your remote target:
+1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
 
     ```ini
     MLRUN_DBPATH=<API endpoint of the MLRun APIs service engpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">

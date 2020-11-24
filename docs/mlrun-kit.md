@@ -73,7 +73,7 @@ helm --namespace mlrun \
     --render-subchart-notes \
     --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
     --set global.registry.secretName=registry-credentials \
-    v3io-stable/mlrun-os
+    v3io-stable/mlrun-kit
 ```
 
 ### Install Kubeflow
@@ -185,6 +185,6 @@ helm --namespace mlrun delete pvc <pv-name>
 
 # Remove hostpath(s) used for mlrun (and possibly nfs). Those will be created, by default under /tmp, and will contain
 # your release name, e.g.:
-rm -rf my-mlrun-mlrun-os-mlrun
+rm -rf my-mlrun-mlrun-kit-mlrun
 ...
 ```

@@ -25,6 +25,7 @@ from shutil import rmtree
 
 import pytest
 
+from mlrun.api import schemas
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
 from mlrun import RunObject
@@ -440,8 +441,8 @@ def test_feature_vectors(create_server):
     feature_vector_update = {"spec": {"features": ["bla", "blu"]}}
 
     # additive mode means add the feature to the features-list
-    db.update_feature_vector(
-        name, feature_vector_update, project, tag="latest", patch_mode="additive"
+    db.patch_feature_vector(
+        name, feature_vector_update, project, tag="latest", patch_mode=schemas.PatchMode.additive
     )
     feature_vectors = db.list_feature_vectors(project=project)
 
@@ -461,7 +462,7 @@ def test_feature_vectors(create_server):
     db.store_feature_vector(feature_vector_without_labels)
 
     # Perform a replace (vs. additive as done earlier) - now should only have 2 features
-    db.update_feature_vector(name, feature_vector_update, project)
+    db.patch_feature_vector(name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace)
     feature_vector = db.get_feature_vector(name, project)
     assert (
         len(feature_vector["spec"]["features"]) == 2

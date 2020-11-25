@@ -229,7 +229,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_feature_vector(
+    def patch_feature_vector(
         self,
         name,
         feature_vector_update: dict,

@@ -919,7 +919,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return resp.json()
 
-    def update_feature_vector(
+    def patch_feature_vector(
         self,
         name,
         feature_vector_update: dict,
@@ -933,6 +933,8 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or default_project
         reference = uid or tag or "latest"
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
         params = {"patch-mode": patch_mode}
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"

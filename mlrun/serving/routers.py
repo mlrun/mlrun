@@ -177,7 +177,7 @@ class ParallelRunnerModes(str, Enum):
     thread = "thread"
 
 
-class VotingEnsemble(BaseModelRouter):
+class VotingEnsemble(mlrun.serving.routers.BaseModelRouter):
     """Voting Ensemble class
 
         The `VotingEnsemble` class enables you to apply prediction logic on top of
@@ -360,6 +360,11 @@ class VotingEnsemble(BaseModelRouter):
         events.body = event
         return events
 
+    def preprocess(self, event):
+        if type(event) == str:
+            event.body = json.loads(event.body)
+        return event
+
     def do_event(self, event, *args, **kwargs):
         """handle incoming events
 
@@ -374,13 +379,13 @@ class VotingEnsemble(BaseModelRouter):
         """
         start = datetime.now()
         event = self.preprocess(event)
-        event.body = self.validate(event.body)
         request = event.body
-        if "id" not in request:
-            request["id"] = event.id
+        request = self.validate(request)
         event = self._pre_handle_event(event)
         response = self.postprocess(self._vote(self._handle_event(event)))
         if self._model_logger and self.log_router:
+            if "id" not in request:
+                request["id"] = response.body["id"]
             self._model_logger.push(start, request, response.body)
         return response
 

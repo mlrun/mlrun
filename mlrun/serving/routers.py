@@ -361,9 +361,11 @@ class VotingEnsemble(BaseModelRouter):
         return events
 
     def preprocess(self, event):
-        if type(event) == str:
+        try:
             event.body = json.loads(event.body)
-        return event
+            return event
+        except Exception:
+            return event
 
     def do_event(self, event, *args, **kwargs):
         """handle incoming events

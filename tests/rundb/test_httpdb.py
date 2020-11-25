@@ -13,22 +13,22 @@
 # limitations under the License.
 
 import codecs
-import mlrun.errors
 from collections import namedtuple
 from os import environ
 from pathlib import Path
+from shutil import rmtree
 from socket import socket
 from subprocess import Popen, run, PIPE, DEVNULL
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
-from shutil import rmtree
 
 import pytest
 
+import mlrun.errors
+from mlrun import RunObject
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
-from mlrun import RunObject
 from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent

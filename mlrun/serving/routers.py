@@ -371,8 +371,12 @@ class VotingEnsemble(BaseModelRouter):
             Response: Event response after running the event processing logic
         """
         start = datetime.now()
-        request = self._pre_event_processing_actions(event)
-        request = self._pre_handle_event(request)
+        event = self.preprocess(event)
+        event.body = self.validate(event.body)
+        request = event.body
+        if "id" not in request:
+            request["id"] = event.id
+        event = self._pre_handle_event(event)
         response = self.postprocess(self._vote(self._handle_event(event)))
         if self._model_logger and self.log_router:
             self._model_logger.push(start, request, response.body)
@@ -424,12 +428,6 @@ class VotingEnsemble(BaseModelRouter):
             if not isinstance(request["inputs"], list):
                 raise Exception('Expected "inputs" to be a list')
         return request
-
-    def _pre_event_processing_actions(self, event):
-        request = self.preprocess(event.body)
-        if "id" not in request:
-            request["id"] = event.id
-        return self.validate(request)
 
     def _handle_event(self, event):
         name, route, subpath = self._resolve_route(event.body, event.path)

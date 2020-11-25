@@ -338,7 +338,9 @@ class VotingEnsemble(BaseModelRouter):
                 self.vote_type = "regression"
             self.vote_flag = True
         if self.vote_type == "classification":
-            flattened_predictions = list(map(int, flattened_predictions))
+            flattened_predictions = [
+                list(map(int, predictions)) for predictions in flattened_predictions
+            ]
             result = self._max_vote(flattened_predictions)
         else:
             result = self._mean_vote(flattened_predictions)

@@ -23,6 +23,8 @@ from datetime import datetime
 import copy
 import concurrent
 
+from enum import Enum
+
 
 class BaseModelRouter:
     """base model router class"""
@@ -81,10 +83,7 @@ class BaseModelRouter:
 
         return {"name": self.__class__.__name__, "version": "v2", "extensions": []}
 
-    def do_event(self, event, *args, **kwargs):
-        """handle incoming events, event is nuclio event class"""
-
-        event = self.preprocess(event)
+    def _pre_handle_event(self, event):
         method = event.method or "POST"
         if event.body and method != "GET":
             event.body = self.parse_event(event)
@@ -103,7 +102,13 @@ class BaseModelRouter:
             raise ValueError(
                 f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
             )
+        return event
 
+    def do_event(self, event, *args, **kwargs):
+        """handle incoming events, event is nuclio event class"""
+
+        event = self.preprocess(event)
+        event = self._pre_handle_event(event)
         return self.postprocess(self._handle_event(event))
 
     def _handle_event(self, event):
@@ -163,6 +168,13 @@ class ModelRouter(BaseModelRouter):
         response = route.run(event)
         event.body = response.body if response else None
         return event
+
+
+class ParallelRunnerModes(str, Enum):
+    """Supported parallel running modes for VotingEnsemble"""
+
+    array = "array"
+    thread = "thread"
 
 
 class VotingEnsemble(BaseModelRouter):
@@ -296,8 +308,8 @@ class VotingEnsemble(BaseModelRouter):
         """
         return [mean(predictions) for predictions in all_predictions]
 
-    def _is_int(self, n):
-        return float(n).is_integer()
+    def _is_int(self, value):
+        return float(value).is_integer()
 
     def _vote(self, events):
         if "outputs" in events.body:
@@ -311,17 +323,17 @@ class VotingEnsemble(BaseModelRouter):
             [predictions[j][i] for j in range(len(predictions))]
             for i in range(len(predictions[0]))
         ]
-        if self.vote_flag is None:
+        if not self.vote_flag:
             if all(
                 [
-                    all(res)
-                    for res in [
-                        list(map(self._is_int, prediction_arr))
-                        for prediction_arr in predictions
+                    all(response)
+                    for response in [
+                        list(map(self._is_int, prediction_array))
+                        for prediction_array in predictions
                     ]
                 ]
             ):
-                self.vote_type = "classificartion"
+                self.vote_type = "classification"
             else:
                 self.vote_type = "regression"
             self.vote_flag = True
@@ -359,50 +371,30 @@ class VotingEnsemble(BaseModelRouter):
             Response: Event response after running the event processing logic
         """
         start = datetime.now()
-        method = event.method or "POST"
-        if event.body and method != "GET":
-            event.body = self.parse_event(event)
-        urlpath = getattr(event, "path", "")
-
-        # if health check or "/" return Ok + metadata
-        if method == "GET" and (
-            urlpath == "/" or urlpath.startswith(self.health_prefix)
-        ):
-            setattr(event, "terminated", True)
-            event.body = self.get_metadata()
-            return event
-
-        # check for legal path prefix
-        if urlpath and not urlpath.startswith(self.url_prefix) and not urlpath == "/":
-            raise ValueError(
-                f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
-            )
-
         request = self._pre_event_processing_actions(event)
+        request = self._pre_handle_event(request)
         response = self.postprocess(self._vote(self._handle_event(event)))
         if self._model_logger and self.log_router:
             self._model_logger.push(start, request, response.body)
         return response
 
-    def _parallel_run(self, event, how="thread"):
+    def _parallel_run(self, event, mode: str = ParallelRunnerModes.thread):
         """Executes the processing logic in parallel
 
         Args:
             event (nuclio.Event): Incoming event after router preprocessing
-            how (str, optional): Parallel processing method. Defaults to "thread".
+            mode (str, optional): Parallel processing method. Defaults to "thread".
 
         Returns:
             dict[str, nuclio.Event]: {model_name: model_response} for selected all models the registry
         """
-        if how == "array":
+        if mode == ParallelRunnerModes.array:
             results = {
                 model_name: model.run(copy.deepcopy(event))
                 for model_name, model in self.routes.items()
             }
-        else:
-            pool = concurrent.futures.ThreadPoolExecutor(
-                max_workers=len(self.routes) * 2
-            )
+        elif mode == ParallelRunnerModes.thread:
+            pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.routes))
             with pool as executor:
                 results = []
                 futures = {
@@ -416,6 +408,11 @@ class VotingEnsemble(BaseModelRouter):
                     except Exception as exc:
                         print("%r generated an exception: %s" % (child.fullname, exc))
                 results = {event.body["model_name"]: event for event in results}
+        else:
+            raise ValueError(
+                f"{mode} is not a supported parallel run mode, please select from "
+                f"{[mode.value for mode in list(ParallelRunnerModes)]}"
+            )
         return results
 
     def validate(self, request):

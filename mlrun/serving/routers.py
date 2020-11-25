@@ -165,7 +165,7 @@ class ModelRouter(BaseModelRouter):
         return event
 
 
-class VotingEnsemble(ModelRouter):
+class VotingEnsemble(BaseModelRouter):
     """Voting Ensemble class
 
         The `VotingEnsemble` class enables you to apply prediction logic on top of
@@ -178,8 +178,8 @@ class VotingEnsemble(ModelRouter):
             Sends the event to all models and applies `vote(self, event)`
 
         The `VotingEnsemble` applies the following logic:
-        Incoming Event -> Router Preprocessing -> Send to models (or model) ->
-        Apply all model logic (Preprocessing -> Prediction -> Postprocessing) ->
+        Incoming Event -> Router Preprocessing -> Send to model/s ->
+        Apply all model/s logic (Preprocessing -> Prediction -> Postprocessing) ->
         Router Voting logic -> Router Postprocessing -> Response
 
         This enables you to do the general preprocessing and postprocessing steps
@@ -202,8 +202,7 @@ class VotingEnsemble(ModelRouter):
         super().__init__(
             context, name, routes, protocol, url_prefix, health_prefix, **kwargs
         )
-        self.url_prefix = url_prefix or f"/{self.protocol}/models"
-        self.name = "VoteRouter"
+        self.name = name or "VotingEnsemble"
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
         self.executor_type = executor_type
@@ -225,10 +224,12 @@ class VotingEnsemble(ModelRouter):
             urlpath (string): url path
 
         Raises:
-            ValueError: [description]
+            ValueError: model does't exist in the model registry
 
         Returns:
-            [type]: [description]
+            model_name (string): name of the selected model
+            route (Selected Model's Class): actual selected model from the registry
+            subpath: contains the operator for the model
         """
         subpath = None
         model = ""
@@ -272,12 +273,27 @@ class VotingEnsemble(ModelRouter):
         return model, self.routes[model], subpath
 
     def _max_vote(self, all_predictions):
-        """Returns an argmax"""
+        """Returns most predicted class for each event
+
+        Args:
+            all_predictions (List[List[Int]]): The predictions from all models, per event
+
+        Returns:
+            List[Int]: The most predicted class by all models, per event
+        """
         return [
             max(predictions, key=predictions.count) for predictions in all_predictions
         ]
 
     def _mean_vote(self, all_predictions):
+        """Returns mean of the predictions
+
+        Args:
+            all_predictions (List[List[float]]): The predictions from all models, per event
+
+        Returns:
+            List[Float]: The mean of predictions from all models, per event
+        """
         return [mean(predictions) for predictions in all_predictions]
 
     def _is_int(self, n):
@@ -331,7 +347,17 @@ class VotingEnsemble(ModelRouter):
         return events
 
     def do_event(self, event, *args, **kwargs):
-        """handle incoming events, event is nuclio event class"""
+        """handle incoming events
+
+        Args:
+            event (nuclio.Event): Incoming nuclio event
+
+        Raises:
+            ValueError: Illeagel prefix from URI
+
+        Returns:
+            Response: Event response after running the event processing logic
+        """
         start = datetime.now()
         method = event.method or "POST"
         if event.body and method != "GET":
@@ -359,6 +385,15 @@ class VotingEnsemble(ModelRouter):
         return response
 
     def _parallel_run(self, event, how="thread"):
+        """Executes the processing logic in parallel
+
+        Args:
+            event (nuclio.Event): Incoming event after router preprocessing
+            how (str, optional): Parallel processing method. Defaults to "thread".
+
+        Returns:
+            dict[str, nuclio.Event]: {model_name: model_response} for selected all models the registry
+        """
         if how == "array":
             results = {
                 model_name: model.run(copy.deepcopy(event))

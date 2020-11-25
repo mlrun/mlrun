@@ -332,17 +332,17 @@ def test_version_compatibility_validation():
             "client_version": "unstable",
             "compatible": True,
         },
-        {"server_version": "0.5.3", "client_version": "unstable", "compatible": True,},
-        {"server_version": "unstable", "client_version": "0.6.1", "compatible": True,},
-        {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True,},
-        {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True,},
+        {"server_version": "0.5.3", "client_version": "unstable", "compatible": True},
+        {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
+        {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
+        {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
         {
             "server_version": "0.6.0-rc1",
             "client_version": "0.5.4",
             "compatible": False,
         },
-        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": False,},
-        {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False,},
+        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": False},
+        {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
     ]
     for case in cases:
         if not case["compatible"]:

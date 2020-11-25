@@ -257,6 +257,7 @@ class VotingEnsemble(BaseModelRouter):
                 # Are we looking at a router level operation?
                 if segments[0] in ["infer", "predict", "explain"]:
                     # We are given an operation
+                    self.log_router = True
                     return self.name, None, segments[0]
             model = segments[0]
             if len(segments) > 2 and segments[1] == "versions":
@@ -280,8 +281,6 @@ class VotingEnsemble(BaseModelRouter):
             raise ValueError(
                 f"model {model} doesnt exist, available models: {models} or an operation alone for ensemble operation"
             )
-        else:
-            self.log_router = True
         return model, self.routes[model], subpath
 
     def _max_vote(self, all_predictions):

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Extra
 
 class ObjectMetadata(BaseModel):
     name: str
+    project: Optional[str]
     tag: Optional[str]
     labels: Optional[dict]
     updated: Optional[datetime]
@@ -18,3 +19,7 @@ class ObjectMetadata(BaseModel):
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
+
+
+class ObjectKind(str, Enum):
+    feature_set = "FeatureSet"

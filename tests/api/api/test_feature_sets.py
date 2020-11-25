@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 def _generate_feature_set(name):
     return {
+        "kind": "FeatureSet",
         "metadata": {
             "name": name,
             "labels": {"owner": "saarc", "group": "dev"},
@@ -110,12 +111,14 @@ def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -
     json_response = response.json()
     _assert_extra_fields_exist(json_response)
 
-    # Make sure extra fields outside of the metadata/spec/status trio are not stored
+    # Make sure extra fields outside of the metadata/spec/status/kind fields are not stored
     feature_set = _generate_feature_set("feature_set2")
     feature_set["something_else"] = {"extra_field": "extra_value"}
 
     response = _feature_set_create_and_assert(client, project_name, feature_set)
-    assert len(response) == 3 and "something_else" not in response
+    assert (
+        len(response) == 4 and "kind" in response and "something_else" not in response
+    )
 
 
 def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
@@ -388,6 +391,65 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
         json=feature_set,
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+
+def test_feature_set_create_without_labels(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+
+    feature_set["metadata"].pop("labels")
+    _feature_set_create_and_assert(client, project_name, feature_set)
+
+    feature_set_update = {
+        "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
+    }
+    feature_set_response = _patch_feature_set(
+        client, project_name, name, feature_set_update
+    )
+    assert (
+        len(feature_set_response["metadata"]["labels"]) == 2
+    ), "Labels didn't get updated"
+
+
+def test_feature_set_project_name_mismatch_failure(
+    db: Session, client: TestClient
+) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+    feature_set["metadata"]["project"] = "booboo"
+    # Calling POST with a different project name in object metadata should fail
+    response = client.post(
+        f"/api/projects/{project_name}/feature-sets", json=feature_set
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+    # When POSTing without project name, project name should be implanted in the response
+    feature_set["metadata"].pop("project")
+    feature_set_response = _feature_set_create_and_assert(
+        client, project_name, feature_set
+    )
+    assert feature_set_response["metadata"]["project"] == project_name
+
+    feature_set["metadata"]["project"] = "woohoo"
+    # Calling PUT with a different project name in object metadata should fail
+    response = client.put(
+        f"/api/projects/{project_name}/feature-sets/{name}/references/latest",
+        json=feature_set,
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+
+def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+    feature_set["kind"] = "wrong"
+    response = client.post(
+        f"/api/projects/{project_name}/feature-sets", json=feature_set
+    )
+    assert response.status_code != HTTPStatus.OK.value
 
 
 def test_features_list(db: Session, client: TestClient) -> None:

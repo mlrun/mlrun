@@ -15,22 +15,23 @@
 import json
 import tempfile
 import time
+from datetime import datetime
 from os import path, remove, environ
 from typing import List, Dict, Union
-from datetime import datetime
 
 import kfp
 import requests
-import mlrun
+import semver
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun
 from mlrun.api import schemas
+from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
-from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
 
@@ -137,12 +138,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
-            if self.server_version != config.version:
-                logger.warning(
-                    "warning!, server ({}) and client ({}) ver dont match".format(
-                        self.server_version, config.version
-                    )
-                )
+            self._validate_version_compatibility(self.server_version, config.version)
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace
@@ -691,24 +687,26 @@ class HTTPRunDB(RunDBInterface):
 
     def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
-    ) -> schemas.FeatureSet:
-        project = project or default_project
-        path = f"projects/{project}/feature-sets"
-        params = {"versioned": versioned}
-
+    ) -> dict:
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
+
+        project = (
+            project or feature_set["metadata"].get("project", None) or default_project
+        )
+        path = f"projects/{project}/feature-sets"
+        params = {"versioned": versioned}
 
         name = feature_set["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         resp = self.api_call(
             "POST", path, error_message, params=params, body=json.dumps(feature_set),
         )
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> schemas.FeatureSet:
+    ) -> dict:
         if uid and tag:
             raise MLRunInvalidArgumentError("both uid and tag were provided")
 
@@ -717,7 +715,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
     def list_features(
         self,
@@ -750,7 +748,7 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeatureSetsOutput:
+    ) -> List[dict]:
         project = project or default_project
         params = {
             "name": name,
@@ -767,12 +765,12 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-sets, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return schemas.FeatureSetsOutput(**resp.json())
+        return resp.json()["feature_sets"]
 
     def store_feature_set(
         self,
-        name,
         feature_set: Union[dict, schemas.FeatureSet],
+        name=None,
         project="",
         tag=None,
         uid=None,
@@ -786,7 +784,8 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
 
-        project = project or default_project
+        name = name or feature_set["metadata"]["name"]
+        project = project or feature_set["metadata"].get("project") or default_project
         reference = uid or tag or "latest"
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
@@ -795,7 +794,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return schemas.FeatureSet(**resp.json())
 
-    def update_feature_set(
+    def patch_feature_set(
         self,
         name,
         feature_set_update: dict,
@@ -825,6 +824,31 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}"
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
+
+    @staticmethod
+    def _validate_version_compatibility(server_version, client_version):
+        try:
+            parsed_server_version = semver.VersionInfo.parse(server_version)
+            parsed_client_version = semver.VersionInfo.parse(client_version)
+        except ValueError:
+            # This will mostly happen in dev scenarios when the version is unstable and such - therefore we're ignoring
+            logger.warning(
+                "Unable to parse server or client version. Assuming compatible",
+                server_version=server_version,
+                client_version=client_version,
+            )
+            return
+        if (
+            parsed_server_version.major != parsed_client_version.major
+            or parsed_server_version.minor != parsed_client_version.minor
+        ):
+            message = "Server and client versions are incompatible"
+            logger.warning(
+                message,
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
 
 def _as_json(obj):

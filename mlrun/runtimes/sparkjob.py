@@ -113,6 +113,7 @@ class SparkJobSpec(KubeResourceSpec):
         description=None,
         workdir=None,
         build=None,
+        rundb=None,
     ):
 
         super().__init__(
@@ -133,6 +134,7 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
+            rundb=rundb,
         )
 
         self.driver_resources = driver_resources or {}
@@ -173,19 +175,15 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
         if self.spec.image:
             update_in(job, "spec.image", self.spec.image)
-        elif config.spark_app_image_tag or config.igz_version:
+        elif config.spark_app_image_tag and config.spark_app_image:
             update_in(
                 job,
                 "spec.image",
-                config.spark_app_image
-                + ":"
-                + (config.spark_app_image_tag or config.igz_version),
+                config.spark_app_image + ":" + config.spark_app_image_tag,
             )
         update_in(job, "spec.volumes", self.spec.volumes)
 
-        extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
-        if runobj.spec.verbose:
-            extra_env["MLRUN_LOG_LEVEL"] = "debug"
+        extra_env = self._generate_runtime_env(runobj)
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
 
         update_in(job, "spec.driver.env", extra_env + self.spec.env)

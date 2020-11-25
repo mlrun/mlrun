@@ -253,6 +253,7 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
+        self._ensure_run_db()
         state = ""
         last_log_timestamp = 1
 
@@ -281,6 +282,7 @@ class RemoteRuntime(KubeResource):
 
             if self.status.address:
                 self.spec.command = "http://{}".format(self.status.address)
+                self.save(versioned=False)
 
         else:
             self.save(versioned=False)
@@ -329,7 +331,12 @@ class RemoteRuntime(KubeResource):
 
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
-        return {}
+        runtime_env = {}
+        if self.spec.rundb:
+            runtime_env["MLRUN_DBPATH"] = self.spec.rundb
+        if mlconf.namespace:
+            runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
+        return runtime_env
 
     def deploy_step(
         self,

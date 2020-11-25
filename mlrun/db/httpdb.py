@@ -15,22 +15,23 @@
 import json
 import tempfile
 import time
+from datetime import datetime
 from os import path, remove, environ
 from typing import List, Dict, Union
-from datetime import datetime
 
 import kfp
 import requests
-import mlrun
+import semver
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun
 from mlrun.api import schemas
+from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
-from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
 
@@ -137,12 +138,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
-            if self.server_version != config.version:
-                logger.warning(
-                    "warning!, server ({}) and client ({}) ver dont match".format(
-                        self.server_version, config.version
-                    )
-                )
+            self._validate_version_compatibility(self.server_version, config.version)
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace
@@ -825,6 +821,31 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}"
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
+
+    @staticmethod
+    def _validate_version_compatibility(server_version, client_version):
+        try:
+            parsed_server_version = semver.VersionInfo.parse(server_version)
+            parsed_client_version = semver.VersionInfo.parse(client_version)
+        except ValueError:
+            # This will mostly happen in dev scenarios when the version is unstable and such - therefore we're ignoring
+            logger.warning(
+                "Unable to parse server or client version. Assuming compatible",
+                server_version=server_version,
+                client_version=client_version,
+            )
+            return
+        if (
+            parsed_server_version.major != parsed_client_version.major
+            or parsed_server_version.minor != parsed_client_version.minor
+        ):
+            message = "Server and client versions are incompatible"
+            logger.warning(
+                message,
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
 
 def _as_json(obj):

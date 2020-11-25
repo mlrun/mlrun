@@ -259,8 +259,9 @@ class SQLDB(RunDBInterface):
         )
 
     def store_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+        self, feature_set, name=None, project="", tag=None, uid=None, versioned=True
     ):
+        name = name or feature_set.metadata.name
         return self._transform_db_error(
             self.db.store_feature_set,
             self.session,
@@ -272,7 +273,7 @@ class SQLDB(RunDBInterface):
             versioned,
         )
 
-    def update_feature_set(
+    def patch_feature_set(
         self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
     ):
         return self._transform_db_error(

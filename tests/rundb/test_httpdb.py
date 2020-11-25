@@ -358,6 +358,7 @@ def test_version_compatibility_validation():
 
 def _create_feature_set(name):
     return {
+        "kind": "FeatureSet",
         "metadata": {
             "name": name,
             "labels": {"owner": "saarc", "group": "dev"},
@@ -404,7 +405,7 @@ def test_feature_sets(create_server):
         db.create_feature_set(feature_set, project=project, versioned=True)
 
     # Test store_feature_set, which allows updates as well as inserts
-    db.store_feature_set(name, feature_set, project=project, versioned=True)
+    db.store_feature_set(feature_set, name=name, project=project, versioned=True)
 
     feature_set_update = {
         "spec": {
@@ -413,14 +414,26 @@ def test_feature_sets(create_server):
     }
 
     # additive mode means add the feature to the features-list
-    db.update_feature_set(
+    db.patch_feature_set(
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
 
-    assert (
-        len(feature_sets.feature_sets) == count
-    ), "bad list results - wrong number of members"
+    assert len(feature_sets) == count, "bad list results - wrong number of members"
 
     feature_set = db.get_feature_set(name, project)
-    assert len(feature_set.spec.features) == 4
+    assert len(feature_set["spec"]["features"]) == 4
+
+    # Create a feature-set that has no labels
+    name = "feature_set_no_labels"
+    feature_set_without_labels = _create_feature_set(name)
+    feature_set_without_labels["metadata"].pop("labels")
+    # Use project name in the feature-set (don't provide it to API)
+    feature_set_without_labels["metadata"]["project"] = project
+    db.store_feature_set(feature_set_without_labels)
+    feature_set_update = {
+        "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
+    }
+    db.patch_feature_set(name, feature_set_update, project)
+    feature_set = db.get_feature_set(name, project)
+    assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"

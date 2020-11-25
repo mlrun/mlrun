@@ -19,3 +19,7 @@ class ObjectMetadata(BaseModel):
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
+
+
+class ObjectKind(str, Enum):
+    feature_set = "FeatureSet"

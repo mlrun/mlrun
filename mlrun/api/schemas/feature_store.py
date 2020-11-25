@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from pydantic import BaseModel, Extra
-from .object import ObjectMetadata
+from .object import ObjectMetadata, ObjectKind
 
 
 class Feature(BaseModel):
@@ -39,7 +39,7 @@ class FeatureSetStatus(BaseModel):
 
 
 class FeatureSet(BaseModel):
-    kind: str = "FeatureSet"
+    kind: ObjectKind = ObjectKind.feature_set
     metadata: ObjectMetadata
     spec: FeatureSetSpec
     status: FeatureSetStatus

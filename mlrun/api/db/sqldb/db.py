@@ -950,7 +950,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _validate_feature_set_kind(kind):
-        if kind != "FeatureSet":
+        if kind != schemas.ObjectKind.feature_set:
             raise ValueError(f"invalid kind for a feature-set object: {kind}")
 
     def store_feature_set(
@@ -1092,7 +1092,10 @@ class SQLDB(DBInterface):
                 f"Feature-set not found {feature_set_uri}"
             )
 
-        self._validate_feature_set_kind(feature_set_update.get("kind", "FeatureSet"))
+        if "kind" in feature_set_update:
+            self._validate_feature_set_kind(
+                schemas.ObjectKind(feature_set_update["kind"])
+            )
 
         feature_set_struct = feature_set_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary

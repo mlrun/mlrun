@@ -273,7 +273,7 @@ class SQLDB(RunDBInterface):
             versioned,
         )
 
-    def update_feature_set(
+    def patch_feature_set(
         self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
     ):
         return self._transform_db_error(

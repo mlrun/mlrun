@@ -441,6 +441,17 @@ def test_feature_set_project_name_mismatch_failure(
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
+def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+    feature_set["kind"] = "wrong"
+    response = client.post(
+        f"/api/projects/{project_name}/feature-sets", json=feature_set
+    )
+    assert response.status_code != HTTPStatus.OK.value
+
+
 def test_features_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
 

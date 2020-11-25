@@ -382,7 +382,7 @@ def test_feature_sets(create_server):
     }
 
     # additive mode means add the feature to the features-list
-    db.update_feature_set(
+    db.patch_feature_set(
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
@@ -402,6 +402,6 @@ def test_feature_sets(create_server):
     feature_set_update = {
         "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
     }
-    db.update_feature_set(name, feature_set_update, project)
+    db.patch_feature_set(name, feature_set_update, project)
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"

@@ -175,7 +175,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_feature_set(
+    def patch_feature_set(
         self,
         name,
         feature_set: dict,

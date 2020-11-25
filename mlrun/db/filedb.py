@@ -512,7 +512,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def update_feature_set(
+    def patch_feature_set(
         self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
     ):
         raise NotImplementedError()

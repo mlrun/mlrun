@@ -177,7 +177,7 @@ class ParallelRunnerModes(str, Enum):
     thread = "thread"
 
 
-class VotingEnsemble(mlrun.serving.routers.BaseModelRouter):
+class VotingEnsemble(BaseModelRouter):
     """Voting Ensemble class
 
         The `VotingEnsemble` class enables you to apply prediction logic on top of

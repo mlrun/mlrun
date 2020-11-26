@@ -39,7 +39,7 @@ class FeatureVector(ModelObj):
     kind = "FeatureVector"
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, client=None, name=None, description=None, features=None):
+    def __init__(self, name=None, description=None, features=None):
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
@@ -49,7 +49,6 @@ class FeatureVector(ModelObj):
         self.metadata = FeatureSetMetadata(name=name)
         self.status = None
 
-        self._client = client
         self._entity_df = None
         self._feature_set_fields = {}
         self._processed_features = {}
@@ -79,7 +78,7 @@ class FeatureVector(ModelObj):
     def status(self, status):
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
 
-    def parse_features(self):
+    def parse_features(self, client):
         self._processed_features = {}  # dict of name to (featureset, feature object)
         self.feature_set_objects = {}  # cache of used feature set objects
         self._feature_set_fields = {}  # list of field (name, alias) per featureset
@@ -103,7 +102,7 @@ class FeatureVector(ModelObj):
         for feature in self._spec.features:
             feature_set, feature_name, alias = _parse_feature_string(feature)
             if feature_set not in self.feature_set_objects.keys():
-                self.feature_set_objects[feature_set] = self._client.get_feature_set(
+                self.feature_set_objects[feature_set] = client.get_feature_set(
                     feature_set
                 )
             feature_set_object = self.feature_set_objects[feature_set]
@@ -156,7 +155,7 @@ class OfflineVectorResponse:
 
 
 def print_event(event):
-    print(str(event.key))
+    print('EVENT:', str(event.key))
     print(str(event.body))
     return event
 
@@ -164,6 +163,7 @@ def print_event(event):
 class OnlineVectorService:
     def __init__(self, client, vector):
         self._client = client
+        self._context = client.context
         self._vector = vector
         self._feature_sets = None
         self._v3io_client = v3io.dataplane.Client()
@@ -180,7 +180,7 @@ class OnlineVectorService:
             fs = self._vector.feature_set_objects[name]
             column_names = [name for name, alias in columns]
             aliases = {name: alias for name, alias in columns if alias}
-            steps.extend(steps_from_featureset(fs, column_names, aliases))
+            steps.extend(steps_from_featureset(fs, column_names, aliases, self._context))
         # steps.append(Map(print_event, full_event=True))
         steps.append(Complete())
         flow = build_flow(steps)

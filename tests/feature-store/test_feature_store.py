@@ -13,8 +13,7 @@ from mlrun.featurestore.datatypes import ValueType
 def init_store():
     mlconf.dbpath = os.environ['TEST_DBPATH']
     data_prefix = os.environ.get('FEATURESTORE_PATH', "v3io:///users/admin/fs")
-    client = fs.store_client(data_prefix='./store')
-    client.nosql_path_prefix = data_prefix
+    client = fs.store_client(data_prefixes={'parquet': "./store", 'nosql': data_prefix})
     client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
     return client
 

@@ -22,7 +22,7 @@ from .model import (
     FeatureAggregation,
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
-from .pipeline import process_to_df
+from .pipeline import ingest_from_df
 from ..model import ModelObj
 from ..serving.states import ServingTaskState
 
@@ -70,7 +70,7 @@ class FeatureSet(ModelObj):
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
     def uri(self):
-        uri = f'{self._metadata.project}/{self._metadata.name}'
+        uri = f'{self._metadata.project or ""}/{self._metadata.name}'
         if self._metadata.tag:
             uri += ':' + self._metadata.tag
         return uri
@@ -97,7 +97,7 @@ class FeatureSet(ModelObj):
             infer_schema_from_df(
                 df, self._spec, entity_columns, with_index, with_features=False
             )
-            df = process_to_df(df, self, namespace)
+            df = ingest_from_df(None, self, df, namespace=namespace).await_termination()
 
         infer_schema_from_df(df, self._spec, entity_columns, with_index)
         if with_stats:

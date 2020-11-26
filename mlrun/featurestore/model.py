@@ -121,19 +121,25 @@ def get_online_store(type_list):
     raise ValueError("did not find a valid offline features table")
 
 
-class DataTarget(ModelObj):
-    _dict_fields = ["name", "kind", "path", "start_time", "num_rows", "size", "status"]
+class DataTargetSpec(ModelObj):
 
     def __init__(self, name: str = '', kind: TargetTypes = None, path=None):
         self.name = name
         self.kind: TargetTypes = kind
+        self.path = path
+
+
+class DataTarget(DataTargetSpec):
+    _dict_fields = ["name", "kind", "path", "start_time", "online", "options", "status"]
+
+    def __init__(self, name: str = '', kind: TargetTypes = None, path=None, online=None):
+        super().__init__(name, kind, path)
         self.status = ""
         self.updated = None
-        self.path = path
+        self.online = online
         self.max_age = None
         self.start_time = None
-        self.num_rows = None
-        self.size = None
+        self.options = None
         self._producer = None
         self.producer = {}
 
@@ -202,19 +208,20 @@ class FeatureSetSpec(ModelObj):
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
+        self._targets: ObjectList = None
         self._aggregations = None
         self._flow: ServingRootFlowState = None
         self._sources = None
 
         self.description = description
-        self.entities = entities or []
+        self.entities: List[Entity] = entities or []
         self.features: List[Feature] = features or []
         self.aggregations: List[FeatureAggregation] = aggregations or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.relations = relations or {}
         self.sources = sources or []
-        self.targets = targets or {}
+        self.targets = targets or []
         self.flow = flow
         self.label_column = label_column
 
@@ -233,6 +240,14 @@ class FeatureSetSpec(ModelObj):
     @features.setter
     def features(self, features: List[Feature]):
         self._features = ObjectList.from_list(Feature, features)
+
+    @property
+    def targets(self) -> List[DataTargetSpec]:
+        return self._targets
+
+    @targets.setter
+    def targets(self, targets: List[DataTargetSpec]):
+        self._targets = ObjectList.from_list(DataTarget, targets)
 
     @property
     def aggregations(self) -> List[FeatureAggregation]:

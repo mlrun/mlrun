@@ -29,4 +29,4 @@ from .feature_store import (
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
-from .object import ObjectMetadata, ObjectSpec, ObjectStatus, PatchMode
+from .object import ObjectMetadata, ObjectSpec, ObjectStatus, PatchMode, ObjectKind

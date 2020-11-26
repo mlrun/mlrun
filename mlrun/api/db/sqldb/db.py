@@ -944,7 +944,7 @@ class SQLDB(DBInterface):
             update_labels(entity, labels)
             feature_set.entities.append(entity)
 
-    def _update_existing_feature_set(
+    def _update_feature_set_spec(
         self, feature_set: FeatureSet, new_feature_set_dict: dict
     ):
         feature_set_spec = new_feature_set_dict.get("spec")
@@ -955,79 +955,58 @@ class SQLDB(DBInterface):
         self._update_feature_set_features(feature_set, features)
         self._update_feature_set_entities(feature_set, entities)
 
-        labels = new_feature_set_dict["metadata"].pop("labels", {}) or {}
-        update_labels(feature_set, labels)
-
     @staticmethod
-    def _validate_feature_set_kind(kind):
-        if kind != "FeatureSet":
-            raise ValueError(f"invalid kind for a feature-set object: {kind}")
-
-    @staticmethod
-    def _perform_common_store_validations(
-        object_to_store, object_kind, project, name, tag, uid
+    def _perform_common_object_store_validations(
+        object_to_store, project, name, tag, uid
     ):
+        object_type = object_to_store.__class__.__name__
+
         if not tag and not uid:
             raise ValueError(
-                f"cannot store {object_kind} without reference (tag or uid)"
+                f"cannot store {object_type} without reference (tag or uid)"
             )
 
         object_project = object_to_store.metadata.project
         if object_project and object_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{object_kind} object with conflicting project name - {object_project}"
+                f"{object_type} object with conflicting project name - {object_project}"
             )
 
         object_to_store.metadata.project = project
 
         if object_to_store.metadata.name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Changing name for an existing {object_kind}"
-            )
-        if object_to_store.kind != object_kind:
-            raise ValueError(
-                f"{object_kind} object with wrong kind - {object_to_store.kind}"
+                f"Changing name for an existing {object_type}"
             )
 
-    def _generate_db_object_to_store_from_common_object(
-        self,
-        session,
-        name,
-        project,
-        orig_object,
-        object_cls,
-        tag,
-        versioned,
-        original_uid,
-        existing_uid,
-        always_overwrite,
+    @staticmethod
+    def _common_object_update_uid_and_validate_uid_change(
+        object_dict: dict, tag, versioned, existing_uid=None,
     ):
-        object_dict = orig_object.dict()
         uid = fill_object_hash(object_dict, "uid", tag)
         if not versioned:
             uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
             object_dict["metadata"]["uid"] = uid
 
         # If object was referenced by UID, the request cannot modify it
-        if original_uid and uid != original_uid:
+        if existing_uid and uid != existing_uid:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Changing uid for an object referenced by its uid"
             )
+        return uid
 
-        if uid == existing_uid or always_overwrite:
-            db_object = self._get_class_instance_by_uid(
-                session, object_cls, name, project, orig_object.metadata.uid
-            )
-        else:
-            db_object = object_cls(project=project)
-
-        db_object.name = orig_object.metadata.name
+    @staticmethod
+    def _update_db_object_from_common_object_dict(
+        db_object, common_object_dict: dict, uid,
+    ):
+        db_object.name = common_object_dict["metadata"]["name"]
         db_object.updated = datetime.now(timezone.utc)
-        db_object.state = object_dict.get("status", {}).get("state")
+        db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
-        db_object.full_object = object_dict
+        db_object.full_object = common_object_dict
 
-        return db_object, object_dict
+        labels = common_object_dict["metadata"].pop("labels", {}) or {}
+        update_labels(db_object, labels)
 
     def store_feature_set(
         self,
@@ -1040,58 +1019,53 @@ class SQLDB(DBInterface):
         versioned=True,
         always_overwrite=False,
     ):
-        self._perform_common_store_validations(
-            feature_set, "FeatureSet", project, name, tag, uid
+        self._perform_common_object_store_validations(
+            feature_set, project, name, tag, uid
         )
 
         original_uid = uid
 
-        existing_feature_set = self._get_feature_set(
-            session, project, name, tag, original_uid
+        _, _, existing_feature_set = self._get_common_db_object(
+            session, FeatureSet, project, name, tag, uid
         )
         if not existing_feature_set:
             return self.create_feature_set(session, project, feature_set, versioned)
 
-        (
-            db_feature_set,
-            feature_set_dict,
-        ) = self._generate_db_object_to_store_from_common_object(
-            session,
-            name,
-            project,
-            feature_set,
-            FeatureSet,
-            tag,
-            versioned,
-            original_uid,
-            existing_feature_set.metadata.uid,
-            always_overwrite,
+        feature_set_dict = feature_set.dict()
+        uid = self._common_object_update_uid_and_validate_uid_change(
+            feature_set_dict, tag, versioned, original_uid
         )
 
-        self._update_existing_feature_set(db_feature_set, feature_set_dict)
+        if uid == existing_feature_set.uid or always_overwrite:
+            db_feature_set = existing_feature_set
+        else:
+            db_feature_set = FeatureSet(project=project, full_object=feature_set_dict)
+
+        self._update_db_object_from_common_object_dict(
+            db_feature_set, feature_set_dict, uid
+        )
+
+        self._update_feature_set_spec(db_feature_set, feature_set_dict)
         self._upsert(session, db_feature_set)
         self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
 
     def _perform_common_object_creation_tests_and_preparation(
-        self, session, new_object, db_class, object_kind, project, versioned
+        self, session, new_object, db_class, project, versioned
     ):
+        object_type = new_object.__class__.__name__
+
         name = new_object.metadata.name
         if not name or not project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{object_kind} missing name or project"
-            )
-
-        if new_object.kind != object_kind:
-            raise ValueError(
-                f"invalid kind for {object_kind} object: {new_object.kind}"
+                f"{object_type} missing name or project"
             )
 
         object_project = new_object.metadata.project
         if object_project and object_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{object_kind} object with conflicting project name - {object_project}"
+                f"{object_type} object with conflicting project name - {object_project}"
             )
 
         new_object.metadata.project = project
@@ -1114,7 +1088,7 @@ class SQLDB(DBInterface):
         if existing_object:
             object_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunConflictError(
-                f"Adding an already-existing {object_kind} - {object_uri}"
+                f"Adding an already-existing {object_type} - {object_uri}"
             )
 
         return uid, tag, object_dict
@@ -1127,21 +1101,18 @@ class SQLDB(DBInterface):
             tag,
             feature_set_dict,
         ) = self._perform_common_object_creation_tests_and_preparation(
-            session, feature_set, FeatureSet, "FeatureSet", project, versioned
+            session, feature_set, FeatureSet, project, versioned
         )
 
-        feature_set = FeatureSet(
-            name=feature_set.metadata.name,
-            project=project,
-            state=feature_set_dict.get("status", {}).get("state"),
-            uid=uid,
-            full_object=feature_set_dict,
+        db_feature_set = FeatureSet(project=project)
+
+        self._update_db_object_from_common_object_dict(
+            db_feature_set, feature_set_dict, uid
         )
+        self._update_feature_set_spec(db_feature_set, feature_set_dict)
 
-        self._update_existing_feature_set(feature_set, feature_set_dict)
-
-        self._upsert(session, feature_set)
-        self.tag_objects_v2(session, [feature_set], project, tag)
+        self._upsert(session, db_feature_set)
+        self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
 
@@ -1162,8 +1133,6 @@ class SQLDB(DBInterface):
                 f"Feature-set not found {feature_set_uri}"
             )
 
-        self._validate_feature_set_kind(feature_set_update.get("kind", "FeatureSet"))
-
         feature_set_struct = feature_set_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary
         strategy = mergedeep.Strategy.REPLACE
@@ -1174,6 +1143,7 @@ class SQLDB(DBInterface):
         versioned = not feature_set_record.metadata.uid.startswith(
             unversioned_tagged_object_uid_prefix
         )
+        # If a bad kind value was passed, it will fail here (return 422 to caller)
         feature_set = schemas.FeatureSet(**feature_set_struct)
         return self.store_feature_set(
             session,
@@ -1198,22 +1168,17 @@ class SQLDB(DBInterface):
             tag,
             feature_vector_dict,
         ) = self._perform_common_object_creation_tests_and_preparation(
-            session, feature_vector, FeatureVector, "FeatureVector", project, versioned
+            session, feature_vector, FeatureVector, project, versioned
         )
 
-        feature_vector = FeatureVector(
-            name=feature_vector.metadata.name,
-            project=project,
-            state=feature_vector_dict.get("status", {}).get("state"),
-            uid=uid,
-            full_object=feature_vector_dict,
+        db_feature_vector = FeatureVector(project=project)
+
+        self._update_db_object_from_common_object_dict(
+            db_feature_vector, feature_vector_dict, uid
         )
 
-        labels = feature_vector_dict["metadata"].pop("labels", {}) or {}
-        update_labels(feature_vector, labels)
-
-        self._upsert(session, feature_vector)
-        self.tag_objects_v2(session, [feature_vector], project, tag)
+        self._upsert(session, db_feature_vector)
+        self.tag_objects_v2(session, [db_feature_vector], project, tag)
 
         return uid
 
@@ -1295,38 +1260,33 @@ class SQLDB(DBInterface):
         versioned=True,
         always_overwrite=False,
     ):
-        self._perform_common_store_validations(
-            feature_vector, "FeatureVector", project, name, tag, uid
+        self._perform_common_object_store_validations(
+            feature_vector, project, name, tag, uid
         )
 
         original_uid = uid
 
-        existing_feature_vector = self._get_feature_vector(
-            session, project, name, tag, original_uid
+        _, _, existing_feature_vector = self._get_common_db_object(
+            session, FeatureVector, project, name, tag, uid
         )
         if not existing_feature_vector:
             return self.create_feature_vector(
                 session, project, feature_vector, versioned
             )
 
-        (
-            db_feature_vector,
-            feature_vector_dict,
-        ) = self._generate_db_object_to_store_from_common_object(
-            session,
-            name,
-            project,
-            feature_vector,
-            FeatureVector,
-            tag,
-            versioned,
-            original_uid,
-            existing_feature_vector.metadata.uid,
-            always_overwrite,
+        feature_vector_dict = feature_vector.dict()
+        uid = self._common_object_update_uid_and_validate_uid_change(
+            feature_vector_dict, tag, versioned, original_uid
         )
 
-        labels = feature_vector_dict["metadata"].pop("labels", {}) or {}
-        update_labels(db_feature_vector, labels)
+        if uid == existing_feature_vector.uid or always_overwrite:
+            db_feature_vector = existing_feature_vector
+        else:
+            db_feature_vector = FeatureVector(project=project)
+
+        self._update_db_object_from_common_object_dict(
+            db_feature_vector, feature_vector_dict, uid
+        )
 
         self._upsert(session, db_feature_vector)
         self.tag_objects_v2(session, [db_feature_vector], project, tag)
@@ -1347,14 +1307,10 @@ class SQLDB(DBInterface):
             session, project, name, tag, uid
         )
         if not feature_vector_record:
-            feature_set_uri = generate_object_uri(project, name, tag)
+            feature_vector_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunNotFoundError(
-                f"Feature-set not found {feature_set_uri}"
+                f"Feature-vector not found {feature_vector_uri}"
             )
-
-        kind = feature_vector_update.get("kind", "FeatureVector")
-        if kind != "FeatureVector":
-            raise ValueError(f"invalid kind for a feature-vector object: {kind}")
 
         feature_vector_struct = feature_vector_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary

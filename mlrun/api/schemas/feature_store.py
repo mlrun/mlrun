@@ -1,12 +1,13 @@
 from typing import Optional, List
 
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, Extra, Field
 from .object import (
     ObjectMetadata,
     ObjectStatus,
     ObjectSpec,
     ObjectRecord,
     LabelRecord,
+    ObjectKind,
 )
 
 
@@ -34,7 +35,7 @@ class FeatureSetSpec(ObjectSpec):
 
 
 class FeatureSet(BaseModel):
-    kind: str = "FeatureSet"
+    kind: ObjectKind = Field(ObjectKind.feature_set, const=True)
     metadata: ObjectMetadata
     spec: FeatureSetSpec
     status: ObjectStatus
@@ -89,7 +90,7 @@ class FeaturesOutput(BaseModel):
 
 
 class FeatureVector(BaseModel):
-    kind: str = "FeatureVector"
+    kind: ObjectKind = Field(ObjectKind.feature_vector, const=True)
     metadata: ObjectMetadata
     spec: ObjectSpec
     status: ObjectStatus

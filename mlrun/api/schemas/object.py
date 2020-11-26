@@ -55,3 +55,8 @@ class ObjectRecord(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class ObjectKind(str, Enum):
+    feature_set = "FeatureSet"
+    feature_vector = "FeatureVector"

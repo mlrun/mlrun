@@ -15,22 +15,23 @@
 import json
 import tempfile
 import time
+from datetime import datetime
 from os import path, remove, environ
 from typing import List, Dict, Union
-from datetime import datetime
 
 import kfp
 import requests
-import mlrun
+import semver
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun
 from mlrun.api import schemas
+from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
-from mlrun.errors import MLRunInvalidArgumentError
 
 default_project = config.default_project
 
@@ -137,12 +138,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
-            if self.server_version != config.version:
-                logger.warning(
-                    "warning!, server ({}) and client ({}) ver dont match".format(
-                        self.server_version, config.version
-                    )
-                )
+            self._validate_version_compatibility(self.server_version, config.version)
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace
@@ -689,6 +685,12 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
+    @staticmethod
+    def _generate_reference(tag, uid):
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+        return uid or tag or "latest"
+
     def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
     ) -> dict:
@@ -711,11 +713,8 @@ class HTTPRunDB(RunDBInterface):
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ) -> dict:
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
         project = project or default_project
-        reference = uid or tag or "latest"
+        reference = self._generate_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
@@ -780,9 +779,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ) -> dict:
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
+        reference = self._generate_reference(tag, uid)
         params = {"versioned": versioned}
 
         if isinstance(feature_set, schemas.FeatureSet):
@@ -790,7 +787,6 @@ class HTTPRunDB(RunDBInterface):
 
         name = name or feature_set["metadata"]["name"]
         project = project or feature_set["metadata"].get("project") or default_project
-        reference = uid or tag or "latest"
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
         resp = self.api_call(
@@ -798,7 +794,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return resp.json()
 
-    def update_feature_set(
+    def patch_feature_set(
         self,
         name,
         feature_set_update: dict,
@@ -807,12 +803,11 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
         project = project or default_project
-        reference = uid or tag or "latest"
-        params = {"patch-mode": patch_mode}
+        reference = self._generate_reference(tag, uid)
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
+        headers = {"x-mlrun-patch-mode": patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
@@ -820,7 +815,7 @@ class HTTPRunDB(RunDBInterface):
             path,
             error_message,
             body=json.dumps(feature_set_update),
-            params=params,
+            headers=headers,
         )
 
     def delete_feature_set(self, name, project=""):
@@ -856,11 +851,8 @@ class HTTPRunDB(RunDBInterface):
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ) -> dict:
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
         project = project or default_project
-        reference = uid or tag or "latest"
+        reference = self._generate_reference(tag, uid)
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-vector {project}/{name}"
         resp = self.api_call("GET", path, error_message)
@@ -899,9 +891,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ) -> dict:
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
+        reference = self._generate_reference(tag, uid)
         params = {"versioned": versioned}
 
         if isinstance(feature_vector, schemas.FeatureVector):
@@ -911,7 +901,6 @@ class HTTPRunDB(RunDBInterface):
         project = (
             project or feature_vector["metadata"].get("project") or default_project
         )
-        reference = uid or tag or "latest"
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed storing feature-vector {project}/{name}"
         resp = self.api_call(
@@ -928,14 +917,11 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
+        reference = self._generate_reference(tag, uid)
         project = project or default_project
-        reference = uid or tag or "latest"
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
-        params = {"patch-mode": patch_mode}
+        headers = {"x-mlrun-patch-mode": patch_mode}
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"
         self.api_call(
@@ -943,7 +929,7 @@ class HTTPRunDB(RunDBInterface):
             path,
             error_message,
             body=json.dumps(feature_vector_update),
-            params=params,
+            headers=headers,
         )
 
     def delete_feature_vector(self, name, project=""):
@@ -951,6 +937,31 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-vectors/{name}"
         error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
+
+    @staticmethod
+    def _validate_version_compatibility(server_version, client_version):
+        try:
+            parsed_server_version = semver.VersionInfo.parse(server_version)
+            parsed_client_version = semver.VersionInfo.parse(client_version)
+        except ValueError:
+            # This will mostly happen in dev scenarios when the version is unstable and such - therefore we're ignoring
+            logger.warning(
+                "Unable to parse server or client version. Assuming compatible",
+                server_version=server_version,
+                client_version=client_version,
+            )
+            return
+        if (
+            parsed_server_version.major != parsed_client_version.major
+            or parsed_server_version.minor != parsed_client_version.minor
+        ):
+            message = "Server and client versions are incompatible"
+            logger.warning(
+                message,
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
 
 def _as_json(obj):

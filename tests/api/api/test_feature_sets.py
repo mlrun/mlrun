@@ -212,9 +212,11 @@ def _patch_object(
     patch_mode = "replace"
     if additive:
         patch_mode = "additive"
+    headers = {"x-mlrun-patch-mode": patch_mode}
     response = client.patch(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/latest?patch-mode={patch_mode}",
+        f"/api/projects/{project_name}/{object_url_path}/{name}/references/latest",
         json=object_update,
+        headers=headers,
     )
     assert response.status_code == HTTPStatus.OK.value
     response = client.get(
@@ -478,6 +480,17 @@ def test_feature_set_project_name_mismatch_failure(
         json=feature_set,
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+
+def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    name = "feature_set1"
+    feature_set = _generate_feature_set(name)
+    feature_set["kind"] = "wrong"
+    response = client.post(
+        f"/api/projects/{project_name}/feature-sets", json=feature_set
+    )
+    assert response.status_code != HTTPStatus.OK.value
 
 
 def test_features_list(db: Session, client: TestClient) -> None:

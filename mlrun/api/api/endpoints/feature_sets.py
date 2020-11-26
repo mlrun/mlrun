@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Response, Query
+from fastapi import APIRouter, Depends, Response, Query, Header
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -58,8 +58,8 @@ def patch_feature_set(
     name: str,
     feature_set_update: dict,
     reference: str,
-    patch_mode: schemas.PatchMode = Query(
-        schemas.PatchMode.replace, alias="patch-mode"
+    patch_mode: schemas.PatchMode = Header(
+        schemas.PatchMode.replace, alias="x-mlrun-patch-mode"
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -206,8 +206,8 @@ def patch_feature_vector(
     name: str,
     feature_vector_update: dict,
     reference: str,
-    patch_mode: schemas.PatchMode = Query(
-        schemas.PatchMode.replace, alias="patch-mode"
+    patch_mode: schemas.PatchMode = Header(
+        schemas.PatchMode.replace, alias="x-mlrun-patch-mode"
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):

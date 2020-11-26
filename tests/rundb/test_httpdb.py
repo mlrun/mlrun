@@ -16,19 +16,20 @@ import codecs
 from collections import namedtuple
 from os import environ
 from pathlib import Path
+from shutil import rmtree
 from socket import socket
 from subprocess import Popen, run, PIPE, DEVNULL
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
-from shutil import rmtree
 
 import pytest
 
 from mlrun.api import schemas
+import mlrun.errors
+from mlrun import RunObject
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
-from mlrun import RunObject
 from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
@@ -325,6 +326,37 @@ def test_list_functions(create_server):
     assert len(functions) == count, "bad list"
 
 
+def test_version_compatibility_validation():
+    cases = [
+        {
+            "server_version": "unstable",
+            "client_version": "unstable",
+            "compatible": True,
+        },
+        {"server_version": "0.5.3", "client_version": "unstable", "compatible": True},
+        {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
+        {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
+        {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
+        {
+            "server_version": "0.6.0-rc1",
+            "client_version": "0.5.4",
+            "compatible": False,
+        },
+        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": False},
+        {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
+    ]
+    for case in cases:
+        if not case["compatible"]:
+            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+                HTTPRunDB._validate_version_compatibility(
+                    case["server_version"], case["client_version"]
+                )
+        else:
+            HTTPRunDB._validate_version_compatibility(
+                case["server_version"], case["client_version"]
+            )
+
+
 def _create_feature_set(name):
     return {
         "kind": "FeatureSet",
@@ -383,7 +415,7 @@ def test_feature_sets(create_server):
     }
 
     # additive mode means add the feature to the features-list
-    db.update_feature_set(
+    db.patch_feature_set(
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
@@ -403,7 +435,7 @@ def test_feature_sets(create_server):
     feature_set_update = {
         "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
     }
-    db.update_feature_set(name, feature_set_update, project)
+    db.patch_feature_set(name, feature_set_update, project)
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"
 
@@ -442,7 +474,11 @@ def test_feature_vectors(create_server):
 
     # additive mode means add the feature to the features-list
     db.patch_feature_vector(
-        name, feature_vector_update, project, tag="latest", patch_mode=schemas.PatchMode.additive
+        name,
+        feature_vector_update,
+        project,
+        tag="latest",
+        patch_mode=schemas.PatchMode.additive,
     )
     feature_vectors = db.list_feature_vectors(project=project)
 
@@ -462,7 +498,9 @@ def test_feature_vectors(create_server):
     db.store_feature_vector(feature_vector_without_labels)
 
     # Perform a replace (vs. additive as done earlier) - now should only have 2 features
-    db.patch_feature_vector(name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace)
+    db.patch_feature_vector(
+        name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace
+    )
     feature_vector = db.get_feature_vector(name, project)
     assert (
         len(feature_vector["spec"]["features"]) == 2

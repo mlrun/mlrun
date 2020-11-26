@@ -19,4 +19,6 @@ def health():
         "mpijob_crd_version": mpijob_crd_version,
         "ui_url": config.ui_url,
         "artifact_path": config.artifact_path,
+        "spark_app_image": config.spark_app_image,
+        "spark_app_image_tag": config.spark_app_image_tag,
     }

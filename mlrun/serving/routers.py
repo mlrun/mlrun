@@ -109,7 +109,7 @@ class BaseModelRouter:
 
         event = self.preprocess(event)
         event = self._pre_handle_event(event)
-        if event.terminated:
+        if hasattr(event, "terminated") and event.terminated:
             return event
         return self.postprocess(self._handle_event(event))
 
@@ -396,7 +396,7 @@ class VotingEnsemble(BaseModelRouter):
         request = event.body
         request = self.validate(request)
         event = self._pre_handle_event(event)
-        if event.terminated:
+        if hasattr(event, "terminated") and event.terminated:
             return event
         else:
             response = self.postprocess(self._vote(self._handle_event(event)))

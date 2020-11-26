@@ -983,8 +983,13 @@ class SQLDB(DBInterface):
         self._update_feature_set_features(feature_set, features)
         self._update_feature_set_entities(feature_set, entities)
 
-        labels = new_feature_set_dict["metadata"].pop("labels", {})
+        labels = new_feature_set_dict["metadata"].pop("labels", {}) or {}
         update_labels(feature_set, labels)
+
+    @staticmethod
+    def _validate_feature_set_kind(kind):
+        if kind != schemas.ObjectKind.feature_set:
+            raise ValueError(f"invalid kind for a feature-set object: {kind}")
 
     def store_feature_set(
         self,
@@ -1000,10 +1005,19 @@ class SQLDB(DBInterface):
         if not tag and not uid:
             raise ValueError("cannot store feature set without reference (tag or uid)")
 
+        feature_set_project = feature_set.metadata.project
+        if feature_set_project and feature_set_project != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"feature-set object with conflicting project name - {feature_set_project}"
+            )
+
+        feature_set.metadata.project = project
+
         if feature_set.metadata.name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Changing name for an existing feature-set"
             )
+        self._validate_feature_set_kind(feature_set.kind)
 
         original_uid = uid
 
@@ -1050,7 +1064,18 @@ class SQLDB(DBInterface):
     ):
         name = feature_set.metadata.name
         if not name or not project:
-            raise ValueError("feature-set missing name or project")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "feature-set missing name or project"
+            )
+        self._validate_feature_set_kind(feature_set.kind)
+
+        feature_set_project = feature_set.metadata.project
+        if feature_set_project and feature_set_project != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"feature-set object with conflicting project name - {feature_set_project}"
+            )
+
+        feature_set.metadata.project = project
 
         get_projects_manager().ensure_project(session, project)
         tag = feature_set.metadata.tag or "latest"
@@ -1103,6 +1128,11 @@ class SQLDB(DBInterface):
             feature_set_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunNotFoundError(
                 f"Feature-set not found {feature_set_uri}"
+            )
+
+        if "kind" in feature_set_update:
+            self._validate_feature_set_kind(
+                schemas.ObjectKind(feature_set_update["kind"])
             )
 
         feature_set_struct = feature_set_record.dict()

@@ -535,7 +535,7 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+        self, feature_set, name=None, project="", tag=None, uid=None, versioned=True
     ):
         raise NotImplementedError()
 

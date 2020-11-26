@@ -154,13 +154,13 @@ class RunDBInterface(ABC):
     @abstractmethod
     def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
-    ) -> schemas.FeatureSet:
+    ) -> dict:
         pass
 
     @abstractmethod
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> schemas.FeatureSet:
+    ) -> dict:
         pass
 
     @abstractmethod
@@ -184,14 +184,14 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeatureSetsOutput:
+    ) -> List[dict]:
         pass
 
     @abstractmethod
     def store_feature_set(
         self,
-        name,
         feature_set: Union[dict, schemas.FeatureSet],
+        name=None,
         project="",
         tag=None,
         uid=None,

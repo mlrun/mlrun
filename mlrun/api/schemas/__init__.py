@@ -15,7 +15,7 @@ from .feature_store import (
     FeatureListOutput,
     FeaturesOutput,
 )
-from .object import ObjectMetadata, PatchMode
+from .object import ObjectMetadata, PatchMode, ObjectKind
 from .project import (
     Project,
     ProjectsOutput,

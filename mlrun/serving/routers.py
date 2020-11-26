@@ -95,21 +95,23 @@ class BaseModelRouter:
         ):
             setattr(event, "terminated", True)
             event.body = self.get_metadata()
-            return event
+            return event, False
 
         # check for legal path prefix
         if urlpath and not urlpath.startswith(self.url_prefix) and not urlpath == "/":
             raise ValueError(
                 f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
             )
-        return event
+        return event, True
 
     def do_event(self, event, *args, **kwargs):
         """handle incoming events, event is nuclio event class"""
 
         event = self.preprocess(event)
-        event = self._pre_handle_event(event)
-        return self.postprocess(self._handle_event(event))
+        event, postprocess_flag = self._pre_handle_event(event)
+        return (
+            self.postprocess(self._handle_event(event)) if postprocess_flag else event
+        )
 
     def _handle_event(self, event):
         return event
@@ -393,13 +395,16 @@ class VotingEnsemble(BaseModelRouter):
         event = self.preprocess(event)
         request = event.body
         request = self.validate(request)
-        event = self._pre_handle_event(event)
-        response = self.postprocess(self._vote(self._handle_event(event)))
-        if self._model_logger and self.log_router:
-            if "id" not in request:
-                request["id"] = response.body["id"]
-            self._model_logger.push(start, request, response.body)
-        return response
+        event, postprocess_flag = self._pre_handle_event(event)
+        if postprocess_flag:
+            response = self.postprocess(self._vote(self._handle_event(event)))
+            if self._model_logger and self.log_router:
+                if "id" not in request:
+                    request["id"] = response.body["id"]
+                self._model_logger.push(start, request, response.body)
+            return response
+        else:
+            return event
 
     def _parallel_run(self, event, mode: str = ParallelRunnerModes.thread):
         """Executes the processing logic in parallel

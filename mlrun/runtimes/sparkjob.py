@@ -20,6 +20,7 @@ from typing import Tuple, Optional
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+from mlrun.db import get_run_db
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import SparkApplicationStates
@@ -113,6 +114,7 @@ class SparkJobSpec(KubeResourceSpec):
         description=None,
         workdir=None,
         build=None,
+        rundb=None,
     ):
 
         super().__init__(
@@ -133,6 +135,7 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
+            rundb=rundb,
         )
 
         self.driver_resources = driver_resources or {}
@@ -151,6 +154,25 @@ class SparkRuntime(KubejobRuntime):
     apiVersion = group + "/" + version
     kind = "spark"
     plural = "sparkapplications"
+
+    @property
+    def _default_image(self):
+        if config.spark_app_image_tag and config.spark_app_image:
+            return config.spark_app_image + ":" + config.spark_app_image_tag
+        return None
+
+    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+        """deploy function, build container with dependencies"""
+        # connect will populate the config from the server config
+        get_run_db().connect()
+        if not self.spec.build.base_image:
+            self.spec.build.base_image = self._default_image
+        return super().deploy(
+            watch=watch,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
+            is_kfp=is_kfp,
+        )
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         if runobj.metadata.iteration:
@@ -171,19 +193,14 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
-        if self.spec.image:
-            update_in(job, "spec.image", self.spec.image)
-        elif config.spark_app_image_tag and config.spark_app_image:
-            update_in(
-                job,
-                "spec.image",
-                config.spark_app_image + ":" + config.spark_app_image_tag,
-            )
+
+        if (not self.spec.image) and self._default_image:
+            self.spec.image = self._default_image
+        update_in(job, "spec.image", self.full_image_path())
+
         update_in(job, "spec.volumes", self.spec.volumes)
 
-        extra_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
-        if runobj.spec.verbose:
-            extra_env["MLRUN_LOG_LEVEL"] = "debug"
+        extra_env = self._generate_runtime_env(runobj)
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
 
         update_in(job, "spec.driver.env", extra_env + self.spec.env)

@@ -177,6 +177,13 @@ class ParallelRunnerModes(str, Enum):
     thread = "thread"
 
 
+class VotingTypes(str, Enum):
+    """Supported voting types for VotingEnsemble"""
+
+    classification = "classification"
+    regression = "regression"
+
+
 class VotingEnsemble(BaseModelRouter):
     """Voting Ensemble class
 
@@ -197,6 +204,10 @@ class VotingEnsemble(BaseModelRouter):
         This enables you to do the general preprocessing and postprocessing steps
         once on the router level, with only model-specific adjustments at the
         model level.
+
+        * When enabling model tracking via `set_tracking()` the ensemble logic
+        predictions will appear with model name as the given VotingEnsemble name
+        or "VotingEnsemble" by default.
     """
 
     def __init__(
@@ -332,11 +343,11 @@ class VotingEnsemble(BaseModelRouter):
                     ]
                 ]
             ):
-                self.vote_type = "classification"
+                self.vote_type = VotingTypes.classification
             else:
-                self.vote_type = "regression"
+                self.vote_type = VotingTypes.regression
             self.vote_flag = True
-        if self.vote_type == "classification":
+        if self.vote_type == VotingTypes.classification:
             flattened_predictions = [
                 list(map(int, predictions)) for predictions in flattened_predictions
             ]

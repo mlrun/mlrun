@@ -18,6 +18,10 @@ FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
 
+RUN apt-get update && apt-get install -y \
+  git-core \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /mlrun
 
 RUN pip install --upgrade pip

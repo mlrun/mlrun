@@ -158,6 +158,12 @@ class HTTPRunDB(RunDBInterface):
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
             )
+            config.spark_app_image = config.spark_app_image or server_cfg.get(
+                "spark_app_image"
+            )
+            config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
+                "spark_app_image_tag"
+            )
             if (
                 "docker_registry" in server_cfg
                 and "DEFAULT_DOCKER_REGISTRY" not in environ

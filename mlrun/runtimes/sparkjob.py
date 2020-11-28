@@ -20,6 +20,7 @@ from typing import Tuple, Optional
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+from mlrun.db import get_run_db
 from mlrun.api.db.base import DBInterface
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import SparkApplicationStates
@@ -154,6 +155,25 @@ class SparkRuntime(KubejobRuntime):
     kind = "spark"
     plural = "sparkapplications"
 
+    @property
+    def _default_image(self):
+        if config.spark_app_image_tag and config.spark_app_image:
+            return config.spark_app_image + ":" + config.spark_app_image_tag
+        return None
+
+    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+        """deploy function, build container with dependencies"""
+        # connect will populate the config from the server config
+        get_run_db().connect()
+        if not self.spec.build.base_image:
+            self.spec.build.base_image = self._default_image
+        return super().deploy(
+            watch=watch,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
+            is_kfp=is_kfp,
+        )
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         if runobj.metadata.iteration:
             self.store_run(runobj)
@@ -173,14 +193,11 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
         update_in(job, "spec.executor.instances", self.spec.replicas or 1)
-        if self.spec.image:
-            update_in(job, "spec.image", self.spec.image)
-        elif config.spark_app_image_tag and config.spark_app_image:
-            update_in(
-                job,
-                "spec.image",
-                config.spark_app_image + ":" + config.spark_app_image_tag,
-            )
+
+        if (not self.spec.image) and self._default_image:
+            self.spec.image = self._default_image
+        update_in(job, "spec.image", self.full_image_path())
+
         update_in(job, "spec.volumes", self.spec.volumes)
 
         extra_env = self._generate_runtime_env(runobj)

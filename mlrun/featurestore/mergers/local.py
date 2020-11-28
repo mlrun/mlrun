@@ -31,7 +31,9 @@ class LocalFeatureMerger:
         if entity_df is None:
             merged_df = featureset_dfs.pop(0)
             featureset = featuresets.pop(0)
-            entity_timestamp_column = entity_timestamp_column or featureset.spec.timestamp_key
+            entity_timestamp_column = (
+                entity_timestamp_column or featureset.spec.timestamp_key
+            )
 
         for featureset, featureset_df in zip(featuresets, featureset_dfs):
             if featureset.spec.timestamp_key:
@@ -75,8 +77,8 @@ class LocalFeatureMerger:
 
     def get_status(self):
         if self._result_df is None:
-            raise RuntimeError('unexpected status, no result df')
-        return 'ready'
+            raise RuntimeError("unexpected status, no result df")
+        return "ready"
 
     def get_df(self):
         return self._result_df

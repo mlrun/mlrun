@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 from mlrun.model import ModelObj
 from .datatypes import ValueType
 from ..model import ObjectList
-from ..serving.states import ServingTaskState, ServingRootFlowState
+from ..serving.states import ServingRootFlowState
 
 
 class FeatureClassKind:
@@ -122,8 +122,7 @@ def get_online_store(type_list):
 
 
 class DataTargetSpec(ModelObj):
-
-    def __init__(self, name: str = '', kind: TargetTypes = None, path=None):
+    def __init__(self, name: str = "", kind: TargetTypes = None, path=None):
         self.name = name
         self.kind: TargetTypes = kind
         self.path = path
@@ -132,7 +131,9 @@ class DataTargetSpec(ModelObj):
 class DataTarget(DataTargetSpec):
     _dict_fields = ["name", "kind", "path", "start_time", "online", "options", "status"]
 
-    def __init__(self, name: str = '', kind: TargetTypes = None, path=None, online=None):
+    def __init__(
+        self, name: str = "", kind: TargetTypes = None, path=None, online=None
+    ):
         super().__init__(name, kind, path)
         self.status = ""
         self.updated = None
@@ -153,7 +154,7 @@ class DataTarget(DataTargetSpec):
 
 
 class DataSource(ModelObj):
-    def __init__(self, name: str = '', kind: TargetTypes = None, path=None):
+    def __init__(self, name: str = "", kind: TargetTypes = None, path=None):
         self.name = name
         self.kind: SourceTypes = kind
         self.path = path

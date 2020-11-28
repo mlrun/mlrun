@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
-from .model import Feature, FeatureSetSpec, FeatureSetStatus, Entity
+from .model import Feature, FeatureSetSpec, Entity
 from .datatypes import pd_schema_to_value_type
 
 
@@ -70,9 +70,7 @@ def _get_column_type(column):
 
 
 def get_df_stats(
-    df,
-    with_index=True,
-    with_histogram=False,
+    df, with_index=True, with_histogram=False,
 ):
     """get per column data stats from dataframe"""
 

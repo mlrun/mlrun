@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import pathlib
 from copy import deepcopy
 
 from requests.adapters import HTTPAdapter
@@ -21,11 +22,13 @@ import requests
 from ..model import ModelObj, ObjectDict
 from ..utils import create_class, create_function
 
-callable_prefix = '_'
+callable_prefix = "_"
+
 
 class StateKinds:
     router = "router"
     task = "task"
+    flow = "flow"
 
 
 _task_state_fields = [
@@ -56,6 +59,7 @@ def new_remote_endpoint(url, **class_args):
 
 class BaseState(ModelObj):
     kind = "BaseState"
+    shape = "ellipse"
     _dict_fields = ["kind", "comment", "next", "end", "resource"]
 
     def __init__(self, name=None, next=None):
@@ -82,15 +86,30 @@ class BaseState(ModelObj):
     def get_children(self):
         return []
 
+    def __iter__(self):
+        yield from []
+
     @property
     def fullname(self):
-        name = self.name
-        if self._parent:
+        name = self.name or ""
+        if self._parent and self._parent.fullname:
             name = ".".join([self._parent.fullname, name])
-        return name
+        return name.replace(":", "_")  # replace for graphviz escaping
 
     def _post_init(self, mode="sync"):
         pass
+
+    def path_to_state(self, path):
+        path = path or ""
+        tree = path.split(".")
+        next_obj = self
+        for state in tree:
+            if state not in next_obj:
+                raise ValueError(
+                    f"step {state} doesnt exist in the graph under {next_obj.fullname}"
+                )
+            next_obj = next_obj[state]
+        return next_obj
 
 
 class ServingTaskState(BaseState):
@@ -99,7 +118,13 @@ class ServingTaskState(BaseState):
     _default_class = ""
 
     def __init__(
-        self, class_name=None, class_args=None, handler=None, name=None, next=None, full_event=None
+        self,
+        class_name=None,
+        class_args=None,
+        handler=None,
+        name=None,
+        next=None,
+        full_event=None,
     ):
         super().__init__(name, next)
         self.class_name = class_name
@@ -142,12 +167,14 @@ class ServingTaskState(BaseState):
             handler = self.handler
             if handler:
                 if not hasattr(self._object, handler):
-                    raise ValueError(f'handler ({handler}) specified but doesnt exist in class')
+                    raise ValueError(
+                        f"handler ({handler}) specified but doesnt exist in class"
+                    )
             else:
-                if hasattr(self._object, 'do'):
-                    handler = 'do'
-                elif hasattr(self._object, 'do_event'):
-                    handler = 'do_event'
+                if hasattr(self._object, "do"):
+                    handler = "do"
+                elif hasattr(self._object, "do_event"):
+                    handler = "do_event"
                     self.full_event = True
             if handler:
                 self._handler = getattr(self._object, handler, None)
@@ -175,6 +202,7 @@ class ServingTaskState(BaseState):
 
 class ServingRouterState(ServingTaskState):
     kind = "router"
+    shape = "doubleoctagon"
     _dict_fields = _task_state_fields + ["routes"]
     _default_class = "mlrun.serving.ModelRouter"
 
@@ -196,12 +224,27 @@ class ServingRouterState(ServingTaskState):
     def routes(self, routes: dict):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
-    def add_route(self, key, route):
+    def add_route(
+        self, key, route=None, class_name=None, class_args=None, handler=None
+    ):
+        """add child route state or class to the router
+
+        :param key:        unique name (and route path) for the child state
+        :param route:      child state object (Task, ..)
+        :param class_name: class name to build the route state from (when route is not provided)
+        :param class_args: class init arguments
+        :param handler:    class handler to invoke on run/event
+        """
+
+        if not route and not class_name:
+            raise ValueError("route or class_name must be specified")
+        if not route:
+            route = ServingTaskState(class_name, class_args, handler=handler)
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
 
-    def clear_routes(self, routes: list):
+    def clear_children(self, routes: list):
         if not routes:
             routes = self._routes.keys()
         for key in routes:
@@ -231,6 +274,9 @@ class ServingRouterState(ServingTaskState):
     def __iter__(self):
         yield from self._routes.keys()
 
+    def plot(self, filename=None, format=None):
+        return _generate_graphviz(self, _add_gviz_router, filename, format)
+
 
 class ServingFlowState(BaseState):
     kind = "flow"
@@ -255,7 +301,28 @@ class ServingFlowState(BaseState):
     def states(self, states):
         self._states = ObjectDict.from_dict(classes_map, states, "task")
 
-    def add_state(self, key, state, after=None):
+    def add_state(
+        self,
+        key,
+        state=None,
+        class_name=None,
+        class_args=None,
+        handler=None,
+        after=None,
+    ):
+        """add child route state or class to the router
+
+        :param key:        unique name (and path) for the child state
+        :param state:      child state object (Task, ..)
+        :param class_name: class name to build the state from (when state is not provided)
+        :param class_args: class init arguments
+        :param handler:    class handler to invoke on run/event
+        """
+
+        if not state and not class_name:
+            raise ValueError("state or class_name must be specified")
+        if not state:
+            state = ServingTaskState(class_name, class_args, handler=handler)
         state = self._states.update(key, state)
         state.set_parent(self)
 
@@ -274,6 +341,12 @@ class ServingFlowState(BaseState):
             self._last_added.set_next(key)
         self._last_added = state
         return state
+
+    def clear_children(self, states: list):
+        if not states:
+            states = self._states.keys()
+        for key in states:
+            del self._states[key]
 
     def __getitem__(self, name):
         return self._states[name]
@@ -300,17 +373,18 @@ class ServingFlowState(BaseState):
             raise ValueError(
                 f"start step {from_state} was not specified in {self.name}"
             )
-        tree = from_state.split(".")
-        next_obj = self
-        for state in tree:
-            if state not in next_obj.keys():
-                raise ValueError(f"start step {from_state} doesnt exist in {self.name}")
-            next_obj = next_obj[state]
-        return next_obj
+        return self.path_to_state(from_state)
 
     def run(self, event, *args, **kwargs):
         next_obj = self.get_start_state(kwargs.get("from_state", None))
-        return next_obj.run(event, *args, **kwargs)
+        while next_obj:
+            event = next_obj.run(event, *args, **kwargs)
+            next = next_obj.next
+            next_obj = self[next[0]] if next else None
+        return event
+
+    def plot(self, filename=None, format=None):
+        return _generate_graphviz(self, _add_gviz_flow, filename, format)
 
 
 class ServingRootFlowState(ServingFlowState):
@@ -378,10 +452,10 @@ def get_function(function, namespace):
         return function
 
     function = function.strip()
-    if function.startswith('('):
-        if not function.endswith(')'):
+    if function.startswith("("):
+        if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
-        return eval('lambda event: ' + function[1:-1], {}, {})
+        return eval("lambda event: " + function[1:-1], {}, {})
     if function in namespace:
         return namespace[function]
 
@@ -397,3 +471,49 @@ classes_map = {
     "router": ServingRouterState,
     "flow": ServingFlowState,
 }
+
+
+def _add_gviz_router(g, state):
+    g.node(state.fullname, label=state.name, shape=state.shape)
+    for route in state.get_children():
+        g.node(route.fullname, label=route.name, shape=route.shape)
+        g.edge(state.fullname, route.fullname)
+
+
+def _add_gviz_flow(g, state):
+    for child in state.get_children():
+        kind = child.kind
+        if kind == StateKinds.router:
+            with g.subgraph(name="cluster_" + child.fullname) as sg:
+                _add_gviz_router(sg, child)
+        else:
+            g.node(child.fullname, label=child.name, shape=child.shape)
+        next = child.next or []
+        for item in next:
+            next_object = state[item]
+            kw = (
+                {"ltail": "cluster_" + child.fullname}
+                if child.kind == StateKinds.router
+                else {}
+            )
+            g.edge(child.fullname, next_object.fullname, **kw)
+
+
+def _generate_graphviz(state, renderer, filename=None, format=None):
+    try:
+        from graphviz import Digraph
+    except ImportError:
+        raise ImportError(
+            'graphviz is not installed, run "pip install graphviz" first!'
+        )
+    g = Digraph("mlrun-flow", format="jpg")
+    g.attr(compound="true")
+    renderer(g, state)
+    if filename:
+        suffix = pathlib.Path(filename).suffix
+        if suffix:
+            filename = filename[: -len(suffix)]
+            format = format or suffix[1:]
+        format = format or "png"
+        g.render(filename, format=format)
+    return g

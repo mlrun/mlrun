@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from storey import Reduce, build_flow, Source, Complete, Map
+from storey import build_flow, Source, Complete
 
 from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
@@ -29,6 +29,7 @@ from .pipeline import steps_from_featureset
 
 class FeatureVectorError(Exception):
     """ feature vector error. """
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -149,13 +150,13 @@ class OfflineVectorResponse:
         return self._merger.get_status()
 
     def to_dataframe(self):
-        if self.status != 'ready':
-            raise FeatureVectorError('feature vector dataset is not ready')
+        if self.status != "ready":
+            raise FeatureVectorError("feature vector dataset is not ready")
         return self._merger.get_df()
 
 
 def print_event(event):
-    print('EVENT:', str(event.key))
+    print("EVENT:", str(event.key))
     print(str(event.body))
     return event
 
@@ -180,7 +181,9 @@ class OnlineVectorService:
             fs = self._vector.feature_set_objects[name]
             column_names = [name for name, alias in columns]
             aliases = {name: alias for name, alias in columns if alias}
-            steps.extend(steps_from_featureset(fs, column_names, aliases, self._context))
+            steps.extend(
+                steps_from_featureset(fs, column_names, aliases, self._context)
+            )
         # steps.append(Map(print_event, full_event=True))
         steps.append(Complete())
         flow = build_flow(steps)

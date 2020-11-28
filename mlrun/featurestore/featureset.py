@@ -13,8 +13,6 @@
 # limitations under the License.
 import inspect
 
-from storey import DataframeSource
-
 from .model import (
     FeatureSetStatus,
     FeatureSetSpec,
@@ -72,7 +70,7 @@ class FeatureSet(ModelObj):
     def uri(self):
         uri = f'{self._metadata.project or ""}/{self._metadata.name}'
         if self._metadata.tag:
-            uri += ':' + self._metadata.tag
+            uri += ":" + self._metadata.tag
         return uri
 
     def infer_from_df(

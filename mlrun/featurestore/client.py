@@ -32,22 +32,32 @@ from ..serving.server import MockContext
 from ..utils import get_caller_globals, parse_function_uri
 
 
-def store_client(project=None, secrets=None, context=None, data_prefixes={}, api_address=None):
+def store_client(
+    project=None, secrets=None, context=None, data_prefixes={}, api_address=None
+):
     return FeatureStoreClient(project, secrets, context, data_prefixes, api_address)
 
 
 class FeatureStoreClient:
-    def __init__(self, project=None, secrets=None, context=None, data_prefixes={}, api_address=None):
+    def __init__(
+        self,
+        project=None,
+        secrets=None,
+        context=None,
+        data_prefixes={},
+        api_address=None,
+    ):
         self.nosql_path_prefix = ""
-        self.default_prefixes = data_prefixes or {'parquet': "./store"}
+        self.default_prefixes = data_prefixes or {"parquet": "./store"}
         self.project = project
         self.parameters = {}
-        self.default_feature_set = ''
+        self.default_feature_set = ""
         self.context = context or MockContext()
-        setattr(self.context, 'get_table', self._get_table)
+        setattr(self.context, "get_table", self._get_table)
         try:
             # add v3io:// path prefix support to pandas & dask
             from v3iofs import V3ioFS
+
             self._v3iofs = V3ioFS()
         except Exception:
             pass
@@ -64,26 +74,28 @@ class FeatureStoreClient:
         if TargetTypes.nosql in targets:
             target_path = self._get_target_path(TargetTypes.nosql, featureset)
             target_path = nosql_path(target_path)
-            target = DataTarget('nosql', TargetTypes.nosql, target_path, online=True)
+            target = DataTarget("nosql", TargetTypes.nosql, target_path, online=True)
             featureset.status.update_target(target)
             table = Table(target_path, V3ioDriver())
             self._tabels[featureset.uri()] = table
 
         if TargetTypes.parquet in targets:
-            target_path = self._get_target_path(TargetTypes.parquet, featureset, '.parquet')
-            target = DataTarget('parquet', TargetTypes.parquet, target_path)
+            target_path = self._get_target_path(
+                TargetTypes.parquet, featureset, ".parquet"
+            )
+            target = DataTarget("parquet", TargetTypes.parquet, target_path)
             featureset.status.update_target(target)
 
     def _get_table(self, name):
         if name in self._tabels:
             return self._tabels[name]
 
-        if name == '':
+        if name == "":
             table = Table("", NoopDriver())
             self._tabels[name] = table
             return table
 
-        raise ValueError(f'table name={name} not set')
+        raise ValueError(f"table name={name} not set")
 
     def _get_db(self):
         if not self._db_conn:
@@ -134,7 +146,9 @@ class FeatureStoreClient:
             featureset.infer_from_df(source)
         self._init_featureset_targets(featureset, targets)
         return_df = return_df or with_stats or with_preview
-        df = ingest_from_df(self.context, featureset, source, targets, namespace, return_df=return_df).await_termination()
+        df = ingest_from_df(
+            self.context, featureset, source, targets, namespace, return_df=return_df
+        ).await_termination()
         if with_stats:
             featureset.status.stats = get_df_stats(df, with_histogram)
         if with_preview:
@@ -171,7 +185,7 @@ class FeatureStoreClient:
         vector = FeatureVector(features=features)
         vector.parse_features(self)
         featuresets, feature_dfs = vector.load_featureset_dfs()
-        df = merger.merge(
+        merger.merge(
             entity_rows, entity_timestamp_column, featuresets, feature_dfs
         )
         return OfflineVectorResponse(self, merger)
@@ -180,7 +194,7 @@ class FeatureStoreClient:
         vector = FeatureVector(features=features)
         vector.parse_features(self)
         for featureset in vector.feature_set_objects.values():
-            target_path = featureset.status.targets['nosql'].path
+            target_path = featureset.status.targets["nosql"].path
             table = Table(target_path, V3ioDriver())
             self._tabels[featureset.uri()] = table
 
@@ -192,15 +206,15 @@ class FeatureStoreClient:
         if not uri and self.default_feature_set:
             uri = self.default_feature_set
         if not uri:
-            raise ValueError('name or client.default_feature_set must be set')
+            raise ValueError("name or client.default_feature_set must be set")
 
         if use_cache and uri in self._fs:
             return self._fs[uri]
         project, name, tag, uid = parse_function_uri(uri)
-        print('proj:', project, uri)
-        project = project or self.project or ''
+        print("proj:", project, uri)
+        project = project or self.project or ""
         obj = self._get_db().get_feature_set(name, project, tag, uid)
-        fs = FeatureSet.from_dict(obj.dict())
+        fs = FeatureSet.from_dict(obj)
         self._fs[uri] = fs
         return fs
 
@@ -214,10 +228,12 @@ class FeatureStoreClient:
     ):
         """list feature sets with optional filter"""
         project = project or self.project
-        resp = self._get_db().list_feature_sets(project, name, tag, state, labels=labels)
+        resp = self._get_db().list_feature_sets(
+            project, name, tag, state, labels=labels
+        )
         print(resp.dict())
         if resp:
-            return [FeatureSet.from_dict(obj) for obj in resp.dict()['feature_sets']]
+            return [FeatureSet.from_dict(obj) for obj in resp.dict()["feature_sets"]]
 
     def get_feature_vector(self, name, project=None):
         raise NotImplementedError("api not yet not supported")
@@ -228,13 +244,13 @@ class FeatureStoreClient:
         if obj.kind == FeatureClassKind.FeatureSet:
             obj.metadata.project = obj.metadata.project or self.project
             obj_dict = obj.to_dict()
-            obj_dict['metadata']['labels'] = obj_dict['metadata'].get('labels', {})  # bypass DB bug
-            db.store_feature_set(obj.metadata.name, obj_dict, obj.metadata.project,
-                                 tag=obj.metadata.tag, versioned=versioned)
-            #db.create_feature_set(objdeict, obj.metadata.project, versioned=False)
+            # obj_dict['metadata']['labels'] = obj_dict['metadata'].get('labels', {})  # bypass DB bug
+            db.store_feature_set(obj_dict, tag=obj.metadata.tag, versioned=versioned)
         elif obj.kind == FeatureClassKind.FeatureVector:
             # TODO: write to mlrun db
-            target = self._get_db_path(obj.kind, obj.metadata.name, obj.metadata.project)
+            target = self._get_db_path(
+                obj.kind, obj.metadata.name, obj.metadata.project
+            )
             self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())
         else:
             raise NotImplementedError(f"object kind not supported ({obj.kind})")
@@ -250,4 +266,4 @@ def nosql_path(url):
     if parsed_url.port:
         endpoint += ":{}".format(parsed_url.port)
     # todo: use endpoint
-    return parsed_url.path.strip("/") + '/'
+    return parsed_url.path.strip("/") + "/"

@@ -134,7 +134,7 @@ class ModelServerHost(ModelObj):
         """
         if not self.graph:
             raise ValueError("no model or router was added, use .add_model()")
-        if not path.startswith("/"):
+        if path and not path.startswith("/"):
             path = self.graph.object.url_prefix + path
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type

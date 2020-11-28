@@ -16,13 +16,15 @@ import json
 import nuclio
 
 from .function import RemoteRuntime, NuclioSpec
-from ..utils import logger
+from ..utils import logger, get_caller_globals
 from ..serving.server import create_mock_server
 from ..serving.states import (
     ServingRouterState,
     new_remote_endpoint,
     new_model_endpoint,
     StateKinds,
+    ServingRootFlowState,
+    ServingTaskState,
 )
 
 serving_subkind = "serving_v2"
@@ -130,7 +132,17 @@ class ServingSpec(NuclioSpec):
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", ServingRouterState)
+        if graph:
+            if isinstance(graph, dict):
+                kind = graph.get("kind")
+            elif hasattr(graph, "kind"):
+                kind = graph.kind
+            else:
+                raise ValueError("graph must be a dict or a valid object")
+            if kind == StateKinds.router:
+                self._graph = self._verify_dict(graph, "graph", ServingRouterState)
+            else:
+                self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
 
 
 class ServingRuntime(RemoteRuntime):
@@ -145,19 +157,27 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def set_topology(
-        self, topology=None, class_name=None, exist_ok=False, **class_args
+        self,
+        topology=None,
+        class_name=None,
+        exist_ok=False,
+        start_at=None,
+        **class_args,
     ):
         """set the serving graph topology (router/flow/endpoint) and root class"""
         topology = topology or StateKinds.router
         if self.spec.graph and not exist_ok:
-            raise ValueError("graph topology is already set")
+            raise ValueError("graph topology is already set, cannot be overwritten")
 
         # currently we only support router topology
-        if topology != StateKinds.router:
-            raise NotImplementedError("currently only supporting router topology")
-        self.spec.graph = ServingRouterState(
-            class_name=class_name, class_args=class_args
-        )
+        if topology == StateKinds.router:
+            self.spec.graph = ServingRouterState(
+                class_name=class_name, class_args=class_args
+            )
+        elif topology == StateKinds.flow:
+            self.spec.graph = ServingRootFlowState(start_at=start_at)
+        else:
+            raise ValueError(f"unsupported topology {topology}, use 'router' or 'flow'")
 
     def set_tracking(self, stream_path, batch=None, sample=None):
         """set tracking log stream parameters"""
@@ -174,6 +194,7 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         model_url=None,
         handler=None,
+        parent=None,
         **class_args,
     ):
         """add ml model and/or route to the function
@@ -190,6 +211,7 @@ class ServingRuntime(RemoteRuntime):
                             (can also module.submodule.class and it will be imported automatically)
         :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
         :param handler:     for advanced users!, override default class handler name (do_event)
+        :param parent:      in hierarchical topology, state name of the parent
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -209,15 +231,73 @@ class ServingRuntime(RemoteRuntime):
             self.set_topology()
 
         if model_url:
-            route = new_remote_endpoint(model_url, **class_args)
+            state = new_remote_endpoint(model_url, **class_args)
         else:
-            route = new_model_endpoint(class_name, model_path, handler, **class_args)
-        self.spec.graph.add_route(key, route)
+            state = new_model_endpoint(class_name, model_path, handler, **class_args)
 
-    def remove_models(self, keys: list):
+        root = self.spec.graph
+        if parent:
+            root = root.path_to_state(parent)
+
+        if root.kind == StateKinds.router:
+            root.add_route(key, state)
+        else:
+            raise ValueError("models can only be added under router state")
+
+    def add_state(
+        self,
+        key,
+        class_name=None,
+        handler=None,
+        after=None,
+        parent=None,
+        kind=None,
+        **class_args,
+    ):
+        """add compute class or model or route to the function
+
+        Example, create a function (from the notebook), add a model class, and deploy:
+
+            fn = code_to_function(kind='serving')
+            fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
+            fn.deploy()
+
+        :param key:         model api key (or name:version), will determine the relative url/path
+        :param class_name:  V2 Model python class name
+                            (can also module.submodule.class and it will be imported automatically)
+        :param handler:     for advanced users!, override default class handler name (do_event)
+        :param after:       for flow topology, the step name this will come after
+        :param parent:      in hierarchical topology, state the parent name
+        :param kind:        state kind, task or router (default is task)
+        :param class_args:  extra kwargs to pass to the model serving class __init__
+                            (can be read in the model using .get_param(key) method)
+        """
+        if class_name and not isinstance(class_name, str):
+            raise ValueError(
+                "class name must be a string (name ot module.submodule.name)"
+            )
+
+        if not self.spec.graph:
+            self.set_topology()
+
+        if kind == StateKinds.router:
+            state = ServingRouterState(class_name=class_name, class_args=class_args)
+        else:
+            state = ServingTaskState(class_name, class_args, handler=handler)
+
+        root = self.spec.graph
+        if parent:
+            root = root.path_to_state(parent)
+
+        if root.kind == StateKinds.router:
+            root.add_route(key, state)
+        else:
+            root.add_state(key, state, after=after)
+
+    def remove_states(self, keys: list):
         """remove one, multiple, or all models from the spec (blank list for all)"""
         if self.spec.graph:
-            self.spec.graph.clear_routes(keys)
+            self.spec.graph.clear_children(keys)
 
     def deploy(self, dashboard="", project="", tag=""):
         """deploy model serving function to a local/remote cluster
@@ -256,7 +336,13 @@ class ServingRuntime(RemoteRuntime):
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
             graph=self.spec.graph,
-            namespace=namespace,
+            namespace=namespace or get_caller_globals(),
             logger=logger,
             level=log_level,
         )
+
+    def plot(self, filename=None, format=None):
+        if not self.spec.graph:
+            logger.info("no graph topology to plot")
+            return
+        return self.spec.graph.plot(filename, format)

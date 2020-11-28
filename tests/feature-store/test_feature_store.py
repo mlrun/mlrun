@@ -11,9 +11,9 @@ from mlrun.featurestore.datatypes import ValueType
 
 
 def init_store():
-    mlconf.dbpath = os.environ['TEST_DBPATH']
-    data_prefix = os.environ.get('FEATURESTORE_PATH', "v3io:///users/admin/fs")
-    client = fs.store_client(data_prefixes={'parquet': "./store", 'nosql': data_prefix})
+    mlconf.dbpath = os.environ["TEST_DBPATH"]
+    data_prefix = os.environ.get("FEATURESTORE_PATH", "v3io:///users/admin/fs")
+    client = fs.store_client(data_prefixes={"parquet": "./store", "nosql": data_prefix})
     client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
     return client
 
@@ -30,7 +30,6 @@ class MyMap(MapClass):
 
 
 class Extend(_UnaryFunctionFlow):
-
     async def _do_internal(self, event, fn_result):
         for key, value in fn_result.items():
             event.body[key] = value
@@ -38,14 +37,14 @@ class Extend(_UnaryFunctionFlow):
 
 
 def my_filter(event):
-    return event['bid'] > 51.96
+    return event["bid"] > 51.96
 
 
 def test_ingestion():
     client = init_store()
 
     # add feature set without time column (stock ticker metadata)
-    stocks_set = fs.FeatureSet("stocks", entities=[Entity('ticker', ValueType.STRING)])
+    stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
     resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
     print(resp)
 
@@ -91,7 +90,7 @@ def test_realtime_query():
 def test_feature_set_db():
     name = "stocks_test"
     client = init_store()
-    stocks_set = fs.FeatureSet(name, entities=[Entity('ticker', ValueType.STRING)])
+    stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
     stocks_set.infer_from_df(stocks)
     print(stocks_set.to_yaml())
     client.save_object(stocks_set)
@@ -101,4 +100,3 @@ def test_feature_set_db():
 
     fset = client.get_feature_set(name)
     print(fset)
-

@@ -13,16 +13,16 @@ from storey import (
 from .model import TargetTypes
 
 
-def ingest_from_df(
-        context, featureset, df, targets=None, namespace=[], return_df=True
-):
+def ingest_from_df(context, featureset, df, targets=None, namespace=[], return_df=True):
     entity_columns = list(featureset.spec.entities.keys())
     if not entity_columns:
         raise ValueError("entity column(s) are not defined in feature set")
     key_column = entity_columns[0]
     source = DataframeSource(df, key_column, featureset.spec.timestamp_key)
 
-    return create_ingest_flow(context, featureset, source, targets, namespace=namespace, return_df=return_df).run()
+    return create_ingest_flow(
+        context, featureset, source, targets, namespace=namespace, return_df=return_df
+    ).run()
 
 
 def create_ingest_flow(
@@ -31,7 +31,9 @@ def create_ingest_flow(
 
     key_column = featureset.spec.entities[0].name
     targets = targets or []
-    table = featureset.uri() if TargetTypes.nosql in targets else Table("", NoopDriver())
+    table = (
+        featureset.uri() if TargetTypes.nosql in targets else Table("", NoopDriver())
+    )
 
     timestamp_key = featureset.spec.timestamp_key
     aggregations = featureset.spec.aggregations
@@ -51,19 +53,23 @@ def create_ingest_flow(
         steps.append([WriteToTable(table, columns=column_list, context=context)])
 
     if TargetTypes.parquet in targets:
-        target_path = featureset.status.targets['parquet'].path
+        target_path = featureset.status.targets["parquet"].path
         column_list = list(featureset.spec.features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
-        steps.append([WriteToParquet(target_path, index_cols=key_column, columns=column_list)])
+        steps.append(
+            [WriteToParquet(target_path, index_cols=key_column, columns=column_list)]
+        )
 
     if return_df:
-        steps.append([
-            ReduceToDataFrame(
-                index=key_column,
-                insert_key_column_as=key_column,
-                insert_time_column_as=featureset.spec.timestamp_key,
-            )]
+        steps.append(
+            [
+                ReduceToDataFrame(
+                    index=key_column,
+                    insert_key_column_as=key_column,
+                    insert_time_column_as=featureset.spec.timestamp_key,
+                )
+            ]
         )
 
     return build_flow(steps)
@@ -88,11 +94,7 @@ def steps_from_featureset(featureset, column_list, aliases, context):
 
     steps.append(
         QueryByKey(
-            column_list,
-            table,
-            key=key_column,
-            aliases=aliases,
-            context=context,
+            column_list, table, key=key_column, aliases=aliases, context=context,
         )
     )
 

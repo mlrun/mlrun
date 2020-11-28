@@ -84,6 +84,10 @@ class MLRunConflictError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.CONFLICT.value
 
 
+class MLRunIncompatibleVersionError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
 STATUS_ERRORS = {
     HTTPStatus.BAD_REQUEST.value: MLRunBadRequestError,
     HTTPStatus.UNAUTHORIZED.value: MLRunUnauthorizedError,

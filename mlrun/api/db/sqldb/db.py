@@ -721,7 +721,7 @@ class SQLDB(DBInterface):
     def list_projects(self, session, owner=None):
         return self._query(session, Project, owner=owner)
 
-    def _get_common_db_object(
+    def _get_common_db_object_by_name_tag_and_uid(
         self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
     ):
         query = self._query(session, cls, name=name, project=project)
@@ -732,16 +732,19 @@ class SQLDB(DBInterface):
                 session, cls, project, name, computed_tag
             )
             if object_tag_uid is None:
-                return None, None, None
+                return None, None
             uid = object_tag_uid
         if uid:
             query = query.filter(cls.uid == uid)
-        return computed_tag, object_tag_uid, query.one_or_none()
+        return object_tag_uid, query.one_or_none()
 
     def _get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None,
     ):
-        computed_tag, feature_set_tag_uid, db_feature_set = self._get_common_db_object(
+        (
+            feature_set_tag_uid,
+            db_feature_set,
+        ) = self._get_common_db_object_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
         if db_feature_set:
@@ -749,7 +752,7 @@ class SQLDB(DBInterface):
 
             # If connected to a tag add it to metadata
             if feature_set_tag_uid:
-                feature_set.metadata.tag = computed_tag
+                feature_set.metadata.tag = tag or "latest"
             return feature_set
         else:
             return None
@@ -956,7 +959,7 @@ class SQLDB(DBInterface):
         self._update_feature_set_entities(feature_set, entities)
 
     @staticmethod
-    def _perform_common_object_store_validations(
+    def _validate_store_parameters_for_common_object(
         object_to_store, project, name, tag, uid
     ):
         object_type = object_to_store.__class__.__name__
@@ -980,7 +983,7 @@ class SQLDB(DBInterface):
             )
 
     @staticmethod
-    def _common_object_update_uid_and_validate_uid_change(
+    def _common_object_validate_and_perform_uid_change(
         object_dict: dict, tag, versioned, existing_uid=None,
     ):
         uid = fill_object_hash(object_dict, "uid", tag)
@@ -1019,20 +1022,20 @@ class SQLDB(DBInterface):
         versioned=True,
         always_overwrite=False,
     ):
-        self._perform_common_object_store_validations(
+        self._validate_store_parameters_for_common_object(
             feature_set, project, name, tag, uid
         )
 
         original_uid = uid
 
-        _, _, existing_feature_set = self._get_common_db_object(
+        _, existing_feature_set = self._get_common_db_object_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
         if not existing_feature_set:
             return self.create_feature_set(session, project, feature_set, versioned)
 
         feature_set_dict = feature_set.dict()
-        uid = self._common_object_update_uid_and_validate_uid_change(
+        uid = self._common_object_validate_and_perform_uid_change(
             feature_set_dict, tag, versioned, original_uid
         )
 
@@ -1186,10 +1189,11 @@ class SQLDB(DBInterface):
         self, session, project: str, name: str, tag: str = None, uid: str = None,
     ):
         (
-            computed_tag,
             feature_vector_tag_uid,
             db_feature_vector,
-        ) = self._get_common_db_object(session, FeatureVector, project, name, tag, uid)
+        ) = self._get_common_db_object_by_name_tag_and_uid(
+            session, FeatureVector, project, name, tag, uid
+        )
         if db_feature_vector:
             feature_vector = self._transform_feature_vector_model_to_schema(
                 db_feature_vector
@@ -1197,7 +1201,7 @@ class SQLDB(DBInterface):
 
             # If connected to a tag add it to metadata
             if feature_vector_tag_uid:
-                feature_vector.metadata.tag = computed_tag
+                feature_vector.metadata.tag = tag or "latest"
             return feature_vector
         else:
             return None
@@ -1260,13 +1264,13 @@ class SQLDB(DBInterface):
         versioned=True,
         always_overwrite=False,
     ):
-        self._perform_common_object_store_validations(
+        self._validate_store_parameters_for_common_object(
             feature_vector, project, name, tag, uid
         )
 
         original_uid = uid
 
-        _, _, existing_feature_vector = self._get_common_db_object(
+        _, existing_feature_vector = self._get_common_db_object_by_name_tag_and_uid(
             session, FeatureVector, project, name, tag, uid
         )
         if not existing_feature_vector:
@@ -1275,7 +1279,7 @@ class SQLDB(DBInterface):
             )
 
         feature_vector_dict = feature_vector.dict()
-        uid = self._common_object_update_uid_and_validate_uid_change(
+        uid = self._common_object_validate_and_perform_uid_change(
             feature_vector_dict, tag, versioned, original_uid
         )
 

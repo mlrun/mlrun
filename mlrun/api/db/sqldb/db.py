@@ -1368,9 +1368,7 @@ class SQLDB(DBInterface):
 
         feature_vector_struct = feature_vector_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary
-        strategy = mergedeep.Strategy.REPLACE
-        if patch_mode.value == "additive":
-            strategy = mergedeep.Strategy.ADDITIVE
+        strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_vector_struct, feature_vector_update, strategy=strategy)
 
         versioned = not feature_vector_record.metadata.uid.startswith(

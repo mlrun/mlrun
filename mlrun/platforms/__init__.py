@@ -19,5 +19,6 @@ from .iguazio import (
     mount_v3io,
     add_or_refresh_credentials,
     mount_v3io_extended,
+    Mount,
 )
 from .other import mount_pvc, auto_mount

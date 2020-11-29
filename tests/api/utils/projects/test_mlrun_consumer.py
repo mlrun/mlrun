@@ -14,8 +14,7 @@ import mlrun.errors
 
 @pytest.fixture()
 async def mlrun_consumer() -> mlrun.api.utils.projects.consumers.mlrun.Consumer:
-    mlrun_consumer = mlrun.api.utils.projects.consumers.mlrun.Consumer()
-    return mlrun_consumer
+    return mlrun.api.utils.projects.consumers.mlrun.Consumer()
 
 
 def test_get_project(

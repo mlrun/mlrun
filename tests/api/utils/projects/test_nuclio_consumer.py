@@ -22,8 +22,7 @@ async def api_url() -> str:
 async def nuclio_consumer(
     api_url: str,
 ) -> mlrun.api.utils.projects.consumers.nuclio.Consumer:
-    nuclio_consumer = mlrun.api.utils.projects.consumers.nuclio.Consumer()
-    return nuclio_consumer
+    return mlrun.api.utils.projects.consumers.nuclio.Consumer()
 
 
 def test_get_project(

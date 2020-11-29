@@ -284,7 +284,7 @@ def read_env(env=None, prefix=env_prefix):
     if config.get("log_level"):
         import mlrun.utils.logger
 
-        # logger created (because of imports mass) before the config is loaded (in tests), therefore we're changing its
+        # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
         mlrun.utils.logger.set_logger_level(config["log_level"])
 

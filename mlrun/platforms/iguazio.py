@@ -74,7 +74,9 @@ def mount_v3io_extended(
             VolumeMount(path="/User", sub_path="users/" + user),
         ]
 
-    if not isinstance(mounts, list) and any([not isinstance(x, VolumeMount) for x in mounts]):
+    if not isinstance(mounts, list) and any(
+        [not isinstance(x, VolumeMount) for x in mounts]
+    ):
         raise TypeError("mounts should be a list of Mount")
 
     def _mount_v3io_extended(task):

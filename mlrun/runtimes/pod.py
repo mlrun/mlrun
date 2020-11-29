@@ -108,8 +108,8 @@ class KubeResourceSpec(FunctionSpec):
     def _set_volume_mount(self, volume_mount):
         # calculate volume mount hash
         volume_name = get_item_name(volume_mount, "name")
-        volume_sub_path = get_item_name(volume_mount, "sub_path")
-        volume_mount_path = get_item_name(volume_mount, "path")
+        volume_sub_path = get_item_name(volume_mount, "subPath")
+        volume_mount_path = get_item_name(volume_mount, "mountPath")
         volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
         self._volume_mounts[volume_mount_key] = volume_mount
 

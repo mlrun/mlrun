@@ -268,19 +268,23 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
 
 class OutputStream:
-    def __init__(self, stream_path, shards=1):
+    def __init__(self, stream_path, shards=None, retention_in_hours=None, create=True):
         import v3io
 
         self._v3io_client = v3io.dataplane.Client()
         self._container, self._stream_path = split_path(stream_path)
-        response = self._v3io_client.create_stream(
-            container=self._container,
-            path=self._stream_path,
-            shard_count=shards,
-            raise_for_status=v3io.dataplane.RaiseForStatus.never,
-        )
-        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
-            response.raise_for_status([409, 204])
+        if create:
+            response = self._v3io_client.create_stream(
+                container=self._container,
+                path=self._stream_path,
+                shard_count=shards or 1,
+                retention_period_hours=retention_in_hours or 24,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            )
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
+                response.raise_for_status([409, 204])
 
     def push(self, data):
         if not isinstance(data, list):

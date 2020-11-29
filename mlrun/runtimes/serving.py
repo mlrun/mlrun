@@ -25,6 +25,7 @@ from ..serving.states import (
     StateKinds,
     ServingRootFlowState,
     ServingTaskState,
+    ServingQueueState,
 )
 
 serving_subkind = "serving_v2"
@@ -162,6 +163,7 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         exist_ok=False,
         start_at=None,
+        engine=None,
         **class_args,
     ):
         """set the serving graph topology (router/flow/endpoint) and root class"""
@@ -175,7 +177,7 @@ class ServingRuntime(RemoteRuntime):
                 class_name=class_name, class_args=class_args
             )
         elif topology == StateKinds.flow:
-            self.spec.graph = ServingRootFlowState(start_at=start_at)
+            self.spec.graph = ServingRootFlowState(start_at=start_at, engine=engine)
         else:
             raise ValueError(f"unsupported topology {topology}, use 'router' or 'flow'")
 
@@ -246,12 +248,13 @@ class ServingRuntime(RemoteRuntime):
 
     def add_state(
         self,
-        key,
-        class_name=None,
-        handler=None,
-        after=None,
-        parent=None,
-        kind=None,
+        key: str,
+        class_name: str = None,
+        handler: str = None,
+        after: str = None,
+        parent: str = None,
+        kind: str = None,
+        end: bool = None,
         **class_args,
     ):
         """add compute class or model or route to the function
@@ -269,6 +272,7 @@ class ServingRuntime(RemoteRuntime):
         :param after:       for flow topology, the step name this will come after
         :param parent:      in hierarchical topology, state the parent name
         :param kind:        state kind, task or router (default is task)
+        :param end:         mark the state as final/result state, only one state can have end=True
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -281,9 +285,13 @@ class ServingRuntime(RemoteRuntime):
             self.set_topology()
 
         if kind == StateKinds.router:
-            state = ServingRouterState(class_name=class_name, class_args=class_args)
+            state = ServingRouterState(
+                class_name=class_name, class_args=class_args, end=end
+            )
+        elif kind == StateKinds.queue:
+            state = ServingQueueState(**class_args)
         else:
-            state = ServingTaskState(class_name, class_args, handler=handler)
+            state = ServingTaskState(class_name, class_args, handler=handler, end=end)
 
         root = self.spec.graph
         if parent:

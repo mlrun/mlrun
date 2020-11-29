@@ -185,9 +185,7 @@ class FeatureStoreClient:
         vector = FeatureVector(features=features)
         vector.parse_features(self)
         featuresets, feature_dfs = vector.load_featureset_dfs()
-        merger.merge(
-            entity_rows, entity_timestamp_column, featuresets, feature_dfs
-        )
+        merger.merge(entity_rows, entity_timestamp_column, featuresets, feature_dfs)
         return OfflineVectorResponse(self, merger)
 
     def get_online_feature_service(self, features):

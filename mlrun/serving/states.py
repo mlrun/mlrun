@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import os
 import pathlib
 from copy import deepcopy
 
@@ -19,6 +20,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import requests
 
+from ..platforms.iguazio import OutputStream
 from ..model import ModelObj, ObjectDict
 from ..utils import create_class, create_function
 
@@ -29,6 +31,8 @@ class StateKinds:
     router = "router"
     task = "task"
     flow = "flow"
+    queue = "queue"
+    choice = "choice"
 
 
 _task_state_fields = [
@@ -62,13 +66,13 @@ class BaseState(ModelObj):
     shape = "ellipse"
     _dict_fields = ["kind", "comment", "next", "end", "resource"]
 
-    def __init__(self, name=None, next=None):
+    def __init__(self, name=None, next=None, end=None):
         self.name = name
         self._parent = None
         self.comment = None
         self.context = None
         self.next = next
-        self.end = None
+        self.end = end
         self.resource = None
 
     def set_parent(self, parent):
@@ -124,9 +128,10 @@ class ServingTaskState(BaseState):
         handler=None,
         name=None,
         next=None,
+        end=None,
         full_event=None,
     ):
-        super().__init__(name, next)
+        super().__init__(name, next, end)
         self.class_name = class_name
         self.class_args = class_args or {}
         self.handler = handler
@@ -207,9 +212,15 @@ class ServingRouterState(ServingTaskState):
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
-        self, class_name=None, class_args=None, handler=None, routes=None, name=None
+        self,
+        class_name=None,
+        class_args=None,
+        handler=None,
+        routes=None,
+        name=None,
+        end=None,
     ):
-        super().__init__(class_name, class_args, handler, name=name)
+        super().__init__(class_name, class_args, handler, name=name, end=end)
         self._routes = {}
         self.routes = routes
 
@@ -278,17 +289,50 @@ class ServingRouterState(ServingTaskState):
         return _generate_graphviz(self, _add_gviz_router, filename, format)
 
 
+class ServingQueueState(BaseState):
+    kind = "queue"
+    shape = "cds"
+    _dict_fields = BaseState._dict_fields + ["path", "shards", "retention_in_hours"]
+
+    def __init__(
+        self, name=None, next=None, path=None, shards=None, retention_in_hours=None
+    ):
+        super().__init__(name, next)
+        self.path = path
+        self.shards = shards
+        self.retention_in_hours = retention_in_hours
+        self._stream = None
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        if self.path:
+            self._stream = OutputStream(self.path, self.shards, self.retention_in_hours)
+
+    def run(self, event, *args, **kwargs):
+        data = event.body
+        if not data:
+            return event
+
+        if self._stream:
+            self._stream.push({"id": event.id, "body": data, "path": event.path})
+            event.terminated = True
+            event.body = None
+        return event
+
+
 class ServingFlowState(BaseState):
     kind = "flow"
-    _dict_fields = BaseState._dict_fields + ["states", "start_at"]
+    _dict_fields = BaseState._dict_fields + ["states", "start_at", "engine"]
 
-    def __init__(self, name=None, states=None, next=None, start_at=None):
+    def __init__(self, name=None, states=None, next=None, start_at=None, engine=None):
         super().__init__(name, next)
         self._states = None
         self.states = states
         self.start_at = start_at
-        self.from_state = None
+        self.engine = engine
+        self.from_state = os.environ.get("START_FROM_STATE", None)
         self._last_added = None
+        self._controller = None
 
     def get_children(self):
         return self._states.values()
@@ -309,6 +353,7 @@ class ServingFlowState(BaseState):
         class_args=None,
         handler=None,
         after=None,
+        next=None,
     ):
         """add child route state or class to the router
 
@@ -317,6 +362,8 @@ class ServingFlowState(BaseState):
         :param class_name: class name to build the state from (when state is not provided)
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
+        :param after:      the step name this will come after
+        :param next:       list of next step names to run after this step
         """
 
         if not state and not class_name:
@@ -329,6 +376,10 @@ class ServingFlowState(BaseState):
         if not self.start_at and len(self._states) <= 1:
             self.start_at = key
 
+        if next:
+            if not isinstance(next, list):
+                raise ValueError("next param must be a list of next step names")
+            state.next = next
         if after:
             if isinstance(after, str):
                 if after not in self._states.keys():
@@ -367,6 +418,40 @@ class ServingFlowState(BaseState):
             state.init_object(context, namespace, mode, reset=reset)
         self._post_init(mode)
 
+        if self.engine in ["storey", "async"]:
+            self._build_async_flow()
+
+    def _build_async_flow(self):
+        import storey
+
+        def get_step(state):
+            is_storey = (
+                hasattr(state, "object")
+                and state.object
+                and hasattr(state.object, "_outlets")
+            )
+            if is_storey:
+                return state.object
+            # todo Q state & choice
+            return storey.Map(state.run, full_event=True)
+
+        def process_step(state, step, root):
+            if not state.next and state.end:
+                print("set complete:", state.name)
+                step.to(storey.Complete(full_event=True))
+                return
+            for item in state.next or []:
+                print("visit:", state.name, item)
+                next_state = root[item]
+                next_step = step.to(get_step(next_state))
+                process_step(next_state, next_step, root)
+
+        next_state = self.get_start_state()
+        source = storey.Source()
+        next_step = source.to(get_step(next_state))
+        process_step(next_state, next_step, self)
+        self._controller = source.run()
+
     def get_start_state(self, from_state=None):
         from_state = from_state or self.from_state or self.start_at
         if not from_state:
@@ -376,12 +461,26 @@ class ServingFlowState(BaseState):
         return self.path_to_state(from_state)
 
     def run(self, event, *args, **kwargs):
+
+        if self._controller:
+            event._awaitable_result = None
+            return self._controller.emit(
+                event, return_awaitable_result=True
+            ).await_result()
+
         next_obj = self.get_start_state(kwargs.get("from_state", None))
         while next_obj:
             event = next_obj.run(event, *args, **kwargs)
+            if hasattr(event, "terminated") and event.terminated:
+                return event
             next = next_obj.next
             next_obj = self[next[0]] if next else None
         return event
+
+    def terminate(self):
+        if self._controller:
+            self._controller.terminate()
+            self._controller.await_termination()
 
     def plot(self, filename=None, format=None):
         return _generate_graphviz(self, _add_gviz_flow, filename, format)
@@ -470,6 +569,7 @@ classes_map = {
     "task": ServingTaskState,
     "router": ServingRouterState,
     "flow": ServingFlowState,
+    "queue": ServingQueueState,
 }
 
 

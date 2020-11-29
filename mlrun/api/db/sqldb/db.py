@@ -640,9 +640,6 @@ class SQLDB(DBInterface):
         return tags
 
     def create_project(self, session: Session, project: schemas.Project):
-        self._create_project(session, project)
-
-    def _create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
         created = datetime.utcnow()
         project.created = created
@@ -661,7 +658,7 @@ class SQLDB(DBInterface):
         logger.debug("Storing project in DB", name=name, project=project)
         project_record = self._get_project(session, name, raise_on_not_found=False)
         if not project_record:
-            self._create_project(session, project)
+            self.create_project(session, project)
         else:
             project.created = project_record.created
             project_dict = project.dict()

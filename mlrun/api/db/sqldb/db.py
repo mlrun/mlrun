@@ -694,6 +694,43 @@ class SQLDB(DBInterface):
 
         return self._transform_project_record_to_schema(project_record)
 
+    def delete_project(self, session: Session, name: str):
+        logger.debug("Deleting project from DB", name=name)
+        self.del_artifacts(session, project=name)
+        self._delete_logs(session, name)
+        self.del_runs(session, project=name)
+        self._delete_schedules(session, name)
+        self._delete_functions(session, name)
+        self._delete_feature_sets(session, name)
+        self._delete_feature_vectors(session, name)
+
+        # resources deletion should remove their tags and labels as well, but doing another try in case there are
+        # orphan resources
+        self._delete_resources_tags(session, name)
+        self._delete_resources_labels(session, name)
+        self._delete(session, Project, name=name)
+
+    def list_projects(
+        self,
+        session: Session,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+    ) -> schemas.ProjectsOutput:
+        project_records = self._query(session, Project, owner=owner)
+        projects = []
+        for project_record in project_records:
+            if format_ == mlrun.api.schemas.Format.name_only:
+                projects.append(project_record.name)
+            elif format_ == mlrun.api.schemas.Format.full:
+                projects.append(
+                    self._transform_project_record_to_schema(project_record)
+                )
+            else:
+                raise NotImplementedError(
+                    f"Provided format is not supported. format={format_}"
+                )
+        return schemas.ProjectsOutput(projects=projects)
+
     def _update_project_record_from_project(
         self, session: Session, project_record: Project, project: schemas.Project
     ):
@@ -747,43 +784,6 @@ class SQLDB(DBInterface):
             )
 
         return project_record
-
-    def delete_project(self, session: Session, name: str):
-        logger.debug("Deleting project from DB", name=name)
-        self.del_artifacts(session, project=name)
-        self._delete_logs(session, name)
-        self.del_runs(session, project=name)
-        self._delete_schedules(session, name)
-        self._delete_functions(session, name)
-        self._delete_feature_sets(session, name)
-        self._delete_feature_vectors(session, name)
-
-        # resources deletion should remove their tags and labels as well, but doing another try in case there are
-        # orphan resources
-        self._delete_resources_tags(session, name)
-        self._delete_resources_labels(session, name)
-        self._delete(session, Project, name=name)
-
-    def list_projects(
-        self,
-        session: Session,
-        owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
-    ) -> schemas.ProjectsOutput:
-        project_records = self._query(session, Project, owner=owner)
-        projects = []
-        for project_record in project_records:
-            if format_ == mlrun.api.schemas.Format.name_only:
-                projects.append(project_record.name)
-            elif format_ == mlrun.api.schemas.Format.full:
-                projects.append(
-                    self._transform_project_record_to_schema(project_record)
-                )
-            else:
-                raise NotImplementedError(
-                    f"Provided format is not supported. format={format_}"
-                )
-        return schemas.ProjectsOutput(projects=projects)
 
     def _get_record_by_name_tag_and_uid(
         self, session, cls, project: str, name: str, tag: str = None, uid: str = None,

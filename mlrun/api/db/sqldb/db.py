@@ -712,16 +712,16 @@ class SQLDB(DBInterface):
         project_id: int = None,
         raise_on_not_found: bool = True,
     ) -> Project:
-        if (project_id and name) or (not project_id and not name):
+        if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "One of name or project id must be provided"
+                "One of 'name' or 'project_id' must be provided"
             )
         project_record = self._query(session, Project, name=name, id=project_id).one_or_none()
         if not project_record:
             if not raise_on_not_found:
                 return None
             raise mlrun.errors.MLRunNotFoundError(
-                f"Project not found {name}, {project_id}"
+                f"Project not found: name={name}, project_id={project_id}"
             )
 
         return project_record

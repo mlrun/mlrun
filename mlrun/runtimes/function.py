@@ -96,37 +96,6 @@ class NuclioSpec(KubeResourceSpec):
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
 
-    @property
-    def volumes(self) -> list:
-        return list(self._volumes.values())
-
-    @volumes.setter
-    def volumes(self, volumes):
-        self._volumes = {}
-        if volumes:
-            for vol in volumes:
-                set_named_item(self._volumes, vol)
-
-    @property
-    def volume_mounts(self) -> list:
-        return list(self._volume_mounts.values())
-
-    @volume_mounts.setter
-    def volume_mounts(self, volume_mounts):
-        self._volume_mounts = {}
-        if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
-
-    def update_vols_and_mounts(self, volumes, volume_mounts):
-        if volumes:
-            for vol in volumes:
-                set_named_item(self._volumes, vol)
-
-        if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
-
     def to_nuclio_vol(self):
         vols = []
         for name, vol in self._volumes.items():

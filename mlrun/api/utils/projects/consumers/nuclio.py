@@ -80,9 +80,9 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         projects = []
         for nuclio_project in response_body.values():
             projects.append(self._transform_nuclio_project_to_schema(nuclio_project))
-        if format_ == mlrun.api.schemas.Format.name_only:
+        if format_ == mlrun.api.schemas.Format.full:
             return mlrun.api.schemas.ProjectsOutput(projects=projects)
-        elif format_ == mlrun.api.schemas.Format.full:
+        elif format_ == mlrun.api.schemas.Format.name_only:
             return mlrun.api.schemas.ProjectsOutput(
                 projects=[project.name for project in projects]
             )

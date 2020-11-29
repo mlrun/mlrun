@@ -95,7 +95,7 @@ default_config = {
         "projects": {
             "master_consumer": "mlrun",
             "consumers": "",
-            "periodic_sync_interval": "10 seconds",
+            "periodic_sync_interval": "1 minute",
         },
     },
 }

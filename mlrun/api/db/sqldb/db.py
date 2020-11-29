@@ -660,17 +660,11 @@ class SQLDB(DBInterface):
         if not project_record:
             self.create_project(session, project)
         else:
-            project.created = project_record.created
-            project_dict = project.dict()
-            project_record.full_object = project_dict
-            project_record.description = project.description
-            project_record.source = project.source
-            project_record.state = project.state
-            self._upsert(session, project_record)
+            self._update_project_record_from_project(session, project_record, project)
 
     def patch_project(
         self,
-        session,
+        session: Session,
         name: str,
         project: schemas.ProjectPatch,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
@@ -679,6 +673,25 @@ class SQLDB(DBInterface):
             "Patching project in DB", name=name, project=project, patch_mode=patch_mode
         )
         project_record = self._get_project_record(session, name)
+        self._patch_project_record_from_project(session, project_record, project, patch_mode)
+
+    def get_project(
+        self, session: Session, name: str = None, project_id: int = None
+    ) -> schemas.Project:
+        project_record = self._get_project_record(session, name, project_id)
+
+        return self._transform_project_model_to_schema(project_record)
+
+    def _update_project_record_from_project(self, session: Session, project_record: Project, project: schemas.Project):
+        project.created = project_record.created
+        project_dict = project.dict()
+        project_record.full_object = project_dict
+        project_record.description = project.description
+        project_record.source = project.source
+        project_record.state = project.state
+        self._upsert(session, project_record)
+
+    def _patch_project_record_from_project(self, session: Session, project_record: Project, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode):
         project_dict = project.dict()
         if project.description:
             project_record.description = project.description
@@ -691,13 +704,6 @@ class SQLDB(DBInterface):
         mergedeep.merge(project_record_full_object, project_dict, strategy=strategy)
         project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
-
-    def get_project(
-        self, session: Session, name: str = None, project_id: int = None
-    ) -> schemas.Project:
-        project_record = self._get_project_record(session, name, project_id)
-
-        return self._transform_project_model_to_schema(project_record)
 
     def _get_project_record(
         self,

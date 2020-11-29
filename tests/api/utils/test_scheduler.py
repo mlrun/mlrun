@@ -2,9 +2,9 @@ import asyncio
 import pathlib
 from datetime import datetime, timedelta, timezone
 from typing import Generator
-from dateutil.tz import tzlocal
 
 import pytest
+from dateutil.tz import tzlocal
 from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ import mlrun
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.projects_manager import initialize_projects_manager
 from mlrun.config import config
 from mlrun.runtimes.base import RunStates
 from mlrun.utils import logger
@@ -23,6 +24,7 @@ async def scheduler(db: Session) -> Generator:
     config.httpdb.scheduling.min_allowed_interval = "0"
     scheduler = Scheduler()
     await scheduler.start(db)
+    mlrun.api.utils.singletons.projects_manager.initialize_projects_manager()
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()

@@ -19,6 +19,11 @@ class ObjectMetadata(BaseModel):
         extra = Extra.allow
 
 
+class Format(str, Enum):
+    all = "all"
+    name_only = "name_only"
+
+
 class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"

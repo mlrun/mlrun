@@ -182,7 +182,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_projects(
-        self, session, owner: str = None, full: bool = True
+        self, session, owner: str = None, format_: schemas.Format = schemas.Format.all,
     ) -> schemas.ProjectsOutput:
         pass
 

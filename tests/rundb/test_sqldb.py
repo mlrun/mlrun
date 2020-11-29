@@ -178,7 +178,7 @@ def test_projects(db: SQLDB, db_session: Session):
 
     project_2 = mlrun.api.schemas.Project(name="p2")
     db.create_project(db_session, project_2)
-    projects_output = db.list_projects(db_session, full=False)
+    projects_output = db.list_projects(db_session, format_=mlrun.api.schemas.Format.name_only)
     assert [project.name, project_2.name] == projects_output.projects
 
 

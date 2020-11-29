@@ -70,7 +70,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         return self._transform_nuclio_project_to_schema(response_body)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session, owner: str = None, full: bool = True,
+        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.all,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError()
@@ -79,7 +79,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         projects = []
         for nuclio_project in response_body.values():
             projects.append(self._transform_nuclio_project_to_schema(nuclio_project))
-        if full:
+        if mlrun.api.schemas.Format.name_only:
             return mlrun.api.schemas.ProjectsOutput(projects=projects)
         else:
             return mlrun.api.schemas.ProjectsOutput(

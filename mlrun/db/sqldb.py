@@ -214,7 +214,7 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def list_projects(
-        self, owner: str = None, full: bool = True
+        self, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.all,
     ) -> mlrun.api.schemas.ProjectsOutput:
         raise NotImplementedError()
 

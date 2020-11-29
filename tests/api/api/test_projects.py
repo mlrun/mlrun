@@ -49,7 +49,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK.value
 
     # list
-    response = client.get("/api/projects", params={"full": False})
+    response = client.get("/api/projects", params={"format": mlrun.api.schemas.Format.name_only})
     expected = [name1, name2]
     assert expected == response.json()["projects"]
 
@@ -58,6 +58,6 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # list
-    response = client.get("/api/projects", params={"full": False})
+    response = client.get("/api/projects", params={"format": mlrun.api.schemas.Format.name_only})
     expected = [name2]
     assert expected == response.json()["projects"]

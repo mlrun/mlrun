@@ -739,15 +739,17 @@ class SQLDB(DBInterface):
         self._delete(session, Project, name=name)
 
     def list_projects(
-        self, session: Session, owner: str = None, full: bool = True
+        self, session: Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.all,
     ) -> schemas.ProjectsOutput:
         project_records = self._query(session, Project, owner=owner)
         projects = []
         for project_record in project_records:
-            if full:
+            if format_ == mlrun.api.schemas.Format.name_only:
+                projects.append(project_record.name)
+            elif format_ == mlrun.api.schemas.Format.all:
                 projects.append(self._transform_project_model_to_schema(project_record))
             else:
-                projects.append(project_record.name)
+                raise NotImplementedError(f"Provided format is not supported. format={format_}")
         return schemas.ProjectsOutput(projects=projects)
 
     def _get_feature_set(

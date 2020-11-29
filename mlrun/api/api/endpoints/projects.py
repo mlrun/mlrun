@@ -1,6 +1,6 @@
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Response, Header
+from fastapi import APIRouter, Depends, Response, Header, Query
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
@@ -60,8 +60,10 @@ def delete_project(
 # curl http://localhost:8080/projects?full=true
 @router.get("/projects", response_model=schemas.ProjectsOutput)
 def list_projects(
-    full: bool = True,
+    format_: schemas.Format = Query(
+        schemas.Format.all, alias="format"
+    ),
     owner: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_projects_manager().list_projects(db_session, owner, full)
+    return get_projects_manager().list_projects(db_session, owner, format_)

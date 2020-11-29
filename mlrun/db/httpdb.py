@@ -829,11 +829,11 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error_message)
 
     def list_projects(
-        self, owner: str = None, full: bool = True
+        self, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.all,
     ) -> schemas.ProjectsOutput:
         params = {
             "owner": owner,
-            "full": full,
+            "format": format_,
         }
 
         error_message = f"Failed listing projects, query: {params}"

@@ -680,7 +680,7 @@ class SQLDB(DBInterface):
     ) -> schemas.Project:
         project_record = self._get_project_record(session, name, project_id)
 
-        return self._transform_project_model_to_schema(project_record)
+        return self._transform_project_record_to_schema(project_record)
 
     def _update_project_record_from_project(self, session: Session, project_record: Project, project: schemas.Project):
         project.created = project_record.created
@@ -750,7 +750,7 @@ class SQLDB(DBInterface):
             if format_ == mlrun.api.schemas.Format.name_only:
                 projects.append(project_record.name)
             elif format_ == mlrun.api.schemas.Format.all:
-                projects.append(self._transform_project_model_to_schema(project_record))
+                projects.append(self._transform_project_record_to_schema(project_record))
             else:
                 raise NotImplementedError(f"Provided format is not supported. format={format_}")
         return schemas.ProjectsOutput(projects=projects)
@@ -1527,6 +1527,6 @@ class SQLDB(DBInterface):
         return feature_set_resp
 
     @staticmethod
-    def _transform_project_model_to_schema(project_record: Project) -> schemas.Project:
+    def _transform_project_record_to_schema(project_record: Project) -> schemas.Project:
         project_full_dict = project_record.full_object
         return schemas.Project(**project_full_dict)

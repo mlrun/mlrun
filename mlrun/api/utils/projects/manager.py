@@ -77,7 +77,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         return self._master_consumer.get_project(session, name)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.all,
+        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._master_consumer.list_projects(session, owner, format_)
 

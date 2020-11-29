@@ -71,7 +71,7 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         return self._transform_nuclio_project_to_schema(response_body)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.all,
+        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError("Listing nuclio projects by owner is currently not supported")

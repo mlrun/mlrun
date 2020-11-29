@@ -6,7 +6,7 @@ import mlrun.errors
 
 
 class Format(str, Enum):
-    all = "all"
+    full = "full"
     name_only = "name_only"
 
 

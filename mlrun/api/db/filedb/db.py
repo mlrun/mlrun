@@ -135,7 +135,7 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
     def list_projects(
-        self, session, owner: str = None, format_: schemas.Format = schemas.Format.all,
+        self, session, owner: str = None, format_: schemas.Format = schemas.Format.full,
     ) -> schemas.ProjectsOutput:
         return self._transform_run_db_error(self.db.list_projects, owner, format_)
 

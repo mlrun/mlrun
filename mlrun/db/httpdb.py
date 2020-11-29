@@ -811,7 +811,7 @@ class HTTPRunDB(RunDBInterface):
         reference = uid or tag or "latest"
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
-        headers = {"x-mlrun-patch-mode": patch_mode}
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
@@ -873,7 +873,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{name}"
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
-        headers = {"x-mlrun-patch-mode": patch_mode}
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()

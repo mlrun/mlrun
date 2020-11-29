@@ -4,6 +4,8 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
+
 
 def _generate_feature_set(name):
     return {
@@ -173,7 +175,7 @@ def _patch_feature_set(
     patch_mode = "replace"
     if additive:
         patch_mode = "additive"
-    headers = {"x-mlrun-patch-mode": patch_mode}
+    headers = {mlrun.api.schemas.HeaderNames.patch_mode: patch_mode}
     response = client.patch(
         f"/api/projects/{project_name}/feature-sets/{name}/references/latest",
         json=feature_set_update,

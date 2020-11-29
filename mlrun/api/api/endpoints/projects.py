@@ -33,7 +33,7 @@ def patch_project(
     project: schemas.ProjectPatch,
     name: str,
     patch_mode: schemas.PatchMode = Header(
-        schemas.PatchMode.replace, alias="x-mlrun-patch-mode"
+        schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):

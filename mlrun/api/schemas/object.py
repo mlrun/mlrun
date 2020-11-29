@@ -1,10 +1,8 @@
-import mergedeep
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Extra
 from typing import Optional
 
-import mlrun.errors
+from pydantic import BaseModel, Extra
 
 
 class ObjectMetadata(BaseModel):
@@ -17,26 +15,6 @@ class ObjectMetadata(BaseModel):
 
     class Config:
         extra = Extra.allow
-
-
-class Format(str, Enum):
-    all = "all"
-    name_only = "name_only"
-
-
-class PatchMode(str, Enum):
-    replace = "replace"
-    additive = "additive"
-
-    def to_mergedeep_strategy(self) -> mergedeep.Strategy:
-        if self.value == PatchMode.replace:
-            return mergedeep.Strategy.REPLACE
-        elif self.value == PatchMode.additive:
-            return mergedeep.Strategy.ADDITIVE
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown patch mode: {self.value}"
-            )
 
 
 class ObjectKind(str, Enum):

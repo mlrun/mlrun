@@ -23,7 +23,7 @@ session_maker: Callable
 
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
-def config_do_not_override():
+def config_test_base():
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
     environ["MLRUN_httpdb__dirpath"] = rundb_path

@@ -21,10 +21,10 @@ async def projects_manager() -> typing.Generator[
     mlrun.config.config.httpdb.projects.consumers = "nop,nop2"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
     projects_manager = mlrun.api.utils.projects.manager.ProjectsManager()
-    projects_manager.start()
+    projects_manager.initialize()
     yield projects_manager
     logger.info("Stopping projects manager")
-    projects_manager.stop()
+    projects_manager.shutdown()
 
 
 @pytest.fixture()

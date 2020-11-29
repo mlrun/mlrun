@@ -18,8 +18,8 @@ from mlrun.utils import logger
 
 
 class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
-    def start(self):
-        logger.info("Starting projects manager")
+    def initialize(self):
+        logger.info("Initializing projects manager")
         self._initialize_consumers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
             mlrun.config.config.httpdb.projects.periodic_sync_interval
@@ -28,7 +28,8 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         self._sync_projects()
         self._start_periodic_sync()
 
-    def stop(self):
+    def shutdown(self):
+        logger.info("Shutting down projects manager")
         self._stop_periodic_sync()
 
     def ensure_project(self, session: sqlalchemy.orm.Session, name: str):

@@ -7,7 +7,7 @@ projects_manager: ProjectsManager = None
 def initialize_projects_manager():
     global projects_manager
     projects_manager = ProjectsManager()
-    projects_manager.start()
+    projects_manager.initialize()
 
 
 def get_projects_manager() -> ProjectsManager:

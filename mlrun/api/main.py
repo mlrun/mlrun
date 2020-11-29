@@ -129,7 +129,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    get_projects_manager().stop()
+    get_projects_manager().shutdown()
     cancel_all_periodic_functions()
     await get_scheduler().stop()
 

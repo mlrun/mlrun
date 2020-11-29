@@ -15,8 +15,7 @@ router = APIRouter()
 def create_project(
     project: schemas.Project, db_session: Session = Depends(deps.get_db_session)
 ):
-    get_projects_manager().create_project(db_session, project)
-    return get_projects_manager().get_project(db_session, project.name)
+    return get_projects_manager().create_project(db_session, project)
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
@@ -26,8 +25,7 @@ def store_project(
     name: str,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_projects_manager().store_project(db_session, name, project)
-    return get_projects_manager().get_project(db_session, name)
+    return get_projects_manager().store_project(db_session, name, project)
 
 
 @router.patch("/projects/{name}", response_model=schemas.Project)
@@ -39,8 +37,7 @@ def patch_project(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_projects_manager().patch_project(db_session, name, project, patch_mode)
-    return get_projects_manager().get_project(db_session, name)
+    return get_projects_manager().patch_project(db_session, name, project, patch_mode)
 
 
 # curl http://localhost:8080/project/<name>

@@ -32,7 +32,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         self._stop_periodic_sync()
 
     def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
-        project_names = self.list_projects(session, full=False)
+        project_names = self.list_projects(session, format_=mlrun.api.schemas.Format.name_only)
         if name in project_names.projects:
             return
         logger.info(
@@ -42,8 +42,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
-    ):
+    ) -> mlrun.api.schemas.Project:
         self._run_on_all_consumers("create_project", session, project)
+        return self.get_project(session, project.name)
 
     def store_project(
         self,
@@ -53,6 +54,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
     ):
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_consumers("store_project", session, name, project)
+        return self.get_project(session, name)
 
     def patch_project(
         self,
@@ -63,6 +65,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
     ):
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_consumers("patch_project", session, name, project, patch_mode)
+        return self.get_project(session, name)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         self._run_on_all_consumers("delete_project", session, name)

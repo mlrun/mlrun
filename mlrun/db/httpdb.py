@@ -876,7 +876,7 @@ class HTTPRunDB(RunDBInterface):
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
         if isinstance(project, mlrun.api.schemas.Project):
-            project = project.dict()
+            project = project.dict(exclude_unset=True)
         response = self.api_call(
             "PATCH", path, error_message, body=json.dumps(project), headers=headers
         )

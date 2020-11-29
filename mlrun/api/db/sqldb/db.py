@@ -692,7 +692,7 @@ class SQLDB(DBInterface):
         self._upsert(session, project_record)
 
     def _patch_project_record_from_project(self, session: Session, project_record: Project, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode):
-        project_dict = project.dict()
+        project_dict = project.dict(exclude_unset=True)
         if project.description:
             project_record.description = project.description
         if project.source:

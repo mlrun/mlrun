@@ -91,6 +91,7 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
             mlrun.api.utils.periodic.run_function_periodically(
                 self._periodic_sync_interval_seconds,
                 self._sync_projects.__name__,
+                False,
                 self._sync_projects,
             )
 

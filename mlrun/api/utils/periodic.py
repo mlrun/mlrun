@@ -27,13 +27,15 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
         await asyncio.sleep(interval)
 
 
-def run_function_periodically(interval: int, name: str, function, *args, **kwargs):
+def run_function_periodically(interval: int, name: str, replace: bool, function, *args, **kwargs):
     global tasks
     logger.debug("Submitting function to run periodically", name=name)
     if name in tasks:
-        message = "Task with that name already exists"
-        logger.warning(message, name=name)
-        raise mlrun.errors.MLRunInvalidArgumentError(message)
+        if not replace:
+            message = "Task with that name already exists"
+            logger.warning(message, name=name)
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
+        cancel_periodic_function(name)
     loop = asyncio.get_running_loop()
     task = loop.create_task(
         _periodic_function_wrapper(interval, function, *args, **kwargs)

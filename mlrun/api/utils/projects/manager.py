@@ -33,7 +33,9 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         self._stop_periodic_sync()
 
     def ensure_project(self, session: sqlalchemy.orm.Session, name: str):
-        project_names = self.list_projects(session, format_=mlrun.api.schemas.Format.name_only)
+        project_names = self.list_projects(
+            session, format_=mlrun.api.schemas.Format.name_only
+        )
         if name in project_names.projects:
             return
         logger.info(
@@ -77,7 +79,10 @@ class ProjectsManager(metaclass=mlrun.utils.singleton.Singleton):
         return self._master_consumer.get_project(session, name)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._master_consumer.list_projects(session, owner, format_)
 

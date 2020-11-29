@@ -27,7 +27,9 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
         await asyncio.sleep(interval)
 
 
-def run_function_periodically(interval: int, name: str, replace: bool, function, *args, **kwargs):
+def run_function_periodically(
+    interval: int, name: str, replace: bool, function, *args, **kwargs
+):
     global tasks
     logger.debug("Submitting function to run periodically", name=name)
     if name in tasks:

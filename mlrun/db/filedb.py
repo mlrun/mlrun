@@ -413,7 +413,9 @@ class FileRunDB(RunDBInterface):
         return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
 
     def list_projects(
-        self, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        self,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner or format_ == mlrun.api.schemas.Format.full:
             raise NotImplementedError()

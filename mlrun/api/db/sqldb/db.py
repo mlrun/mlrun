@@ -656,7 +656,9 @@ class SQLDB(DBInterface):
 
     def store_project(self, session: Session, name: str, project: schemas.Project):
         logger.debug("Storing project in DB", name=name, project=project)
-        project_record = self._get_project_record(session, name, raise_on_not_found=False)
+        project_record = self._get_project_record(
+            session, name, raise_on_not_found=False
+        )
         if not project_record:
             self.create_project(session, project)
         else:
@@ -673,7 +675,9 @@ class SQLDB(DBInterface):
             "Patching project in DB", name=name, project=project, patch_mode=patch_mode
         )
         project_record = self._get_project_record(session, name)
-        self._patch_project_record_from_project(session, project_record, project, patch_mode)
+        self._patch_project_record_from_project(
+            session, project_record, project, patch_mode
+        )
 
     def get_project(
         self, session: Session, name: str = None, project_id: int = None
@@ -682,7 +686,9 @@ class SQLDB(DBInterface):
 
         return self._transform_project_record_to_schema(project_record)
 
-    def _update_project_record_from_project(self, session: Session, project_record: Project, project: schemas.Project):
+    def _update_project_record_from_project(
+        self, session: Session, project_record: Project, project: schemas.Project
+    ):
         project.created = project_record.created
         project_dict = project.dict()
         project_record.full_object = project_dict
@@ -691,7 +697,13 @@ class SQLDB(DBInterface):
         project_record.state = project.state
         self._upsert(session, project_record)
 
-    def _patch_project_record_from_project(self, session: Session, project_record: Project, project: schemas.ProjectPatch, patch_mode: schemas.PatchMode):
+    def _patch_project_record_from_project(
+        self,
+        session: Session,
+        project_record: Project,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode,
+    ):
         project_dict = project.dict(exclude_unset=True)
         if project.description:
             project_record.description = project.description
@@ -716,7 +728,9 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"
             )
-        project_record = self._query(session, Project, name=name, id=project_id).one_or_none()
+        project_record = self._query(
+            session, Project, name=name, id=project_id
+        ).one_or_none()
         if not project_record:
             if not raise_on_not_found:
                 return None
@@ -742,7 +756,10 @@ class SQLDB(DBInterface):
         self._delete(session, Project, name=name)
 
     def list_projects(
-        self, session: Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        self,
+        session: Session,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
     ) -> schemas.ProjectsOutput:
         project_records = self._query(session, Project, owner=owner)
         projects = []
@@ -750,9 +767,13 @@ class SQLDB(DBInterface):
             if format_ == mlrun.api.schemas.Format.name_only:
                 projects.append(project_record.name)
             elif format_ == mlrun.api.schemas.Format.full:
-                projects.append(self._transform_project_record_to_schema(project_record))
+                projects.append(
+                    self._transform_project_record_to_schema(project_record)
+                )
             else:
-                raise NotImplementedError(f"Provided format is not supported. format={format_}")
+                raise NotImplementedError(
+                    f"Provided format is not supported. format={format_}"
+                )
         return schemas.ProjectsOutput(projects=projects)
 
     def _get_feature_set(

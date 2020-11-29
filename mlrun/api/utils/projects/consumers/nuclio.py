@@ -71,10 +71,15 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         return self._transform_nuclio_project_to_schema(response_body)
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
-            raise NotImplementedError("Listing nuclio projects by owner is currently not supported")
+            raise NotImplementedError(
+                "Listing nuclio projects by owner is currently not supported"
+            )
         response = self._send_request_to_api("GET", "projects")
         response_body = response.json()
         projects = []
@@ -87,7 +92,9 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
                 projects=[project.name for project in projects]
             )
         else:
-            raise NotImplementedError(f"Provided format is not supported. format={format_}")
+            raise NotImplementedError(
+                f"Provided format is not supported. format={format_}"
+            )
 
     def _get_project_from_nuclio(self, name):
         return self._send_request_to_api("GET", f"projects/{name}")
@@ -99,21 +106,14 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         # yup, Nuclio projects API PUT endpoint is /projects, not /projects/{name} - "it's not a bug it's a feature"
         self._send_request_to_api("PUT", "projects", json=body)
 
-    def _send_request_to_api(
-        self, method, path, **kwargs
-    ):
+    def _send_request_to_api(self, method, path, **kwargs):
         url = f"{self._api_url}/api/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
-        response = self._session.request(
-            method, url, verify=False, **kwargs
-        )
+        response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)
-            log_kwargs.update({
-                "method": method,
-                "path": path,
-            })
+            log_kwargs.update({"method": method, "path": path})
             if response.content:
                 try:
                     data = response.json()

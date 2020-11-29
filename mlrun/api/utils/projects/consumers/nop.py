@@ -52,7 +52,10 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         return self._projects[name]
 
     def list_projects(
-        self, session: sqlalchemy.orm.Session, owner: str = None, format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError()
@@ -64,4 +67,6 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
             project_names = [project.name for project in list(self._projects.values())]
             return mlrun.api.schemas.ProjectsOutput(projects=project_names)
         else:
-            raise NotImplementedError(f"Provided format is not supported. format={format_}")
+            raise NotImplementedError(
+                f"Provided format is not supported. format={format_}"
+            )

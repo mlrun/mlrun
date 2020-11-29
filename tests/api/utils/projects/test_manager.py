@@ -109,22 +109,35 @@ def test_projects_sync_multiple_consumer_project_adoption(
     both_consumers_project_description = "some description"
     nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(name=both_consumers_project_name, description=both_consumers_project_description),
+        mlrun.api.schemas.Project(
+            name=both_consumers_project_name,
+            description=both_consumers_project_description,
+        ),
     )
     second_nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(name=both_consumers_project_name, description=both_consumers_project_description),
+        mlrun.api.schemas.Project(
+            name=both_consumers_project_name,
+            description=both_consumers_project_description,
+        ),
     )
     second_nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(name=second_consumer_project_name, description=second_consumer_project_description),
+        mlrun.api.schemas.Project(
+            name=second_consumer_project_name,
+            description=second_consumer_project_description,
+        ),
     )
     nop_master.create_project = unittest.mock.Mock(wraps=nop_master.create_project)
     _assert_project_in_consumers(
-        [nop_consumer, second_nop_consumer], both_consumers_project_name, both_consumers_project_description
+        [nop_consumer, second_nop_consumer],
+        both_consumers_project_name,
+        both_consumers_project_description,
     )
     _assert_project_in_consumers(
-        [second_nop_consumer], second_consumer_project_name, second_consumer_project_description
+        [second_nop_consumer],
+        second_consumer_project_name,
+        second_consumer_project_description,
     )
     _assert_no_projects_in_consumers([nop_master])
 

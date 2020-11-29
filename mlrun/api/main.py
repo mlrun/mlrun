@@ -154,7 +154,9 @@ def _start_periodic_runs_monitoring():
     interval = int(config.runs_monitoring_interval)
     if interval > 0:
         logger.info("Starting periodic runs monitoring", interval=interval)
-        run_function_periodically(interval, _monitor_runs.__name__, False, _monitor_runs)
+        run_function_periodically(
+            interval, _monitor_runs.__name__, False, _monitor_runs
+        )
 
 
 def _monitor_runs():

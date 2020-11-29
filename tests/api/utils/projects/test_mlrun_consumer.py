@@ -66,7 +66,9 @@ def test_create_project(
 
     mlrun_consumer.create_project(
         db,
-        mlrun.api.schemas.Project(name=project_name, description=project_description, created=project_created),
+        mlrun.api.schemas.Project(
+            name=project_name, description=project_description, created=project_created
+        ),
     )
 
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
@@ -88,7 +90,9 @@ def test_store_project_creation(
     mlrun_consumer.store_project(
         db,
         project_name,
-        mlrun.api.schemas.Project(name=project_name, description=project_description, created=project_created),
+        mlrun.api.schemas.Project(
+            name=project_name, description=project_description, created=project_created
+        ),
     )
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
         db, project_name
@@ -108,7 +112,9 @@ def test_store_project_update(
     project_created = datetime.datetime.utcnow()
     mlrun.api.utils.singletons.db.get_db().create_project(
         db,
-        mlrun.api.schemas.Project(name=project_name, description=project_description, created=project_created),
+        mlrun.api.schemas.Project(
+            name=project_name, description=project_description, created=project_created
+        ),
     )
 
     mlrun_consumer.store_project(

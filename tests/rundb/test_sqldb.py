@@ -158,7 +158,7 @@ def test_list_tags(db: SQLDB, db_session: Session):
     assert set(tags) == set(tags1), "tags"
 
 
-def test_projects(db: SQLDB, db_session: Session):
+def test_projects_crud(db: SQLDB, db_session: Session):
     project = mlrun.api.schemas.Project(
         name="p1", description="banana", spec={"other_field": "value"}, state="active"
     )

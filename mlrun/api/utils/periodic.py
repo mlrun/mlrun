@@ -51,7 +51,7 @@ def cancel_periodic_function(name: str):
         del tasks[name]
 
 
-def cancel_periodic_functions():
+def cancel_all_periodic_functions():
     global tasks
     logger.debug("Canceling periodic functions", functions=tasks.keys())
     for task in tasks.values():

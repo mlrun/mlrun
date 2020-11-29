@@ -12,7 +12,7 @@ from mlrun.api.db.session import create_session, close_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
     run_function_periodically,
-    cancel_periodic_functions,
+    cancel_all_periodic_functions,
 )
 from mlrun.api.utils.singletons.db import get_db, initialize_db
 from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
@@ -130,7 +130,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     get_projects_manager().stop()
-    cancel_periodic_functions()
+    cancel_all_periodic_functions()
     await get_scheduler().stop()
 
 

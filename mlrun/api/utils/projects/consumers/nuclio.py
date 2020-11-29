@@ -1,3 +1,4 @@
+import copy
 import http
 
 import requests.adapters
@@ -97,32 +98,20 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
         self._send_request_to_api("PUT", "projects", json=body)
 
     def _send_request_to_api(
-        self, method, path, params=None, body=None, json=None, headers=None, timeout=20
+        self, method, path, **kwargs
     ):
         url = f"{self._api_url}/api/{path}"
-        kwargs = {
-            key: value
-            for key, value in (
-                ("params", params),
-                ("data", body),
-                ("json", json),
-                ("headers", headers),
-            )
-            if value is not None
-        }
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = 20
         response = self._session.request(
-            method, url, timeout=timeout, verify=False, **kwargs
+            method, url, verify=False, **kwargs
         )
         if not response.ok:
-            log_kwargs = {
+            log_kwargs = copy.deepcopy(kwargs)
+            log_kwargs.update({
                 "method": method,
                 "path": path,
-                "params": params,
-                "body": body,
-                "json": json,
-                "headers": headers,
-                "timeout": timeout,
-            }
+            })
             if response.content:
                 try:
                     data = response.json()

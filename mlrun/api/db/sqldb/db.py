@@ -643,7 +643,7 @@ class SQLDB(DBInterface):
         logger.debug("Creating project in DB", project=project)
         created = datetime.utcnow()
         project.created = created
-        project = Project(
+        project_record = Project(
             name=project.name,
             description=project.description,
             owner=project.owner,
@@ -652,11 +652,11 @@ class SQLDB(DBInterface):
             created=created,
             full_object=project.dict(),
         )
-        self._upsert(session, project)
+        self._upsert(session, project_record)
 
     def store_project(self, session: Session, name: str, project: schemas.Project):
         logger.debug("Storing project in DB", name=name, project=project)
-        project_record = self._get_project(session, name, raise_on_not_found=False)
+        project_record = self._get_project_record(session, name, raise_on_not_found=False)
         if not project_record:
             self.create_project(session, project)
         else:
@@ -678,7 +678,7 @@ class SQLDB(DBInterface):
         logger.debug(
             "Patching project in DB", name=name, project=project, patch_mode=patch_mode
         )
-        project_record = self._get_project(session, name)
+        project_record = self._get_project_record(session, name)
         project_dict = project.dict()
         if project.description:
             project_record.description = project.description
@@ -695,11 +695,11 @@ class SQLDB(DBInterface):
     def get_project(
         self, session: Session, name: str = None, project_id: int = None
     ) -> schemas.Project:
-        project_record = self._get_project(session, name, project_id)
+        project_record = self._get_project_record(session, name, project_id)
 
         return self._transform_project_model_to_schema(project_record)
 
-    def _get_project(
+    def _get_project_record(
         self,
         session: Session,
         name: str = None,
@@ -710,15 +710,15 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of name or project id must be provided"
             )
-        project = self._query(session, Project, name=name, id=project_id).one_or_none()
-        if not project:
+        project_record = self._query(session, Project, name=name, id=project_id).one_or_none()
+        if not project_record:
             if not raise_on_not_found:
                 return None
             raise mlrun.errors.MLRunNotFoundError(
                 f"Project not found {name}, {project_id}"
             )
 
-        return project
+        return project_record
 
     def delete_project(self, session: Session, name: str):
         logger.debug("Deleting project from DB", name=name)

@@ -17,6 +17,15 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     # create
     response = client.post("/api/projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.OK.value
+    project_output = mlrun.api.schemas.Project(**response.json())
+    assert (
+        deepdiff.DeepDiff(
+            project_1.dict(exclude={"created"}),
+            project_output.dict(exclude={"id", "created"}),
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # read
     response = client.get(f"/api/projects/{name1}")
@@ -34,9 +43,6 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     project_update = mlrun.api.schemas.ProjectPatch(description="lemon")
     response = client.patch(f"/api/projects/{name1}", json=project_update.dict())
     assert response.status_code == HTTPStatus.OK.value
-
-    # read
-    response = client.get(f"/api/projects/{name1}")
     assert project_update.description == response.json()["description"]
 
     name2 = f"prj-{uuid4().hex}"

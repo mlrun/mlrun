@@ -54,6 +54,7 @@ class FeatureStoreClient:
         self.default_feature_set = ""
         self.context = context or MockContext()
         setattr(self.context, "get_table", self._get_table)
+        setattr(self.context, "client", self)
         try:
             # add v3io:// path prefix support to pandas & dask
             from v3iofs import V3ioFS
@@ -146,6 +147,7 @@ class FeatureStoreClient:
             featureset.infer_from_df(source)
         self._init_featureset_targets(featureset, targets)
         return_df = return_df or with_stats or with_preview
+        self.save_object(featureset)
         df = ingest_from_df(
             self.context, featureset, source, targets, namespace, return_df=return_df
         ).await_termination()

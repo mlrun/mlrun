@@ -25,6 +25,63 @@ class FeatureClassKind:
     Entity = "Entity"
 
 
+class Validator(ModelObj):
+    kind = ""
+    _dict_fields = ["kind", "check_type", "severity"]
+
+    def __init__(self, check_type=None, severity=None):
+        self._feature = None
+        self.check_type = check_type
+        self.severity = severity
+
+    def set_feature(self, feature):
+        self._feature = feature
+
+    def check(self, value):
+        return True, {}
+
+
+class MinMaxValidator(Validator):
+    kind = "minmax"
+    _dict_fields = ["kind", "check_type", "severity", "min", "max"]
+
+    def __init__(self, check_type=None, severity=None, min=None, max=None):
+        super().__init__(check_type, severity)
+        self.min = min
+        self.max = max
+
+    def check(self, value):
+        ok, args = super().check(value)
+        if ok:
+            if self.min is not None:
+                if value < self.min:
+                    return (
+                        False,
+                        {
+                            "message": "value is smaller than min",
+                            "min": self.min,
+                            "value": value,
+                        },
+                    )
+            if self.max is not None:
+                if value > self.max:
+                    return (
+                        False,
+                        {
+                            "message": "value is greater than max",
+                            "max": self.max,
+                            "value": value,
+                        },
+                    )
+        return ok, args
+
+
+validator_types = {
+    "": Validator,
+    "minmax": MinMaxValidator,
+}
+
+
 class Entity(ModelObj):
     def __init__(
         self,
@@ -52,6 +109,7 @@ class Feature(ModelObj):
         "windows",
         "operations",
         "period",
+        "validator",
     ]
 
     def __init__(self, value_type: ValueType = None, description=None, name=None):
@@ -61,11 +119,23 @@ class Feature(ModelObj):
         self.description = description
         self.default = None
         self.labels = {}
+        self._validator = None
 
         # aggregated features
         self.windows = None
         self.operations = None
         self.period = None
+
+    @property
+    def validator(self):
+        return self._validator
+
+    @validator.setter
+    def validator(self, validator):
+        if isinstance(validator, dict):
+            kind = validator.get("kind")
+            validator = validator_types[kind].from_dict(validator)
+        self._validator = validator
 
 
 class FeatureSetProducer(ModelObj):

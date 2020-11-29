@@ -1,3 +1,4 @@
+
 from storey import (
     AggregateByKey,
     Table,
@@ -11,6 +12,8 @@ from storey import (
 )
 
 from .model import TargetTypes
+from .steps import ValidatorStep
+from ..serving.states import ServingFlowState
 
 
 def ingest_from_df(context, featureset, df, targets=None, namespace=[], return_df=True):
@@ -49,6 +52,12 @@ def create_ingest_flow(
     if aggregation_objects:
         steps.append(AggregateByKey(aggregation_objects, table, context=context))
 
+    has_validator = False
+    for feature in featureset.spec.features.values():
+        has_validator = has_validator or feature.validator is not None
+    if has_validator:
+        steps.append(ValidatorStep(featureset.uri(), context=context))
+
     if TargetTypes.nosql in targets:
         steps.append([WriteToTable(table, columns=column_list, context=context)])
 
@@ -73,6 +82,99 @@ def create_ingest_flow(
         )
 
     return build_flow(steps)
+
+
+def create_ingest_graph(client, featureset, df, targets=None, return_df=True):
+    client._init_featureset_targets(featureset, targets)
+    key_column = featureset.spec.entities[0].name
+    targets = targets or []
+    table = featureset.uri() if TargetTypes.nosql in targets else ""
+
+    timestamp_key = featureset.spec.timestamp_key
+    aggregations = featureset.spec.aggregations
+
+    # steps = [source]
+
+    graph: ServingFlowState = featureset.spec.flow.copy()
+    last = graph.find_last_state()
+    # graph.add_state('source',
+    #                 after='',
+    #                 shape='cylinder',
+    #                 class_name='storey.Source',
+    #                 next=graph.start_at)
+    # graph.add_state('DataframeSource',
+    #                 after='',
+    #                 shape='cylinder',
+    #                 class_name='storey.DataframeSource',
+    #                 class_args={'dfs': df,
+    #                             'key_column': key_column,
+    #                             'time_column': timestamp_key},
+    #                 next=graph.start_at)
+
+    column_list = _clear_aggregators(aggregations, featureset.spec.features.keys())
+    aggregation_objects = [aggregate.to_dict() for aggregate in aggregations.values()]
+    if aggregation_objects:
+        graph.add_state(
+            "Aggregates",
+            after=last,
+            class_name="storey.AggregateByKey",
+            class_args={"aggregates": aggregation_objects, "table": table},
+        )
+        last = "Aggregates"
+
+    has_validator = False
+    for feature in featureset.spec.features.values():
+        has_validator = has_validator or feature.validator is not None
+    if has_validator:
+        graph.add_state(
+            "ValidatorStep",
+            after=last,
+            class_name="mlrun.featurestore.ValidatorStep",
+            class_args={"featureset": featureset.uri()},
+        )
+        last = "ValidatorStep"
+
+    if TargetTypes.nosql in targets:
+        graph.add_state(
+            "WriteToTable",
+            after=last,
+            shape="cylinder",
+            class_name="storey.WriteToTable",
+            class_args={"columns": column_list, "table": table},
+        )
+
+    if TargetTypes.parquet in targets:
+        target_path = featureset.status.targets["parquet"].path
+        column_list = list(featureset.spec.features.keys())
+        if timestamp_key:
+            column_list = [timestamp_key] + column_list
+        graph.add_state(
+            "WriteToParquet",
+            after=last,
+            shape="cylinder",
+            class_name="storey.WriteToParquet",
+            class_args={
+                "path": target_path,
+                "columns": column_list,
+                "index_cols": key_column,
+            },
+        )
+
+    if return_df:
+        graph.add_state(
+            "ReduceToDataFrame",
+            after=last,
+            shape="cylinder",
+            class_name="storey.ReduceToDataFrame",
+            class_args={
+                "index": key_column,
+                "insert_key_column_as": key_column,
+                "insert_time_column_as": featureset.spec.timestamp_key,
+            },
+        )
+
+    graph.engine = "async"
+    return graph
 
 
 def _clear_aggregators(aggregations, column_list):

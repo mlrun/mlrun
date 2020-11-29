@@ -14,7 +14,7 @@
 import json
 import os
 import pathlib
-from copy import deepcopy
+from copy import deepcopy, copy
 
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -45,6 +45,7 @@ _task_state_fields = [
     "resource",
     "comment",
     "end",
+    "shape",
     "full_event",
 ]
 
@@ -63,7 +64,7 @@ def new_remote_endpoint(url, **class_args):
 
 class BaseState(ModelObj):
     kind = "BaseState"
-    shape = "ellipse"
+    default_shape = "ellipse"
     _dict_fields = ["kind", "comment", "next", "end", "resource"]
 
     def __init__(self, name=None, next=None, end=None):
@@ -74,6 +75,10 @@ class BaseState(ModelObj):
         self.next = next
         self.end = end
         self.resource = None
+        self.shape = None
+
+    def get_shape(self):
+        return self.shape or self.default_shape
 
     def set_parent(self, parent):
         self._parent = parent
@@ -167,7 +172,12 @@ class ServingTaskState(BaseState):
             if self.skip_context is None or not self.skip_context:
                 class_args["name"] = self.name
                 class_args["context"] = self.context
-            self._object = self._class_object(**class_args)
+            try:
+                self._object = self._class_object(**class_args)
+            except TypeError as e:
+                raise TypeError(
+                    f"failed to init state {self.name}, {e}\n args={self.class_args}"
+                )
 
             handler = self.handler
             if handler:
@@ -199,6 +209,8 @@ class ServingTaskState(BaseState):
             self._object.post_init(mode)
 
     def run(self, event, *args, **kwargs):
+        if self.context.verbose:
+            self.context.logger.info(f"state {self.name} got event {event}")
         if self.full_event:
             return self._handler(event, *args, **kwargs)
         event.body = self._handler(event.body, *args, **kwargs)
@@ -207,7 +219,7 @@ class ServingTaskState(BaseState):
 
 class ServingRouterState(ServingTaskState):
     kind = "router"
-    shape = "doubleoctagon"
+    default_shape = "doubleoctagon"
     _dict_fields = _task_state_fields + ["routes"]
     _default_class = "mlrun.serving.ModelRouter"
 
@@ -291,7 +303,7 @@ class ServingRouterState(ServingTaskState):
 
 class ServingQueueState(BaseState):
     kind = "queue"
-    shape = "cds"
+    default_shape = "cds"
     _dict_fields = BaseState._dict_fields + ["path", "shards", "retention_in_hours"]
 
     def __init__(
@@ -331,8 +343,11 @@ class ServingFlowState(BaseState):
         self.start_at = start_at
         self.engine = engine
         self.from_state = os.environ.get("START_FROM_STATE", None)
+
         self._last_added = None
         self._controller = None
+        self._wait_for_result = False
+        self._source = None
 
     def get_children(self):
         return self._states.values()
@@ -354,6 +369,7 @@ class ServingFlowState(BaseState):
         handler=None,
         after=None,
         next=None,
+        shape=None,
     ):
         """add child route state or class to the router
 
@@ -372,14 +388,18 @@ class ServingFlowState(BaseState):
             state = ServingTaskState(class_name, class_args, handler=handler)
         state = self._states.update(key, state)
         state.set_parent(self)
+        if shape:
+            state.shape = shape
 
         if not self.start_at and len(self._states) <= 1:
             self.start_at = key
 
         if next:
             if not isinstance(next, list):
-                raise ValueError("next param must be a list of next step names")
+                next = [next]
             state.next = next
+            if self.start_at in next:
+                self.start_at = key
         if after:
             if isinstance(after, str):
                 if after not in self._states.keys():
@@ -388,7 +408,7 @@ class ServingFlowState(BaseState):
                     )
                 after = self._states[after]
             after.set_next(key)
-        elif self._last_added:
+        elif self._last_added and after is None:
             self._last_added.set_next(key)
         self._last_added = state
         return state
@@ -421,6 +441,9 @@ class ServingFlowState(BaseState):
         if self.engine in ["storey", "async"]:
             self._build_async_flow()
 
+    def set_flow_source(self, source):
+        self._source = source
+
     def _build_async_flow(self):
         import storey
 
@@ -437,17 +460,19 @@ class ServingFlowState(BaseState):
 
         def process_step(state, step, root):
             if not state.next and state.end:
-                print("set complete:", state.name)
+                # print("set complete:", state.name)
                 step.to(storey.Complete(full_event=True))
+                self._wait_for_result = True
                 return
             for item in state.next or []:
-                print("visit:", state.name, item)
+                # print("visit:", state.name, item)
                 next_state = root[item]
                 next_step = step.to(get_step(next_state))
                 process_step(next_state, next_step, root)
 
         next_state = self.get_start_state()
-        source = storey.Source()
+        # todo: allow source array (e.g. data->json loads..)
+        source = self._source or storey.Source()
         next_step = source.to(get_step(next_state))
         process_step(next_state, next_step, self)
         self._controller = source.run()
@@ -460,13 +485,30 @@ class ServingFlowState(BaseState):
             )
         return self.path_to_state(from_state)
 
+    def find_last_state(self):
+        for state in self.get_children():
+            if state.end:
+                return state.name
+
+        next_obj = self.get_start_state()
+        while next_obj:
+            next = next_obj.next
+            if not next:
+                return next_obj.name
+            next_obj = self[next[0]]
+
     def run(self, event, *args, **kwargs):
 
         if self._controller:
             event._awaitable_result = None
-            return self._controller.emit(
-                event, return_awaitable_result=True
-            ).await_result()
+            resp = self._controller.emit(
+                event, return_awaitable_result=self._wait_for_result
+            )
+            if self._wait_for_result:
+                return resp.await_result()
+            event = copy(event)
+            event.body = None
+            return event
 
         next_obj = self.get_start_state(kwargs.get("from_state", None))
         while next_obj:
@@ -477,7 +519,7 @@ class ServingFlowState(BaseState):
             next_obj = self[next[0]] if next else None
         return event
 
-    def terminate(self):
+    def wait_for_completion(self):
         if self._controller:
             self._controller.terminate()
             self._controller.await_termination()
@@ -574,20 +616,22 @@ classes_map = {
 
 
 def _add_gviz_router(g, state):
-    g.node(state.fullname, label=state.name, shape=state.shape)
+    g.node(state.fullname, label=state.name, shape=state.get_shape())
     for route in state.get_children():
-        g.node(route.fullname, label=route.name, shape=route.shape)
+        g.node(route.fullname, label=route.name, shape=route.get_shape())
         g.edge(state.fullname, route.fullname)
 
 
 def _add_gviz_flow(g, state):
+    g.node("_start", "start", shape="egg", style="filled")  # , color='yellow')
+    g.edge("_start", state.start_at)
     for child in state.get_children():
         kind = child.kind
         if kind == StateKinds.router:
             with g.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_gviz_router(sg, child)
         else:
-            g.node(child.fullname, label=child.name, shape=child.shape)
+            g.node(child.fullname, label=child.name, shape=child.get_shape())
         next = child.next or []
         for item in next:
             next_object = state[item]

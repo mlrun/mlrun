@@ -20,7 +20,7 @@ from .model import (
     FeatureAggregation,
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
-from .pipeline import ingest_from_df
+from .pipeline import ingest_from_df, create_ingest_graph
 from ..model import ModelObj
 from ..serving.states import ServingTaskState
 
@@ -129,3 +129,9 @@ class FeatureSet(ModelObj):
 
     def merge(self, other):
         pass
+
+    def plot(self, client, filename=None, format=None):
+        graph = create_ingest_graph(
+            client, self, None, client._default_ingest_targets, return_df=False
+        )
+        graph.plot(filename, format)

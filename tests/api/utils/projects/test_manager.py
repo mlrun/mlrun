@@ -103,31 +103,46 @@ def test_projects_sync_multiple_consumer_project_adoption(
     second_nop_consumer: mlrun.api.utils.projects.consumers.base.Consumer,
     nop_master: mlrun.api.utils.projects.consumers.base.Consumer,
 ):
-    project_name = "project-name"
-    project_description = "some description"
+    second_consumer_project_name = "project-name-2"
+    second_consumer_project_description = "some description 2"
+    both_consumers_project_name = "project-name"
+    both_consumers_project_description = "some description"
     nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(name=both_consumers_project_name, description=both_consumers_project_description),
     )
     second_nop_consumer.create_project(
         None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(name=both_consumers_project_name, description=both_consumers_project_description),
+    )
+    second_nop_consumer.create_project(
+        None,
+        mlrun.api.schemas.Project(name=second_consumer_project_name, description=second_consumer_project_description),
     )
     nop_master.create_project = unittest.mock.Mock(wraps=nop_master.create_project)
     _assert_project_in_consumers(
-        [nop_consumer, second_nop_consumer], project_name, project_description
+        [nop_consumer, second_nop_consumer], both_consumers_project_name, both_consumers_project_description
+    )
+    _assert_project_in_consumers(
+        [second_nop_consumer], second_consumer_project_name, second_consumer_project_description
     )
     _assert_no_projects_in_consumers([nop_master])
 
     projects_manager._sync_projects()
     _assert_project_in_consumers(
         [nop_master, nop_consumer, second_nop_consumer],
-        project_name,
-        project_description,
+        both_consumers_project_name,
+        both_consumers_project_description,
+    )
+
+    _assert_project_in_consumers(
+        [nop_master, nop_consumer, second_nop_consumer],
+        second_consumer_project_name,
+        second_consumer_project_description,
     )
 
     # assert not tried to create project in master twice
-    assert nop_master.create_project.call_count == 1
+    assert nop_master.create_project.call_count == 2
 
 
 def test_create_project(

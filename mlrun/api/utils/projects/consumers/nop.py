@@ -56,10 +56,12 @@ class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError()
-        if format_ == mlrun.api.schemas.Format.name_only:
+        if format_ == mlrun.api.schemas.Format.full:
             return mlrun.api.schemas.ProjectsOutput(
                 projects=list(self._projects.values())
             )
-        else:
+        elif format_ == mlrun.api.schemas.Format.name_only:
             project_names = [project.name for project in list(self._projects.values())]
             return mlrun.api.schemas.ProjectsOutput(projects=project_names)
+        else:
+            raise NotImplementedError(f"Provided format is not supported. format={format_}")

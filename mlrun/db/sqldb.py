@@ -291,3 +291,76 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(
             self.db.delete_feature_set, self.session, project, name
         )
+
+    def create_feature_vector(self, feature_vector, project="", versioned=True):
+        return self._transform_db_error(
+            self.db.create_feature_vector,
+            self.session,
+            project,
+            feature_vector,
+            versioned,
+        )
+
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ):
+        return self._transform_db_error(
+            self.db.get_feature_vector, self.session, project, name, tag, uid,
+        )
+
+    def list_feature_vectors(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_feature_vectors,
+            self.session,
+            project,
+            name,
+            tag,
+            state,
+            labels,
+        )
+
+    def store_feature_vector(
+        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+    ):
+        return self._transform_db_error(
+            self.db.store_feature_vector,
+            self.session,
+            project,
+            name,
+            feature_vector,
+            tag,
+            uid,
+            versioned,
+        )
+
+    def patch_feature_vector(
+        self,
+        name,
+        feature_vector_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
+    ):
+        return self._transform_db_error(
+            self.db.patch_feature_vector,
+            self.session,
+            project,
+            name,
+            feature_vector_update,
+            tag,
+            uid,
+            patch_mode,
+        )
+
+    def delete_feature_vector(self, name, project=""):
+        return self._transform_db_error(
+            self.db.delete_feature_vector, self.session, project, name,
+        )

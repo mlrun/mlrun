@@ -28,7 +28,7 @@ ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 @pytest.fixture
 def config():
     old = mlconf.config
-    mlconf.config = mlconf.Config(copy.deepcopy(mlconf.default_config))
+    mlconf.config = mlconf.Config.from_dict(mlconf.default_config)
     mlconf._loaded = False
 
     yield mlconf.config

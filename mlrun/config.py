@@ -140,6 +140,10 @@ class Config:
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
 
+    @classmethod
+    def from_dict(cls, dict_):
+        return cls(copy.deepcopy(dict_))
+
     @staticmethod
     def reload():
         _populate()
@@ -167,7 +171,7 @@ class Config:
 
 
 # Global configuration
-config = Config(copy.deepcopy(default_config))
+config = Config.from_dict(default_config)
 
 
 def _populate():
@@ -186,7 +190,7 @@ def _do_populate(env=None):
     global config
 
     if not config:
-        config = Config(copy.deepcopy(default_config))
+        config = Config.from_dict(default_config)
     else:
         config.update(default_config)
     config_path = os.environ.get(env_file_key)

@@ -549,6 +549,43 @@ class FileRunDB(RunDBInterface):
     def delete_feature_set(self, name, project=""):
         raise NotImplementedError()
 
+    def create_feature_vector(self, feature_vector, project="", versioned=True) -> dict:
+        raise NotImplementedError()
+
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> dict:
+        raise NotImplementedError()
+
+    def list_feature_vectors(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> List[dict]:
+        raise NotImplementedError()
+
+    def store_feature_vector(
+        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+    ):
+        raise NotImplementedError()
+
+    def patch_feature_vector(
+        self,
+        name,
+        feature_vector_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
+    ):
+        raise NotImplementedError()
+
+    def delete_feature_vector(self, name, project=""):
+        raise NotImplementedError()
+
 
 def make_time_pred(since, until):
     if not (since or until):

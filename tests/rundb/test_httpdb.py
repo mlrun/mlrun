@@ -25,6 +25,7 @@ from uuid import uuid4
 
 import pytest
 
+from mlrun.api import schemas
 import mlrun.errors
 from mlrun import RunObject
 from mlrun.artifacts import Artifact
@@ -437,3 +438,70 @@ def test_feature_sets(create_server):
     db.patch_feature_set(name, feature_set_update, project)
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"
+
+
+def _create_feature_vector(name):
+    return {
+        "kind": "FeatureVector",
+        "metadata": {
+            "name": name,
+            "labels": {"owner": "nobody", "group": "dev"},
+            "tag": "latest",
+        },
+        "spec": {
+            "features": ["feature_set:*", "feature_set:something", "just_a_feature"],
+            "description": "just a bunch of features",
+        },
+        "status": {"state": "created"},
+    }
+
+
+def test_feature_vectors(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    count = 5
+    for i in range(count):
+        name = f"fs_{i}"
+        feature_vector = _create_feature_vector(name)
+        db.create_feature_vector(feature_vector, project=project, versioned=True)
+
+    # Test store_feature_set, which allows updates as well as inserts
+    db.store_feature_vector(feature_vector, project=project)
+
+    feature_vector_update = {"spec": {"features": ["bla", "blu"]}}
+
+    # additive mode means add the feature to the features-list
+    db.patch_feature_vector(
+        name,
+        feature_vector_update,
+        project,
+        tag="latest",
+        patch_mode=schemas.PatchMode.additive,
+    )
+    feature_vectors = db.list_feature_vectors(project=project)
+
+    assert len(feature_vectors) == count, "bad list results - wrong number of members"
+
+    feature_vector = db.get_feature_vector(name, project)
+    assert (
+        len(feature_vector["spec"]["features"]) == 5
+    ), "Features didn't get updated properly"
+
+    # Create a feature-vector that has no labels
+    name = "feature_vector_no_labels"
+    feature_vector_without_labels = _create_feature_vector(name)
+    feature_vector_without_labels["metadata"].pop("labels")
+    # Use project name in the feature-set (don't provide it to API)
+    feature_vector_without_labels["metadata"]["project"] = project
+    db.store_feature_vector(feature_vector_without_labels)
+
+    # Perform a replace (vs. additive as done earlier) - now should only have 2 features
+    db.patch_feature_vector(
+        name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace
+    )
+    feature_vector = db.get_feature_vector(name, project)
+    assert (
+        len(feature_vector["spec"]["features"]) == 2
+    ), "Features didn't get updated properly"

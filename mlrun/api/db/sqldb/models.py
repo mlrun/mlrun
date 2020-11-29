@@ -291,6 +291,36 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value)
 
+    class FeatureVector(Base):
+        __tablename__ = "feature_vectors"
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_vectors_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String)
+        uid = Column(String)
+
+        _full_object = Column("object", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
+
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]

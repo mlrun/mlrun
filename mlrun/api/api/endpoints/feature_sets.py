@@ -124,3 +124,103 @@ def list_features(
 ):
     features = get_db().list_features(db_session, project, name, tag, entities, labels)
     return features
+
+
+@router.post(
+    "/projects/{project}/feature-vectors", response_model=schemas.FeatureVector
+)
+def create_feature_vector(
+    project: str,
+    feature_vector: schemas.FeatureVector,
+    versioned: bool = True,
+    db_session: Session = Depends(deps.get_db_session),
+):
+    feature_vector_uid = get_db().create_feature_vector(
+        db_session, project, feature_vector, versioned
+    )
+
+    return get_db().get_feature_vector(
+        db_session,
+        project,
+        feature_vector.metadata.name,
+        tag=feature_vector.metadata.tag,
+        uid=feature_vector_uid,
+    )
+
+
+@router.get(
+    "/projects/{project}/feature-vectors/{name}/references/{reference}",
+    response_model=schemas.FeatureVector,
+)
+def get_feature_vector(
+    project: str,
+    name: str,
+    reference: str,
+    db_session: Session = Depends(deps.get_db_session),
+):
+    tag, uid = parse_reference(reference)
+    return get_db().get_feature_vector(db_session, project, name, tag, uid)
+
+
+@router.get(
+    "/projects/{project}/feature-vectors", response_model=schemas.FeatureVectorsOutput
+)
+def list_feature_vectors(
+    project: str,
+    name: str = None,
+    state: str = None,
+    tag: str = None,
+    labels: List[str] = Query(None, alias="label"),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    feature_vectors = get_db().list_feature_vectors(
+        db_session, project, name, tag, state, labels
+    )
+
+    return feature_vectors
+
+
+@router.put(
+    "/projects/{project}/feature-vectors/{name}/references/{reference}",
+    response_model=schemas.FeatureVector,
+)
+def store_feature_vector(
+    project: str,
+    name: str,
+    reference: str,
+    feature_vector: schemas.FeatureVector,
+    versioned: bool = True,
+    db_session: Session = Depends(deps.get_db_session),
+):
+    tag, uid = parse_reference(reference)
+    uid = get_db().store_feature_vector(
+        db_session, project, name, feature_vector, tag, uid, versioned
+    )
+
+    return get_db().get_feature_vector(db_session, project, name, uid=uid,)
+
+
+@router.patch("/projects/{project}/feature-vectors/{name}/references/{reference}")
+def patch_feature_vector(
+    project: str,
+    name: str,
+    feature_vector_update: dict,
+    reference: str,
+    patch_mode: schemas.PatchMode = Header(
+        schemas.PatchMode.replace, alias="x-mlrun-patch-mode"
+    ),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    tag, uid = parse_reference(reference)
+    get_db().patch_feature_vector(
+        db_session, project, name, feature_vector_update, tag, uid, patch_mode
+    )
+    return Response(status_code=HTTPStatus.OK.value)
+
+
+@router.delete("/projects/{project}/feature-vectors/{name}")
+def delete_feature_vector(
+    project: str, name: str, db_session: Session = Depends(deps.get_db_session),
+):
+    get_db().delete_feature_vector(db_session, project, name)
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)

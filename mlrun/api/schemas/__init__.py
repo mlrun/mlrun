@@ -1,6 +1,7 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .artifact import ArtifactCategories
+from .constants import Format, PatchMode, HeaderNames
 from .feature_store import (
     Feature,
     FeatureRecord,
@@ -14,9 +15,11 @@ from .feature_store import (
     FeatureSetDigestSpec,
     FeatureListOutput,
     FeaturesOutput,
+    FeatureVector,
+    FeatureVectorRecord,
+    FeatureVectorsOutput,
 )
-from .object import ObjectMetadata, ObjectKind
-from .constants import Format, PatchMode, HeaderNames
+from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
 from .project import (
     Project,
     ProjectsOutput,

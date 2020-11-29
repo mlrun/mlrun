@@ -721,7 +721,7 @@ class SQLDB(DBInterface):
     def list_projects(self, session, owner=None):
         return self._query(session, Project, owner=owner)
 
-    def _get_common_db_object_by_name_tag_and_uid(
+    def _get_record_by_name_tag_and_uid(
         self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
     ):
         query = self._query(session, cls, name=name, project=project)
@@ -732,19 +732,20 @@ class SQLDB(DBInterface):
                 session, cls, project, name, computed_tag
             )
             if object_tag_uid is None:
-                return None, None
+                return None, None, None
             uid = object_tag_uid
         if uid:
             query = query.filter(cls.uid == uid)
-        return object_tag_uid, query.one_or_none()
+        return computed_tag, object_tag_uid, query.one_or_none()
 
     def _get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None,
     ):
         (
+            computed_tag,
             feature_set_tag_uid,
             db_feature_set,
-        ) = self._get_common_db_object_by_name_tag_and_uid(
+        ) = self._get_record_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
         if db_feature_set:
@@ -752,7 +753,7 @@ class SQLDB(DBInterface):
 
             # If connected to a tag add it to metadata
             if feature_set_tag_uid:
-                feature_set.metadata.tag = tag or "latest"
+                feature_set.metadata.tag = computed_tag
             return feature_set
         else:
             return None
@@ -769,7 +770,7 @@ class SQLDB(DBInterface):
 
         return feature_set
 
-    def _get_common_object_tags_map(self, session, cls, project, tag, name=None):
+    def _get_records_to_tags_map(self, session, cls, project, tag, name=None):
         # Find object IDs by tag, project and feature-set-name (which is a like query)
         tag_query = self._query(session, cls.Tag, project=project, name=tag)
         if name:
@@ -784,7 +785,7 @@ class SQLDB(DBInterface):
                 obj_id_tags[row.obj_id] = [row.name]
         return obj_id_tags
 
-    def _generate_common_object_results_with_tags_assigned(
+    def _generate_records_with_tags_assigned(
         self, object_record, transform_fn, obj_id_tags, default_tag=None
     ):
         # Using a similar mechanism here to assign tags to feature sets as is used in list_functions. Please refer
@@ -821,7 +822,7 @@ class SQLDB(DBInterface):
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
         # We don't filter by feature-set name here, as the name parameter refers to features
-        feature_set_id_tags = self._get_common_object_tags_map(
+        feature_set_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name=None
         )
 
@@ -846,7 +847,7 @@ class SQLDB(DBInterface):
             feature_record = schemas.FeatureRecord.from_orm(row.Feature)
             feature_name = feature_record.name
 
-            feature_sets = self._generate_common_object_results_with_tags_assigned(
+            feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
                 self._transform_feature_set_model_to_schema,
                 feature_set_id_tags,
@@ -883,7 +884,7 @@ class SQLDB(DBInterface):
         features: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeatureSetsOutput:
-        obj_id_tags = self._get_common_object_tags_map(
+        obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
         )
 
@@ -904,7 +905,7 @@ class SQLDB(DBInterface):
         feature_sets = []
         for feature_set_record in query:
             feature_sets.extend(
-                self._generate_common_object_results_with_tags_assigned(
+                self._generate_records_with_tags_assigned(
                     feature_set_record,
                     self._transform_feature_set_model_to_schema,
                     obj_id_tags,
@@ -959,9 +960,7 @@ class SQLDB(DBInterface):
         self._update_feature_set_entities(feature_set, entities)
 
     @staticmethod
-    def _validate_store_parameters_for_common_object(
-        object_to_store, project, name, tag, uid
-    ):
+    def _validate_store_parameters(object_to_store, project, name, tag, uid):
         object_type = object_to_store.__class__.__name__
 
         if not tag and not uid:
@@ -999,7 +998,7 @@ class SQLDB(DBInterface):
         return uid
 
     @staticmethod
-    def _update_db_object_from_common_object_dict(
+    def _update_db_record_from_object_dict(
         db_object, common_object_dict: dict, uid,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
@@ -1022,13 +1021,11 @@ class SQLDB(DBInterface):
         versioned=True,
         always_overwrite=False,
     ):
-        self._validate_store_parameters_for_common_object(
-            feature_set, project, name, tag, uid
-        )
+        self._validate_store_parameters(feature_set, project, name, tag, uid)
 
         original_uid = uid
 
-        _, existing_feature_set = self._get_common_db_object_by_name_tag_and_uid(
+        _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
         if not existing_feature_set:
@@ -1044,9 +1041,7 @@ class SQLDB(DBInterface):
         else:
             db_feature_set = FeatureSet(project=project, full_object=feature_set_dict)
 
-        self._update_db_object_from_common_object_dict(
-            db_feature_set, feature_set_dict, uid
-        )
+        self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
         self._upsert(session, db_feature_set)
@@ -1054,7 +1049,7 @@ class SQLDB(DBInterface):
 
         return uid
 
-    def _perform_common_object_creation_tests_and_preparation(
+    def _validate_and_enrich_record_for_creation(
         self, session, new_object, db_class, project, versioned
     ):
         object_type = new_object.__class__.__name__
@@ -1099,19 +1094,13 @@ class SQLDB(DBInterface):
     def create_feature_set(
         self, session, project, feature_set: schemas.FeatureSet, versioned=True
     ):
-        (
-            uid,
-            tag,
-            feature_set_dict,
-        ) = self._perform_common_object_creation_tests_and_preparation(
+        (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
         )
 
         db_feature_set = FeatureSet(project=project)
 
-        self._update_db_object_from_common_object_dict(
-            db_feature_set, feature_set_dict, uid
-        )
+        self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
 
         self._upsert(session, db_feature_set)
@@ -1170,13 +1159,13 @@ class SQLDB(DBInterface):
             uid,
             tag,
             feature_vector_dict,
-        ) = self._perform_common_object_creation_tests_and_preparation(
+        ) = self._validate_and_enrich_record_for_creation(
             session, feature_vector, FeatureVector, project, versioned
         )
 
         db_feature_vector = FeatureVector(project=project)
 
-        self._update_db_object_from_common_object_dict(
+        self._update_db_record_from_object_dict(
             db_feature_vector, feature_vector_dict, uid
         )
 
@@ -1189,9 +1178,10 @@ class SQLDB(DBInterface):
         self, session, project: str, name: str, tag: str = None, uid: str = None,
     ):
         (
+            computed_tag,
             feature_vector_tag_uid,
             db_feature_vector,
-        ) = self._get_common_db_object_by_name_tag_and_uid(
+        ) = self._get_record_by_name_tag_and_uid(
             session, FeatureVector, project, name, tag, uid
         )
         if db_feature_vector:
@@ -1201,7 +1191,7 @@ class SQLDB(DBInterface):
 
             # If connected to a tag add it to metadata
             if feature_vector_tag_uid:
-                feature_vector.metadata.tag = tag or "latest"
+                feature_vector.metadata.tag = computed_tag
             return feature_vector
         else:
             return None
@@ -1227,7 +1217,7 @@ class SQLDB(DBInterface):
         state: str = None,
         labels: List[str] = None,
     ) -> schemas.FeatureVectorsOutput:
-        obj_id_tags = self._get_common_object_tags_map(
+        obj_id_tags = self._get_records_to_tags_map(
             session, FeatureVector, project, tag, name
         )
 
@@ -1244,7 +1234,7 @@ class SQLDB(DBInterface):
         feature_vectors = []
         for feature_vector_record in query:
             feature_vectors.extend(
-                self._generate_common_object_results_with_tags_assigned(
+                self._generate_records_with_tags_assigned(
                     feature_vector_record,
                     self._transform_feature_vector_model_to_schema,
                     obj_id_tags,
@@ -1264,13 +1254,11 @@ class SQLDB(DBInterface):
         versioned=True,
         always_overwrite=False,
     ):
-        self._validate_store_parameters_for_common_object(
-            feature_vector, project, name, tag, uid
-        )
+        self._validate_store_parameters(feature_vector, project, name, tag, uid)
 
         original_uid = uid
 
-        _, existing_feature_vector = self._get_common_db_object_by_name_tag_and_uid(
+        _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
             session, FeatureVector, project, name, tag, uid
         )
         if not existing_feature_vector:
@@ -1288,7 +1276,7 @@ class SQLDB(DBInterface):
         else:
             db_feature_vector = FeatureVector(project=project)
 
-        self._update_db_object_from_common_object_dict(
+        self._update_db_record_from_object_dict(
             db_feature_vector, feature_vector_dict, uid
         )
 

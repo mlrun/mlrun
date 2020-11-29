@@ -692,7 +692,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     @staticmethod
-    def _generate_reference(tag, uid):
+    def _resolve_reference(tag, uid):
         if uid and tag:
             raise MLRunInvalidArgumentError("both uid and tag were provided")
         return uid or tag or "latest"
@@ -720,7 +720,7 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ) -> dict:
         project = project or default_project
-        reference = self._generate_reference(tag, uid)
+        reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
@@ -785,7 +785,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ) -> dict:
-        reference = self._generate_reference(tag, uid)
+        reference = self._resolve_reference(tag, uid)
         params = {"versioned": versioned}
 
         if isinstance(feature_set, schemas.FeatureSet):
@@ -810,7 +810,7 @@ class HTTPRunDB(RunDBInterface):
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
         project = project or default_project
-        reference = self._generate_reference(tag, uid)
+        reference = self._resolve_reference(tag, uid)
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
         headers = {"x-mlrun-patch-mode": patch_mode}
@@ -858,7 +858,7 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ) -> dict:
         project = project or default_project
-        reference = self._generate_reference(tag, uid)
+        reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-vector {project}/{name}"
         resp = self.api_call("GET", path, error_message)
@@ -897,7 +897,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ) -> dict:
-        reference = self._generate_reference(tag, uid)
+        reference = self._resolve_reference(tag, uid)
         params = {"versioned": versioned}
 
         if isinstance(feature_vector, schemas.FeatureVector):
@@ -923,7 +923,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
-        reference = self._generate_reference(tag, uid)
+        reference = self._resolve_reference(tag, uid)
         project = project or default_project
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value

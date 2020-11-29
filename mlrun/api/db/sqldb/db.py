@@ -474,7 +474,6 @@ class SQLDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         labels: Dict = None,
     ):
-        get_projects_manager().ensure_project(session, project)
         schedule = Schedule(
             project=project,
             name=name,

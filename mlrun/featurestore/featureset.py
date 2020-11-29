@@ -134,4 +134,4 @@ class FeatureSet(ModelObj):
         graph = create_ingest_graph(
             client, self, None, client._default_ingest_targets, return_df=False
         )
-        graph.plot(filename, format)
+        return graph.plot(filename, format)

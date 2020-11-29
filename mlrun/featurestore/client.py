@@ -211,7 +211,6 @@ class FeatureStoreClient:
         if use_cache and uri in self._fs:
             return self._fs[uri]
         project, name, tag, uid = parse_function_uri(uri)
-        print("proj:", project, uri)
         project = project or self.project or ""
         obj = self._get_db().get_feature_set(name, project, tag, uid)
         fs = FeatureSet.from_dict(obj)

@@ -30,7 +30,7 @@ from .datastore import DataItem
 from .db import get_run_db
 from .execution import MLClientCtx
 from .model import RunTemplate, NewTask, new_task, RunObject
-from .platforms import mount_v3io, v3io_cred
+from .platforms import mount_v3io, v3io_cred, mount_v3io_extended
 from .projects import load_project, new_project
 from .run import (
     get_or_create_ctx,

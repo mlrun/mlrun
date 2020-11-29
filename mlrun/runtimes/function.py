@@ -28,7 +28,7 @@ from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
 from ..platforms.iguazio import mount_v3io
 from .base import RunError, FunctionStatus
-from .utils import log_std, set_named_item, get_item_name
+from .utils import log_std, get_item_name
 from ..utils import logger, update_in, get_in, enrich_image_url
 from ..lists import RunList
 from ..model import RunObject

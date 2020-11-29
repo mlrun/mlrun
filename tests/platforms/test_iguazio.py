@@ -112,7 +112,7 @@ def test_mount_v3io_extended():
     )
     function.apply(mlrun.mount_v3io_extended())
     expected_volume = {
-        "flexVolume": {"driver": "v3io/fuse", "options": {"accessKey": access_key,},},
+        "flexVolume": {"driver": "v3io/fuse", "options": {"accessKey": access_key}},
         "name": "v3io",
     }
     expected_volume_mounts = [

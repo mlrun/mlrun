@@ -56,7 +56,7 @@ def list_schedules(
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().list_schedules(
-        db_session, project, name, labels, kind, include_last_run=include_last_run
+        db_session, project, name, kind, labels, include_last_run=include_last_run
     )
 
 

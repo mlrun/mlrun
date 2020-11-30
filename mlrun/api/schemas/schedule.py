@@ -65,7 +65,7 @@ class ScheduleKinds(str, Enum):
     local_function = "local_function"
 
 
-class Label(BaseModel):
+class LabelRecord(BaseModel):
     name: str
     value: str
 
@@ -77,7 +77,7 @@ class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]
     cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
     desired_state: Optional[str]
-    labels: Optional[List[Label]]
+    labels: Optional[List[LabelRecord]]
 
 
 # Properties to receive via API on creation
@@ -96,7 +96,7 @@ class ScheduleRecord(ScheduleInput):
     project: str
     last_run_uri: Optional[str]
     state: Optional[str]
-    labels: Optional[List[Label]]
+    labels: Optional[List[LabelRecord]]
 
     class Config:
         orm_mode = True

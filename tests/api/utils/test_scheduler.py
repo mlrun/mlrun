@@ -573,9 +573,7 @@ def _assert_schedule(
     assert schedule.next_run_time == next_run_time
     assert schedule.cron_trigger == cron_trigger
     assert schedule.creation_time is not None
-    assert len(schedule.labels) == len(labels)
-    for label in schedule.labels:
-        assert labels[label.name] == label.value
+    assert DeepDiff(schedule.labels, labels, ignore_order=True) == {}
 
 
 def _create_mlrun_function_and_matching_scheduled_object(db: Session, project: str):

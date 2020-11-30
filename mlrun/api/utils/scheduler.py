@@ -290,7 +290,9 @@ class Scheduler:
         schedule_record: schemas.ScheduleRecord,
         include_last_run: bool = False,
     ) -> schemas.ScheduleOutput:
-        schedule = schemas.ScheduleOutput(**schedule_record.dict())
+        schedule_dict = schedule_record.dict()
+        schedule_dict['labels'] = {label['name']: label['value'] for label in schedule_dict['labels']}
+        schedule = schemas.ScheduleOutput(**schedule_dict)
 
         job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
         job = self._scheduler.get_job(job_id)

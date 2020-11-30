@@ -222,6 +222,5 @@ def _featureset_to_df(featureset, columns=None, target_name=None, df_module=None
     targets_map = featureset.status.targets
     target_name = get_offline_store(targets_map.keys(), target_name)
     target: DataTarget = targets_map[target_name]
-    print(columns)
     columns = list(featureset.spec.entities.keys()) + columns
     return get_dataitem(target.path).as_df(columns=columns, df_module=df_module)

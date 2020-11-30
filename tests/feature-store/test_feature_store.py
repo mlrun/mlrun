@@ -69,7 +69,7 @@ def test_ingestion():
     )
     print(df)
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
-    quotes_set.plot(client, "pipe.png")
+    quotes_set.plot(client, "pipe.png", rankdir='LR')
 
     print(client.ingest(quotes_set, quotes, return_df=True))
     print(quotes_set.to_yaml())

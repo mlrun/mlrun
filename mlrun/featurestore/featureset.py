@@ -130,8 +130,8 @@ class FeatureSet(ModelObj):
     def merge(self, other):
         pass
 
-    def plot(self, client, filename=None, format=None):
+    def plot(self, client, filename=None, format=None, **kw):
         graph = create_ingest_graph(
             client, self, None, client._default_ingest_targets, return_df=False
         )
-        return graph.plot(filename, format)
+        return graph.plot(filename, format, **kw)

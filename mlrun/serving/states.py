@@ -297,8 +297,8 @@ class ServingRouterState(ServingTaskState):
     def __iter__(self):
         yield from self._routes.keys()
 
-    def plot(self, filename=None, format=None):
-        return _generate_graphviz(self, _add_gviz_router, filename, format)
+    def plot(self, filename=None, format=None, **kw):
+        return _generate_graphviz(self, _add_gviz_router, filename, format, **kw)
 
 
 class ServingQueueState(BaseState):
@@ -524,8 +524,8 @@ class ServingFlowState(BaseState):
             self._controller.terminate()
             self._controller.await_termination()
 
-    def plot(self, filename=None, format=None):
-        return _generate_graphviz(self, _add_gviz_flow, filename, format)
+    def plot(self, filename=None, format=None, **kw):
+        return _generate_graphviz(self, _add_gviz_flow, filename, format, **kw)
 
 
 class ServingRootFlowState(ServingFlowState):
@@ -643,7 +643,7 @@ def _add_gviz_flow(g, state):
             g.edge(child.fullname, next_object.fullname, **kw)
 
 
-def _generate_graphviz(state, renderer, filename=None, format=None):
+def _generate_graphviz(state, renderer, filename=None, format=None, **kw):
     try:
         from graphviz import Digraph
     except ImportError:
@@ -651,7 +651,7 @@ def _generate_graphviz(state, renderer, filename=None, format=None):
             'graphviz is not installed, run "pip install graphviz" first!'
         )
     g = Digraph("mlrun-flow", format="jpg")
-    g.attr(compound="true")
+    g.attr(compound="true", **kw)
     renderer(g, state)
     if filename:
         suffix = pathlib.Path(filename).suffix

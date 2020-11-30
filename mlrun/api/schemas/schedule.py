@@ -70,7 +70,7 @@ class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]
     cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
     desired_state: Optional[str]
-    labels: Optional[List[LabelRecord]]
+    labels: Optional[dict]
 
 
 # Properties to receive via API on creation

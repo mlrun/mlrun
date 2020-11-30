@@ -41,7 +41,7 @@ def update_schedule(
         name,
         schedule.scheduled_object,
         schedule.cron_trigger,
-        labels={label.name: label.value for label in schedule.labels},
+        labels=schedule.labels,
     )
     return Response(status_code=HTTPStatus.OK.value)
 

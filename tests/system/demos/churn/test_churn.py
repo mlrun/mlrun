@@ -16,7 +16,10 @@ class TestChurn(TestDemo):
             self.project_name, str(self.assets_path), init_git=True
         )
 
-        data_url = "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telco-Customer-Churn.csv"
+        data_url = (
+            "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telco-"
+            "Customer-Churn.csv"
+        )
         demo_project.log_artifact("raw-data", target_path=data_url)
 
         self._logger.debug("Creating clean-data function")

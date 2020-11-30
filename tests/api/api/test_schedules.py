@@ -47,15 +47,19 @@ def test_list_schedules(db: Session, client: TestClient) -> None:
         labels_2,
     )
 
-    _get_and_assert_single_schedule(client, {'labels': 'label1'}, schedule_name)
-    _get_and_assert_single_schedule(client, {'labels': 'label2'}, schedule_name_2)
-    _get_and_assert_single_schedule(client, {'labels': 'label1=value1'}, schedule_name)
-    _get_and_assert_single_schedule(client, {'labels': 'label2=value2'}, schedule_name_2)
+    _get_and_assert_single_schedule(client, {"labels": "label1"}, schedule_name)
+    _get_and_assert_single_schedule(client, {"labels": "label2"}, schedule_name_2)
+    _get_and_assert_single_schedule(client, {"labels": "label1=value1"}, schedule_name)
+    _get_and_assert_single_schedule(
+        client, {"labels": "label2=value2"}, schedule_name_2
+    )
 
 
-def _get_and_assert_single_schedule(client: TestClient, get_params: dict, schedule_name: str):
+def _get_and_assert_single_schedule(
+    client: TestClient, get_params: dict, schedule_name: str
+):
     resp = client.get("/api/projects/default/schedules", params=get_params)
     assert resp.status_code == HTTPStatus.OK.value, "status"
-    result = resp.json()['schedules']
+    result = resp.json()["schedules"]
     assert len(result) == 1
-    assert result[0]['name'] == schedule_name
+    assert result[0]["name"] == schedule_name

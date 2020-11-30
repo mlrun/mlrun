@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional, List, Union, Any, Dict
 
 from pydantic import BaseModel
+from mlrun.api.schemas.object import LabelRecord
 
 
 class ScheduleCronTrigger(BaseModel):
@@ -63,14 +64,6 @@ class ScheduleKinds(str, Enum):
 
     # this is mainly for testing purposes
     local_function = "local_function"
-
-
-class LabelRecord(BaseModel):
-    name: str
-    value: str
-
-    class Config:
-        orm_mode = True
 
 
 class ScheduleUpdate(BaseModel):

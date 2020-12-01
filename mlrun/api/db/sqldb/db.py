@@ -866,7 +866,9 @@ class SQLDB(DBInterface):
                     None,
                 )
                 if not feature:
-                    raise DBError("DB corruption - feature mismatch")
+                    raise DBError(
+                        "Inconsistent data in DB - features in DB not in feature-set document"
+                    )
 
                 features_results.append(
                     schemas.FeatureListOutput(

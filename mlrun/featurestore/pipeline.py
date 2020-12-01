@@ -123,7 +123,8 @@ def create_ingest_graph(client, featureset, df, targets=None, return_df=True):
             "Aggregates",
             after=last,
             class_name="storey.AggregateByKey",
-            class_args={"aggregates": aggregation_objects, "table": table},
+            aggregates=aggregation_objects,
+            table=table,
         )
         last = "Aggregates"
 
@@ -135,7 +136,7 @@ def create_ingest_graph(client, featureset, df, targets=None, return_df=True):
             "ValidatorStep",
             after=last,
             class_name="mlrun.featurestore.ValidatorStep",
-            class_args={"featureset": featureset.uri()},
+            featureset=featureset.uri(),
         )
         last = "ValidatorStep"
 
@@ -145,7 +146,8 @@ def create_ingest_graph(client, featureset, df, targets=None, return_df=True):
             after=last,
             shape="cylinder",
             class_name="storey.WriteToTable",
-            class_args={"columns": column_list, "table": table},
+            columns=column_list,
+            table=table,
         )
 
     if TargetTypes.parquet in targets:
@@ -158,11 +160,9 @@ def create_ingest_graph(client, featureset, df, targets=None, return_df=True):
             after=last,
             shape="cylinder",
             class_name="storey.WriteToParquet",
-            class_args={
-                "path": target_path,
-                "columns": column_list,
-                "index_cols": key_column,
-            },
+            path=target_path,
+            columns=column_list,
+            index_cols=key_column,
         )
 
     if return_df:
@@ -171,11 +171,9 @@ def create_ingest_graph(client, featureset, df, targets=None, return_df=True):
             after=last,
             shape="cylinder",
             class_name="storey.ReduceToDataFrame",
-            class_args={
-                "index": key_column,
-                "insert_key_column_as": key_column,
-                "insert_time_column_as": featureset.spec.timestamp_key,
-            },
+            index=key_column,
+            insert_key_column_as=key_column,
+            insert_time_column_as=featureset.spec.timestamp_key,
         )
 
     graph.engine = "async"

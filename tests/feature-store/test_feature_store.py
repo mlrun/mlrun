@@ -1,5 +1,7 @@
 import os
 
+from mlrun.platforms.iguazio import OutputStream
+
 import mlrun
 from data_sample import quotes, trades, stocks
 from storey import MapClass
@@ -44,14 +46,11 @@ def my_filter(event):
 
 
 def test_ingestion():
+    print(os.environ)
+    st = OutputStream(stream_path='users/admin/mystream')
+    return
     client = init_store()
 
-    # add feature set without time column (stock ticker metadata)
-    df = pd.read_csv('measurements1.csv')
-    measurements_set = fs.FeatureSet("measurements", entities=[Entity("patient_id", ValueType.STRING)])
-    resp = client.ingest(measurements_set, df, infer_schema=True, with_stats=True)
-    print(resp)
-    return
 
     # add feature set without time column (stock ticker metadata)
     stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])

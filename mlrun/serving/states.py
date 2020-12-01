@@ -19,6 +19,7 @@ from copy import deepcopy, copy
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import requests
+from storey import V3ioDriver
 
 from ..platforms.iguazio import OutputStream
 from ..model import ModelObj, ObjectDict
@@ -365,11 +366,11 @@ class ServingFlowState(BaseState):
         key,
         state=None,
         class_name=None,
-        class_args=None,
         handler=None,
         after=None,
         next=None,
         shape=None,
+        **class_args,
     ):
         """add child route state or class to the router
 
@@ -448,6 +449,11 @@ class ServingFlowState(BaseState):
         import storey
 
         def get_step(state):
+            if state.kind == StateKinds.queue:
+                if state.path:
+                    return storey.WriteToV3IOStream(storey.V3ioDriver(), state.path)
+                else:
+                    return storey.Map(lambda x: print('xxxx:',x))
             is_storey = (
                 hasattr(state, "object")
                 and state.object
@@ -530,7 +536,7 @@ class ServingFlowState(BaseState):
 
 class ServingRootFlowState(ServingFlowState):
     kind = "rootFlow"
-    _dict_fields = ["states", "start_at"]
+    _dict_fields = ["states", "start_at", "engine"]
 
 
 http_adapter = HTTPAdapter(

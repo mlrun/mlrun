@@ -37,7 +37,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
 
                         stage("build ${git_project}/jupyter in dood") {
                             dir("${Githubc.BUILD_FOLDER}/src/github.com/${git_project_user}/${git_project}") {
-                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make jupyter")
+                                println(common.shellc("MLRUN_VERSION=${mlrun_github_client.tag.docker} make jupyter"))
                             }
                         }
                         dockerx.images_push_multi_registries(["${git_project}/jupyter:${mlrun_github_client.tag.docker}"], [pipelinex.DockerRepo.ARTIFACTORY_IGUAZIO, pipelinex.DockerRepo.MLRUN_DOCKER_HUB, pipelinex.DockerRepo.MLRUN_QUAY_IO])

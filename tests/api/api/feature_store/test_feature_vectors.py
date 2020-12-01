@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .base import (
     _patch_object,
-    _assert_list_objects,
+    _list_and_assert_objects,
     _assert_diff_empty_except_for_specific_metadata,
 )
 
@@ -103,28 +103,30 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
             not_latest_count = not_latest_count + 1
         _create_and_assert_feature_vector(client, project_name, feature_set)
 
-    _assert_list_objects(client, "feature_vectors", project_name, None, count)
-    _assert_list_objects(
+    _list_and_assert_objects(client, "feature_vectors", project_name, None, count)
+    _list_and_assert_objects(
         client, "feature_vectors", project_name, "name=ooga", ooga_name_count
     )
-    _assert_list_objects(
+    _list_and_assert_objects(
         client, "feature_vectors", project_name, "label=color=blue", blue_lables_count
     )
-    _assert_list_objects(client, "feature_vectors", project_name, "label=owner", count)
-    _assert_list_objects(
+    _list_and_assert_objects(
+        client, "feature_vectors", project_name, "label=owner", count
+    )
+    _list_and_assert_objects(
         client, "feature_vectors", project_name, "state=dead", dead_count
     )
-    _assert_list_objects(
+    _list_and_assert_objects(
         client, "feature_vectors", project_name, "tag=just_a_tag", not_latest_count
     )
-    _assert_list_objects(
+    _list_and_assert_objects(
         client,
         "feature_vectors",
         project_name,
         "state=dead&name=booga",
         ooga_name_count,
     )
-    _assert_list_objects(client, "feature_vectors", "wrong_project", None, 0)
+    _list_and_assert_objects(client, "feature_vectors", "wrong_project", None, 0)
 
 
 def _assert_store_feature_vector(
@@ -157,7 +159,7 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
     assert response["metadata"]["uid"] == uid
     assert response["status"]["state"] == "modified"
 
-    _assert_list_objects(client, "feature_vectors", project_name, f"name={name}", 1)
+    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 1)
 
     # Now modify in a way that will affect uid, add a field to the metadata.
     # Since referencing the object as "latest", a new version (with new uid) should be created.
@@ -169,7 +171,7 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
     assert modified_uid != uid
     assert response["metadata"]["new_metadata"] is True
 
-    _assert_list_objects(client, "feature_vectors", project_name, f"name={name}", 2)
+    _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 2)
 
     # Do the same, but reference the object by its uid - this should fail the request
     feature_vector["metadata"]["new_metadata"] = "something else"
@@ -231,18 +233,18 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
         feature_vector = _generate_feature_vector(name)
         _create_and_assert_feature_vector(client, project_name, feature_vector)
 
-    _assert_list_objects(client, "feature_vectors", project_name, None, count)
+    _list_and_assert_objects(client, "feature_vectors", project_name, None, count)
 
     # Delete the last feature vector
     response = client.delete(
         f"/api/projects/{project_name}/feature-vectors/feature_vector_{count-1}"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
-    _assert_list_objects(client, "feature_vectors", project_name, None, count - 1)
+    _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 1)
 
     # Delete the first fs
     response = client.delete(
         f"/api/projects/{project_name}/feature-vectors/feature_vector_0"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
-    _assert_list_objects(client, "feature_vectors", project_name, None, count - 2)
+    _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 2)

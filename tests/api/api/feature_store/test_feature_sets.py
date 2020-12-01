@@ -4,10 +4,10 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from .base import _patch_object, _assert_list_objects
+from .base import _patch_object, _list_and_assert_objects
 
 
-def _generate_feature_set(name):
+def _generate_feature_set(name, extra_feature_name="extra"):
     return {
         "kind": "FeatureSet",
         "metadata": {
@@ -34,6 +34,11 @@ def _generate_feature_set(name):
                 },
                 {"name": "bid", "value_type": "float"},
                 {"name": "ask", "value_type": "time"},
+                {
+                    "name": extra_feature_name,
+                    "value_type": "str",
+                    "labels": {"extra_label": "extra"},
+                },
             ],
             "extra_spec": True,
         },
@@ -61,7 +66,7 @@ def _feature_set_create_and_assert(
     return response.json()
 
 
-def _assert_store_feature_set(
+def _store_and_assert_feature_set(
     client: TestClient, project, name, reference, feature_set, versioned=True
 ):
     response = client.put(
@@ -132,22 +137,24 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     feature_set["metadata"]["labels"]["color"] = "blue"
     _feature_set_create_and_assert(client, project_name, feature_set)
 
-    response = _assert_list_objects(client, "feature_sets", project_name, None, 3)
+    response = _list_and_assert_objects(client, "feature_sets", project_name, None, 3)
     # Verify list query returns full objects, including extra fields
     for feature_set_json in response["feature_sets"]:
         _assert_extra_fields_exist(feature_set_json)
 
-    _assert_list_objects(client, "feature_sets", project_name, "name=feature", 2)
-    _assert_list_objects(client, "feature_sets", project_name, "entity=buyer", 1)
-    _assert_list_objects(
+    _list_and_assert_objects(client, "feature_sets", project_name, "name=feature", 2)
+    _list_and_assert_objects(client, "feature_sets", project_name, "entity=buyer", 1)
+    _list_and_assert_objects(
         client, "feature_sets", project_name, "entity=ticker&entity=bid", 2
     )
-    _assert_list_objects(
+    _list_and_assert_objects(
         client, "feature_sets", project_name, "name=feature&entity=buyer", 0
     )
     # Test various label filters
-    _assert_list_objects(client, "feature_sets", project_name, "label=owner=saarc", 2)
-    _assert_list_objects(client, "feature_sets", project_name, "label=color", 2)
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, "label=owner=saarc", 2
+    )
+    _list_and_assert_objects(client, "feature_sets", project_name, "label=color", 2)
     # handling multiple label queries has issues right now - needs to fix and re-run this test.
     # _assert_list_objects(client, "feature_sets", project_name, "label=owner=bob&label=color=red", 2)
 
@@ -246,19 +253,19 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
         feature_set = _generate_feature_set(name)
         _feature_set_create_and_assert(client, project_name, feature_set)
 
-    _assert_list_objects(client, "feature_sets", project_name, None, count)
+    _list_and_assert_objects(client, "feature_sets", project_name, None, count)
 
     # Delete the last fs
     response = client.delete(
         f"/api/projects/{project_name}/feature-sets/feature_set_{count-1}"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
-    _assert_list_objects(client, "feature_sets", project_name, None, count - 1)
+    _list_and_assert_objects(client, "feature_sets", project_name, None, count - 1)
 
     # Delete the first fs
     response = client.delete(f"/api/projects/{project_name}/feature-sets/feature_set_0")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
-    _assert_list_objects(client, "feature_sets", project_name, None, count - 2)
+    _list_and_assert_objects(client, "feature_sets", project_name, None, count - 2)
 
 
 def test_feature_set_create_failure_already_exists(
@@ -310,7 +317,9 @@ def test_feature_set_multiple_creates_and_patches(
     )
     assert response.status_code == HTTPStatus.OK.value
 
-    response = _assert_list_objects(client, "feature_sets", project_name, None, count)
+    response = _list_and_assert_objects(
+        client, "feature_sets", project_name, None, count
+    )
     for feature_set in response["feature_sets"]:
         if feature_set["metadata"]["name"] == name:
             labels = feature_set["metadata"]["labels"]
@@ -325,32 +334,36 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
     feature_set = _generate_feature_set(name)
 
     # Put a new object - verify it's created
-    response = _assert_store_feature_set(
+    response = _store_and_assert_feature_set(
         client, project_name, name, "latest", feature_set
     )
     uid = response["metadata"]["uid"]
     # Change fields that will not affect the uid, verify object is overwritten
     feature_set["status"]["state"] = "modified"
 
-    response = _assert_store_feature_set(
+    response = _store_and_assert_feature_set(
         client, project_name, name, "latest", feature_set
     )
     assert response["metadata"]["uid"] == uid
     assert response["status"]["state"] == "modified"
 
-    _assert_list_objects(client, "feature_sets", project_name, "name=feature_set1", 1)
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, "name=feature_set1", 1
+    )
 
     # Now modify in a way that will affect uid, add a field to the metadata.
     # Since referencing the object as "latest", a new version (with new uid) should be created.
     feature_set["metadata"]["new_metadata"] = True
-    response = _assert_store_feature_set(
+    response = _store_and_assert_feature_set(
         client, project_name, name, "latest", feature_set
     )
     modified_uid = response["metadata"]["uid"]
     assert modified_uid != uid
     assert response["metadata"]["new_metadata"] is True
 
-    _assert_list_objects(client, "feature_sets", project_name, "name=feature_set1", 2)
+    _list_and_assert_objects(
+        client, "feature_sets", project_name, "name=feature_set1", 2
+    )
 
     # Do the same, but reference the object by its uid - this should fail the request
     feature_set["metadata"]["new_metadata"] = "something else"
@@ -438,10 +451,10 @@ def test_features_list(db: Session, client: TestClient) -> None:
     ]
     _feature_set_create_and_assert(client, project_name, feature_set)
 
-    _assert_list_objects(client, "features", project_name, "name=feature1", 1)
+    _list_and_assert_objects(client, "features", project_name, "name=feature1", 1)
     # name is a like query, so expecting all 4 features to return
-    _assert_list_objects(client, "features", project_name, "name=feature", 4)
-    _assert_list_objects(client, "features", project_name, "label=owner=me", 1)
+    _list_and_assert_objects(client, "features", project_name, "name=feature", 4)
+    _list_and_assert_objects(client, "features", project_name, "label=owner=me", 1)
 
     # set a new tag
     tag = "my-new-tag"
@@ -449,7 +462,7 @@ def test_features_list(db: Session, client: TestClient) -> None:
     resp = client.post(f"/api/{project_name}/tag/{tag}", json=query)
     assert resp.status_code == HTTPStatus.OK.value
     # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
-    features_response = _assert_list_objects(
+    features_response = _list_and_assert_objects(
         client, "features", project_name, "name=feature3", 2
     )
     assert (
@@ -459,3 +472,49 @@ def test_features_list(db: Session, client: TestClient) -> None:
     assert (
         features_response["features"][1]["feature_set_digest"]["metadata"]["tag"] == tag
     )
+
+
+def test_no_feature_leftovers_when_storing_feature_sets(
+    db: Session, client: TestClient
+) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    count = 5
+    name = "feature_set"
+    # Make sure no leftover features remain in the DB after doing multi-store on the same object
+    for i in range(count):
+        feature_set = _generate_feature_set(name)
+
+        _store_and_assert_feature_set(
+            client, project_name, name, "latest", feature_set, versioned=False
+        )
+        _list_and_assert_objects(
+            client, "features", project_name, None, len(feature_set["spec"]["features"])
+        )
+
+    # Now create different features each time we store, make sure no leftovers remain
+    for i in range(count):
+        feature_set = _generate_feature_set(name, f"feature_{i}")
+        _store_and_assert_feature_set(
+            client, project_name, name, "latest", feature_set, versioned=False
+        )
+        _list_and_assert_objects(
+            client, "features", project_name, None, len(feature_set["spec"]["features"])
+        )
+
+    response = client.delete(f"/api/projects/{project_name}/feature-sets/{name}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    # When working on a versioned object, features will be multiplied, since they belong to different versions
+    # (different features change the uid)
+    expected_number_of_features = 0
+    for i in range(count):
+        feature_set = _generate_feature_set(name, f"feature_{i}")
+        _store_and_assert_feature_set(
+            client, project_name, name, "latest", feature_set, versioned=True
+        )
+        expected_number_of_features = expected_number_of_features + len(
+            feature_set["spec"]["features"]
+        )
+        _list_and_assert_objects(
+            client, "features", project_name, None, expected_number_of_features
+        )

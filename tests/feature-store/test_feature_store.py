@@ -89,6 +89,7 @@ def test_realtime_query():
         features, entity_rows=trades, entity_timestamp_column="time"
     )
     print(resp.to_dataframe())
+    print(resp.to_csv('v3io:///users/admin/xx.csv'))
 
     svc = client.get_online_feature_service(features)
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])

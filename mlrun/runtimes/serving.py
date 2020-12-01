@@ -180,6 +180,7 @@ class ServingRuntime(RemoteRuntime):
             self.spec.graph = ServingRootFlowState(start_at=start_at, engine=engine)
         else:
             raise ValueError(f"unsupported topology {topology}, use 'router' or 'flow'")
+        return self.spec.graph
 
     def set_tracking(self, stream_path, batch=None, sample=None):
         """set tracking log stream parameters"""
@@ -245,6 +246,7 @@ class ServingRuntime(RemoteRuntime):
             root.add_route(key, state)
         else:
             raise ValueError("models can only be added under router state")
+        return state
 
     def add_state(
         self,
@@ -301,6 +303,7 @@ class ServingRuntime(RemoteRuntime):
             root.add_route(key, state)
         else:
             root.add_state(key, state, after=after)
+        return state
 
     def remove_states(self, keys: list):
         """remove one, multiple, or all models from the spec (blank list for all)"""

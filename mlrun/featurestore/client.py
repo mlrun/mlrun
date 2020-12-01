@@ -87,6 +87,13 @@ class FeatureStoreClient:
             target = DataTarget("parquet", TargetTypes.parquet, target_path)
             featureset.status.update_target(target)
 
+        if TargetTypes.tsdb in targets:
+            target_path = self._get_target_path(
+                TargetTypes.tsdb, featureset
+            )
+            target = DataTarget("tsdb", TargetTypes.tsdb, target_path)
+            featureset.status.update_target(target)
+
     def _get_table(self, name):
         if name in self._tabels:
             return self._tabels[name]

@@ -8,7 +8,7 @@ from storey import (
     WriteToTable,
     DataframeSource,
     WriteToParquet,
-    QueryByKey,
+    QueryByKey, WriteToTSDB,
 )
 
 from .model import TargetTypes
@@ -60,6 +60,11 @@ def create_ingest_flow(
 
     if TargetTypes.nosql in targets:
         steps.append([WriteToTable(table, columns=column_list, context=context)])
+
+    if TargetTypes.tsdb in targets:
+        target_path = featureset.status.targets["tsdb"].path
+        column_list = list(featureset.spec.features.keys())
+        steps.append([WriteToTSDB(target_path, columns=column_list, context=context)])
 
     if TargetTypes.parquet in targets:
         target_path = featureset.status.targets["parquet"].path

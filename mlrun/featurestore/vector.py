@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+from tempfile import mktemp
+
 from storey import build_flow, Source, Complete
 
 from mlrun.model import ModelObj
@@ -153,6 +156,37 @@ class OfflineVectorResponse:
         if self.status != "ready":
             raise FeatureVectorError("feature vector dataset is not ready")
         return self._merger.get_df()
+
+    def to_parquet(self, target_path, **kw):
+        return self._upload(target_path, 'parquet', **kw)
+
+    def to_csv(self, target_path, **kw):
+        return self._upload(target_path, 'csv', **kw)
+
+    def _upload(self, target_path, format="parquet", **kw):
+        df = self._merger.get_df()
+        data_stores = self._client._data_stores
+
+        if format in ["csv", "parquet"]:
+            writer_string = "to_{}".format(format)
+            saving_func = getattr(df, writer_string, None)
+            target = target_path
+            to_upload = False
+            if "://" in target:
+                target = mktemp()
+                to_upload = True
+            else:
+                dir = os.path.dirname(target)
+                if dir:
+                    os.makedirs(dir, exist_ok=True)
+
+            saving_func(target, **kw)
+            if to_upload:
+                data_stores.object(url=target_path).upload(target)
+                os.remove(target)
+            return target_path
+
+        raise ValueError(f"format {format} not implemented yes")
 
 
 def print_event(event):

@@ -280,7 +280,7 @@ def set_named_item(obj, item):
 
 def get_item_name(item, attr="name"):
     if isinstance(item, dict):
-        return item[attr]
+        return item.get(attr)
     else:
         return getattr(item, attr, None)
 

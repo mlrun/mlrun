@@ -30,3 +30,4 @@ from .feature_store import (
     FeatureVectorsOutput,
 )
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, PatchMode, ObjectKind
+from .model_endpoints import EndpointIdentifiers, EndpointList

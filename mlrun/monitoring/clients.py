@@ -2,7 +2,7 @@ from typing import Optional
 from v3io.dataplane import Client as V3IOClient
 from v3io_frames import Client as FramesClient
 
-# TODO: Can be done nicer
+# TODO: Can be done nicer, also this code assumes environment parameters exist for initializing both frames and v3io
 _v3io_client: Optional[V3IOClient, None] = None
 _frames_client: Optional[FramesClient, None] = None
 

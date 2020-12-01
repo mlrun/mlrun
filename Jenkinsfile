@@ -1,4 +1,6 @@
 
+@Library('pipelinex@development') _
+
 label = "${UUID.randomUUID().toString()}"
 git_project = "mlrun"
 git_project_user = "mlrun"

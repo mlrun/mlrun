@@ -4,7 +4,7 @@ from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
 
 
-def _assert_list_objects(
+def _list_and_assert_objects(
     client: TestClient, entity_name, project, query, expected_number_of_entities
 ):
     entity_url_name = entity_name.replace("_", "-")

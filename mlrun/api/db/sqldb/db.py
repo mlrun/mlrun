@@ -858,10 +858,15 @@ class SQLDB(DBInterface):
                 # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
                 # in the DB)
                 feature = next(
-                    feature
-                    for feature in feature_set.spec.features
-                    if feature.name == feature_name
+                    (
+                        feature
+                        for feature in feature_set.spec.features
+                        if feature.name == feature_name
+                    ),
+                    None,
                 )
+                if not feature:
+                    raise DBError("DB corruption - feature mismatch")
 
                 features_results.append(
                     schemas.FeatureListOutput(
@@ -949,15 +954,15 @@ class SQLDB(DBInterface):
             feature_set.entities.append(entity)
 
     def _update_feature_set_spec(
-        self, feature_set: FeatureSet, new_feature_set_dict: dict
+        self, feature_set: FeatureSet, new_feature_set_dict: dict, replace=True
     ):
         feature_set_spec = new_feature_set_dict.get("spec")
         if feature_set_spec:
             features = feature_set_spec.pop("features", [])
             entities = feature_set_spec.pop("entities", [])
 
-        self._update_feature_set_features(feature_set, features)
-        self._update_feature_set_entities(feature_set, entities)
+        self._update_feature_set_features(feature_set, features, replace)
+        self._update_feature_set_entities(feature_set, entities, replace)
 
     @staticmethod
     def _validate_store_parameters(object_to_store, project, name, tag, uid):

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .base import _patch_object, _assert_list_objects
 
 
-def _generate_feature_set(name):
+def _generate_feature_set(name, extra_feature_name="extra"):
     return {
         "kind": "FeatureSet",
         "metadata": {
@@ -34,6 +34,11 @@ def _generate_feature_set(name):
                 },
                 {"name": "bid", "value_type": "float"},
                 {"name": "ask", "value_type": "time"},
+                {
+                    "name": extra_feature_name,
+                    "value_type": "str",
+                    "labels": {"extra_label": "extra"},
+                },
             ],
             "extra_spec": True,
         },
@@ -459,3 +464,46 @@ def test_features_list(db: Session, client: TestClient) -> None:
     assert (
         features_response["features"][1]["feature_set_digest"]["metadata"]["tag"] == tag
     )
+
+
+def test_no_feature_leftovers_when_storing_feature_sets(
+    db: Session, client: TestClient
+) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    count = 5
+    name = "feature_set"
+    # Make sure no leftover features remain in the DB after doing multi-store on the same object
+    for i in range(count):
+        feature_set = _generate_feature_set(name)
+
+        _assert_store_feature_set(
+            client, project_name, name, "latest", feature_set, versioned=False
+        )
+        # _feature_set_create_and_assert(client, project_name, feature_set)
+        _assert_list_objects(
+            client, "features", project_name, None, len(feature_set["spec"]["features"])
+        )
+
+    # Now create different features each time we store, make sure no leftovers remain
+    for i in range(count):
+        feature_set = _generate_feature_set(name, f"feature_{i}")
+        _assert_store_feature_set(
+            client, project_name, name, "latest", feature_set, versioned=False
+        )
+        # _feature_set_create_and_assert(client, project_name, feature_set)
+        _assert_list_objects(
+            client, "features", project_name, None, len(feature_set["spec"]["features"])
+        )
+
+    response = client.delete(f"/api/projects/{project_name}/feature-sets/{name}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    # When working on a versioned object, features will be multiplied, since they belong to different versions
+    # (different features change the uid)
+    for i in range(count):
+        feature_set = _generate_feature_set(name, f"feature_{i}")
+        _assert_store_feature_set(
+            client, project_name, name, "latest", feature_set, versioned=True
+        )
+        # _feature_set_create_and_assert(client, project_name, feature_set)
+        _assert_list_objects(client, "features", project_name, None, 4 * (i + 1))

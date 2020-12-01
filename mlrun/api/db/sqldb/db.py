@@ -959,9 +959,8 @@ class SQLDB(DBInterface):
         self, feature_set: FeatureSet, new_feature_set_dict: dict, replace=True
     ):
         feature_set_spec = new_feature_set_dict.get("spec")
-        if feature_set_spec:
-            features = feature_set_spec.pop("features", [])
-            entities = feature_set_spec.pop("entities", [])
+        features = feature_set_spec.pop("features", [])
+        entities = feature_set_spec.pop("entities", [])
 
         self._update_feature_set_features(feature_set, features, replace)
         self._update_feature_set_entities(feature_set, entities, replace)

@@ -94,6 +94,7 @@ class ServingSpec(NuclioSpec):
         parameters=None,
         default_class=None,
         load_mode=None,
+        build=None,
     ):
 
         super().__init__(
@@ -118,6 +119,7 @@ class ServingSpec(NuclioSpec):
             function_kind=serving_subkind,
             service_account=service_account,
             readiness_timeout=readiness_timeout,
+            build=build,
         )
 
         self.models = models or {}

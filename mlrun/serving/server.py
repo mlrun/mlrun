@@ -19,7 +19,7 @@ import traceback
 import uuid
 from copy import deepcopy
 
-from .states import ServingRouterState, ServingTaskState
+from .states import ServingRouterState, ServingTaskState, StateKinds, ServingRootFlowState
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from ..utils import create_logger, get_caller_globals
@@ -67,7 +67,17 @@ class ModelServerHost(ModelObj):
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "spec", ServingRouterState)
+        if graph:
+            if isinstance(graph, dict):
+                kind = graph.get("kind")
+            elif hasattr(graph, "kind"):
+                kind = graph.kind
+            else:
+                raise ValueError("graph must be a dict or a valid object")
+            if kind == StateKinds.router:
+                self._graph = self._verify_dict(graph, "graph", ServingRouterState)
+            else:
+                self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
 
     def merge_root_params(self, params={}):
         """for internal use, enrich child states with root params"""

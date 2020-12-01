@@ -4,6 +4,8 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from .base import _patch_object, _assert_list_objects
+
 
 def _generate_feature_set(name):
     return {
@@ -47,23 +49,6 @@ def _generate_feature_set(name):
             "extra_status": {"field1": "value1", "field2": "value2"},
         },
     }
-
-
-def _assert_list_objects(
-    client: TestClient, entity_name, project, query, expected_number_of_entities
-):
-    entity_url_name = entity_name.replace("_", "-")
-    url = f"/api/projects/{project}/{entity_url_name}"
-    if query:
-        url = url + f"?{query}"
-    response = client.get(url)
-    assert response.status_code == HTTPStatus.OK.value
-    response_body = response.json()
-    assert entity_name in response_body
-    assert (
-        len(response_body[entity_name]) == expected_number_of_entities
-    ), f"wrong number of {entity_name} entities in response"
-    return response_body
 
 
 def _feature_set_create_and_assert(
@@ -167,23 +152,6 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     # _assert_list_objects(client, "feature_sets", project_name, "label=owner=bob&label=color=red", 2)
 
 
-def _patch_feature_set(
-    client: TestClient, project_name, name, feature_set_update, additive=False
-):
-    patch_mode = "replace"
-    if additive:
-        patch_mode = "additive"
-    response = client.patch(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest?patch-mode={patch_mode}",
-        json=feature_set_update,
-    )
-    assert response.status_code == HTTPStatus.OK.value
-    response = client.get(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest"
-    )
-    return response.json()
-
-
 def test_feature_set_patch(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
 
@@ -206,8 +174,8 @@ def test_feature_set_patch(db: Session, client: TestClient) -> None:
         "metadata": {"labels": {"new-label": "new-value", "owner": "someone-else"}},
     }
 
-    patched_feature_set = _patch_feature_set(
-        client, project_name, name, feature_set_patch
+    patched_feature_set = _patch_object(
+        client, project_name, name, feature_set_patch, "feature-sets"
     )
     patched_feature_set_metadata = patched_feature_set["metadata"]
     assert (
@@ -224,8 +192,8 @@ def test_feature_set_patch(db: Session, client: TestClient) -> None:
     feature_set_patch = {
         "spec": {"features": [{"name": "dividend", "value_type": "float"}]}
     }
-    patched_feature_set = _patch_feature_set(
-        client, project_name, name, feature_set_patch
+    patched_feature_set = _patch_object(
+        client, project_name, name, feature_set_patch, "feature-sets"
     )
     patched_feature_set_metadata = patched_feature_set["metadata"]
     assert (
@@ -240,8 +208,8 @@ def test_feature_set_patch(db: Session, client: TestClient) -> None:
             "features": [{"name": "looks", "value_type": "str", "description": "good"}],
         }
     }
-    patched_feature_set = _patch_feature_set(
-        client, project_name, name, feature_set_patch, additive=True
+    patched_feature_set = _patch_object(
+        client, project_name, name, feature_set_patch, "feature-sets", additive=True
     )
     assert len(patched_feature_set["spec"]["features"]) == 2
 
@@ -404,8 +372,8 @@ def test_feature_set_create_without_labels(db: Session, client: TestClient) -> N
     feature_set_update = {
         "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
     }
-    feature_set_response = _patch_feature_set(
-        client, project_name, name, feature_set_update
+    feature_set_response = _patch_object(
+        client, project_name, name, feature_set_update, "feature-sets"
     )
     assert (
         len(feature_set_response["metadata"]["labels"]) == 2

@@ -15,6 +15,7 @@ from mlrun.api.db.sqldb.models import (
     Feature,
     Entity,
     Schedule,
+    FeatureVector,
 )
 from tests.api.db.conftest import dbs
 
@@ -123,6 +124,13 @@ def _assert_resources_in_project(
                         db_session.query(Schedule)
                         .join(cls)
                         .filter(Schedule.project == project)
+                        .count()
+                    )
+                if cls.__tablename__ == "feature_vectors_labels":
+                    number_of_cls_records = (
+                        db_session.query(FeatureVector)
+                        .join(cls)
+                        .filter(FeatureVector.project == project)
                         .count()
                     )
             else:
@@ -238,3 +246,12 @@ def _create_resources_of_all_kinds(db: DBInterface, db_session: Session, project
         status={},
     )
     db.create_feature_set(db_session, project, feature_set)
+
+    feature_vector = schemas.FeatureVector(
+        metadata=schemas.ObjectMetadata(
+            name="dummy", tag="latest", labels={"owner": "somebody"}
+        ),
+        spec=schemas.ObjectSpec(),
+        status=schemas.ObjectStatus(state="created"),
+    )
+    db.create_feature_vector(db_session, project, feature_vector)

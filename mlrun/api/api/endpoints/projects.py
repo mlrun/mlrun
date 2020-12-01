@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.utils.singletons.projects_manager import get_projects_member
+from mlrun.api.utils.singletons.project_member import get_project_member
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ router = APIRouter()
 def create_project(
     project: schemas.Project, db_session: Session = Depends(deps.get_db_session)
 ):
-    return get_projects_member().create_project(db_session, project)
+    return get_project_member().create_project(db_session, project)
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
@@ -25,7 +25,7 @@ def store_project(
     name: str,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_projects_member().store_project(db_session, name, project)
+    return get_project_member().store_project(db_session, name, project)
 
 
 @router.patch("/projects/{name}", response_model=schemas.Project)
@@ -37,20 +37,20 @@ def patch_project(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_projects_member().patch_project(db_session, name, project, patch_mode)
+    return get_project_member().patch_project(db_session, name, project, patch_mode)
 
 
 # curl http://localhost:8080/project/<name>
 @router.get("/projects/{name}", response_model=schemas.Project)
 def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
-    return get_projects_member().get_project(db_session, name)
+    return get_project_member().get_project(db_session, name)
 
 
 @router.delete("/projects/{name}", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_project(
     name: str, db_session: Session = Depends(deps.get_db_session),
 ):
-    get_projects_member().delete_project(db_session, name)
+    get_project_member().delete_project(db_session, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -61,4 +61,4 @@ def list_projects(
     owner: str = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_projects_member().list_projects(db_session, owner, format_)
+    return get_project_member().list_projects(db_session, owner, format_)

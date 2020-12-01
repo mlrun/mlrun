@@ -8,7 +8,6 @@ import mlrun.utils.singleton
 
 
 class Member(abc.ABC):
-
     @abc.abstractmethod
     def initialize(self):
         pass

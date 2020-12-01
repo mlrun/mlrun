@@ -9,10 +9,10 @@ from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.projects_manager import initialize_projects_manager
 from mlrun.config import config
 from mlrun.runtimes.base import RunStates
 from mlrun.utils import logger
@@ -24,7 +24,7 @@ async def scheduler(db: Session) -> Generator:
     config.httpdb.scheduling.min_allowed_interval = "0"
     scheduler = Scheduler()
     await scheduler.start(db)
-    mlrun.api.utils.singletons.projects_manager.initialize_projects_manager()
+    mlrun.api.utils.singletons.project_member.initialize_project_member()
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()

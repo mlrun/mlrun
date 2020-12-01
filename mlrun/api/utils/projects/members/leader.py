@@ -18,7 +18,10 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Member(mlrun.api.utils.projects.members.base.Member, metaclass=mlrun.utils.singleton.AbstractSingleton):
+class Member(
+    mlrun.api.utils.projects.members.base.Member,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
+):
     def initialize(self):
         logger.info("Initializing projects leader")
         self._initialize_followers()

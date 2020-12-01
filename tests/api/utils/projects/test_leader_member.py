@@ -128,7 +128,9 @@ def test_projects_sync_multiple_follower_project_adoption(
             description=second_follower_project_description,
         ),
     )
-    leader_follower.create_project = unittest.mock.Mock(wraps=leader_follower.create_project)
+    leader_follower.create_project = unittest.mock.Mock(
+        wraps=leader_follower.create_project
+    )
     _assert_project_in_followers(
         [nop_follower, second_nop_follower],
         both_followers_project_name,

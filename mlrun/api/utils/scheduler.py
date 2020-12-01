@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from mlrun.api import schemas
 from mlrun.api.db.session import create_session, close_session
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.projects_manager import get_projects_member
+from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.model import RunObject
 from mlrun.utils import logger
@@ -70,7 +70,7 @@ class Scheduler:
             cron_trigger=cron_trigger,
             labels=labels,
         )
-        get_projects_member().ensure_project(db_session, project)
+        get_project_member().ensure_project(db_session, project)
         get_db().create_schedule(
             db_session, project, name, kind, scheduled_object, cron_trigger, labels
         )

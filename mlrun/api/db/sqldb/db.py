@@ -33,7 +33,7 @@ from mlrun.api.db.sqldb.models import (
     _tagged,
     _labeled,
 )
-from mlrun.api.utils.singletons.projects_manager import get_projects_member
+from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.utils import (
@@ -60,7 +60,7 @@ class SQLDB(DBInterface):
 
     def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project
-        get_projects_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -93,7 +93,7 @@ class SQLDB(DBInterface):
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
-        get_projects_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -203,7 +203,7 @@ class SQLDB(DBInterface):
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
         project = project or config.default_project
-        get_projects_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -317,7 +317,7 @@ class SQLDB(DBInterface):
         self, session, function, name, project="", tag="", versioned=False
     ):
         project = project or config.default_project
-        get_projects_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -507,7 +507,7 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
     ):
-        get_projects_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         query = self._query(session, Schedule, project=project, name=name)
         schedule = query.one_or_none()
 
@@ -1131,7 +1131,7 @@ class SQLDB(DBInterface):
 
         new_object.metadata.project = project
 
-        get_projects_member().ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         tag = new_object.metadata.tag or "latest"
 
         object_dict = new_object.dict()

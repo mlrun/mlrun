@@ -16,9 +16,9 @@ from mlrun.api.utils.periodic import (
 )
 from mlrun.api.utils.singletons.db import get_db, initialize_db
 from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
-from mlrun.api.utils.singletons.projects_manager import (
-    initialize_projects_manager,
-    get_projects_member,
+from mlrun.api.utils.singletons.project_member import (
+    initialize_project_member,
+    get_project_member,
 )
 from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_scheduler
 from mlrun.config import config
@@ -129,7 +129,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    get_projects_member().shutdown()
+    get_project_member().shutdown()
     cancel_all_periodic_functions()
     await get_scheduler().stop()
 
@@ -137,7 +137,7 @@ async def shutdown_event():
 async def _initialize_singletons():
     initialize_logs_dir()
     initialize_db()
-    initialize_projects_manager()
+    initialize_project_member()
     await initialize_scheduler()
 
 

@@ -4,11 +4,11 @@ import mergedeep
 import sqlalchemy.orm
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.consumers.base
+import mlrun.api.utils.projects.followers.base
 import mlrun.errors
 
 
-class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
+class Follower(mlrun.api.utils.projects.followers.base.Follower):
     def __init__(self) -> None:
         super().__init__()
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}

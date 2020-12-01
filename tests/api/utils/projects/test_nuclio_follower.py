@@ -5,9 +5,8 @@ import pytest
 import requests_mock as requests_mock_package
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.consumers.base
-import mlrun.api.utils.projects.consumers.nuclio
-import mlrun.api.utils.projects.manager
+import mlrun.api.utils.projects.followers.base
+import mlrun.api.utils.projects.followers.nuclio
 import mlrun.config
 
 
@@ -19,15 +18,15 @@ async def api_url() -> str:
 
 
 @pytest.fixture()
-async def nuclio_consumer(
+async def nuclio_follower(
     api_url: str,
-) -> mlrun.api.utils.projects.consumers.nuclio.Consumer:
-    return mlrun.api.utils.projects.consumers.nuclio.Consumer()
+) -> mlrun.api.utils.projects.followers.nuclio.Follower:
+    return mlrun.api.utils.projects.followers.nuclio.Follower()
 
 
 def test_get_project(
     api_url: str,
-    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    nuclio_follower: mlrun.api.utils.projects.followers.nuclio.Follower,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -36,21 +35,21 @@ def test_get_project(
         project_name, project_description, with_spec=True
     )
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
-    project = nuclio_consumer.get_project(None, project_name)
+    project = nuclio_follower.get_project(None, project_name)
     assert project.name == project_name
     assert project.description == project_description
 
     # now without description
     response_body = _generate_project_body(project_name, with_spec=True)
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
-    project = nuclio_consumer.get_project(None, project_name)
+    project = nuclio_follower.get_project(None, project_name)
     assert project.name == project_name
     assert project.description is None
 
 
 def test_list_project(
     api_url: str,
-    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    nuclio_follower: mlrun.api.utils.projects.followers.nuclio.Follower,
     requests_mock: requests_mock_package.Mocker,
 ):
     mock_projects = [
@@ -66,7 +65,7 @@ def test_list_project(
         for mock_project in mock_projects
     }
     requests_mock.get(f"{api_url}/api/projects", json=response_body)
-    projects = nuclio_consumer.list_projects(None)
+    projects = nuclio_follower.list_projects(None)
     for index, project in enumerate(projects.projects):
         assert project.name == mock_projects[index]["name"]
         assert project.description == mock_projects[index].get("description")
@@ -74,7 +73,7 @@ def test_list_project(
 
 def test_create_project(
     api_url: str,
-    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    nuclio_follower: mlrun.api.utils.projects.followers.nuclio.Follower,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -94,7 +93,7 @@ def test_create_project(
         context.status_code = http.HTTPStatus.CREATED.value
 
     requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
-    nuclio_consumer.create_project(
+    nuclio_follower.create_project(
         None,
         mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
@@ -102,7 +101,7 @@ def test_create_project(
 
 def test_store_project_creation(
     api_url: str,
-    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    nuclio_follower: mlrun.api.utils.projects.followers.nuclio.Follower,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -127,7 +126,7 @@ def test_store_project_creation(
         status_code=http.HTTPStatus.NOT_FOUND.value,
     )
     requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
-    nuclio_consumer.store_project(
+    nuclio_follower.store_project(
         None,
         project_name,
         mlrun.api.schemas.Project(name=project_name, description=project_description),
@@ -136,7 +135,7 @@ def test_store_project_creation(
 
 def test_store_project_update(
     api_url: str,
-    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    nuclio_follower: mlrun.api.utils.projects.followers.nuclio.Follower,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -163,7 +162,7 @@ def test_store_project_update(
         f"{api_url}/api/projects/{project_name}", json=mocked_project_body
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_store_update)
-    nuclio_consumer.store_project(
+    nuclio_follower.store_project(
         None,
         project_name,
         mlrun.api.schemas.Project(name=project_name, description=project_description),
@@ -172,7 +171,7 @@ def test_store_project_update(
 
 def test_patch_project(
     api_url: str,
-    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    nuclio_follower: mlrun.api.utils.projects.followers.nuclio.Follower,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -194,7 +193,7 @@ def test_patch_project(
         f"{api_url}/api/projects/{project_name}", json=mocked_project_body
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
-    nuclio_consumer.patch_project(
+    nuclio_follower.patch_project(
         None,
         project_name,
         mlrun.api.schemas.ProjectPatch(description=project_description),
@@ -203,7 +202,7 @@ def test_patch_project(
 
 def test_delete_project(
     api_url: str,
-    nuclio_consumer: mlrun.api.utils.projects.consumers.nuclio.Consumer,
+    nuclio_follower: mlrun.api.utils.projects.followers.nuclio.Follower,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -220,7 +219,7 @@ def test_delete_project(
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
-    nuclio_consumer.delete_project(None, project_name)
+    nuclio_follower.delete_project(None, project_name)
 
 
 def _generate_project_body(

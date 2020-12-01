@@ -5,7 +5,7 @@ import sqlalchemy.orm
 import mlrun.api.schemas
 
 
-class Consumer(abc.ABC):
+class Follower(abc.ABC):
     @abc.abstractmethod
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project

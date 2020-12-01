@@ -1,15 +1,17 @@
-from mlrun.api.utils.projects.manager import ProjectsManager
+import mlrun.api.utils.projects.members.leader
 
 # TODO: something nicer
-projects_manager: ProjectsManager = None
+projects_member: mlrun.api.utils.projects.members.leader.Member = None
 
 
 def initialize_projects_manager():
-    global projects_manager
-    projects_manager = ProjectsManager()
-    projects_manager.initialize()
+    global projects_member
+    # currently we're always leaders, when there will be follower member implementation, we should condition which one
+    # to initialize here
+    projects_member = mlrun.api.utils.projects.members.leader.Member()
+    projects_member.initialize()
 
 
-def get_projects_manager() -> ProjectsManager:
-    global projects_manager
-    return projects_manager
+def get_projects_member() -> mlrun.api.utils.projects.members.leader.Member:
+    global projects_member
+    return projects_member

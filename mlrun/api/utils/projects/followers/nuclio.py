@@ -6,11 +6,11 @@ import sqlalchemy.orm
 import urllib3
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.consumers.base
+import mlrun.api.utils.projects.followers.base
 from mlrun.utils import logger
 
 
-class Consumer(mlrun.api.utils.projects.consumers.base.Consumer):
+class Follower(mlrun.api.utils.projects.followers.base.Follower):
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(

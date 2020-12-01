@@ -4,22 +4,21 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.consumers.base
-import mlrun.api.utils.projects.consumers.mlrun
-import mlrun.api.utils.projects.manager
+import mlrun.api.utils.projects.followers.base
+import mlrun.api.utils.projects.followers.mlrun
 import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.errors
 
 
 @pytest.fixture()
-async def mlrun_consumer() -> mlrun.api.utils.projects.consumers.mlrun.Consumer:
-    return mlrun.api.utils.projects.consumers.mlrun.Consumer()
+async def mlrun_follower() -> mlrun.api.utils.projects.followers.mlrun.Follower:
+    return mlrun.api.utils.projects.followers.mlrun.Follower()
 
 
 def test_get_project(
     db: sqlalchemy.orm.Session,
-    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+    mlrun_follower: mlrun.api.utils.projects.followers.mlrun.Follower,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -28,14 +27,14 @@ def test_get_project(
         mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
 
-    project_output = mlrun_consumer.get_project(db, project_name)
+    project_output = mlrun_follower.get_project(db, project_name)
     assert project_output.name == project_name
     assert project_output.description == project_description
 
 
 def test_list_project(
     db: sqlalchemy.orm.Session,
-    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+    mlrun_follower: mlrun.api.utils.projects.followers.mlrun.Follower,
 ):
     expected_projects = [
         {"name": "project-name-1"},
@@ -50,7 +49,7 @@ def test_list_project(
                 name=project["name"], description=project.get("description")
             ),
         )
-    projects_output = mlrun_consumer.list_projects(db)
+    projects_output = mlrun_follower.list_projects(db)
     for index, project in enumerate(projects_output.projects):
         assert project.name == expected_projects[index]["name"]
         assert project.description == expected_projects[index].get("description")
@@ -58,13 +57,13 @@ def test_list_project(
 
 def test_create_project(
     db: sqlalchemy.orm.Session,
-    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+    mlrun_follower: mlrun.api.utils.projects.followers.mlrun.Follower,
 ):
     project_name = "project-name"
     project_description = "some description"
     project_created = datetime.datetime.utcnow()
 
-    mlrun_consumer.create_project(
+    mlrun_follower.create_project(
         db,
         mlrun.api.schemas.Project(
             name=project_name, description=project_description, created=project_created
@@ -82,12 +81,12 @@ def test_create_project(
 
 def test_store_project_creation(
     db: sqlalchemy.orm.Session,
-    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+    mlrun_follower: mlrun.api.utils.projects.followers.mlrun.Follower,
 ):
     project_name = "project-name"
     project_description = "some description"
     project_created = datetime.datetime.utcnow()
-    mlrun_consumer.store_project(
+    mlrun_follower.store_project(
         db,
         project_name,
         mlrun.api.schemas.Project(
@@ -105,7 +104,7 @@ def test_store_project_creation(
 
 def test_store_project_update(
     db: sqlalchemy.orm.Session,
-    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+    mlrun_follower: mlrun.api.utils.projects.followers.mlrun.Follower,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -117,7 +116,7 @@ def test_store_project_update(
         ),
     )
 
-    mlrun_consumer.store_project(
+    mlrun_follower.store_project(
         db, project_name, mlrun.api.schemas.Project(name=project_name),
     )
     project_output = mlrun.api.utils.singletons.db.get_db().get_project(
@@ -131,7 +130,7 @@ def test_store_project_update(
 
 def test_patch_project(
     db: sqlalchemy.orm.Session,
-    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+    mlrun_follower: mlrun.api.utils.projects.followers.mlrun.Follower,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -141,7 +140,7 @@ def test_patch_project(
     )
 
     updated_project_description = "some description 2"
-    mlrun_consumer.patch_project(
+    mlrun_follower.patch_project(
         db,
         project_name,
         mlrun.api.schemas.ProjectPatch(description=updated_project_description),
@@ -155,7 +154,7 @@ def test_patch_project(
 
 def test_delete_project(
     db: sqlalchemy.orm.Session,
-    mlrun_consumer: mlrun.api.utils.projects.consumers.mlrun.Consumer,
+    mlrun_follower: mlrun.api.utils.projects.followers.mlrun.Follower,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -163,7 +162,7 @@ def test_delete_project(
         db,
         mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
-    mlrun_consumer.delete_project(db, project_name)
+    mlrun_follower.delete_project(db, project_name)
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         mlrun.api.utils.singletons.db.get_db().get_project(db, project_name)

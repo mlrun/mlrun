@@ -93,8 +93,8 @@ default_config = {
             "min_allowed_interval": "10 minutes"
         },
         "projects": {
-            "master_consumer": "mlrun",
-            "consumers": "",
+            "leader": "mlrun",
+            "followers": "",
             "periodic_sync_interval": "1 minute",
         },
     },

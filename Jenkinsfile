@@ -95,15 +95,7 @@ podTemplate(label: "${git_project}-${label}", inheritFrom: "docker-python") {
                                 error("Could not get source branch from tag")
                             }
 
-                            ui_github_client.createRelease(source_branch, mlrun_github_client.tag.toString(), true)
-
-                            // TODO: is this really necessary??
-                            // github.wait_for_release(
-                            //         git_mlrun_ui_project,
-                            //         git_project_user,
-                            //         "${github.TAG_VERSION}",
-                            //         GIT_TOKEN
-                            // )
+                            ui_github_client.createRelease(source_branch, mlrun_github_client.tag.toString(), true, true)
                         }
                     }
 

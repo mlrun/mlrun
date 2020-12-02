@@ -10,5 +10,9 @@ class EndpointIdentifiers(BaseModel):
     tag: Optional[str]
 
 
+class EndpointMetaData(BaseModel):
+    meta_data: Optional[dict]
+
+
 class EndpointList(BaseModel):
     endpoints: List[EndpointIdentifiers]

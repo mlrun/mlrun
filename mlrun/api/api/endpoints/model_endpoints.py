@@ -6,7 +6,7 @@ from v3io.dataplane import RaiseForStatus
 
 from mlrun.api import schemas
 from mlrun.monitoring.clients import get_v3io_client, get_frames_client
-from mlrun.monitoring.utils import build_endpoint_key
+from mlrun.monitoring.endpoint import EndpointKey
 from mlrun.monitoring.constants import DEFAULT_CONTAINER, ENDPOINTS_TABLE
 from mlrun.utils import logger
 
@@ -19,14 +19,14 @@ def create_endpoint(project: str, endpoint_identifies: schemas.EndpointIdentifie
     this function should be called on creating a model server via v2_model_server
     """
 
-    key = build_endpoint_key(
+    key = EndpointKey(
         project,
         endpoint_identifies.function,
         endpoint_identifies.model,
         endpoint_identifies.tag,
     )
 
-    if get_endpoint(key) is not None:
+    if get_endpoint(key.hash) is not None:
         logger.info(f"Endpoint {key} already exists")
         return
 
@@ -35,7 +35,7 @@ def create_endpoint(project: str, endpoint_identifies: schemas.EndpointIdentifie
     get_v3io_client().kv.put(
         container=DEFAULT_CONTAINER,
         table_path=ENDPOINTS_TABLE,
-        key=key,
+        key=key.hash,
         attributes={
             "project": project,
             "function": endpoint_identifies.function,
@@ -49,9 +49,9 @@ def create_endpoint(project: str, endpoint_identifies: schemas.EndpointIdentifie
 
 @router.delete("projects/{project}/models/{function}:{model}/references/{tag}")
 def delete_endpoint(project: str, function: str, model: str, version: str):
-    key = build_endpoint_key(project, function, model, version)
+    key = EndpointKey(project, function, model, version)
     logger.info(f"Deleting endpoint [{key}]...")
-    get_v3io_client().kv.delete(container=DEFAULT_CONTAINER, table_path=ENDPOINTS_TABLE, key=key)
+    get_v3io_client().kv.delete(container=DEFAULT_CONTAINER, table_path=ENDPOINTS_TABLE, key=key.hash)
     logger.info(f"Endpoint [{key}] deleted.")
 
 
@@ -63,17 +63,17 @@ def update_endpoint(
     tag: str,
     updated_identifiers: schemas.EndpointIdentifiers
 ):
-    key = build_endpoint_key(project, function, model, tag)
+    key = EndpointKey(project, function, model, tag)
 
     logger.info(f"Updating endpoint [{key}...]")
 
     get_v3io_client().kv.delete(
         container=DEFAULT_CONTAINER,
         table_path=ENDPOINTS_TABLE,
-        key=key
+        key=key.hash
     )
 
-    new_key = build_endpoint_key(
+    new_key = EndpointKey(
         updated_identifiers.project or project,
         updated_identifiers.function or function,
         updated_identifiers.model or model,
@@ -83,7 +83,7 @@ def update_endpoint(
     get_v3io_client().kv.put(
         container=DEFAULT_CONTAINER,
         table_path=ENDPOINTS_TABLE,
-        key=key,
+        key=new_key.hash,
         attributes={
             "project": updated_identifiers.project or project,
             "function": updated_identifiers.function or function,

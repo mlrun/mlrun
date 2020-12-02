@@ -21,6 +21,7 @@ from typing import List
 import yaml
 from dateutil.parser import parse as parse_time
 
+import mlrun.api.schemas
 import mlrun.errors
 from .base import RunDBError, RunDBInterface
 from ..config import config
@@ -411,15 +412,43 @@ class FileRunDB(RunDBInterface):
         project = project or config.default_project
         return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
 
-    def list_projects(self):
+    def list_projects(
+        self,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+    ) -> mlrun.api.schemas.ProjectsOutput:
+        if owner or format_ == mlrun.api.schemas.Format.full:
+            raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
-            return []
-        return [
-            {"name": d} for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
+            return mlrun.api.schemas.ProjectsOutput(projects=[])
+        project_names = [
+            d for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
         ]
+        return mlrun.api.schemas.ProjectsOutput(projects=project_names)
+
+    def get_project(self, name: str) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
 
     def delete_project(self, name: str):
+        raise NotImplementedError()
+
+    def store_project(
+        self, name: str, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def patch_project(
+        self,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def create_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     @property

@@ -2,12 +2,14 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Dict
 
+import mergedeep
 import pytz
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+import mlrun.api.utils.projects.remotes.member
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -32,6 +34,7 @@ from mlrun.api.db.sqldb.models import (
     _tagged,
     _labeled,
 )
+from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.utils import (
@@ -43,36 +46,22 @@ from mlrun.utils import (
     generate_object_uri,
     match_times,
 )
-import mergedeep
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(DBInterface):
-    def __init__(self, dsn, projects=None):
+class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
+    def __init__(self, dsn):
         self.dsn = dsn
 
-        # FIXME: this is a huge hack - the cache is currently not a real cache but a replica of the DB - if the code
-        # can not find a project in the cache it will just try to create it instead of trying to get it from the db
-        # first. in some cases we need several instances of this class (see mlrun.db.sqldb) therefore they all need to
-        # have the same cache, receiving the cache here (set in python passed by reference) to enable that
-        self._projects = projects or set()  # project cache
-
     def initialize(self, session):
-        self._initialize_cache(session)
-
-    def _initialize_cache(self, session):
-        for project in self.list_projects(session):
-            self._projects.add(project.name)
-
-    def get_projects_cache(self):
-        return self._projects
+        return
 
     def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -105,7 +94,7 @@ class SQLDB(DBInterface):
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -215,7 +204,7 @@ class SQLDB(DBInterface):
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -329,7 +318,7 @@ class SQLDB(DBInterface):
         self, session, function, name, project="", tag="", versioned=False
     ):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -486,7 +475,6 @@ class SQLDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         labels: Dict = None,
     ):
-        self._ensure_project(session, project)
         schedule = Schedule(
             project=project,
             name=name,
@@ -520,7 +508,7 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
     ):
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         query = self._query(session, Schedule, project=project, name=name)
         schedule = query.one_or_none()
 
@@ -659,51 +647,55 @@ class SQLDB(DBInterface):
                 tags.add(tag.name)
         return tags
 
-    def add_project(self, session, project: dict):
-        project = project.copy()
-        name = project.get("name")
-        if not name:
-            raise ValueError("project missing name")
+    def create_project(self, session: Session, project: schemas.Project):
+        logger.debug("Creating project in DB", project=project)
+        created = datetime.utcnow()
+        project.created = created
+        project_record = Project(
+            name=project.name,
+            description=project.description,
+            owner=project.owner,
+            source=project.source,
+            state=project.state,
+            created=created,
+            full_object=project.dict(),
+        )
+        self._upsert(session, project_record)
 
-        project.pop("users", [])
-        prj = Project(**project)
-        users = (
-            []
-        )  # self._find_or_create_users(session, user_names) - user_names are previously popped users
-        prj.users.extend(users)
-        self._upsert(session, prj)
-        self._projects.add(prj.name)
-        return prj.id
+    def store_project(self, session: Session, name: str, project: schemas.Project):
+        logger.debug("Storing project in DB", name=name, project=project)
+        project_record = self._get_project_record(
+            session, name, raise_on_not_found=False
+        )
+        if not project_record:
+            self.create_project(session, project)
+        else:
+            self._update_project_record_from_project(session, project_record, project)
 
-    def update_project(self, session, name, data: dict):
-        prj = self.get_project(session, name)
-        if not prj:
-            raise DBError(f"unknown project - {name}")
+    def patch_project(
+        self,
+        session: Session,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        logger.debug(
+            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
+        )
+        project_record = self._get_project_record(session, name)
+        self._patch_project_record_from_project(
+            session, project_record, project, patch_mode
+        )
 
-        data = data.copy()
-        data.pop("users", [])
-        for key, value in data.items():
-            if not hasattr(prj, key):
-                raise DBError(f"unknown project attribute - {key}")
-            setattr(prj, key, value)
+    def get_project(
+        self, session: Session, name: str = None, project_id: int = None
+    ) -> schemas.Project:
+        project_record = self._get_project_record(session, name, project_id)
 
-        users = (
-            []
-        )  # self._find_or_create_users(session, user_names) - user_names are previously popped users
-        prj.users.clear()
-        prj.users.extend(users)
-        self._upsert(session, prj, ignore=True)
+        return self._transform_project_record_to_schema(project_record)
 
-    def get_project(self, session, name=None, project_id=None):
-        if not (project_id or name):
-            raise ValueError("need at least one of project_id or name")
-
-        if project_id:
-            return self._query(session, Project).get(project_id)
-
-        return self._query(session, Project, name=name).one_or_none()
-
-    def delete_project(self, session, name: str):
+    def delete_project(self, session: Session, name: str):
+        logger.debug("Deleting project from DB", name=name)
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)
@@ -718,8 +710,80 @@ class SQLDB(DBInterface):
         self._delete_resources_labels(session, name)
         self._delete(session, Project, name=name)
 
-    def list_projects(self, session, owner=None):
-        return self._query(session, Project, owner=owner)
+    def list_projects(
+        self,
+        session: Session,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+    ) -> schemas.ProjectsOutput:
+        project_records = self._query(session, Project, owner=owner)
+        projects = []
+        for project_record in project_records:
+            if format_ == mlrun.api.schemas.Format.name_only:
+                projects.append(project_record.name)
+            elif format_ == mlrun.api.schemas.Format.full:
+                projects.append(
+                    self._transform_project_record_to_schema(project_record)
+                )
+            else:
+                raise NotImplementedError(
+                    f"Provided format is not supported. format={format_}"
+                )
+        return schemas.ProjectsOutput(projects=projects)
+
+    def _update_project_record_from_project(
+        self, session: Session, project_record: Project, project: schemas.Project
+    ):
+        project.created = project_record.created
+        project_dict = project.dict()
+        project_record.full_object = project_dict
+        project_record.description = project.description
+        project_record.source = project.source
+        project_record.state = project.state
+        self._upsert(session, project_record)
+
+    def _patch_project_record_from_project(
+        self,
+        session: Session,
+        project_record: Project,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode,
+    ):
+        project_dict = project.dict(exclude_unset=True)
+        if project.description:
+            project_record.description = project.description
+        if project.source:
+            project_record.source = project.source
+        if project.state:
+            project_record.state = project.state
+        strategy = patch_mode.to_mergedeep_strategy()
+        project_record_full_object = project_record.full_object
+        mergedeep.merge(project_record_full_object, project_dict, strategy=strategy)
+        project_record.full_object = project_record_full_object
+        self._upsert(session, project_record)
+
+    def _get_project_record(
+        self,
+        session: Session,
+        name: str = None,
+        project_id: int = None,
+        raise_on_not_found: bool = True,
+    ) -> Project:
+        if not any([project_id, name]):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "One of 'name' or 'project_id' must be provided"
+            )
+        project_record = self._query(
+            session, Project, name=name, id=project_id
+        ).one_or_none()
+        if not project_record:
+            if not raise_on_not_found:
+                return None
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Project not found: name={name}, project_id={project_id}"
+            )
+
+        return project_record
 
     def _get_record_by_name_tag_and_uid(
         self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
@@ -1074,7 +1138,7 @@ class SQLDB(DBInterface):
 
         new_object.metadata.project = project
 
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         tag = new_object.metadata.tag or "latest"
 
         object_dict = new_object.dict()
@@ -1133,9 +1197,7 @@ class SQLDB(DBInterface):
 
         feature_set_struct = feature_set_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary
-        strategy = mergedeep.Strategy.REPLACE
-        if patch_mode.value == "additive":
-            strategy = mergedeep.Strategy.ADDITIVE
+        strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
 
         versioned = not feature_set_record.metadata.uid.startswith(
@@ -1312,9 +1374,7 @@ class SQLDB(DBInterface):
 
         feature_vector_struct = feature_vector_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary
-        strategy = mergedeep.Strategy.REPLACE
-        if patch_mode.value == "additive":
-            strategy = mergedeep.Strategy.ADDITIVE
+        strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_vector_struct, feature_vector_update, strategy=strategy)
 
         versioned = not feature_vector_record.metadata.uid.startswith(
@@ -1378,16 +1438,6 @@ class SQLDB(DBInterface):
         out = query.one_or_none()
         if out:
             return out[0]
-
-    def _ensure_project(self, session, name):
-        if name not in self._projects:
-
-            # fill cache from DB
-            projects = self.list_projects(session)
-            for project in projects:
-                self._projects.add(project.name)
-            if name not in self._projects:
-                self.add_project(session, {"name": name})
 
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
@@ -1717,3 +1767,8 @@ class SQLDB(DBInterface):
 
         feature_vector_resp.metadata.tag = tag
         return feature_vector_resp
+
+    @staticmethod
+    def _transform_project_record_to_schema(project_record: Project) -> schemas.Project:
+        project_full_dict = project_record.full_object
+        return schemas.Project(**project_full_dict)

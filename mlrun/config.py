@@ -21,6 +21,7 @@ Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
+import copy
 import json
 import os
 from collections.abc import Mapping
@@ -91,6 +92,11 @@ default_config = {
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
             "min_allowed_interval": "10 minutes"
         },
+        "projects": {
+            "leader": "mlrun",
+            "followers": "",
+            "periodic_sync_interval": "1 minute",
+        },
     },
 }
 
@@ -134,6 +140,10 @@ class Config:
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
 
+    @classmethod
+    def from_dict(cls, dict_):
+        return cls(copy.deepcopy(dict_))
+
     @staticmethod
     def reload():
         _populate()
@@ -161,7 +171,7 @@ class Config:
 
 
 # Global configuration
-config = Config(default_config)
+config = Config.from_dict(default_config)
 
 
 def _populate():
@@ -179,7 +189,10 @@ def _populate():
 def _do_populate(env=None):
     global config
 
-    config = Config(default_config)
+    if not config:
+        config = Config.from_dict(default_config)
+    else:
+        config.update(default_config)
     config_path = os.environ.get(env_file_key)
     if config_path:
         with open(config_path) as fp:
@@ -267,6 +280,13 @@ def read_env(env=None, prefix=env_prefix):
     if uisvc and not config.get("ui_url"):
         if igz_domain:
             config["ui_url"] = "https://mlrun-ui.{}".format(igz_domain)
+
+    if config.get("log_level"):
+        import mlrun.utils.logger
+
+        # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
+        # level manually
+        mlrun.utils.logger.set_logger_level(config["log_level"])
 
     return config
 

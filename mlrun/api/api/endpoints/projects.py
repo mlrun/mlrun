@@ -1,79 +1,64 @@
-from operator import attrgetter
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Header, Query
 from sqlalchemy.orm import Session
 
 from mlrun.api import schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import log_and_raise
-from mlrun.api.db.sqldb.helpers import to_dict as db2dict
-from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.project_member import get_project_member
 
 router = APIRouter()
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' http://localhost:8080/project
-@router.post("/project")
-def add_project(
-    project: schemas.ProjectCreate, db_session: Session = Depends(deps.get_db_session)
+@router.post("/projects", response_model=schemas.Project)
+def create_project(
+    project: schemas.Project, db_session: Session = Depends(deps.get_db_session)
 ):
-    project_id = get_db().add_project(db_session, project.dict())
-    return {
-        "id": project_id,
-        "name": project.name,
-    }
+    return get_project_member().create_project(db_session, project)
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project
-@router.post("/project/{name}")
-def update_project(
-    project: schemas.ProjectUpdate,
+@router.put("/projects/{name}", response_model=schemas.Project)
+def store_project(
+    project: schemas.Project,
     name: str,
     db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().update_project(db_session, name, project.dict(exclude_unset=True))
-    return {}
+    return get_project_member().store_project(db_session, name, project)
+
+
+@router.patch("/projects/{name}", response_model=schemas.Project)
+def patch_project(
+    project: schemas.ProjectPatch,
+    name: str,
+    patch_mode: schemas.PatchMode = Header(
+        schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
+    ),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    return get_project_member().patch_project(db_session, name, project, patch_mode)
 
 
 # curl http://localhost:8080/project/<name>
-@router.get("/project/{name}", response_model=schemas.ProjectOut)
+@router.get("/projects/{name}", response_model=schemas.Project)
 def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
-    project = get_db().get_project(db_session, name)
-    if not project:
-        log_and_raise(error=f"project {name!r} not found")
-
-    project.users = [u.name for u in project.users]
-
-    return {
-        "project": project,
-    }
+    return get_project_member().get_project(db_session, name)
 
 
 @router.delete("/projects/{name}", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_project(
     name: str, db_session: Session = Depends(deps.get_db_session),
 ):
-    get_db().delete_project(db_session, name)
+    get_project_member().delete_project(db_session, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 # curl http://localhost:8080/projects?full=true
-@router.get("/projects")
+@router.get("/projects", response_model=schemas.ProjectsOutput)
 def list_projects(
-    full: bool = False, db_session: Session = Depends(deps.get_db_session)
+    format_: schemas.Format = Query(schemas.Format.full, alias="format"),
+    owner: str = None,
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    fn = db2dict if full else attrgetter("name")
-    projects = []
-    for p in get_db().list_projects(db_session):
-        if isinstance(p, dict):
-            if full:
-                projects.append(p)
-            else:
-                projects.append(p.get("name"))
-        else:
-            projects.append(fn(p))
-
-    return {
-        "projects": projects,
-    }
+    return get_project_member().list_projects(db_session, owner, format_)

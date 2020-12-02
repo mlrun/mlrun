@@ -55,7 +55,7 @@ def get_secrets(_request: Request):
 def get_run_db_instance(db_session: Session):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session, db.get_projects_cache())
+        run_db = SQLRunDB(db.dsn, db_session)
     else:
         run_db = db.db
     run_db.connect()

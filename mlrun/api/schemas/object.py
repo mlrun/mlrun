@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional, List
 from enum import Enum
+from typing import Optional, List
+
 from pydantic import BaseModel, Extra
 
 
@@ -26,11 +27,6 @@ class ObjectStatus(BaseModel):
 class ObjectSpec(BaseModel):
     class Config:
         extra = Extra.allow
-
-
-class PatchMode(str, Enum):
-    replace = "replace"
-    additive = "additive"
 
 
 class LabelRecord(BaseModel):

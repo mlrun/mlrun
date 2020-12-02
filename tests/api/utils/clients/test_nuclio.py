@@ -18,7 +18,10 @@ async def api_url() -> str:
 
 @pytest.fixture()
 async def nuclio_client(api_url: str,) -> mlrun.api.utils.clients.nuclio.Client:
-    return mlrun.api.utils.clients.nuclio.Client()
+    client = mlrun.api.utils.clients.nuclio.Client()
+    # force running init again so the configured api url will be used
+    client.__init__()
+    return client
 
 
 def test_get_project(

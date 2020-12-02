@@ -6,11 +6,11 @@ import sqlalchemy.orm
 
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
-import mlrun.api.utils.projects.followers.base
-import mlrun.api.utils.projects.members.base
-import mlrun.api.utils.projects.followers.nop
-import mlrun.api.utils.projects.followers.nuclio
+import mlrun.api.utils.projects.member
+import mlrun.api.utils.projects.remotes.member
+import mlrun.api.utils.projects.remotes.nop
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -19,7 +19,7 @@ from mlrun.utils import logger
 
 
 class Member(
-    mlrun.api.utils.projects.members.base.Member,
+    mlrun.api.utils.projects.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def initialize(self):
@@ -255,20 +255,20 @@ class Member(
 
     def _initialize_follower(
         self, name: str
-    ) -> mlrun.api.utils.projects.followers.base.Follower:
+    ) -> mlrun.api.utils.projects.remotes.member.Member:
         # importing here to avoid circular import (db using project member using mlrun follower using db)
-        import mlrun.api.utils.projects.followers.mlrun
+        import mlrun.api.utils.singletons.db
 
         followers_classes_map = {
-            "mlrun": mlrun.api.utils.projects.followers.mlrun.Follower,
-            "nuclio": mlrun.api.utils.projects.followers.nuclio.Follower,
+            "mlrun": mlrun.api.utils.singletons.db.get_db(),
+            "nuclio": mlrun.api.utils.clients.nuclio.Client(),
             # for tests
-            "nop": mlrun.api.utils.projects.followers.nop.Follower,
-            "nop2": mlrun.api.utils.projects.followers.nop.Follower,
+            "nop": mlrun.api.utils.projects.remotes.nop.Member(),
+            "nop2": mlrun.api.utils.projects.remotes.nop.Member(),
         }
         if name not in followers_classes_map:
             raise ValueError(f"Unknown follower name: {name}")
-        return followers_classes_map[name]()
+        return followers_classes_map[name]
 
     @staticmethod
     def _validate_body_and_path_names_matches(

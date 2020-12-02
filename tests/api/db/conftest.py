@@ -8,6 +8,8 @@ from mlrun.api.db.session import create_session, close_session
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import _init_engine
 from mlrun.api.initial_data import init_data
+from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
 
 dbs = [
@@ -29,6 +31,8 @@ def db(request) -> Generator:
             init_data()
             db = SQLDB(dsn)
             db.initialize(db_session)
+            initialize_db(db)
+            initialize_project_member()
             yield db
         finally:
             close_session(db_session)
@@ -37,6 +41,7 @@ def db(request) -> Generator:
         db_session = create_session(request.param)
         try:
             db.initialize(db_session)
+
             yield db
         finally:
             shutil.rmtree(config.httpdb.dirpath, ignore_errors=True, onerror=None)

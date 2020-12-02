@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+import mlrun.api.utils.projects.remotes.member
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -51,7 +52,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(DBInterface):
+class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
 

@@ -6,11 +6,15 @@ import sqlalchemy.orm
 import urllib3
 
 import mlrun.api.schemas
-import mlrun.api.utils.projects.followers.base
+import mlrun.api.utils.projects.remotes.member
+import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Follower(mlrun.api.utils.projects.followers.base.Follower):
+class Client(
+    mlrun.api.utils.projects.remotes.member.Member,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
+):
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(

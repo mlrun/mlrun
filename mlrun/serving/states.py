@@ -211,7 +211,7 @@ class ServingTaskState(BaseState):
 
     def run(self, event, *args, **kwargs):
         if self.context.verbose:
-            self.context.logger.info(f"state {self.name} got event {event}")
+            self.context.logger.info(f"state {self.name} got event {str(event)}")
         if self.full_event:
             return self._handler(event, *args, **kwargs)
         event.body = self._handler(event.body, *args, **kwargs)

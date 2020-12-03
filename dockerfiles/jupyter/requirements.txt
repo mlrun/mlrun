@@ -1,4 +1,4 @@
-xgboost>=1.1
+xgboost~=1.1
 scikit-plot~=0.3.0
 matplotlib~=3.0
 scikit-learn~=0.20.0

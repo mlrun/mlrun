@@ -13,14 +13,11 @@
 # limitations under the License.
 
 import time
-from base64 import b64encode
-
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
-from .funcdoc import update_function_entry_points
 from .pod import KubeResource
 from .utils import AsyncLogWriter, default_image_name
 from ..builder import build_runtime
@@ -35,31 +32,6 @@ class KubejobRuntime(KubeResource):
     _is_nested = True
 
     _is_remote = True
-
-    def with_code(self, from_file="", body=None, with_doc=True):
-        """Update the function code
-        This function eliminates the need to build container images every time we edit the code
-
-        :param from_file:   blank for current notebook, or path to .py/.ipynb file
-        :param body:        will use the body as the function code
-        :param with_doc:    update the document of the function parameters
-
-        :return: function object
-        """
-        if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
-            from nuclio import build_file
-
-            _, _, body = build_file(from_file)
-
-        if from_file:
-            with open(from_file) as fp:
-                body = fp.read()
-        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
-            "utf-8"
-        )
-        if with_doc:
-            update_function_entry_points(self, body)
-        return self
 
     @property
     def is_deployed(self):

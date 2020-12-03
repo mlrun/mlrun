@@ -50,6 +50,7 @@ class ModelServerHost(ModelObj):
         load_mode=None,
         verbose=False,
         version=None,
+        functions=None,
     ):
         self._graph = None
         self.graph: ServingRouterState = graph
@@ -60,6 +61,11 @@ class ModelServerHost(ModelObj):
         self.version = version or "v2"
         self.context = None
         self._namespace = None
+        self._current_function = None
+        self.functions = functions or []
+
+    def set_current_function(self, function):
+        self._current_function = function
 
     @property
     def graph(self) -> ServingRouterState:
@@ -93,6 +99,7 @@ class ModelServerHost(ModelObj):
         # initializing classes or handling the event
         setattr(context, "stream", _StreamContext(self.parameters, self.function_uri))
         setattr(context, "merge_root_params", self.merge_root_params)
+        setattr(context, "current_function", self._current_function)
         setattr(context, "verbose", self.verbose)
 
         self.graph.init_object(context, namespace, self.load_mode)
@@ -161,6 +168,7 @@ def v2_serving_init(context, namespace=None):
         raise ValueError("failed to find spec env var")
     spec = json.loads(data)
     server = ModelServerHost.from_dict(spec)
+    server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     serving_handler = server.init(context, namespace or globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
@@ -196,6 +204,7 @@ def create_mock_server(
     namespace=None,
     logger=None,
     level="debug",
+    current_function=None,
 ):
     """create serving emulator/tester for locally testing models and servers
 
@@ -211,6 +220,7 @@ def create_mock_server(
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
     namespace = namespace or get_caller_globals()
     server = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
+    server.set_current_function(current_function or os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     server.init(context, namespace or {})
     return server
 
@@ -259,3 +269,4 @@ class MockContext:
         self.logger = logger or create_logger(level, "human", "flow", sys.stdout)
         self.worker_id = 0
         self.Response = Response
+

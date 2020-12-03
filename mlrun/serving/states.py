@@ -15,6 +15,8 @@ import json
 import os
 import pathlib
 from copy import deepcopy, copy
+from inspect import getmembers, isfunction
+from types import ModuleType
 
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -43,7 +45,7 @@ _task_state_fields = [
     "handler",
     "skip_context",
     "next",
-    "resource",
+    "function",
     "comment",
     "end",
     "shape",
@@ -66,7 +68,7 @@ def new_remote_endpoint(url, **class_args):
 class BaseState(ModelObj):
     kind = "BaseState"
     default_shape = "ellipse"
-    _dict_fields = ["kind", "comment", "next", "end", "resource"]
+    _dict_fields = ["kind", "comment", "next", "end", "function"]
 
     def __init__(self, name=None, next=None, end=None):
         self.name = name
@@ -75,7 +77,7 @@ class BaseState(ModelObj):
         self.context = None
         self.next = next
         self.end = end
-        self.resource = None
+        self.function = None
         self.shape = None
 
     def get_shape(self):
@@ -92,6 +94,11 @@ class BaseState(ModelObj):
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
+
+    def _not_local_function(self, context):
+        if self.function and context and context.current_function != self.function:
+            return True
+        return False
 
     def get_children(self):
         return []
@@ -136,11 +143,13 @@ class ServingTaskState(BaseState):
         next=None,
         end=None,
         full_event=None,
+        function=None,
     ):
         super().__init__(name, next, end)
         self.class_name = class_name
         self.class_args = class_args or {}
         self.handler = handler
+        self.function = function
         self._handler = None
         self._object = None
         self.skip_context = None
@@ -149,11 +158,14 @@ class ServingTaskState(BaseState):
         self.full_event = full_event
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        if self._not_local_function(context):
+            return
+
         if isinstance(self.class_name, type):
             self._class_object = self.class_name
             self.class_name = self.class_name.__name__
 
-        self.context = context
         if not self._class_object:
             if self.class_name == "$remote":
                 self._class_object = RemoteHttpHandler
@@ -210,6 +222,10 @@ class ServingTaskState(BaseState):
             self._object.post_init(mode)
 
     def run(self, event, *args, **kwargs):
+        if self._not_local_function(self.context):
+            # todo invoke REST call
+            return event
+
         if self.context.verbose:
             self.context.logger.info(f"state {self.name} got event {event.body}")
         if self.full_event:
@@ -232,9 +248,10 @@ class ServingRouterState(ServingTaskState):
         routes=None,
         name=None,
         end=None,
+        function=None,
     ):
-        super().__init__(class_name, class_args, handler, name=name, end=end)
-        self._routes = {}
+        super().__init__(class_name, class_args, handler, name=name, end=end, function=function)
+        self._routes = ObjectDict()
         self.routes = routes
 
     def get_children(self):
@@ -275,6 +292,9 @@ class ServingRouterState(ServingTaskState):
             del self._routes[key]
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        if self._not_local_function(context):
+            return
+
         self.class_args = self.class_args or {}
         super().init_object(
             context, namespace, "skip", reset=reset, routes=self._routes, **extra_kwargs
@@ -370,6 +390,7 @@ class ServingFlowState(BaseState):
         after=None,
         next=None,
         shape=None,
+        function=None,
         **class_args,
     ):
         """add child route state or class to the router
@@ -386,7 +407,7 @@ class ServingFlowState(BaseState):
         if not state and not class_name:
             raise ValueError("state or class_name must be specified")
         if not state:
-            state = ServingTaskState(class_name, class_args, handler=handler)
+            state = ServingTaskState(class_name, class_args, handler=handler, function=function)
         state = self._states.update(key, state)
         state.set_parent(self)
         if shape:
@@ -453,7 +474,7 @@ class ServingFlowState(BaseState):
                 if state.path:
                     return storey.WriteToV3IOStream(storey.V3ioDriver(), state.path)
                 else:
-                    return storey.Map(lambda x: print('xxxx:',x))
+                    return storey.Map(lambda x: x)
             is_storey = (
                 hasattr(state, "object")
                 and state.object
@@ -465,6 +486,9 @@ class ServingFlowState(BaseState):
             return storey.Map(state.run, full_event=True)
 
         def process_step(state, step, root):
+            if state._not_local_function(self.context):
+                return
+
             if not state.next and state.end:
                 # print("set complete:", state.name)
                 step.to(storey.Complete(full_event=True))
@@ -484,12 +508,39 @@ class ServingFlowState(BaseState):
         self._controller = source.run()
 
     def get_start_state(self, from_state=None):
+
+        def get_function_state(state, current_function):
+            if state.function and state.function == current_function:
+                return state
+            for item in state.next or []:
+                next_state = self[item]
+                resp = get_function_state(next_state, current_function)
+                if resp:
+                    return resp
+
         from_state = from_state or self.from_state or self.start_at
+        if self.context and self.context.current_function:
+            state = get_function_state(self[from_state], self.context.current_function)
+            if not state:
+                raise ValueError(f'states not found pointing to  function {self.context.current_functionself.context.current_function}')
+            return state
+
         if not from_state:
             raise ValueError(
                 f"start step {from_state} was not specified in {self.name}"
             )
         return self.path_to_state(from_state)
+
+    def get_queue_links(self):
+        links = {}
+        for state in self.get_children():
+            if state.kind == StateKinds.queue:
+                stream_path = state.path
+                for item in state.next or []:
+                    next_state = self[item]
+                    if next_state.function:
+                        links[next_state.function] = stream_path
+        return links
 
     def find_last_state(self):
         for state in self.get_children():
@@ -579,10 +630,18 @@ class RemoteHttpHandler:
         return event
 
 
+def _module_to_namespace(namespace):
+    if isinstance(namespace, ModuleType):
+        members = getmembers(namespace, lambda o: isfunction(o) or isinstance(o, type))
+        return {key: mod for key, mod in members}
+    return namespace
+
+
 def get_class(class_name, namespace):
     """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name
+    namespace = _module_to_namespace(namespace)
     if class_name in namespace:
         return namespace[class_name]
 
@@ -603,6 +662,7 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
+    namespace = _module_to_namespace(namespace)
     if function in namespace:
         return namespace[function]
 

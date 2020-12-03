@@ -13,8 +13,16 @@
 # limitations under the License.
 
 import json
-import nuclio
+from typing import List
 
+from nuclio.triggers import NuclioTrigger
+
+import mlrun
+import os
+
+import nuclio
+from ..platforms.iguazio import split_path
+from ..model import ModelObj, ObjectList
 from .function import RemoteRuntime, NuclioSpec
 from ..utils import logger, get_caller_globals
 from ..serving.server import create_mock_server
@@ -65,6 +73,67 @@ def new_v2_model_server(
     return f
 
 
+class FunctionRef(ModelObj):
+    def __init__(self, url=None, image=None, requirements=None, kind=None, name=None):
+        self.url = url
+        self.kind = kind
+        self.image = image
+        self.requirements = requirements
+        self.name = name
+        self.spec = None
+
+        self._triggers = {}
+        self._function = None
+        self._address = None
+
+    @property
+    def function_object(self):
+        return self._function
+
+    def to_function(self):
+        if self.url and "://" not in self.url:
+            if not os.path.isfile(self.url):
+                raise OSError("{} not found".format(self.url))
+
+        kind = self.kind or 'serving'
+        if self.spec:
+            func = mlrun.new_function(self.name, runtime=self.spec)
+        elif self.url.endswith(".yaml") or self.url.startswith("db://") or self.url.startswith("hub://"):
+            func = mlrun.import_function(self.url)
+            if self.image:
+                func.spec.image = self.image
+        elif self.url.endswith(".ipynb"):
+            func = mlrun.code_to_function(self.name, filename=self.url, image=self.image, kind=kind)
+        elif self.url.endswith(".py"):
+            if not self.image:
+                raise ValueError(
+                    "image must be provided with py code files, "
+                    "use function object for more control/settings"
+                )
+            func = mlrun.code_to_function(self.name, filename=self.url, image=self.image, kind=kind)
+        else:
+            raise ValueError("unsupported function url {} or no spec".format(self.url))
+        if self.requirements:
+            commands = func.spec.build.commands or []
+            commands.append('python -m pip install ' + ' '.join(self.requirements))
+            func.spec.build.commands = commands
+        func.set_env("SERVING_CURRENT_FUNCTION", self.name)
+        self._function = func
+        return func
+
+    def add_stream_trigger(self, stream_path, name='stream', group='serving', seek_to='earliest'):
+        container, path = split_path(stream_path)
+        self._function.add_trigger(name, V3IOStreamTrigger(
+            name=name,
+            container=container,
+            path=path[1:],
+            consumerGroup=group,
+            seekTo=seek_to))
+
+    def deploy(self):
+        self._address = self._function.deploy()
+
+
 class ServingSpec(NuclioSpec):
     def __init__(
         self,
@@ -95,6 +164,7 @@ class ServingSpec(NuclioSpec):
         default_class=None,
         load_mode=None,
         build=None,
+        function_refs=None,
     ):
 
         super().__init__(
@@ -128,6 +198,8 @@ class ServingSpec(NuclioSpec):
         self.parameters = parameters or {}
         self.default_class = default_class
         self.load_mode = load_mode
+        self._function_refs: ObjectList = None
+        self.function_refs = function_refs or []
 
     @property
     def graph(self) -> ServingRouterState:
@@ -146,6 +218,14 @@ class ServingSpec(NuclioSpec):
                 self._graph = self._verify_dict(graph, "graph", ServingRouterState)
             else:
                 self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
+
+    @property
+    def function_refs(self) -> List[FunctionRef]:
+        return self._function_refs
+
+    @function_refs.setter
+    def function_refs(self, function_refs: List[FunctionRef]):
+        self._function_refs = ObjectList.from_list(FunctionRef, function_refs)
 
 
 class ServingRuntime(RemoteRuntime):
@@ -259,6 +339,7 @@ class ServingRuntime(RemoteRuntime):
         parent: str = None,
         kind: str = None,
         end: bool = None,
+        function=None,
         **class_args,
     ):
         """add compute class or model or route to the function
@@ -290,12 +371,12 @@ class ServingRuntime(RemoteRuntime):
 
         if kind == StateKinds.router:
             state = ServingRouterState(
-                class_name=class_name, class_args=class_args, end=end
+                class_name=class_name, class_args=class_args, end=end, function=function
             )
         elif kind == StateKinds.queue:
             state = ServingQueueState(**class_args)
         else:
-            state = ServingTaskState(class_name, class_args, handler=handler, end=end)
+            state = ServingTaskState(class_name, class_args, handler=handler, end=end, function=function)
 
         root = self.spec.graph
         if parent:
@@ -307,12 +388,32 @@ class ServingRuntime(RemoteRuntime):
             root.add_state(key, state, after=after)
         return state
 
+    def add_function(self, name, url=None, image=None, requirements=None, kind=None):
+        function_ref = FunctionRef(url, image, requirements=requirements, kind=kind or 'serving')
+        self._spec.function_refs.update(function_ref, name)
+        function_ref.to_function()
+
+    def add_ref_triggers(self, group=None):
+        for function, stream in self.spec.graph.get_queue_links().items():
+            if stream:
+                if function not in self._spec.function_refs.keys():
+                    raise ValueError(f'function reference {function} not present')
+                self._spec.function_refs[function].add_stream_trigger(stream, group=group or 'serving')
+
+    def _deploy_function_refs(self):
+        for function in self._spec.function_refs.values():
+            logger.info(f'deploy child function {function.name} ...')
+            function.function_object.metadata.project = self.metadata.project
+            function.function_object.spec.graph = self.spec.graph
+            function.function_object.apply(mlrun.v3io_cred())
+            function.function_object.deploy()
+
     def remove_states(self, keys: list):
         """remove one, multiple, or all models from the spec (blank list for all)"""
         if self.spec.graph:
             self.spec.graph.clear_children(keys)
 
-    def deploy(self, dashboard="", project="", tag=""):
+    def deploy(self, dashboard="", project="", tag="", stream_group=None):
         """deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
@@ -324,6 +425,10 @@ class ServingRuntime(RemoteRuntime):
             raise ValueError(f"illegal model loading mode {load_mode}")
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
+
+        if self._spec.function_refs:
+            self.add_ref_triggers(group=stream_group)
+            self._deploy_function_refs()
         return super().deploy(dashboard, project, tag)
 
     def _get_runtime_env(self):
@@ -335,11 +440,12 @@ class ServingRuntime(RemoteRuntime):
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict(),
             "load_mode": self.spec.load_mode,
+            #"functions": self.spec.function_refs.to_dict(),
             "verbose": self.verbose,
         }
         return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
 
-    def to_mock_server(self, namespace=None, log_level="debug"):
+    def to_mock_server(self, namespace=None, log_level="debug", current_function=None):
         """create mock server object for local testing/emulation
 
         :param namespace: classes search namespace, use globals() for current notebook
@@ -352,6 +458,7 @@ class ServingRuntime(RemoteRuntime):
             namespace=namespace or get_caller_globals(),
             logger=logger,
             level=log_level,
+            current_function=current_function
         )
 
     def plot(self, filename=None, format=None):
@@ -359,3 +466,49 @@ class ServingRuntime(RemoteRuntime):
             logger.info("no graph topology to plot")
             return
         return self.spec.graph.plot(filename, format)
+
+
+class V3IOStreamTrigger(NuclioTrigger):
+    kind = 'v3ioStream'
+
+    def __init__(self, url: str = None, seekTo: str = 'latest',
+                 partitions: list = None, pollingIntervalMS: int = 500,
+                 readBatchSize: int = 64, maxWorkers: int = 1,
+                 access_key: str = None, sessionTimeout: str = '10s',
+                 name: str = 'streamtrigger', container: str = None,
+                 path: str = None, workerAllocationMode: str = 'pool',
+                 webapi: str = 'http://v3io-webapi:8081',
+                 consumerGroup: str = 'default',
+                 sequenceNumberCommitInterval: str = '1s',
+                 heartbeatInterval: str = '3s'):
+
+        if url and not container and not path:
+            self._struct = {'kind': self.kind,
+                            'url': url,
+                            'attributes': {}}
+        else:
+            self._struct = {'kind': self.kind,
+                            'url': webapi,
+                            'name': name,
+                            'attributes': {
+                                'containerName': container,
+                                'streamPath': path,
+                                'consumerGroup': consumerGroup,
+                                'sequenceNumberCommitInterval': sequenceNumberCommitInterval,
+                                'workerAllocationMode': workerAllocationMode,
+                                'sessionTimeout': sessionTimeout,
+                                'heartbeatInterval': heartbeatInterval
+                            }}
+
+        if maxWorkers:
+            self._struct['maxWorkers'] = maxWorkers
+        if seekTo:
+            self._struct['attributes']['seekTo'] = seekTo
+        if readBatchSize:
+            self._struct['attributes']['readBatchSize'] = readBatchSize
+        if partitions:
+            self._struct['attributes']['partitions'] = partitions
+        if pollingIntervalMS:
+            self._struct['attributes']['pollingIntervalMs'] = pollingIntervalMS
+        access_key = access_key if access_key else os.environ['V3IO_ACCESS_KEY']
+        self._struct['password'] = access_key

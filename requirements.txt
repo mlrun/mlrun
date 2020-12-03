@@ -11,9 +11,9 @@ nest-asyncio~=1.0
 # >=5.5 from nuclio-jupyter, <7.17 cause from 7.17 python 3.6 is not supported (and models-gpu-legacy image build fail)
 ipython>=5.5, <7.17
 nuclio-jupyter>=0.8.8
+pandas~=1.0
 # used as a the engine for parquet files by pandas
 pyarrow~=2.0
-pandas~=1.0
 pyyaml~=5.1
 requests~=2.20
 sqlalchemy~=1.3

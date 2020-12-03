@@ -26,8 +26,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /mlrun
 
 RUN pip install --upgrade pip
+COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./requirements.txt ./
-RUN python -m pip install -r requirements.txt
+RUN python -m pip install \
+    -r requirements.txt \
+    -r mlrun-image-requirements.txt
 
 COPY . .
 RUN python -m pip install .

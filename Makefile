@@ -46,7 +46,7 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	python -m pip install \
+	python -m pip install --no-cache-dir \
 		-r requirements.txt \
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \

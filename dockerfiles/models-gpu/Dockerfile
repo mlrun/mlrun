@@ -63,8 +63,6 @@ RUN apt-get update && \
     apt autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip
-
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN mkdir -p /var/run/sshd && \
@@ -126,6 +124,8 @@ RUN conda install -n base -c rapidsai -c nvidia \
     -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7
 
 RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
+
+RUN python -m pip install --upgrade pip
 
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \

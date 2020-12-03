@@ -50,8 +50,6 @@ RUN apt-get update && \
     apt autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip
-
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN mkdir -p /var/run/sshd && \
@@ -121,6 +119,8 @@ RUN conda install -n base -c rapidsai -c nvidia \
 RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
 RUN conda clean -aqy
+
+RUN python -m pip install --upgrade pip
 
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)

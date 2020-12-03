@@ -522,7 +522,7 @@ class ServingFlowState(BaseState):
         if self.context and self.context.current_function:
             state = get_function_state(self[from_state], self.context.current_function)
             if not state:
-                raise ValueError(f'states not found pointing to  function {self.context.current_functionself.context.current_function}')
+                raise ValueError(f'states not found pointing to function {self.context.current_function}')
             return state
 
         if not from_state:

@@ -2,7 +2,6 @@ blosc~=1.7
 cloudpickle~=1.1
 dask-kubernetes~=0.11.0
 dask-ml~=1.4
-dask-xgboost~=0.1.10
 dask[complete]~=2.12
 distributed~=2.14
 kubernetes~=11.0

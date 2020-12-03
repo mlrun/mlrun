@@ -25,6 +25,7 @@ tornado~=6.0
 transformers~=3.0
 urllib3~=1.25
 vaex~=2.6
-wrapt~=1.12
+# wrapt==1.11.* from astroid 2.3.3 that is from the continuumio/anaconda3:2020.02 base image
+wrapt~=1.11.0
 xgboost~=1.1
 yellowbrick~=1.1

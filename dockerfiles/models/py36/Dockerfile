@@ -26,6 +26,8 @@ RUN apt update -qqq \
     && apt autoremove \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python -m pip install --upgrade pip
+
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN mkdir -p /var/run/sshd && \

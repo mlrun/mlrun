@@ -510,9 +510,11 @@ class ServingFlowState(BaseState):
     def get_start_state(self, from_state=None):
 
         def get_function_state(state, current_function):
+            print(state)
             if state.function and state.function == current_function:
                 return state
             for item in state.next or []:
+                print('next:', item)
                 next_state = self[item]
                 resp = get_function_state(next_state, current_function)
                 if resp:

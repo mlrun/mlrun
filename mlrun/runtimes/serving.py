@@ -409,7 +409,7 @@ class ServingRuntime(RemoteRuntime):
             url, image, requirements=requirements, kind=kind or "serving"
         )
         self._spec.function_refs.update(function_ref, name)
-        function_ref.to_function()
+        return function_ref.to_function()
 
     def add_ref_triggers(self, group=None):
         for function, stream in self.spec.graph.get_queue_links().items():
@@ -423,10 +423,12 @@ class ServingRuntime(RemoteRuntime):
     def _deploy_function_refs(self):
         for function in self._spec.function_refs.values():
             logger.info(f"deploy child function {function.name} ...")
-            function.function_object.metadata.project = self.metadata.project
-            function.function_object.spec.graph = self.spec.graph
-            function.function_object.apply(mlrun.v3io_cred())
-            function.function_object.deploy()
+            function_object = function.function_object
+            function_object.metadata.name = f'{self.metadata.name}-{function.name}'
+            function_object.metadata.project = self.metadata.project
+            function_object.spec.graph = self.spec.graph
+            function_object.apply(mlrun.v3io_cred())
+            function_object.deploy()
 
     def remove_states(self, keys: list):
         """remove one, multiple, or all models from the spec (blank list for all)"""
@@ -449,6 +451,7 @@ class ServingRuntime(RemoteRuntime):
         if self._spec.function_refs:
             self.add_ref_triggers(group=stream_group)
             self._deploy_function_refs()
+            logger.info(f"deploy root function {self.metadata.name} ...")
         return super().deploy(dashboard, project, tag)
 
     def _get_runtime_env(self):

@@ -21,13 +21,17 @@ from types import ModuleType
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import requests
-from storey import V3ioDriver
 
 from ..platforms.iguazio import OutputStream
 from ..model import ModelObj, ObjectDict
 from ..utils import create_class, create_function
 
 callable_prefix = "_"
+
+
+class GraphError(Exception):
+    """error in graph topology or configuration"""
+    pass
 
 
 class StateKinds:
@@ -50,6 +54,7 @@ _task_state_fields = [
     "end",
     "shape",
     "full_event",
+    "on_error",
 ]
 
 
@@ -68,7 +73,7 @@ def new_remote_endpoint(url, **class_args):
 class BaseState(ModelObj):
     kind = "BaseState"
     default_shape = "ellipse"
-    _dict_fields = ["kind", "comment", "next", "end", "function"]
+    _dict_fields = ["kind", "comment", "next", "end", "on_error"]
 
     def __init__(self, name=None, next=None, end=None):
         self.name = name
@@ -77,8 +82,9 @@ class BaseState(ModelObj):
         self.context = None
         self.next = next
         self.end = end
-        self.function = None
         self.shape = None
+        self.on_error = None
+        self._on_error_handler = None
 
     def get_shape(self):
         return self.shape or self.default_shape
@@ -96,8 +102,6 @@ class BaseState(ModelObj):
         self.context = context
 
     def _not_local_function(self, context):
-        if self.function and context and context.current_function != self.function:
-            return True
         return False
 
     def get_children(self):
@@ -116,13 +120,28 @@ class BaseState(ModelObj):
     def _post_init(self, mode="sync"):
         pass
 
+    def _set_error_handler(self):
+        if self.on_error:
+            error_state = self.context.root.path_to_state(self.on_error)
+            self._on_error_handler = error_state.run
+
+    def _call_error_handler(self, event, err):
+        self.context.logger.error(
+            f"state {self.name} got error {err} when processing an event:\n {event.body}"
+        )
+        if self._on_error_handler:
+            event.error = str(err)
+            event.origin_state = self.fullname
+            self._on_error_handler(event)
+            return True
+
     def path_to_state(self, path):
         path = path or ""
         tree = path.split(".")
         next_obj = self
         for state in tree:
             if state not in next_obj:
-                raise ValueError(
+                raise GraphError(
                     f"step {state} doesnt exist in the graph under {next_obj.fullname}"
                 )
             next_obj = next_obj[state]
@@ -156,6 +175,7 @@ class ServingTaskState(BaseState):
         self.context = None
         self._class_object = None
         self.full_event = full_event
+        self.on_error = None
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
@@ -195,8 +215,8 @@ class ServingTaskState(BaseState):
             handler = self.handler
             if handler:
                 if not hasattr(self._object, handler):
-                    raise ValueError(
-                        f"handler ({handler}) specified but doesnt exist in class"
+                    raise GraphError(
+                        f"handler ({handler}) specified but doesnt exist in class {self.class_name}"
                     )
             else:
                 if hasattr(self._object, "do"):
@@ -207,8 +227,20 @@ class ServingTaskState(BaseState):
             if handler:
                 self._handler = getattr(self._object, handler, None)
 
+        self._set_error_handler()
         if mode != "skip":
             self._post_init(mode)
+
+    def _not_local_function(self, context):
+        # detect if the class is local (and should be initialized)
+        if not self.function and not context.current_function:
+            return False
+        current_function = (
+            context.current_function if context and context.current_function else ""
+        )
+        if self.function and self.function == "*" or self.function == current_function:
+            False
+        return True
 
     @property
     def object(self):
@@ -223,14 +255,20 @@ class ServingTaskState(BaseState):
 
     def run(self, event, *args, **kwargs):
         if self._not_local_function(self.context):
-            # todo invoke REST call
+            # todo invoke remote via REST call
             return event
 
         if self.context.verbose:
             self.context.logger.info(f"state {self.name} got event {event.body}")
-        if self.full_event:
-            return self._handler(event, *args, **kwargs)
-        event.body = self._handler(event.body, *args, **kwargs)
+
+        try:
+            if self.full_event:
+                return self._handler(event, *args, **kwargs)
+            event.body = self._handler(event.body, *args, **kwargs)
+        except Exception as e:
+            handled = self._call_error_handler(event, e)
+            if not handled:
+                raise e
         return event
 
 
@@ -250,7 +288,9 @@ class ServingRouterState(ServingTaskState):
         end=None,
         function=None,
     ):
-        super().__init__(class_name, class_args, handler, name=name, end=end, function=function)
+        super().__init__(
+            class_name, class_args, handler, name=name, end=end, function=function
+        )
         self._routes = ObjectDict()
         self.routes = routes
 
@@ -304,6 +344,7 @@ class ServingRouterState(ServingTaskState):
             route.set_parent(self)
             route.init_object(context, namespace, mode, reset=reset)
 
+        self._set_error_handler()
         self._post_init(mode)
 
     def __getitem__(self, name):
@@ -340,6 +381,7 @@ class ServingQueueState(BaseState):
         self.context = context
         if self.path:
             self._stream = OutputStream(self.path, self.shards, self.retention_in_hours)
+        self._set_error_handler()
 
     def run(self, event, *args, **kwargs):
         data = event.body
@@ -402,12 +444,16 @@ class ServingFlowState(BaseState):
         :param handler:    class handler to invoke on run/event
         :param after:      the step name this will come after
         :param next:       list of next step names to run after this step
+        :param shape:      graphviz shape name
+        :param function:   function this state should run in
         """
 
         if not state and not class_name:
             raise ValueError("state or class_name must be specified")
         if not state:
-            state = ServingTaskState(class_name, class_args, handler=handler, function=function)
+            state = ServingTaskState(
+                class_name, class_args, handler=handler, function=function
+            )
         state = self._states.update(key, state)
         state.set_parent(self)
         if shape:
@@ -458,6 +504,7 @@ class ServingFlowState(BaseState):
         for state in self._states.values():
             state.set_parent(self)
             state.init_object(context, namespace, mode, reset=reset)
+        self._set_error_handler()
         self._post_init(mode)
 
         if self.engine in ["storey", "async"]:
@@ -508,23 +555,22 @@ class ServingFlowState(BaseState):
         self._controller = source.run()
 
     def get_start_state(self, from_state=None):
-
-        def get_function_state(state, current_function):
-            print(state)
-            if state.function and state.function == current_function:
+        def get_first_function_state(state, current_function):
+            if hasattr(state, 'function') and state.function and state.function == current_function:
                 return state
             for item in state.next or []:
-                print('next:', item)
                 next_state = self[item]
-                resp = get_function_state(next_state, current_function)
+                resp = get_first_function_state(next_state, current_function)
                 if resp:
                     return resp
 
         from_state = from_state or self.from_state or self.start_at
         if self.context and self.context.current_function:
-            state = get_function_state(self[from_state], self.context.current_function)
+            state = get_first_function_state(self[from_state], self.context.current_function)
             if not state:
-                raise ValueError(f'states not found pointing to function {self.context.current_function}')
+                raise ValueError(
+                    f"states not found pointing to function {self.context.current_function}"
+                )
             return state
 
         if not from_state:
@@ -541,6 +587,8 @@ class ServingFlowState(BaseState):
                 for item in state.next or []:
                     next_state = self[item]
                     if next_state.function:
+                        if next_state.function in links:
+                            raise GraphError(f'function ({next_state.function}) cannot read from multiple queues')
                         links[next_state.function] = stream_path
         return links
 
@@ -571,7 +619,13 @@ class ServingFlowState(BaseState):
 
         next_obj = self.get_start_state(kwargs.get("from_state", None))
         while next_obj:
-            event = next_obj.run(event, *args, **kwargs)
+            try:
+                event = next_obj.run(event, *args, **kwargs)
+            except Exception as e:
+                handled = self._call_error_handler(event, e)
+                if not handled:
+                    raise e
+
             if hasattr(event, "terminated") and event.terminated:
                 return event
             next = next_obj.next

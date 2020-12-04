@@ -19,7 +19,12 @@ import traceback
 import uuid
 from copy import deepcopy
 
-from .states import ServingRouterState, ServingTaskState, StateKinds, ServingRootFlowState
+from .states import (
+    ServingRouterState,
+    ServingTaskState,
+    StateKinds,
+    ServingRootFlowState,
+)
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from ..utils import create_logger, get_caller_globals
@@ -101,9 +106,9 @@ class ModelServerHost(ModelObj):
         setattr(context, "merge_root_params", self.merge_root_params)
         setattr(context, "current_function", self._current_function)
         setattr(context, "verbose", self.verbose)
+        setattr(context, "root", self.graph)
 
         self.graph.init_object(context, namespace, self.load_mode)
-        setattr(self.context, "root", self.graph)
         return v2_serving_handler
 
     def add_model(
@@ -220,7 +225,9 @@ def create_mock_server(
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
     namespace = namespace or get_caller_globals()
     server = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
-    server.set_current_function(current_function or os.environ.get("SERVING_CURRENT_FUNCTION", ""))
+    server.set_current_function(
+        current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")
+    )
     server.init(context, namespace or {})
     return server
 
@@ -269,4 +276,3 @@ class MockContext:
         self.logger = logger or create_logger(level, "human", "flow", sys.stdout)
         self.worker_id = 0
         self.Response = Response
-

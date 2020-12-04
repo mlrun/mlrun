@@ -1,4 +1,3 @@
-
 from storey import (
     AggregateByKey,
     Table,
@@ -8,7 +7,8 @@ from storey import (
     WriteToTable,
     DataframeSource,
     WriteToParquet,
-    QueryByKey, WriteToTSDB,
+    QueryByKey,
+    WriteToTSDB,
 )
 
 from .model import TargetTypes

@@ -158,10 +158,10 @@ class OfflineVectorResponse:
         return self._merger.get_df()
 
     def to_parquet(self, target_path, **kw):
-        return self._upload(target_path, 'parquet', **kw)
+        return self._upload(target_path, "parquet", **kw)
 
     def to_csv(self, target_path, **kw):
-        return self._upload(target_path, 'csv', **kw)
+        return self._upload(target_path, "csv", **kw)
 
     def _upload(self, target_path, format="parquet", **kw):
         df = self._merger.get_df()

@@ -2,11 +2,9 @@ import os
 
 from mlrun.platforms.iguazio import OutputStream
 
-import mlrun
 from data_sample import quotes, trades, stocks
 from storey import MapClass
 from storey.flow import _UnaryFunctionFlow
-import pandas as pd
 
 import mlrun.featurestore as fs
 from mlrun.config import config as mlconf
@@ -46,11 +44,7 @@ def my_filter(event):
 
 
 def test_ingestion():
-    print(os.environ)
-    st = OutputStream(stream_path='users/admin/mystream')
-    return
     client = init_store()
-
 
     # add feature set without time column (stock ticker metadata)
     stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
@@ -77,7 +71,7 @@ def test_ingestion():
     )
     print(df)
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
-    quotes_set.plot(client, "pipe.png", rankdir='LR')
+    quotes_set.plot(client, "pipe.png", rankdir="LR")
 
     print(client.ingest(quotes_set, quotes, return_df=True))
     print(quotes_set.to_yaml())
@@ -97,7 +91,7 @@ def test_realtime_query():
         features, entity_rows=trades, entity_timestamp_column="time"
     )
     print(resp.to_dataframe())
-    print(resp.to_parquet('./xx.parquet'))
+    print(resp.to_parquet("./xx.parquet"))
 
     svc = client.get_online_feature_service(features)
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])

@@ -1,47 +1,5 @@
 import mlrun
-
-
-class BaseClass:
-    def __init__(self, context, name=None):
-        self.context = context
-        self.name = name
-
-
-class Echo(BaseClass):
-    def do(self, x):
-        print("Echo:", self.name, x)
-        return x
-
-
-class EchoError(BaseClass):
-    def do(self, x):
-        x.body = {"body": x.body, "origin_state": x.origin_state, "error": x.error}
-        return x
-
-
-class Chain(BaseClass):
-    def do(self, x):
-        x.append(self.name)
-        return x
-
-
-class Message(BaseClass):
-    def __init__(self, msg="", context=None, name=None):
-        self.msg = msg
-
-    def do(self, x):
-        print("Messsage:", self.msg)
-        return x
-
-
-class Raiser:
-    def __init__(self, msg="", context=None, name=None):
-        self.context = context
-        self.name = name
-        self.msg = msg
-
-    def do(self, x):
-        raise ValueError(f" this is an error, {x}")
+from .demo_states import *  # noqa
 
 
 def test_basic_flow():
@@ -84,7 +42,7 @@ def test_handler():
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("flow", start_at="s1")
     fn.add_state("s1", handler="(event + 1)")
-    fn.add_state("s2", handler="json.dumps", after='$prev')
+    fn.add_state("s2", handler="json.dumps", after="$prev")
 
     server = fn.to_mock_server()
     resp = server.test(body=5)

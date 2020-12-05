@@ -655,7 +655,7 @@ class ServingFlowState(BaseState):
             return state
 
         if not from_state:
-            raise ValueError(f"start step was not specified in flow")
+            raise ValueError("start step was not specified in flow")
         return self.path_to_state(from_state)
 
     def get_queue_links(self):

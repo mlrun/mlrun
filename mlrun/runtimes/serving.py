@@ -257,12 +257,34 @@ class ServingRuntime(RemoteRuntime):
         self,
         topology=None,
         class_name=None,
-        exist_ok=False,
         start_at=None,
         engine=None,
+        result_state=None,
+        exist_ok=False,
         **class_args,
     ):
-        """set the serving graph topology (router/flow/endpoint) and root class"""
+        """set the serving graph topology (router/flow) and root class or params
+
+        e.g.: graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="s5")
+
+        topology can be:
+          router - root router + multiple child route states/models
+                   can specify special router class and router arguments
+          flow   - workflow (DAG) with a chain of states, starting at "start_at" state
+                   flow support "sync" and "async" engines, branches are note allowed in sync mode
+                   when using async mode the optional result_state indicate the state which will
+                   generate the (REST) call response
+
+        :param topology:     - graph topology, router or flow
+        :param class_name:   - optional for router, router class name/path
+        :param start_at:     - for flow, starting state
+        :param engine:       - optional for flow, sync or async engine (default to sync)
+        :param result_state: - optional for flow, the state which returns the results
+        :param exist_ok:     - allow overriding existing topology
+        :param class_args:   - optional, router/flow class extra args
+
+        :return graph object (fn.spec.graph)
+        """
         topology = topology or StateKinds.router
         if self.spec.graph and not exist_ok:
             raise ValueError("graph topology is already set, cannot be overwritten")
@@ -273,7 +295,9 @@ class ServingRuntime(RemoteRuntime):
                 class_name=class_name, class_args=class_args
             )
         elif topology == StateKinds.flow:
-            self.spec.graph = ServingRootFlowState(start_at=start_at, engine=engine)
+            self.spec.graph = ServingRootFlowState(
+                start_at=start_at, engine=engine, result_state=result_state
+            )
         else:
             raise ValueError(f"unsupported topology {topology}, use 'router' or 'flow'")
         return self.spec.graph
@@ -353,7 +377,6 @@ class ServingRuntime(RemoteRuntime):
         before: list = None,
         parent: str = None,
         kind: str = None,
-        end: bool = None,
         function=None,
         **class_args,
     ):
@@ -370,10 +393,11 @@ class ServingRuntime(RemoteRuntime):
                             (can also module.submodule.class and it will be imported automatically)
         :param handler:     for advanced users!, override default class handler name (do_event)
         :param after:       for flow topology, the step name this will come after
+                            can use control strings: $start, $prev, $last
         :param before:      for flow topology, the step name(s) this will come before
         :param parent:      in hierarchical topology, state the parent name
         :param kind:        state kind, task or router (default is task)
-        :param end:         mark the state as final/result state, only one state can have end=True
+        :param function:    function reference name (this step will run in a separate function)
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -387,13 +411,13 @@ class ServingRuntime(RemoteRuntime):
 
         if kind == StateKinds.router:
             state = ServingRouterState(
-                class_name=class_name, class_args=class_args, end=end, function=function
+                class_name=class_name, class_args=class_args, function=function
             )
         elif kind == StateKinds.queue:
             state = ServingQueueState(**class_args)
         else:
             state = ServingTaskState(
-                class_name, class_args, handler=handler, end=end, function=function
+                class_name, class_args, handler=handler, function=function
             )
 
         root = self.spec.graph

@@ -52,7 +52,6 @@ _task_state_fields = [
     "next",
     "function",
     "comment",
-    "end",
     "shape",
     "full_event",
     "on_error",
@@ -74,16 +73,15 @@ def new_remote_endpoint(url, **class_args):
 class BaseState(ModelObj):
     kind = "BaseState"
     default_shape = "ellipse"
-    _dict_fields = ["kind", "comment", "next", "end", "on_error"]
+    _dict_fields = ["kind", "comment", "next", "on_error"]
 
-    def __init__(self, name=None, next=None, end=None):
+    def __init__(self, name=None, next=None, shape=None):
         self.name = name
         self._parent = None
         self.comment = None
         self.context = None
         self.next = next
-        self.end = end
-        self.shape = None
+        self.shape = shape
         self.on_error = None
         self._on_error_handler = None
 
@@ -104,8 +102,8 @@ class BaseState(ModelObj):
                 self.next.remove(state)
         return self
 
-    def set_on_error(self, state):
-        self.on_error = state
+    def error_handler(self, state_name):
+        self.on_error = state_name
         return self
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
@@ -171,11 +169,10 @@ class ServingTaskState(BaseState):
         handler=None,
         name=None,
         next=None,
-        end=None,
         full_event=None,
         function=None,
     ):
-        super().__init__(name, next, end)
+        super().__init__(name, next)
         self.class_name = class_name
         self.class_args = class_args or {}
         self.handler = handler
@@ -191,6 +188,15 @@ class ServingTaskState(BaseState):
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         if self._not_local_function(context):
+            return
+
+        if self.handler and not self.class_name:
+            # link to function
+            if callable(self.handler):
+                self._handler = self.handler
+                self.handler = self.handler.__name__
+            else:
+                self._handler = get_function(self.handler, namespace)
             return
 
         if isinstance(self.class_name, type):
@@ -297,13 +303,10 @@ class ServingRouterState(ServingTaskState):
         handler=None,
         routes=None,
         name=None,
-        end=None,
         function=None,
     ):
-        super().__init__(
-            class_name, class_args, handler, name=name, end=end, function=function
-        )
-        self._routes = ObjectDict()
+        super().__init__(class_name, class_args, handler, name=name, function=function)
+        self._routes: ObjectDict = None
         self.routes = routes
 
     def get_children(self):
@@ -371,8 +374,11 @@ class ServingRouterState(ServingTaskState):
     def __iter__(self):
         yield from self._routes.keys()
 
-    def plot(self, filename=None, format=None, **kw):
-        return _generate_graphviz(self, _add_gviz_router, filename, format, **kw)
+    def plot(self, filename=None, format=None, source=None, **kw):
+        source = source or BaseState("start", shape="egg")
+        return _generate_graphviz(
+            self, _add_gviz_router, filename, format, source=source, **kw
+        )
 
 
 class ServingQueueState(BaseState):
@@ -409,15 +415,29 @@ class ServingQueueState(BaseState):
 
 class ServingFlowState(BaseState):
     kind = "flow"
-    _dict_fields = BaseState._dict_fields + ["states", "start_at", "engine"]
+    _dict_fields = BaseState._dict_fields + [
+        "states",
+        "start_at",
+        "engine",
+        "result_state",
+    ]
 
-    def __init__(self, name=None, states=None, next=None, start_at=None, engine=None):
+    def __init__(
+        self,
+        name=None,
+        states=None,
+        next=None,
+        start_at=None,
+        engine=None,
+        result_state=None,
+    ):
         super().__init__(name, next)
         self._states = None
         self.states = states
         self.start_at = start_at
         self.engine = engine
         self.from_state = os.environ.get("START_FROM_STATE", None)
+        self.result_state = result_state
 
         self._last_added = None
         self._controller = None
@@ -455,6 +475,7 @@ class ServingFlowState(BaseState):
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
         :param after:      the step name this step comes after
+                           can use control strings: $start, $prev, $last
         :param before:     string or list of next step names that will run after this step
         :param shape:      graphviz shape name
         :param function:   function this state should run in
@@ -490,7 +511,12 @@ class ServingFlowState(BaseState):
             or (not self.start_at and after in ["$prev", "$last"])
             or (before and self.start_at in before)
         ):
-            if after == "$start" and not before and self.start_at:
+            if (
+                after == "$start"
+                and not before
+                and self.start_at
+                and self.start_at != state.name
+            ):
                 # move the previous start_at to be after our step
                 state.next = [self.start_at]
             self.start_at = state.name
@@ -530,6 +556,12 @@ class ServingFlowState(BaseState):
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
+        loop_state = self.detect_loops()
+        if loop_state:
+            raise GraphError(
+                f"Error, loop detected in state {loop_state}, graph must be acyclic (DAG)"
+            )
+
         for state in self._states.values():
             state.set_parent(self)
             state.init_object(context, namespace, mode, reset=reset)
@@ -565,7 +597,7 @@ class ServingFlowState(BaseState):
             if state._not_local_function(self.context):
                 return
 
-            if not state.next and state.end:
+            if not state.next and self.result_state == state.name:
                 # print("set complete:", state.name)
                 step.to(storey.Complete(full_event=True))
                 self._wait_for_result = True
@@ -582,6 +614,20 @@ class ServingFlowState(BaseState):
         next_step = source.to(get_step(next_state))
         process_step(next_state, next_step, self)
         self._controller = source.run()
+
+    def detect_loops(self):
+        """find loops in the graph"""
+
+        def has_loop(state, previous):
+            for next_state in state.next or []:
+                if next_state in previous:
+                    return state.name
+                downstream = has_loop(self[next_state], previous + [next_state])
+                if downstream:
+                    return downstream
+            return None
+
+        return has_loop(self.get_start_state(), [])
 
     def get_start_state(self, from_state=None):
         def get_first_function_state(state, current_function):
@@ -609,9 +655,7 @@ class ServingFlowState(BaseState):
             return state
 
         if not from_state:
-            raise ValueError(
-                f"start step was not specified in flow"
-            )
+            raise ValueError(f"start step was not specified in flow")
         return self.path_to_state(from_state)
 
     def get_queue_links(self):
@@ -630,9 +674,8 @@ class ServingFlowState(BaseState):
         return links
 
     def find_last_state(self):
-        for state in self.get_children():
-            if state.end:
-                return state.name
+        if self.result_state:
+            return self.result_state
 
         next_obj = self.get_start_state()
         while next_obj:
@@ -669,7 +712,9 @@ class ServingFlowState(BaseState):
                 return event
             next = next_obj.next
             if next and len(next) > 1:
-                raise GraphError(f'synchronous flow engine doesnt support branches use async, state={next_obj.name}')
+                raise GraphError(
+                    f"synchronous flow engine doesnt support branches use async, state={next_obj.name}"
+                )
             next_obj = self[next[0]] if next else None
         return event
 
@@ -678,9 +723,9 @@ class ServingFlowState(BaseState):
             self._controller.terminate()
             self._controller.await_termination()
 
-    def plot(self, filename=None, format=None, edge_args=None, **kw):
+    def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         return _generate_graphviz(
-            self, _add_gviz_flow, filename, format, edge_args=edge_args, **kw
+            self, _add_gviz_flow, filename, format, source=source, targets=targets, **kw
         )
 
 
@@ -780,7 +825,11 @@ classes_map = {
 }
 
 
-def _add_gviz_router(g, state, **kwargs):
+def _add_gviz_router(g, state, source=None, **kwargs):
+    if source:
+        g.node("_start", source.name, shape=source.shape, style="filled")
+        g.edge("_start", state.fullname)
+
     g.node(state.fullname, label=state.name, shape=state.get_shape())
     for route in state.get_children():
         g.node(route.fullname, label=route.name, shape=route.get_shape())
@@ -788,16 +837,10 @@ def _add_gviz_router(g, state, **kwargs):
 
 
 def _add_gviz_flow(
-    g,
-    state,
-    source_name="start",
-    source_shape="egg",
-    targets=None,
-    targets_after_state=None,
+    g, state, source=None, targets=None,
 ):
-    g.node(
-        "_start", source_name, shape=source_shape, style="filled"
-    )  # , color='yellow')
+    source = source or BaseState("start", shape="egg")
+    g.node("_start", source.name, shape=source.shape, style="filled")
     g.edge("_start", state.start_at)
     for child in state.get_children():
         kind = child.kind
@@ -817,13 +860,15 @@ def _add_gviz_flow(
             g.edge(child.fullname, next_object.fullname, **kw)
 
     # draw targets after the last state (if specified)
-    for target in targets or []:
-        g.node(target.fullname, label=target.name, shape=target.get_shape())
-        g.edge(targets_after_state, target.fullname)
+    if targets:
+        last_state = state.find_last_state()
+        for target in targets or []:
+            g.node(target.fullname, label=target.name, shape=target.get_shape())
+            g.edge(last_state, target.fullname)
 
 
 def _generate_graphviz(
-    state, renderer, filename=None, format=None, edge_args=None, **kw,
+    state, renderer, filename=None, format=None, source=None, targets=None, **kw,
 ):
     try:
         from graphviz import Digraph
@@ -833,8 +878,7 @@ def _generate_graphviz(
         )
     g = Digraph("mlrun-flow", format="jpg")
     g.attr(compound="true", **kw)
-    edge_args = edge_args or {}
-    renderer(g, state, **edge_args)
+    renderer(g, state, source=source, targets=targets)
     if filename:
         suffix = pathlib.Path(filename).suffix
         if suffix:

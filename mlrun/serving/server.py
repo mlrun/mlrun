@@ -138,7 +138,13 @@ class ModelServerHost(ModelObj):
         self.graph.add_route(name, route).init_object(self.context, namespace)
 
     def test(
-        self, path='/', body=None, method="", content_type=None, silent=False, get_body=True
+        self,
+        path="/",
+        body=None,
+        method="",
+        content_type=None,
+        silent=False,
+        get_body=True,
     ):
         """invoke a test event into the server to simulate/test server behaviour
 
@@ -165,6 +171,9 @@ class ModelServerHost(ModelObj):
         if hasattr(resp, "status_code") and resp.status_code > 300 and not silent:
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
         return resp
+
+    def wait_for_completion(self):
+        self.graph.wait_for_completion()
 
 
 def v2_serving_init(context, namespace=None):
@@ -252,7 +261,7 @@ class MockEvent(object):
         self.error = None
 
     def __str__(self):
-        error = f', error={self.error}' if self.error else ''
+        error = f", error={self.error}" if self.error else ""
         return f"Event(id={self.id}, body={self.body}, method={self.method}, path={self.path}{error})"
 
 

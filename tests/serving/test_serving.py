@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import mlrun
 
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
@@ -233,5 +234,20 @@ def test_v2_health():
 def test_v2_mock():
     host = create_mock_server()
     host.add_model("my", class_name=ModelTestingClass, model_path="", z=100)
-    print(host.test("my/infer", testdata))
     print(host.to_yaml())
+    resp = host.test("my/infer", testdata)
+    print(resp)
+    assert resp['outputs'] == 500, f"wrong health response {resp}"
+
+
+def test_function():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("router")
+    fn.add_model("my", class_name='ModelTestingClass', model_path=".", z=100)
+
+    server = fn.to_mock_server()
+    fn.plot("router.png")
+    print("\nFlow:\n", graph.to_yaml())
+    resp = server.test("my/infer", testdata)
+    assert resp['outputs'] == 500, f"wrong health response {resp}"
+

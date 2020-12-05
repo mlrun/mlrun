@@ -350,6 +350,7 @@ class ServingRuntime(RemoteRuntime):
         class_name: str = None,
         handler: str = None,
         after: str = None,
+        before: list = None,
         parent: str = None,
         kind: str = None,
         end: bool = None,
@@ -369,6 +370,7 @@ class ServingRuntime(RemoteRuntime):
                             (can also module.submodule.class and it will be imported automatically)
         :param handler:     for advanced users!, override default class handler name (do_event)
         :param after:       for flow topology, the step name this will come after
+        :param before:      for flow topology, the step name(s) this will come before
         :param parent:      in hierarchical topology, state the parent name
         :param kind:        state kind, task or router (default is task)
         :param end:         mark the state as final/result state, only one state can have end=True
@@ -401,7 +403,7 @@ class ServingRuntime(RemoteRuntime):
         if root.kind == StateKinds.router:
             root.add_route(key, state)
         else:
-            root.add_state(key, state, after=after)
+            root.add_state(key, state, after=after, before=before)
         return state
 
     def add_function(self, name, url=None, image=None, requirements=None, kind=None):
@@ -424,7 +426,7 @@ class ServingRuntime(RemoteRuntime):
         for function in self._spec.function_refs.values():
             logger.info(f"deploy child function {function.name} ...")
             function_object = function.function_object
-            function_object.metadata.name = f'{self.metadata.name}-{function.name}'
+            function_object.metadata.name = f"{self.metadata.name}-{function.name}"
             function_object.metadata.project = self.metadata.project
             function_object.spec.graph = self.spec.graph
             function_object.apply(mlrun.v3io_cred())

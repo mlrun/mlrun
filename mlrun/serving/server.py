@@ -138,7 +138,7 @@ class ModelServerHost(ModelObj):
         self.graph.add_route(name, route).init_object(self.context, namespace)
 
     def test(
-        self, path, body, method="", content_type=None, silent=False, get_body=True
+        self, path='/', body=None, method="", content_type=None, silent=False, get_body=True
     ):
         """invoke a test event into the server to simulate/test server behaviour
 
@@ -249,9 +249,11 @@ class MockEvent(object):
         self.path = path or "/"
         self.content_type = content_type
         self.trigger = None
+        self.error = None
 
     def __str__(self):
-        return f"Event(id={self.id}, body={self.body}, method={self.method}, path={self.path})"
+        error = f', error={self.error}' if self.error else ''
+        return f"Event(id={self.id}, body={self.body}, method={self.method}, path={self.path}{error})"
 
 
 class Response(object):

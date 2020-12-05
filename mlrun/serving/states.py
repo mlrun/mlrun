@@ -31,6 +31,7 @@ callable_prefix = "_"
 
 class GraphError(Exception):
     """error in graph topology or configuration"""
+
     pass
 
 
@@ -92,11 +93,20 @@ class BaseState(ModelObj):
     def set_parent(self, parent):
         self._parent = parent
 
-    def set_next(self, key):
+    def set_next(self, key: str, remove: list = None):
+        """set/insert the key as next after this state, optionally remove other keys"""
         if not self.next:
             self.next = [key]
         elif key not in self.next:
             self.next.append(key)
+        for state in remove or []:
+            if state in self.next:
+                self.next.remove(state)
+        return self
+
+    def set_on_error(self, state):
+        self.on_error = state
+        return self
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
@@ -112,6 +122,7 @@ class BaseState(ModelObj):
 
     @property
     def fullname(self):
+        """full path/name (include parents)"""
         name = self.name or ""
         if self._parent and self._parent.fullname:
             name = ".".join([self._parent.fullname, name])
@@ -132,10 +143,10 @@ class BaseState(ModelObj):
         if self._on_error_handler:
             event.error = str(err)
             event.origin_state = self.fullname
-            self._on_error_handler(event)
-            return True
+            return self._on_error_handler(event)
 
     def path_to_state(self, path):
+        """return state object from state relative/fullname"""
         path = path or ""
         tree = path.split(".")
         next_obj = self
@@ -269,6 +280,7 @@ class ServingTaskState(BaseState):
             handled = self._call_error_handler(event, e)
             if not handled:
                 raise e
+            event.terminated = True
         return event
 
 
@@ -430,7 +442,7 @@ class ServingFlowState(BaseState):
         class_name=None,
         handler=None,
         after=None,
-        next=None,
+        before=None,
         shape=None,
         function=None,
         **class_args,
@@ -442,8 +454,8 @@ class ServingFlowState(BaseState):
         :param class_name: class name to build the state from (when state is not provided)
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
-        :param after:      the step name this will come after
-        :param next:       list of next step names to run after this step
+        :param after:      the step name this step comes after
+        :param before:     string or list of next step names that will run after this step
         :param shape:      graphviz shape name
         :param function:   function this state should run in
         """
@@ -459,27 +471,41 @@ class ServingFlowState(BaseState):
         if shape:
             state.shape = shape
 
-        if not self.start_at and len(self._states) <= 1:
-            self.start_at = key
-
-        if next:
-            if not isinstance(next, list):
-                next = [next]
-            state.next = next
-            if self.start_at in next:
-                self.start_at = key
-        if after:
-            if isinstance(after, str):
-                if after not in self._states.keys():
-                    raise ValueError(
-                        f"there is no state named {after}, cant set next state"
-                    )
-                after = self._states[after]
-            after.set_next(key)
-        elif self._last_added and after is None:
-            self._last_added.set_next(key)
+        self.insert_state(state, after, before)
         self._last_added = state
         return state
+
+    def insert_state(self, state, after, before=None):
+        if after == "$last" and before:
+            raise ValueError("cannot specify after $last and before state(s) together")
+
+        if before:
+            if not isinstance(before, list):
+                before = [before]
+            state.next = before
+
+        # re adjust start_at
+        if (
+            after == "$start"
+            or (not self.start_at and after in ["$prev", "$last"])
+            or (before and self.start_at in before)
+        ):
+            self.start_at = state.name
+
+        after_state = None
+        if after and not after.startswith("$"):
+            if after not in self._states.keys():
+                raise ValueError(f"there is no state named {after}")
+            after_state = self._states[after]
+        if after == "$prev":
+            after_state = self._last_added
+        elif after == "$last":
+            name = self.find_last_state()
+            if name and name != state.name:
+                after_state = self._states[name]
+
+        if after_state:
+            after_state.set_next(state.name, before)
 
     def clear_children(self, states: list):
         if not states:
@@ -556,7 +582,11 @@ class ServingFlowState(BaseState):
 
     def get_start_state(self, from_state=None):
         def get_first_function_state(state, current_function):
-            if hasattr(state, 'function') and state.function and state.function == current_function:
+            if (
+                hasattr(state, "function")
+                and state.function
+                and state.function == current_function
+            ):
                 return state
             for item in state.next or []:
                 next_state = self[item]
@@ -566,7 +596,9 @@ class ServingFlowState(BaseState):
 
         from_state = from_state or self.from_state or self.start_at
         if self.context and self.context.current_function:
-            state = get_first_function_state(self[from_state], self.context.current_function)
+            state = get_first_function_state(
+                self[from_state], self.context.current_function
+            )
             if not state:
                 raise ValueError(
                     f"states not found pointing to function {self.context.current_function}"
@@ -575,7 +607,7 @@ class ServingFlowState(BaseState):
 
         if not from_state:
             raise ValueError(
-                f"start step {from_state} was not specified in {self.name}"
+                f"start step was not specified in flow"
             )
         return self.path_to_state(from_state)
 
@@ -588,7 +620,9 @@ class ServingFlowState(BaseState):
                     next_state = self[item]
                     if next_state.function:
                         if next_state.function in links:
-                            raise GraphError(f'function ({next_state.function}) cannot read from multiple queues')
+                            raise GraphError(
+                                f"function ({next_state.function}) cannot read from multiple queues"
+                            )
                         links[next_state.function] = stream_path
         return links
 
@@ -625,10 +659,14 @@ class ServingFlowState(BaseState):
                 handled = self._call_error_handler(event, e)
                 if not handled:
                     raise e
+                event.terminated = True
+                return event
 
             if hasattr(event, "terminated") and event.terminated:
                 return event
             next = next_obj.next
+            if next and len(next) > 1:
+                raise GraphError(f'synchronous flow engine doesnt support branches use async, state={next_obj.name}')
             next_obj = self[next[0]] if next else None
         return event
 
@@ -637,8 +675,10 @@ class ServingFlowState(BaseState):
             self._controller.terminate()
             self._controller.await_termination()
 
-    def plot(self, filename=None, format=None, **kw):
-        return _generate_graphviz(self, _add_gviz_flow, filename, format, **kw)
+    def plot(self, filename=None, format=None, edge_args=None, **kw):
+        return _generate_graphviz(
+            self, _add_gviz_flow, filename, format, edge_args=edge_args, **kw
+        )
 
 
 class ServingRootFlowState(ServingFlowState):
@@ -737,15 +777,24 @@ classes_map = {
 }
 
 
-def _add_gviz_router(g, state):
+def _add_gviz_router(g, state, **kwargs):
     g.node(state.fullname, label=state.name, shape=state.get_shape())
     for route in state.get_children():
         g.node(route.fullname, label=route.name, shape=route.get_shape())
         g.edge(state.fullname, route.fullname)
 
 
-def _add_gviz_flow(g, state):
-    g.node("_start", "start", shape="egg", style="filled")  # , color='yellow')
+def _add_gviz_flow(
+    g,
+    state,
+    source_name="start",
+    source_shape="egg",
+    targets=None,
+    targets_after_state=None,
+):
+    g.node(
+        "_start", source_name, shape=source_shape, style="filled"
+    )  # , color='yellow')
     g.edge("_start", state.start_at)
     for child in state.get_children():
         kind = child.kind
@@ -764,8 +813,15 @@ def _add_gviz_flow(g, state):
             )
             g.edge(child.fullname, next_object.fullname, **kw)
 
+    # draw targets after the last state (if specified)
+    for target in targets or []:
+        g.node(target.fullname, label=target.name, shape=target.get_shape())
+        g.edge(targets_after_state, target.fullname)
 
-def _generate_graphviz(state, renderer, filename=None, format=None, **kw):
+
+def _generate_graphviz(
+    state, renderer, filename=None, format=None, edge_args=None, **kw,
+):
     try:
         from graphviz import Digraph
     except ImportError:
@@ -774,7 +830,8 @@ def _generate_graphviz(state, renderer, filename=None, format=None, **kw):
         )
     g = Digraph("mlrun-flow", format="jpg")
     g.attr(compound="true", **kw)
-    renderer(g, state)
+    edge_args = edge_args or {}
+    renderer(g, state, **edge_args)
     if filename:
         suffix = pathlib.Path(filename).suffix
         if suffix:

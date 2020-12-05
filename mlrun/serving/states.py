@@ -490,6 +490,9 @@ class ServingFlowState(BaseState):
             or (not self.start_at and after in ["$prev", "$last"])
             or (before and self.start_at in before)
         ):
+            if after == "$start" and not before and self.start_at:
+                # move the previous start_at to be after our step
+                state.next = [self.start_at]
             self.start_at = state.name
 
         after_state = None

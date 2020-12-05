@@ -59,7 +59,7 @@ def test_basic_flow():
 
     fn.set_topology("flow", exist_ok=True)
     fn.add_state("s2", class_name="Chain", after='$last')
-    fn.add_state("s1", class_name="Chain", after='$start', before='s2')
+    fn.add_state("s1", class_name="Chain", after='$start')  # should place s1 first and s2 after it
     fn.add_state("s3", class_name="Chain", after='s2')
 
     server = fn.to_mock_server()

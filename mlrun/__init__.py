@@ -97,7 +97,3 @@ def set_environment(api_path: str = None, artifact_path: str = "", project: str 
         )
     mlconf.artifact_path = artifact_path or mlconf.artifact_path
     return mlconf.artifact_path
-
-
-def serving():
-    return None

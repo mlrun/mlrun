@@ -274,10 +274,10 @@ class Member(
         return followers_classes_map[name]
 
     @staticmethod
-    def _validate_project_name(
-        name: str
-    ):
-        mlrun.utils.helpers.verify_field_regex("project.metadata.name", name, mlrun.utils.regex.project_name)
+    def _validate_project_name(name: str):
+        mlrun.utils.helpers.verify_field_regex(
+            "project.metadata.name", name, mlrun.utils.regex.project_name
+        )
 
     @staticmethod
     def _validate_body_and_path_names_matches(

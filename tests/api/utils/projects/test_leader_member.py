@@ -210,29 +210,25 @@ def test_create_project_failure_invalid_name(
         },
         {
             # Invalid because it's more than 253 characters
-            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfv"
-                    "g-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdc"
-                    "fvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-"
+            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-"
+            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
             "valid": False,
         },
     ]
     for case in cases:
-        project_name = case['name']
-        if case['valid']:
+        project_name = case["name"]
+        if case["valid"]:
             projects_leader.create_project(
-                None,
-                mlrun.api.schemas.Project(name=project_name),
+                None, mlrun.api.schemas.Project(name=project_name),
             )
             _assert_project_in_followers([leader_follower], project_name)
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 projects_leader.create_project(
-                    None,
-                    mlrun.api.schemas.Project(name=project_name),
+                    None, mlrun.api.schemas.Project(name=project_name),
                 )
-            _assert_project_not_in_followers(
-                [leader_follower], project_name
-            )
+            _assert_project_not_in_followers([leader_follower], project_name)
 
 
 def test_ensure_project(

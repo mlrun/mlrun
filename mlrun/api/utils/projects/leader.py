@@ -14,6 +14,8 @@ import mlrun.api.utils.projects.remotes.nop
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
+import mlrun.utils.helpers
+import mlrun.utils.regex
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
@@ -50,6 +52,7 @@ class Member(
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:
+        self._validate_project_name(project.name)
         self._run_on_all_followers("create_project", session, project)
         return self.get_project(session, project.name)
 
@@ -269,6 +272,12 @@ class Member(
         if name not in followers_classes_map:
             raise ValueError(f"Unknown follower name: {name}")
         return followers_classes_map[name]
+
+    @staticmethod
+    def _validate_project_name(
+        name: str
+    ):
+        mlrun.utils.helpers.verify_field_regex("project.metadata.name", name, mlrun.utils.regex.project_name)
 
     @staticmethod
     def _validate_body_and_path_names_matches(

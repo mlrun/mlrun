@@ -692,7 +692,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     ) -> schemas.Project:
         project_record = self._get_project_record(session, name, project_id)
 
-        return self._transform_project_record_to_schema(project_record)
+        return self._transform_project_record_to_schema(session, project_record)
 
     def delete_project(self, session: Session, name: str):
         logger.debug("Deleting project from DB", name=name)
@@ -723,7 +723,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 projects.append(project_record.name)
             elif format_ == mlrun.api.schemas.Format.full:
                 projects.append(
-                    self._transform_project_record_to_schema(project_record)
+                    self._transform_project_record_to_schema(session, project_record)
                 )
             else:
                 raise NotImplementedError(
@@ -1768,7 +1768,19 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         feature_vector_resp.metadata.tag = tag
         return feature_vector_resp
 
-    @staticmethod
-    def _transform_project_record_to_schema(project_record: Project) -> schemas.Project:
-        project_full_dict = project_record.full_object
-        return schemas.Project(**project_full_dict)
+    def _transform_project_record_to_schema(
+        self, session: Session, project_record: Project
+    ) -> schemas.Project:
+        # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
+        if not project_record.full_object:
+            project = schemas.Project(
+                name=project_record.name,
+                description=project_record.description,
+                source=project_record.source,
+                state=project_record.state,
+                owner=project_record.owner,
+                created=project_record.created,
+            )
+            self.store_project(session, project_record.name, project)
+            return project
+        return schemas.Project(**project_record.full_object)

@@ -1,14 +1,39 @@
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Optional
 
 from fastapi import APIRouter, Query
 from pandas import Grouper
+from v3io.dataplane import Client as V3IOClient
 from v3io.dataplane import RaiseForStatus
+from v3io_frames import Client as FramesClient
 
 from mlrun.api import schemas
-from mlrun.monitoring.clients import get_v3io_client, get_frames_client
-from mlrun.monitoring.endpoint import EndpointKey
-from mlrun.monitoring.constants import DEFAULT_CONTAINER, ENDPOINTS_TABLE
 from mlrun.utils import logger
+
+
+@dataclass()
+class EndpointKey:
+    project: str
+    function: str
+    model: str
+    tag: str
+    model_class: Optional[str] = None,
+    hash: Optional[str] = None
+
+    def __post_init__(self):
+        self.hash: str = f"{self.project}_{self.function}_{self.model}_{self.tag}"
+
+    def __str__(self):
+        return self.hash
+
+
+DEFAULT_CONTAINER = "monitoring"
+ENDPOINTS_TABLE = "endpoints"
+
+# TODO: Can be done nicer, also this code assumes environment parameters exist for initializing both frames and v3io
+_v3io_client: Optional[V3IOClient, None] = None
+_frames_client: Optional[FramesClient, None] = None
 
 router = APIRouter()
 
@@ -209,7 +234,7 @@ def endpoint_summary(start_time: str, end_time: str = "now", verbose=False):
     summary = defaultdict(float)
     for endpoint in list_endpoints():
 
-        key = build_endpoint_key(
+        key = EndpointKey(
             endpoint["project"],
             endpoint["function"],
             endpoint["model"],
@@ -217,7 +242,7 @@ def endpoint_summary(start_time: str, end_time: str = "now", verbose=False):
         )
 
         details = get_endpoint(
-            key,
+            key.hash,
             with_state=True,
             with_ts_values=False,
             verbose=verbose,
@@ -231,3 +256,17 @@ def endpoint_summary(start_time: str, end_time: str = "now", verbose=False):
         summary["requests_per_second"] += endpoint.get("requests_per_second", 0)
         summary["endpoints"] += 1
     return summary
+
+
+def get_frames_client() -> FramesClient:
+    global _frames_client
+    if _frames_client is None:
+        _frames_client = FramesClient(container=DEFAULT_CONTAINER, should_check_version=False)
+    return _frames_client
+
+
+def get_v3io_client() -> V3IOClient:
+    global _v3io_client
+    if _v3io_client is None:
+        _v3io_client = V3IOClient()
+    return _v3io_client

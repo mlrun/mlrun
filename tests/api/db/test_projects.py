@@ -33,8 +33,8 @@ from tests.api.db.conftest import dbs
 def test_delete_project_with_resources(
     db: DBInterface, db_session: sqlalchemy.orm.Session
 ):
-    project_to_keep = "project_to_keep"
-    project_to_remove = "project_to_remove"
+    project_to_keep = "project-to-keep"
+    project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, db_session, project_to_keep)
     _create_resources_of_all_kinds(db, db_session, project_to_remove)
     project_to_keep_table_name_records_count_map_before_project_removal = _assert_resources_in_project(

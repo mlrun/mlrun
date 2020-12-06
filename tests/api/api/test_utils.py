@@ -9,7 +9,7 @@ from mlrun.api.api.utils import _parse_submit_run_body
 
 def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
     task_name = "task_name"
-    task_project = "task_project"
+    task_project = "task-project"
     project, function_name, function_tag, original_function = _mock_original_function(
         client
     )
@@ -93,7 +93,7 @@ def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
 
 def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
     task_name = "task_name"
-    task_project = "task_project"
+    task_project = "task-project"
     project, function_name, function_tag, original_function = _mock_original_function(
         client
     )
@@ -128,7 +128,7 @@ def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
 
 def _mock_original_function(client):
     function_name = "function_name"
-    project = "some_project"
+    project = "some-project"
     function_tag = "function_tag"
     original_function = {
         "kind": "job",

@@ -10,6 +10,7 @@ from mlrun.api.db.sqldb.session import create_session, _init_engine
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import app
 from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.utils import logger
@@ -37,6 +38,7 @@ def db() -> Generator:
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)
     initialize_db()
+    initialize_project_member()
     yield create_session()
     logger.info(f"Removing temp db file: {db_file.name}")
     db_file.close()

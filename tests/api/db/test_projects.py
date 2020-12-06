@@ -88,14 +88,15 @@ def test_get_project_with_pre_060_record(
     pre_060_record = Project(name=project_name)
     db_session.add(pre_060_record)
     db_session.commit()
-    pre_060_record = db_session.query(Project).filter(Project.name == project_name).one()
-    assert pre_060_record.full_object is None
-    project = db.get_project(
-        db_session,
-        project_name,
+    pre_060_record = (
+        db_session.query(Project).filter(Project.name == project_name).one()
     )
+    assert pre_060_record.full_object is None
+    project = db.get_project(db_session, project_name,)
     assert project.name == project_name
-    updated_record = db_session.query(Project).filter(Project.name == project_name).one()
+    updated_record = (
+        db_session.query(Project).filter(Project.name == project_name).one()
+    )
     # when GET performed on a project of the old format - we're upgrading it to the new format - ensuring it happened
     assert updated_record.full_object is not None
 

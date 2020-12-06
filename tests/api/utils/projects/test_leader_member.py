@@ -177,6 +177,64 @@ def test_create_project(
     )
 
 
+def test_create_project_failure_invalid_name(
+    db: sqlalchemy.orm.Session,
+    projects_leader: mlrun.api.utils.projects.leader.Member,
+    leader_follower: mlrun.api.utils.projects.remotes.member.Member,
+):
+    cases = [
+        {"name": "asd3", "valid": True},
+        {"name": "asd-asd", "valid": True},
+        {"name": "333", "valid": True},
+        {"name": "3.a-b", "valid": True},
+        {"name": "5.a-a.5", "valid": True},
+        {
+            # Invalid because the first letter is -
+            "name": "-as-123_2.8a",
+            "valid": False,
+        },
+        {
+            # Invalid because the last letter is .
+            "name": "as-123_2.8a.",
+            "valid": False,
+        },
+        {
+            # Invalid because A is not allowed
+            "name": "As-123_2.8Aa",
+            "valid": False,
+        },
+        {
+            # Invalid because _ is not allowed
+            "name": "as-123_2.8Aa",
+            "valid": False,
+        },
+        {
+            # Invalid because it's more than 253 characters
+            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfv"
+                    "g-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdc"
+                    "fvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            "valid": False,
+        },
+    ]
+    for case in cases:
+        project_name = case['name']
+        if case['valid']:
+            projects_leader.create_project(
+                None,
+                mlrun.api.schemas.Project(name=project_name),
+            )
+            _assert_project_in_followers([leader_follower], project_name)
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                projects_leader.create_project(
+                    None,
+                    mlrun.api.schemas.Project(name=project_name),
+                )
+            _assert_project_not_in_followers(
+                [leader_follower], project_name
+            )
+
+
 def test_ensure_project(
     db: sqlalchemy.orm.Session,
     projects_leader: mlrun.api.utils.projects.leader.Member,
@@ -354,6 +412,11 @@ def test_get_project(
     project = projects_leader.get_project(None, project_name)
     assert project.name == project_name
     assert project.description == project_description
+
+
+def _assert_project_not_in_followers(followers, name):
+    for follower in followers:
+        assert name not in follower._projects
 
 
 def _assert_no_projects_in_followers(followers):

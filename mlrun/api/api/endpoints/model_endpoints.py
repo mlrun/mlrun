@@ -11,6 +11,9 @@ from v3io_frames import Client as FramesClient
 from mlrun.api import schemas
 from mlrun.utils import logger
 
+DEFAULT_CONTAINER = "monitoring"
+ENDPOINTS_TABLE = "endpoints"
+
 
 @dataclass()
 class EndpointKey:
@@ -27,9 +30,6 @@ class EndpointKey:
     def __str__(self):
         return self.hash
 
-
-DEFAULT_CONTAINER = "monitoring"
-ENDPOINTS_TABLE = "endpoints"
 
 # TODO: Can be done nicer, also this code assumes environment parameters exist for initializing both frames and v3io
 _v3io_client: Optional[V3IOClient, None] = None

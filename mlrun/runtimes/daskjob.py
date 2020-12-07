@@ -404,7 +404,7 @@ def deploy_function(function: DaskCluster, secrets=None):
         pod,
         deploy_mode="remote",
         namespace=namespace,
-        scheduler_timeout=spec.scheduler_timeout,
+        idle_timeout=spec.scheduler_timeout,
     )
 
     logger.info(

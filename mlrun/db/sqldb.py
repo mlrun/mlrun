@@ -200,7 +200,9 @@ class SQLDB(RunDBInterface):
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
-    def create_project(self, project: mlrun.api.schemas.Project, use_vault=False) -> mlrun.api.schemas.Project:
+    def create_project(
+        self, project: mlrun.api.schemas.Project, use_vault=False
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     def delete_project(self, name: str):

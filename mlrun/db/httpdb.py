@@ -968,14 +968,19 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error_message)
 
     def store_project(
-        self, name: str, project: Union[dict, mlrun.api.schemas.Project], use_vault=False
+        self,
+        name: str,
+        project: Union[dict, mlrun.api.schemas.Project],
+        use_vault=False,
     ) -> mlrun.api.schemas.Project:
         path = f"projects/{name}"
         params = {"use-vault": use_vault}
         error_message = f"Failed storing project {name}"
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
-        response = self.api_call("PUT", path, error_message, body=json.dumps(project), params=params)
+        response = self.api_call(
+            "PUT", path, error_message, body=json.dumps(project), params=params
+        )
         return schemas.Project(**response.json())
 
     def patch_project(
@@ -997,9 +1002,7 @@ class HTTPRunDB(RunDBInterface):
         return schemas.Project(**response.json())
 
     def create_project(
-            self,
-            project: Union[dict, mlrun.api.schemas.Project],
-            use_vault=False
+        self, project: Union[dict, mlrun.api.schemas.Project], use_vault=False
     ) -> mlrun.api.schemas.Project:
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()

@@ -122,7 +122,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name: str, project: schemas.Project, use_vault=False) -> schemas.Project:
+    def store_project(
+        self, name: str, project: schemas.Project, use_vault=False
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -135,7 +137,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.Project, use_vault=False) -> schemas.Project:
+    def create_project(
+        self, project: schemas.Project, use_vault=False
+    ) -> schemas.Project:
         pass
 
     @abstractmethod

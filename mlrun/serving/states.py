@@ -250,11 +250,9 @@ class ServingTaskState(BaseState):
 
     def _not_local_function(self, context):
         # detect if the class is local (and should be initialized)
-        if not self.function and not context.current_function:
+        current_function = get_current_function(context)
+        if not self.function and not current_function:
             return False
-        current_function = (
-            context.current_function if context and context.current_function else ""
-        )
         if self.function and self.function == "*" or self.function == current_function:
             False
         return True
@@ -505,6 +503,9 @@ class ServingFlowState(BaseState):
                 before = [before]
             state.next = before
 
+        if after == "$prev" and len(self._states) == 1:
+            after = "$start"
+
         # re adjust start_at
         if (
             after == "$start"
@@ -644,13 +645,12 @@ class ServingFlowState(BaseState):
                     return resp
 
         from_state = from_state or self.from_state or self.start_at
-        if self.context and self.context.current_function:
-            state = get_first_function_state(
-                self[from_state], self.context.current_function
-            )
+        current_function = get_current_function(self.context)
+        if current_function:
+            state = get_first_function_state(self[from_state], current_function)
             if not state:
                 raise ValueError(
-                    f"states not found pointing to function {self.context.current_function}"
+                    f"states not found pointing to function {current_function}"
                 )
             return state
 
@@ -823,6 +823,12 @@ classes_map = {
     "flow": ServingFlowState,
     "queue": ServingQueueState,
 }
+
+
+def get_current_function(context):
+    if context and hasattr(context, "current_function"):
+        return context.current_function or ""
+    return ""
 
 
 def _add_gviz_router(g, state, source=None, **kwargs):

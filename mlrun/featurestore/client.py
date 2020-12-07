@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import List, Union
-from urllib.parse import urlparse
 from storey import Table, V3ioDriver, NoopDriver
 
 from mlrun import get_run_db
 from mlrun.datastore import store_manager
 from .infer import get_df_stats, get_df_preview
-from .pipeline import ingest_from_df
+from .pipeline import init_graph
 
 from .vector import (
     OfflineVectorResponse,
@@ -32,29 +31,18 @@ from ..serving.server import MockContext
 from ..utils import get_caller_globals, parse_function_uri
 
 
-def store_client(
-    project=None, secrets=None, context=None, data_prefixes={}, api_address=None
-):
-    return FeatureStoreClient(project, secrets, context, data_prefixes, api_address)
+def store_client(project=None, secrets=None, api_address=None):
+    return FeatureStoreClient(project, secrets, api_address)
 
 
 class FeatureStoreClient:
     def __init__(
-        self,
-        project=None,
-        secrets=None,
-        context=None,
-        data_prefixes={},
-        api_address=None,
+        self, project=None, secrets=None, api_address=None,
     ):
         self.nosql_path_prefix = ""
-        self.default_prefixes = data_prefixes or {"parquet": "./store"}
         self.project = project
         self.parameters = {}
         self.default_feature_set = ""
-        self.context = context or MockContext()
-        setattr(self.context, "get_table", self._get_table)
-        setattr(self.context, "client", self)
         try:
             # add v3io:// path prefix support to pandas & dask
             from v3iofs import V3ioFS
@@ -71,38 +59,6 @@ class FeatureStoreClient:
         self._tabels = {}
         self._default_ingest_targets = [TargetTypes.parquet]
 
-    def _init_featureset_targets(self, featureset, targets):
-        if TargetTypes.nosql in targets:
-            target_path = self._get_target_path(TargetTypes.nosql, featureset)
-            target_path = nosql_path(target_path)
-            target = DataTarget("nosql", TargetTypes.nosql, target_path, online=True)
-            featureset.status.update_target(target)
-            table = Table(target_path, V3ioDriver())
-            self._tabels[featureset.uri()] = table
-
-        if TargetTypes.parquet in targets:
-            target_path = self._get_target_path(
-                TargetTypes.parquet, featureset, ".parquet"
-            )
-            target = DataTarget("parquet", TargetTypes.parquet, target_path)
-            featureset.status.update_target(target)
-
-        if TargetTypes.tsdb in targets:
-            target_path = self._get_target_path(TargetTypes.tsdb, featureset)
-            target = DataTarget("tsdb", TargetTypes.tsdb, target_path)
-            featureset.status.update_target(target)
-
-    def _get_table(self, name):
-        if name in self._tabels:
-            return self._tabels[name]
-
-        if name == "":
-            table = Table("", NoopDriver())
-            self._tabels[name] = table
-            return table
-
-        raise ValueError(f"table name={name} not set")
-
     def _get_db(self):
         if not self._db_conn:
             self._db_conn = get_run_db(self._api_address).connect(self._secrets)
@@ -116,15 +72,6 @@ class FeatureStoreClient:
         if version:
             name = f"{name}-{version}"
         return f".store/{project}/{kind}/{name}"
-
-    def _get_target_path(self, kind, featureset, suffix=""):
-        name = featureset.metadata.name
-        version = featureset.metadata.tag
-        project = featureset.metadata.project or self.project or "default"
-        data_prefix = self.default_prefixes[kind]
-        if version:
-            name = f"{name}-{version}"
-        return f"{data_prefix}/{project}/{kind}/{name}{suffix}"
 
     def ingest(
         self,
@@ -150,12 +97,13 @@ class FeatureStoreClient:
 
         if infer_schema:
             featureset.infer_from_df(source)
-        self._init_featureset_targets(featureset, targets)
         return_df = return_df or with_stats or with_preview
         self.save_object(featureset)
-        df = ingest_from_df(
-            self.context, featureset, source, targets, namespace, return_df=return_df
-        ).await_termination()
+
+        controller = init_graph(
+            source, featureset, namespace, self, with_targets=True, return_df=return_df
+        )
+        df = controller.await_termination()
         if with_stats:
             featureset.status.stats = get_df_stats(df, with_histogram)
         if with_preview:
@@ -235,9 +183,8 @@ class FeatureStoreClient:
         resp = self._get_db().list_feature_sets(
             project, name, tag, state, labels=labels
         )
-        print(resp.dict())
         if resp:
-            return [FeatureSet.from_dict(obj) for obj in resp.dict()["feature_sets"]]
+            return [FeatureSet.from_dict(obj) for obj in resp]
 
     def get_feature_vector(self, name, project=None):
         raise NotImplementedError("api not yet not supported")
@@ -248,7 +195,9 @@ class FeatureStoreClient:
         if obj.kind == FeatureClassKind.FeatureSet:
             obj.metadata.project = obj.metadata.project or self.project
             obj_dict = obj.to_dict()
-            # obj_dict['metadata']['labels'] = obj_dict['metadata'].get('labels', {})  # bypass DB bug
+            obj_dict["spec"]["features"] = obj_dict["spec"].get(
+                "features", []
+            )  # bypass DB bug
             db.store_feature_set(obj_dict, tag=obj.metadata.tag, versioned=versioned)
         elif obj.kind == FeatureClassKind.FeatureVector:
             # TODO: write to mlrun db
@@ -258,16 +207,3 @@ class FeatureStoreClient:
             self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())
         else:
             raise NotImplementedError(f"object kind not supported ({obj.kind})")
-
-
-def nosql_path(url):
-    parsed_url = urlparse(url)
-    scheme = parsed_url.scheme.lower()
-    if scheme != "v3io":
-        raise ValueError("url must start with v3io://[host]/{container}/{path}")
-
-    endpoint = parsed_url.hostname
-    if parsed_url.port:
-        endpoint += ":{}".format(parsed_url.port)
-    # todo: use endpoint
-    return parsed_url.path.strip("/") + "/"

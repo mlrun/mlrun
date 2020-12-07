@@ -17,3 +17,4 @@ from .featureset import FeatureSet  # noqa
 from .model import Feature, Entity, TargetTypes, MinMaxValidator  # noqa
 from .datatypes import ValueType  # noqa
 from .steps import ValidatorStep  # noqa
+from .targets import data_prefixes, default_ingest_targets  # noqa

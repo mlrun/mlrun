@@ -28,10 +28,15 @@ def infer_schema_from_df(
     with_features=True,
 ):
     """infer feature set schema from dataframe"""
-    features = []
     timestamp_fields = []
     current_entities = list(featureset_spec.entities.keys())
     entity_columns = entity_columns or []
+
+    def upsert_feature(name, value_type):
+        if name in featureset_spec.features:
+            featureset_spec.features[name].value_type = value_type
+        else:
+            featureset_spec.features[name] = Feature(name=column, value_type=value_type)
 
     for column, s in df.items():
         value_type = _get_column_type(s)
@@ -40,7 +45,7 @@ def infer_schema_from_df(
             if column not in current_entities:
                 featureset_spec.entities[column] = Entity(value_type=value_type)
         elif with_features and column != featureset_spec.timestamp_key:
-            features.append(Feature(name=column, value_type=value_type))
+            upsert_feature(column, value_type)
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
@@ -58,8 +63,6 @@ def infer_schema_from_df(
                     if value_type == "datetime":
                         timestamp_fields.append(name)
 
-    if with_features:
-        featureset_spec.features = features
     if len(timestamp_fields) == 1 and not featureset_spec.timestamp_key:
         featureset_spec.timestamp_key = timestamp_fields[0]
 

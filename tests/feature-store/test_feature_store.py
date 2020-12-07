@@ -10,14 +10,14 @@ import mlrun.featurestore as fs
 from mlrun.config import config as mlconf
 from mlrun.featurestore import FeatureSet, Entity, TargetTypes
 from mlrun.featurestore.datatypes import ValueType
-from mlrun.featurestore.model import MinMaxValidator
+from mlrun.featurestore.model import MinMaxValidator, Feature
 
 
 def init_store():
     mlconf.dbpath = os.environ["TEST_DBPATH"]
-    data_prefix = os.environ.get("FEATURESTORE_PATH", "v3io:///users/admin/fs")
-    client = fs.store_client(data_prefixes={"parquet": "./store", "nosql": data_prefix})
-    client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
+    #data_prefix = os.environ.get("FEATURESTORE_PATH", "v3io:///users/admin/fs")
+    client = fs.store_client() #data_prefixes={"parquet": "./store", "nosql": data_prefix})
+    #client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
     return client
 
 
@@ -47,20 +47,19 @@ def test_ingestion():
     client = init_store()
 
     # add feature set without time column (stock ticker metadata)
-    stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
-    resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
-    print(resp)
+    # stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
+    # resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
+    # print(resp)
+    #
+    # stocks_set["name"].description = "some name"
+    # print(stocks_set.to_yaml())
 
-    stocks_set["name"].description = "some name"
-    print(stocks_set.to_yaml())
-
-    quotes_set = FeatureSet("stock-quotes")
+    quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
     quotes_set.add_flow_step("map", "MyMap", mul=3)
     quotes_set.add_flow_step("addz", "storey.Extend", _fn="({'z': event['bid'] * 77})")
     quotes_set.add_flow_step("filter", "storey.Filter", _fn="(event['bid'] > 51.92)")
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
     quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
-    # quotes_set.add_flow_step("map", "Valid", featureset=quotes_set.uri())
 
     df = quotes_set.infer_from_df(
         quotes,
@@ -71,7 +70,8 @@ def test_ingestion():
     )
     print(df)
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
-    quotes_set.plot(client, "pipe.png", rankdir="LR")
+
+    quotes_set.plot("pipe.png", rankdir="LR")
 
     print(client.ingest(quotes_set, quotes, return_df=True))
     print(quotes_set.to_yaml())

@@ -106,25 +106,21 @@ class Feature(ModelObj):
         "shape",
         "default",
         "labels",
-        "windows",
-        "operations",
-        "period",
+        "aggregate",
         "validator",
     ]
 
-    def __init__(self, value_type: ValueType = None, description=None, name=None):
+    def __init__(
+        self, value_type: ValueType = None, description=None, aggregate=None, name=None
+    ):
         self.name = name or ""
         self.value_type: ValueType = value_type or ""
         self.shape = None
         self.description = description
         self.default = None
         self.labels = {}
+        self.aggregate = aggregate
         self._validator = None
-
-        # aggregated features
-        self.windows = None
-        self.operations = None
-        self.period = None
 
     @property
     def validator(self):
@@ -152,6 +148,7 @@ class TargetTypes:
     nosql = "nosql"
     tsdb = "tsdb"
     stream = "stream"
+    dataframe = "dataframe"
 
 
 class SourceTypes:
@@ -192,17 +189,24 @@ def get_online_store(type_list):
 
 
 class DataTargetSpec(ModelObj):
-    def __init__(self, name: str = "", kind: TargetTypes = None, path=None):
+    _dict_fields = ["name", "kind", "path", "after_state", "options"]
+
+    def __init__(
+        self, kind: TargetTypes = None, name: str = "", path=None, after_state=None
+    ):
         self.name = name
         self.kind: TargetTypes = kind
         self.path = path
+        self.after_state = after_state
+        self.options = None
+        self.driver = None
 
 
 class DataTarget(DataTargetSpec):
-    _dict_fields = ["name", "kind", "path", "start_time", "online", "options", "status"]
+    _dict_fields = ["name", "kind", "path", "start_time", "online", "status"]
 
     def __init__(
-        self, name: str = "", kind: TargetTypes = None, path=None, online=None
+        self, kind: TargetTypes = None, name: str = "", path=None, online=None
     ):
         super().__init__(name, kind, path)
         self.status = ""
@@ -210,7 +214,6 @@ class DataTarget(DataTargetSpec):
         self.online = online
         self.max_age = None
         self.start_time = None
-        self.options = None
         self._producer = None
         self.producer = {}
 
@@ -275,13 +278,14 @@ class FeatureSetSpec(ModelObj):
         aggregations=None,
         sources=None,
         targets=None,
-        flow=None,
+        graph=None,
+        final_graph_state=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
         self._aggregations = None
-        self._flow: ServingRootFlowState = None
+        self._graph: ServingRootFlowState = None
         self._sources = None
 
         self.description = description
@@ -293,8 +297,12 @@ class FeatureSetSpec(ModelObj):
         self.relations = relations or {}
         self.sources = sources or []
         self.targets = targets or []
-        self.flow = flow
+        self.graph = graph
         self.label_column = label_column
+        self.final_graph_state = final_graph_state
+
+    def get_final_state(self):
+        return self.final_graph_state or "ValidatorStep"
 
     @property
     def entities(self) -> List[Entity]:
@@ -318,7 +326,7 @@ class FeatureSetSpec(ModelObj):
 
     @targets.setter
     def targets(self, targets: List[DataTargetSpec]):
-        self._targets = ObjectList.from_list(DataTarget, targets)
+        self._targets = ObjectList.from_list(DataTargetSpec, targets)
 
     @property
     def aggregations(self) -> List[FeatureAggregation]:
@@ -329,23 +337,24 @@ class FeatureSetSpec(ModelObj):
         self._aggregations = ObjectList.from_list(FeatureAggregation, aggregations)
 
     @property
-    def flow(self) -> ServingRootFlowState:
-        return self._flow
+    def graph(self) -> ServingRootFlowState:
+        return self._graph
 
-    @flow.setter
-    def flow(self, flow):
-        self._flow = self._verify_dict(flow, "flow", ServingRootFlowState)
+    @graph.setter
+    def graph(self, graph):
+        self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
+        self._graph.engine = "async"
 
     @property
     def sources(self) -> List[DataSource]:
-        return self._targets
+        return self._sources
 
     @sources.setter
     def sources(self, sources: List[DataSource]):
         self._sources = ObjectList.from_list(DataSource, sources)
 
     def require_processing(self):
-        return len(self._flow.states) > 0 or len(self._aggregations) > 0
+        return len(self._graph.states) > 0 or len(self._aggregations) > 0
 
 
 class FeatureSetStatus(ModelObj):
@@ -374,7 +383,7 @@ class FeatureVectorSpec(ModelObj):
         "description",
         "entity_source",
         "target_path",
-        "flow",
+        "graph",
         "label_column",
     ]
 
@@ -385,14 +394,14 @@ class FeatureVectorSpec(ModelObj):
         description=None,
         entity_source=None,
         target_path=None,
-        flow=None,
+        graph=None,
         label_column=None,
     ):
         self.description = description
         self.features: List[str] = features or []
         self.entity_source = entity_source
         self.target_path = target_path
-        self.flow = flow or []
+        self.graph = graph or []
         self.label_column = label_column
 
 

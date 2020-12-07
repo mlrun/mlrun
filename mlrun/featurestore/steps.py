@@ -7,7 +7,7 @@ class ValidatorStep(MapClass):
         self._validators = {}
         if not self.context:
             return
-        self.featureset = self.context.client.get_feature_set(featureset)
+        self.featureset = self.context.get_feature_set(featureset)
         for key, feature in self.featureset.spec.features.items():
             if feature.validator:
                 feature.validator.set_feature(feature)

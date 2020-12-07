@@ -215,7 +215,9 @@ class Member(
                         project=project,
                     )
                     try:
-                        self._followers[missing_follower].create_project(session)
+                        self._followers[missing_follower].create_project(
+                            session, mlrun.api.schemas.Project(**project.dict()),
+                        )
                     except Exception as exc:
                         logger.warning(
                             "Failed creating missing project in follower",

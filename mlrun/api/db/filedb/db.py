@@ -134,16 +134,29 @@ class FileDB(DBInterface):
     def store_schedule(self, session, data):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
-    def list_projects(self, session, owner=None):
-        return self._transform_run_db_error(self.db.list_projects)
+    def list_projects(
+        self, session, owner: str = None, format_: schemas.Format = schemas.Format.full,
+    ) -> schemas.ProjectsOutput:
+        return self._transform_run_db_error(self.db.list_projects, owner, format_)
 
-    def add_project(self, session, project: dict):
+    def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()
 
-    def update_project(self, session, name, data: dict):
+    def patch_project(
+        self,
+        session,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
         raise NotImplementedError()
 
-    def get_project(self, session, name=None, project_id=None):
+    def create_project(self, session, project: schemas.Project):
+        raise NotImplementedError()
+
+    def get_project(
+        self, session, name: str = None, project_id: int = None
+    ) -> schemas.Project:
         raise NotImplementedError()
 
     def delete_project(self, session, name: str):
@@ -209,6 +222,55 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def delete_feature_set(self, session, project, name):
+        raise NotImplementedError()
+
+    def create_feature_vector(
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+    ):
+        raise NotImplementedError()
+
+    def get_feature_vector(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureVector:
+        raise NotImplementedError()
+
+    def list_feature_vectors(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureVectorsOutput:
+        raise NotImplementedError()
+
+    def store_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector: schemas.FeatureVector,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        raise NotImplementedError()
+
+    def patch_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector_update: dict,
+        tag=None,
+        uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        raise NotImplementedError()
+
+    def delete_feature_vector(self, session, project, name):
         raise NotImplementedError()
 
     def list_artifact_tags(self, session, project):

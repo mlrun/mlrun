@@ -24,7 +24,7 @@ class TestRuntimeHandlerBase:
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
-        self.project = "test_project"
+        self.project = "test-project"
         self.run_uid = "test_run_uid"
 
         self.custom_setup()

@@ -1,15 +1,12 @@
 import pathlib
-import pytest
 
 import mlrun
 
-# from tests.system.base import TestMLRunSystem
+from tests.system.base import TestMLRunSystem
 from tests.system.demos.base import TestDemo
 
 
-# @TestMLRunSystem.skip_test_if_env_not_configured
-# FIXME: we need to cut the train data size
-@pytest.mark.skip("this test fails cause the mpi worker getting OOM killed, skipping")
+@TestMLRunSystem.skip_test_if_env_not_configured
 class TestHorovodTFv2(TestDemo):
 
     project_name = "horovod-project"

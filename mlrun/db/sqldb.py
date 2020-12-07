@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
+import mlrun.api.schemas
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
 from .base import RunDBInterface, RunDBError
-from typing import List
 
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
@@ -28,16 +30,15 @@ from typing import List
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
 class SQLDB(RunDBInterface):
-    def __init__(self, dsn, session=None, projects=None):
+    def __init__(self, dsn, session=None):
         self.session = session
         self.dsn = dsn
-        self.projects = projects
         self.db = None
 
     def connect(self, secrets=None):
         if not self.session:
             self.session = create_session()
-        self.db = SQLAPIDB(self.dsn, self.projects)
+        self.db = SQLAPIDB(self.dsn)
         return self
 
     def store_log(self, uid, project="", body=b"", append=False):
@@ -186,24 +187,38 @@ class SQLDB(RunDBInterface):
     def list_tags(self, project: str):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
-    def add_project(self, project: dict):
-        return self._transform_db_error(self.db.add_project, self.session, project)
+    def store_project(
+        self, name: str, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
 
-    def update_project(self, name, data: dict):
-        return self._transform_db_error(
-            self.db.update_project, self.session, name, data
-        )
+    def patch_project(
+        self,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def create_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
 
     def delete_project(self, name: str):
-        return self._transform_db_error(self.db.delete_project, self.session, name)
+        raise NotImplementedError()
 
-    def get_project(self, name=None, project_id=None):
-        return self._transform_db_error(
-            self.db.get_project, self.session, name, project_id
-        )
+    def get_project(
+        self, name: str = None, project_id: int = None
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
 
-    def list_projects(self, owner=None):
-        return self._transform_db_error(self.db.list_projects, self.session, owner)
+    def list_projects(
+        self,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+    ) -> mlrun.api.schemas.ProjectsOutput:
+        raise NotImplementedError()
 
     @staticmethod
     def _transform_db_error(func, *args, **kwargs):
@@ -290,4 +305,77 @@ class SQLDB(RunDBInterface):
     def delete_feature_set(self, name, project=""):
         return self._transform_db_error(
             self.db.delete_feature_set, self.session, project, name
+        )
+
+    def create_feature_vector(self, feature_vector, project="", versioned=True):
+        return self._transform_db_error(
+            self.db.create_feature_vector,
+            self.session,
+            project,
+            feature_vector,
+            versioned,
+        )
+
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ):
+        return self._transform_db_error(
+            self.db.get_feature_vector, self.session, project, name, tag, uid,
+        )
+
+    def list_feature_vectors(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_feature_vectors,
+            self.session,
+            project,
+            name,
+            tag,
+            state,
+            labels,
+        )
+
+    def store_feature_vector(
+        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+    ):
+        return self._transform_db_error(
+            self.db.store_feature_vector,
+            self.session,
+            project,
+            name,
+            feature_vector,
+            tag,
+            uid,
+            versioned,
+        )
+
+    def patch_feature_vector(
+        self,
+        name,
+        feature_vector_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
+    ):
+        return self._transform_db_error(
+            self.db.patch_feature_vector,
+            self.session,
+            project,
+            name,
+            feature_vector_update,
+            tag,
+            uid,
+            patch_mode,
+        )
+
+    def delete_feature_vector(self, name, project=""):
+        return self._transform_db_error(
+            self.db.delete_feature_vector, self.session, project, name,
         )

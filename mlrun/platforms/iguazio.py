@@ -46,7 +46,7 @@ def xcp_op(
     )
 
 
-Mount = namedtuple("Mount", ["path", "sub_path"])
+VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
 def mount_v3io_extended(
@@ -70,12 +70,13 @@ def mount_v3io_extended(
                 "user name/env must be specified when using empty remote and mounts"
             )
         mounts = [
-            Mount(path="/v3io", sub_path=""),
-            # Temporarily commented out as we do not support multiple mount on the same volume yet (set_named_item...)
-            #            Mount(path="/User", sub_path="users/" + user),
+            VolumeMount(path="/v3io", sub_path=""),
+            VolumeMount(path="/User", sub_path="users/" + user),
         ]
 
-    if not isinstance(mounts, list) and any([not isinstance(x, Mount) for x in mounts]):
+    if not isinstance(mounts, list) and any(
+        [not isinstance(x, VolumeMount) for x in mounts]
+    ):
         raise TypeError("mounts should be a list of Mount")
 
     def _mount_v3io_extended(task):
@@ -113,7 +114,7 @@ def mount_v3io(
     return mount_v3io_extended(
         name=name,
         remote=remote,
-        mounts=[Mount(path=mount_path, sub_path="")],
+        mounts=[VolumeMount(path=mount_path, sub_path="")],
         access_key=access_key,
         user=user,
         secret=secret,

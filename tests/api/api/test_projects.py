@@ -1,46 +1,95 @@
 from http import HTTPStatus
 from uuid import uuid4
 
+import deepdiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 
-def test_project(db: Session, client: TestClient) -> None:
+
+def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
-    prj1 = {
-        "name": name1,
-        "owner": "u0",
-        "description": "banana",
-        # 'users': ['u1', 'u2'],
-    }
-    resp = client.post("/api/project", json=prj1)
-    assert resp.status_code == HTTPStatus.OK.value, "add"
-    resp = client.get(f"/api/project/{name1}")
-    out = {key: val for key, val in resp.json()["project"].items() if val}
-    # out['users'].sort()
-    for key, value in prj1.items():
-        assert out[key] == value
+    project_1 = mlrun.api.schemas.Project(
+        name=name1, owner="owner", description="banana"
+    )
 
-    data = {"description": "lemon", "name": name1}
-    resp = client.post(f"/api/project/{name1}", json=data)
-    assert resp.status_code == HTTPStatus.OK.value, "update"
-    resp = client.get(f"/api/project/{name1}")
-    assert name1 == resp.json()["project"]["name"], "name after update"
+    # create
+    response = client.post("/api/projects", json=project_1.dict())
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project_1, response)
+
+    # read
+    response = client.get(f"/api/projects/{name1}")
+    _assert_project_response(project_1, response)
+
+    # patch
+    project_update = mlrun.api.schemas.ProjectPatch(description="lemon")
+    response = client.patch(
+        f"/api/projects/{name1}", json=project_update.dict(exclude_unset=True)
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project_1, response, extra_exclude={"description"})
+    assert project_update.description == response.json()["description"]
 
     name2 = f"prj-{uuid4().hex}"
-    prj2 = {
-        "name": name2,
-        "owner": "u0",
-        "description": "banana",
-        # 'users': ['u1', 'u3'],
-    }
-    resp = client.post("/api/project", json=prj2)
-    assert resp.status_code == HTTPStatus.OK.value, "add (2)"
+    project_2 = mlrun.api.schemas.Project(
+        name=name2, owner="owner", description="banana"
+    )
 
-    resp = client.get("/api/projects")
-    expected = {name1, name2}
-    assert expected.issubset(set(resp.json()["projects"])), "list"
+    # store
+    response = client.put(f"/api/projects/{name2}", json=project_2.dict())
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project_2, response)
 
-    resp = client.get("/api/projects?full=true")
-    projects = resp.json()["projects"]
-    assert {dict} == set(type(p) for p in projects), "dict"
+    # list - names only
+    response = client.get(
+        "/api/projects", params={"format": mlrun.api.schemas.Format.name_only}
+    )
+    expected = [name1, name2]
+    assert expected == response.json()["projects"]
+
+    # list - full
+    response = client.get(
+        "/api/projects", params={"format": mlrun.api.schemas.Format.full}
+    )
+    projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
+    expected = [project_1, project_2]
+    for index, project in enumerate(projects_output.projects):
+        _assert_project(expected[index], project, extra_exclude={"description"})
+
+    # delete
+    response = client.delete(f"/api/projects/{name1}")
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    # list
+    response = client.get(
+        "/api/projects", params={"format": mlrun.api.schemas.Format.name_only}
+    )
+    expected = [name2]
+    assert expected == response.json()["projects"]
+
+
+def _assert_project_response(
+    expected_project: mlrun.api.schemas.Project, response, extra_exclude: set = None
+):
+    project = mlrun.api.schemas.Project(**response.json())
+    _assert_project(expected_project, project, extra_exclude)
+
+
+def _assert_project(
+    expected_project: mlrun.api.schemas.Project,
+    project: mlrun.api.schemas.Project,
+    extra_exclude: set = None,
+):
+    exclude = {"id", "created"}
+    if extra_exclude:
+        exclude.update(extra_exclude)
+    assert (
+        deepdiff.DeepDiff(
+            expected_project.dict(exclude=exclude),
+            project.dict(exclude=exclude),
+            ignore_order=True,
+        )
+        == {}
+    )

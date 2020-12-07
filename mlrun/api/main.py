@@ -12,10 +12,14 @@ from mlrun.api.db.session import create_session, close_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
     run_function_periodically,
-    cancel_periodic_functions,
+    cancel_all_periodic_functions,
 )
 from mlrun.api.utils.singletons.db import get_db, initialize_db
 from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
+from mlrun.api.utils.singletons.project_member import (
+    initialize_project_member,
+    get_project_member,
+)
 from mlrun.api.utils.singletons.scheduler import initialize_scheduler, get_scheduler
 from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
@@ -125,28 +129,34 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    cancel_periodic_functions()
+    get_project_member().shutdown()
+    cancel_all_periodic_functions()
     await get_scheduler().stop()
 
 
 async def _initialize_singletons():
-    initialize_db()
-    await initialize_scheduler()
     initialize_logs_dir()
+    initialize_db()
+    initialize_project_member()
+    await initialize_scheduler()
 
 
 def _start_periodic_cleanup():
     interval = int(config.runtimes_cleanup_interval)
     if interval > 0:
         logger.info("Starting periodic runtimes cleanup", interval=interval)
-        run_function_periodically(interval, _cleanup_runtimes)
+        run_function_periodically(
+            interval, _cleanup_runtimes.__name__, False, _cleanup_runtimes
+        )
 
 
 def _start_periodic_runs_monitoring():
     interval = int(config.runs_monitoring_interval)
     if interval > 0:
         logger.info("Starting periodic runs monitoring", interval=interval)
-        run_function_periodically(interval, _monitor_runs)
+        run_function_periodically(
+            interval, _monitor_runs.__name__, False, _monitor_runs
+        )
 
 
 def _monitor_runs():

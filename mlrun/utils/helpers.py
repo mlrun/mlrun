@@ -32,6 +32,7 @@ from tabulate import tabulate
 from yaml.representer import RepresenterError
 
 import mlrun.utils.version.version
+import mlrun.errors
 from .logger import create_logger
 from ..config import config
 
@@ -89,7 +90,7 @@ def verify_field_regex(field_name, field_value, patterns):
                 field_value=field_value,
                 pattern=pattern,
             )
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Field {field_name} is malformed. Does not match required pattern: {pattern}"
             )
 

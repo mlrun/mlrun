@@ -26,6 +26,9 @@ RUN python -m pip install --upgrade pip
 
 COPY . /tmp/mlrun
 RUN pip install --upgrade pytest
+COPY ./requirements.txt ./
+RUN python -m pip install \
+    -r requirements.txt
 RUN cd /tmp/mlrun && python -m pip install ".[api]" && mv tests /tests && cd /tmp && rm -rf mlrun
 
 CMD ["pytest",  "--capture=no", "-rf",  "-v",  "--disable-warnings", "/tests/system"]

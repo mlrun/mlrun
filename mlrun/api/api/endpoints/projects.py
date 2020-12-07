@@ -24,7 +24,7 @@ def create_project(
     if use_vault:
         new_project(project.name, use_vault).init_vault()
 
-    return get_project_member().create_project(db_session)
+    return get_project_member().create_project(db_session, project)
 
 
 # curl -d '{"name": "p1", "description": "desc", "users": ["u1", "u2"]}' -X UPDATE http://localhost:8080/project

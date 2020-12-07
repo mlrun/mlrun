@@ -34,3 +34,4 @@ semver~=2.13
 dask~=2.12
 # 3.0 iguazio system is running k8s 1.17 so ideally we would use 17.X, but kfp limiting to <12.0
 kubernetes~=11.0
+humanfriendly~=8.2

@@ -17,7 +17,9 @@ import json
 import re
 import sys
 import time
+from typing import Optional
 from datetime import datetime, timezone
+from dateutil import parser
 from os import path, environ
 from importlib import import_module
 import inspect
@@ -30,6 +32,7 @@ from tabulate import tabulate
 from yaml.representer import RepresenterError
 
 import mlrun.utils.version.version
+import mlrun.errors
 from .logger import create_logger
 from ..config import config
 
@@ -87,7 +90,7 @@ def verify_field_regex(field_name, field_value, patterns):
                 field_value=field_value,
                 pattern=pattern,
             )
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Field {field_name} is malformed. Does not match required pattern: {pattern}"
             )
 
@@ -193,6 +196,20 @@ def match_labels(labels, conditions):
         else:
             match = match and (condition.strip() in labels)
     return match
+
+
+def match_times(time_from, time_to, obj, key):
+    obj_time = get_in(obj, key)
+    if not obj_time:
+
+        # if obj doesn't have the required time, return false if either time_from or time_to were given
+        return not time_from and not time_to
+    obj_time = parser.isoparse(obj_time)
+
+    if (time_from and time_from > obj_time) or (time_to and time_to < obj_time):
+        return False
+
+    return True
 
 
 def match_value(value, obj, key):
@@ -684,3 +701,15 @@ def get_caller_globals(level=2):
         return inspect.stack()[level][0].f_globals
     except Exception:
         return None
+
+
+def datetime_from_iso(time_str: str) -> Optional[datetime]:
+    if not time_str:
+        return
+    return parser.isoparse(time_str)
+
+
+def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
+    if not time_obj:
+        return
+    return time_obj.isoformat()

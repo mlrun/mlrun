@@ -15,21 +15,23 @@
 import json
 import tempfile
 import time
+from datetime import datetime
 from os import path, remove, environ
 from typing import List, Dict, Union
 
 import kfp
 import requests
-import mlrun
+import semver
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+import mlrun
 from mlrun.api import schemas
+from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
-from ..utils import dict_to_json, logger, new_pipe_meta
-from mlrun.errors import MLRunInvalidArgumentError
+from ..utils import dict_to_json, logger, new_pipe_meta, datetime_to_iso
 
 default_project = config.default_project
 
@@ -136,12 +138,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
-            if self.server_version != config.version:
-                logger.warning(
-                    "warning!, server ({}) and client ({}) ver dont match".format(
-                        self.server_version, config.version
-                    )
-                )
+            self._validate_version_compatibility(self.server_version, config.version)
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace
@@ -160,6 +157,12 @@ class HTTPRunDB(RunDBInterface):
             config.ui_url = config.ui_url or server_cfg.get("ui_url")
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
+            )
+            config.spark_app_image = config.spark_app_image or server_cfg.get(
+                "spark_app_image"
+            )
+            config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
+                "spark_app_image_tag"
             )
             if (
                 "docker_registry" in server_cfg
@@ -249,6 +252,10 @@ class HTTPRunDB(RunDBInterface):
         sort=True,
         last=0,
         iter=False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
     ):
 
         project = project or default_project
@@ -260,6 +267,10 @@ class HTTPRunDB(RunDBInterface):
             "state": state,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
+            "start_time_from": datetime_to_iso(start_time_from),
+            "start_time_to": datetime_to_iso(start_time_to),
+            "last_update_time_from": datetime_to_iso(last_update_time_from),
+            "last_update_time_to": datetime_to_iso(last_update_time_to),
         }
         error = "list runs"
         resp = self.api_call("GET", "runs", error, params=params)
@@ -487,11 +498,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
 
-    def delete_project(self, name: str):
-        path = f"projects/{name}"
-        error_message = f"Failed deleting project {name}"
-        self.api_call("DELETE", path, error_message)
-
     def remote_builder(self, func, with_mlrun):
         try:
             req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
@@ -680,48 +686,40 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
-    def store_project(self, name, struct, use_vault=False):
-        params = {"use-vault": use_vault}
-        error_message = f"Failed storing project for {name} ? use-vault={use_vault}"
-
-        path = f"project/{name}"
-        self.api_call(
-            "POST",
-            path=path,
-            error=error_message,
-            params=params,
-            body=json.dumps(struct),
-        )
+    @staticmethod
+    def _resolve_reference(tag, uid):
+        if uid and tag:
+            raise MLRunInvalidArgumentError("both uid and tag were provided")
+        return uid or tag or "latest"
 
     def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
-    ) -> schemas.FeatureSet:
-        project = project or default_project
-        path = f"projects/{project}/feature-sets"
-        params = {"versioned": versioned}
-
+    ) -> dict:
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
+
+        project = (
+            project or feature_set["metadata"].get("project", None) or default_project
+        )
+        path = f"projects/{project}/feature-sets"
+        params = {"versioned": versioned}
 
         name = feature_set["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         resp = self.api_call(
             "POST", path, error_message, params=params, body=json.dumps(feature_set),
         )
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> schemas.FeatureSet:
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
+    ) -> dict:
         project = project or default_project
-        reference = uid or tag or "latest"
+        reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
     def list_features(
         self,
@@ -754,7 +752,7 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeatureSetsOutput:
+    ) -> List[dict]:
         project = project or default_project
         params = {
             "name": name,
@@ -771,35 +769,33 @@ class HTTPRunDB(RunDBInterface):
             f"Failed listing feature-sets, project: {project}, query: {params}"
         )
         resp = self.api_call("GET", path, error_message, params=params)
-        return schemas.FeatureSetsOutput(**resp.json())
+        return resp.json()["feature_sets"]
 
     def store_feature_set(
         self,
-        name,
         feature_set: Union[dict, schemas.FeatureSet],
+        name=None,
         project="",
         tag=None,
         uid=None,
         versioned=True,
-    ) -> schemas.FeatureSet:
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
+    ) -> dict:
+        reference = self._resolve_reference(tag, uid)
         params = {"versioned": versioned}
 
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
 
-        project = project or default_project
-        reference = uid or tag or "latest"
+        name = name or feature_set["metadata"]["name"]
+        project = project or feature_set["metadata"].get("project") or default_project
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
         resp = self.api_call(
             "PUT", path, error_message, params=params, body=json.dumps(feature_set)
         )
-        return schemas.FeatureSet(**resp.json())
+        return resp.json()
 
-    def update_feature_set(
+    def patch_feature_set(
         self,
         name,
         feature_set_update: dict,
@@ -808,12 +804,11 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
-        if uid and tag:
-            raise MLRunInvalidArgumentError("both uid and tag were provided")
-
         project = project or default_project
-        reference = uid or tag or "latest"
-        params = {"patch-mode": patch_mode}
+        reference = self._resolve_reference(tag, uid)
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
@@ -821,14 +816,224 @@ class HTTPRunDB(RunDBInterface):
             path,
             error_message,
             body=json.dumps(feature_set_update),
-            params=params,
+            headers=headers,
         )
 
     def delete_feature_set(self, name, project=""):
         project = project or default_project
         path = f"projects/{project}/feature-sets/{name}"
+        error_message = f"Failed deleting feature-set {name}"
+        self.api_call("DELETE", path, error_message)
+
+    def create_feature_vector(
+        self,
+        feature_vector: Union[dict, schemas.FeatureVector],
+        project="",
+        versioned=True,
+    ) -> dict:
+        if isinstance(feature_vector, schemas.FeatureVector):
+            feature_vector = feature_vector.dict()
+
+        project = (
+            project
+            or feature_vector["metadata"].get("project", None)
+            or default_project
+        )
+        path = f"projects/{project}/feature-vectors"
+        params = {"versioned": versioned}
+
+        name = feature_vector["metadata"]["name"]
+        error_message = f"Failed creating feature-vector {project}/{name}"
+        resp = self.api_call(
+            "POST", path, error_message, params=params, body=json.dumps(feature_vector),
+        )
+        return resp.json()
+
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> dict:
+        project = project or default_project
+        reference = self._resolve_reference(tag, uid)
+        path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
+        error_message = f"Failed retrieving feature-vector {project}/{name}"
+        resp = self.api_call("GET", path, error_message)
+        return resp.json()
+
+    def list_feature_vectors(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> List[dict]:
+        project = project or default_project
+        params = {
+            "name": name,
+            "state": state,
+            "tag": tag,
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/feature-vectors"
+
+        error_message = (
+            f"Failed listing feature-vectors, project: {project}, query: {params}"
+        )
+        resp = self.api_call("GET", path, error_message, params=params)
+        return resp.json()["feature_vectors"]
+
+    def store_feature_vector(
+        self,
+        feature_vector: Union[dict, schemas.FeatureVector],
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
+    ) -> dict:
+        reference = self._resolve_reference(tag, uid)
+        params = {"versioned": versioned}
+
+        if isinstance(feature_vector, schemas.FeatureVector):
+            feature_vector = feature_vector.dict()
+
+        name = name or feature_vector["metadata"]["name"]
+        project = (
+            project or feature_vector["metadata"].get("project") or default_project
+        )
+        path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
+        error_message = f"Failed storing feature-vector {project}/{name}"
+        resp = self.api_call(
+            "PUT", path, error_message, params=params, body=json.dumps(feature_vector)
+        )
+        return resp.json()
+
+    def patch_feature_vector(
+        self,
+        name,
+        feature_vector_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+    ):
+        reference = self._resolve_reference(tag, uid)
+        project = project or default_project
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
+        path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
+        error_message = f"Failed updating feature-vector {project}/{name}"
+        self.api_call(
+            "PATCH",
+            path,
+            error_message,
+            body=json.dumps(feature_vector_update),
+            headers=headers,
+        )
+
+    def delete_feature_vector(self, name, project=""):
+        project = project or default_project
+        path = f"projects/{project}/feature-vectors/{name}"
+        error_message = f"Failed deleting feature-vector {name}"
+        self.api_call("DELETE", path, error_message)
+
+    def list_projects(
+        self,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+    ) -> schemas.ProjectsOutput:
+        params = {
+            "owner": owner,
+            "format": format_,
+        }
+
+        error_message = f"Failed listing projects, query: {params}"
+        response = self.api_call("GET", "projects", error_message, params=params)
+        return schemas.ProjectsOutput(**response.json())
+
+    def get_project(self, name: str) -> schemas.Project:
+        if not name:
+            raise MLRunInvalidArgumentError("Name must be provided")
+
+        path = f"projects/{name}"
+        error_message = f"Failed retrieving project {name}"
+        response = self.api_call("GET", path, error_message)
+        return schemas.Project(**response.json())
+
+    def delete_project(self, name: str):
+        path = f"projects/{name}"
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
+
+    def store_project(
+        self, name: str, project: Union[dict, mlrun.api.schemas.Project], use_vault=False
+    ) -> mlrun.api.schemas.Project:
+        path = f"projects/{name}"
+        params = {"use-vault": use_vault}
+        error_message = f"Failed storing project {name}"
+        if isinstance(project, mlrun.api.schemas.Project):
+            project = project.dict()
+        response = self.api_call("PUT", path, error_message, body=json.dumps(project), params=params)
+        return schemas.Project(**response.json())
+
+    def patch_project(
+        self,
+        name: str,
+        project: Union[dict, mlrun.api.schemas.ProjectPatch],
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+    ) -> mlrun.api.schemas.Project:
+        path = f"projects/{name}"
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
+        error_message = f"Failed patching project {name}"
+        if isinstance(project, mlrun.api.schemas.Project):
+            project = project.dict(exclude_unset=True)
+        response = self.api_call(
+            "PATCH", path, error_message, body=json.dumps(project), headers=headers
+        )
+        return schemas.Project(**response.json())
+
+    def create_project(
+            self,
+            project: Union[dict, mlrun.api.schemas.Project],
+            use_vault=False
+    ) -> mlrun.api.schemas.Project:
+        if isinstance(project, mlrun.api.schemas.Project):
+            project = project.dict()
+        params = {"use-vault": use_vault}
+        error_message = f"Failed creating project {project['name']}"
+        response = self.api_call(
+            "POST", "projects", error_message, body=json.dumps(project), params=params
+        )
+        return schemas.Project(**response.json())
+
+    @staticmethod
+    def _validate_version_compatibility(server_version, client_version):
+        try:
+            parsed_server_version = semver.VersionInfo.parse(server_version)
+            parsed_client_version = semver.VersionInfo.parse(client_version)
+        except ValueError:
+            # This will mostly happen in dev scenarios when the version is unstable and such - therefore we're ignoring
+            logger.warning(
+                "Unable to parse server or client version. Assuming compatible",
+                server_version=server_version,
+                client_version=client_version,
+            )
+            return
+        if (
+            parsed_server_version.major != parsed_client_version.major
+            or parsed_server_version.minor != parsed_client_version.minor
+        ):
+            message = "Server and client versions are incompatible"
+            logger.warning(
+                message,
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
 
 def _as_json(obj):

@@ -2,6 +2,8 @@ FROM jupyter/scipy-notebook
 
 ENV PIP_NO_CACHE_DIR=1
 
+RUN python -m pip install --upgrade pip
+
 # by default COPY creates files with root permissions, so doing all the preparation with root and chown-ing everything
 # in the end
 USER root

@@ -60,6 +60,10 @@ class DBInterface(ABC):
         sort=True,
         last=0,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         pass
 
@@ -177,19 +181,33 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_projects(self, session, owner=None):
-        return []
-
-    @abstractmethod
-    def get_project(self, session, name=None, project_id=None):
+    def list_projects(
+        self, session, owner: str = None, format_: schemas.Format = schemas.Format.full,
+    ) -> schemas.ProjectsOutput:
         pass
 
     @abstractmethod
-    def add_project(self, session, project: dict):
+    def get_project(
+        self, session, name: str = None, project_id: int = None
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
-    def update_project(self, session, name, data: dict):
+    def create_project(self, session, project: schemas.Project):
+        pass
+
+    @abstractmethod
+    def store_project(self, session, name: str, project: schemas.Project):
+        pass
+
+    @abstractmethod
+    def patch_project(
+        self,
+        session,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
         pass
 
     @abstractmethod
@@ -263,6 +281,61 @@ class DBInterface(ABC):
 
     @abstractmethod
     def delete_feature_set(self, session, project, name):
+        pass
+
+    @abstractmethod
+    def create_feature_vector(
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+    ):
+        pass
+
+    @abstractmethod
+    def get_feature_vector(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureVector:
+        pass
+
+    @abstractmethod
+    def list_feature_vectors(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureVectorsOutput:
+        pass
+
+    @abstractmethod
+    def store_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector: schemas.FeatureVector,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        pass
+
+    @abstractmethod
+    def patch_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector_update: dict,
+        tag=None,
+        uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_feature_vector(self, session, project, name):
         pass
 
     def list_artifact_tags(self, session, project):

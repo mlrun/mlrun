@@ -16,18 +16,20 @@ import codecs
 from collections import namedtuple
 from os import environ
 from pathlib import Path
+from shutil import rmtree
 from socket import socket
 from subprocess import Popen, run, PIPE, DEVNULL
 from sys import executable
 from tempfile import mkdtemp
 from uuid import uuid4
-from shutil import rmtree
 
 import pytest
 
+from mlrun.api import schemas
+import mlrun.errors
+from mlrun import RunObject
 from mlrun.artifacts import Artifact
 from mlrun.db import HTTPRunDB, RunDBError
-from mlrun import RunObject
 from tests.conftest import wait_for_server
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
@@ -324,8 +326,40 @@ def test_list_functions(create_server):
     assert len(functions) == count, "bad list"
 
 
+def test_version_compatibility_validation():
+    cases = [
+        {
+            "server_version": "unstable",
+            "client_version": "unstable",
+            "compatible": True,
+        },
+        {"server_version": "0.5.3", "client_version": "unstable", "compatible": True},
+        {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
+        {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
+        {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
+        {
+            "server_version": "0.6.0-rc1",
+            "client_version": "0.5.4",
+            "compatible": False,
+        },
+        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": False},
+        {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
+    ]
+    for case in cases:
+        if not case["compatible"]:
+            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+                HTTPRunDB._validate_version_compatibility(
+                    case["server_version"], case["client_version"]
+                )
+        else:
+            HTTPRunDB._validate_version_compatibility(
+                case["server_version"], case["client_version"]
+            )
+
+
 def _create_feature_set(name):
     return {
+        "kind": "FeatureSet",
         "metadata": {
             "name": name,
             "labels": {"owner": "saarc", "group": "dev"},
@@ -372,7 +406,7 @@ def test_feature_sets(create_server):
         db.create_feature_set(feature_set, project=project, versioned=True)
 
     # Test store_feature_set, which allows updates as well as inserts
-    db.store_feature_set(name, feature_set, project=project, versioned=True)
+    db.store_feature_set(feature_set, name=name, project=project, versioned=True)
 
     feature_set_update = {
         "spec": {
@@ -381,14 +415,93 @@ def test_feature_sets(create_server):
     }
 
     # additive mode means add the feature to the features-list
-    db.update_feature_set(
+    db.patch_feature_set(
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
 
-    assert (
-        len(feature_sets.feature_sets) == count
-    ), "bad list results - wrong number of members"
+    assert len(feature_sets) == count, "bad list results - wrong number of members"
 
     feature_set = db.get_feature_set(name, project)
-    assert len(feature_set.spec.features) == 4
+    assert len(feature_set["spec"]["features"]) == 4
+
+    # Create a feature-set that has no labels
+    name = "feature_set_no_labels"
+    feature_set_without_labels = _create_feature_set(name)
+    feature_set_without_labels["metadata"].pop("labels")
+    # Use project name in the feature-set (don't provide it to API)
+    feature_set_without_labels["metadata"]["project"] = project
+    db.store_feature_set(feature_set_without_labels)
+    feature_set_update = {
+        "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
+    }
+    db.patch_feature_set(name, feature_set_update, project)
+    feature_set = db.get_feature_set(name, project)
+    assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"
+
+
+def _create_feature_vector(name):
+    return {
+        "kind": "FeatureVector",
+        "metadata": {
+            "name": name,
+            "labels": {"owner": "nobody", "group": "dev"},
+            "tag": "latest",
+        },
+        "spec": {
+            "features": ["feature_set:*", "feature_set:something", "just_a_feature"],
+            "description": "just a bunch of features",
+        },
+        "status": {"state": "created"},
+    }
+
+
+def test_feature_vectors(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    count = 5
+    for i in range(count):
+        name = f"fs_{i}"
+        feature_vector = _create_feature_vector(name)
+        db.create_feature_vector(feature_vector, project=project, versioned=True)
+
+    # Test store_feature_set, which allows updates as well as inserts
+    db.store_feature_vector(feature_vector, project=project)
+
+    feature_vector_update = {"spec": {"features": ["bla", "blu"]}}
+
+    # additive mode means add the feature to the features-list
+    db.patch_feature_vector(
+        name,
+        feature_vector_update,
+        project,
+        tag="latest",
+        patch_mode=schemas.PatchMode.additive,
+    )
+    feature_vectors = db.list_feature_vectors(project=project)
+
+    assert len(feature_vectors) == count, "bad list results - wrong number of members"
+
+    feature_vector = db.get_feature_vector(name, project)
+    assert (
+        len(feature_vector["spec"]["features"]) == 5
+    ), "Features didn't get updated properly"
+
+    # Create a feature-vector that has no labels
+    name = "feature_vector_no_labels"
+    feature_vector_without_labels = _create_feature_vector(name)
+    feature_vector_without_labels["metadata"].pop("labels")
+    # Use project name in the feature-set (don't provide it to API)
+    feature_vector_without_labels["metadata"]["project"] = project
+    db.store_feature_vector(feature_vector_without_labels)
+
+    # Perform a replace (vs. additive as done earlier) - now should only have 2 features
+    db.patch_feature_vector(
+        name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace
+    )
+    feature_vector = db.get_feature_vector(name, project)
+    assert (
+        len(feature_vector["spec"]["features"]) == 2
+    ), "Features didn't get updated properly"

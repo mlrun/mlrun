@@ -23,7 +23,7 @@ def create_schedule(
         schedule.kind,
         schedule.scheduled_object,
         schedule.cron_trigger,
-        labels={label.name: label.value for label in schedule.labels},
+        labels=schedule.labels,
     )
     return Response(status_code=HTTPStatus.CREATED.value)
 
@@ -41,7 +41,7 @@ def update_schedule(
         name,
         schedule.scheduled_object,
         schedule.cron_trigger,
-        labels={label.name: label.value for label in schedule.labels},
+        labels=schedule.labels,
     )
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -56,7 +56,7 @@ def list_schedules(
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_scheduler().list_schedules(
-        db_session, project, name, labels, kind, include_last_run=include_last_run
+        db_session, project, name, kind, labels, include_last_run=include_last_run
     )
 
 

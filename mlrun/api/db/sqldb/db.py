@@ -2,12 +2,14 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Dict
 
+import mergedeep
 import pytz
 from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+import mlrun.api.utils.projects.remotes.member
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -28,9 +30,11 @@ from mlrun.api.db.sqldb.models import (
     FeatureSet,
     Feature,
     Entity,
+    FeatureVector,
     _tagged,
     _labeled,
 )
+from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.utils import (
@@ -40,37 +44,24 @@ from mlrun.utils import (
     fill_function_hash,
     fill_object_hash,
     generate_object_uri,
+    match_times,
 )
-import mergedeep
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(DBInterface):
-    def __init__(self, dsn, projects=None):
+class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
+    def __init__(self, dsn):
         self.dsn = dsn
 
-        # FIXME: this is a huge hack - the cache is currently not a real cache but a replica of the DB - if the code
-        # can not find a project in the cache it will just try to create it instead of trying to get it from the db
-        # first. in some cases we need several instances of this class (see mlrun.db.sqldb) therefore they all need to
-        # have the same cache, receiving the cache here (set in python passed by reference) to enable that
-        self._projects = projects or set()  # project cache
-
     def initialize(self, session):
-        self._initialize_cache(session)
-
-    def _initialize_cache(self, session):
-        for project in self.list_projects(session):
-            self._projects.add(project.name)
-
-    def get_projects_cache(self):
-        return self._projects
+        return
 
     def store_log(self, session, uid, project="", body=b"", append=False):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         log = self._query(session, Log, uid=uid, project=project).one_or_none()
         if not log:
             log = Log(uid=uid, project=project, body=body)
@@ -103,7 +94,7 @@ class SQLDB(DBInterface):
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         run = self._get_run(session, uid, project, iter)
         if not run:
             run = Run(
@@ -162,9 +153,17 @@ class SQLDB(DBInterface):
         sort=True,
         last=0,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
+        if start_time_from:
+            query = query.filter(Run.start_time >= start_time_from)
+        if start_time_to:
+            query = query.filter(Run.start_time <= start_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
@@ -172,7 +171,9 @@ class SQLDB(DBInterface):
         if not iter:
             query = query.filter(Run.iteration == 0)
 
-        filtered_runs = self._post_query_runs_filter(query, name, state)
+        filtered_runs = self._post_query_runs_filter(
+            query, name, state, last_update_time_from, last_update_time_to
+        )
 
         runs = RunList()
         for run in filtered_runs:
@@ -203,7 +204,7 @@ class SQLDB(DBInterface):
         self, session, key, artifact, uid, iter=None, tag="", project=""
     ):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         artifact = artifact.copy()
         updated = artifact.get("updated")
         if not updated:
@@ -317,7 +318,7 @@ class SQLDB(DBInterface):
         self, session, function, name, project="", tag="", versioned=False
     ):
         project = project or config.default_project
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         tag = tag or get_in(function, "metadata.tag") or "latest"
         hash_key = fill_function_hash(function, tag)
 
@@ -337,7 +338,7 @@ class SQLDB(DBInterface):
 
         updated = datetime.now(timezone.utc)
         update_in(function, "metadata.updated", updated)
-        fn = self._get_function(session, name, project, uid)
+        fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
             fn = Function(name=name, project=project, uid=uid,)
         fn.updated = updated
@@ -474,7 +475,6 @@ class SQLDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         labels: Dict = None,
     ):
-        self._ensure_project(session, project)
         schedule = Schedule(
             project=project,
             name=name,
@@ -508,7 +508,7 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
     ):
-        self._ensure_project(session, project)
+        get_project_member().ensure_project(session, project)
         query = self._query(session, Schedule, project=project, name=name)
         schedule = query.one_or_none()
 
@@ -582,6 +582,13 @@ class SQLDB(DBInterface):
         for feature_set in self.list_feature_sets(session, project).feature_sets:
             self.delete_feature_set(session, project, feature_set.metadata.name)
 
+    def _delete_feature_vectors(self, session: Session, project: str):
+        logger.debug("Removing feature-vectors from db", project=project)
+        for feature_vector in self.list_feature_vectors(
+            session, project
+        ).feature_vectors:
+            self.delete_feature_vector(session, project, feature_vector.metadata.name)
+
     def tag_objects(self, session, objs, project: str, name: str):
         """Tag objects with (project, name) tag.
 
@@ -640,57 +647,62 @@ class SQLDB(DBInterface):
                 tags.add(tag.name)
         return tags
 
-    def add_project(self, session, project: dict):
-        project = project.copy()
-        name = project.get("name")
-        if not name:
-            raise ValueError("project missing name")
+    def create_project(self, session: Session, project: schemas.Project):
+        logger.debug("Creating project in DB", project=project)
+        created = datetime.utcnow()
+        project.created = created
+        project_record = Project(
+            name=project.name,
+            description=project.description,
+            owner=project.owner,
+            source=project.source,
+            state=project.state,
+            created=created,
+            full_object=project.dict(),
+        )
+        self._upsert(session, project_record)
 
-        project.pop("users", [])
-        prj = Project(**project)
-        users = (
-            []
-        )  # self._find_or_create_users(session, user_names) - user_names are previously popped users
-        prj.users.extend(users)
-        self._upsert(session, prj)
-        self._projects.add(prj.name)
-        return prj.id
+    def store_project(self, session: Session, name: str, project: schemas.Project):
+        logger.debug("Storing project in DB", name=name, project=project)
+        project_record = self._get_project_record(
+            session, name, raise_on_not_found=False
+        )
+        if not project_record:
+            self.create_project(session, project)
+        else:
+            self._update_project_record_from_project(session, project_record, project)
 
-    def update_project(self, session, name, data: dict):
-        prj = self.get_project(session, name)
-        if not prj:
-            raise DBError(f"unknown project - {name}")
+    def patch_project(
+        self,
+        session: Session,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        logger.debug(
+            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
+        )
+        project_record = self._get_project_record(session, name)
+        self._patch_project_record_from_project(
+            session, project_record, project, patch_mode
+        )
 
-        data = data.copy()
-        data.pop("users", [])
-        for key, value in data.items():
-            if not hasattr(prj, key):
-                raise DBError(f"unknown project attribute - {key}")
-            setattr(prj, key, value)
+    def get_project(
+        self, session: Session, name: str = None, project_id: int = None
+    ) -> schemas.Project:
+        project_record = self._get_project_record(session, name, project_id)
 
-        users = (
-            []
-        )  # self._find_or_create_users(session, user_names) - user_names are previously popped users
-        prj.users.clear()
-        prj.users.extend(users)
-        self._upsert(session, prj, ignore=True)
+        return self._transform_project_record_to_schema(session, project_record)
 
-    def get_project(self, session, name=None, project_id=None):
-        if not (project_id or name):
-            raise ValueError("need at least one of project_id or name")
-
-        if project_id:
-            return self._query(session, Project).get(project_id)
-
-        return self._query(session, Project, name=name).one_or_none()
-
-    def delete_project(self, session, name: str):
+    def delete_project(self, session: Session, name: str):
+        logger.debug("Deleting project from DB", name=name)
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.del_runs(session, project=name)
         self._delete_schedules(session, name)
         self._delete_functions(session, name)
         self._delete_feature_sets(session, name)
+        self._delete_feature_vectors(session, name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -698,25 +710,108 @@ class SQLDB(DBInterface):
         self._delete_resources_labels(session, name)
         self._delete(session, Project, name=name)
 
-    def list_projects(self, session, owner=None):
-        return self._query(session, Project, owner=owner)
+    def list_projects(
+        self,
+        session: Session,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+    ) -> schemas.ProjectsOutput:
+        project_records = self._query(session, Project, owner=owner)
+        projects = []
+        for project_record in project_records:
+            if format_ == mlrun.api.schemas.Format.name_only:
+                projects.append(project_record.name)
+            elif format_ == mlrun.api.schemas.Format.full:
+                projects.append(
+                    self._transform_project_record_to_schema(session, project_record)
+                )
+            else:
+                raise NotImplementedError(
+                    f"Provided format is not supported. format={format_}"
+                )
+        return schemas.ProjectsOutput(projects=projects)
+
+    def _update_project_record_from_project(
+        self, session: Session, project_record: Project, project: schemas.Project
+    ):
+        project.created = project_record.created
+        project_dict = project.dict()
+        project_record.full_object = project_dict
+        project_record.description = project.description
+        project_record.source = project.source
+        project_record.state = project.state
+        self._upsert(session, project_record)
+
+    def _patch_project_record_from_project(
+        self,
+        session: Session,
+        project_record: Project,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode,
+    ):
+        project_dict = project.dict(exclude_unset=True)
+        if project.description:
+            project_record.description = project.description
+        if project.source:
+            project_record.source = project.source
+        if project.state:
+            project_record.state = project.state
+        strategy = patch_mode.to_mergedeep_strategy()
+        project_record_full_object = project_record.full_object
+        mergedeep.merge(project_record_full_object, project_dict, strategy=strategy)
+        project_record.full_object = project_record_full_object
+        self._upsert(session, project_record)
+
+    def _get_project_record(
+        self,
+        session: Session,
+        name: str = None,
+        project_id: int = None,
+        raise_on_not_found: bool = True,
+    ) -> Project:
+        if not any([project_id, name]):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "One of 'name' or 'project_id' must be provided"
+            )
+        project_record = self._query(
+            session, Project, name=name, id=project_id
+        ).one_or_none()
+        if not project_record:
+            if not raise_on_not_found:
+                return None
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Project not found: name={name}, project_id={project_id}"
+            )
+
+        return project_record
+
+    def _get_record_by_name_tag_and_uid(
+        self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
+    ):
+        query = self._query(session, cls, name=name, project=project)
+        computed_tag = tag or "latest"
+        object_tag_uid = None
+        if tag or not uid:
+            object_tag_uid = self._resolve_class_tag_uid(
+                session, cls, project, name, computed_tag
+            )
+            if object_tag_uid is None:
+                return None, None, None
+            uid = object_tag_uid
+        if uid:
+            query = query.filter(cls.uid == uid)
+        return computed_tag, object_tag_uid, query.one_or_none()
 
     def _get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None,
     ):
-        query = self._query(session, FeatureSet, name=name, project=project)
-        computed_tag = tag or "latest"
-        feature_set_tag_uid = None
-        if tag or not uid:
-            feature_set_tag_uid = self._resolve_class_tag_uid(
-                session, FeatureSet, project, name, computed_tag
-            )
-            if feature_set_tag_uid is None:
-                return None
-            uid = feature_set_tag_uid
-        if uid:
-            query = query.filter(FeatureSet.uid == uid)
-        db_feature_set = query.one_or_none()
+        (
+            computed_tag,
+            feature_set_tag_uid,
+            db_feature_set,
+        ) = self._get_record_by_name_tag_and_uid(
+            session, FeatureSet, project, name, tag, uid
+        )
         if db_feature_set:
             feature_set = self._transform_feature_set_model_to_schema(db_feature_set)
 
@@ -739,11 +834,11 @@ class SQLDB(DBInterface):
 
         return feature_set
 
-    def _get_feature_sets_tags_map(self, session, project, tag, name=None):
+    def _get_records_to_tags_map(self, session, cls, project, tag, name=None):
         # Find object IDs by tag, project and feature-set-name (which is a like query)
-        tag_query = self._query(session, FeatureSet.Tag, project=project, name=tag)
+        tag_query = self._query(session, cls.Tag, project=project, name=tag)
         if name:
-            tag_query = tag_query.filter(FeatureSet.Tag.obj_name.ilike(f"%{name}%"))
+            tag_query = tag_query.filter(cls.Tag.obj_name.ilike(f"%{name}%"))
 
         # Generate a mapping from each object id (note: not uid, it's the DB ID) to its associated tags.
         obj_id_tags = {}
@@ -754,35 +849,25 @@ class SQLDB(DBInterface):
                 obj_id_tags[row.obj_id] = [row.name]
         return obj_id_tags
 
-    def _generate_feature_set_results_with_tags_assigned(
-        self, feature_set_record, obj_id_tags, default_tag=None
+    def _generate_records_with_tags_assigned(
+        self, object_record, transform_fn, obj_id_tags, default_tag=None
     ):
         # Using a similar mechanism here to assign tags to feature sets as is used in list_functions. Please refer
         # there for some comments explaining the logic.
-        feature_sets = []
+        results = []
         if default_tag:
-            feature_sets.append(
-                self._transform_feature_set_model_to_schema(
-                    feature_set_record, default_tag
-                )
-            )
+            results.append(transform_fn(object_record, default_tag))
         else:
-            feature_set_tags = obj_id_tags.get(feature_set_record.id, [])
-            if len(feature_set_tags) == 0 and not feature_set_record.uid.startswith(
+            object_tags = obj_id_tags.get(object_record.id, [])
+            if len(object_tags) == 0 and not object_record.uid.startswith(
                 unversioned_tagged_object_uid_prefix
             ):
-                feature_set = self._transform_feature_set_model_to_schema(
-                    feature_set_record
-                )
-                feature_sets.append(feature_set)
+                new_object = transform_fn(object_record)
+                results.append(new_object)
             else:
-                for feature_set_tag in feature_set_tags:
-                    feature_sets.append(
-                        self._transform_feature_set_model_to_schema(
-                            feature_set_record, feature_set_tag
-                        )
-                    )
-        return feature_sets
+                for object_tag in object_tags:
+                    results.append(transform_fn(object_record, object_tag))
+        return results
 
     @staticmethod
     def _generate_feature_set_digest(feature_set: schemas.FeatureSet):
@@ -801,8 +886,8 @@ class SQLDB(DBInterface):
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
         # We don't filter by feature-set name here, as the name parameter refers to features
-        feature_set_id_tags = self._get_feature_sets_tags_map(
-            session, project, tag, name=None
+        feature_set_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name=None
         )
 
         # Query the actual objects to be returned
@@ -826,18 +911,28 @@ class SQLDB(DBInterface):
             feature_record = schemas.FeatureRecord.from_orm(row.Feature)
             feature_name = feature_record.name
 
-            feature_sets = self._generate_feature_set_results_with_tags_assigned(
-                row.FeatureSet, feature_set_id_tags, tag
+            feature_sets = self._generate_records_with_tags_assigned(
+                row.FeatureSet,
+                self._transform_feature_set_model_to_schema,
+                feature_set_id_tags,
+                tag,
             )
 
             for feature_set in feature_sets:
                 # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
                 # in the DB)
                 feature = next(
-                    feature
-                    for feature in feature_set.spec.features
-                    if feature.name == feature_name
+                    (
+                        feature
+                        for feature in feature_set.spec.features
+                        if feature.name == feature_name
+                    ),
+                    None,
                 )
+                if not feature:
+                    raise DBError(
+                        "Inconsistent data in DB - features in DB not in feature-set document"
+                    )
 
                 features_results.append(
                     schemas.FeatureListOutput(
@@ -860,7 +955,9 @@ class SQLDB(DBInterface):
         features: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeatureSetsOutput:
-        obj_id_tags = self._get_feature_sets_tags_map(session, project, tag, name)
+        obj_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name
+        )
 
         # Query the actual objects to be returned
         query = self._query(session, FeatureSet, project=project, state=state)
@@ -879,8 +976,11 @@ class SQLDB(DBInterface):
         feature_sets = []
         for feature_set_record in query:
             feature_sets.extend(
-                self._generate_feature_set_results_with_tags_assigned(
-                    feature_set_record, obj_id_tags, tag
+                self._generate_records_with_tags_assigned(
+                    feature_set_record,
+                    self._transform_feature_set_model_to_schema,
+                    obj_id_tags,
+                    tag,
                 )
             )
         return schemas.FeatureSetsOutput(feature_sets=feature_sets)
@@ -919,23 +1019,66 @@ class SQLDB(DBInterface):
             update_labels(entity, labels)
             feature_set.entities.append(entity)
 
-    def _get_feature_set_instance_by_uid(self, session, name, project, uid):
-        query = self._query(session, FeatureSet, name=name, project=project, uid=uid)
-        return query.one_or_none()
-
-    def _update_existing_feature_set(
-        self, feature_set: FeatureSet, new_feature_set_dict: dict
+    def _update_feature_set_spec(
+        self, feature_set: FeatureSet, new_feature_set_dict: dict, replace=True
     ):
         feature_set_spec = new_feature_set_dict.get("spec")
-        if feature_set_spec:
-            features = feature_set_spec.pop("features", [])
-            entities = feature_set_spec.pop("entities", [])
+        features = feature_set_spec.pop("features", [])
+        entities = feature_set_spec.pop("entities", [])
 
-        self._update_feature_set_features(feature_set, features)
-        self._update_feature_set_entities(feature_set, entities)
+        self._update_feature_set_features(feature_set, features, replace)
+        self._update_feature_set_entities(feature_set, entities, replace)
 
-        labels = new_feature_set_dict["metadata"].pop("labels", {})
-        update_labels(feature_set, labels)
+    @staticmethod
+    def _validate_store_parameters(object_to_store, project, name, tag, uid):
+        object_type = object_to_store.__class__.__name__
+
+        if not tag and not uid:
+            raise ValueError(
+                f"cannot store {object_type} without reference (tag or uid)"
+            )
+
+        object_project = object_to_store.metadata.project
+        if object_project and object_project != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{object_type} object with conflicting project name - {object_project}"
+            )
+
+        object_to_store.metadata.project = project
+
+        if object_to_store.metadata.name != name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Changing name for an existing {object_type}"
+            )
+
+    @staticmethod
+    def _common_object_validate_and_perform_uid_change(
+        object_dict: dict, tag, versioned, existing_uid=None,
+    ):
+        uid = fill_object_hash(object_dict, "uid", tag)
+        if not versioned:
+            uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
+            object_dict["metadata"]["uid"] = uid
+
+        # If object was referenced by UID, the request cannot modify it
+        if existing_uid and uid != existing_uid:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing uid for an object referenced by its uid"
+            )
+        return uid
+
+    @staticmethod
+    def _update_db_record_from_object_dict(
+        db_object, common_object_dict: dict, uid,
+    ):
+        db_object.name = common_object_dict["metadata"]["name"]
+        db_object.updated = datetime.now(timezone.utc)
+        db_object.state = common_object_dict.get("status", {}).get("state")
+        db_object.uid = uid
+        db_object.full_object = common_object_dict
+
+        labels = common_object_dict["metadata"].pop("labels", {}) or {}
+        update_labels(db_object, labels)
 
     def store_feature_set(
         self,
@@ -948,94 +1091,90 @@ class SQLDB(DBInterface):
         versioned=True,
         always_overwrite=False,
     ):
-        if not tag and not uid:
-            raise ValueError("cannot store feature set without reference (tag or uid)")
-
-        if feature_set.metadata.name != name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Changing name for an existing feature-set"
-            )
+        self._validate_store_parameters(feature_set, project, name, tag, uid)
 
         original_uid = uid
 
-        existing_feature_set = self._get_feature_set(
-            session, project, name, tag, original_uid
+        _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
+            session, FeatureSet, project, name, tag, uid
         )
         if not existing_feature_set:
             return self.create_feature_set(session, project, feature_set, versioned)
 
         feature_set_dict = feature_set.dict()
-        uid = fill_object_hash(feature_set_dict, "uid", tag)
-        if not versioned:
-            uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
-            feature_set_dict["metadata"]["uid"] = uid
+        uid = self._common_object_validate_and_perform_uid_change(
+            feature_set_dict, tag, versioned, original_uid
+        )
 
-        # If object was referenced by UID, the request cannot modify it
-        if original_uid and uid != original_uid:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Changing uid for an object referenced by its uid"
-            )
-
-        if uid == existing_feature_set.metadata.uid or always_overwrite:
-            db_feature_set = self._get_feature_set_instance_by_uid(
-                session, name, project, existing_feature_set.metadata.uid
-            )
+        if uid == existing_feature_set.uid or always_overwrite:
+            db_feature_set = existing_feature_set
         else:
-            db_feature_set = FeatureSet(project=project)
+            db_feature_set = FeatureSet(project=project, full_object=feature_set_dict)
 
-        db_feature_set.name = feature_set.metadata.name
-        db_feature_set.updated = datetime.now(timezone.utc)
-        db_feature_set.state = feature_set_dict.get("status", {}).get("state")
-        db_feature_set.uid = uid
-        db_feature_set.full_object = feature_set_dict
+        self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 
-        self._update_existing_feature_set(db_feature_set, feature_set_dict)
-
+        self._update_feature_set_spec(db_feature_set, feature_set_dict)
         self._upsert(session, db_feature_set)
         self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
 
-    def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    def _validate_and_enrich_record_for_creation(
+        self, session, new_object, db_class, project, versioned
     ):
-        name = feature_set.metadata.name
+        object_type = new_object.__class__.__name__
+
+        name = new_object.metadata.name
         if not name or not project:
-            raise ValueError("feature-set missing name or project")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{object_type} missing name or project"
+            )
 
-        self._ensure_project(session, project)
-        tag = feature_set.metadata.tag or "latest"
+        object_project = new_object.metadata.project
+        if object_project and object_project != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{object_type} object with conflicting project name - {object_project}"
+            )
 
-        feature_set_dict = feature_set.dict()
-        hash_key = fill_object_hash(feature_set_dict, "uid", tag)
+        new_object.metadata.project = project
+
+        get_project_member().ensure_project(session, project)
+        tag = new_object.metadata.tag or "latest"
+
+        object_dict = new_object.dict()
+        hash_key = fill_object_hash(object_dict, "uid", tag)
 
         if versioned:
             uid = hash_key
         else:
             uid = f"{unversioned_tagged_object_uid_prefix}{tag}"
-            feature_set_dict["metadata"]["uid"] = uid
+            object_dict["metadata"]["uid"] = uid
 
-        state = feature_set_dict.get("status", {}).get("state")
-
-        feature_set = self._get_feature_set_instance_by_uid(session, name, project, uid)
-        if feature_set:
-            feature_set_uri = generate_object_uri(project, name, tag)
+        existing_object = self._get_class_instance_by_uid(
+            session, db_class, name, project, uid
+        )
+        if existing_object:
+            object_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunConflictError(
-                f"Adding an already-existing feature-set {feature_set_uri}"
-            )
-        else:
-            feature_set = FeatureSet(
-                name=name,
-                project=project,
-                state=state,
-                uid=uid,
-                full_object=feature_set_dict,
+                f"Adding an already-existing {object_type} - {object_uri}"
             )
 
-        self._update_existing_feature_set(feature_set, feature_set_dict)
+        return uid, tag, object_dict
 
-        self._upsert(session, feature_set)
-        self.tag_objects_v2(session, [feature_set], project, tag)
+    def create_feature_set(
+        self, session, project, feature_set: schemas.FeatureSet, versioned=True
+    ):
+        (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
+            session, feature_set, FeatureSet, project, versioned
+        )
+
+        db_feature_set = FeatureSet(project=project)
+
+        self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
+        self._update_feature_set_spec(db_feature_set, feature_set_dict)
+
+        self._upsert(session, db_feature_set)
+        self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
 
@@ -1058,14 +1197,13 @@ class SQLDB(DBInterface):
 
         feature_set_struct = feature_set_record.dict()
         # using mergedeep for merging the patch content into the existing dictionary
-        strategy = mergedeep.Strategy.REPLACE
-        if patch_mode.value == "additive":
-            strategy = mergedeep.Strategy.ADDITIVE
+        strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(feature_set_struct, feature_set_update, strategy=strategy)
 
         versioned = not feature_set_record.metadata.uid.startswith(
             unversioned_tagged_object_uid_prefix
         )
+        # If a bad kind value was passed, it will fail here (return 422 to caller)
         feature_set = schemas.FeatureSet(**feature_set_struct)
         return self.store_feature_set(
             session,
@@ -1081,6 +1219,182 @@ class SQLDB(DBInterface):
     def delete_feature_set(self, session, project, name):
         self._delete(session, FeatureSet.Tag, project=project, obj_name=name)
         self._delete(session, FeatureSet, project=project, name=name)
+
+    def create_feature_vector(
+        self, session, project, feature_vector: schemas.FeatureVector, versioned=True
+    ):
+        (
+            uid,
+            tag,
+            feature_vector_dict,
+        ) = self._validate_and_enrich_record_for_creation(
+            session, feature_vector, FeatureVector, project, versioned
+        )
+
+        db_feature_vector = FeatureVector(project=project)
+
+        self._update_db_record_from_object_dict(
+            db_feature_vector, feature_vector_dict, uid
+        )
+
+        self._upsert(session, db_feature_vector)
+        self.tag_objects_v2(session, [db_feature_vector], project, tag)
+
+        return uid
+
+    def _get_feature_vector(
+        self, session, project: str, name: str, tag: str = None, uid: str = None,
+    ):
+        (
+            computed_tag,
+            feature_vector_tag_uid,
+            db_feature_vector,
+        ) = self._get_record_by_name_tag_and_uid(
+            session, FeatureVector, project, name, tag, uid
+        )
+        if db_feature_vector:
+            feature_vector = self._transform_feature_vector_model_to_schema(
+                db_feature_vector
+            )
+
+            # If connected to a tag add it to metadata
+            if feature_vector_tag_uid:
+                feature_vector.metadata.tag = computed_tag
+            return feature_vector
+        else:
+            return None
+
+    def get_feature_vector(
+        self, session, project: str, name: str, tag: str = None, uid: str = None
+    ) -> schemas.FeatureVector:
+        feature_vector = self._get_feature_vector(session, project, name, tag, uid)
+        if not feature_vector:
+            feature_vector_uri = generate_object_uri(project, name, tag)
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Feature-vector not found {feature_vector_uri}"
+            )
+
+        return feature_vector
+
+    def list_feature_vectors(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> schemas.FeatureVectorsOutput:
+        obj_id_tags = self._get_records_to_tags_map(
+            session, FeatureVector, project, tag, name
+        )
+
+        # Query the actual objects to be returned
+        query = self._query(session, FeatureVector, project=project, state=state)
+
+        if name is not None:
+            query = query.filter(FeatureVector.name.ilike(f"%{name}%"))
+        if tag:
+            query = query.filter(FeatureVector.id.in_(obj_id_tags.keys()))
+        if labels:
+            query = self._add_labels_filter(session, query, FeatureVector, labels)
+
+        feature_vectors = []
+        for feature_vector_record in query:
+            feature_vectors.extend(
+                self._generate_records_with_tags_assigned(
+                    feature_vector_record,
+                    self._transform_feature_vector_model_to_schema,
+                    obj_id_tags,
+                    tag,
+                )
+            )
+        return schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
+
+    def store_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector: schemas.FeatureVector,
+        tag=None,
+        uid=None,
+        versioned=True,
+        always_overwrite=False,
+    ):
+        self._validate_store_parameters(feature_vector, project, name, tag, uid)
+
+        original_uid = uid
+
+        _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
+            session, FeatureVector, project, name, tag, uid
+        )
+        if not existing_feature_vector:
+            return self.create_feature_vector(
+                session, project, feature_vector, versioned
+            )
+
+        feature_vector_dict = feature_vector.dict()
+        uid = self._common_object_validate_and_perform_uid_change(
+            feature_vector_dict, tag, versioned, original_uid
+        )
+
+        if uid == existing_feature_vector.uid or always_overwrite:
+            db_feature_vector = existing_feature_vector
+        else:
+            db_feature_vector = FeatureVector(project=project)
+
+        self._update_db_record_from_object_dict(
+            db_feature_vector, feature_vector_dict, uid
+        )
+
+        self._upsert(session, db_feature_vector)
+        self.tag_objects_v2(session, [db_feature_vector], project, tag)
+
+        return uid
+
+    def patch_feature_vector(
+        self,
+        session,
+        project,
+        name,
+        feature_vector_update: dict,
+        tag=None,
+        uid=None,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        feature_vector_record = self._get_feature_vector(
+            session, project, name, tag, uid
+        )
+        if not feature_vector_record:
+            feature_vector_uri = generate_object_uri(project, name, tag)
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Feature-vector not found {feature_vector_uri}"
+            )
+
+        feature_vector_struct = feature_vector_record.dict()
+        # using mergedeep for merging the patch content into the existing dictionary
+        strategy = patch_mode.to_mergedeep_strategy()
+        mergedeep.merge(feature_vector_struct, feature_vector_update, strategy=strategy)
+
+        versioned = not feature_vector_record.metadata.uid.startswith(
+            unversioned_tagged_object_uid_prefix
+        )
+        feature_vector = schemas.FeatureVector(**feature_vector_struct)
+        return self.store_feature_vector(
+            session,
+            project,
+            name,
+            feature_vector,
+            feature_vector.metadata.tag,
+            uid,
+            versioned,
+            always_overwrite=True,
+        )
+
+    def delete_feature_vector(self, session, project, name):
+        self._delete(session, FeatureVector.Tag, project=project, obj_name=name)
+        self._delete(session, FeatureVector, project=project, name=name)
 
     def _resolve_tag(self, session, cls, project, name):
         uids = []
@@ -1125,16 +1439,6 @@ class SQLDB(DBInterface):
         if out:
             return out[0]
 
-    def _ensure_project(self, session, name):
-        if name not in self._projects:
-
-            # fill cache from DB
-            projects = self.list_projects(session)
-            for project in projects:
-                self._projects.add(project.name)
-            if name not in self._projects:
-                self.add_project(session, {"name": name})
-
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
         new = set(user_names) - {user.name for user in users}
@@ -1150,8 +1454,8 @@ class SQLDB(DBInterface):
                 raise DBError(f"add user: {err}") from err
         return users
 
-    def _get_function(self, session, name, project, uid):
-        query = self._query(session, Function, name=name, project=project, uid=uid)
+    def _get_class_instance_by_uid(self, session, cls, name, project, uid):
+        query = self._query(session, cls, name=name, project=project, uid=uid)
         return query.one_or_none()
 
     def _get_artifact(self, session, uid, project, key):
@@ -1194,7 +1498,14 @@ class SQLDB(DBInterface):
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
 
-    def _post_query_runs_filter(self, query, name=None, state=None):
+    def _post_query_runs_filter(
+        self,
+        query,
+        name=None,
+        state=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
+    ):
         """
         This function is hacky and exists to cover on bugs we had with how we save our data in the DB
         We're doing it the hacky way since:
@@ -1206,7 +1517,12 @@ class SQLDB(DBInterface):
         json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
         column
         """
-        if not name and not state:
+        if (
+            not name
+            and not state
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
             return query.all()
 
         filtered_runs = []
@@ -1237,6 +1553,15 @@ class SQLDB(DBInterface):
                 else:
                     if state not in record_state:
                         continue
+            if last_update_time_from or last_update_time_to:
+                if not match_times(
+                    last_update_time_from,
+                    last_update_time_to,
+                    run_json,
+                    "status.last_update",
+                ):
+                    continue
+
             filtered_runs.append(run)
 
         return filtered_runs
@@ -1432,3 +1757,30 @@ class SQLDB(DBInterface):
 
         feature_set_resp.metadata.tag = tag
         return feature_set_resp
+
+    @staticmethod
+    def _transform_feature_vector_model_to_schema(
+        feature_vector_record: FeatureVector, tag=None,
+    ) -> schemas.FeatureVector:
+        feature_vector_full_dict = feature_vector_record.full_object
+        feature_vector_resp = schemas.FeatureVector(**feature_vector_full_dict)
+
+        feature_vector_resp.metadata.tag = tag
+        return feature_vector_resp
+
+    def _transform_project_record_to_schema(
+        self, session: Session, project_record: Project
+    ) -> schemas.Project:
+        # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
+        if not project_record.full_object:
+            project = schemas.Project(
+                name=project_record.name,
+                description=project_record.description,
+                source=project_record.source,
+                state=project_record.state,
+                owner=project_record.owner,
+                created=project_record.created,
+            )
+            self.store_project(session, project_record.name, project)
+            return project
+        return schemas.Project(**project_record.full_object)

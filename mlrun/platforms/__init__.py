@@ -14,5 +14,11 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .iguazio import v3io_cred, mount_v3io, add_or_refresh_credentials
+from .iguazio import (
+    v3io_cred,
+    mount_v3io,
+    add_or_refresh_credentials,
+    mount_v3io_extended,
+    VolumeMount,
+)
 from .other import mount_pvc, auto_mount

@@ -15,6 +15,7 @@
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Union
+
 from mlrun.api import schemas
 
 
@@ -117,15 +118,35 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name, struct, use_vault=False):
-        pass
-
-    @abstractmethod
     def delete_project(self, name: str):
         pass
 
-    def list_projects(self):
-        return []
+    @abstractmethod
+    def store_project(self, name: str, project: schemas.Project, use_vault=False) -> schemas.Project:
+        pass
+
+    @abstractmethod
+    def patch_project(
+        self,
+        name: str,
+        project: schemas.ProjectPatch,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ) -> schemas.Project:
+        pass
+
+    @abstractmethod
+    def create_project(self, project: schemas.Project, use_vault=False) -> schemas.Project:
+        pass
+
+    @abstractmethod
+    def list_projects(
+        self, owner: str = None, format_: schemas.Format = schemas.Format.full,
+    ) -> schemas.ProjectsOutput:
+        pass
+
+    @abstractmethod
+    def get_project(self, name: str) -> schemas.Project:
+        pass
 
     def list_artifact_tags(self, project):
         return []
@@ -133,13 +154,13 @@ class RunDBInterface(ABC):
     @abstractmethod
     def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
-    ) -> schemas.FeatureSet:
+    ) -> dict:
         pass
 
     @abstractmethod
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> schemas.FeatureSet:
+    ) -> dict:
         pass
 
     @abstractmethod
@@ -163,14 +184,14 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeatureSetsOutput:
+    ) -> List[dict]:
         pass
 
     @abstractmethod
     def store_feature_set(
         self,
-        name,
         feature_set: Union[dict, schemas.FeatureSet],
+        name=None,
         project="",
         tag=None,
         uid=None,
@@ -179,7 +200,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_feature_set(
+    def patch_feature_set(
         self,
         name,
         feature_set: dict,
@@ -192,4 +213,58 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def delete_feature_set(self, name, project=""):
+        pass
+
+    @abstractmethod
+    def create_feature_vector(
+        self,
+        feature_vector: Union[dict, schemas.FeatureVector],
+        project="",
+        versioned=True,
+    ) -> dict:
+        pass
+
+    @abstractmethod
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> dict:
+        pass
+
+    @abstractmethod
+    def list_feature_vectors(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> List[dict]:
+        pass
+
+    @abstractmethod
+    def store_feature_vector(
+        self,
+        feature_vector: Union[dict, schemas.FeatureVector],
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
+    ):
+        pass
+
+    @abstractmethod
+    def patch_feature_vector(
+        self,
+        name,
+        feature_vector_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_feature_vector(self, name, project=""):
         pass

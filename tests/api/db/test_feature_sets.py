@@ -38,7 +38,7 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
     name = "dummy"
     feature_set = _create_feature_set(name)
 
-    project = "proj_test"
+    project = "proj-test"
 
     feature_set = schemas.FeatureSet(**feature_set)
     db.store_feature_set(

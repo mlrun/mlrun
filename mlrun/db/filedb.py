@@ -21,6 +21,7 @@ from typing import List
 import yaml
 from dateutil.parser import parse as parse_time
 
+import mlrun.api.schemas
 import mlrun.errors
 from .base import RunDBError, RunDBInterface
 from ..config import config
@@ -33,6 +34,7 @@ from ..utils import (
     logger,
     match_labels,
     match_value,
+    match_times,
     update_in,
     fill_function_hash,
     generate_object_uri,
@@ -119,6 +121,10 @@ class FileRunDB(RunDBInterface):
         sort=True,
         last=1000,
         iter=False,
+        start_time_from=None,
+        start_time_to=None,
+        last_update_time_from=None,
+        last_update_time_to=None,
     ):
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
@@ -131,6 +137,15 @@ class FileRunDB(RunDBInterface):
                 and match_labels(get_in(run, "metadata.labels", {}), labels)
                 and match_value(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
+                and match_times(
+                    start_time_from, start_time_to, run, "status.start_time",
+                )
+                and match_times(
+                    last_update_time_from,
+                    last_update_time_to,
+                    run,
+                    "status.last_update",
+                )
                 and (iter or get_in(run, "metadata.iteration", 0) == 0)
             ):
                 results.append(run)
@@ -389,10 +404,6 @@ class FileRunDB(RunDBInterface):
 
         return results
 
-    def store_project(self, name, struct, use_vault=False):
-        # TODO - not sure we really need to implement that, need to consider.
-        pass
-
     def _filepath(self, table, project, key="", tag=""):
         if tag == "*":
             tag = ""
@@ -401,15 +412,41 @@ class FileRunDB(RunDBInterface):
         project = project or config.default_project
         return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
 
-    def list_projects(self):
+    def list_projects(
+        self,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+    ) -> mlrun.api.schemas.ProjectsOutput:
+        if owner or format_ == mlrun.api.schemas.Format.full:
+            raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
-            return []
-        return [
-            {"name": d} for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
+            return mlrun.api.schemas.ProjectsOutput(projects=[])
+        project_names = [
+            d for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
         ]
+        return mlrun.api.schemas.ProjectsOutput(projects=project_names)
+
+    def get_project(self, name: str) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
 
     def delete_project(self, name: str):
+        raise NotImplementedError()
+
+    def store_project(
+        self, name: str, project: mlrun.api.schemas.Project, use_vault=False
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def patch_project(
+        self,
+        name: str,
+        project: mlrun.api.schemas.ProjectPatch,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def create_project(self, project: mlrun.api.schemas.Project, use_vault=False) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     @property
@@ -498,16 +535,53 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, versioned=True
+        self, feature_set, name=None, project="", tag=None, uid=None, versioned=True
     ):
         raise NotImplementedError()
 
-    def update_feature_set(
+    def patch_feature_set(
         self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
     ):
         raise NotImplementedError()
 
     def delete_feature_set(self, name, project=""):
+        raise NotImplementedError()
+
+    def create_feature_vector(self, feature_vector, project="", versioned=True) -> dict:
+        raise NotImplementedError()
+
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ) -> dict:
+        raise NotImplementedError()
+
+    def list_feature_vectors(
+        self,
+        project: str = "",
+        name: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ) -> List[dict]:
+        raise NotImplementedError()
+
+    def store_feature_vector(
+        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+    ):
+        raise NotImplementedError()
+
+    def patch_feature_vector(
+        self,
+        name,
+        feature_vector_update: dict,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
+    ):
+        raise NotImplementedError()
+
+    def delete_feature_vector(self, name, project=""):
         raise NotImplementedError()
 
 

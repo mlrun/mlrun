@@ -280,7 +280,7 @@ def set_named_item(obj, item):
 
 def get_item_name(item, attr="name"):
     if isinstance(item, dict):
-        return item[attr]
+        return item.get(attr)
     else:
         return getattr(item, attr, None)
 
@@ -339,6 +339,18 @@ def get_resource_labels(function, run=None, scrape_metrics=False):
         labels[mlrun_key + "owner"] = run_owner
 
     return labels
+
+
+def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    """get pod cpu/memory/gpu resources dict"""
+    resources = {}
+    if gpus:
+        resources[gpu_type] = gpus
+    if mem:
+        resources["memory"] = mem
+    if cpu:
+        resources["cpu"] = cpu
+    return resources
 
 
 def get_func_selector(project, name=None, tag=None):

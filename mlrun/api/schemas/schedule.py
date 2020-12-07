@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional, List, Union, Any, Dict
 
 from pydantic import BaseModel
+from mlrun.api.schemas.object import LabelRecord
 
 
 class ScheduleCronTrigger(BaseModel):
@@ -65,19 +66,11 @@ class ScheduleKinds(str, Enum):
     local_function = "local_function"
 
 
-class Label(BaseModel):
-    name: str
-    value: str
-
-    class Config:
-        orm_mode = True
-
-
 class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]
     cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
     desired_state: Optional[str]
-    labels: Optional[List[Label]]
+    labels: Optional[dict]
 
 
 # Properties to receive via API on creation
@@ -87,7 +80,7 @@ class ScheduleInput(BaseModel):
     scheduled_object: Any
     cron_trigger: Union[str, ScheduleCronTrigger]
     desired_state: Optional[str]
-    labels: Optional[List[Label]]
+    labels: Optional[dict]
 
 
 # the schedule object returned from the db layer
@@ -96,6 +89,7 @@ class ScheduleRecord(ScheduleInput):
     project: str
     last_run_uri: Optional[str]
     state: Optional[str]
+    labels: Optional[List[LabelRecord]]
 
     class Config:
         orm_mode = True
@@ -105,6 +99,7 @@ class ScheduleRecord(ScheduleInput):
 class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
     last_run: Optional[Dict]
+    labels: Optional[dict]
 
 
 class SchedulesOutput(BaseModel):

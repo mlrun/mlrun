@@ -18,7 +18,13 @@ from copy import deepcopy
 from kubernetes import client
 from kfp.dsl import ContainerOp
 
-from .utils import apply_kfp, set_named_item, get_item_name, get_resource_labels
+from .utils import (
+    apply_kfp,
+    set_named_item,
+    get_item_name,
+    get_resource_labels,
+    generate_resources,
+)
 from ..utils import normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec
 
@@ -43,6 +49,7 @@ class KubeResourceSpec(FunctionSpec):
         service_account=None,
         build=None,
         image_pull_secret=None,
+        rundb=None,
     ):
         super().__init__(
             command=command,
@@ -54,6 +61,7 @@ class KubeResourceSpec(FunctionSpec):
             description=description,
             workdir=workdir,
             default_handler=default_handler,
+            rundb=rundb,
         )
         self._volumes = {}
         self._volume_mounts = {}
@@ -85,8 +93,8 @@ class KubeResourceSpec(FunctionSpec):
     def volume_mounts(self, volume_mounts):
         self._volume_mounts = {}
         if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
+            for volume_mount in volume_mounts:
+                self._set_volume_mount(volume_mount)
 
     def update_vols_and_mounts(self, volumes, volume_mounts):
         if volumes:
@@ -94,8 +102,16 @@ class KubeResourceSpec(FunctionSpec):
                 set_named_item(self._volumes, vol)
 
         if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
+            for volume_mount in volume_mounts:
+                self._set_volume_mount(volume_mount)
+
+    def _set_volume_mount(self, volume_mount):
+        # calculate volume mount hash
+        volume_name = get_item_name(volume_mount, "name")
+        volume_sub_path = get_item_name(volume_mount, "subPath")
+        volume_mount_path = get_item_name(volume_mount, "mountPath")
+        volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
+        self._volume_mounts[volume_mount_key] = volume_mount
 
 
 class KubeResource(BaseRuntime):
@@ -167,23 +183,15 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        limits = {}
-        if gpus:
-            limits[gpu_type] = gpus
-        if mem:
-            limits["memory"] = mem
-        if cpu:
-            limits["cpu"] = cpu
-        update_in(self.spec.resources, "limits", limits)
+        update_in(
+            self.spec.resources,
+            "limits",
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory/gpu resources"""
-        requests = {}
-        if mem:
-            requests["memory"] = mem
-        if cpu:
-            requests["cpu"] = cpu
-        update_in(self.spec.resources, "requests", requests)
+        update_in(self.spec.resources, "requests", generate_resources(mem=mem, cpu=cpu))
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()

@@ -220,19 +220,21 @@ with warnings.catch_warnings():
         description = Column(String)
         owner = Column(String)
         source = Column(String)
-        _spec = Column("spec", BLOB)
+        # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
+        # leaving the column as is to prevent redundant migration
+        _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
         state = Column(String)
         users = relationship(User, secondary=project_users)
 
         @property
-        def spec(self):
-            if self._spec:
-                return pickle.loads(self._spec)
+        def full_object(self):
+            if self._full_object:
+                return pickle.loads(self._full_object)
 
-        @spec.setter
-        def spec(self, value):
-            self._spec = pickle.dumps(value)
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = pickle.dumps(value)
 
     class Feature(Base):
         __tablename__ = "features"
@@ -279,6 +281,36 @@ with warnings.catch_warnings():
 
         features = relationship(Feature, cascade="all, delete-orphan")
         entities = relationship(Entity, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
+
+    class FeatureVector(Base):
+        __tablename__ = "feature_vectors"
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_vectors_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+        project = Column(String)
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String)
+        uid = Column(String)
+
+        _full_object = Column("object", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
 
         @property
         def full_object(self):

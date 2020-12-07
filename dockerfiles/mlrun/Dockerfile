@@ -14,15 +14,23 @@
 # limitations under the License.
 ARG MLRUN_PYTHON_VERSION=3.7
 
-FROM python:${MLRUN_PYTHON_VERSION}
+FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
 
+RUN apt-get update && apt-get install -y \
+  gcc \
+  git-core \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /mlrun
 
-RUN pip install --upgrade pip
+RUN python -m pip install --upgrade pip
+COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./requirements.txt ./
-RUN python -m pip install -r requirements.txt
+RUN python -m pip install \
+    -r requirements.txt \
+    -r mlrun-image-requirements.txt
 
 COPY . .
 RUN python -m pip install .

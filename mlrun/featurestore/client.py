@@ -16,8 +16,10 @@ from storey import Table, V3ioDriver, NoopDriver
 
 from mlrun import get_run_db
 from mlrun.datastore import store_manager
+from mlrun.config import config as mlconf
+
 from .infer import get_df_stats, get_df_preview
-from .pipeline import init_graph
+from .pipeline import init_featureset_graph
 
 from .vector import (
     OfflineVectorResponse,
@@ -67,12 +69,6 @@ class FeatureStoreClient:
     def get_data_stores(self):
         return self._data_stores
 
-    def _get_db_path(self, kind, name, project=None, version=None):
-        project = project or self.project or "default"
-        if version:
-            name = f"{name}-{version}"
-        return f".store/{project}/{kind}/{name}"
-
     def ingest(
         self,
         featureset: Union[FeatureSet, str],
@@ -100,7 +96,7 @@ class FeatureStoreClient:
         return_df = return_df or with_stats or with_preview
         self.save_object(featureset)
 
-        controller = init_graph(
+        controller = init_featureset_graph(
             source, featureset, namespace, self, with_targets=True, return_df=return_df
         )
         df = controller.await_termination()
@@ -137,7 +133,16 @@ class FeatureStoreClient:
     ):
 
         merger = LocalFeatureMerger()
-        vector = FeatureVector(features=features)
+        if isinstance(features, str):
+            vector = self.get_feature_vector(features)
+        elif isinstance(features, list):
+            vector = FeatureVector(features=features)
+        elif isinstance(features, FeatureVector):
+            vector = features
+        else:
+            raise ValueError('illegal features value/type')
+
+        entity_timestamp_column = entity_timestamp_column or vector.spec.timestamp_field
         vector.parse_features(self)
         featuresets, feature_dfs = vector.load_featureset_dfs()
         merger.merge(entity_rows, entity_timestamp_column, featuresets, feature_dfs)
@@ -164,7 +169,7 @@ class FeatureStoreClient:
         if use_cache and uri in self._fs:
             return self._fs[uri]
         project, name, tag, uid = parse_function_uri(uri)
-        project = project or self.project or ""
+        project = project or mlconf.default_project
         obj = self._get_db().get_feature_set(name, project, tag, uid)
         fs = FeatureSet.from_dict(obj)
         self._fs[uri] = fs
@@ -179,31 +184,46 @@ class FeatureStoreClient:
         labels: List[str] = None,
     ):
         """list feature sets with optional filter"""
-        project = project or self.project
+        project = project or mlconf.default_project
         resp = self._get_db().list_feature_sets(
             project, name, tag, state, labels=labels
         )
         if resp:
             return [FeatureSet.from_dict(obj) for obj in resp]
 
-    def get_feature_vector(self, name, project=None):
-        raise NotImplementedError("api not yet not supported")
+    def get_feature_vector(self, uri):
+        project, name, tag, uid = parse_function_uri(uri)
+        project = project or mlconf.default_project
+        obj = self._get_db().get_feature_vector(name, project, tag, uid)
+        return FeatureVector.from_dict(obj)
+
+    def list_feature_vectors(
+        self,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        state: str = None,
+        labels: List[str] = None,
+    ):
+        """list feature vectors with optional filter"""
+        project = project or mlconf.default_project
+        resp = self._get_db().list_feature_vectors(
+            project, name, tag, state, labels=labels
+        )
+        if resp:
+            return [FeatureVector.from_dict(obj) for obj in resp]
 
     def save_object(self, obj, versioned=False):
         """save feature set/vector or other definitions into the DB"""
         db = self._get_db()
+        obj.metadata.project = obj.metadata.project or mlconf.default_project
+        obj_dict = obj.to_dict()
         if obj.kind == FeatureClassKind.FeatureSet:
-            obj.metadata.project = obj.metadata.project or self.project
-            obj_dict = obj.to_dict()
             obj_dict["spec"]["features"] = obj_dict["spec"].get(
                 "features", []
             )  # bypass DB bug
             db.store_feature_set(obj_dict, tag=obj.metadata.tag, versioned=versioned)
         elif obj.kind == FeatureClassKind.FeatureVector:
-            # TODO: write to mlrun db
-            target = self._get_db_path(
-                obj.kind, obj.metadata.name, obj.metadata.project
-            )
-            self._data_stores.object(url=target + ".yaml").put(obj.to_yaml())
+            db.store_feature_vector(obj_dict, tag=obj.metadata.tag, versioned=versioned)
         else:
             raise NotImplementedError(f"object kind not supported ({obj.kind})")

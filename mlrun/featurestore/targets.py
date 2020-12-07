@@ -62,8 +62,9 @@ def get_offline_target(featureset, start_time=None):
 
 def get_online_target(featureset):
     for target in featureset.status.targets:
-        if kind_to_driver[target.kind].is_online:
-            return target.name
+        driver = kind_to_driver[target.kind]
+        if driver.is_online:
+            return target, driver
 
 
 class BaseTargetDriver:
@@ -81,8 +82,16 @@ class BaseTargetDriver:
         self.featureset = featureset
         self.target = None
 
-    def init_table(self, tables):
+    @staticmethod
+    def get_table_object(target_path):
         pass
+
+    def init_table(self, tables, default=True):
+        if self.is_table:
+            table = self.get_table_object(self.target_path)
+            tables[self.featureset.uri()] = table
+            if default:
+                tables["."] = table
 
     def update_featureset_status(self, status="", producer=None):
         self.target = self.target or DataTarget(self.kind, self.name, self.target_path)
@@ -130,12 +139,10 @@ class NoSqlTarget(BaseTargetDriver):
         self.featureset = featureset
         self.target = None
 
-    def init_table(self, tables, default=True):
+    @staticmethod
+    def get_table_object(target_path, options=None):
         # TODO use options/cred
-        table = Table(self.target_path, V3ioDriver())
-        tables[self.featureset.uri()] = table
-        if default:
-            tables["."] = table
+        return Table(target_path, V3ioDriver())
 
     def add_writer_state(self, graph, after):
         table = self.featureset.uri()

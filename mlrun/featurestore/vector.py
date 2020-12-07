@@ -27,7 +27,7 @@ from .model import (
     FeatureVectorSpec,
     FeatureVectorStatus,
 )
-from .pipeline import steps_from_featureset
+from .pipeline import steps_from_featureset, init_feature_vector_graph
 
 
 class FeatureVectorError(Exception):
@@ -198,7 +198,6 @@ def print_event(event):
 class OnlineVectorService:
     def __init__(self, client, vector):
         self._client = client
-        self._context = client.context
         self._vector = vector
         self._feature_sets = None
         self._v3io_client = v3io.dataplane.Client()
@@ -210,17 +209,7 @@ class OnlineVectorService:
         return "ready"
 
     def init(self):
-        steps = [Source()]
-        for name, columns in self._vector._feature_set_fields.items():
-            fs = self._vector.feature_set_objects[name]
-            column_names = [name for name, alias in columns]
-            aliases = {name: alias for name, alias in columns if alias}
-            steps.extend(
-                steps_from_featureset(fs, column_names, aliases, self._context)
-            )
-        # steps.append(Map(print_event, full_event=True))
-        steps.append(Complete())
-        flow = build_flow(steps)
+        flow = init_feature_vector_graph(self._client, self._vector._feature_set_fields, self._vector.feature_set_objects)
         self._controller = flow.run()
 
     def get(self, entity_rows: list):

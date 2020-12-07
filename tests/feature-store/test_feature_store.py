@@ -47,12 +47,12 @@ def test_ingestion():
     client = init_store()
 
     # add feature set without time column (stock ticker metadata)
-    # stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
-    # resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
-    # print(resp)
-    #
-    # stocks_set["name"].description = "some name"
-    # print(stocks_set.to_yaml())
+    stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
+    resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
+    print(resp)
+
+    stocks_set["name"].description = "some name"
+    print(stocks_set.to_yaml())
 
     quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
     quotes_set.add_flow_step("map", "MyMap", mul=3)

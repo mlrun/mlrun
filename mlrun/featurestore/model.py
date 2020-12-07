@@ -378,40 +378,57 @@ class FeatureSetStatus(ModelObj):
 
 
 class FeatureVectorSpec(ModelObj):
-    _dict_fields = [
-        "features",
-        "description",
-        "entity_source",
-        "target_path",
-        "graph",
-        "label_column",
-    ]
-
     def __init__(
         self,
-        client=None,
         features=None,
         description=None,
         entity_source=None,
+        entity_fields=None,
+        timestamp_field=None,
         target_path=None,
         graph=None,
         label_column=None,
     ):
+        self._graph: ServingRootFlowState = None
+        self._entity_fields: ObjectList = None
+
         self.description = description
         self.features: List[str] = features or []
         self.entity_source = entity_source
+        self.entity_fields = entity_fields or []
         self.target_path = target_path
-        self.graph = graph or []
+        self.graph = graph
+        self.timestamp_field = timestamp_field
         self.label_column = label_column
+
+    @property
+    def entity_fields(self) -> List[Feature]:
+        return self._entity_fields
+
+    @entity_fields.setter
+    def entity_fields(self, entity_fields: List[Feature]):
+        self._entity_fields = ObjectList.from_list(Feature, entity_fields)
+
+    @property
+    def graph(self) -> ServingRootFlowState:
+        return self._graph
+
+    @graph.setter
+    def graph(self, graph):
+        self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
+        self._graph.engine = "async"
 
 
 class FeatureVectorStatus(ModelObj):
-    def __init__(self, state=None, target=None, stats=None, preview=None):
-        self.state = state or "created"
+    def __init__(self, state=None, target=None, features=None, stats=None, preview=None):
         self._target: DataTarget = None
+        self._features: ObjectList = None
+
+        self.state = state or "created"
         self.target = target
         self.stats = stats or {}
         self.preview = preview or []
+        self.features: List[Feature] = features or []
 
     @property
     def target(self) -> DataTarget:
@@ -420,3 +437,11 @@ class FeatureVectorStatus(ModelObj):
     @target.setter
     def target(self, target):
         self._target = self._verify_dict(target, "target", DataTarget)
+
+    @property
+    def features(self) -> List[Feature]:
+        return self._features
+
+    @features.setter
+    def features(self, features: List[Feature]):
+        self._features = ObjectList.from_list(Feature, features)

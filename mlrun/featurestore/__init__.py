@@ -14,6 +14,7 @@
 
 from .client import store_client  # noqa
 from .featureset import FeatureSet  # noqa
+from .vector import FeatureVector  # noqa
 from .model import Feature, Entity, TargetTypes, MinMaxValidator  # noqa
 from .datatypes import ValueType  # noqa
 from .steps import ValidatorStep  # noqa

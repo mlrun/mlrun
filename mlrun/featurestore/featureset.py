@@ -22,7 +22,7 @@ from .model import (
     Feature,
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
-from .pipeline import init_graph
+from .pipeline import init_featureset_graph
 from .targets import add_target_states
 from ..model import ModelObj
 from ..serving.states import ServingTaskState
@@ -101,7 +101,7 @@ class FeatureSet(ModelObj):
             infer_schema_from_df(
                 df, self._spec, entity_columns, with_index, with_features=False
             )
-            controller = init_graph(
+            controller = init_featureset_graph(
                 df, self, namespace, client, with_targets=False, return_df=True
             )
             df = controller.await_termination()

@@ -85,7 +85,12 @@ def test_projects_sync_leader_project_syncing(
         None,
         mlrun.api.schemas.Project(name=project_name, description=project_description),
     )
+    invalid_project_name = "invalid_name"
+    leader_follower.create_project(
+        None, mlrun.api.schemas.Project(name=invalid_project_name),
+    )
     _assert_project_in_followers([leader_follower], project_name, project_description)
+    _assert_project_in_followers([leader_follower], invalid_project_name)
     _assert_no_projects_in_followers([nop_follower, second_nop_follower])
 
     projects_leader._sync_projects()
@@ -93,6 +98,9 @@ def test_projects_sync_leader_project_syncing(
         [leader_follower, nop_follower, second_nop_follower],
         project_name,
         project_description,
+    )
+    _assert_project_not_in_followers(
+        [nop_follower, second_nop_follower], invalid_project_name,
     )
 
 
@@ -177,7 +185,7 @@ def test_create_project(
     )
 
 
-def test_create_project_failure_invalid_name(
+def test_create_and_store_project_failure_invalid_name(
     db: sqlalchemy.orm.Session,
     projects_leader: mlrun.api.utils.projects.leader.Member,
     leader_follower: mlrun.api.utils.projects.remotes.member.Member,
@@ -223,10 +231,18 @@ def test_create_project_failure_invalid_name(
                 None, mlrun.api.schemas.Project(name=project_name),
             )
             _assert_project_in_followers([leader_follower], project_name)
+            projects_leader.store_project(
+                None, project_name, mlrun.api.schemas.Project(name=project_name),
+            )
+            _assert_project_in_followers([leader_follower], project_name)
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 projects_leader.create_project(
                     None, mlrun.api.schemas.Project(name=project_name),
+                )
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                projects_leader.store_project(
+                    None, project_name, mlrun.api.schemas.Project(name=project_name),
                 )
             _assert_project_not_in_followers([leader_follower], project_name)
 

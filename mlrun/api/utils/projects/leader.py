@@ -62,6 +62,7 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
     ):
+        self._validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers("store_project", session, name, project)
         return self.get_project(session, name)

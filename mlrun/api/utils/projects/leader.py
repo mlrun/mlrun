@@ -207,6 +207,12 @@ class Member(
                 self._followers.keys()
             )
             if missing_followers:
+                # projects name validation is enforced on creation, the only way for a project name to be invalid is
+                # if it was created prior to 0.6.0, and the version was upgraded
+                # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
+                # as well)
+                if not self._validate_project_name(project_name, raise_on_failure=False):
+                    return
                 for missing_follower in missing_followers:
                     logger.debug(
                         "Project is missing from follower. Creating",
@@ -275,10 +281,17 @@ class Member(
         return followers_classes_map[name]
 
     @staticmethod
-    def _validate_project_name(name: str):
-        mlrun.utils.helpers.verify_field_regex(
-            "project.metadata.name", name, mlrun.utils.regex.project_name
-        )
+    def _validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
+        try:
+            mlrun.utils.helpers.verify_field_regex(
+                "project.metadata.name", name, mlrun.utils.regex.project_name
+            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
+
 
     @staticmethod
     def _validate_body_and_path_names_matches(

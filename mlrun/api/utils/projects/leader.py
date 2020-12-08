@@ -211,7 +211,9 @@ class Member(
                 # if it was created prior to 0.6.0, and the version was upgraded
                 # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
                 # as well)
-                if not self._validate_project_name(project_name, raise_on_failure=False):
+                if not self._validate_project_name(
+                    project_name, raise_on_failure=False
+                ):
                     return
                 for missing_follower in missing_followers:
                     logger.debug(
@@ -291,7 +293,6 @@ class Member(
                 raise
             return False
         return True
-
 
     @staticmethod
     def _validate_body_and_path_names_matches(

@@ -87,8 +87,7 @@ def test_projects_sync_leader_project_syncing(
     )
     invalid_project_name = "invalid_name"
     leader_follower.create_project(
-        None,
-        mlrun.api.schemas.Project(name=invalid_project_name),
+        None, mlrun.api.schemas.Project(name=invalid_project_name),
     )
     _assert_project_in_followers([leader_follower], project_name, project_description)
     _assert_project_in_followers([leader_follower], invalid_project_name)
@@ -101,8 +100,7 @@ def test_projects_sync_leader_project_syncing(
         project_description,
     )
     _assert_project_not_in_followers(
-        [nop_follower, second_nop_follower],
-        invalid_project_name,
+        [nop_follower, second_nop_follower], invalid_project_name,
     )
 
 

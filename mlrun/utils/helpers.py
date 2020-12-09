@@ -712,3 +712,8 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     if not time_obj:
         return
     return time_obj.isoformat()
+
+
+def get_model_endpoint_id(project: str, model: str, function: str, tag: str) -> str:
+    return f"{project}{model}{function}{tag}"
+

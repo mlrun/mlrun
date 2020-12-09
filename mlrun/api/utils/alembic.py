@@ -11,7 +11,7 @@ class AlembicUtil(object):
     def __init__(self, alembic_config_path):
         self._alembic_config_path = str(alembic_config_path)
         self._alembic_config = alembic.config.Config(self._alembic_config_path)
-        self._alembic_output = ''
+        self._alembic_output = ""
 
     def init_alembic(self, from_scratch: bool = False):
         revision_history = self._get_revision_history()
@@ -56,12 +56,12 @@ class AlembicUtil(object):
         self._flush_output()
         try:
             alembic.command.current(catch_stdout_config)
-            return self._alembic_output.strip().replace(' (head)', '')
+            return self._alembic_output.strip().replace(" (head)", "")
         except Exception as exc:
             if "Can't locate revision identified by" in exc.args[0]:
 
                 # DB has a revision that isn't known to us, extracting it from the exception.
-                return exc.args[0].split('\'')[2]
+                return exc.args[0].split("'")[2]
 
             return None
 
@@ -77,30 +77,30 @@ class AlembicUtil(object):
 
     @staticmethod
     def _parse_revision_history(output):
-        return [line.split(' ')[2].replace(',', '') for line in output.splitlines()]
+        return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
     @staticmethod
     def _backup_revision(db_file_path, latest_revision):
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
-        backup_path = db_dir_path / f'{latest_revision}.db'
+        backup_path = db_dir_path / f"{latest_revision}.db"
 
         shutil.copy2(db_file_path, backup_path)
 
     @staticmethod
     def _downgrade_to_revision(db_file_path, current_revision, latest_revision):
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
-        backup_path = db_dir_path / f'{latest_revision}.db'
+        backup_path = db_dir_path / f"{latest_revision}.db"
 
         if not os.path.isfile(backup_path):
             raise RuntimeError(
-                f'Cannot fall back to revision {latest_revision}, '
-                f'no back up exists. Current revision: {current_revision}'
+                f"Cannot fall back to revision {latest_revision}, "
+                f"no back up exists. Current revision: {current_revision}"
             )
 
         shutil.copy2(backup_path, db_file_path)
 
     def _save_output(self, text, *_):
-        self._alembic_output += f'{text}\n'
+        self._alembic_output += f"{text}\n"
 
     def _flush_output(self):
-        self._alembic_output = ''
+        self._alembic_output = ""

@@ -268,6 +268,7 @@ class RemoteRuntime(KubeResource):
 
         else:
             self.save(versioned=False)
+            self._ensure_run_db()
             address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
             if address:
                 self.spec.command = "http://{}".format(address)

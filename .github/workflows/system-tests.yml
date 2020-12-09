@@ -92,16 +92,16 @@ jobs:
       if: ${{ github.ref != 'refs/heads/0.5.x' }}
       run: |
         python automation/system_test/prepare.py run \
-          ${{ steps.computed_params.outputs.mlrun_version }} \
-          ${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_IP }} \
-          ${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }} \
-          ${{ secrets.V06_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }} \
-          ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }} \
-          ${{ secrets.V06_SYSTEM_TEST_MLRUN_DB_PATH }} \
-          ${{ secrets.V06_SYSTEM_TEST_WEBAPI_DIRECT_URL }} \
-          ${{ secrets.V06_SYSTEM_TEST_USERNAME }} \
-          ${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }} \
-          ${{ secrets.V06_SYSTEM_TEST_PASSWORD }} \
+          "${{ steps.computed_params.outputs.mlrun_version }}" \
+          "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.V06_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          "${{ secrets.V06_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          "${{ secrets.V06_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
+          "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
@@ -111,16 +111,16 @@ jobs:
       if: ${{ github.ref == 'refs/heads/0.5.x' }}
       run: |
         python automation/system_test/prepare.py run \
-          ${{ steps.computed_params.outputs.mlrun_version }} \
-          ${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_IP }} \
-          ${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }} \
-          ${{ secrets.V05_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }} \
-          ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }} \
-          ${{ secrets.V05_SYSTEM_TEST_MLRUN_DB_PATH }} \
-          ${{ secrets.V05_SYSTEM_TEST_WEBAPI_DIRECT_URL }} \
-          ${{ secrets.V05_SYSTEM_TEST_USERNAME }} \
-          ${{ secrets.V05_SYSTEM_TEST_ACCESS_KEY }} \
-          ${{ secrets.V05_SYSTEM_TEST_PASSWORD }} \
+          "${{ steps.computed_params.outputs.mlrun_version }}" \
+          "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.V05_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          "${{ secrets.V05_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          "${{ secrets.V05_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          "${{ secrets.V05_SYSTEM_TEST_USERNAME }}" \
+          "${{ secrets.V05_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ secrets.V05_SYSTEM_TEST_PASSWORD }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \

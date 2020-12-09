@@ -172,6 +172,18 @@ class Config:
             return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
 
+    @property
+    def dbpath(self):
+        return self._dbpath
+
+    @dbpath.setter
+    def dbpath(self, dbpath):
+        self._dbpath = dbpath
+        # importing here to avoid circular dependency
+        import mlrun.db
+        # when dbpath is set we want to connect to it which will sync configuration from it to the client
+        mlrun.db.get_run_db(dbpath).connect()
+
 
 # Global configuration
 config = Config.from_dict(default_config)

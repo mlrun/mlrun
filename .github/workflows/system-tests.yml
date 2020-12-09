@@ -88,8 +88,8 @@ jobs:
         poll-interval-seconds: 20s
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Prepare System Test env.yaml and 06 system
-      if: ${{ github.ref != 'refs/*/0.5.*' }}
+    - name: Prepare System Test env.yaml and 0.6.x system
+      if: ${{ github.ref != 'refs/heads/0.5.x' }}
       run: |
         python automation/system_test/prepare.py run \
           ${{ steps.computed_params.outputs.mlrun_version }} \
@@ -108,7 +108,7 @@ jobs:
           "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_version }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
 
     - name: Prepare System Test env.yaml and 0.5.x system
-      if: ${{ github.ref == 'refs/*/0.5.*' }}
+      if: ${{ github.ref == 'refs/heads/0.5.x' }}
       run: |
         python automation/system_test/prepare.py run \
           ${{ steps.computed_params.outputs.mlrun_version }} \

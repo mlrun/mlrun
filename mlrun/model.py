@@ -274,6 +274,7 @@ class ImageBuilder(ModelObj):
         image=None,
         base_image=None,
         commands=None,
+        extra=None,
         secret=None,
         code_origin=None,
         registry=None,
@@ -285,6 +286,7 @@ class ImageBuilder(ModelObj):
         self.image = image  #: image
         self.base_image = base_image  #: base_image
         self.commands = commands or []  #: commands
+        self.extra = extra  #: extra
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.build_pod = None

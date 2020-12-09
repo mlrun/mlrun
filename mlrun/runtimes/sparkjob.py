@@ -462,7 +462,11 @@ class SparkRuntime(KubejobRuntime):
 
     @property
     def is_deployed(self):
-        if not self.spec.build.source and not self.spec.build.commands:
+        if (
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+        ):
             return True
         return super().is_deployed
 

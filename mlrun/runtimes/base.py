@@ -123,7 +123,7 @@ class BaseRuntime(ModelObj):
     kind = "base"
     _is_nested = False
     _is_remote = False
-    _dict_fields = ["kind", "metadata", "spec", "status"]
+    _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None

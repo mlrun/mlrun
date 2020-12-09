@@ -389,7 +389,7 @@ def mlrun_op(
         )
     if registry:
         cop.container.add_env_variable(
-            k8s_client.V1EnvVar(name="DEFAULT_DOCKER_REGISTRY", value=registry)
+            k8s_client.V1EnvVar(name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry)
         )
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(
@@ -535,11 +535,11 @@ def build_op(
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
 
-    if "DEFAULT_DOCKER_REGISTRY" in environ:
+    if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="DEFAULT_DOCKER_REGISTRY",
-                value=environ.get("DEFAULT_DOCKER_REGISTRY"),
+                name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY",
+                value=config.httpdb.builder.docker_registry,
             )
         )
     if "IGZ_NAMESPACE_DOMAIN" in environ:
@@ -573,8 +573,8 @@ def build_op(
 
 
 def get_default_reg():
-    if "DEFAULT_DOCKER_REGISTRY" in environ:
-        return environ.get("DEFAULT_DOCKER_REGISTRY")
+    if config.httpdb.builder.docker_registry:
+        return config.httpdb.builder.docker_registry
     if "IGZ_NAMESPACE_DOMAIN" in environ:
         return "docker-registry.{}:80".format(environ.get("IGZ_NAMESPACE_DOMAIN"))
     return ""

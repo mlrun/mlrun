@@ -99,6 +99,10 @@ default_config = {
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
+        "builder": {
+            "docker_registry": "",
+            "docker_registry_secret": "",
+        },
     },
 }
 
@@ -256,9 +260,9 @@ def read_env(env=None, prefix=env_prefix):
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
 
-    # workaround to try and detect IGZ domain in 2.8
-    if not igz_domain and "DEFAULT_DOCKER_REGISTRY" in env:
-        registry = env["DEFAULT_DOCKER_REGISTRY"]
+    # workaround to try and detect IGZ domain
+    if not igz_domain and "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY" in env:
+        registry = env["MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY"]
         if registry.startswith("docker-registry.default-tenant"):
             igz_domain = registry[len("docker-registry.") :]
             if ":" in igz_domain:

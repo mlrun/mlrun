@@ -164,12 +164,9 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
-            if (
-                "docker_registry" in server_cfg
-                and "DEFAULT_DOCKER_REGISTRY" not in environ
-            ):
-                environ["DEFAULT_DOCKER_REGISTRY"] = server_cfg["docker_registry"]
-
+            config.httpdb.builder.docker_registry = config.httpdb.builder.docker_registry or server_cfg.get(
+                "docker_registry"
+            )
         except Exception:
             pass
         return self

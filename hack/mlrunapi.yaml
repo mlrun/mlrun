@@ -19,7 +19,7 @@ spec:
       - name: mlrun-api
         image: mlrun/mlrun-api:0.5.4
         env:
-        - name: DEFAULT_DOCKER_REGISTRY
+        - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
           value: "<set default registry url>"
         - name: V3IO_ACCESS_KEY
           value: <access-key>

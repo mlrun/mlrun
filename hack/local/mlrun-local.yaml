@@ -25,9 +25,9 @@ spec:
               fieldPath: metadata.namespace
         - name: MLRUN_HTTPDB__DB_TYPE
           value: filedb
-        - name: DEFAULT_DOCKER_REGISTRY
+        - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
           value: "<set default registry url>"
-        - name: DEFAULT_DOCKER_SECRET
+        - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET
           value: ""
         ports:
         - containerPort: 8080

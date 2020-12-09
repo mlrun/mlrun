@@ -106,7 +106,6 @@ class SparkJobSpec(KubeResourceSpec):
         restart_policy=None,
         deps=None,
         main_class=None,
-        rundb=None,
     ):
 
         super().__init__(
@@ -122,7 +121,6 @@ class SparkJobSpec(KubeResourceSpec):
             image_pull_policy=image_pull_policy,
             service_account=service_account,
             image_pull_secret=image_pull_secret,
-            rundb=rundb,
         )
 
         self.driver_resources = driver_resources

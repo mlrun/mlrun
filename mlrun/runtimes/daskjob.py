@@ -70,7 +70,6 @@ class DaskSpec(KubeResourceSpec):
         min_replicas=None,
         max_replicas=None,
         scheduler_timeout=None,
-        rundb=None,
     ):
 
         super().__init__(
@@ -90,7 +89,6 @@ class DaskSpec(KubeResourceSpec):
             entry_points=entry_points,
             description=description,
             image_pull_secret=image_pull_secret,
-            rundb=rundb,
         )
         self.args = args
 

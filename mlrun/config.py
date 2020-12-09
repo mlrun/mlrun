@@ -97,6 +97,8 @@ default_config = {
             "followers": "",
             "periodic_sync_interval": "1 minute",
         },
+        # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
+        "api_url": "",
     },
 }
 

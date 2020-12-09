@@ -87,8 +87,8 @@ Refer to the [**Kubeflow documentation**](https://www.kubeflow.org/docs/started/
 Your applications are now available in your local browser:
 
 - Jupyter-Lab - <http://localhost:30040>
-- Nuclio - <http://localhost:30050>
-- MLRun - <http://locahost:30060>
+- MLRun - <http://locahost:30050>
+- Nuclio - <http://localhost:30060>
 
 ### Start Working
 

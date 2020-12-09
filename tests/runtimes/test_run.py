@@ -29,7 +29,9 @@ def test_new_function_from_runtime():
             "description": "",
             "build": {"commands": []},
         },
+        "verbose": False,
     }
+
     function = mlrun.new_function(runtime=runtime)
     assert DeepDiff(runtime, function.to_dict(), ignore_order=True,) == {}
 
@@ -60,6 +62,7 @@ def test_new_function_args_without_command():
             "description": "",
             "build": {"commands": []},
         },
+        "verbose": False,
     }
     function = mlrun.new_function(runtime=runtime)
     assert DeepDiff(runtime, function.to_dict(), ignore_order=True,) == {}

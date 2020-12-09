@@ -80,7 +80,13 @@ class KubejobRuntime(KubeResource):
         return False
 
     def build_config(
-        self, image="", base_image=None, commands: list = None, secret=None, source=None
+        self,
+        image="",
+        base_image=None,
+        commands: list = None,
+        secret=None,
+        source=None,
+        extra=None,
     ):
         if image:
             self.spec.build.image = image
@@ -89,6 +95,8 @@ class KubejobRuntime(KubeResource):
                 raise ValueError("commands must be a string list")
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands
+        if extra:
+            self.spec.build.extra = extra
         if secret:
             self.spec.build.secret = secret
         if base_image:
@@ -108,7 +116,12 @@ class KubejobRuntime(KubeResource):
             return True
 
         build = self.spec.build
-        if not build.source and not build.commands and not with_mlrun:
+        if (
+            not build.source
+            and not build.commands
+            and not build.extra
+            and not with_mlrun
+        ):
             if not self.spec.image:
                 raise ValueError(
                     "noting to build and image is not specified, "
@@ -118,7 +131,7 @@ class KubejobRuntime(KubeResource):
             self.save(versioned=False)
             return True
 
-        if not build.source and not build.commands and with_mlrun:
+        if not build.source and not build.commands and not build.extra and with_mlrun:
             logger.info(
                 "running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"

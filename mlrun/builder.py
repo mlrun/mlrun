@@ -14,7 +14,7 @@
 
 import tarfile
 from base64 import b64decode, b64encode
-from os import environ, path, remove
+from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 

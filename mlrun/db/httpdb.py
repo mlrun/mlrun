@@ -16,7 +16,7 @@ import json
 import tempfile
 import time
 from datetime import datetime
-from os import path, remove, environ
+from os import path, remove
 from typing import List, Dict, Union
 
 import kfp
@@ -164,8 +164,9 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
-            config.httpdb.builder.docker_registry = config.httpdb.builder.docker_registry or server_cfg.get(
-                "docker_registry"
+            config.httpdb.builder.docker_registry = (
+                config.httpdb.builder.docker_registry
+                or server_cfg.get("docker_registry")
             )
         except Exception:
             pass

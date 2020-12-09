@@ -99,10 +99,7 @@ default_config = {
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
-        "builder": {
-            "docker_registry": "",
-            "docker_registry_secret": "",
-        },
+        "builder": {"docker_registry": "", "docker_registry_secret": ""},
     },
 }
 

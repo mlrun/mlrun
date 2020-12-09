@@ -389,7 +389,9 @@ def mlrun_op(
         )
     if registry:
         cop.container.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry)
+            k8s_client.V1EnvVar(
+                name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
+            )
         )
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(

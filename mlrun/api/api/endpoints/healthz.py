@@ -1,5 +1,3 @@
-from os import environ
-
 from fastapi import APIRouter
 
 from mlrun.config import config

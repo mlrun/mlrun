@@ -106,9 +106,13 @@ class NuclioSpec(KubeResourceSpec):
                     f"Found volume mount without a volume. name={volume_name}"
                 )
             volume_with_volume_mounts_names.add(volume_name)
-            nuclio_volumes.append({"volume": self._volumes[volume_name], "volumeMount": volume_mount})
+            nuclio_volumes.append(
+                {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
+            )
 
-        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(self._volumes.keys())
+        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(
+            self._volumes.keys()
+        )
         if volumes_without_volume_mounts:
             raise ValueError(
                 f"Found volumes without volume mounts. names={volumes_without_volume_mounts}"

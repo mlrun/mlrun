@@ -18,13 +18,13 @@ def test_generate_nuclio_volumes():
     }
     volume_2_name = "second-volume-name"
     volume_2 = {
-                    "name": volume_2_name,
-                    "secret": {"secretName": "secret-name"},
-                }
+        "name": volume_2_name,
+        "secret": {"secretName": "secret-name"},
+    }
     volume_1_volume_mount_1 = {
-                    "name": volume_1_name,
-                    "mountPath": "/v3io/volume/mount/path",
-                }
+        "name": volume_1_name,
+        "mountPath": "/v3io/volume/mount/path",
+    }
     volume_1_volume_mount_2 = {
         "name": volume_1_name,
         "mountPath": "/v3io/volume/mount/2/path",
@@ -35,15 +35,9 @@ def test_generate_nuclio_volumes():
     }
     runtime = {
         "kind": "nuclio",
-        "metadata": {
-            "name": "some-function",
-            "project": "default",
-        },
+        "metadata": {"name": "some-function", "project": "default"},
         "spec": {
-            "volumes": [
-                volume_1,
-                volume_2,
-            ],
+            "volumes": [volume_1, volume_2],
             "volume_mounts": [
                 volume_1_volume_mount_1,
                 volume_1_volume_mount_2,
@@ -52,18 +46,9 @@ def test_generate_nuclio_volumes():
         },
     }
     expected_nuclio_volumes = [
-        {
-            "volume": volume_1,
-            "volumeMount": volume_1_volume_mount_1,
-        },
-        {
-            "volume": volume_1,
-            "volumeMount": volume_1_volume_mount_2,
-        },
-        {
-            "volume": volume_2,
-            "volumeMount": volume_2_volume_mount_1,
-        },
+        {"volume": volume_1, "volumeMount": volume_1_volume_mount_1},
+        {"volume": volume_1, "volumeMount": volume_1_volume_mount_2},
+        {"volume": volume_2, "volumeMount": volume_2_volume_mount_1},
     ]
     function = mlrun.new_function(runtime=runtime)
     nuclio_volumes = function.spec.generate_nuclio_volumes()

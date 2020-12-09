@@ -115,7 +115,7 @@ class ParquetTarget(BaseTargetDriver):
         if timestamp_key:
             column_list = [timestamp_key] + column_list
 
-        graph.add_state(
+        graph.add_step(
             "WriteToParquet",
             after=after,
             shape="cylinder",
@@ -151,7 +151,7 @@ class NoSqlTarget(BaseTargetDriver):
             for key, feature in self.featureset.spec.features.items()
             if not feature.aggregate
         ]
-        graph.add_state(
+        graph.add_step(
             "WriteToTable",
             after=after,
             shape="cylinder",
@@ -172,7 +172,7 @@ class DFTarget(BaseTargetDriver):
 
     def add_writer_state(self, graph, after):
         key_column = self.featureset.spec.entities[0].name
-        graph.add_state(
+        graph.add_step(
             "WriteToDataFrame",
             after=after,
             shape="cylinder",

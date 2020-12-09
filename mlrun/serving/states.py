@@ -338,6 +338,45 @@ class ServingRouterState(ServingTaskState):
         route.set_parent(self)
         return route
 
+    def add_model(
+        self,
+        key,
+        model_path=None,
+        class_name=None,
+        model_url=None,
+        handler=None,
+        **class_args,
+    ):
+        """add ml model and/or route
+
+        :param key:         model api key (or name:version), will determine the relative url/path
+        :param model_path:  path to mlrun model artifact or model directory file/object path
+        :param class_name:  V2 Model python class name
+                            (can also module.submodule.class and it will be imported automatically)
+        :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
+        :param handler:     for advanced users!, override default class handler name (do_event)
+        :param class_args:  extra kwargs to pass to the model serving class __init__
+                            (can be read in the model using .get_param(key) method)
+        """
+        if not model_path and not model_url:
+            raise ValueError("model_path or model_url must be provided")
+        class_name = class_name or self.spec.default_class
+        if not isinstance(class_name, str):
+            raise ValueError(
+                "class name must be a string (name ot module.submodule.name)"
+            )
+        if model_path and not class_name:
+            raise ValueError("model_path must be provided with class_name")
+        if model_path:
+            model_path = str(model_path)
+
+        if model_url:
+            state = new_remote_endpoint(model_url, **class_args)
+        else:
+            state = new_model_endpoint(class_name, model_path, handler, **class_args)
+
+        return self.add_route(key, state)
+
     def clear_children(self, routes: list):
         if not routes:
             routes = self._routes.keys()
@@ -382,15 +421,16 @@ class ServingRouterState(ServingTaskState):
 class ServingQueueState(BaseState):
     kind = "queue"
     default_shape = "cds"
-    _dict_fields = BaseState._dict_fields + ["path", "shards", "retention_in_hours"]
+    _dict_fields = BaseState._dict_fields + ["path", "shards", "retention_in_hours", "options"]
 
     def __init__(
-        self, name=None, next=None, path=None, shards=None, retention_in_hours=None
+        self, name=None, path=None, next=None, shards=None, retention_in_hours=None, **options
     ):
         super().__init__(name, next)
         self.path = path
         self.shards = shards
         self.retention_in_hours = retention_in_hours
+        self.options = options
         self._stream = None
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
@@ -436,6 +476,7 @@ class ServingFlowState(BaseState):
         self.engine = engine
         self.from_state = os.environ.get("START_FROM_STATE", None)
         self.result_state = result_state
+        self.default_before = None
 
         self._last_added = None
         self._controller = None
@@ -453,19 +494,19 @@ class ServingFlowState(BaseState):
     def states(self, states):
         self._states = ObjectDict.from_dict(classes_map, states, "task")
 
-    def add_state(
+    def add_step(
         self,
         key,
-        state=None,
         class_name=None,
         handler=None,
+        state=None,
         after=None,
         before=None,
         shape=None,
         function=None,
         **class_args,
     ):
-        """add child route state or class to the router
+        """add state or class to the flow
 
         :param key:        unique name (and path) for the child state
         :param state:      child state object (Task, ..)
@@ -479,24 +520,88 @@ class ServingFlowState(BaseState):
         :param function:   function this state should run in
         """
 
-        if not state and not class_name:
-            raise ValueError("state or class_name must be specified")
+        if not state and not class_name and not handler:
+            raise ValueError("state or class_name or handler must be specified")
         if not state:
             state = ServingTaskState(
                 class_name, class_args, handler=handler, function=function
             )
+
+        self.insert_state(key, state, after, before, shape)
+        return state
+
+    def add_router(
+        self,
+        key,
+        class_name=None,
+        after=None,
+        before=None,
+        function=None,
+        **class_args,
+    ):
+        """add router to the flow
+
+        :param key:        unique name (and path) for the child state
+        :param class_name: class name to build the state from (when state is not provided)
+        :param class_args: class init arguments
+        :param after:      the step name this step comes after
+                           can use control strings: $start, $prev, $last
+        :param before:     string or list of next step names that will run after this step
+        :param shape:      graphviz shape name
+        :param function:   function this state should run in
+        """
+
+        state = ServingRouterState(
+            class_name, class_args, function=function
+        )
+
+        self.insert_state(key, state, after, before)
+        return state
+
+    def add_queue(
+        self,
+        key,
+        path=None,
+        shards=None,
+        retention_in_hours=None,
+        after=None,
+        before=None,
+        **options,
+    ):
+        """add queue/stream to the flow
+
+        :param key:        unique name (and path) for the child state
+        :param state:      child state object (Task, ..)
+        :param class_name: class name to build the state from (when state is not provided)
+        :param class_args: class init arguments
+        :param handler:    class handler to invoke on run/event
+        :param after:      the step name this step comes after
+                           can use control strings: $start, $prev, $last
+        :param before:     string or list of next step names that will run after this step
+        :param shape:      graphviz shape name
+        :param function:   function this state should run in
+        """
+
+        state = ServingQueueState(
+            path=path, shards=shards, retention_in_hours=retention_in_hours, **options
+        )
+
+        self.insert_state(key, state, after, before)
+        return state
+
+    def insert_state(self, key, state, after, before=None, shape=None):
+        """insert state object into the flow, specify before and after"""
+
+        if after == "$last" and before:
+            raise ValueError("cannot specify after $last and before state(s) together")
+
         state = self._states.update(key, state)
         state.set_parent(self)
         if shape:
             state.shape = shape
 
-        self.insert_state(state, after, before)
-        self._last_added = state
-        return state
-
-    def insert_state(self, state, after, before=None):
-        if after == "$last" and before:
-            raise ValueError("cannot specify after $last and before state(s) together")
+        if not before and after != "$last" and self.default_before:
+            before = self.default_before
 
         if before:
             if not isinstance(before, list):
@@ -536,8 +641,11 @@ class ServingFlowState(BaseState):
 
         if after_state:
             after_state.set_next(state.name, before)
+        self._last_added = state
+        return state
 
-    def clear_children(self, states: list):
+    def clear_children(self, states: list = None):
+        """remove some or all of the states, empty/None for all"""
         if not states:
             states = self._states.keys()
         for key in states:
@@ -547,7 +655,7 @@ class ServingFlowState(BaseState):
         return self._states[name]
 
     def __setitem__(self, name, state):
-        self.add_state(name, state)
+        self.add_step(name, state)
 
     def __delitem__(self, key):
         del self._states[key]

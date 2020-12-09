@@ -13,6 +13,7 @@
 # limitations under the License.
 import inspect
 from copy import copy
+import pandas as pd
 
 from .model import (
     FeatureSetStatus,
@@ -26,6 +27,10 @@ from .pipeline import init_featureset_graph
 from .targets import add_target_states
 from ..model import ModelObj
 from ..serving.states import ServingTaskState
+
+
+validator_step = "ValidatorStep"
+aggregates_step = "Aggregates"
 
 
 class FeatureSet(ModelObj):
@@ -122,29 +127,34 @@ class FeatureSet(ModelObj):
     def add_feature(self, feature, name=None):
         self._spec.features.update(feature, name)
 
-    def add_flow_step(self, name, class_name, after=None, **class_args):
+    def add_step(self, name, class_name, handler=None, after=None, before=None, **class_args):
         graph = self._spec.graph
-        before = "Aggregates" if "Aggregates" in graph.states else "ValidatorStep"
-        return graph.add_state(
+        if not before:
+            before = "Aggregates" if "Aggregates" in graph.states else validator_step
+        return graph.add_step(
             name,
-            ServingTaskState(class_name, class_args=class_args),
+            class_name,
             after=after or "$prev",
             before=before,
+            handler=handler,
+            **class_args
         )
 
     def _init_graph(self):
         graph = self._spec.graph
-        if "ValidatorStep" not in graph.states:
-            graph.add_state(
-                "ValidatorStep",
+        last_added = graph._last_added
+        if validator_step not in graph.states:
+            graph.add_step(
+                validator_step,
                 after="$last",
                 class_name="mlrun.featurestore.ValidatorStep",
                 featureset=".",
             )
-        graph._last_added = None
+            graph._last_added = last_added
+        graph.default_before = validator_step
 
     def add_aggregation(
-        self, name, column, operations, windows, period=None, state_name=None
+        self, name, column, operations, windows, period=None, state_name=None, after=None, before=None
     ):
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -157,7 +167,7 @@ class FeatureSet(ModelObj):
             else:
                 self.spec.features[name] = Feature(name=column, aggregate=True)
 
-        state_name = state_name or "Aggregates"
+        state_name = state_name or aggregates_step
         graph = self.spec.graph
         if state_name in graph.states:
             state = graph.states[state_name]
@@ -165,22 +175,26 @@ class FeatureSet(ModelObj):
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
         else:
-            last_state = graph._last_added
+            # last_state = graph._last_added
             # start_at = graph.start_at
-            graph.add_state(
+            graph.add_step(
                 state_name,
-                after=last_state.name if last_state else None,
-                before="ValidatorStep",
+                after=after or '$prev',
+                before=before,
                 class_name="storey.AggregateByKey",
                 aggregates=[aggregation],
                 table=".",
             )
-            graph._last_added = last_state
+            # graph._last_added = last_state
             # graph.start_at = start_at
 
         for operation in operations:
             for window in windows:
                 upsert_feature(f"{name}_{operation}_{window}")
+
+    def get_stats_table(self):
+        if self.status.stats:
+            return pd.DataFrame.from_dict(self.status.stats, orient='index')
 
     def __getitem__(self, name):
         return self._spec.features[name]

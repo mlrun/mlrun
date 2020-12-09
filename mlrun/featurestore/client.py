@@ -132,7 +132,6 @@ class FeatureStoreClient:
         store_target=None,
     ):
 
-        merger = LocalFeatureMerger()
         if isinstance(features, str):
             vector = self.get_feature_vector(features)
         elif isinstance(features, list):
@@ -145,8 +144,10 @@ class FeatureStoreClient:
         entity_timestamp_column = entity_timestamp_column or vector.spec.timestamp_field
         vector.parse_features(self)
         featuresets, feature_dfs = vector.load_featureset_dfs()
+
+        merger = LocalFeatureMerger()
         merger.merge(entity_rows, entity_timestamp_column, featuresets, feature_dfs)
-        return OfflineVectorResponse(self, merger)
+        return OfflineVectorResponse(self, merger, vector)
 
     def get_online_feature_service(self, features):
         vector = FeatureVector(features=features)

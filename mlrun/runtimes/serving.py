@@ -74,13 +74,14 @@ def new_v2_model_server(
 
 
 class FunctionRef(ModelObj):
-    def __init__(self, url=None, image=None, requirements=None, kind=None, name=None):
+    def __init__(self, url=None, image=None, requirements=None, kind=None, name=None, db_uri=None):
         self.url = url
         self.kind = kind
         self.image = image
         self.requirements = requirements
         self.name = name
         self.spec = None
+        self.db_uri = db_uri
 
         self._triggers = {}
         self._function = None
@@ -317,7 +318,6 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         model_url=None,
         handler=None,
-        parent=None,
         **class_args,
     ):
         """add ml model and/or route to the function
@@ -334,110 +334,27 @@ class ServingRuntime(RemoteRuntime):
                             (can also module.submodule.class and it will be imported automatically)
         :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
         :param handler:     for advanced users!, override default class handler name (do_event)
-        :param parent:      in hierarchical topology, state name of the parent
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
-        if not model_path and not model_url:
-            raise ValueError("model_path or model_url must be provided")
-        class_name = class_name or self.spec.default_class
-        if not isinstance(class_name, str):
-            raise ValueError(
-                "class name must be a string (name ot module.submodule.name)"
-            )
-        if model_path and not class_name:
-            raise ValueError("model_path must be provided with class_name")
-        if model_path:
-            model_path = str(model_path)
-
-        if not self.spec.graph:
+        graph = self.spec.graph
+        if not graph:
             self.set_topology()
 
-        if model_url:
-            state = new_remote_endpoint(model_url, **class_args)
-        else:
-            state = new_model_endpoint(class_name, model_path, handler, **class_args)
-
-        root = self.spec.graph
-        if parent:
-            root = root.path_to_state(parent)
-
-        if root.kind == StateKinds.router:
-            root.add_route(key, state)
+        if graph.kind == StateKinds.router:
+            return graph.add_model(key, model_path, class_name, model_url=model_url,
+                                  handler=handler, **class_args)
         else:
             raise ValueError("models can only be added under router state")
-        return state
 
-    def add_state(
-        self,
-        key: str,
-        class_name: str = None,
-        handler: str = None,
-        after: str = None,
-        before: list = None,
-        parent: str = None,
-        kind: str = None,
-        function=None,
-        **class_args,
-    ):
-        """add compute class or model or route to the function
-
-        Example, create a function (from the notebook), add a model class, and deploy:
-
-            fn = code_to_function(kind='serving')
-            fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
-            fn.deploy()
-
-        :param key:         model api key (or name:version), will determine the relative url/path
-        :param class_name:  V2 Model python class name
-                            (can also module.submodule.class and it will be imported automatically)
-        :param handler:     for advanced users!, override default class handler name (do_event)
-        :param after:       for flow topology, the step name this will come after
-                            can use control strings: $start, $prev, $last
-        :param before:      for flow topology, the step name(s) this will come before
-        :param parent:      in hierarchical topology, state the parent name
-        :param kind:        state kind, task or router (default is task)
-        :param function:    function reference name (this step will run in a separate function)
-        :param class_args:  extra kwargs to pass to the model serving class __init__
-                            (can be read in the model using .get_param(key) method)
-        """
-        if class_name and not isinstance(class_name, str):
-            raise ValueError(
-                "class name must be a string (name ot module.submodule.name)"
-            )
-
-        if not self.spec.graph:
-            self.set_topology()
-
-        if kind == StateKinds.router:
-            state = ServingRouterState(
-                class_name=class_name, class_args=class_args, function=function
-            )
-        elif kind == StateKinds.queue:
-            state = ServingQueueState(**class_args)
-        else:
-            state = ServingTaskState(
-                class_name, class_args, handler=handler, function=function
-            )
-
-        root = self.spec.graph
-        if parent:
-            root = root.path_to_state(parent)
-
-        if root.kind == StateKinds.router:
-            root.add_route(key, state)
-        else:
-            root.add_state(key, state, after=after, before=before)
-        return state
-
-    def add_function(self, name, url=None, image=None, requirements=None, kind=None):
+    def add_child_function(self, name, url=None, image=None, requirements=None, kind=None):
         function_ref = FunctionRef(
             url, image, requirements=requirements, kind=kind or "serving"
         )
         self._spec.function_refs.update(function_ref, name)
         return function_ref.to_function()
 
-    def add_ref_triggers(self, group=None):
+    def _add_ref_triggers(self, group=None):
         for function, stream in self.spec.graph.get_queue_links().items():
             if stream:
                 if function not in self._spec.function_refs.keys():
@@ -454,6 +371,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.project = self.metadata.project
             function_object.spec.graph = self.spec.graph
             function_object.apply(mlrun.v3io_cred())
+            function.db_uri = function_object._function_uri()
             function_object.deploy()
 
     def remove_states(self, keys: list):
@@ -475,21 +393,21 @@ class ServingRuntime(RemoteRuntime):
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
         if self._spec.function_refs:
-            self.add_ref_triggers(group=stream_group)
+            self._add_ref_triggers(group=stream_group)
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
         return super().deploy(dashboard, project, tag)
 
     def _get_runtime_env(self):
-        # we currently support a minimal topology of one router + multiple child routes/models
-        # in the future we will extend the support to a full graph, the spec is already built accordingly
+
+        functions = {f.name: f.db_uri for f in self.spec.function_refs}
         serving_spec = {
             "function_uri": self._function_uri(),
             "version": "v2",
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict(),
             "load_mode": self.spec.load_mode,
-            # "functions": self.spec.function_refs.to_dict(),
+            "functions": functions,
             "verbose": self.verbose,
         }
         return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
@@ -509,12 +427,6 @@ class ServingRuntime(RemoteRuntime):
             level=log_level,
             current_function=current_function,
         )
-
-    def plot(self, filename=None, format=None):
-        if not self.spec.graph:
-            logger.info("no graph topology to plot")
-            return
-        return self.spec.graph.plot(filename, format)
 
 
 class V3IOStreamTrigger(NuclioTrigger):

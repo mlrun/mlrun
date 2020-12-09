@@ -13,8 +13,7 @@
 # limitations under the License.
 import os
 from tempfile import mktemp
-
-from storey import build_flow, Source, Complete
+import pandas as pd
 
 from mlrun.model import ModelObj
 from mlrun.run import get_dataitem
@@ -82,6 +81,10 @@ class FeatureVector(ModelObj):
     def status(self, status):
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
 
+    def get_stats_table(self):
+        if self.status.stats:
+            return pd.DataFrame.from_dict(self.status.stats, orient='index')
+
     def parse_features(self, client):
         self._processed_features = {}  # dict of name to (featureset, feature object)
         self.feature_set_objects = {}  # cache of used feature set objects
@@ -126,6 +129,17 @@ class FeatureVector(ModelObj):
                     )
                 add_feature(feature_name, alias, feature_set_object)
 
+        self._update_feature_status()
+
+    def _update_feature_status(self):
+        for feature_set_name, fields in self._feature_set_fields.items():
+            feature_set = self.feature_set_objects[feature_set_name]
+            for name, alias in fields:
+                if name in feature_set.status.stats:
+                    self.status.stats[alias or name] = feature_set.status.stats[name]
+                if name in feature_set.spec.features.keys():
+                    self.status.features[alias or name] = feature_set.spec.features[name]
+
     def load_featureset_dfs(self):
         feature_sets = []
         dfs = []
@@ -144,9 +158,10 @@ class FeatureVector(ModelObj):
 
 
 class OfflineVectorResponse:
-    def __init__(self, client, merger):
+    def __init__(self, client, merger, vector):
         self._client = client
         self._merger = merger
+        self.vector = vector
 
     @property
     def status(self):
@@ -198,7 +213,7 @@ def print_event(event):
 class OnlineVectorService:
     def __init__(self, client, vector):
         self._client = client
-        self._vector = vector
+        self.vector = vector
         self._feature_sets = None
         self._v3io_client = v3io.dataplane.Client()
         self._container = None
@@ -209,7 +224,7 @@ class OnlineVectorService:
         return "ready"
 
     def init(self):
-        flow = init_feature_vector_graph(self._client, self._vector._feature_set_fields, self._vector.feature_set_objects)
+        flow = init_feature_vector_graph(self._client, self.vector._feature_set_fields, self._vector.feature_set_objects)
         self._controller = flow.run()
 
     def get(self, entity_rows: list):

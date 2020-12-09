@@ -268,6 +268,7 @@ class FeatureSetMetadata(ModelObj):
 class FeatureSetSpec(ModelObj):
     def __init__(
         self,
+        owner=None,
         description=None,
         entities=None,
         features=None,
@@ -275,7 +276,6 @@ class FeatureSetSpec(ModelObj):
         timestamp_key=None,
         label_column=None,
         relations=None,
-        aggregations=None,
         sources=None,
         targets=None,
         graph=None,
@@ -288,10 +288,10 @@ class FeatureSetSpec(ModelObj):
         self._graph: ServingRootFlowState = None
         self._sources = None
 
+        self.owner = owner
         self.description = description
         self.entities: List[Entity] = entities or []
         self.features: List[Feature] = features or []
-        self.aggregations: List[FeatureAggregation] = aggregations or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.relations = relations or {}
@@ -327,14 +327,6 @@ class FeatureSetSpec(ModelObj):
     @targets.setter
     def targets(self, targets: List[DataTargetSpec]):
         self._targets = ObjectList.from_list(DataTargetSpec, targets)
-
-    @property
-    def aggregations(self) -> List[FeatureAggregation]:
-        return self._aggregations
-
-    @aggregations.setter
-    def aggregations(self, aggregations: List[FeatureAggregation]):
-        self._aggregations = ObjectList.from_list(FeatureAggregation, aggregations)
 
     @property
     def graph(self) -> ServingRootFlowState:

@@ -48,6 +48,7 @@ def test_ingestion():
 
     # add feature set without time column (stock ticker metadata)
     stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
+    print(stocks_set.spec.graph.to_yaml())
     resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
     print(resp)
 
@@ -90,6 +91,7 @@ def test_realtime_query():
     resp = client.get_offline_features(
         features, entity_rows=trades, entity_timestamp_column="time"
     )
+    print(resp.vector.to_yaml())
     print(resp.to_dataframe())
     print(resp.to_parquet("./xx.parquet"))
 

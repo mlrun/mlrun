@@ -93,14 +93,13 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
-        rundb=None,
     ):
 
         self.command = command or ""
         self.image = image or ""
         self.mode = mode
         self.args = args or []
-        self.rundb = rundb
+        self.rundb = None
         self.description = description or ""
         self.workdir = workdir
         self.pythonpath = pythonpath
@@ -482,8 +481,8 @@ class BaseRuntime(ModelObj):
         runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
             runtime_env["MLRUN_LOG_LEVEL"] = "debug"
-        if self.spec.rundb:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb
+        if config.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env

@@ -88,6 +88,8 @@ default_config = {
             # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute
             "min_allowed_interval": "10 minutes"
         },
+        # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
+        "api_url": "",
     },
 }
 

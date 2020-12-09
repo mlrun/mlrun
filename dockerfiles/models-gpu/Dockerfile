@@ -131,7 +131,7 @@ RUN python -m pip install --upgrade pip
     #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-        python -m pip install horovod && \
+        python -m pip install 'horovod~=0.20.0' && \
     ldconfig
 
 RUN conda clean -aqy

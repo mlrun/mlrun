@@ -81,6 +81,9 @@ class AlembicUtil(object):
 
     @staticmethod
     def _backup_revision(db_file_path, latest_revision):
+        if db_file_path == ":memory:":
+            return
+
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
         backup_path = db_dir_path / f"{latest_revision}.db"
 

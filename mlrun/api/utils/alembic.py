@@ -3,18 +3,19 @@ import alembic.command
 import os
 import pathlib
 import shutil
+import typing
 
 from mlrun import mlconf
 
 
 class AlembicUtil(object):
-    def __init__(self, alembic_config_path):
+    def __init__(self, alembic_config_path: pathlib.Path):
         self._alembic_config_path = str(alembic_config_path)
         self._alembic_config = alembic.config.Config(self._alembic_config_path)
         self._alembic_output = ""
 
     def init_alembic(self, from_scratch: bool = False):
-        revision_history = self._get_revision_history()
+        revision_history = self._get_revision_history_list()
         latest_revision = revision_history[0]
         initial_alembic_revision = revision_history[-1]
         db_file_path = self._get_db_file_path()
@@ -35,11 +36,14 @@ class AlembicUtil(object):
         ):
             self._downgrade_to_revision(db_file_path, current_revision, latest_revision)
 
+        # get current revision again if it changed during the last commands
+        current_revision = self._get_current_revision()
+        if current_revision:
+            self._backup_revision(db_file_path, current_revision)
         alembic.command.upgrade(self._alembic_config, "head")
-        self._backup_revision(db_file_path, latest_revision)
 
     @staticmethod
-    def _get_db_file_path():
+    def _get_db_file_path() -> str:
         """
         Get the db file path from the dsn.
         Converts the dsn to the file path. e.g.:
@@ -47,7 +51,7 @@ class AlembicUtil(object):
         """
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
-    def _get_current_revision(self):
+    def _get_current_revision(self) -> typing.Optional[str]:
 
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)
@@ -65,7 +69,10 @@ class AlembicUtil(object):
 
             return None
 
-    def _get_revision_history(self):
+    def _get_revision_history_list(self) -> typing.List[str]:
+        """
+        Returns a list of the revision history sorted from latest to oldest.
+        """
 
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)
@@ -76,33 +83,33 @@ class AlembicUtil(object):
         return self._parse_revision_history(self._alembic_output)
 
     @staticmethod
-    def _parse_revision_history(output):
+    def _parse_revision_history(output: str) -> typing.List[str]:
         return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
     @staticmethod
-    def _backup_revision(db_file_path, latest_revision):
+    def _backup_revision(db_file_path: str, current_version: str):
         if db_file_path == ":memory:":
             return
 
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
-        backup_path = db_dir_path / f"{latest_revision}.db"
+        backup_path = db_dir_path / f"{current_version}.db"
 
         shutil.copy2(db_file_path, backup_path)
 
     @staticmethod
-    def _downgrade_to_revision(db_file_path, current_revision, latest_revision):
+    def _downgrade_to_revision(db_file_path: str, current_revision: str, fallback_version: str):
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
-        backup_path = db_dir_path / f"{latest_revision}.db"
+        backup_path = db_dir_path / f"{fallback_version}.db"
 
         if not os.path.isfile(backup_path):
             raise RuntimeError(
-                f"Cannot fall back to revision {latest_revision}, "
+                f"Cannot fall back to revision {fallback_version}, "
                 f"no back up exists. Current revision: {current_revision}"
             )
 
         shutil.copy2(backup_path, db_file_path)
 
-    def _save_output(self, text, *_):
+    def _save_output(self, text: str, *_):
         self._alembic_output += f"{text}\n"
 
     def _flush_output(self):

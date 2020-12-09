@@ -59,6 +59,8 @@ class AlembicUtil(object):
             return self._alembic_output.strip().replace(' (head)', '')
         except Exception as exc:
             if "Can't locate revision identified by" in exc.args[0]:
+
+                # DB has a revision that isn't known to us, extracting it from the exception.
                 return exc.args[0].split('\'')[2]
 
             return None
@@ -97,7 +99,7 @@ class AlembicUtil(object):
 
         shutil.copy2(backup_path, db_file_path)
 
-    def _save_output(self, text, *args):
+    def _save_output(self, text, *_):
         self._alembic_output += f'{text}\n'
 
     def _flush_output(self):

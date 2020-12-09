@@ -96,7 +96,7 @@ class NuclioSpec(KubeResourceSpec):
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
 
-    def to_nuclio_volumes(self):
+    def generate_nuclio_volumes(self):
         nuclio_volumes = []
         volume_with_volume_mounts_names = set()
         for volume_mount in self._volume_mounts.values():
@@ -546,7 +546,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
             function.spec.base_spec, spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
-        update_in(config, "spec.volumes", function.spec.to_nuclio_volumes())
+        update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         base_image = get_in(config, "spec.build.baseImage") or function.spec.image
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
@@ -578,7 +578,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
             verbose=function.verbose,
         )
 
-        update_in(config, "spec.volumes", function.spec.to_nuclio_volumes())
+        update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         if function.spec.image:
             update_in(
                 config, "spec.build.baseImage", enrich_image_url(function.spec.image)

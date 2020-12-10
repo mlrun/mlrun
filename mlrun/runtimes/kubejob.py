@@ -22,7 +22,7 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
 from .funcdoc import update_function_entry_points
 from .pod import KubeResource
-from .utils import AsyncLogWriter, default_image_name
+from .utils import AsyncLogWriter, generate_function_image_name
 from ..builder import build_runtime
 from ..db import RunDBError
 from ..kfpops import build_op
@@ -124,7 +124,7 @@ class KubejobRuntime(KubeResource):
                 "with_mlrun=False to skip if its already in the image"
             )
 
-        self.spec.build.image = self.spec.build.image or default_image_name(self)
+        self.spec.build.image = self.spec.build.image or generate_function_image_name(self)
         self.status.state = ""
 
         if self._is_remote_api() and not is_kfp:

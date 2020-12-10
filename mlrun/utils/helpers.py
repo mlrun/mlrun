@@ -448,11 +448,15 @@ def enrich_image_url(image_url: str) -> str:
     return image_url
 
 
-def get_parsed_docker_registry() -> Tuple[Optional[str], Tuple[str]]:
+def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry
     first_slash_index = docker_registry.find("/")
-    if first_slash_index == -1 or (
+    # this is exception to the rules from the link above, since the config value is called docker_registry we assume
+    # that if someone gave just one component without any slash they gave a registry and not a repository
+    if first_slash_index == -1:
+        return docker_registry, None
+    if (
         docker_registry[:first_slash_index].find(".") == -1
         and docker_registry[:first_slash_index].find(":") == -1
         and docker_registry[:first_slash_index] != "localhost"

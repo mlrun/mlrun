@@ -128,7 +128,7 @@ def test_enrich_image():
 
 def test_get_parsed_docker_registry():
     cases = [
-        {"docker_registry": "", "expected_registry": None, "expected_repository": ""},
+        {"docker_registry": "", "expected_registry": "", "expected_repository": None},
         {
             "docker_registry": "hedi/ingber",
             "expected_registry": None,
@@ -153,6 +153,11 @@ def test_get_parsed_docker_registry():
             "docker_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80/hedingber",
             "expected_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80",
             "expected_repository": "hedingber",
+        },
+        {
+            "docker_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80",
+            "expected_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80",
+            "expected_repository": None,
         },
         {
             "docker_registry": "quay.io/",

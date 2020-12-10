@@ -25,7 +25,7 @@ from ..platforms.iguazio import split_path
 from ..model import ModelObj, ObjectList
 from .function import RemoteRuntime, NuclioSpec
 from ..utils import logger, get_caller_globals
-from ..serving.server import create_mock_server
+from ..serving.server import create_graph_server
 from ..serving.states import (
     ServingRouterState,
     new_remote_endpoint,
@@ -418,7 +418,7 @@ class ServingRuntime(RemoteRuntime):
         :param namespace: classes search namespace, use globals() for current notebook
         :param log_level: log level (error | info | debug)
         """
-        return create_mock_server(
+        return create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
             graph=self.spec.graph,

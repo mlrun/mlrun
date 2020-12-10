@@ -208,6 +208,6 @@ class FeatureSet(ModelObj):
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         graph = self.spec.graph
         if with_targets:
-            graph = copy(graph)
+            graph = graph.copy()
             add_target_states(graph, self, self.spec.targets)
         return graph.plot(filename, format, **kw)

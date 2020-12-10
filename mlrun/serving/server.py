@@ -44,7 +44,7 @@ class _StreamContext:
 
 # Model server host currently support a basic topology of single router + multiple
 # routes (models/tasks). it will be enhanced later to support more complex topologies
-class ModelServerHost(ModelObj):
+class GraphServer(ModelObj):
     kind = "server"
 
     def __init__(
@@ -149,7 +149,7 @@ class ModelServerHost(ModelObj):
         """invoke a test event into the server to simulate/test server behaviour
 
         e.g.:
-                server = create_mock_server()
+                server = create_graph_server()
                 server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
                 print(server.test("my/infer", testdata))
 
@@ -181,7 +181,7 @@ def v2_serving_init(context, namespace=None):
     if not data:
         raise ValueError("failed to find spec env var")
     spec = json.loads(data)
-    server = ModelServerHost.from_dict(spec)
+    server = GraphServer.from_dict(spec)
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     serving_handler = server.init(context, namespace or globals())
     # set the handler hook to point to our handler
@@ -208,7 +208,7 @@ def v2_serving_handler(context, event, get_body=False):
     return body
 
 
-def create_mock_server(
+def create_graph_server(
     context=None,
     router_class=None,
     router_args={},
@@ -223,7 +223,7 @@ def create_mock_server(
     """create serving emulator/tester for locally testing models and servers
 
         Usage:
-                host = create_mock_server()
+                host = create_graph_server()
                 host.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
                 print(host.test("my/infer", testdata))
     """
@@ -233,7 +233,7 @@ def create_mock_server(
     if not graph:
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
     namespace = namespace or get_caller_globals()
-    server = ModelServerHost(graph, parameters, load_mode, verbose=level == "debug")
+    server = GraphServer(graph, parameters, load_mode, verbose=level == "debug")
     server.set_current_function(
         current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")
     )

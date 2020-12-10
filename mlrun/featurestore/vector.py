@@ -224,7 +224,7 @@ class OnlineVectorService:
         return "ready"
 
     def init(self):
-        flow = init_feature_vector_graph(self._client, self.vector._feature_set_fields, self._vector.feature_set_objects)
+        flow = init_feature_vector_graph(self._client, self.vector._feature_set_fields, self.vector.feature_set_objects)
         self._controller = flow.run()
 
     def get(self, entity_rows: list):

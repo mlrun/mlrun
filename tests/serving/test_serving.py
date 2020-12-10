@@ -6,7 +6,7 @@ import mlrun
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
-from mlrun.serving.server import MockEvent, MockContext, create_mock_server
+from mlrun.serving.server import MockEvent, MockContext, create_graph_server
 from mlrun.serving.states import ServingRouterState, ServingTaskState
 
 router_object = ServingRouterState()
@@ -232,7 +232,7 @@ def test_v2_health():
 
 
 def test_v2_mock():
-    host = create_mock_server()
+    host = create_graph_server()
     host.add_model("my", class_name=ModelTestingClass, model_path="", z=100)
     print(host.to_yaml())
     resp = host.test("my/infer", testdata)

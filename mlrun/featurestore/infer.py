@@ -73,7 +73,7 @@ def _get_column_type(column):
 
 
 def get_df_stats(
-    df, with_index=True, with_histogram=False,
+    df, with_index=True, with_histogram=False, num_bins=20
 ):
     """get per column data stats from dataframe"""
 
@@ -96,7 +96,7 @@ def get_df_stats(
         if with_histogram and pd.api.types.is_numeric_dtype(df[col]):
             # store histogram
             try:
-                hist, bins = np.histogram(df[col], bins=20)
+                hist, bins = np.histogram(df[col], bins=num_bins)
                 stats_dict["hist"] = [hist.tolist(), bins.tolist()]
             except Exception:
                 pass

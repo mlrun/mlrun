@@ -111,7 +111,7 @@ class Feature(ModelObj):
     ]
 
     def __init__(
-        self, value_type: ValueType = None, description=None, aggregate=None, name=None
+        self, value_type: ValueType = None, description=None, aggregate=None, name=None, validator=None
     ):
         self.name = name or ""
         self.value_type: ValueType = value_type or ""
@@ -120,7 +120,7 @@ class Feature(ModelObj):
         self.default = None
         self.labels = {}
         self.aggregate = aggregate
-        self._validator = None
+        self._validator = validator
 
     @property
     def validator(self):

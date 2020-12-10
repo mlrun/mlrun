@@ -378,6 +378,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.spec.graph = self.spec.graph
             function_object.apply(mlrun.v3io_cred())
             function.db_uri = function_object._function_uri()
+            function_object.verbose = self.verbose
             function_object.deploy()
 
     def remove_states(self, keys: list):
@@ -385,12 +386,13 @@ class ServingRuntime(RemoteRuntime):
         if self.spec.graph:
             self.spec.graph.clear_children(keys)
 
-    def deploy(self, dashboard="", project="", tag=""):
+    def deploy(self, dashboard="", project="", tag="", verbose=False):
         """deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
         :param project:   optional, overide function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
+        :param verbose:   verbose logging
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -406,7 +408,7 @@ class ServingRuntime(RemoteRuntime):
             self._add_ref_triggers()
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
-        return super().deploy(dashboard, project, tag)
+        return super().deploy(dashboard, project, tag, verbose=verbose)
 
     def _get_runtime_env(self):
 

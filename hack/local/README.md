@@ -78,7 +78,7 @@ Copy the [**mlrun-local.yaml**](mlrun-local.yaml) file to your cluster, edit the
 
 ```yaml
     - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
-      value: "index.docker.io/<username>"
+      value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
     - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET
       value: my-docker-secret
 ``` 

@@ -20,7 +20,7 @@ spec:
         image: mlrun/mlrun-api:0.5.4
         env:
         - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
-          value: "set default registry url e.g. index.docker.io/<username>"
+          value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
         - name: V3IO_ACCESS_KEY
           value: <access-key>
         - name: V3IO_USERNAME

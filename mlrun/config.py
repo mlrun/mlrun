@@ -129,7 +129,7 @@ class Config:
 
     def __setattr__(self, attr, value):
         # in order for the dbpath setter to work
-        if attr == 'dbpath':
+        if attr == "dbpath":
             super().__setattr__(attr, value)
         else:
             self._cfg[attr] = value

@@ -17,8 +17,8 @@ from os import environ
 from tempfile import NamedTemporaryFile
 
 import pytest
-import yaml
 import requests_mock as requests_mock_package
+import yaml
 
 from mlrun import config as mlconf
 
@@ -120,11 +120,11 @@ def test_overriding_config_not_remain_for_next_tests_tester():
 
 
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
-    api_url = 'http://mlrun-api-url:8080'
-    remote_host = 'some-namespace'
+    api_url = "http://mlrun-api-url:8080"
+    remote_host = "some-namespace"
     response_body = {
-        'version': 'some-version',
-        'remote_host': remote_host,
+        "version": "some-version",
+        "remote_host": remote_host,
     }
     requests_mock.get(f"{api_url}/api/healthz", json=response_body)
     assert "" == mlconf.config.remote_host

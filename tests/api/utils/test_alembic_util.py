@@ -69,11 +69,15 @@ def test_database_exists_unknown_revision_successful_downgrade(
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
     copy_calls = [
-        # first copy - to downgrade to the old db file
+        # first copy - backup the current database before downgrading
+        unittest.mock.call(
+            mock_db_file_name, pathlib.Path(f"{Constants.unknown_revision}.db")
+        ),
+        # second copy - to downgrade to the old db file
         unittest.mock.call(
             pathlib.Path(f"{Constants.latest_revision}.db"), mock_db_file_name
         ),
-        # second copy - to back up the db file. In a real scenario the backup would be {latest_revision}.db
+        # third copy - to back up the db file. In a real scenario the backup would be {latest_revision}.db
         # as the revision should change during the last copy, but changing a mock during the init_alembic function
         # is cumbersome and might make the test unreadable - so the current revision stays unknown_revision.
         unittest.mock.call(

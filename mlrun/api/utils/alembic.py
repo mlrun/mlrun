@@ -109,6 +109,10 @@ class AlembicUtil(object):
                 f"no back up exists. Current revision: {current_revision}"
             )
 
+        # backup the current DB
+        current_backup_path = db_dir_path / f"{current_revision}.db"
+        shutil.copy2(db_file_path, current_backup_path)
+
         shutil.copy2(backup_path, db_file_path)
 
     def _save_output(self, text: str, *_):

@@ -4,19 +4,11 @@ from urllib.parse import urlparse
 from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf
 
-from .model import DataTargetSpec, TargetTypes, DataTarget
+from .model import DataTargetSpec, TargetTypes, DataTarget, store_config
 
 
-data_prefixes = {"parquet": "./store", "nosql": "v3io:///users/admin/fs"}
-default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
-
-
-def init_featureset_targets(featureset, tables, with_defaults=None):
+def init_featureset_targets(featureset, tables):
     targets = featureset.spec.targets
-    if with_defaults:
-        defaults = copy(default_ingest_targets)
-    else:
-        defaults = []
 
     def init_target(target):
         driver = kind_to_driver[target.kind](featureset, target)
@@ -24,14 +16,15 @@ def init_featureset_targets(featureset, tables, with_defaults=None):
         driver.update_featureset_status()
         target.driver = driver
 
-    for target in targets:
-        init_target(target)
-        if target.kind in defaults:
-            defaults.remove(target.kind)
+    if not targets:
+        defaults = copy(store_config.default_targets)
+        for target in defaults:
+            target_obj = targets.update(DataTargetSpec(target), str(target))
+            init_target(target_obj)
+    else:
+        for target in targets:
+            init_target(target)
 
-    for target in defaults:
-        target_obj = targets.update(DataTargetSpec(target), str(target))
-        init_target(target_obj)
 
 
 def add_target_states(graph, featureset, targets, to_df=False):
@@ -55,8 +48,9 @@ online_lookup_order = [TargetTypes.nosql]
 def get_offline_target(featureset, start_time=None):
     # todo take status, start_time and lookup order into account
     for target in featureset.status.targets:
-        if kind_to_driver[target.kind].is_offline:
-            return target.name
+        driver = kind_to_driver[target.kind]
+        if driver.is_offline:
+            return target, driver
 
 
 def get_online_target(featureset):
@@ -119,6 +113,29 @@ class ParquetTarget(BaseTargetDriver):
             after=after,
             shape="cylinder",
             class_name="storey.WriteToParquet",
+            path=self.target_path,
+            columns=column_list,
+            index_cols=key_column,
+        )
+
+
+class CSVTarget(BaseTargetDriver):
+    kind = TargetTypes.csv
+    suffix = ".csv"
+    is_offline = True
+
+    def add_writer_state(self, graph, after):
+        key_column = self.featureset.spec.entities[0].name
+        timestamp_key = self.featureset.spec.timestamp_key
+        column_list = list(self.featureset.spec.features.keys())
+        if timestamp_key:
+            column_list = [timestamp_key] + column_list
+
+        graph.add_step(
+            "WriteToCSV",
+            after=after,
+            shape="cylinder",
+            class_name="storey.WriteToCSV",
             path=self.target_path,
             columns=column_list,
             index_cols=key_column,
@@ -208,7 +225,10 @@ def _get_target_path(kind, featureset, suffix=""):
     name = featureset.metadata.name
     version = featureset.metadata.tag
     project = featureset.metadata.project or mlconf.default_project
-    data_prefix = data_prefixes[kind]
+    data_prefix = store_config.data_prefixes.get(kind, None)
+    if not data_prefix:
+        data_prefix = store_config.data_prefixes['default']
+    data_prefix = data_prefix.format(project=project, kind=kind)
     if version:
         name = f"{name}-{version}"
-    return f"{data_prefix}/{project}/{kind}/{name}{suffix}"
+    return f"{data_prefix}/{name}{suffix}"

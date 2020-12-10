@@ -28,8 +28,7 @@ from .vector import (
 )
 from mlrun.featurestore.mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
-from .model import TargetTypes, FeatureClassKind, DataTarget
-from ..serving.server import MockContext
+from .model import FeatureClassKind, store_config
 from ..utils import get_caller_globals, parse_function_uri
 
 
@@ -39,7 +38,7 @@ def store_client(project=None, secrets=None, api_address=None):
 
 class FeatureStoreClient:
     def __init__(
-        self, project=None, secrets=None, api_address=None,
+        self, project=None, secrets=None, api_address=None, default_targets = None,
     ):
         self.nosql_path_prefix = ""
         self.project = project
@@ -59,7 +58,8 @@ class FeatureStoreClient:
         self._data_stores = store_manager.set(secrets)
         self._fs = {}
         self._tabels = {}
-        self._default_ingest_targets = [TargetTypes.parquet]
+        if default_targets:
+            store_config.default_targets = default_targets
 
     def _get_db(self):
         if not self._db_conn:
@@ -82,7 +82,6 @@ class FeatureStoreClient:
         with_preview=False,
     ):
         """Read local DataFrame, file, or URL into the feature store"""
-        targets = targets or self._default_ingest_targets
         namespace = namespace or get_caller_globals()
         if isinstance(featureset, str):
             featureset = self.get_feature_set(featureset)

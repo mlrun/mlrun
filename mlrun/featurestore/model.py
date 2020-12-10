@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 from typing import Dict, List, Optional
 from mlrun.model import ModelObj
 from .datatypes import ValueType
+from .validators import validator_types
 from ..model import ObjectList
 from ..serving.states import ServingRootFlowState
 
@@ -25,61 +26,39 @@ class FeatureClassKind:
     Entity = "Entity"
 
 
-class Validator(ModelObj):
-    kind = ""
-    _dict_fields = ["kind", "check_type", "severity"]
-
-    def __init__(self, check_type=None, severity=None):
-        self._feature = None
-        self.check_type = check_type
-        self.severity = severity
-
-    def set_feature(self, feature):
-        self._feature = feature
-
-    def check(self, value):
-        return True, {}
+class TargetTypes:
+    csv = "csv"
+    parquet = "parquet"
+    nosql = "nosql"
+    tsdb = "tsdb"
+    stream = "stream"
+    dataframe = "dataframe"
 
 
-class MinMaxValidator(Validator):
-    kind = "minmax"
-    _dict_fields = ["kind", "check_type", "severity", "min", "max"]
-
-    def __init__(self, check_type=None, severity=None, min=None, max=None):
-        super().__init__(check_type, severity)
-        self.min = min
-        self.max = max
-
-    def check(self, value):
-        ok, args = super().check(value)
-        if ok:
-            if self.min is not None:
-                if value < self.min:
-                    return (
-                        False,
-                        {
-                            "message": "value is smaller than min",
-                            "min": self.min,
-                            "value": value,
-                        },
-                    )
-            if self.max is not None:
-                if value > self.max:
-                    return (
-                        False,
-                        {
-                            "message": "value is greater than max",
-                            "max": self.max,
-                            "value": value,
-                        },
-                    )
-        return ok, args
-
-
-validator_types = {
-    "": Validator,
-    "minmax": MinMaxValidator,
+default_config = {
+    "data_prefixes": {
+        "default": "./store/{project}/{kind}",
+        "parquet": "./store/{project}/{kind}",
+        "nosql": "v3io:///projects/{project}/fs/{kind}"},
+    "default_targets": [TargetTypes.parquet, TargetTypes.nosql]
 }
+
+
+class FeatureStoreConfig:
+    def __init__(self, config=None):
+        object.__setattr__(self, "_config", config or {})
+
+    def __getattr__(self, attr):
+        val = self._config.get(attr, None)
+        if val is None:
+            raise AttributeError(attr)
+        return val
+
+    def __setattr__(self, attr, value):
+        self._config[attr] = value
+
+
+store_config = FeatureStoreConfig(copy.deepcopy(default_config))
 
 
 class Entity(ModelObj):
@@ -143,49 +122,9 @@ class FeatureSetProducer(ModelObj):
         self.sources = {}
 
 
-class TargetTypes:
-    parquet = "parquet"
-    nosql = "nosql"
-    tsdb = "tsdb"
-    stream = "stream"
-    dataframe = "dataframe"
-
-
 class SourceTypes:
     offline = "offline"
     realtime = "realtime"
-
-
-def is_online_store(target_type):
-    return target_type in [TargetTypes.nosql]
-
-
-def is_offline_store(target_type, with_timestamp=True):
-    return target_type in [TargetTypes.parquet, TargetTypes.tsdb] or (
-        with_timestamp and target_type == TargetTypes.nosql
-    )
-
-
-def get_offline_store(type_list, requested_type):
-    if requested_type:
-        if requested_type in type_list and is_offline_store(requested_type):
-            return requested_type
-        raise ValueError(
-            f"target type {requested_type}, not available or is not offline type"
-        )
-    # todo: sort from best (e.g. parquet) to last
-    if TargetTypes.parquet in type_list:
-        return TargetTypes.parquet
-    for value in type_list:
-        if is_offline_store(value):
-            return value
-    raise ValueError("did not find a valid offline features table")
-
-
-def get_online_store(type_list):
-    if TargetTypes.nosql in type_list:
-        return TargetTypes.nosql
-    raise ValueError("did not find a valid offline features table")
 
 
 class DataTargetSpec(ModelObj):

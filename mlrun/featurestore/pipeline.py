@@ -60,7 +60,7 @@ def init_featureset_graph(
     targets = []
 
     if with_targets:
-        init_featureset_targets(featureset, tables, True)
+        init_featureset_targets(featureset, tables)
         targets = featureset.spec.targets
     add_target_states(graph, featureset, targets, to_df=return_df)
 

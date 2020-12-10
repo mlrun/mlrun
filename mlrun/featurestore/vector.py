@@ -20,13 +20,12 @@ from mlrun.run import get_dataitem
 import v3io.dataplane
 
 from .model import (
-    DataTarget,
-    get_offline_store,
     FeatureSetMetadata,
     FeatureVectorSpec,
     FeatureVectorStatus,
 )
-from .pipeline import steps_from_featureset, init_feature_vector_graph
+from .pipeline import init_feature_vector_graph
+from .targets import get_offline_target
 
 
 class FeatureVectorError(Exception):
@@ -140,7 +139,7 @@ class FeatureVector(ModelObj):
                 if name in feature_set.spec.features.keys():
                     self.status.features[alias or name] = feature_set.spec.features[name]
 
-    def load_featureset_dfs(self):
+    def load_featureset_dfs(self, df_module=None):
         feature_sets = []
         dfs = []
         for name, columns in self._feature_set_fields.items():
@@ -149,7 +148,9 @@ class FeatureVector(ModelObj):
             if fs.spec.timestamp_key:
                 column_names = [fs.spec.timestamp_key] + column_names
             feature_sets.append(fs)
-            df = _featureset_to_df(fs, column_names)
+            target, _ = get_offline_target(fs)
+            column_names = list(fs.spec.entities.keys()) + column_names
+            df = get_dataitem(target.path).as_df(columns=column_names, df_module=df_module)
             df.rename(
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
@@ -254,11 +255,3 @@ def _parse_feature_string(feature):
     if len(splitted) > 1:
         return feature_set, splitted[0], splitted[1]
     return feature_set, feature_name, None
-
-
-def _featureset_to_df(featureset, columns=None, target_name=None, df_module=None):
-    targets_map = featureset.status.targets
-    target_name = get_offline_store(targets_map.keys(), target_name)
-    target: DataTarget = targets_map[target_name]
-    columns = list(featureset.spec.entities.keys()) + columns
-    return get_dataitem(target.path).as_df(columns=columns, df_module=df_module)

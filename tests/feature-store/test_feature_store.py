@@ -10,14 +10,12 @@ import mlrun.featurestore as fs
 from mlrun.config import config as mlconf
 from mlrun.featurestore import FeatureSet, Entity, TargetTypes
 from mlrun.featurestore.datatypes import ValueType
-from mlrun.featurestore.model import MinMaxValidator, Feature
+from mlrun.featurestore.validators import MinMaxValidator
 
 
 def init_store():
     mlconf.dbpath = os.environ["TEST_DBPATH"]
-    #data_prefix = os.environ.get("FEATURESTORE_PATH", "v3io:///users/admin/fs")
-    client = fs.store_client() #data_prefixes={"parquet": "./store", "nosql": data_prefix})
-    #client._default_ingest_targets = [TargetTypes.parquet, TargetTypes.nosql]
+    client = fs.store_client()
     return client
 
 
@@ -73,9 +71,10 @@ def test_ingestion():
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
     quotes_set.plot("pipe.png", rankdir="LR")
+    print(quotes_set.to_yaml())
 
     print(client.ingest(quotes_set, quotes, return_df=True))
-    print(quotes_set.get_stats_table())
+    print(quotes_set.to_yaml())
 
 
 def test_realtime_query():

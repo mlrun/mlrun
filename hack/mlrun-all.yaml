@@ -24,7 +24,7 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
-          value: "<set default registry url>"
+          value: "set default registry url e.g. index.docker.io/<username>"
         - name: V3IO_ACCESS_KEY
           value: <access-key>
         - name: V3IO_USERNAME

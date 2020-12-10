@@ -131,7 +131,7 @@ class FunctionRef(ModelObj):
         return func
 
     def add_stream_trigger(
-        self, stream_path, name="stream", group="serving", seek_to="earliest"
+        self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
     ):
         container, path = split_path(stream_path)
         self._function.add_trigger(
@@ -144,6 +144,8 @@ class FunctionRef(ModelObj):
                 seekTo=seek_to,
             ),
         )
+        self._function.spec.min_replicas = shards
+        self._function.spec.max_replicas = shards
 
     def deploy(self):
         self._address = self._function.deploy()
@@ -354,14 +356,14 @@ class ServingRuntime(RemoteRuntime):
         self._spec.function_refs.update(function_ref, name)
         return function_ref.to_function()
 
-    def _add_ref_triggers(self, group=None):
+    def _add_ref_triggers(self):
         for function, stream in self.spec.graph.get_queue_links().items():
-            if stream:
+            if stream.path:
                 if function not in self._spec.function_refs.keys():
                     raise ValueError(f"function reference {function} not present")
-                self._spec.function_refs[function].add_stream_trigger(
-                    stream, group=group or "serving"
-                )
+                child_function = self._spec.function_refs[function]
+                group = stream.options.get('group', "serving")
+                child_function.add_stream_trigger(stream.path, group=group, shards=stream.shards)
 
     def _deploy_function_refs(self):
         for function in self._spec.function_refs.values():
@@ -379,7 +381,7 @@ class ServingRuntime(RemoteRuntime):
         if self.spec.graph:
             self.spec.graph.clear_children(keys)
 
-    def deploy(self, dashboard="", project="", tag="", stream_group=None):
+    def deploy(self, dashboard="", project="", tag=""):
         """deploy model serving function to a local/remote cluster
 
         :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
@@ -393,7 +395,7 @@ class ServingRuntime(RemoteRuntime):
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
         if self._spec.function_refs:
-            self._add_ref_triggers(group=stream_group)
+            self._add_ref_triggers()
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
         return super().deploy(dashboard, project, tag)

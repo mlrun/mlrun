@@ -770,7 +770,6 @@ class ServingFlowState(BaseState):
         links = {}
         for state in self.get_children():
             if state.kind == StateKinds.queue:
-                stream_path = state.path
                 for item in state.next or []:
                     next_state = self[item]
                     if next_state.function:
@@ -778,7 +777,7 @@ class ServingFlowState(BaseState):
                             raise GraphError(
                                 f"function ({next_state.function}) cannot read from multiple queues"
                             )
-                        links[next_state.function] = stream_path
+                        links[next_state.function] = state
         return links
 
     def find_last_state(self):

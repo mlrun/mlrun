@@ -14,13 +14,13 @@
 
 import tarfile
 from base64 import b64decode, b64encode
-from os import environ, path, remove
+from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import logger, normalize_name, enrich_image_url
+from .utils import logger, normalize_name, enrich_image_url, get_parsed_docker_registry
 from .config import config
 
 
@@ -145,15 +145,12 @@ def build_image(
         dest = "{}/{}".format(registry, dest)
     elif dest.startswith("."):
         dest = dest[1:]
-        if "DOCKER_REGISTRY_PORT" in environ:
-            registry = urlparse(environ.get("DOCKER_REGISTRY_PORT")).netloc
-        else:
-            registry = environ.get("DEFAULT_DOCKER_REGISTRY")
-            secret_name = secret_name or environ.get("DEFAULT_DOCKER_SECRET")
+        registry, _ = get_parsed_docker_registry()
+        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
         if not registry:
             raise ValueError(
-                "local docker registry is not defined, set "
-                "DEFAULT_DOCKER_REGISTRY/SECRET env vars"
+                "Default docker registry is not defined, set "
+                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
             )
         dest = "{}/{}".format(registry, dest)
 

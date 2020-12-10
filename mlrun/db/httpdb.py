@@ -16,7 +16,7 @@ import json
 import tempfile
 import time
 from datetime import datetime
-from os import path, remove, environ
+from os import path, remove
 from typing import List, Dict, Union
 
 import kfp
@@ -139,6 +139,7 @@ class HTTPRunDB(RunDBInterface):
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
             self._validate_version_compatibility(self.server_version, config.version)
+            config.namespace = config.namespace or server_cfg.get("namespace")
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace
@@ -164,12 +165,10 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
-            if (
-                "docker_registry" in server_cfg
-                and "DEFAULT_DOCKER_REGISTRY" not in environ
-            ):
-                environ["DEFAULT_DOCKER_REGISTRY"] = server_cfg["docker_registry"]
-
+            config.httpdb.builder.docker_registry = (
+                config.httpdb.builder.docker_registry
+                or server_cfg.get("docker_registry")
+            )
         except Exception:
             pass
         return self

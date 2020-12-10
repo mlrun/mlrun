@@ -99,7 +99,12 @@ default_config = {
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
-        "builder": {"docker_registry": "", "docker_registry_secret": ""},
+        "builder": {
+            # setting the docker registry to be used for built images, can include the repository as well, e.g.
+            # index.docker.io/<username>, if not included repository will default to mlrun
+            "docker_registry": "",
+            "docker_registry_secret": "",
+        },
     },
 }
 

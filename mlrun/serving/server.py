@@ -180,13 +180,13 @@ def v2_serving_init(context, namespace=None):
         raise ValueError("failed to find spec env var")
     spec = json.loads(data)
     server = GraphServer.from_dict(spec)
-    if config.log_level.lower == "debug":
+    if config.log_level.lower() == "debug":
         server.verbose = True
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     serving_handler = server.init(context, namespace or globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
-    context.logger.info('serving was initialized')
+    context.logger.info(f'serving was initialized, verbose={server.verbose}')
     if server.verbose:
         context.logger.info(server.to_yaml())
 

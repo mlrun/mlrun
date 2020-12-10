@@ -37,7 +37,7 @@ _none_type = type(None)
 
 
 default_config = {
-    "namespace": "default-tenant",  # default kubernetes namespace
+    "namespace": "",  # default kubernetes namespace
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
@@ -51,7 +51,7 @@ default_config = {
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "igz_version": "",  # the version of the iguazio system the API is running on
     "spark_app_image": "iguazio/spark-app",  # image to use for spark operator app runtime
-    "kaniko_version": "v0.19.0",  # kaniko builder version
+    "kaniko_version": "v0.24.0",  # kaniko builder version
     "package_path": "mlrun",  # mlrun pip package
     "default_image": "python:3.6-jessie",
     "default_project": "default",  # default project name
@@ -113,7 +113,11 @@ class Config:
         return val
 
     def __setattr__(self, attr, value):
-        self._cfg[attr] = value
+        # in order for the dbpath setter to work
+        if attr == "dbpath":
+            super().__setattr__(attr, value)
+        else:
+            self._cfg[attr] = value
 
     def __dir__(self):
         return list(self._cfg) + dir(self.__class__)
@@ -157,6 +161,20 @@ class Config:
 
             return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
         return self._kfp_image
+
+    @property
+    def dbpath(self):
+        return self._dbpath
+
+    @dbpath.setter
+    def dbpath(self, value):
+        self._dbpath = value
+        if value:
+            # importing here to avoid circular dependency
+            import mlrun.db
+
+            # when dbpath is set we want to connect to it which will sync configuration from it to the client
+            mlrun.db.get_run_db(value).connect()
 
 
 # Global configuration
@@ -230,9 +248,12 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
-    # check for mlrun-api or db kubernetes service
+    # TODO: remove this - and verify dbpath is set correctly in all flows
+    # Here we're just guessing that there is a service named mlrun-api, if there is, there will be an env var for it's
+    # port - MLRUN_API_PORT - so we're using the env var existence to know whether our guess is right.
+    # the existence of config.httpdb.api_url tell that we're running in an API context so no need to set the dbpath
     svc = env.get("MLRUN_API_PORT")
-    if svc and not config.get("dbpath"):
+    if svc and not config.get("dbpath") and not config.get("httpdb", {}).get("api_url"):
         config["dbpath"] = "http://mlrun-api:{}".format(
             default_config["httpdb"]["port"] or 8080
         )

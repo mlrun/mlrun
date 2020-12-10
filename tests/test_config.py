@@ -16,6 +16,7 @@ from mlrun import config as mlconf
 from contextlib import contextmanager
 from os import environ
 import yaml
+import requests_mock as requests_mock_package
 from tempfile import NamedTemporaryFile
 
 import pytest
@@ -105,3 +106,16 @@ def test_can_set(config):
     val = 90
     config.x.y = val
     assert config.x.y == val, "bad config update"
+
+
+def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
+    api_url = "http://mlrun-api-url:8080"
+    remote_host = "some-namespace"
+    response_body = {
+        "version": "some-version",
+        "remote_host": remote_host,
+    }
+    requests_mock.get(f"{api_url}/api/healthz", json=response_body)
+    assert "" == mlconf.config.remote_host
+    mlconf.config.dbpath = api_url
+    assert remote_host == mlconf.config.remote_host

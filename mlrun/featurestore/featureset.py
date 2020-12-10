@@ -219,5 +219,6 @@ class FeatureSet(ModelObj):
         graph = self.spec.graph
         if with_targets:
             graph = graph.copy()
+            graph.default_before = None
             add_target_states(graph, self, self.spec.targets)
         return graph.plot(filename, format, **kw)

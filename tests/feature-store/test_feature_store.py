@@ -54,6 +54,7 @@ def test_ingestion():
     print(stocks_set.to_yaml())
 
     quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
+    quotes_set.set_targets()
     quotes_set.add_step("map", "MyMap", mul=3)
     quotes_set.add_step("addz", "storey.Extend", _fn="({'z': event['bid'] * 77})")
     quotes_set.add_step("filter", "storey.Filter", _fn="(event['bid'] > 51.92)")
@@ -70,7 +71,7 @@ def test_ingestion():
     print(df)
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
-    quotes_set.plot("pipe.png", rankdir="LR")
+    quotes_set.plot("pipe.png", rankdir="LR", with_targets=True)
     print(quotes_set.to_yaml())
 
     print(client.ingest(quotes_set, quotes, return_df=True))

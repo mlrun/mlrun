@@ -24,7 +24,7 @@ from .model import (
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
 from .pipeline import init_featureset_graph
-from .targets import add_target_states
+from .targets import add_target_states, init_target
 from ..model import ModelObj
 from ..serving.states import ServingTaskState
 
@@ -123,13 +123,13 @@ class FeatureSet(ModelObj):
 
     def set_targets(self, targets=None):
         if targets is not None and not isinstance(targets, list):
-            raise ValueError('targets can only be None or a list of kinds/dict/DataTargetSpec')
+            raise ValueError('targets can only be None or a list of kinds/DataTargetSpec')
         targets = targets or copy(store_config.default_targets)
         for target in targets:
-            if isinstance(target, (DataTargetSpec, dict)):
-                self.spec.targets.update(target)
-            else:
-                self.spec.targets.update(DataTargetSpec(target), str(target))
+            if not isinstance(target, DataTargetSpec):
+                target = DataTargetSpec(target, name=str(target))
+            init_target(self, target)
+            self.spec.targets.update(target)
 
     def add_entity(self, entity, name=None):
         self._spec.entities.update(entity, name)

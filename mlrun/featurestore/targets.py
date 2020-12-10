@@ -7,24 +7,24 @@ from mlrun.config import config as mlconf
 from .model import DataTargetSpec, TargetTypes, DataTarget, store_config
 
 
+def init_target(featureset, target, tables=None):
+    driver = kind_to_driver[target.kind](featureset, target)
+    driver.init_table(tables)
+    driver.update_featureset_status()
+    target.driver = driver
+
+
 def init_featureset_targets(featureset, tables):
     targets = featureset.spec.targets
-
-    def init_target(target):
-        driver = kind_to_driver[target.kind](featureset, target)
-        driver.init_table(tables)
-        driver.update_featureset_status()
-        target.driver = driver
 
     if not targets:
         defaults = copy(store_config.default_targets)
         for target in defaults:
             target_obj = targets.update(DataTargetSpec(target), str(target))
-            init_target(target_obj)
+            init_target(featureset, target_obj, tables)
     else:
         for target in targets:
-            init_target(target)
-
+            init_target(featureset, target, tables)
 
 
 def add_target_states(graph, featureset, targets, to_df=False):
@@ -80,7 +80,7 @@ class BaseTargetDriver:
         pass
 
     def init_table(self, tables, default=True):
-        if self.is_table:
+        if self.is_table and tables is not None:
             table = self.get_table_object(self.target_path)
             tables[self.featureset.uri()] = table
             if default:

@@ -624,7 +624,7 @@ class BaseRuntime(ModelObj):
         image = enrich_image_url(image)
         if not image.startswith("."):
             return image
-        registry, _ = get_parsed_docker_registry
+        registry, _ = get_parsed_docker_registry()
         if registry:
             return "{}/{}".format(registry, image[1:])
         if "IGZ_NAMESPACE_DOMAIN" in environ:

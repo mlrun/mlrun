@@ -26,7 +26,7 @@ spec:
         - name: MLRUN_HTTPDB__DB_TYPE
           value: filedb
         - name: DEFAULT_DOCKER_REGISTRY
-          value: "<set default registry url>"
+          value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
         - name: DEFAULT_DOCKER_SECRET
           value: ""
         ports:

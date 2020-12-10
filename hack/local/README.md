@@ -71,16 +71,16 @@ The following example uses a shared NFS server and a Helm chart for the installa
 If you plan to push containers or use a private registry, you need to first create a secret with your Docker registry information.
 You can do this by running the following command:
 ```sh
-kubectl create -n <namespace> secret docker-registry my-docker --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>
+kubectl create -n <namespace> secret docker-registry my-docker-secret --docker-server=https://index.docker.io/v1/ --docker-username=<your-user> --docker-password=<your-password> --docker-email=<your-email>
 ```
 
 Copy the [**mlrun-local.yaml**](mlrun-local.yaml) file to your cluster, edit the registry and other attributes as needed, for example:
 
 ```yaml
     - name: DEFAULT_DOCKER_REGISTRY
-      value: "https://index.docker.io/v1/"
+      value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
     - name: DEFAULT_DOCKER_SECRET
-      value: my-docker
+      value: my-docker-secret
 ``` 
 
 and run the following command from the directory that contains the file:

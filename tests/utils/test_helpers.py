@@ -1,5 +1,11 @@
+import os
 from mlrun.config import config
-from mlrun.utils.helpers import verify_field_regex, extend_hub_uri, enrich_image_url
+from mlrun.utils.helpers import (
+    verify_field_regex,
+    extend_hub_uri,
+    enrich_image_url,
+    get_parsed_docker_registry,
+)
 from mlrun.utils.regex import run_name
 
 
@@ -119,3 +125,49 @@ def test_enrich_image():
         expected_output = case["expected_output"]
         output = enrich_image_url(image)
         assert expected_output == output
+
+
+def test_get_parsed_docker_registry():
+    cases = [
+        {"docker_registry": "", "expected_registry": "", "expected_repository": None},
+        {
+            "docker_registry": "hedi/ingber",
+            "expected_registry": None,
+            "expected_repository": "hedi/ingber",
+        },
+        {
+            "docker_registry": "localhost/hedingber",
+            "expected_registry": "localhost",
+            "expected_repository": "hedingber",
+        },
+        {
+            "docker_registry": "gcr.io/hedingber",
+            "expected_registry": "gcr.io",
+            "expected_repository": "hedingber",
+        },
+        {
+            "docker_registry": "local-registry:80/hedingber",
+            "expected_registry": "local-registry:80",
+            "expected_repository": "hedingber",
+        },
+        {
+            "docker_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80/hedingber",
+            "expected_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80",
+            "expected_repository": "hedingber",
+        },
+        {
+            "docker_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80",
+            "expected_registry": "docker-registry.default-tenant.app.hedingber-30-1.iguazio-cd1.com:80",
+            "expected_repository": None,
+        },
+        {
+            "docker_registry": "quay.io/",
+            "expected_registry": "quay.io",
+            "expected_repository": "",
+        },
+    ]
+    for case in cases:
+        os.environ["DEFAULT_DOCKER_REGISTRY"] = case["docker_registry"]
+        registry, repository = get_parsed_docker_registry()
+        assert case["expected_registry"] == registry
+        assert case["expected_repository"] == repository

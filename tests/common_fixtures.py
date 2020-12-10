@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from os import environ
 from typing import Callable, Generator
 from unittest.mock import Mock
 
@@ -6,10 +7,25 @@ import pytest
 import requests
 import v3io.dataplane
 
+import mlrun.config
 from mlrun.api.db.sqldb.db import SQLDB
-from tests.conftest import init_sqldb
+from tests.conftest import root_path, rundb_path, logs_path, init_sqldb
 
 session_maker: Callable
+
+
+@pytest.fixture(autouse=True)
+# if we'll just call it config it may be overridden by other fixtures with the same name
+def config_test_base():
+    environ["PYTHONPATH"] = root_path
+    environ["MLRUN_DBPATH"] = rundb_path
+    environ["MLRUN_httpdb__dirpath"] = rundb_path
+    environ["MLRUN_httpdb__logs_path"] = logs_path
+    environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
+    log_level = "DEBUG"
+    environ["MLRUN_log_level"] = log_level
+    # reload config so that values overridden by tests won't pass to other tests
+    mlrun.config.config.reload()
 
 
 @pytest.fixture

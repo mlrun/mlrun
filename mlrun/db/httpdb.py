@@ -141,6 +141,7 @@ class HTTPRunDB(RunDBInterface):
                         self.server_version, config.version
                     )
                 )
+            config.namespace = config.namespace or server_cfg.get("namespace")
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace

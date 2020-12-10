@@ -114,7 +114,7 @@ class FeatureSet(ModelObj):
 
         infer_schema_from_df(df, self._spec, entity_columns, with_index)
         if with_stats:
-            self._status.stats = get_df_stats(df, with_histogram)
+            self._status.stats = get_df_stats(df, with_histogram=with_histogram)
         if with_preview:
             self._status.preview = get_df_preview(df)
         if label_column:

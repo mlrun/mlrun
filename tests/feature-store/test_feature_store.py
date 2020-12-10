@@ -56,9 +56,9 @@ def test_ingestion():
     print(stocks_set.to_yaml())
 
     quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
-    quotes_set.add_flow_step("map", "MyMap", mul=3)
-    quotes_set.add_flow_step("addz", "storey.Extend", _fn="({'z': event['bid'] * 77})")
-    quotes_set.add_flow_step("filter", "storey.Filter", _fn="(event['bid'] > 51.92)")
+    quotes_set.add_step("map", "MyMap", mul=3)
+    quotes_set.add_step("addz", "storey.Extend", _fn="({'z': event['bid'] * 77})")
+    quotes_set.add_step("filter", "storey.Filter", _fn="(event['bid'] > 51.92)")
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
     quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
 
@@ -75,7 +75,7 @@ def test_ingestion():
     quotes_set.plot("pipe.png", rankdir="LR")
 
     print(client.ingest(quotes_set, quotes, return_df=True))
-    print(quotes_set.to_yaml())
+    print(quotes_set.get_stats_table())
 
 
 def test_realtime_query():

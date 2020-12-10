@@ -259,6 +259,8 @@ def build_runtime(runtime, with_mlrun, interactive=False):
         interactive=interactive,
         name=name,
         with_mlrun=with_mlrun,
+        extra=build.extra,
+        verbose=runtime.verbose,
     )
     runtime.status.build_pod = None
     if status == "skipped":

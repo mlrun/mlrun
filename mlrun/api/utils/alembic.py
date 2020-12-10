@@ -30,8 +30,8 @@ class AlembicUtil(object):
             alembic.command.stamp(self._alembic_config, initial_alembic_revision)
 
         elif (
-            not from_scratch
-            and db_path_exists
+            db_path_exists
+            and current_revision
             and current_revision not in revision_history
         ):
             self._downgrade_to_revision(db_file_path, current_revision, latest_revision)
@@ -97,7 +97,9 @@ class AlembicUtil(object):
         shutil.copy2(db_file_path, backup_path)
 
     @staticmethod
-    def _downgrade_to_revision(db_file_path: str, current_revision: str, fallback_version: str):
+    def _downgrade_to_revision(
+        db_file_path: str, current_revision: str, fallback_version: str
+    ):
         db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
         backup_path = db_dir_path / f"{fallback_version}.db"
 

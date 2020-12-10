@@ -54,6 +54,7 @@ from ..utils import (
     enrich_image_url,
     dict_to_yaml,
     dict_to_json,
+    get_parsed_docker_registry,
 )
 
 
@@ -623,8 +624,9 @@ class BaseRuntime(ModelObj):
         image = enrich_image_url(image)
         if not image.startswith("."):
             return image
-        if config.httpdb.builder.docker_registry:
-            return "{}/{}".format(config.httpdb.builder.docker_registry, image[1:])
+        registry, _ = get_parsed_docker_registry
+        if registry:
+            return "{}/{}".format(registry, image[1:])
         if "IGZ_NAMESPACE_DOMAIN" in environ:
             return "docker-registry.{}:80/{}".format(
                 environ.get("IGZ_NAMESPACE_DOMAIN"), image[1:]

@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import logger, normalize_name, enrich_image_url
+from .utils import logger, normalize_name, enrich_image_url, get_parsed_docker_registry
 from .config import config
 
 
@@ -145,7 +145,7 @@ def build_image(
         dest = "{}/{}".format(registry, dest)
     elif dest.startswith("."):
         dest = dest[1:]
-        registry = config.httpdb.builder.docker_registry
+        registry, _ = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret
         if not registry:
             raise ValueError(

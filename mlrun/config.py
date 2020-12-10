@@ -128,7 +128,11 @@ class Config:
         return val
 
     def __setattr__(self, attr, value):
-        self._cfg[attr] = value
+        # in order for the dbpath setter to work
+        if attr == 'dbpath':
+            super().__setattr__(attr, value)
+        else:
+            self._cfg[attr] = value
 
     def __dir__(self):
         return list(self._cfg) + dir(self.__class__)
@@ -182,13 +186,14 @@ class Config:
         return self._dbpath
 
     @dbpath.setter
-    def dbpath(self, dbpath):
-        self._dbpath = dbpath
-        # importing here to avoid circular dependency
-        import mlrun.db
+    def dbpath(self, value):
+        self._dbpath = value
+        if value:
+            # importing here to avoid circular dependency
+            import mlrun.db
 
-        # when dbpath is set we want to connect to it which will sync configuration from it to the client
-        mlrun.db.get_run_db(dbpath).connect()
+            # when dbpath is set we want to connect to it which will sync configuration from it to the client
+            mlrun.db.get_run_db(value).connect()
 
 
 # Global configuration

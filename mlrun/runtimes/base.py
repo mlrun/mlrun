@@ -504,7 +504,7 @@ class BaseRuntime(ModelObj):
     def _generate_runtime_env(self, runobj: RunObject):
         runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
-            runtime_env["MLRUN_LOG_LEVEL"] = "debug"
+            runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if self.spec.rundb:
             runtime_env["MLRUN_DBPATH"] = self.spec.rundb
         if self.metadata.namespace or config.namespace:

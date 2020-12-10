@@ -20,7 +20,6 @@ def init_featureset_targets(featureset, tables, with_defaults=None):
 
     def init_target(target):
         driver = kind_to_driver[target.kind](featureset, target)
-        print(target.kind, driver.target_path)
         driver.init_table(tables)
         driver.update_featureset_status()
         target.driver = driver

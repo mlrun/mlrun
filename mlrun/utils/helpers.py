@@ -431,7 +431,9 @@ def enrich_image_url(image_url: str) -> str:
     return image_url
 
 
-def get_parsed_docker_registry() -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
+def get_parsed_docker_registry() -> typing.Tuple[
+    typing.Optional[str], typing.Optional[str]
+]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = environ.get("DEFAULT_DOCKER_REGISTRY", "")
     first_slash_index = docker_registry.find("/")
@@ -450,8 +452,6 @@ def get_parsed_docker_registry() -> typing.Tuple[typing.Optional[str], typing.Op
             docker_registry[:first_slash_index],
             docker_registry[first_slash_index + 1 :],
         )
-
-
 
 
 def get_artifact_target(item: dict, project=None):

@@ -19,11 +19,13 @@ import traceback
 import uuid
 from copy import deepcopy
 
+from mlrun.config import config
+
 from .states import (
     ServingRouterState,
     ServingTaskState,
     StateKinds,
-    ServingRootFlowState,
+    ServingRootFlowState, get_function, graph_root_setter,
 )
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
@@ -56,6 +58,7 @@ class GraphServer(ModelObj):
         verbose=False,
         version=None,
         functions=None,
+        graph_initializer=None,
     ):
         self._graph = None
         self.graph: ServingRouterState = graph
@@ -68,6 +71,7 @@ class GraphServer(ModelObj):
         self._namespace = None
         self._current_function = None
         self.functions = functions or []
+        self.graph_initializer = graph_initializer
 
     def set_current_function(self, function):
         self._current_function = function
@@ -78,17 +82,7 @@ class GraphServer(ModelObj):
 
     @graph.setter
     def graph(self, graph):
-        if graph:
-            if isinstance(graph, dict):
-                kind = graph.get("kind")
-            elif hasattr(graph, "kind"):
-                kind = graph.kind
-            else:
-                raise ValueError("graph must be a dict or a valid object")
-            if kind == StateKinds.router:
-                self._graph = self._verify_dict(graph, "graph", ServingRouterState)
-            else:
-                self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
+        graph_root_setter(self, graph)
 
     def merge_root_params(self, params={}):
         """for internal use, enrich child states with root params"""
@@ -107,6 +101,10 @@ class GraphServer(ModelObj):
         setattr(context, "current_function", self._current_function)
         setattr(context, "verbose", self.verbose)
         setattr(context, "root", self.graph)
+
+        if self.graph_initializer:
+            handler = get_function(self.graph_initializer, namespace)
+            handler(self)
 
         self.graph.init_object(context, namespace, self.load_mode)
         return v2_serving_handler
@@ -182,10 +180,15 @@ def v2_serving_init(context, namespace=None):
         raise ValueError("failed to find spec env var")
     spec = json.loads(data)
     server = GraphServer.from_dict(spec)
+    if config.log_level.lower == "debug":
+        server.verbose = True
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
     serving_handler = server.init(context, namespace or globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
+    context.logger.info('serving was initialized')
+    if server.verbose:
+        context.logger.info(server.to_yaml())
 
 
 def v2_serving_handler(context, event, get_body=False):
@@ -228,7 +231,7 @@ def create_graph_server(
                 print(host.test("my/infer", testdata))
     """
     if not context:
-        context = MockContext(level, logger=logger)
+        context = GraphContext(level, logger=logger)
 
     if not graph:
         graph = ServingRouterState(class_name=router_class, class_args=router_args)
@@ -279,7 +282,7 @@ class Response(object):
         return "{}({})".format(cls, ", ".join(args))
 
 
-class MockContext:
+class GraphContext:
     """mock basic nuclio context object"""
 
     def __init__(self, level="debug", logger=None):

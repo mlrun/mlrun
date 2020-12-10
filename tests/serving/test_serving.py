@@ -6,7 +6,7 @@ import mlrun
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
-from mlrun.serving.server import MockEvent, MockContext, create_graph_server
+from mlrun.serving.server import MockEvent, GraphContext, create_graph_server
 from mlrun.serving.states import ServingRouterState, ServingTaskState
 
 router_object = ServingRouterState()
@@ -86,7 +86,7 @@ class AsyncModelTestingClass(V2ModelServer):
 
 def init_ctx():
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
-    context = MockContext()
+    context = GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
     return context
 
@@ -136,7 +136,7 @@ def test_v2_stream_mode():
 def test_v2_async_mode():
     # model loading is async
     os.environ["SERVING_SPEC_ENV"] = json.dumps(asyncspec)
-    context = MockContext()
+    context = GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
     context.logger.info("model initialized")
 

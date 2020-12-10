@@ -38,7 +38,7 @@ def store_client(project=None, secrets=None, api_address=None):
 
 class FeatureStoreClient:
     def __init__(
-        self, project=None, secrets=None, api_address=None, default_targets = None,
+        self, project=None, secrets=None, api_address=None, default_targets=None,
     ):
         self.nosql_path_prefix = ""
         self.project = project
@@ -138,7 +138,7 @@ class FeatureStoreClient:
         elif isinstance(features, FeatureVector):
             vector = features
         else:
-            raise ValueError('illegal features value/type')
+            raise ValueError("illegal features value/type")
 
         entity_timestamp_column = entity_timestamp_column or vector.spec.timestamp_field
         vector.parse_features(self)

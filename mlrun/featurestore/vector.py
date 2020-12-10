@@ -82,7 +82,7 @@ class FeatureVector(ModelObj):
 
     def get_stats_table(self):
         if self.status.stats:
-            return pd.DataFrame.from_dict(self.status.stats, orient='index')
+            return pd.DataFrame.from_dict(self.status.stats, orient="index")
 
     def parse_features(self, client):
         self._processed_features = {}  # dict of name to (featureset, feature object)
@@ -137,7 +137,9 @@ class FeatureVector(ModelObj):
                 if name in feature_set.status.stats:
                     self.status.stats[alias or name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
-                    self.status.features[alias or name] = feature_set.spec.features[name]
+                    self.status.features[alias or name] = feature_set.spec.features[
+                        name
+                    ]
 
     def load_featureset_dfs(self, df_module=None):
         feature_sets = []
@@ -150,7 +152,9 @@ class FeatureVector(ModelObj):
             feature_sets.append(fs)
             target, _ = get_offline_target(fs)
             column_names = list(fs.spec.entities.keys()) + column_names
-            df = get_dataitem(target.path).as_df(columns=column_names, df_module=df_module)
+            df = get_dataitem(target.path).as_df(
+                columns=column_names, df_module=df_module
+            )
             df.rename(
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
@@ -225,7 +229,11 @@ class OnlineVectorService:
         return "ready"
 
     def init(self):
-        flow = init_feature_vector_graph(self._client, self.vector._feature_set_fields, self.vector.feature_set_objects)
+        flow = init_feature_vector_graph(
+            self._client,
+            self.vector._feature_set_fields,
+            self.vector.feature_set_objects,
+        )
         self._controller = flow.run()
 
     def get(self, entity_rows: list):

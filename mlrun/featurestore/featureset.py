@@ -20,7 +20,9 @@ from .model import (
     FeatureSetSpec,
     FeatureSetMetadata,
     FeatureAggregation,
-    Feature, store_config, DataTargetSpec,
+    Feature,
+    store_config,
+    DataTargetSpec,
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
 from .pipeline import init_featureset_graph
@@ -123,7 +125,9 @@ class FeatureSet(ModelObj):
 
     def set_targets(self, targets=None):
         if targets is not None and not isinstance(targets, list):
-            raise ValueError('targets can only be None or a list of kinds/DataTargetSpec')
+            raise ValueError(
+                "targets can only be None or a list of kinds/DataTargetSpec"
+            )
         targets = targets or copy(store_config.default_targets)
         for target in targets:
             if not isinstance(target, DataTargetSpec):
@@ -137,7 +141,9 @@ class FeatureSet(ModelObj):
     def add_feature(self, feature, name=None):
         self._spec.features.update(feature, name)
 
-    def add_step(self, name, class_name, handler=None, after=None, before=None, **class_args):
+    def add_step(
+        self, name, class_name, handler=None, after=None, before=None, **class_args
+    ):
         graph = self._spec.graph
         if not before:
             before = "Aggregates" if "Aggregates" in graph.states else validator_step
@@ -147,7 +153,7 @@ class FeatureSet(ModelObj):
             after=after or "$prev",
             before=before,
             handler=handler,
-            **class_args
+            **class_args,
         )
 
     def _init_graph(self):
@@ -164,7 +170,15 @@ class FeatureSet(ModelObj):
         graph.default_before = validator_step
 
     def add_aggregation(
-        self, name, column, operations, windows, period=None, state_name=None, after=None, before=None
+        self,
+        name,
+        column,
+        operations,
+        windows,
+        period=None,
+        state_name=None,
+        after=None,
+        before=None,
     ):
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
@@ -189,7 +203,7 @@ class FeatureSet(ModelObj):
             # start_at = graph.start_at
             graph.add_step(
                 state_name,
-                after=after or '$prev',
+                after=after or "$prev",
                 before=before,
                 class_name="storey.AggregateByKey",
                 aggregates=[aggregation],
@@ -204,7 +218,7 @@ class FeatureSet(ModelObj):
 
     def get_stats_table(self):
         if self.status.stats:
-            return pd.DataFrame.from_dict(self.status.stats, orient='index')
+            return pd.DataFrame.from_dict(self.status.stats, orient="index")
 
     def __getitem__(self, name):
         return self._spec.features[name]

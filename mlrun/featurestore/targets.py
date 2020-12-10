@@ -227,7 +227,7 @@ def _get_target_path(kind, featureset, suffix=""):
     project = featureset.metadata.project or mlconf.default_project
     data_prefix = store_config.data_prefixes.get(kind, None)
     if not data_prefix:
-        data_prefix = store_config.data_prefixes['default']
+        data_prefix = store_config.data_prefixes["default"]
     data_prefix = data_prefix.format(project=project, kind=kind)
     if version:
         name = f"{name}-{version}"

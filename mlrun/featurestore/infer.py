@@ -72,9 +72,7 @@ def _get_column_type(column):
     return pd_schema_to_value_type(field["type"])
 
 
-def get_df_stats(
-    df, with_index=True, with_histogram=False, num_bins=20
-):
+def get_df_stats(df, with_index=True, with_histogram=False, num_bins=20):
     """get per column data stats from dataframe"""
 
     results_dict = {}

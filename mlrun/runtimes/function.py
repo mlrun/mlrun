@@ -220,6 +220,8 @@ class RemoteRuntime(KubeResource):
         self, dashboard="", project="", tag="", verbose=False,
     ):
         verbose = verbose or self.verbose
+        if verbose:
+            self.set_env("MLRUN_LOG_LEVEL", "debug")
         if project:
             self.metadata.project = project
         if tag:

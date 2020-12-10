@@ -8,18 +8,19 @@ from storey import (
     DataframeSource,
     WriteToParquet,
     QueryByKey,
-    WriteToTSDB, Complete, Source,
+    WriteToTSDB,
+    Complete,
+    Source,
 )
 
 from .model import TargetTypes
 from .steps import ValidatorStep
 from .targets import init_featureset_targets, add_target_states, get_online_target
-from ..serving.server import MockContext
+from ..serving.server import GraphContext
 from ..serving.states import ServingFlowState
 
 
 def new_graph_context(tables, client=None, default_featureset=None):
-
     def get_table(name):
         if name in tables:
             return tables[name]
@@ -38,7 +39,7 @@ def new_graph_context(tables, client=None, default_featureset=None):
 
     # enrich the context with classes and methods which will be used when
     # initializing classes or handling the event
-    context = MockContext()
+    context = GraphContext()
     setattr(context, "get_feature_set", get_feature_set)
     setattr(context, "get_table", get_table)
     setattr(context, "current_function", "")
@@ -94,9 +95,7 @@ def init_feature_vector_graph(client, feature_set_fields, feature_set_objects):
         tables[fs.uri()] = driver.get_table_object(target.path)
         column_names = [name for name, alias in columns]
         aliases = {name: alias for name, alias in columns if alias}
-        steps.extend(
-            steps_from_featureset(fs, column_names, aliases, context)
-        )
+        steps.extend(steps_from_featureset(fs, column_names, aliases, context))
     # steps.append(Map(print_event, full_event=True))
     steps.append(Complete())
     return build_flow(steps)

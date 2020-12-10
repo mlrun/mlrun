@@ -33,7 +33,7 @@ from ..serving.states import (
     StateKinds,
     ServingRootFlowState,
     ServingTaskState,
-    ServingQueueState,
+    ServingQueueState, graph_root_setter,
 )
 
 serving_subkind = "serving_v2"
@@ -74,7 +74,9 @@ def new_v2_model_server(
 
 
 class FunctionRef(ModelObj):
-    def __init__(self, url=None, image=None, requirements=None, kind=None, name=None, db_uri=None):
+    def __init__(
+        self, url=None, image=None, requirements=None, kind=None, name=None, db_uri=None
+    ):
         self.url = url
         self.kind = kind
         self.image = image
@@ -182,6 +184,7 @@ class ServingSpec(NuclioSpec):
         load_mode=None,
         build=None,
         function_refs=None,
+        graph_initializer=None,
     ):
 
         super().__init__(
@@ -217,6 +220,7 @@ class ServingSpec(NuclioSpec):
         self.load_mode = load_mode
         self._function_refs: ObjectList = None
         self.function_refs = function_refs or []
+        self.graph_initializer = None
 
     @property
     def graph(self) -> ServingRouterState:
@@ -224,17 +228,7 @@ class ServingSpec(NuclioSpec):
 
     @graph.setter
     def graph(self, graph):
-        if graph:
-            if isinstance(graph, dict):
-                kind = graph.get("kind")
-            elif hasattr(graph, "kind"):
-                kind = graph.kind
-            else:
-                raise ValueError("graph must be a dict or a valid object")
-            if kind == StateKinds.router:
-                self._graph = self._verify_dict(graph, "graph", ServingRouterState)
-            else:
-                self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
+        graph_root_setter(self, graph)
 
     @property
     def function_refs(self) -> List[FunctionRef]:
@@ -344,12 +338,20 @@ class ServingRuntime(RemoteRuntime):
             self.set_topology()
 
         if graph.kind == StateKinds.router:
-            return graph.add_model(key, model_path, class_name, model_url=model_url,
-                                  handler=handler, **class_args)
+            return graph.add_model(
+                key,
+                model_path,
+                class_name,
+                model_url=model_url,
+                handler=handler,
+                **class_args,
+            )
         else:
             raise ValueError("models can only be added under router state")
 
-    def add_child_function(self, name, url=None, image=None, requirements=None, kind=None):
+    def add_child_function(
+        self, name, url=None, image=None, requirements=None, kind=None
+    ):
         function_ref = FunctionRef(
             url, image, requirements=requirements, kind=kind or "serving"
         )
@@ -362,8 +364,10 @@ class ServingRuntime(RemoteRuntime):
                 if function not in self._spec.function_refs.keys():
                     raise ValueError(f"function reference {function} not present")
                 child_function = self._spec.function_refs[function]
-                group = stream.options.get('group', "serving")
-                child_function.add_stream_trigger(stream.path, group=group, shards=stream.shards)
+                group = stream.options.get("group", "serving")
+                child_function.add_stream_trigger(
+                    stream.path, group=group, shards=stream.shards or 1
+                )
 
     def _deploy_function_refs(self):
         for function in self._spec.function_refs.values():
@@ -394,7 +398,11 @@ class ServingRuntime(RemoteRuntime):
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
+        if self.spec.graph.kind != StateKinds.router:
+            # initialize or create required streams/queues
+            self.spec.graph.init_queues()
         if self._spec.function_refs:
+            # deploy child functions
             self._add_ref_triggers()
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
@@ -410,7 +418,7 @@ class ServingRuntime(RemoteRuntime):
             "graph": self.spec.graph.to_dict(),
             "load_mode": self.spec.load_mode,
             "functions": functions,
-            "verbose": self.verbose,
+            "graph_initializer": self.spec.graph_initializer,
         }
         return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
 

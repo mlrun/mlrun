@@ -421,10 +421,21 @@ class ServingRouterState(ServingTaskState):
 class ServingQueueState(BaseState):
     kind = "queue"
     default_shape = "cds"
-    _dict_fields = BaseState._dict_fields + ["path", "shards", "retention_in_hours", "options"]
+    _dict_fields = BaseState._dict_fields + [
+        "path",
+        "shards",
+        "retention_in_hours",
+        "options",
+    ]
 
     def __init__(
-        self, name=None, path=None, next=None, shards=None, retention_in_hours=None, **options
+        self,
+        name=None,
+        path=None,
+        next=None,
+        shards=None,
+        retention_in_hours=None,
+        **options,
     ):
         super().__init__(name, next)
         self.path = path
@@ -551,9 +562,7 @@ class ServingFlowState(BaseState):
         :param function:   function this state should run in
         """
 
-        state = ServingRouterState(
-            class_name, class_args, function=function
-        )
+        state = ServingRouterState(class_name, class_args, function=function)
 
         self.insert_state(key, state, after, before)
         return state
@@ -780,6 +789,11 @@ class ServingFlowState(BaseState):
                         links[next_state.function] = state
         return links
 
+    def init_queues(self):
+        for state in self.get_children():
+            if state.kind == StateKinds.queue:
+                state.init_object(self.context, None)
+
     def find_last_state(self):
         if self.result_state:
             return self.result_state
@@ -801,7 +815,7 @@ class ServingFlowState(BaseState):
             if self._wait_for_result:
                 return resp.await_result()
             event = copy(event)
-            event.body = None
+            event.body = {'id': event.id}
             return event
 
         next_obj = self.get_start_state(kwargs.get("from_state", None))
@@ -1000,3 +1014,17 @@ def _generate_graphviz(
         format = format or "png"
         g.render(filename, format=format)
     return g
+
+
+def graph_root_setter(server, graph):
+    if graph:
+        if isinstance(graph, dict):
+            kind = graph.get("kind")
+        elif hasattr(graph, "kind"):
+            kind = graph.kind
+        else:
+            raise ValueError("graph must be a dict or a valid object")
+        if kind == StateKinds.router:
+            server._graph = server._verify_dict(graph, "graph", ServingRouterState)
+        else:
+            server._graph = server._verify_dict(graph, "graph", ServingRootFlowState)

@@ -39,8 +39,9 @@ default_config = {
     "data_prefixes": {
         "default": "./store/{project}/{kind}",
         "parquet": "./store/{project}/{kind}",
-        "nosql": "v3io:///projects/{project}/fs/{kind}"},
-    "default_targets": [TargetTypes.parquet, TargetTypes.nosql]
+        "nosql": "v3io:///projects/{project}/fs/{kind}",
+    },
+    "default_targets": [TargetTypes.parquet, TargetTypes.nosql],
 }
 
 
@@ -90,7 +91,12 @@ class Feature(ModelObj):
     ]
 
     def __init__(
-        self, value_type: ValueType = None, description=None, aggregate=None, name=None, validator=None
+        self,
+        value_type: ValueType = None,
+        description=None,
+        aggregate=None,
+        name=None,
+        validator=None,
     ):
         self.name = name or ""
         self.value_type: ValueType = value_type or ""
@@ -351,7 +357,9 @@ class FeatureVectorSpec(ModelObj):
 
 
 class FeatureVectorStatus(ModelObj):
-    def __init__(self, state=None, target=None, features=None, stats=None, preview=None):
+    def __init__(
+        self, state=None, target=None, features=None, stats=None, preview=None
+    ):
         self._target: DataTarget = None
         self._features: ObjectList = None
 

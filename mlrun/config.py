@@ -270,9 +270,12 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
-    # check for mlrun-api or db kubernetes service
+    # TODO: remove this - and verify dbpath is set correctly in all flows
+    # Here we're just guessing that there is a service named mlrun-api, if there is, there will be an env var for it's
+    # port - MLRUN_API_PORT - so we're using the env var existence to know whether our guess is right.
+    # the existence of config.httpdb.api_url tell that we're running in an API context so no need to set the dbpath
     svc = env.get("MLRUN_API_PORT")
-    if svc and not config.get("dbpath"):
+    if svc and not config.get("dbpath") and not config.get("httpdb", {}).get("api_url"):
         config["dbpath"] = "http://mlrun-api:{}".format(
             default_config["httpdb"]["port"] or 8080
         )

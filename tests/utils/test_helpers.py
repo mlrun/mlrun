@@ -1,5 +1,10 @@
 from mlrun.config import config
-from mlrun.utils.helpers import verify_field_regex, extend_hub_uri, enrich_image_url, get_parsed_docker_registry
+from mlrun.utils.helpers import (
+    verify_field_regex,
+    extend_hub_uri,
+    enrich_image_url,
+    get_parsed_docker_registry,
+)
 from mlrun.utils.regex import run_name
 
 
@@ -123,11 +128,7 @@ def test_enrich_image():
 
 def test_get_parsed_docker_registry():
     cases = [
-        {
-            "docker_registry": "",
-            "expected_registry": None,
-            "expected_repository": "",
-        },
+        {"docker_registry": "", "expected_registry": None, "expected_repository": ""},
         {
             "docker_registry": "hedi/ingber",
             "expected_registry": None,
@@ -160,7 +161,7 @@ def test_get_parsed_docker_registry():
         },
     ]
     for case in cases:
-        config.httpdb.builder.docker_registry = case['docker_registry']
+        config.httpdb.builder.docker_registry = case["docker_registry"]
         registry, repository = get_parsed_docker_registry()
         assert case["expected_registry"] == registry
         assert case["expected_repository"] == repository

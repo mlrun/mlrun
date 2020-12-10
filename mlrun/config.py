@@ -181,6 +181,7 @@ class Config:
         self._dbpath = dbpath
         # importing here to avoid circular dependency
         import mlrun.db
+
         # when dbpath is set we want to connect to it which will sync configuration from it to the client
         mlrun.db.get_run_db(dbpath).connect()
 

@@ -124,7 +124,9 @@ class KubejobRuntime(KubeResource):
                 "with_mlrun=False to skip if its already in the image"
             )
 
-        self.spec.build.image = self.spec.build.image or generate_function_image_name(self)
+        self.spec.build.image = self.spec.build.image or generate_function_image_name(
+            self
+        )
         self.status.state = ""
 
         if self._is_remote_api() and not is_kfp:

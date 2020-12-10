@@ -451,11 +451,18 @@ def enrich_image_url(image_url: str) -> str:
 def get_parsed_docker_registry() -> Tuple[Optional[str], Tuple[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry
-    first_slash_index = docker_registry.find('/')
-    if first_slash_index == -1 or (docker_registry[:first_slash_index].find('.') == -1 and docker_registry[:first_slash_index].find(':') == -1 and docker_registry[:first_slash_index] != 'localhost'):
+    first_slash_index = docker_registry.find("/")
+    if first_slash_index == -1 or (
+        docker_registry[:first_slash_index].find(".") == -1
+        and docker_registry[:first_slash_index].find(":") == -1
+        and docker_registry[:first_slash_index] != "localhost"
+    ):
         return None, docker_registry
     else:
-        return docker_registry[:first_slash_index], docker_registry[first_slash_index + 1:]
+        return (
+            docker_registry[:first_slash_index],
+            docker_registry[first_slash_index + 1 :],
+        )
 
 
 def get_artifact_target(item: dict, project=None):

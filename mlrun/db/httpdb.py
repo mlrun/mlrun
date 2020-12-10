@@ -139,6 +139,7 @@ class HTTPRunDB(RunDBInterface):
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
             self._validate_version_compatibility(self.server_version, config.version)
+            config.namespace = config.namespace or server_cfg.get("namespace")
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace

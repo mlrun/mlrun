@@ -17,6 +17,7 @@ import json
 import re
 import sys
 import time
+import typing
 from datetime import datetime, timezone
 from os import path, environ
 from importlib import import_module
@@ -428,6 +429,29 @@ def enrich_image_url(image_url: str) -> str:
         if registry and "/mlrun/" not in image_url:
             image_url = f"{registry}{image_url}"
     return image_url
+
+
+def get_parsed_docker_registry() -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
+    # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
+    docker_registry = environ.get("DEFAULT_DOCKER_REGISTRY", "")
+    first_slash_index = docker_registry.find("/")
+    # this is exception to the rules from the link above, since the env var value is called docker_registry we assume
+    # that if someone gave just one component without any slash they gave a registry and not a repository
+    if first_slash_index == -1:
+        return docker_registry, None
+    if (
+        docker_registry[:first_slash_index].find(".") == -1
+        and docker_registry[:first_slash_index].find(":") == -1
+        and docker_registry[:first_slash_index] != "localhost"
+    ):
+        return None, docker_registry
+    else:
+        return (
+            docker_registry[:first_slash_index],
+            docker_registry[first_slash_index + 1 :],
+        )
+
+
 
 
 def get_artifact_target(item: dict, project=None):

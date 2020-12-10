@@ -17,7 +17,7 @@ import json
 import re
 import sys
 import time
-from typing import Optional
+from typing import Optional, Tuple
 from datetime import datetime, timezone
 from dateutil import parser
 from os import path, environ
@@ -446,6 +446,16 @@ def enrich_image_url(image_url: str) -> str:
         if registry and "/mlrun/" not in image_url:
             image_url = f"{registry}{image_url}"
     return image_url
+
+
+def get_parsed_docker_registry() -> Tuple[Optional[str], Tuple[str]]:
+    # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
+    docker_registry = config.httpdb.builder.docker_registry
+    first_slash_index = docker_registry.find('/')
+    if first_slash_index == -1 or (docker_registry[:first_slash_index].find('.') == -1 and docker_registry[:first_slash_index].find(':') == -1 and docker_registry[:first_slash_index] != 'localhost'):
+        return None, docker_registry
+    else:
+        return docker_registry[:first_slash_index], docker_registry[first_slash_index + 1:]
 
 
 def get_artifact_target(item: dict, project=None):

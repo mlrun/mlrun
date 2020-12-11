@@ -26,11 +26,11 @@ from requests.packages.urllib3.util.retry import Retry
 
 import mlrun
 from mlrun.api import schemas
-from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
 from ..config import config
 from ..lists import RunList, ArtifactList
 from ..utils import dict_to_json, logger, new_pipe_meta
+import mlrun.errors
 
 default_project = config.default_project
 
@@ -674,8 +674,8 @@ class HTTPRunDB(RunDBInterface):
             )
             return
         if (
-                parsed_server_version.major != parsed_client_version.major
-                or parsed_server_version.minor != parsed_client_version.minor
+            parsed_server_version.major != parsed_client_version.major
+            or parsed_server_version.minor != parsed_client_version.minor
         ):
             message = "Server and client versions are incompatible"
             logger.warning(

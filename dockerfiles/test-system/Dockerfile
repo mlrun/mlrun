@@ -17,6 +17,8 @@ FROM python:${MLRUN_PYTHON_VERSION}
 
 ENV PIP_NO_CACHE_DIR=1
 
+RUN python -m pip install --upgrade pip
+
 COPY . /tmp/mlrun
 RUN pip install --upgrade pytest
 RUN cd /tmp/mlrun && python -m pip install ".[api]" && mv tests /tests && cd /tmp && rm -rf mlrun

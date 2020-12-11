@@ -20,7 +20,7 @@ ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /mlrun
 
-RUN pip install --upgrade pip
+RUN python -m pip install --upgrade pip
 COPY ./requirements.txt ./
 RUN python -m pip install -r requirements.txt
 

@@ -253,8 +253,8 @@ class ServingTaskState(BaseState):
         current_function = get_current_function(context)
         if not self.function and not current_function:
             return False
-        if self.function and self.function == "*" or self.function == current_function:
-            False
+        if (self.function and self.function == "*") or self.function == current_function:
+            return False
         return True
 
     @property

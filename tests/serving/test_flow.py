@@ -41,8 +41,7 @@ def test_basic_flow():
 def test_handler():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow")
-    graph.to(name="s1", handler="(event + 1)")\
-         .to(name="s2", handler="json.dumps")
+    graph.to(name="s1", handler="(event + 1)").to(name="s2", handler="json.dumps")
 
     server = fn.to_mock_server()
     resp = server.test(body=5)
@@ -52,12 +51,11 @@ def test_handler():
 def test_init_class():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow")
-    graph.to(name="s1", class_name='Echo') \
-         .to(name="s2", class_name='RespName')
+    graph.to(name="s1", class_name="Echo").to(name="s2", class_name="RespName")
 
     server = fn.to_mock_server()
     resp = server.test(body=5)
-    assert resp == [5, 's2'], f"got unexpected result {resp}"
+    assert resp == [5, "s2"], f"got unexpected result {resp}"
 
 
 def test_on_error():

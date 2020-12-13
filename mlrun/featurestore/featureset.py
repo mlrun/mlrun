@@ -26,9 +26,9 @@ from .model import (
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
 from .pipeline import init_featureset_graph
-from .targets import add_target_states, init_target
+from .targets import init_target
 from ..model import ModelObj
-from ..serving.states import TaskState, BaseState
+from ..serving.states import BaseState
 
 validator_step = "ValidatorStep"
 aggregates_step = "Aggregates"

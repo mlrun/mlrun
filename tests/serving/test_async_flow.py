@@ -63,7 +63,7 @@ def test_async_nested():
     graph.add_step(name="s2", handler="multiply_input", after="s1")
     graph.add_step(name="s3", class_name="Echo", after="s2")
 
-    router = graph.add_step('*', name="ensemble", after="s2")
+    router = graph.add_step("*", name="ensemble", after="s2")
     router.add_model("m1", class_name="ModelClass", model_path=".", z=100)
     router.add_model("m2", class_name="ModelClass", model_path=".", z=200)
     router.add_model("m3:v1", class_name="ModelClass", model_path=".", z=300)

@@ -1,5 +1,4 @@
 from copy import copy
-from typing import List
 from urllib.parse import urlparse
 from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf

@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import json
+import os
 from os import environ
 from time import sleep
 
+import mlrun
 import requests
 from datetime import datetime
 import asyncio
@@ -26,12 +28,12 @@ import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io
+from ..platforms.iguazio import mount_v3io, split_path, V3IOStreamTrigger
 from .base import RunError, FunctionStatus
 from .utils import log_std, get_item_name
-from ..utils import logger, update_in, get_in, enrich_image_url
+from ..utils import logger, update_in, get_in, enrich_image_url, generate_object_uri
 from ..lists import RunList
-from ..model import RunObject
+from ..model import RunObject, ModelObj
 from ..config import config as mlconf
 
 default_max_replicas = 4
@@ -464,6 +466,105 @@ class RemoteRuntime(KubeResource):
                     log_std(self._db_conn, run, parse_logs(logs))
 
         return results
+
+
+class FunctionRef(ModelObj):
+    def __init__(
+        self,
+        url=None,
+        image=None,
+        requirements=None,
+        code=None,
+        spec=None,
+        kind=None,
+        name=None,
+    ):
+        self.url = url
+        self.kind = kind
+        self.image = image
+        self.requirements = requirements
+        self.name = name
+        self.spec = spec
+        self.code = code
+
+        self._triggers = {}
+        self._function = None
+        self._address = None
+
+    def fullname(self, parent):
+        return f"{parent.metadata.name}-{self.name}"
+
+    def uri(self, parent, tag=None, hash_key=None, fullname=True):
+        name = self.fullname(parent) if fullname else self.name
+        return generate_object_uri(
+            parent.metadata.project,
+            name,
+            tag=tag or parent.metadata.tag,
+            hash_key=hash_key,
+        )
+
+    @property
+    def function_object(self):
+        return self._function
+
+    def to_function(self):
+        if self.url and "://" not in self.url:
+            if not os.path.isfile(self.url):
+                raise OSError("{} not found".format(self.url))
+
+        kind = self.kind or "serving"
+        if self.spec:
+            func = mlrun.new_function(self.name, runtime=self.spec)
+        elif (
+            self.url.endswith(".yaml")
+            or self.url.startswith("db://")
+            or self.url.startswith("hub://")
+        ):
+            func = mlrun.import_function(self.url)
+            if self.image:
+                func.spec.image = self.image
+        elif self.url.endswith(".ipynb"):
+            func = mlrun.code_to_function(
+                self.name, filename=self.url, image=self.image, kind=kind
+            )
+        elif self.url.endswith(".py"):
+            # todo: support code text as input (for UI)
+            if not self.image:
+                raise ValueError(
+                    "image must be provided with py code files, "
+                    "use function object for more control/settings"
+                )
+            func = mlrun.code_to_function(
+                self.name, filename=self.url, image=self.image, kind=kind
+            )
+        else:
+            raise ValueError("unsupported function url {} or no spec".format(self.url))
+        if self.requirements:
+            commands = func.spec.build.commands or []
+            commands.append("python -m pip install " + " ".join(self.requirements))
+            func.spec.build.commands = commands
+        self._function = func
+        return func
+
+    def add_stream_trigger(
+        self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
+    ):
+        container, path = split_path(stream_path)
+        self._function.add_trigger(
+            name,
+            V3IOStreamTrigger(
+                name=name,
+                container=container,
+                path=path[1:],
+                consumerGroup=group,
+                seekTo=seek_to,
+            ),
+        )
+        self._function.spec.min_replicas = shards
+        self._function.spec.max_replicas = shards
+
+    def deploy(self):
+        self._address = self._function.deploy()
 
 
 def parse_logs(logs):

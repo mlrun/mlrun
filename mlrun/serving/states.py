@@ -152,12 +152,19 @@ class BaseState(ModelObj):
             error_state = self.context.root.path_to_state(self.on_error)
             self._on_error_handler = error_state.run
 
-    def _call_error_handler(self, event, err):
-        """on failure log and call the error handler"""
+    def _log_error(self, event, err, **kwargs):
+        """on failure log"""
         self.context.logger.error(
             f"state {self.name} got error {err} when processing an event:\n {event.body}"
         )
-        self.context.logger.error(traceback.format_exc())
+        message = traceback.format_exc()
+        self.context.logger.error(message)
+        self.context.push_error(
+            event, f"{err}\n{message}", source=self.fullname, **kwargs
+        )
+
+    def _call_error_handler(self, event, err, **kwargs):
+        """call the error handler"""
         if self._on_error_handler:
             event.error = str(err)
             event.origin_state = self.fullname
@@ -300,9 +307,9 @@ class TaskState(BaseState):
 
             # add name and context only if target class can accept them
             argspec = getfullargspec(self._class_object)
-            if argspec.varkw or 'context' in argspec.args:
+            if argspec.varkw or "context" in argspec.args:
                 class_args["context"] = self.context
-            if argspec.varkw or 'name' in argspec.args:
+            if argspec.varkw or "name" in argspec.args:
                 class_args["name"] = self.name
 
             try:
@@ -334,6 +341,8 @@ class TaskState(BaseState):
     def _is_local_function(self, context):
         # detect if the class is local (and should be initialized)
         current_function = get_current_function(context)
+        if current_function == "*":
+            return True
         if not self.function and not current_function:
             return True
         if (
@@ -379,6 +388,7 @@ class TaskState(BaseState):
                 return self._handler(event, *args, **kwargs)
             event.body = self._handler(event.body, *args, **kwargs)
         except Exception as e:
+            self._log_error(event, e)
             handled = self._call_error_handler(event, e)
             if not handled:
                 raise e
@@ -801,7 +811,6 @@ class FlowState(BaseState):
         return has_loop(self.get_start_state(), [])
 
     def get_start_state(self, from_state=None):
-
         def get_first_function_state(state, current_function):
             if (
                 hasattr(state, "function")
@@ -880,6 +889,7 @@ class FlowState(BaseState):
             try:
                 event = next_obj.run(event, *args, **kwargs)
             except Exception as e:
+                self._log_error(event, e, failed_state=next_obj.name)
                 handled = self._call_error_handler(event, e)
                 if not handled:
                     raise e

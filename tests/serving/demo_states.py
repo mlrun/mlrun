@@ -19,7 +19,7 @@ class Echo(BaseClass):
 
 class RespName(BaseClass):
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name')
+        self.name = kwargs.get("name")
 
     def do(self, x):
         print("Echo:", self.name, x)

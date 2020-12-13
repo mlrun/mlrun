@@ -25,7 +25,6 @@ from mlrun.config import config
 from .states import (
     RouterState,
     TaskState,
-    StateKinds,
     RootFlowState,
     get_function,
     graph_root_setter,
@@ -62,6 +61,7 @@ class GraphServer(ModelObj):
         version=None,
         functions=None,
         graph_initializer=None,
+        error_stream=None,
     ):
         self._graph = None
         self.graph: RouterState = graph
@@ -75,6 +75,8 @@ class GraphServer(ModelObj):
         self._current_function = None
         self.functions = functions or []
         self.graph_initializer = graph_initializer
+        self.error_stream = error_stream
+        self._error_stream = None
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -88,11 +90,26 @@ class GraphServer(ModelObj):
     def graph(self, graph):
         graph_root_setter(self, graph)
 
+    def set_error_stream(self, error_stream):
+        self.error_stream = error_stream
+        if error_stream:
+            self._error_stream = OutputStream(error_stream)
+        else:
+            self._error_stream = None
+
     def init(self, context, namespace):
         """for internal use, initialize all states (recursively)"""
         self.context = context
         # enrich the context with classes and methods which will be used when
         # initializing classes or handling the event
+
+        if self.error_stream:
+            self._error_stream = OutputStream(self.error_stream)
+
+        def push_error(event, message, source=None, **kwargs):
+            if self._error_stream:
+                message = format_error(self, context, source, event, message, kwargs)
+                self._error_stream.push(message)
 
         def get_param(self, key: str, default=None):
             if self.parameters:
@@ -102,6 +119,7 @@ class GraphServer(ModelObj):
         setattr(context, "stream", _StreamContext(self.parameters, self.function_uri))
         setattr(context, "current_function", self._current_function)
         setattr(context, "get_param", get_param)
+        setattr(context, "push_error", push_error)
         setattr(context, "verbose", self.verbose)
         setattr(context, "root", self.graph)
 
@@ -202,6 +220,7 @@ def v2_serving_handler(context, event, get_body=False):
         if context.verbose:
             message += "\n" + str(traceback.format_exc())
         context.logger.error(f"run error, {traceback.format_exc()}")
+        context.push_error(event, message, source="_handler")
         return context.Response(
             body=message, content_type="text/plain", status_code=400
         )
@@ -229,6 +248,7 @@ def create_graph_server(
     logger=None,
     level="debug",
     current_function=None,
+    error_stream=None,
 ) -> GraphServer:
     """create serving emulator/tester for locally testing models and servers
 
@@ -247,6 +267,7 @@ def create_graph_server(
     server.set_current_function(
         current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")
     )
+    server.error_stream = error_stream
     server.init(context, namespace or {})
     return server
 
@@ -298,3 +319,15 @@ class GraphContext:
         self.worker_id = 0
         self.Response = Response
         self.verbose = False
+
+
+def format_error(server, context, source, event, message, args):
+    return {
+        "function_uri": server.function_uri,
+        "worker": context.worker_id,
+        "host": socket.gethostname(),
+        "source": source,
+        "event": {"id": event.id, "body": event.body},
+        "message": message,
+        "args": args,
+    }

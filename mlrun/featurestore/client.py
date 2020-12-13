@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import List, Union
-from storey import Table, V3ioDriver, NoopDriver
+from storey import Table, V3ioDriver
 
 from mlrun import get_run_db
 from mlrun.datastore import store_manager

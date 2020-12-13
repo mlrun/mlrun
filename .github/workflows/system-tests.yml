@@ -94,7 +94,6 @@ jobs:
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
-          "${{ steps.computed_params.outputs.mlrun_hash }}" \
           "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.V06_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
@@ -104,6 +103,7 @@ jobs:
           "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
+          --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
@@ -114,7 +114,6 @@ jobs:
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
-          "${{ steps.computed_params.outputs.mlrun_hash }}" \
           "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.V05_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
@@ -124,6 +123,7 @@ jobs:
           "${{ secrets.V05_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V05_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ secrets.V05_SYSTEM_TEST_PASSWORD }}" \
+          --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \

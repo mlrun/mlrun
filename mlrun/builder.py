@@ -13,16 +13,15 @@
 # limitations under the License.
 
 import tarfile
-import semver
 from base64 import b64decode, b64encode
 from os import path, remove
 from tempfile import mktemp
 from urllib.parse import urlparse
 
+from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import logger, normalize_name, enrich_image_url, get_parsed_docker_registry
-from .config import config
 
 
 def make_dockerfile(
@@ -237,8 +236,8 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
-        elif config.version == 'unstable':
-            mlrun_version_specifier = 'git+https://github.com/mlrun/mlrun@development'
+        elif config.version == "unstable":
+            mlrun_version_specifier = "git+https://github.com/mlrun/mlrun@development"
         else:
             mlrun_version_specifier = f"{config.package_path}=={config.version}"
     return f"pip install {mlrun_version_specifier}"

@@ -277,7 +277,11 @@ class SystemTestPreparer:
         )
 
     def _override_mlrun_api_env(self):
-        version_specifier = f"git+https://github.com/mlrun/mlrun@{self._mlrun_commit}" if self._mlrun_commit else "mlrun"
+        version_specifier = (
+            f"git+https://github.com/mlrun/mlrun@{self._mlrun_commit}"
+            if self._mlrun_commit
+            else "mlrun"
+        )
         data = {
             "MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER": version_specifier,
         }

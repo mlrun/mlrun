@@ -86,9 +86,6 @@ class SystemTestPreparer:
 
         self._override_mlrun_api_env()
 
-        if self._override_image_registry:
-            self._override_k8s_mlrun_registry()
-
         provctl_path = self._download_provctl()
         self._patch_mlrun(provctl_path)
 

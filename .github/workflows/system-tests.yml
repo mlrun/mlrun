@@ -74,6 +74,7 @@ jobs:
         action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
         upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
         export mlrun_hash=${action_mlrun_hash:-`echo $upstream_mlrun_hash`}
+        echo "::set-output name=mlrun_hash::$(echo $mlrun_hash)"
         echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
         echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-${{ steps.git_upstream_info.outputs.ui_hash }}"
         echo "::set-output name=mlrun_docker_repo::$( \
@@ -93,6 +94,7 @@ jobs:
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
+          "${{ steps.computed_params.outputs.mlrun_hash }}" \
           "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.V06_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
@@ -112,6 +114,7 @@ jobs:
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
+          "${{ steps.computed_params.outputs.mlrun_hash }}" \
           "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.V05_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \

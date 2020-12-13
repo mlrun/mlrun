@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import List
+from typing import List, Union
 
 from nuclio.triggers import NuclioTrigger
 
@@ -25,15 +25,12 @@ from ..platforms.iguazio import split_path
 from ..model import ModelObj, ObjectList
 from .function import RemoteRuntime, NuclioSpec
 from ..utils import logger, get_caller_globals
-from ..serving.server import create_graph_server
+from ..serving.server import create_graph_server, GraphServer
 from ..serving.states import (
-    ServingRouterState,
-    new_remote_endpoint,
-    new_model_endpoint,
+    RouterState,
     StateKinds,
-    ServingRootFlowState,
-    ServingTaskState,
-    ServingQueueState, graph_root_setter,
+    RootFlowState,
+    graph_root_setter,
 )
 
 serving_subkind = "serving_v2"
@@ -214,7 +211,7 @@ class ServingSpec(NuclioSpec):
 
         self.models = models or {}
         self._graph = None
-        self.graph: ServingRouterState = graph
+        self.graph: RouterState = graph
         self.parameters = parameters or {}
         self.default_class = default_class
         self.load_mode = load_mode
@@ -223,7 +220,7 @@ class ServingSpec(NuclioSpec):
         self.graph_initializer = None
 
     @property
-    def graph(self) -> ServingRouterState:
+    def graph(self) -> RouterState:
         return self._graph
 
     @graph.setter
@@ -259,7 +256,7 @@ class ServingRuntime(RemoteRuntime):
         result_state=None,
         exist_ok=False,
         **class_args,
-    ):
+    ) -> Union[RootFlowState, RouterState]:
         """set the serving graph topology (router/flow) and root class or params
 
         e.g.: graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="s5")
@@ -288,11 +285,9 @@ class ServingRuntime(RemoteRuntime):
 
         # currently we only support router topology
         if topology == StateKinds.router:
-            self.spec.graph = ServingRouterState(
-                class_name=class_name, class_args=class_args
-            )
+            self.spec.graph = RouterState(class_name=class_name, class_args=class_args)
         elif topology == StateKinds.flow:
-            self.spec.graph = ServingRootFlowState(
+            self.spec.graph = RootFlowState(
                 start_at=start_at, engine=engine, result_state=result_state
             )
         else:
@@ -352,6 +347,7 @@ class ServingRuntime(RemoteRuntime):
     def add_child_function(
         self, name, url=None, image=None, requirements=None, kind=None
     ):
+        """in a multi-function pipeline add child function"""
         function_ref = FunctionRef(
             url, image, requirements=requirements, kind=kind or "serving"
         )
@@ -424,7 +420,7 @@ class ServingRuntime(RemoteRuntime):
         }
         return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
 
-    def to_mock_server(self, namespace=None, log_level="debug", current_function=None):
+    def to_mock_server(self, namespace=None, log_level="debug", current_function=None) -> GraphServer:
         """create mock server object for local testing/emulation
 
         :param namespace: classes search namespace, use globals() for current notebook

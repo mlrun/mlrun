@@ -7,22 +7,14 @@ from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.serving.server import MockEvent, GraphContext, create_graph_server
-from mlrun.serving.states import ServingRouterState, ServingTaskState
+from mlrun.serving.states import RouterState, TaskState
 
-router_object = ServingRouterState()
+router_object = RouterState()
 router_object.routes = {
-    "m1": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 100}
-    ),
-    "m2": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 200}
-    ),
-    "m3:v1": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 300}
-    ),
-    "m3:v2": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 400}
-    ),
+    "m1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 100}),
+    "m2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 200}),
+    "m3:v1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 300}),
+    "m3:v2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 400}),
 }
 
 

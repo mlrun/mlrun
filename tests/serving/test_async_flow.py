@@ -15,8 +15,8 @@ def has_storey():
 def test_handler():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="s2")
-    graph.add_step("s1", handler="(event + 1)")
-    graph.add_step("s2", handler="json.dumps", after="$prev")
+    graph.add_step(name="s1", handler="(event + 1)")
+    graph.add_step(name="s2", handler="json.dumps", after="$prev")
 
     server = fn.to_mock_server()
     resp = server.test(body=5)
@@ -27,21 +27,20 @@ def test_handler():
 @pytest.mark.skipif(not has_storey(), reason="storey not installed")
 def test_async_basic():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="s5")
-    graph.add_step("s1", class_name="ChainWithContext", after="$start")
+    flow = fn.set_topology("flow", engine="async")
+    queue = flow.to(name="s1", class_name="ChainWithContext").to(">", path="")
 
-    stream_path = ""
-    graph.add_queue("q", path=stream_path, after="s1")
+    s2 = queue.to(name="s2", class_name="ChainWithContext")
+    s2.to(name="s4", class_name="ChainWithContext")
+    s2.to(name="s5", class_name="ChainWithContext").respond()
 
-    graph.add_step("s2", class_name="ChainWithContext", after="q")
-    graph.add_step("s3", class_name="ChainWithContext", after="q")
-    graph.add_step("s4", class_name="ChainWithContext", after="s2")
-    graph.add_step("s5", class_name="ChainWithContext", after="s2")
-    graph.plot("async.png")
+    queue.to(name="s3", class_name="ChainWithContext")
+
+    flow.plot("async.png")
 
     server = fn.to_mock_server()
     server.context.visits = {}
-    print("\nAsync Flow:\n", graph.to_yaml())
+    print("\nAsync Flow:\n", flow.to_yaml())
     resp = server.test(body=[])
     print(resp)
 
@@ -60,16 +59,16 @@ def test_async_basic():
 def test_async_nested():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="final")
-    graph.add_step("s1", class_name="Echo")
-    graph.add_step("s2", handler="multiply_input", after="s1")
-    graph.add_step("s3", class_name="Echo", after="s2")
+    graph.add_step(name="s1", class_name="Echo")
+    graph.add_step(name="s2", handler="multiply_input", after="s1")
+    graph.add_step(name="s3", class_name="Echo", after="s2")
 
-    router = graph.add_router("ensemble", after="s2")
+    router = graph.add_step('*', name="ensemble", after="s2")
     router.add_model("m1", class_name="ModelClass", model_path=".", z=100)
     router.add_model("m2", class_name="ModelClass", model_path=".", z=200)
     router.add_model("m3:v1", class_name="ModelClass", model_path=".", z=300)
 
-    graph.add_step("final", class_name="Echo", after="ensemble")
+    graph.add_step(name="final", class_name="Echo", after="ensemble")
     graph.plot("nested.png")
 
     print(graph.to_yaml())

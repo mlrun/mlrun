@@ -11,12 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 import json
 import os
 import pathlib
+import traceback
 from copy import deepcopy, copy
-from inspect import getmembers, isfunction
+from inspect import getmembers, isfunction, getfullargspec
 from types import ModuleType
+from typing import Union
 
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -61,13 +65,13 @@ _task_state_fields = [
 def new_model_endpoint(class_name, model_path, handler=None, **class_args):
     class_args = deepcopy(class_args)
     class_args["model_path"] = model_path
-    return ServingTaskState(class_name, class_args, handler=handler)
+    return TaskState(class_name, class_args, handler=handler)
 
 
 def new_remote_endpoint(url, **class_args):
     class_args = deepcopy(class_args)
     class_args["url"] = url
-    return ServingTaskState("$remote", class_args)
+    return TaskState("$remote", class_args)
 
 
 class BaseState(ModelObj):
@@ -75,7 +79,7 @@ class BaseState(ModelObj):
     default_shape = "ellipse"
     _dict_fields = ["kind", "comment", "next", "on_error"]
 
-    def __init__(self, name=None, next=None, shape=None):
+    def __init__(self, name: str = None, next: str = None, shape: str = None):
         self.name = name
         self._parent = None
         self.comment = None
@@ -86,12 +90,19 @@ class BaseState(ModelObj):
         self._on_error_handler = None
 
     def get_shape(self):
+        """graphviz shape"""
         return self.shape or self.default_shape
 
     def set_parent(self, parent):
+        """set/link the state parent (flow/router)"""
         self._parent = parent
 
-    def set_next(self, key: str, remove: list = None):
+    @property
+    def parent(self):
+        """state parent (flow/router)"""
+        return self._parent
+
+    def set_next(self, key: str, remove: str = None):
         """set/insert the key as next after this state, optionally remove other keys"""
         if not self.next:
             self.next = [key]
@@ -102,18 +113,24 @@ class BaseState(ModelObj):
                 self.next.remove(state)
         return self
 
-    def error_handler(self, state_name):
+    def error_handler(self, state_name: str):
+        """set error handler state (on failure/raise of this state)"""
         self.on_error = state_name
         return self
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        """init the state class"""
         self.context = context
 
-    def _not_local_function(self, context):
-        return False
+    def _is_local_function(self, context):
+        return True
 
     def get_children(self):
+        """get child states (for router/flow)"""
         return []
+
+    def to_state(self):
+        return self
 
     def __iter__(self):
         yield from []
@@ -130,20 +147,23 @@ class BaseState(ModelObj):
         pass
 
     def _set_error_handler(self):
+        """init/link the error handler for this state"""
         if self.on_error:
             error_state = self.context.root.path_to_state(self.on_error)
             self._on_error_handler = error_state.run
 
     def _call_error_handler(self, event, err):
+        """on failure log and call the error handler"""
         self.context.logger.error(
             f"state {self.name} got error {err} when processing an event:\n {event.body}"
         )
+        self.context.logger.error(traceback.format_exc())
         if self._on_error_handler:
             event.error = str(err)
             event.origin_state = self.fullname
             return self._on_error_handler(event)
 
-    def path_to_state(self, path):
+    def path_to_state(self, path: str):
         """return state object from state relative/fullname"""
         path = path or ""
         tree = path.split(".")
@@ -156,21 +176,77 @@ class BaseState(ModelObj):
             next_obj = next_obj[state]
         return next_obj
 
+    def to(
+        self,
+        class_name: Union[str, TaskState, RouterState, QueueState, type] = None,
+        name: str = None,
+        handler: str = None,
+        graph_shape: str = None,
+        function: str = None,
+        next_states: list = None,
+        **class_args,
+    ) -> Union[TaskState, QueueState, RouterState]:
+        """add a state right after this state and return the new state
 
-class ServingTaskState(BaseState):
+        example, a 4 step pipeline ending with a stream:
+        graph.to('URLDownloader')\
+             .to('ToParagraphs')\
+             .to(name='to_json', handler='json.dumps')\
+             .to('>', 'to_v3io', path=stream_path)\
+
+        :param class_name:  class name or state object to build the state from
+                            for router states the class name should start with '*'
+                            for queue/stream state the class should be '>'
+        :param name:        unique name (and path) for the child state, default is class name
+        :param handler:     class/function handler to invoke on run/event
+        :param next_states: list of next step names that will run after this step
+        :param graph_shape: graphviz shape name
+        :param function:    function this state should run in
+        :param class_args:  class init arguments
+        """
+        if hasattr(self, "start_at"):
+            parent = self
+        elif self._parent:
+            parent = self._parent
+        else:
+            raise GraphError(
+                f"state {self.name} parent is not set or its not part of a graph"
+            )
+
+        name, state = params_to_state(
+            class_name,
+            name,
+            handler,
+            graph_shape=graph_shape,
+            function=function,
+            class_args=class_args,
+        )
+        state = parent._states.update(name, state)
+        state.set_parent(parent)
+        if not next_states and parent.default_before:
+            next_states = [parent.default_before]
+        if hasattr(self, "start_at"):
+            self.start_at = state.name
+        else:
+            self.set_next(state.name, next_states)
+        state.next = next_states
+        return state
+
+
+class TaskState(BaseState):
     kind = "task"
     _dict_fields = _task_state_fields
     _default_class = ""
 
     def __init__(
         self,
-        class_name=None,
-        class_args=None,
-        handler=None,
-        name=None,
-        next=None,
-        full_event=None,
-        function=None,
+        class_name: Union[str, type] = None,
+        class_args: dict = None,
+        handler: str = None,
+        name: str = None,
+        next: list = None,
+        full_event: bool = None,
+        function: str = None,
     ):
         super().__init__(name, next)
         self.class_name = class_name
@@ -187,7 +263,8 @@ class ServingTaskState(BaseState):
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
-        if self._not_local_function(context):
+        if not self._is_local_function(context):
+            # skip init of non local functions
             return
 
         if self.handler and not self.class_name:
@@ -212,6 +289,7 @@ class ServingTaskState(BaseState):
                 )
 
         if not self._object or reset:
+            # init the state class + args
             class_args = {}
             for key, arg in self.class_args.items():
                 if key.startswith(callable_prefix):
@@ -219,9 +297,14 @@ class ServingTaskState(BaseState):
                 else:
                     class_args[key] = arg
             class_args.update(extra_kwargs)
-            if self.skip_context is None or not self.skip_context:
-                class_args["name"] = self.name
+
+            # add name and context only if target class can accept them
+            argspec = getfullargspec(self._class_object)
+            if argspec.varkw or 'context' in argspec.args:
                 class_args["context"] = self.context
+            if argspec.varkw or 'name' in argspec.args:
+                class_args["name"] = self.name
+
             try:
                 self._object = self._class_object(**class_args)
             except TypeError as e:
@@ -248,14 +331,16 @@ class ServingTaskState(BaseState):
         if mode != "skip":
             self._post_init(mode)
 
-    def _not_local_function(self, context):
+    def _is_local_function(self, context):
         # detect if the class is local (and should be initialized)
         current_function = get_current_function(context)
         if not self.function and not current_function:
-            return False
-        if (self.function and self.function == "*") or self.function == current_function:
-            return False
-        return True
+            return True
+        if (
+            self.function and self.function == "*"
+        ) or self.function == current_function:
+            return True
+        return False
 
     @property
     def object(self):
@@ -268,8 +353,21 @@ class ServingTaskState(BaseState):
         if self._object and hasattr(self._object, "post_init"):
             self._object.post_init(mode)
 
+    def respond(self):
+        """mark this state as the responder.
+
+        state output will be returned as the flow result, now other state can follow
+        """
+        if not self._parent or not hasattr(self._parent, "result_state"):
+            raise GraphError(
+                f"state {self.name} parent is not set or its not part of a flow"
+            )
+        self._parent.result_state = self.name
+        self.next = None
+
     def run(self, event, *args, **kwargs):
-        if self._not_local_function(self.context):
+        """run this state, in async flows the run is done through storey"""
+        if not self._is_local_function(self.context):
             # todo invoke remote via REST call
             return event
 
@@ -288,7 +386,7 @@ class ServingTaskState(BaseState):
         return event
 
 
-class ServingRouterState(ServingTaskState):
+class RouterState(TaskState):
     kind = "router"
     default_shape = "doubleoctagon"
     _dict_fields = _task_state_fields + ["routes"]
@@ -296,18 +394,19 @@ class ServingRouterState(ServingTaskState):
 
     def __init__(
         self,
-        class_name=None,
-        class_args=None,
-        handler=None,
-        routes=None,
-        name=None,
-        function=None,
+        class_name: Union[str, type] = None,
+        class_args: dict = None,
+        handler: str = None,
+        routes: list = None,
+        name: str = None,
+        function: str = None,
     ):
         super().__init__(class_name, class_args, handler, name=name, function=function)
         self._routes: ObjectDict = None
         self.routes = routes
 
     def get_children(self):
+        """get child states (routes)"""
         return self._routes.values()
 
     @property
@@ -333,23 +432,23 @@ class ServingRouterState(ServingTaskState):
         if not route and not class_name:
             raise ValueError("route or class_name must be specified")
         if not route:
-            route = ServingTaskState(class_name, class_args, handler=handler)
+            route = TaskState(class_name, class_args, handler=handler)
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
 
     def add_model(
         self,
-        key,
+        name=None,
         model_path=None,
         class_name=None,
         model_url=None,
         handler=None,
         **class_args,
     ):
-        """add ml model and/or route
+        """add ml model or route
 
-        :param key:         model api key (or name:version), will determine the relative url/path
+        :param name:        model api key (or name:version), will determine the relative url/path
         :param model_path:  path to mlrun model artifact or model directory file/object path
         :param class_name:  V2 Model python class name
                             (can also module.submodule.class and it will be imported automatically)
@@ -375,16 +474,18 @@ class ServingRouterState(ServingTaskState):
         else:
             state = new_model_endpoint(class_name, model_path, handler, **class_args)
 
-        return self.add_route(key, state)
+        self.add_route(name, state)
+        return self
 
     def clear_children(self, routes: list):
+        """clear child states (routes)"""
         if not routes:
             routes = self._routes.keys()
         for key in routes:
             del self._routes[key]
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        if self._not_local_function(context):
+        if not self._is_local_function(context):
             return
 
         self.class_args = self.class_args or {}
@@ -412,13 +513,14 @@ class ServingRouterState(ServingTaskState):
         yield from self._routes.keys()
 
     def plot(self, filename=None, format=None, source=None, **kw):
+        """plot/save a graphviz plot"""
         source = source or BaseState("start", shape="egg")
         return _generate_graphviz(
             self, _add_gviz_router, filename, format, source=source, **kw
         )
 
 
-class ServingQueueState(BaseState):
+class QueueState(BaseState):
     kind = "queue"
     default_shape = "cds"
     _dict_fields = BaseState._dict_fields + [
@@ -430,11 +532,11 @@ class ServingQueueState(BaseState):
 
     def __init__(
         self,
-        name=None,
-        path=None,
-        next=None,
-        shards=None,
-        retention_in_hours=None,
+        name: str = None,
+        path: str = None,
+        next: list = None,
+        shards: int = None,
+        retention_in_hours: int = None,
         **options,
     ):
         super().__init__(name, next)
@@ -462,7 +564,7 @@ class ServingQueueState(BaseState):
         return event
 
 
-class ServingFlowState(BaseState):
+class FlowState(BaseState):
     kind = "flow"
     _dict_fields = BaseState._dict_fields + [
         "states",
@@ -507,95 +609,48 @@ class ServingFlowState(BaseState):
 
     def add_step(
         self,
-        key,
         class_name=None,
+        name=None,
         handler=None,
-        state=None,
         after=None,
         before=None,
-        shape=None,
+        graph_shape=None,
         function=None,
         **class_args,
     ):
-        """add state or class to the flow
+        """add task, queue or router state/class to the flow
 
-        :param key:        unique name (and path) for the child state
-        :param state:      child state object (Task, ..)
-        :param class_name: class name to build the state from (when state is not provided)
-        :param class_args: class init arguments
-        :param handler:    class handler to invoke on run/event
-        :param after:      the step name this step comes after
-                           can use control strings: $start, $prev, $last
-        :param before:     string or list of next step names that will run after this step
-        :param shape:      graphviz shape name
-        :param function:   function this state should run in
+        use after/before to insert into a specific location
+
+        example:
+            graph = fn.set_topology("flow", exist_ok=True)
+            graph.add_step(name="s1", class_name="Chain", after="$start")
+            graph.add_step(name="s3", class_name="Chain", after="$last")
+            graph.add_step(name="s2", class_name="Chain", after="s1", before="s3")
+
+        :param class_name:  class name or state object to build the state from
+                            for router states the class name should start with '*'
+                            for queue/stream state the class should be '>'
+        :param name:        unique name (and path) for the child state, default is class name
+        :param handler:     class/function handler to invoke on run/event
+        :param after:       the step name this step comes after
+                            can use control strings: $start, $prev, $last
+        :param before:      string or list of next step names that will run after this step
+        :param graph_shape: graphviz shape name
+        :param function:    function this state should run in
+        :param class_args:  class init arguments
         """
 
-        if not state and not class_name and not handler:
-            raise ValueError("state or class_name or handler must be specified")
-        if not state:
-            state = ServingTaskState(
-                class_name, class_args, handler=handler, function=function
-            )
-
-        self.insert_state(key, state, after, before, shape)
-        return state
-
-    def add_router(
-        self,
-        key,
-        class_name=None,
-        after=None,
-        before=None,
-        function=None,
-        **class_args,
-    ):
-        """add router to the flow
-
-        :param key:        unique name (and path) for the child state
-        :param class_name: class name to build the state from (when state is not provided)
-        :param class_args: class init arguments
-        :param after:      the step name this step comes after
-                           can use control strings: $start, $prev, $last
-        :param before:     string or list of next step names that will run after this step
-        :param shape:      graphviz shape name
-        :param function:   function this state should run in
-        """
-
-        state = ServingRouterState(class_name, class_args, function=function)
-
-        self.insert_state(key, state, after, before)
-        return state
-
-    def add_queue(
-        self,
-        key,
-        path=None,
-        shards=None,
-        retention_in_hours=None,
-        after=None,
-        before=None,
-        **options,
-    ):
-        """add queue/stream to the flow
-
-        :param key:        unique name (and path) for the child state
-        :param state:      child state object (Task, ..)
-        :param class_name: class name to build the state from (when state is not provided)
-        :param class_args: class init arguments
-        :param handler:    class handler to invoke on run/event
-        :param after:      the step name this step comes after
-                           can use control strings: $start, $prev, $last
-        :param before:     string or list of next step names that will run after this step
-        :param shape:      graphviz shape name
-        :param function:   function this state should run in
-        """
-
-        state = ServingQueueState(
-            path=path, shards=shards, retention_in_hours=retention_in_hours, **options
+        name, state = params_to_state(
+            class_name,
+            name,
+            handler,
+            graph_shape=graph_shape,
+            function=function,
+            class_args=class_args,
         )
 
-        self.insert_state(key, state, after, before)
+        self.insert_state(name, state, after, before)
         return state
 
     def insert_state(self, key, state, after, before=None, shape=None):
@@ -606,8 +661,6 @@ class ServingFlowState(BaseState):
 
         state = self._states.update(key, state)
         state.set_parent(self)
-        if shape:
-            state.shape = shape
 
         if not before and after != "$last" and self.default_before:
             before = self.default_before
@@ -712,7 +765,7 @@ class ServingFlowState(BaseState):
             return storey.Map(state.run, full_event=True)
 
         def process_step(state, step, root):
-            if state._not_local_function(self.context):
+            if not state._is_local_function(self.context):
                 return
 
             if not state.next and self.result_state == state.name:
@@ -748,6 +801,7 @@ class ServingFlowState(BaseState):
         return has_loop(self.get_start_state(), [])
 
     def get_start_state(self, from_state=None):
+
         def get_first_function_state(state, current_function):
             if (
                 hasattr(state, "function")
@@ -776,6 +830,7 @@ class ServingFlowState(BaseState):
         return self.path_to_state(from_state)
 
     def get_queue_links(self):
+        """return dict of function and queue its listening on, for building stream triggers"""
         links = {}
         for state in self.get_children():
             if state.kind == StateKinds.queue:
@@ -790,6 +845,7 @@ class ServingFlowState(BaseState):
         return links
 
     def init_queues(self):
+        """init/create the streams used in this flow"""
         for state in self.get_children():
             if state.kind == StateKinds.queue:
                 state.init_object(self.context, None)
@@ -808,6 +864,7 @@ class ServingFlowState(BaseState):
     def run(self, event, *args, **kwargs):
 
         if self._controller:
+            # async flow (using storey)
             event._awaitable_result = None
             resp = self._controller.emit(
                 event, return_awaitable_result=self._wait_for_result
@@ -815,7 +872,7 @@ class ServingFlowState(BaseState):
             if self._wait_for_result:
                 return resp.await_result()
             event = copy(event)
-            event.body = {'id': event.id}
+            event.body = {"id": event.id}
             return event
 
         next_obj = self.get_start_state(kwargs.get("from_state", None))
@@ -840,19 +897,21 @@ class ServingFlowState(BaseState):
         return event
 
     def wait_for_completion(self):
+        """wait for completion of run in async flows"""
         if self._controller:
             self._controller.terminate()
             self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
+        """plot/save graph using graphviz"""
         return _generate_graphviz(
             self, _add_gviz_flow, filename, format, source=source, targets=targets, **kw
         )
 
 
-class ServingRootFlowState(ServingFlowState):
+class RootFlowState(FlowState):
     kind = "rootFlow"
-    _dict_fields = ["states", "start_at", "engine"]
+    _dict_fields = ["states", "start_at", "engine", "result_state", "on_error"]
 
 
 http_adapter = HTTPAdapter(
@@ -939,10 +998,10 @@ def get_function(function, namespace):
 
 
 classes_map = {
-    "task": ServingTaskState,
-    "router": ServingRouterState,
-    "flow": ServingFlowState,
-    "queue": ServingQueueState,
+    "task": TaskState,
+    "router": RouterState,
+    "flow": FlowState,
+    "queue": QueueState,
 }
 
 
@@ -1025,6 +1084,45 @@ def graph_root_setter(server, graph):
         else:
             raise ValueError("graph must be a dict or a valid object")
         if kind == StateKinds.router:
-            server._graph = server._verify_dict(graph, "graph", ServingRouterState)
+            server._graph = server._verify_dict(graph, "graph", RouterState)
         else:
-            server._graph = server._verify_dict(graph, "graph", ServingRootFlowState)
+            server._graph = server._verify_dict(graph, "graph", RootFlowState)
+
+
+def get_name(name, class_name):
+    if name:
+        return name
+    if not class_name:
+        raise ValueError("name or class_name must be provided")
+    if isinstance(class_name, type):
+        return class_name.__name__
+    return class_name
+
+
+def params_to_state(
+    class_name, name, handler=None, graph_shape=None, function=None, class_args=None
+):
+    if class_name and hasattr(class_name, "to_state"):
+        state = class_name.to_state()
+        state.function = function
+        name = get_name(name or state.name, class_name)
+    elif class_name and class_name == ">":
+        if "path" not in class_args:
+            raise ValueError("path=<stream path or None> must be specified for queues")
+        state = QueueState(name, **class_args)
+    elif class_name and class_name.startswith("*"):
+        routes = class_args.get("routes", None)
+        class_name = class_name[1:]
+        name = get_name(name, class_name or "router")
+        state = RouterState(
+            class_name, class_args, handler, name=name, function=function, routes=routes
+        )
+    elif class_name or handler:
+        name = get_name(name, class_name)
+        state = TaskState(class_name, class_args, handler, name=name, function=function)
+    else:
+        raise ValueError("class_name or handler must be provided")
+
+    if graph_shape:
+        state.shape = graph_shape
+    return name, state

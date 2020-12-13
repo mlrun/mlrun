@@ -28,8 +28,7 @@ from .infer import infer_schema_from_df, get_df_stats, get_df_preview
 from .pipeline import init_featureset_graph
 from .targets import add_target_states, init_target
 from ..model import ModelObj
-from ..serving.states import ServingTaskState
-
+from ..serving.states import TaskState, BaseState
 
 validator_step = "ValidatorStep"
 aggregates_step = "Aggregates"
@@ -141,6 +140,10 @@ class FeatureSet(ModelObj):
     def add_feature(self, feature, name=None):
         self._spec.features.update(feature, name)
 
+    @property
+    def graph(self):
+        return self.spec.graph
+
     def add_step(
         self, name, class_name, handler=None, after=None, before=None, **class_args
     ):
@@ -148,8 +151,8 @@ class FeatureSet(ModelObj):
         if not before:
             before = "Aggregates" if "Aggregates" in graph.states else validator_step
         return graph.add_step(
-            name,
-            class_name,
+            name=name,
+            class_name=class_name,
             after=after or "$prev",
             before=before,
             handler=handler,
@@ -161,7 +164,7 @@ class FeatureSet(ModelObj):
         last_added = graph._last_added
         if validator_step not in graph.states:
             graph.add_step(
-                validator_step,
+                name=validator_step,
                 after="$last",
                 class_name="mlrun.featurestore.ValidatorStep",
                 featureset=".",
@@ -202,7 +205,7 @@ class FeatureSet(ModelObj):
             # last_state = graph._last_added
             # start_at = graph.start_at
             graph.add_step(
-                state_name,
+                name=state_name,
                 after=after or "$prev",
                 before=before,
                 class_name="storey.AggregateByKey",
@@ -231,8 +234,9 @@ class FeatureSet(ModelObj):
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         graph = self.spec.graph
+        targets = None
         if with_targets:
-            graph = graph.copy()
-            graph.default_before = None
-            add_target_states(graph, self, self.spec.targets)
-        return graph.plot(filename, format, **kw)
+            targets = [
+                BaseState(target.kind, shape="cylinder") for target in self.spec.targets
+            ]
+        return graph.plot(filename, format, targets=targets, **kw)

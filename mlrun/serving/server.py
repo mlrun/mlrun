@@ -18,14 +18,17 @@ import sys
 import traceback
 import uuid
 from copy import deepcopy
+from typing import Union
 
 from mlrun.config import config
 
 from .states import (
-    ServingRouterState,
-    ServingTaskState,
+    RouterState,
+    TaskState,
     StateKinds,
-    ServingRootFlowState, get_function, graph_root_setter,
+    RootFlowState,
+    get_function,
+    graph_root_setter,
 )
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
@@ -61,7 +64,7 @@ class GraphServer(ModelObj):
         graph_initializer=None,
     ):
         self._graph = None
-        self.graph: ServingRouterState = graph
+        self.graph: RouterState = graph
         self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
@@ -74,31 +77,31 @@ class GraphServer(ModelObj):
         self.graph_initializer = graph_initializer
 
     def set_current_function(self, function):
+        """set which child function this server is currently running on"""
         self._current_function = function
 
     @property
-    def graph(self) -> ServingRouterState:
+    def graph(self) -> Union[RootFlowState, RouterState]:
         return self._graph
 
     @graph.setter
     def graph(self, graph):
         graph_root_setter(self, graph)
 
-    def merge_root_params(self, params={}):
-        """for internal use, enrich child states with root params"""
-        for key, val in self.parameters.items():
-            if key not in params:
-                params[key] = val
-        return params
-
     def init(self, context, namespace):
         """for internal use, initialize all states (recursively)"""
         self.context = context
         # enrich the context with classes and methods which will be used when
         # initializing classes or handling the event
+
+        def get_param(self, key: str, default=None):
+            if self.parameters:
+                return self.parameters.get(key, default)
+            return default
+
         setattr(context, "stream", _StreamContext(self.parameters, self.function_uri))
-        setattr(context, "merge_root_params", self.merge_root_params)
         setattr(context, "current_function", self._current_function)
+        setattr(context, "get_param", get_param)
         setattr(context, "verbose", self.verbose)
         setattr(context, "root", self.graph)
 
@@ -131,7 +134,7 @@ class GraphServer(ModelObj):
         """
         class_args = deepcopy(class_args)
         class_args["model_path"] = model_path
-        route = ServingTaskState(class_name, class_args, handler)
+        route = TaskState(class_name, class_args, handler)
         namespace = namespace or get_caller_globals()
         self.graph.add_route(name, route).init_object(self.context, namespace)
 
@@ -183,10 +186,10 @@ def v2_serving_init(context, namespace=None):
     if config.log_level.lower() == "debug":
         server.verbose = True
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
-    serving_handler = server.init(context, namespace or globals())
+    serving_handler = server.init(context, namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
-    context.logger.info(f'serving was initialized, verbose={server.verbose}')
+    context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())
 
@@ -195,9 +198,13 @@ def v2_serving_handler(context, event, get_body=False):
     try:
         response = context.root.run(event)
     except Exception as e:
+        message = str(e)
         if context.verbose:
-            context.logger.error(traceback.format_exc())
-        return context.Response(body=str(e), content_type="text/plain", status_code=400)
+            message += "\n" + str(traceback.format_exc())
+        context.logger.error(f"run error, {traceback.format_exc()}")
+        return context.Response(
+            body=message, content_type="text/plain", status_code=400
+        )
 
     body = response.body
     if isinstance(body, context.Response) or get_body:
@@ -222,7 +229,7 @@ def create_graph_server(
     logger=None,
     level="debug",
     current_function=None,
-):
+) -> GraphServer:
     """create serving emulator/tester for locally testing models and servers
 
         Usage:
@@ -234,7 +241,7 @@ def create_graph_server(
         context = GraphContext(level, logger=logger)
 
     if not graph:
-        graph = ServingRouterState(class_name=router_class, class_args=router_args)
+        graph = RouterState(class_name=router_class, class_args=router_args)
     namespace = namespace or get_caller_globals()
     server = GraphServer(graph, parameters, load_mode, verbose=level == "debug")
     server.set_current_function(
@@ -290,3 +297,4 @@ class GraphContext:
         self.logger = logger or create_logger(level, "human", "flow", sys.stdout)
         self.worker_id = 0
         self.Response = Response
+        self.verbose = False

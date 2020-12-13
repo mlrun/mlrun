@@ -17,7 +17,7 @@ from .model import TargetTypes
 from .steps import ValidatorStep
 from .targets import init_featureset_targets, add_target_states, get_online_target
 from ..serving.server import GraphContext
-from ..serving.states import ServingFlowState
+from ..serving.states import FlowState
 
 
 def new_graph_context(tables, client=None, default_featureset=None):

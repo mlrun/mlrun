@@ -17,7 +17,7 @@ from mlrun.model import ModelObj
 from .datatypes import ValueType
 from .validators import validator_types
 from ..model import ObjectList
-from ..serving.states import ServingRootFlowState
+from ..serving.states import RootFlowState
 
 
 class FeatureClassKind:
@@ -230,7 +230,7 @@ class FeatureSetSpec(ModelObj):
         self._entities: ObjectList = None
         self._targets: ObjectList = None
         self._aggregations = None
-        self._graph: ServingRootFlowState = None
+        self._graph: RootFlowState = None
         self._sources = None
 
         self.owner = owner
@@ -274,12 +274,12 @@ class FeatureSetSpec(ModelObj):
         self._targets = ObjectList.from_list(DataTargetSpec, targets)
 
     @property
-    def graph(self) -> ServingRootFlowState:
+    def graph(self) -> RootFlowState:
         return self._graph
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
+        self._graph = self._verify_dict(graph, "graph", RootFlowState)
         self._graph.engine = "async"
 
     @property
@@ -326,7 +326,7 @@ class FeatureVectorSpec(ModelObj):
         graph=None,
         label_column=None,
     ):
-        self._graph: ServingRootFlowState = None
+        self._graph: RootFlowState = None
         self._entity_fields: ObjectList = None
 
         self.description = description
@@ -347,12 +347,12 @@ class FeatureVectorSpec(ModelObj):
         self._entity_fields = ObjectList.from_list(Feature, entity_fields)
 
     @property
-    def graph(self) -> ServingRootFlowState:
+    def graph(self) -> RootFlowState:
         return self._graph
 
     @graph.setter
     def graph(self, graph):
-        self._graph = self._verify_dict(graph, "graph", ServingRootFlowState)
+        self._graph = self._verify_dict(graph, "graph", RootFlowState)
         self._graph.engine = "async"
 
 

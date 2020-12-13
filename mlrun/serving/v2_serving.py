@@ -70,7 +70,7 @@ class V2ModelServer:
         self.protocol = protocol or "v2"
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
-        self._params = context.merge_root_params(class_args)
+        self._params = class_args
         self._model_logger = _ModelLogPusher(self, context)
 
         self.metrics = {}
@@ -101,7 +101,9 @@ class V2ModelServer:
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
-        return self._params.get(key, default)
+        if key in self._params:
+            return self._params.get(key)
+        return self.context.get_param(key, default=default)
 
     def set_metric(self, name: str, value):
         """set real time metric (for model monitoring)"""

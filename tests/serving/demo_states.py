@@ -9,9 +9,21 @@ class BaseClass:
 
 
 class Echo(BaseClass):
+    def __init__(self, name=None):
+        self.name = name
+
     def do(self, x):
         print("Echo:", self.name, x)
         return x
+
+
+class RespName(BaseClass):
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name')
+
+    def do(self, x):
+        print("Echo:", self.name, x)
+        return [x, self.name]
 
 
 class EchoError(BaseClass):

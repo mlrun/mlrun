@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import tarfile
+import semver
 from base64 import b64decode, b64encode
 from os import path, remove
 from tempfile import mktemp
@@ -134,6 +135,7 @@ def build_image(
     secret_name=None,
     namespace=None,
     with_mlrun=True,
+    mlrun_version_specifier=None,
     registry=None,
     interactive=True,
     name="",
@@ -166,7 +168,7 @@ def build_image(
     base_image = base_image or config.default_image
     if with_mlrun:
         commands = commands or []
-        commands.append("pip install {}".format(config.package_path))
+        commands.append(_resolve_mlrun_install_command(mlrun_version_specifier))
 
     if not inline_code and not source and not commands:
         logger.info("skipping build, nothing to add")
@@ -231,7 +233,18 @@ def build_image(
         return "build:{}".format(pod)
 
 
-def build_runtime(runtime, with_mlrun, interactive=False):
+def _resolve_mlrun_install_command(mlrun_version_specifier):
+    if not mlrun_version_specifier:
+        if config.httpdb.builder.mlrun_version_specifier:
+            mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
+        elif config.version == 'unstable':
+            mlrun_version_specifier = 'git+https://github.com/mlrun/mlrun@development'
+        else:
+            mlrun_version_specifier = f"{config.package_path}=={config.version}"
+    return f"pip install {mlrun_version_specifier}"
+
+
+def build_runtime(runtime, with_mlrun, mlrun_version_specifier, interactive=False):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     inline = None  # noqa: F841
@@ -259,6 +272,7 @@ def build_runtime(runtime, with_mlrun, interactive=False):
         interactive=interactive,
         name=name,
         with_mlrun=with_mlrun,
+        mlrun_version_specifier=mlrun_version_specifier,
         extra=build.extra,
         verbose=runtime.verbose,
     )

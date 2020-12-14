@@ -55,7 +55,9 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         )
         self._background_tasks.setdefault(project, {})[
             name
-        ] = mlrun.api.schemas.BackgroundTask(metadata=metadata, spec=spec, status=status)
+        ] = mlrun.api.schemas.BackgroundTask(
+            metadata=metadata, spec=spec, status=status
+        )
 
     def get_background_task(
         self, project: str, name: str

@@ -24,7 +24,9 @@ api_router.include_router(
     artifacts.router, tags=["artifacts"], dependencies=[Depends(deps.AuthVerifier)]
 )
 api_router.include_router(
-    background_tasks.router, tags=["background-tasks"], dependencies=[Depends(deps.AuthVerifier)]
+    background_tasks.router,
+    tags=["background-tasks"],
+    dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(
     files.router, tags=["files"], dependencies=[Depends(deps.AuthVerifier)]

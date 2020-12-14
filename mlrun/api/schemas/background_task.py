@@ -36,9 +36,7 @@ class BackgroundTaskStatus(pydantic.BaseModel):
 
 
 class BackgroundTask(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(
-        ObjectKind.background_task, const=True
-    )
+    kind: ObjectKind = pydantic.Field(ObjectKind.background_task, const=True)
     metadata: BackgroundTaskMetadata
     spec: BackgroundTaskSpec
     status: BackgroundTaskStatus

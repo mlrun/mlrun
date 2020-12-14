@@ -102,6 +102,7 @@ class DaskSpec(KubeResourceSpec):
         self.node_port = node_port
         self.min_replicas = min_replicas or 0
         self.max_replicas = max_replicas or 16
+        # supported format according to https://github.com/dask/dask/blob/master/dask/utils.py#L1402
         self.scheduler_timeout = scheduler_timeout or "60 minutes"
         self.nthreads = nthreads or 1
 

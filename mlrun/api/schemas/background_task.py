@@ -28,7 +28,9 @@ class BackgroundTaskStatus(pydantic.BaseModel):
 
 
 class BackgroundTask(pydantic.BaseModel):
-    kind: mlrun.api.schemas.object.ObjectKind = pydantic.Field(mlrun.api.schemas.object.ObjectKind.feature_set, const=True)
+    kind: mlrun.api.schemas.object.ObjectKind = pydantic.Field(
+        mlrun.api.schemas.object.ObjectKind.feature_set, const=True
+    )
     metadata: BackgroundTaskMetadata
     spec: BackgroundTaskSpec
     status: BackgroundTaskStatus

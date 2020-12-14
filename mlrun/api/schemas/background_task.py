@@ -15,6 +15,7 @@ class BackgroundTaskState(str, enum.Enum):
 
 class BackgroundTaskMetadata(pydantic.BaseModel):
     name: str
+    project: str
     created: typing.Optional[datetime.datetime]
     updated: typing.Optional[datetime.datetime]
 

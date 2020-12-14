@@ -189,7 +189,7 @@ kubectl --namespace mlrun get pv
 ...
 
 # To remove a PV
-kubectl --namespace mlrun delete pvc <pv-name>
+kubectl --namespace mlrun delete pv <pv-name>
 
 # Remove hostpath(s) used for mlrun (and possibly nfs). Those will be created by default under /tmp, and will contain
 # your release name, e.g.:

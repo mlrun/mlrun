@@ -552,7 +552,7 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url):
+    def remote_start(self, func_url) -> schemas.BackgroundTask:
         try:
             req = {"functionUrl": func_url}
             resp = self.api_call(
@@ -569,7 +569,16 @@ class HTTPRunDB(RunDBInterface):
             logger.error("bad resp!!\n{}".format(resp.text))
             raise ValueError("bad function start response")
 
-        return resp.json()["data"]
+        return schemas.BackgroundTask(**resp.json())
+
+    def get_background_task(self, project: str, name: str,) -> schemas.BackgroundTask:
+        project = project or default_project
+        path = f"projects/{project}/background-tasks/{name}"
+        error_message = (
+            f"Failed getting background task. project={project}, name={name}"
+        )
+        response = self.api_call("GET", path, error_message)
+        return schemas.BackgroundTask(**response.json())
 
     def remote_status(self, kind, selector):
         try:

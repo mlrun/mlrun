@@ -69,7 +69,9 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
             # If for some reason get is called and the background task doesn't exist, it means that probably we got
             # restarted, therefore we want to return a failed background task so the client will retry (if needed)
             return mlrun.api.schemas.BackgroundTask(
-                metadata=mlrun.api.schemas.BackgroundTaskMetadata(name=name),
+                metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+                    name=name, project=project
+                ),
                 status=mlrun.api.schemas.BackgroundTaskStatus(
                     state=mlrun.api.schemas.BackgroundTaskState.failed
                 ),

@@ -96,7 +96,7 @@ Your applications are now available in your local browser:
 
 - Jupyter-Lab - <http://localhost:30040>
 - MLRun - <http://localhost:30050>
-- Nuclio - <http://locahost:30060>
+- Nuclio - <http://localhost:30060>
 
 ### Start Working
 
@@ -167,7 +167,7 @@ And don't forget to clean the remaining PVCs and PVCs
 Handing stuck-at-terminating pods:
 
 ```bash
-helm --namespace mlrun delete pod --force --grace-period=0 <pod-name>
+kubectl --namespace mlrun delete pod --force --grace-period=0 <pod-name>
 ```
 
 Reclaim dangling persistency resources:
@@ -177,23 +177,23 @@ Reclaim dangling persistency resources:
 
 ```bash
 # To list PVCs
-helm --namespace mlrun get pvc
+kubectl --namespace mlrun get pvc
 ...
 
 # To remove a PVC
-helm --namespace mlrun delete pvc <pvc-name>
+kubectl --namespace mlrun delete pvc <pvc-name>
 ...
 
 # To list PVs
-helm --namespace mlrun get pv
+kubectl --namespace mlrun get pv
 ...
 
-# To remove a PVC
-helm --namespace mlrun delete pvc <pv-name>
+# To remove a PV
+kubectl --namespace mlrun delete pvc <pv-name>
 
-# Remove hostpath(s) used for mlrun (and possibly nfs). Those will be created, by default under /tmp, and will contain
+# Remove hostpath(s) used for mlrun (and possibly nfs). Those will be created by default under /tmp, and will contain
 # your release name, e.g.:
-rm -rf my-mlrun-mlrun-kit-mlrun
+rm -rf /tmp/my-mlrun-mlrun-kit-mlrun
 ...
 ```
 

@@ -104,6 +104,10 @@ default_config = {
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
             "docker_registry_secret": "",
+            # the requirement specifier used by the builder when installing mlrun in images when it runs
+            # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
+            # git+https://github.com/mlrun/mlrun@development. by default uses the version
+            "mlrun_version_specifier": "",
         },
     },
 }

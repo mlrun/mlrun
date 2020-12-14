@@ -208,9 +208,9 @@ class DaskCluster(KubejobRuntime):
                         return
                     time.sleep(5)
                     now = datetime.datetime.utcnow()
-
-        self._cluster = deploy_function(self)
-        self.save(versioned=False)
+        else:
+            self._cluster = deploy_function(self)
+            self.save(versioned=False)
 
     def close(self, running=True):
         from dask.distributed import default_client

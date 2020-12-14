@@ -62,6 +62,6 @@ api_router.include_router(
 )
 api_router.include_router(
     feature_sets.router,
-    tags=["feature_sets"],
+    tags=["feature-sets"],
     dependencies=[Depends(deps.AuthVerifier)],
 )

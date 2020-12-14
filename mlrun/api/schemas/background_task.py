@@ -4,7 +4,7 @@ import typing
 
 import pydantic
 
-import mlrun.api.schemas.object
+from .object import ObjectKind
 
 
 class BackgroundTaskState(str, enum.Enum):
@@ -36,8 +36,8 @@ class BackgroundTaskStatus(pydantic.BaseModel):
 
 
 class BackgroundTask(pydantic.BaseModel):
-    kind: mlrun.api.schemas.object.ObjectKind = pydantic.Field(
-        mlrun.api.schemas.object.ObjectKind.feature_set, const=True
+    kind: ObjectKind = pydantic.Field(
+        ObjectKind.background_task, const=True
     )
     metadata: BackgroundTaskMetadata
     spec: BackgroundTaskSpec

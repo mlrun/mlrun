@@ -36,7 +36,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
             raise RuntimeError("Background task name already exists")
         self._save_background_task(db_session, project, name)
         background_tasks.add_task(
-            self.background_task_wrapper, name, function, *args, **kwargs
+            self.background_task_wrapper, project, name, function, *args, **kwargs
         )
         return self.get_background_task(project, name)
 
@@ -49,12 +49,13 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         metadata = mlrun.api.schemas.BackgroundTaskMetadata(
             name=name, project=project, created=datetime.datetime.utcnow()
         )
+        spec = mlrun.api.schemas.BackgroundTaskSpec()
         status = mlrun.api.schemas.BackgroundTaskStatus(
             state=mlrun.api.schemas.BackgroundTaskState.running
         )
         self._background_tasks.setdefault(project, {})[
             name
-        ] = mlrun.api.schemas.BackgroundTask(metadata=metadata, status=status)
+        ] = mlrun.api.schemas.BackgroundTask(metadata=metadata, spec=spec, status=status)
 
     def get_background_task(
         self, project: str, name: str
@@ -72,6 +73,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
                 metadata=mlrun.api.schemas.BackgroundTaskMetadata(
                     name=name, project=project
                 ),
+                spec=mlrun.api.schemas.BackgroundTaskSpec(),
                 status=mlrun.api.schemas.BackgroundTaskStatus(
                     state=mlrun.api.schemas.BackgroundTaskState.failed
                 ),

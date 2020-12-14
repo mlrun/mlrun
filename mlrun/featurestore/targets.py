@@ -27,7 +27,11 @@ def init_featureset_targets(featureset, tables):
 
 
 def add_target_states(graph, featureset, targets, to_df=False):
-    after = featureset.spec.get_final_state()
+    if len(graph.states) > 0:
+        after = featureset.spec.get_final_state()
+    else:
+        graph.add_step(name="_in", handler="(event)", after="$start")
+        after = "_in"
     targets = targets or []
     for target in targets:
         target.driver.add_writer_state(graph, target.after_state or after)

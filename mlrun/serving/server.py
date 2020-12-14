@@ -248,7 +248,7 @@ def create_graph_server(
     logger=None,
     level="debug",
     current_function=None,
-    error_stream=None,
+    **kwargs,
 ) -> GraphServer:
     """create serving emulator/tester for locally testing models and servers
 
@@ -263,11 +263,12 @@ def create_graph_server(
     if not graph:
         graph = RouterState(class_name=router_class, class_args=router_args)
     namespace = namespace or get_caller_globals()
-    server = GraphServer(graph, parameters, load_mode, verbose=level == "debug")
+    server = GraphServer(
+        graph, parameters, load_mode, verbose=level == "debug", **kwargs
+    )
     server.set_current_function(
         current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")
     )
-    server.error_stream = error_stream
     server.init(context, namespace or {})
     return server
 

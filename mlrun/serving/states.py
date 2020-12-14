@@ -230,13 +230,12 @@ class BaseState(ModelObj):
         )
         state = parent._states.update(name, state)
         state.set_parent(parent)
-        if not next_states and parent.default_before:
-            next_states = [parent.default_before]
         if hasattr(self, "start_at"):
             self.start_at = state.name
         else:
             self.set_next(state.name, next_states)
         state.next = next_states
+        parent._last_added = state
         return state
 
 
@@ -599,7 +598,6 @@ class FlowState(BaseState):
         self.engine = engine
         self.from_state = os.environ.get("START_FROM_STATE", None)
         self.result_state = result_state
-        self.default_before = None
 
         self._last_added = None
         self._controller = None
@@ -672,9 +670,6 @@ class FlowState(BaseState):
         state = self._states.update(key, state)
         state.set_parent(self)
 
-        if not before and after != "$last" and self.default_before:
-            before = self.default_before
-
         if before:
             if not isinstance(before, list):
                 before = [before]
@@ -712,6 +707,10 @@ class FlowState(BaseState):
                 after_state = self._states[name]
 
         if after_state:
+            if before and after_state.name in before:
+                raise GraphError(
+                    f"graph loop, state {after_state.name} is specified in before and after {key}"
+                )
             after_state.set_next(state.name, before)
         self._last_added = state
         return state
@@ -862,6 +861,12 @@ class FlowState(BaseState):
     def find_last_state(self):
         if self.result_state:
             return self.result_state
+
+        loop_state = self.detect_loops()
+        if loop_state:
+            raise GraphError(
+                f"Error, loop detected in state {loop_state}, graph must be acyclic (DAG)"
+            )
 
         next_obj = self.get_start_state()
         while next_obj:

@@ -30,7 +30,6 @@ from .targets import init_target
 from ..model import ModelObj
 from ..serving.states import BaseState
 
-validator_step = "ValidatorStep"
 aggregates_step = "Aggregates"
 
 
@@ -60,7 +59,6 @@ class FeatureSet(ModelObj):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", FeatureSetSpec)
-        self._init_graph()
 
     @property
     def metadata(self) -> FeatureSetMetadata:
@@ -144,34 +142,6 @@ class FeatureSet(ModelObj):
     def graph(self):
         return self.spec.graph
 
-    def add_step(
-        self, name, class_name, handler=None, after=None, before=None, **class_args
-    ):
-        graph = self._spec.graph
-        if not before:
-            before = "Aggregates" if "Aggregates" in graph.states else validator_step
-        return graph.add_step(
-            name=name,
-            class_name=class_name,
-            after=after or "$prev",
-            before=before,
-            handler=handler,
-            **class_args,
-        )
-
-    def _init_graph(self):
-        graph = self._spec.graph
-        last_added = graph._last_added
-        if validator_step not in graph.states:
-            graph.add_step(
-                name=validator_step,
-                after="$last",
-                class_name="mlrun.featurestore.ValidatorStep",
-                featureset=".",
-            )
-            graph._last_added = last_added
-        graph.default_before = validator_step
-
     def add_aggregation(
         self,
         name,
@@ -186,7 +156,6 @@ class FeatureSet(ModelObj):
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
         ).to_dict()
-        # self._spec.aggregations.update(aggregation)
 
         def upsert_feature(name):
             if name in self.spec.features:

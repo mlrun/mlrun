@@ -1,15 +1,23 @@
 from storey import MapClass
 
+from mlrun.featurestore.model import FeatureAggregation
+from mlrun.serving.states import TaskState
 
-class ValidatorStep(MapClass):
-    def __init__(self, featureset=None, **kwargs):
+this_path = "mlrun.featurestore.steps"
+
+
+class FeaturesetValidator(MapClass):
+    def __init__(self, featureset=None, columns=None, name=None, **kwargs):
         super().__init__(full_event=True, **kwargs)
         self._validators = {}
+        self.featureset = featureset or "."
+        self.columns = columns
+        self.name = name
         if not self.context:
             return
-        self.featureset = self.context.get_feature_set(featureset)
-        for key, feature in self.featureset.spec.features.items():
-            if feature.validator:
+        self._featureset = self.context.get_feature_set(featureset)
+        for key, feature in self._featureset.spec.features.items():
+            if feature.validator and (not columns or key in columns):
                 feature.validator.set_feature(feature)
                 self._validators[key] = feature.validator
 
@@ -27,3 +35,10 @@ class ValidatorStep(MapClass):
                         f"{validator.severity}! {name} {message},{key_text} args={args}"
                     )
         return event
+
+    def to_state(self):
+        return TaskState(
+            this_path + ".FeaturesetValidator",
+            name=self.name or "FeaturesetValidator",
+            class_args={"featureset": self.featureset, "columns": self.columns},
+        )

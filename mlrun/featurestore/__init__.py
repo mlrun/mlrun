@@ -17,5 +17,5 @@ from .featureset import FeatureSet  # noqa
 from .vector import FeatureVector  # noqa
 from .model import Feature, Entity, TargetTypes, store_config  # noqa
 from .datatypes import ValueType  # noqa
-from .steps import ValidatorStep  # noqa
+from .steps import FeaturesetValidator  # noqa
 from .validators import MinMaxValidator  # noqa

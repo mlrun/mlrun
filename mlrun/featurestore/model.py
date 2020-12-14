@@ -229,7 +229,6 @@ class FeatureSetSpec(ModelObj):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
-        self._aggregations = None
         self._graph: RootFlowState = None
         self._sources = None
 
@@ -247,7 +246,7 @@ class FeatureSetSpec(ModelObj):
         self.final_graph_state = final_graph_state
 
     def get_final_state(self):
-        return self.final_graph_state or "ValidatorStep"
+        return self.final_graph_state or self._graph.find_last_state()
 
     @property
     def entities(self) -> List[Entity]:
@@ -291,7 +290,7 @@ class FeatureSetSpec(ModelObj):
         self._sources = ObjectList.from_list(DataSource, sources)
 
     def require_processing(self):
-        return len(self._graph.states) > 0 or len(self._aggregations) > 0
+        return len(self._graph.states) > 0
 
 
 class FeatureSetStatus(ModelObj):

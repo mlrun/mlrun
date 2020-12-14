@@ -48,7 +48,6 @@ def init_featureset_graph(
     verbose=True,
 ):
     graph = featureset.spec.graph.copy()
-    graph.default_before = None
     tables = {}
     targets = []
 

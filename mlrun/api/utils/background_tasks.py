@@ -1,26 +1,34 @@
 import asyncio
 import datetime
 import traceback
-import sqlalchemy.orm
 import typing
 import uuid
 
 import fastapi
 import fastapi.concurrency
+import sqlalchemy.orm
 
 import mlrun.api.schemas
+import mlrun.api.utils.singletons.project_member
 import mlrun.errors
 import mlrun.utils.singleton
-import mlrun.api.utils.singletons.project_member
 from mlrun.utils import logger
 
 
 class Handler(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
-        self._background_tasks: typing.Dict[str, typing.Dict[str, mlrun.api.schemas.BackgroundTask]] = {}
+        self._background_tasks: typing.Dict[
+            str, typing.Dict[str, mlrun.api.schemas.BackgroundTask]
+        ] = {}
 
     def create_background_task(
-        self, db_session: sqlalchemy.orm.Session, project: str, background_tasks: fastapi.BackgroundTasks, function, *args, **kwargs
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        background_tasks: fastapi.BackgroundTasks,
+        function,
+        *args,
+        **kwargs,
     ) -> mlrun.api.schemas.BackgroundTask:
         name = str(uuid.uuid4())
         # sanity
@@ -32,20 +40,29 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         )
         return self.get_background_task(project, name)
 
-    def _save_background_task(self, db_session: sqlalchemy.orm.Session, project: str, name: str):
-        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(db_session, project)
+    def _save_background_task(
+        self, db_session: sqlalchemy.orm.Session, project: str, name: str
+    ):
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+            db_session, project
+        )
         metadata = mlrun.api.schemas.BackgroundTaskMetadata(
             name=name, project=project, created=datetime.datetime.utcnow()
         )
         status = mlrun.api.schemas.BackgroundTaskStatus(
             state=mlrun.api.schemas.BackgroundTaskState.running
         )
-        self._background_tasks.setdefault(project, {})[name] = mlrun.api.schemas.BackgroundTask(
-            metadata=metadata, status=status
-        )
+        self._background_tasks.setdefault(project, {})[
+            name
+        ] = mlrun.api.schemas.BackgroundTask(metadata=metadata, status=status)
 
-    def get_background_task(self, project: str, name: str) -> mlrun.api.schemas.BackgroundTask:
-        if project in self._background_tasks and name in self._background_tasks[project]:
+    def get_background_task(
+        self, project: str, name: str
+    ) -> mlrun.api.schemas.BackgroundTask:
+        if (
+            project in self._background_tasks
+            and name in self._background_tasks[project]
+        ):
             return self._background_tasks[project][name]
         else:
             # in order to keep things simple we don't persist the background tasks to the DB

@@ -7,11 +7,11 @@ from fastapi import APIRouter, Depends, Request, Query, Response, BackgroundTask
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-from mlrun.api.api import deps
-from mlrun.api.api.utils import log_and_raise, get_run_db_instance
-import mlrun.api.utils.background_tasks
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.background_tasks
+from mlrun.api.api import deps
+from mlrun.api.api.utils import log_and_raise, get_run_db_instance
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
@@ -125,7 +125,9 @@ async def build_function(
 @router.post("/start/function", response_model=mlrun.api.schemas.BackgroundTask)
 @router.post("/start/function/", response_model=mlrun.api.schemas.BackgroundTask)
 async def start_function(
-    request: Request, background_tasks: BackgroundTasks, db_session: Session = Depends(deps.get_db_session),
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
     try:
@@ -137,7 +139,13 @@ async def start_function(
 
     function = _parse_start_function_body(db_session, data)
 
-    background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(db_session, function.metadata.project, background_tasks, _start_function, function)
+    background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(
+        db_session,
+        function.metadata.project,
+        background_tasks,
+        _start_function,
+        function,
+    )
 
     return background_task
 

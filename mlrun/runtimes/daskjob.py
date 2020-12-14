@@ -11,15 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import inspect
 import socket
 from os import environ
+import time
 from typing import Dict, List
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
+import mlrun.api.schemas
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
 from .kubejob import KubejobRuntime
@@ -180,7 +183,7 @@ class DaskCluster(KubejobRuntime):
 
         return False
 
-    def _start(self):
+    def _start(self, watch=True):
         if self._is_remote_api():
             db = self._get_db()
             if not self.is_deployed:
@@ -190,10 +193,21 @@ class DaskCluster(KubejobRuntime):
                 )
 
             self.save(versioned=False)
-            resp = db.remote_start(self._function_uri())
-            if resp and "status" in resp:
-                self.status = resp["status"]
-            return
+            background_task = db.remote_start(self._function_uri())
+            if watch:
+                now = datetime.datetime.utcnow()
+                timeout = now + datetime.timedelta(minutes=10)
+                while now < timeout:
+                    background_task = db.get_background_task(
+                        background_task.metadata.project, background_task.metadata.name
+                    )
+                    if (
+                        background_task.status.state
+                        in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+                    ):
+                        return
+                    time.sleep(5)
+                    now = datetime.datetime.utcnow()
 
         self._cluster = deploy_function(self)
         self.save(versioned=False)

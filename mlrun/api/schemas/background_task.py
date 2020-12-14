@@ -12,6 +12,13 @@ class BackgroundTaskState(str, enum.Enum):
     failed = "failed"
     running = "running"
 
+    @staticmethod
+    def terminal_states():
+        return [
+            BackgroundTaskState.succeeded,
+            BackgroundTaskState.failed,
+        ]
+
 
 class BackgroundTaskMetadata(pydantic.BaseModel):
     name: str

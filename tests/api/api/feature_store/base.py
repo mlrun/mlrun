@@ -17,9 +17,10 @@ def _list_and_assert_objects(
     assert response.status_code == HTTPStatus.OK.value
     response_body = response.json()
     assert entity_name in response_body
+    actual_result = len(response_body[entity_name])
     assert (
-        len(response_body[entity_name]) == expected_number_of_entities
-    ), f"wrong number of {entity_name} entities in response"
+        actual_result == expected_number_of_entities
+    ), f"wrong number of {entity_name} in response - {actual_result} instead of {expected_number_of_entities}"
     return response_body
 
 

@@ -200,7 +200,6 @@ class TestRuntimeHandlerBase:
                 expected_custom_object_namespace,
                 crd_plural,
                 expected_custom_object_name,
-                client.V1DeleteOptions(),
             )
             for expected_custom_object_name in expected_custom_object_names
         ]

@@ -12,7 +12,7 @@
 
 **MLRun** is the first end-to-end open source MLOps solution to manage and automate your entire analytics and machine learning lifecycle, from data ingestion through model development and full pipeline deployment.
 
-Benefits
+Benefits <!-- omit in toc -->
 --------
 
 With MLRun you can:
@@ -22,7 +22,7 @@ With MLRun you can:
 * Deploy your pipeline at scale in a single click.
 * Monitor your model performance and automate your actions.
 
-Components
+Components <!-- omit in toc -->
 ----------
 
 MLRun includes the following components:
@@ -35,16 +35,34 @@ MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), a
 
 Read more [**detailed documentation here**](https://mlrun.readthedocs.io/en/latest/)
 
-#### In This Document
-- [General Concept and Motivation](#concepts-n-motivation)
+## In This Document <!-- omit in toc -->
+- [General Concept and Motivation](#general-concept-and-motivation)
+  - [The Challenge](#the-challenge)
+  - [The MLRun Vision](#the-mlrun-vision)
 - [Installation](#installation)
-- [Examples and Tutorial Notebooks](#examples-n-tutorial-notebooks)
-- [Quick-Start Tutorial &mdash; Architecture and Usage Guidelines](#qs-tutorial)
+  - [Installation on the Iguazio Data Science Platform](#installation-on-the-iguazio-data-science-platform)
+- [Examples and Tutorial Notebooks](#examples-and-tutorial-notebooks)
+  - [Additional Examples](#additional-examples)
+- [Quick-Start Tutorial &mdash; Architecture and Usage Guidelines](#quick-start-tutorial--architecture-and-usage-guidelines)
+  - [Basic Components](#basic-components)
+  - [Managed and Portable Execution](#managed-and-portable-execution)
+  - [Automated Parameterization, Artifact Tracking, and Logging](#automated-parameterization-artifact-tracking-and-logging)
+    - [Example](#example)
+  - [Using Hyperparameters for Job Scaling](#using-hyperparameters-for-job-scaling)
+  - [Automated Code Deployment and Containerization](#automated-code-deployment-and-containerization)
+  - [Running an ML Workflow with Kubeflow Pipelines](#running-an-ml-workflow-with-kubeflow-pipelines)
+  - [Viewing Run Data and Performing Database Operations](#viewing-run-data-and-performing-database-operations)
+    - [The MLRun Dashboard](#the-mlrun-dashboard)
+    - [MLRun Database Methods](#mlrun-database-methods)
+  - [Additional Information and Examples](#additional-information-and-examples)
+    - [Replacing Runtime Context Parameters from the CLI](#replacing-runtime-context-parameters-from-the-cli)
+    - [Remote Execution](#remote-execution)
+      - [Nuclio Example](#nuclio-example)
+  - [Running an MLRun Service](#running-an-mlrun-service)
+    - [Using the MLRun CLI to Run an MLRun Service](#using-the-mlrun-cli-to-run-an-mlrun-service)
 
 <a id="concepts-n-motivation"></a>
 ## General Concept and Motivation
-- [The Challenge](#the-challenge)
-- [The MLRun Vision](#the-vision)
 
 <a id="the-challenge"></a>
 ### The Challenge
@@ -91,7 +109,7 @@ pip install mlrun
 MLRun requires separate containers for the API and the dashboard (UI).
 You can also select to use the pre-baked JupyterLab image.
 
-To install and run MLRun locally using Docker or Kubernetes, see the instructions in the [**MLRun documentation**]([hack/local/README.md](https://mlrun.readthedocs.io/en/latest/install.html)).
+To install and run MLRun locally using Docker or Kubernetes, see the instructions in the [**MLRun documentation**](https://mlrun.readthedocs.io/en/latest/install.html)).
 
 <a id="installation-iguazio-platform"></a>
 ### Installation on the Iguazio Data Science Platform
@@ -144,34 +162,6 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 <!-- TODO: Move this to a separate docs/quick-start.md file, add an opening
   paragraph, update the heading levels, add a `top` anchor, and remove the
   "Back to quick-start TOC" links (leaving only the "Back to top" links). -->
-
-- [Benefits](#benefits)
-- [Components](#components)
-    - [In This Document](#in-this-document)
-- [General Concept and Motivation](#general-concept-and-motivation)
-  - [The Challenge](#the-challenge)
-  - [The MLRun Vision](#the-mlrun-vision)
-- [Installation](#installation)
-  - [Installation on the Iguazio Data Science Platform](#installation-on-the-iguazio-data-science-platform)
-- [Examples and Tutorial Notebooks](#examples-and-tutorial-notebooks)
-  - [Additional Examples](#additional-examples)
-- [Quick-Start Tutorial &mdash; Architecture and Usage Guidelines](#quick-start-tutorial--architecture-and-usage-guidelines)
-  - [Basic Components](#basic-components)
-  - [Managed and Portable Execution](#managed-and-portable-execution)
-  - [Automated Parameterization, Artifact Tracking, and Logging](#automated-parameterization-artifact-tracking-and-logging)
-    - [Example](#example)
-  - [Using Hyperparameters for Job Scaling](#using-hyperparameters-for-job-scaling)
-  - [Automated Code Deployment and Containerization](#automated-code-deployment-and-containerization)
-  - [Running an ML Workflow with Kubeflow Pipelines](#running-an-ml-workflow-with-kubeflow-pipelines)
-  - [Viewing Run Data and Performing Database Operations](#viewing-run-data-and-performing-database-operations)
-    - [The MLRun Dashboard](#the-mlrun-dashboard)
-    - [MLRun Database Methods](#mlrun-database-methods)
-  - [Additional Information and Examples](#additional-information-and-examples)
-    - [Replacing Runtime Context Parameters from the CLI](#replacing-runtime-context-parameters-from-the-cli)
-    - [Remote Execution](#remote-execution)
-      - [Nuclio Example](#nuclio-example)
-  - [Running an MLRun Service](#running-an-mlrun-service)
-    - [Using the MLRun CLI to Run an MLRun Service](#using-the-mlrun-cli-to-run-an-mlrun-service)
 
 <a id="basic-components"></a>
 ### Basic Components

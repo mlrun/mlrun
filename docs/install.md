@@ -68,12 +68,12 @@ where:
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.
 
-To install the chart with the release name `my-mlrun` use the following command.
+To install the chart with the release name `mlrun-kit` use the following command.
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash
 helm --namespace mlrun \
-    install my-mlrun \
+    install mlrun-kit \
     --wait \
     --set global.registry.url=<registry-url> \
     --set global.registry.secretName=registry-credentials \
@@ -120,7 +120,7 @@ Before you begin, ensure that the following prerequisites are met:
 
 #### Set Environment Variables
 
-Define your MLRun configuration. As a minimum requirement &mdash;
+Define your MLRun configuration. As a minimum requirement:
 
 1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
 
@@ -151,7 +151,7 @@ Configurable values are documented in the `values.yaml`, and the `values.yaml` o
 ### Uninstalling the Chart
 
 ```bash
-helm --namespace mlrun uninstall my-mlrun
+helm --namespace mlrun uninstall -mlrun-kit
 ```
 
 > **Note on terminating pods and hanging resources:**
@@ -193,7 +193,7 @@ kubectl --namespace mlrun delete pv <pv-name>
 
 # Remove hostpath(s) used for mlrun (and possibly nfs). Those will be created by default under /tmp, and will contain
 # your release name, e.g.:
-rm -rf /tmp/my-mlrun-mlrun-kit-mlrun
+rm -rf /tmp/mlrun-kit-mlrun-kit-mlrun
 ...
 ```
 

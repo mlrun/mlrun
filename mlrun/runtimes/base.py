@@ -1397,7 +1397,6 @@ class BaseRuntimeHandler(ABC):
                 namespace,
                 crd_plural,
                 name,
-                client.V1DeleteOptions(),
             )
             logger.info(
                 "Deleted crd object",

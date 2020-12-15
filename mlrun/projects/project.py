@@ -980,6 +980,14 @@ class MlrunProject(ModelObj):
             shutil.rmtree(self.spec.context)
 
     def save(self, filepath=None):
+        self.export(filepath)
+        self.save_to_db()
+
+    def save_to_db(self):
+        db = get_run_db().connect(self._secrets)
+        db.store_project(self.metadata.name, self.to_dict())
+
+    def export(self, filepath=None):
         """save the project object into a file (default to project.yaml)"""
         filepath = filepath or path.join(
             self.spec.context, self.spec.subpath, "project.yaml"

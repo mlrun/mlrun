@@ -362,6 +362,8 @@ class SystemTestPreparer:
                 "appservice",
                 "mlrun",
                 mlrun_archive,
+                # TODO: remove when 0.6.0 is out
+                "--skip-chart-patching"
             ],
         )
 

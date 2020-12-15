@@ -160,9 +160,16 @@ def _project_instance_from_struct(struct, name):
     # Name is in the root level only in the legacy project structure
     if "name" in struct:
         legacy_project = MlrunProjectLegacy.from_dict(struct)
-        project = MlrunProject(legacy_project.name, legacy_project.description, legacy_project.params,
-                          [], legacy_project.workflows, legacy_project.artifacts,
-                          legacy_project.artifact_path, legacy_project.conda)
+        project = MlrunProject(
+            legacy_project.name,
+            legacy_project.description,
+            legacy_project.params,
+            [],
+            legacy_project.workflows,
+            legacy_project.artifacts,
+            legacy_project.artifact_path,
+            legacy_project.conda,
+        )
         # other attributes that not passed on initialization
         project._initialized = legacy_project._initialized
         project._secrets = legacy_project._secrets
@@ -179,15 +186,16 @@ def _project_instance_from_struct(struct, name):
         project.spec._function_objects = legacy_project._function_objects
         project.spec.functions = legacy_project.functions
     else:
-        struct.setdefault('metadata', {})["name"] = name or struct.get("metadata", {}).get("name", "")
+        struct.setdefault("metadata", {})["name"] = name or struct.get(
+            "metadata", {}
+        ).get("name", "")
         project = MlrunProject.from_dict(struct)
     return project
 
 
 class ProjectMetadata(ModelObj):
     def __init__(
-        self,
-        name=None,
+        self, name=None,
     ):
         self.name = name
 
@@ -270,8 +278,9 @@ class ProjectSpec(ModelObj):
         for name, function in self._function_definitions.items():
             if hasattr(function, "to_dict"):
                 spec = function.to_dict(strip=True)
-                if function.spec.build.source and function.spec.build.source.startswith(
-                        self._source_repo()
+                if (
+                    function.spec.build.source
+                    and function.spec.build.source.startswith(self._source_repo())
                 ):
                     update_in(spec, "spec.build.source", "./")
                 functions.append({"name": name, "spec": spec})
@@ -542,7 +551,10 @@ class MlrunProject(ModelObj):
         """register the artifacts in the MLRun DB (under this project)"""
         artifact_manager = self._get_artifact_manager()
         producer = ArtifactProducer(
-            "project", self.metadata.name, self.metadata.name, tag=self._get_hexsha() or "latest"
+            "project",
+            self.metadata.name,
+            self.metadata.name,
+            tag=self._get_hexsha() or "latest",
         )
         for artifact_dict in self.spec.artifacts:
             artifact = dict_to_artifact(artifact_dict)
@@ -579,7 +591,10 @@ class MlrunProject(ModelObj):
         am = self._get_artifact_manager()
         artifact_path = artifact_path or self.spec.artifact_path
         producer = ArtifactProducer(
-            "project", self.metadata.name, self.metadata.name, tag=self._get_hexsha() or "latest"
+            "project",
+            self.metadata.name,
+            self.metadata.name,
+            tag=self._get_hexsha() or "latest",
         )
         item = am.log_artifact(
             producer,
@@ -603,9 +618,13 @@ class MlrunProject(ModelObj):
         :returns: project object
         """
         if self.spec.context:
-            project = _load_project_dir(self.spec.context, self.metadata.name, self.spec.subpath)
+            project = _load_project_dir(
+                self.spec.context, self.metadata.name, self.spec.subpath
+            )
         else:
-            project = _load_project_file(self.spec.origin_url, self.metadata.name, self._secrets)
+            project = _load_project_file(
+                self.spec.origin_url, self.metadata.name, self._secrets
+            )
         project.spec.source = self.spec.source
         project.spec.repo = self.spec.repo
         project.spec.branch = self.spec.branch
@@ -932,7 +951,9 @@ class MlrunProject(ModelObj):
                 status = run_info["run"].get("status")
 
         mldb = get_run_db().connect(self._secrets)
-        runs = mldb.list_runs(project=self.metadata.name, labels=f"workflow={workflow_id}")
+        runs = mldb.list_runs(
+            project=self.metadata.name, labels=f"workflow={workflow_id}"
+        )
 
         had_errors = 0
         for r in runs:
@@ -951,12 +972,18 @@ class MlrunProject(ModelObj):
 
     def clear_context(self):
         """delete all files and clear the context dir"""
-        if self.spec.context and path.exists(self.spec.context) and path.isdir(self.spec.context):
+        if (
+            self.spec.context
+            and path.exists(self.spec.context)
+            and path.isdir(self.spec.context)
+        ):
             shutil.rmtree(self.spec.context)
 
     def save(self, filepath=None):
         """save the project object into a file (default to project.yaml)"""
-        filepath = filepath or path.join(self.spec.context, self.spec.subpath, "project.yaml")
+        filepath = filepath or path.join(
+            self.spec.context, self.spec.subpath, "project.yaml"
+        )
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
 

@@ -45,11 +45,11 @@ def init_featureset_graph(
     client=None,
     with_targets=False,
     return_df=True,
-    verbose=True,
 ):
     graph = featureset.spec.graph.copy()
     tables = {}
     targets = []
+    verbose = client.verbose if client else False
 
     if with_targets:
         init_featureset_targets(featureset, tables)

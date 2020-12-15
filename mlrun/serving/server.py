@@ -239,8 +239,6 @@ def v2_serving_handler(context, event, get_body=False):
 
 def create_graph_server(
     context=None,
-    router_class=None,
-    router_args={},
     parameters={},
     load_mode=None,
     graph=None,
@@ -260,8 +258,6 @@ def create_graph_server(
     if not context:
         context = GraphContext(level, logger=logger)
 
-    if not graph:
-        graph = RouterState(class_name=router_class, class_args=router_args)
     namespace = namespace or get_caller_globals()
     server = GraphServer(
         graph, parameters, load_mode, verbose=level == "debug", **kwargs

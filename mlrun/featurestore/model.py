@@ -17,6 +17,7 @@ from mlrun.model import ModelObj
 from .datatypes import ValueType
 from .validators import validator_types
 from ..model import ObjectList
+from ..runtimes.function import FunctionRef
 from ..serving.states import RootFlowState
 
 
@@ -172,11 +173,16 @@ class DataTarget(DataTargetSpec):
 
 
 class DataSource(ModelObj):
-    def __init__(self, name: str = "", kind: TargetTypes = None, path=None):
+    _dict_fields = ["name", "kind", "path", "attributes", "online", "workers", "max_age"]
+
+    def __init__(self, name: str = "", kind: TargetTypes = None, path=None, online=None):
         self.name = name
+        self.online = online
         self.kind: SourceTypes = kind
         self.path = path
         self.max_age = None
+        self.attributes = None
+        self.workers = None
 
 
 class FeatureAggregation(ModelObj):
@@ -221,16 +227,18 @@ class FeatureSetSpec(ModelObj):
         timestamp_key=None,
         label_column=None,
         relations=None,
-        sources=None,
+        source=None,
         targets=None,
         graph=None,
         final_graph_state=None,
+        function=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
         self._graph: RootFlowState = None
-        self._sources = None
+        self._source = None
+        self._function: FunctionRef = None
 
         self.owner = owner
         self.description = description
@@ -239,11 +247,12 @@ class FeatureSetSpec(ModelObj):
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.relations = relations or {}
-        self.sources = sources or []
+        self.source = source
         self.targets = targets or []
         self.graph = graph
         self.label_column = label_column
         self.final_graph_state = final_graph_state
+        self.function = function
 
     def get_final_state(self):
         return self.final_graph_state or self._graph.find_last_state()
@@ -282,12 +291,20 @@ class FeatureSetSpec(ModelObj):
         self._graph.engine = "async"
 
     @property
-    def sources(self) -> List[DataSource]:
-        return self._sources
+    def function(self) -> FunctionRef:
+        return self._spec
 
-    @sources.setter
-    def sources(self, sources: List[DataSource]):
-        self._sources = ObjectList.from_list(DataSource, sources)
+    @function.setter
+    def function(self, function):
+        self._function = self._verify_dict(function, "function", FunctionRef)
+
+    @property
+    def source(self) -> DataSource:
+        return self._source
+
+    @source.setter
+    def source(self, source: DataSource):
+        self._source = self._verify_dict(source, "source", DataSource)
 
     def require_processing(self):
         return len(self._graph.states) > 0
@@ -327,6 +344,7 @@ class FeatureVectorSpec(ModelObj):
     ):
         self._graph: RootFlowState = None
         self._entity_fields: ObjectList = None
+        self._entity_source: DataSource = None
 
         self.description = description
         self.features: List[str] = features or []
@@ -336,6 +354,14 @@ class FeatureVectorSpec(ModelObj):
         self.graph = graph
         self.timestamp_field = timestamp_field
         self.label_column = label_column
+
+    @property
+    def entity_source(self) -> DataSource:
+        return self._entity_source
+
+    @entity_source.setter
+    def entity_source(self, source: DataSource):
+        self._entity_source = self._verify_dict(source, "entity_source", DataSource)
 
     @property
     def entity_fields(self) -> List[Feature]:

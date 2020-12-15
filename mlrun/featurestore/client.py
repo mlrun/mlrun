@@ -43,6 +43,7 @@ class FeatureStoreClient:
         self.nosql_path_prefix = ""
         self.project = project
         self.parameters = {}
+        self.verbose = False
         self.default_feature_set = ""
         try:
             # add v3io:// path prefix support to pandas & dask

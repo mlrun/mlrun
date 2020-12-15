@@ -224,7 +224,7 @@ def test_v2_health():
 
 
 def test_v2_mock():
-    host = create_graph_server()
+    host = create_graph_server(graph=RouterState())
     host.add_model("my", class_name=ModelTestingClass, model_path="", z=100)
     print(host.to_yaml())
     resp = host.test("my/infer", testdata)

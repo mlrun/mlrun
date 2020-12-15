@@ -38,7 +38,7 @@ Before you begin, ensure that the following prerequisites are met:
 
 ### Set Environment Variables
 
-Set environment variables to define your MLRun configuration. As a minimum requirement &mdash;
+Set environment variables to define your MLRun configuration. As a minimum requirement:
 
 1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
 

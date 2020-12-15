@@ -1154,6 +1154,15 @@ class MlrunProjectLegacy(ModelObj):
 
         self._artifacts = afdict
 
+    # needed for tests
+    def save(self, filepath=None):
+        """save the project object into a file (default to project.yaml)"""
+        filepath = filepath or path.join(
+            self.context, self.subpath, "project.yaml"
+        )
+        with open(filepath, "w") as fp:
+            fp.write(self.to_yaml())
+
 
 def _init_function_from_dict(f, project):
     name = f.get("name", "")

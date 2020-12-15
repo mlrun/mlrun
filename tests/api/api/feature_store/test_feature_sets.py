@@ -433,6 +433,51 @@ def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None
     assert response.status_code != HTTPStatus.OK.value
 
 
+def test_entities_list(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+
+    name = "feature_set"
+    count = 5
+    colors = ["red", "blue"]
+    for i in range(count):
+        feature_set = _generate_feature_set(f"{name}_{i}")
+        feature_set["spec"]["entities"] = [
+            {
+                "name": f"entity_{i}",
+                "value_type": "str",
+                "labels": {"color": colors[i % 2], "id": f"id_{i}"},
+            },
+        ]
+
+        _feature_set_create_and_assert(client, project_name, feature_set)
+    _list_and_assert_objects(client, "entities", project_name, "name=entity_0", 1)
+    _list_and_assert_objects(client, "entities", project_name, "name=entity", count)
+    _list_and_assert_objects(client, "entities", project_name, "label=color", count)
+    _list_and_assert_objects(
+        client, "entities", project_name, f"label=color={colors[1]}", count // 2
+    )
+    _list_and_assert_objects(
+        client, "entities", project_name, "name=entity&label=id=id_0", 1
+    )
+
+    # set a new tag
+    tag = "my-new-tag"
+    query = {"feature_sets": {"name": f"{name}_{i}"}}
+    resp = client.post(f"/api/{project_name}/tag/{tag}", json=query)
+    assert resp.status_code == HTTPStatus.OK.value
+    # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
+    entities_response = _list_and_assert_objects(
+        client, "entities", project_name, f"name=entity_{i}", 2
+    )
+    assert (
+        entities_response["entities"][0]["feature_set_digest"]["metadata"]["tag"]
+        == "latest"
+    )
+    assert (
+        entities_response["entities"][1]["feature_set_digest"]["metadata"]["tag"] == tag
+    )
+
+
 def test_features_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
 

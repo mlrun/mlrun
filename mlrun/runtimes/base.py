@@ -22,7 +22,6 @@ from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Tuple, Union, Optional
 
-from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -1392,11 +1391,7 @@ class BaseRuntimeHandler(ABC):
         name = crd_object["metadata"]["name"]
         try:
             k8s_helper.crdapi.delete_namespaced_custom_object(
-                crd_group,
-                crd_version,
-                namespace,
-                crd_plural,
-                name,
+                crd_group, crd_version, namespace, crd_plural, name,
             )
             logger.info(
                 "Deleted crd object",

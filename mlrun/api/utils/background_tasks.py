@@ -96,7 +96,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
             self._update_background_task(
                 project, name, mlrun.api.schemas.BackgroundTaskState.failed
             )
-        finally:
+        else:
             self._update_background_task(
                 project, name, mlrun.api.schemas.BackgroundTaskState.succeeded
             )

@@ -60,11 +60,7 @@ def test_create_background_task_success(
     project = "project"
     assert call_counter == 0
     response = client.post(f"/test/projects/{project}/background-tasks")
-    assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.kind == mlrun.api.schemas.ObjectKind.background_task
-    assert background_task.metadata.project == project
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    background_task = _assert_background_task_creation(project, response)
     response = client.get(
         f"/api/projects/{project}/background-tasks/{background_task.metadata.name}"
     )
@@ -73,6 +69,7 @@ def test_create_background_task_success(
     assert (
         background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
     )
+    assert background_task.metadata.updated is not None
     assert call_counter == 1
 
 
@@ -83,17 +80,14 @@ def test_create_background_task_failure(
     response = client.post(
         f"/test/projects/{project}/background-tasks", params={"failed_task": True}
     )
-    assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.kind == mlrun.api.schemas.ObjectKind.background_task
-    assert background_task.metadata.project == project
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    background_task = _assert_background_task_creation(project, response)
     response = client.get(
         f"/api/projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+    assert background_task.metadata.updated is not None
 
 
 def test_get_background_task_not_exists(
@@ -107,3 +101,14 @@ def test_get_background_task_not_exists(
     assert background_task.metadata.project == project
     assert background_task.metadata.name == name
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+
+
+def _assert_background_task_creation(expected_project, response):
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    assert background_task.kind == mlrun.api.schemas.ObjectKind.background_task
+    assert background_task.metadata.project == expected_project
+    assert background_task.metadata.created is not None
+    assert background_task.metadata.updated is None
+    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    return background_task

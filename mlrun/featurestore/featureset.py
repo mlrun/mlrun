@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
 from copy import copy
 import pandas as pd
+from mlrun.utils import get_caller_globals
 
 from .model import (
     FeatureSetStatus,
@@ -99,7 +99,7 @@ class FeatureSet(ModelObj):
         if timestamp_key is not None:
             self._spec.timestamp_key = timestamp_key
 
-        namespace = namespace or inspect.stack()[1][0].f_globals
+        namespace = namespace or get_caller_globals()
         if self._spec.require_processing():
             # find/update entities schema
             infer_schema_from_df(

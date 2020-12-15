@@ -632,9 +632,9 @@ class FlowState(BaseState):
 
         example:
             graph = fn.set_topology("flow", exist_ok=True)
-            graph.add_step(name="s1", class_name="Chain", after="$start")
-            graph.add_step(name="s3", class_name="Chain", after="$last")
-            graph.add_step(name="s2", class_name="Chain", after="s1", before="s3")
+            graph.add_step(class_name="Chain", name="s1", after="$start")
+            graph.add_step(class_name="Chain", name="s3", after="$last")
+            graph.add_step(class_name="Chain", name="s2", after="s1", before="s3")
 
         :param class_name:  class name or state object to build the state from
                             for router states the class name should start with '*'
@@ -657,6 +657,9 @@ class FlowState(BaseState):
             function=function,
             class_args=class_args,
         )
+
+        if not after and not before:
+            after = '$prev'
 
         self.insert_state(name, state, after, before)
         return state

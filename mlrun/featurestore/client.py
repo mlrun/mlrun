@@ -91,7 +91,7 @@ class FeatureStoreClient:
             source = self.get_data_stores().object(url=source).as_df()
 
         if infer_schema:
-            featureset.infer_from_df(source)
+            featureset.infer_from_df(source, namespace=namespace)
         return_df = return_df or with_stats or with_preview
         self.save_object(featureset)
 

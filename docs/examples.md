@@ -5,13 +5,13 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 
 - Learn MLRun basics &mdash; [**mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_basics.ipynb)
 - Convert local runs to Kubernetes jobs and create automated pipelines in a single notebook &mdash; [**mlrun_jobs.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_jobs.ipynb)
-- End-to-end ML pipeline&mdash; [**demo-scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline), including:
+- End-to-end ML pipeline&mdash; [**demos/scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline), including:
   - Data ingestion and analysis 
   - Model training
   - Verification
   - Model deployment
 - MLRun with scale-out runtimes &mdash;
-  - Distributed TensorFlow with Horovod and MPIJob &mdash; [**horovod-project.ipynb**](https://github.com/mlrun/demos/blob/master/horovod-pipe/horovod-project.ipynb)
+  - Distributed TensorFlow with Horovod and MPIJob, including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [**demos/image-classification-with-distributed-training**](https://github.com/mlrun/demos/tree/master/image-classification-with-distributed-training)
   - Serverless model serving with Nuclio &mdash; [**xgb_serving.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/xgb_serving.ipynb)
   - Dask &mdash; [**mlrun_dask.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_dask.ipynb)
   - Spark &mdash; [**mlrun_sparkk8s.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_sparkk8s.ipynb)
@@ -24,7 +24,6 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 <a id="additional-examples"></a>
 ## Additional Examples
 
-- Deep-learning pipeline (full end-to-end application), including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [demos/image-classification-with-distributed-training](https://github.com/mlrun/demos/tree/master/image-classification-with-distributed-training)
 - Additional end-to-end use-case applications &mdash; [mlrun/demos](https://github.com/mlrun/demos) repo
 - MLRun functions Library &mdash; [mlrun/functions](https://github.com/mlrun/functions) repo 
 

@@ -130,13 +130,13 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
   - build and end to end pipeline in a single notebook
   - build custom containers and work with shared files and objects
   - use model management APIs (log_model, get_model, update_model)
-- End-to-end ML pipeline&mdash; [**demo-scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline), including:
+- End-to-end ML pipeline&mdash; [**demos/scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline), including:
   - Data ingestion and analysis 
   - Model training
   - Verification
   - Model deployment
 - MLRun with scale-out runtimes &mdash;
-  - Distributed TensorFlow with Horovod and MPIJob &mdash; [**horovod-project.ipynb**](https://github.com/mlrun/demos/blob/master/horovod-pipe/horovod-project.ipynb)
+  - Distributed TensorFlow with Horovod and MPIJob, including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [**demos/image-classification-with-distributed-training**](https://github.com/mlrun/demos/tree/master/image-classification-with-distributed-training)
   - Serverless model serving with Nuclio &mdash; [**examples/xgb_serving.ipynb**](examples/xgb_serving.ipynb)
   - Dask &mdash; [**examples/mlrun_dask.ipynb**](examples/mlrun_dask.ipynb)
   - Spark &mdash; [**examples/mlrun_sparkk8s.ipynb**](examples/mlrun_sparkk8s.ipynb)
@@ -151,7 +151,6 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 <a id="additional-examples"></a>
 ### Additional Examples
 
-- Deep-learning pipeline (full end-to-end application), including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [demos/image-classification-with-distributed-training](https://github.com/mlrun/demos/tree/master/image-classification-with-distributed-training)
 - Additional end-to-end use-case applications &mdash; [mlrun/demos](https://github.com/mlrun/demos) repo
 - MLRun functions Library &mdash; [mlrun/functions](https://github.com/mlrun/functions) repo 
 
@@ -464,8 +463,8 @@ ML pipeline execution with MLRun is similar to CLI execution.
 A pipeline is created by running an MLRun workflow.
 MLRun automatically saves outputs and artifacts in a way that is visible to [Kubeflow Pipelines](https://github.com/kubeflow/pipelines), and allows interconnecting steps.
 
-For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe)).
-The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/tree/master/sklearn-pipe/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
+For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demos/scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline)).
+The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/blob/master/scikit-learn-pipeline/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
 ```python
 from kfp import dsl
 from mlrun import mount_v3io

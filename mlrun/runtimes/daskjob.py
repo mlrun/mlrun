@@ -208,6 +208,9 @@ class DaskCluster(KubejobRuntime):
                         return
                     time.sleep(5)
                     now = datetime.datetime.utcnow()
+                function = db.get_function(self.metadata.name, self.metadata.project, self.metadata.tag)
+                if function and function.get("status"):
+                    self.status = function.get("status")
         else:
             self._cluster = deploy_function(self)
             self.save(versioned=False)

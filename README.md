@@ -130,7 +130,7 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
   - build and end to end pipeline in a single notebook
   - build custom containers and work with shared files and objects
   - use model management APIs (log_model, get_model, update_model)
-- End-to-end ML pipeline&mdash; [**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe), including:
+- End-to-end ML pipeline&mdash; [**demo-scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline), including:
   - Data ingestion and analysis 
   - Model training
   - Verification
@@ -151,7 +151,7 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 <a id="additional-examples"></a>
 ### Additional Examples
 
-- Deep-learning pipeline (full end-to-end application), including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [mlrun/demo-image-classification](https://github.com/mlrun/demo-image-classification) repo
+- Deep-learning pipeline (full end-to-end application), including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [demos/image-classification-with-distributed-training](https://github.com/mlrun/demos/tree/master/image-classification-with-distributed-training)
 - Additional end-to-end use-case applications &mdash; [mlrun/demos](https://github.com/mlrun/demos) repo
 - MLRun functions Library &mdash; [mlrun/functions](https://github.com/mlrun/functions) repo 
 

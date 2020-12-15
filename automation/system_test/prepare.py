@@ -50,7 +50,11 @@ class SystemTestPreparer:
         self._debug = debug
         self._mlrun_version = mlrun_version
         self._mlrun_commit = mlrun_commit
-        self._override_image_registry = override_image_registry.strip().strip("/") + "/"
+        self._override_image_registry = (
+            override_image_registry.strip().strip("/") + "/"
+            if override_image_registry is not None
+            else override_image_registry
+        )
         self._override_image_repo = override_image_repo
         self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip

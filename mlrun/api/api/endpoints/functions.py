@@ -3,10 +3,13 @@ from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Request, Query, Response
+from fastapi import APIRouter, Depends, Request, Query, Response, BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.db.session
+import mlrun.api.schemas
+import mlrun.api.utils.background_tasks
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise, get_run_db_instance
 from mlrun.api.utils.singletons.db import get_db
@@ -119,10 +122,12 @@ async def build_function(
 
 
 # curl -d@/path/to/job.json http://localhost:8080/start/function
-@router.post("/start/function")
-@router.post("/start/function/")
+@router.post("/start/function", response_model=mlrun.api.schemas.BackgroundTask)
+@router.post("/start/function/", response_model=mlrun.api.schemas.BackgroundTask)
 async def start_function(
-    request: Request, db_session: Session = Depends(deps.get_db_session)
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     data = None
     try:
@@ -130,11 +135,19 @@ async def start_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    fn = await run_in_threadpool(_start_function, db_session, data)
+    logger.info("Got request to start function", body=data)
 
-    return {
-        "data": fn.to_dict(),
-    }
+    function = _parse_start_function_body(db_session, data)
+
+    background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(
+        db_session,
+        function.metadata.project,
+        background_tasks,
+        _start_function,
+        function,
+    )
+
+    return background_task
 
 
 # curl -d@/path/to/job.json http://localhost:8080/status/function
@@ -285,8 +298,7 @@ def _build_function(db_session, function, with_mlrun, mlrun_version_specifier):
     return fn, ready
 
 
-def _start_function(db_session, data):
-    logger.info("start_function:\n{}".format(data))
+def _parse_start_function_body(db_session, data):
     url = data.get("functionUrl")
     if not url:
         log_and_raise(
@@ -302,29 +314,32 @@ def _start_function(db_session, data):
             reason="runtime error: function {} not found".format(url),
         )
 
-    fn = new_function(runtime=runtime)
-    resource = runtime_resources_map.get(fn.kind)
-    if "start" not in resource:
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: 'start' not supported by this runtime",
-        )
+    return new_function(runtime=runtime)
 
+
+def _start_function(function):
+    db_session = mlrun.api.db.session.create_session()
     try:
-
-        run_db = get_run_db_instance(db_session)
-        fn.set_db_connection(run_db)
-        #  resp = resource["start"](fn)  # TODO: handle resp?
-        resource["start"](fn)
-        fn.save(versioned=False)
-        logger.info("Fn:\n %s", fn.to_yaml())
-    except Exception as err:
-        logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
-        )
-
-    return fn
+        resource = runtime_resources_map.get(function.kind)
+        if "start" not in resource:
+            log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason="runtime error: 'start' not supported by this runtime",
+            )
+        try:
+            run_db = get_run_db_instance(db_session)
+            function.set_db_connection(run_db)
+            #  resp = resource["start"](fn)  # TODO: handle resp?
+            resource["start"](function)
+            function.save(versioned=False)
+            logger.info("Fn:\n %s", function.to_yaml())
+        except Exception as err:
+            logger.error(traceback.format_exc())
+            log_and_raise(
+                HTTPStatus.BAD_REQUEST.value, reason="runtime error: {}".format(err)
+            )
+    finally:
+        mlrun.api.db.session.close_session(db_session)
 
 
 def _get_function_status(data):

@@ -129,9 +129,6 @@ class BaseState(ModelObj):
         """get child states (for router/flow)"""
         return []
 
-    def to_state(self):
-        return self
-
     def __iter__(self):
         yield from []
 
@@ -1103,8 +1100,10 @@ def graph_root_setter(server, graph):
             raise ValueError("graph must be a dict or a valid object")
         if kind == StateKinds.router:
             server._graph = server._verify_dict(graph, "graph", RouterState)
-        else:
+        elif not kind:
             server._graph = server._verify_dict(graph, "graph", RootFlowState)
+        else:
+            raise GraphError(f'illegal root state {kind}')
 
 
 def get_name(name, class_name):
@@ -1120,8 +1119,11 @@ def get_name(name, class_name):
 def params_to_state(
     class_name, name, handler=None, graph_shape=None, function=None, class_args=None
 ):
-    if class_name and hasattr(class_name, "to_state"):
-        state = class_name.to_state()
+    if class_name and hasattr(class_name, "to_dict"):
+        struct = class_name.to_dict()
+        kind = struct.get('kind', StateKinds.task)
+        cls = classes_map.get(kind, RootFlowState)
+        state = cls.from_dict(struct)
         state.function = function
         name = get_name(name or state.name, class_name)
     elif class_name and class_name == ">":

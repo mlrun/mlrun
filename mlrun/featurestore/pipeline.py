@@ -1,6 +1,6 @@
 from storey import (
     Table,
-    NoopDriver,
+    Driver,
     build_flow,
     DataframeSource,
     QueryByKey,
@@ -17,7 +17,7 @@ def new_graph_context(tables, client=None, default_featureset=None):
         if name in tables:
             return tables[name]
         if name in ["", "."]:
-            table = Table("", NoopDriver())
+            table = Table("", Driver())
             tables[name] = table
             return table
         raise ValueError(f"table name={name} not set")

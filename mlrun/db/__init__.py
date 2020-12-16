@@ -56,6 +56,7 @@ def get_run_db(url=""):
     elif scheme in ("http", "https"):
         # import here to avoid circular imports
         from .httpdb import HTTPRunDB
+
         cls = HTTPRunDB
         kwargs = get_httpdb_kwargs(
             parsed_url.hostname, parsed_url.username, parsed_url.password

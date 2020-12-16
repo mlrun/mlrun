@@ -527,24 +527,28 @@ def test_project_file_db_roundtrip(create_server):
     branch = "branch"
     tag = "tag"
     project_metadata = mlrun.projects.project.ProjectMetadata(project_name)
-    project_spec = mlrun.projects.project.ProjectSpec(description, params, artifact_path=artifact_path, conda=conda,
-                                                      source=source,
-                                                      context=context,
-                                                      mountdir=mountdir,
-                                                      subpath=subpath,
-                                                      origin_url=origin_url,
-                                                      branch=branch,
-                                                      tag=tag,
-                                                      )
-    project = mlrun.projects.project.MlrunProject(metadata=project_metadata, spec=project_spec)
+    project_spec = mlrun.projects.project.ProjectSpec(
+        description,
+        params,
+        artifact_path=artifact_path,
+        conda=conda,
+        source=source,
+        context=context,
+        mountdir=mountdir,
+        subpath=subpath,
+        origin_url=origin_url,
+        branch=branch,
+        tag=tag,
+    )
+    project = mlrun.projects.project.MlrunProject(
+        metadata=project_metadata, spec=project_spec
+    )
     function_name = "trainer-function"
     function = mlrun.new_function(function_name, project_name)
     project.set_function(function, function_name)
     project.set_function("hub://describe", "describe")
     workflow_name = "workflow-name"
-    workflow_file_path = (
-            Path(tests_root_directory) / "rundb" / "workflow.py"
-    )
+    workflow_file_path = Path(tests_root_directory) / "rundb" / "workflow.py"
     project.set_workflow(workflow_name, str(workflow_file_path))
     artifact_dict = {
         "key": "raw-data",
@@ -552,7 +556,7 @@ def test_project_file_db_roundtrip(create_server):
         "iter": 0,
         "tree": "latest",
         "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
-                       "o-Customer-Churn.csv",
+        "o-Customer-Churn.csv",
         "db_key": "raw-data",
     }
     project.artifacts = [artifact_dict]
@@ -570,10 +574,8 @@ def test_project_file_db_roundtrip(create_server):
 
 def _assert_projects(expected_project, project):
     assert (
-            deepdiff.DeepDiff(
-                expected_project.to_dict(),
-                project.to_dict(),
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            expected_project.to_dict(), project.to_dict(), ignore_order=True,
+        )
+        == {}
     )

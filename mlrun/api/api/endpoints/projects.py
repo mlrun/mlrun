@@ -30,7 +30,7 @@ def store_project(
 
 @router.patch("/projects/{name}", response_model=schemas.Project)
 def patch_project(
-    project: schemas.ProjectPatch,
+    project: dict,
     name: str,
     patch_mode: schemas.PatchMode = Header(
         schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode

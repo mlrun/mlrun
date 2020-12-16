@@ -26,7 +26,7 @@ class Member(abc.ABC):
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectPatch,
+        project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
         pass

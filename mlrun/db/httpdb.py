@@ -990,7 +990,7 @@ class HTTPRunDB(RunDBInterface):
     def patch_project(
         self,
         name: str,
-        project: Union[dict, mlrun.api.schemas.ProjectPatch],
+        project: dict,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ) -> mlrun.api.schemas.Project:
         path = f"projects/{name}"
@@ -998,8 +998,6 @@ class HTTPRunDB(RunDBInterface):
             patch_mode = patch_mode.value
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
-        if isinstance(project, mlrun.api.schemas.Project):
-            project = project.dict(exclude_unset=True)
         response = self.api_call(
             "PATCH", path, error_message, body=json.dumps(project), headers=headers
         )

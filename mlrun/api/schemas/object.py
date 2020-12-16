@@ -54,6 +54,7 @@ class ObjectRecord(BaseModel):
 
 
 class ObjectKind(str, Enum):
+    project = "Project"
     feature_set = "FeatureSet"
     background_task = "BackgroundTask"
     feature_vector = "FeatureVector"

@@ -1,22 +1,43 @@
-from datetime import datetime
-from typing import Optional, List, Union
+import datetime
+import typing
 
-from pydantic import BaseModel, Extra
+import pydantic
+
+from .object import (
+    ObjectStatus,
+    ObjectKind,
+)
 
 
-class ProjectPatch(BaseModel):
-    description: Optional[str] = None
-    source: Optional[str] = None
-    state: Optional[str] = None
-    owner: Optional[str] = None
-    created: Optional[datetime] = None
+class ProjectMetadata(pydantic.BaseModel):
+    name: str
+    created: typing.Optional[datetime.datetime] = None
 
     class Config:
-        extra = Extra.allow
+        extra = pydantic.Extra.allow
 
 
-class Project(ProjectPatch):
-    name: str
+class ProjectSpec(pydantic.BaseModel):
+    description: typing.Optional[str] = None
+    source: typing.Optional[str] = None
+    artifact_path: typing.Optional[str] = None
+    subpath: typing.Optional[str] = None
+    origin_url: typing.Optional[str] = None
+    tag: typing.Optional[str] = None
+    params: typing.Optional[dict] = None
+    functions: typing.Optional[list] = None
+    artifacts: typing.Optional[list] = None
+    workflows: typing.Optional[list] = None
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
+class Project(pydantic.BaseModel):
+    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+    metadata: ProjectMetadata
+    spec: ProjectSpec = ProjectSpec()
+    status: ObjectStatus = ObjectStatus()
 
 
 class ProjectRecord(Project):
@@ -26,6 +47,6 @@ class ProjectRecord(Project):
         orm_mode = True
 
 
-class ProjectsOutput(BaseModel):
-    # use the full query param to control whether the full object will be returned or only the names
-    projects: List[Union[Project, str]]
+class ProjectsOutput(pydantic.BaseModel):
+    # use the format query param to control whether the full object will be returned or only the names
+    projects: typing.List[typing.Union[Project, str]]

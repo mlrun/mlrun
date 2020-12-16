@@ -173,7 +173,7 @@ def _project_instance_from_struct(struct, name):
         # other attributes that not passed on initialization
         project._initialized = legacy_project._initialized
         project._secrets = legacy_project._secrets
-        project._artifact_manager = legacy_project._artifact_manager
+        project._artifact_manager = legacy_project._artifact_mngr
 
         project.spec.source = legacy_project.source
         project.spec.context = legacy_project.context
@@ -1163,6 +1163,75 @@ class MlrunProjectLegacy(ModelObj):
         self._artifacts = afdict
 
     # needed for tests
+    def set_workflow(self, name, workflow_path: str, embed=False, **args):
+        """add or update a workflow, specify a name and the code path"""
+        if not workflow_path:
+            raise ValueError("valid workflow_path must be specified")
+        if embed:
+            if self.context and not workflow_path.startswith("/"):
+                workflow_path = path.join(self.context, workflow_path)
+            with open(workflow_path, "r") as fp:
+                txt = fp.read()
+            workflow = {"name": name, "code": txt}
+        else:
+            workflow = {"name": name, "path": workflow_path}
+        if args:
+            workflow["args"] = args
+        self._workflows[name] = workflow
+
+    # needed for tests
+    def set_function(self, func, name="", kind="", image=None, with_repo=None):
+        """update or add a function object to the project
+        function can be provided as an object (func) or a .py/.ipynb/.yaml url
+        support url prefixes:
+            object (s3://, v3io://, ..)
+            MLRun DB e.g. db://project/func:ver
+            functions hub/market: e.g. hub://sklearn_classifier:master
+        examples:
+        proj.set_function(func_object)
+        proj.set_function('./src/mycode.py', 'ingest',
+                          image='myrepo/ing:latest', with_repo=True)
+        proj.set_function('http://.../mynb.ipynb', 'train')
+        proj.set_function('./func.yaml')
+        proj.set_function('hub://get_toy_data', 'getdata')
+        :param func:      function object or spec/code url
+        :param name:      name of the function (under the project)
+        :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
+                          default: job
+        :param image:     docker image to be used, can also be specified in
+                          the function object/yaml
+        :param with_repo: add (clone) the current repo to the build source
+        :returns: project object
+        """
+        if isinstance(func, str):
+            if not name:
+                raise ValueError("function name must be specified")
+            fdict = {
+                "url": func,
+                "name": name,
+                "kind": kind,
+                "image": image,
+                "with_repo": with_repo,
+            }
+            func = {k: v for k, v in fdict.items() if v}
+            name, f = _init_function_from_dict_legacy(func, self)
+        elif hasattr(func, "to_dict"):
+            name, f = _init_function_from_obj_legacy(func, self, name=name)
+            if image:
+                f.spec.image = image
+            if with_repo:
+                f.spec.build.source = "./"
+
+            if not name:
+                raise ValueError("function name must be specified")
+        else:
+            raise ValueError("func must be a function url or object")
+
+        self._function_defs[name] = func
+        self._function_objects[name] = f
+        return f
+
+    # needed for tests
     def save(self, filepath=None):
         """save the project object into a file (default to project.yaml)"""
         filepath = filepath or path.join(self.context, self.subpath, "project.yaml")
@@ -1232,6 +1301,71 @@ def _init_function_from_obj(func, project, name=None):
         func.metadata.project = project.metadata.name
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
+    return name or func.metadata.name, func
+
+
+def _init_function_from_dict_legacy(f, project):
+    name = f.get("name", "")
+    url = f.get("url", "")
+    kind = f.get("kind", "")
+    image = f.get("image", None)
+    with_repo = f.get("with_repo", False)
+
+    if with_repo and not project.source:
+        raise ValueError("project source must be specified when cloning context")
+
+    in_context = False
+    if not url and "spec" not in f:
+        raise ValueError("function missing a url or a spec")
+
+    if url and "://" not in url:
+        if project.context and not url.startswith("/"):
+            url = path.join(project.context, url)
+            in_context = True
+        if not path.isfile(url):
+            raise OSError("{} not found".format(url))
+
+    if "spec" in f:
+        func = new_function(name, runtime=f["spec"])
+    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+        func = import_function(url)
+        if image:
+            func.spec.image = image
+    elif url.endswith(".ipynb"):
+        func = code_to_function(name, filename=url, image=image, kind=kind)
+    elif url.endswith(".py"):
+        if not image:
+            raise ValueError(
+                "image must be provided with py code files, "
+                "use function object for more control/settings"
+            )
+        if in_context and with_repo:
+            func = new_function(name, command=url, image=image, kind=kind or "job")
+        else:
+            func = code_to_function(name, filename=url, image=image, kind=kind or "job")
+    else:
+        raise ValueError("unsupported function url {} or no spec".format(url))
+
+    if with_repo:
+        func.spec.build.source = "./"
+
+    return _init_function_from_obj_legacy(func, project, name)
+
+
+def _init_function_from_obj_legacy(func, project, name=None):
+    build = func.spec.build
+    if project.origin_url:
+        origin = project.origin_url
+        try:
+            if project.repo:
+                origin += "#" + project.repo.head.commit.hexsha
+        except Exception:
+            pass
+        build.code_origin = origin
+    if project.name:
+        func.metadata.project = project.name
+    if project.tag:
+        func.metadata.tag = project.tag
     return name or func.metadata.name, func
 
 

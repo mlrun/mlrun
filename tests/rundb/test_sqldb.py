@@ -160,10 +160,10 @@ def test_list_tags(db: SQLDB, db_session: Session):
 
 def test_projects_crud(db: SQLDB, db_session: Session):
     project = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name="p1"),
-            spec=mlrun.api.schemas.ProjectSpec(description="banana", other_field="value"),
-            status=mlrun.api.schemas.ObjectStatus(state="active"),
-        )
+        metadata=mlrun.api.schemas.ProjectMetadata(name="p1"),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana", other_field="value"),
+        status=mlrun.api.schemas.ObjectStatus(state="active"),
+    )
     db.create_project(db_session, project)
     project_output = db.get_project(db_session, name=project.metadata.name)
     assert (
@@ -173,18 +173,14 @@ def test_projects_crud(db: SQLDB, db_session: Session):
         == {}
     )
 
-    project_patch = {
-            'spec': {
-                'description': "lemon",
-            }
-        }
+    project_patch = {"spec": {"description": "lemon"}}
     db.patch_project(db_session, project.metadata.name, project_patch)
     project_output = db.get_project(db_session, name=project.metadata.name)
-    assert project_output.spec.description == project_patch['spec']['description']
+    assert project_output.spec.description == project_patch["spec"]["description"]
 
     project_2 = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name="p2"),
-        )
+        metadata=mlrun.api.schemas.ProjectMetadata(name="p2"),
+    )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
         db_session, format_=mlrun.api.schemas.Format.name_only

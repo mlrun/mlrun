@@ -122,7 +122,9 @@ def test_list_project(
             db_session,
             mlrun.api.schemas.Project(
                 metadata=mlrun.api.schemas.ProjectMetadata(name=project["name"]),
-                spec=mlrun.api.schemas.ProjectSpec(description=project.get("description")),
+                spec=mlrun.api.schemas.ProjectSpec(
+                    description=project.get("description")
+                ),
             ),
         )
     projects_output = db.list_projects(db_session)
@@ -145,7 +147,9 @@ def test_create_project(
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, created=project_created),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, created=project_created
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -171,7 +175,9 @@ def test_store_project_creation(
         db_session,
         project_name,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, created=project_created),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, created=project_created
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -195,13 +201,17 @@ def test_store_project_update(
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, created=project_created),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, created=project_created
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
 
     db.store_project(
-        db_session, project_name, mlrun.api.schemas.Project(
+        db_session,
+        project_name,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         ),
     )
@@ -233,11 +243,7 @@ def test_patch_project(
     db.patch_project(
         db_session,
         project_name,
-        {
-            'spec':{
-                'description': updated_project_description,
-            }
-        },
+        {"spec": {"description": updated_project_description}},
     )
     project_output = db.get_project(db_session, project_name)
     assert project_output.metadata.name == project_name

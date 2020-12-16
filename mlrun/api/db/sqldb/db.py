@@ -758,9 +758,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # If a bad kind value was passed, it will fail here (return 422 to caller)
         project = schemas.Project(**project_record_full_object)
         self.store_project(
-            session,
-            name,
-            project,
+            session, name, project,
         )
 
         project_record.full_object = project_record_full_object
@@ -1779,17 +1777,15 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         if not project_record.full_object:
             project = schemas.Project(
                 metadata=schemas.ProjectMetadata(
-                    name=project_record.name,
-                    created=project_record.created,
+                    name=project_record.name, created=project_record.created,
                 ),
                 spec=schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
                 ),
-                status=schemas.ObjectStatus(
-                    state=project_record.state,
-                ),
+                status=schemas.ObjectStatus(state=project_record.state,),
             )
             self.store_project(session, project_record.name, project)
             return project
+        # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)

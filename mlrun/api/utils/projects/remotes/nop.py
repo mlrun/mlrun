@@ -37,9 +37,7 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
     ):
         existing_project_dict = self._projects[name].dict()
         strategy = patch_mode.to_mergedeep_strategy()
-        mergedeep.merge(
-            existing_project_dict, project, strategy=strategy
-        )
+        mergedeep.merge(existing_project_dict, project, strategy=strategy)
         self._projects[name] = mlrun.api.schemas.Project(**existing_project_dict)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
@@ -64,7 +62,9 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
                 projects=list(self._projects.values())
             )
         elif format_ == mlrun.api.schemas.Format.name_only:
-            project_names = [project.metadata.name for project in list(self._projects.values())]
+            project_names = [
+                project.metadata.name for project in list(self._projects.values())
+            ]
             return mlrun.api.schemas.ProjectsOutput(projects=project_names)
         else:
             raise NotImplementedError(

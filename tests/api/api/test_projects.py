@@ -11,9 +11,9 @@ import mlrun.api.schemas
 def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
-            spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source"),
-        )
+        metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source"),
+    )
 
     # create
     response = client.post("/api/projects", json=project_1.dict())
@@ -25,17 +25,15 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     _assert_project_response(project_1, response)
 
     # patch
-    project_patch = {
-        'spec': {
-            'description': "lemon",
-        }
-    }
-    response = client.patch(
-        f"/api/projects/{name1}", json=project_patch
-    )
+    project_patch = {"spec": {"description": "lemon"}}
+    response = client.patch(f"/api/projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
-    _assert_project_response(project_1, response, extra_exclude={"spec": {"description"}})
-    assert project_patch['spec']["description"] == response.json()['spec']["description"]
+    _assert_project_response(
+        project_1, response, extra_exclude={"spec": {"description"}}
+    )
+    assert (
+        project_patch["spec"]["description"] == response.json()["spec"]["description"]
+    )
 
     name2 = f"prj-{uuid4().hex}"
     project_2 = mlrun.api.schemas.Project(
@@ -62,7 +60,9 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
     for index, project in enumerate(projects_output.projects):
-        _assert_project(expected[index], project, extra_exclude={"spec": {"description"}})
+        _assert_project(
+            expected[index], project, extra_exclude={"spec": {"description"}}
+        )
 
     # delete
     response = client.delete(f"/api/projects/{name1}")

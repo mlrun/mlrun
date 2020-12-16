@@ -28,7 +28,9 @@ class Client(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
         logger.debug("Creating project in Nuclio", project=project)
-        body = self._generate_request_body(project.metadata.name, project.spec.description)
+        body = self._generate_request_body(
+            project.metadata.name, project.spec.description
+        )
         self._post_project_to_nuclio(body)
 
     def store_project(
@@ -57,8 +59,10 @@ class Client(
     ):
         response = self._get_project_from_nuclio(name)
         response_body = response.json()
-        if project.get('spec').get('description') is not None:
-            response_body.setdefault("spec", {})["description"] = project['spec']['description']
+        if project.get("spec").get("description") is not None:
+            response_body.setdefault("spec", {})["description"] = project["spec"][
+                "description"
+            ]
         self._put_project_to_nuclio(response_body)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
@@ -143,6 +147,10 @@ class Client(
     @staticmethod
     def _transform_nuclio_project_to_schema(nuclio_project):
         return mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=nuclio_project["metadata"]["name"]),
-            spec=mlrun.api.schemas.ProjectSpec(description=nuclio_project["spec"].get("description")),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=nuclio_project["metadata"]["name"]
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(
+                description=nuclio_project["spec"].get("description")
+            ),
         )

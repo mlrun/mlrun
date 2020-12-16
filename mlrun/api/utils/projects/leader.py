@@ -131,13 +131,17 @@ class Member(
             project_follower_names_map = collections.defaultdict(set)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    project_follower_names_map[project.metadata.name].add(_follower_name)
+                    project_follower_names_map[project.metadata.name].add(
+                        _follower_name
+                    )
 
             # create map - follower name -> project name -> project for easier searches
             followers_projects_map = collections.defaultdict(dict)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    followers_projects_map[_follower_name][project.metadata.name] = project
+                    followers_projects_map[_follower_name][
+                        project.metadata.name
+                    ] = project
 
             # create map - leader project name -> leader project for easier searches
             leader_projects_map = {}
@@ -304,9 +308,9 @@ class Member(
         if isinstance(project, mlrun.api.schemas.Project):
             body_name = project.metadata.name
         elif isinstance(project, dict):
-            body_name = project.get('metadata', {}).get('name')
+            body_name = project.get("metadata", {}).get("name")
         else:
-            raise NotImplemented("Unsupported project instance type")
+            raise NotImplementedError("Unsupported project instance type")
 
         if body_name and path_name != body_name:
             message = "Conflict between name in body and name in path"

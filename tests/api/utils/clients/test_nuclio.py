@@ -203,13 +203,7 @@ def test_patch_project(
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
-        None,
-        project_name,
-        {
-            'spec': {
-                'description': project_description,
-            }
-        },
+        None, project_name, {"spec": {"description": project_description}},
     )
 
 

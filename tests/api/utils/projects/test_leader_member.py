@@ -93,7 +93,8 @@ def test_projects_sync_leader_project_syncing(
     )
     invalid_project_name = "invalid_name"
     leader_follower.create_project(
-        None, mlrun.api.schemas.Project(
+        None,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=invalid_project_name),
         ),
     )
@@ -126,22 +127,34 @@ def test_projects_sync_multiple_follower_project_adoption(
     nop_follower.create_project(
         None,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=both_followers_project_name),
-            spec=mlrun.api.schemas.ProjectSpec(description=both_followers_project_description),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=both_followers_project_name
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(
+                description=both_followers_project_description
+            ),
         ),
     )
     second_nop_follower.create_project(
         None,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=both_followers_project_name),
-            spec=mlrun.api.schemas.ProjectSpec(description=both_followers_project_description),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=both_followers_project_name
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(
+                description=both_followers_project_description
+            ),
         ),
     )
     second_nop_follower.create_project(
         None,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=second_follower_project_name),
-            spec=mlrun.api.schemas.ProjectSpec(description=second_follower_project_description),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=second_follower_project_name
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(
+                description=second_follower_project_description
+            ),
         ),
     )
     leader_follower.create_project = unittest.mock.Mock(
@@ -239,29 +252,35 @@ def test_create_and_store_project_failure_invalid_name(
         project_name = case["name"]
         if case["valid"]:
             projects_leader.create_project(
-                None, mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        ),
+                None,
+                mlrun.api.schemas.Project(
+                    metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+                ),
             )
             _assert_project_in_followers([leader_follower], project_name)
             projects_leader.store_project(
-                None, project_name, mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        ),
+                None,
+                project_name,
+                mlrun.api.schemas.Project(
+                    metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+                ),
             )
             _assert_project_in_followers([leader_follower], project_name)
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 projects_leader.create_project(
-                    None, mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        ),
+                    None,
+                    mlrun.api.schemas.Project(
+                        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+                    ),
                 )
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 projects_leader.store_project(
-                    None, project_name, mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        ),
+                    None,
+                    project_name,
+                    mlrun.api.schemas.Project(
+                        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+                    ),
                 )
             _assert_project_not_in_followers([leader_follower], project_name)
 
@@ -331,7 +350,9 @@ def test_store_project_update(
 
     # removing description from the projects
     projects_leader.store_project(
-        None, project_name,  mlrun.api.schemas.Project(
+        None,
+        project_name,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         ),
     )
@@ -346,7 +367,8 @@ def test_patch_project(
 ):
     project_name = "project-name"
     projects_leader.create_project(
-        None, mlrun.api.schemas.Project(
+        None,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         ),
     )
@@ -355,13 +377,7 @@ def test_patch_project(
     # Adding description to the projects
     project_description = "some description"
     projects_leader.patch_project(
-        None,
-        project_name,
-        {
-            'spec': {
-                'description': project_description,
-            }
-        },
+        None, project_name, {"spec": {"description": project_description}},
     )
     _assert_project_in_followers(
         [leader_follower, nop_follower], project_name, project_description
@@ -376,7 +392,8 @@ def test_store_and_patch_project_failure_conflict_body_path_name(
 ):
     project_name = "project-name"
     projects_leader.create_project(
-        None, mlrun.api.schemas.Project(
+        None,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         ),
     )
@@ -384,13 +401,15 @@ def test_store_and_patch_project_failure_conflict_body_path_name(
 
     with pytest.raises(mlrun.errors.MLRunConflictError):
         projects_leader.store_project(
-            None, project_name, mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name="different-name"),
-        ),
+            None,
+            project_name,
+            mlrun.api.schemas.Project(
+                metadata=mlrun.api.schemas.ProjectMetadata(name="different-name"),
+            ),
         )
     with pytest.raises(mlrun.errors.MLRunConflictError):
         projects_leader.patch_project(
-            None, project_name, {'metadata': {'name':"different-name"}},
+            None, project_name, {"metadata": {"name": "different-name"}},
         )
     _assert_project_in_followers([leader_follower, nop_follower], project_name)
 
@@ -403,7 +422,8 @@ def test_delete_project(
 ):
     project_name = "project-name"
     projects_leader.create_project(
-        None, mlrun.api.schemas.Project(
+        None,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         ),
     )
@@ -421,7 +441,8 @@ def test_list_projects(
 ):
     project_name = "project-name"
     projects_leader.create_project(
-        None, mlrun.api.schemas.Project(
+        None,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         ),
     )
@@ -429,7 +450,8 @@ def test_list_projects(
 
     # add some project to follower
     nop_follower.create_project(
-        None, mlrun.api.schemas.Project(
+        None,
+        mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(name="some-other-project"),
         ),
     )
@@ -461,13 +483,7 @@ def test_get_project(
 
     # change project description in follower
     nop_follower.patch_project(
-        None,
-        project_name,
-        {
-            'spec': {
-                'description': "updated description",
-            }
-        },
+        None, project_name, {"spec": {"description": "updated description"}},
     )
 
     # assert list considers only the leader

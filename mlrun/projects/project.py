@@ -447,9 +447,9 @@ class MlrunProject(ModelObj):
         self.metadata.name = self.metadata.name or name
         self.spec.description = self.spec.description or description
         self.spec.params = self.spec.params or params
-        self.spec.functions = self.spec.functions or functions
-        self.spec.workflows = self.spec.workflows or workflows
-        self.spec.artifacts = self.spec.artifacts or artifacts
+        self.spec.functions = self.spec.functions or functions or []
+        self.spec.workflows = self.spec.workflows or workflows or []
+        self.spec.artifacts = self.spec.artifacts or artifacts or []
         self.spec.artifact_path = self.spec.artifact_path or artifact_path
         self.spec.conda = self.spec.conda or conda
 

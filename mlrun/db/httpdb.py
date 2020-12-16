@@ -26,6 +26,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
 import mlrun
+import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
@@ -953,7 +954,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
-    ) -> List[mlrun.projects.MlrunProject, str]:
+    ) -> List[Union[mlrun.projects.MlrunProject, str]]:
         params = {
             "owner": owner,
             "format": format_,
@@ -965,7 +966,7 @@ class HTTPRunDB(RunDBInterface):
             return response.json()["projects"]
         elif format_ == mlrun.api.schemas.Format.full:
             return [
-                mlrun.projects.MlrunProject.from_dict(**project_dict)
+                mlrun.projects.MlrunProject.from_dict(project_dict)
                 for project_dict in response.json()["projects"]
             ]
         else:
@@ -973,14 +974,14 @@ class HTTPRunDB(RunDBInterface):
                 f"Provided format is not supported. format={format_}"
             )
 
-    def get_project(self, name: str) -> schemas.Project:
+    def get_project(self, name: str) -> mlrun.projects.MlrunProject:
         if not name:
             raise MLRunInvalidArgumentError("Name must be provided")
 
         path = f"projects/{name}"
         error_message = f"Failed retrieving project {name}"
         response = self.api_call("GET", path, error_message)
-        return mlrun.projects.MlrunProject.from_dict(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def delete_project(self, name: str):
         path = f"projects/{name}"
@@ -991,7 +992,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.projects.MlrunProject:
         path = f"projects/{name}"
         error_message = f"Failed storing project {name}"
         if isinstance(project, mlrun.api.schemas.Project):
@@ -999,14 +1000,14 @@ class HTTPRunDB(RunDBInterface):
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
         response = self.api_call("PUT", path, error_message, body=json.dumps(project),)
-        return mlrun.projects.MlrunProject.from_dict(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(
         self,
         name: str,
         project: dict,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.projects.MlrunProject:
         path = f"projects/{name}"
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
@@ -1015,12 +1016,12 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "PATCH", path, error_message, body=json.dumps(project), headers=headers
         )
-        return mlrun.projects.MlrunProject.from_dict(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def create_project(
         self,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.projects.MlrunProject:
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
@@ -1029,7 +1030,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "POST", "projects", error_message, body=json.dumps(project),
         )
-        return mlrun.projects.MlrunProject.from_dict(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     @staticmethod
     def _validate_version_compatibility(server_version, client_version):

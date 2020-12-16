@@ -751,6 +751,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project: dict,
         patch_mode: schemas.PatchMode,
     ):
+        project.setdefault("metadata", {})["created"] = project_record.created
         strategy = patch_mode.to_mergedeep_strategy()
         project_record_full_object = project_record.full_object
         mergedeep.merge(project_record_full_object, project, strategy=strategy)

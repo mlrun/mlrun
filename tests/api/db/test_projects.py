@@ -231,6 +231,7 @@ def test_patch_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_created = datetime.datetime.utcnow()
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
@@ -243,11 +244,16 @@ def test_patch_project(
     db.patch_project(
         db_session,
         project_name,
-        {"spec": {"description": updated_project_description}},
+        {
+            "metadata": {"created": project_created},
+            "spec": {"description": updated_project_description},
+        },
     )
     project_output = db.get_project(db_session, project_name)
     assert project_output.metadata.name == project_name
     assert project_output.spec.description == updated_project_description
+    # Created in request body should be ignored and set by the DB layer
+    assert project_output.metadata.created != project_created
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

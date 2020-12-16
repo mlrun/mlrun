@@ -1008,7 +1008,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.api.schemas.Project:
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
-        error_message = f"Failed creating project {project['name']}"
+        error_message = f"Failed creating project {project['metadata']['name']}"
         response = self.api_call(
             "POST", "projects", error_message, body=json.dumps(project),
         )

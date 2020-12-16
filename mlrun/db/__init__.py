@@ -17,7 +17,6 @@ from ..config import config
 from ..platforms import add_or_refresh_credentials
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
-from .httpdb import HTTPRunDB
 from .sqldb import SQLDB
 from os import environ
 
@@ -55,6 +54,8 @@ def get_run_db(url=""):
     if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
         cls = FileRunDB
     elif scheme in ("http", "https"):
+        # import here to avoid circular imports
+        from .httpdb import HTTPRunDB
         cls = HTTPRunDB
         kwargs = get_httpdb_kwargs(
             parsed_url.hostname, parsed_url.username, parsed_url.password

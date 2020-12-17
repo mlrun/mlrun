@@ -15,7 +15,7 @@
 import importlib.util as imputil
 import json
 import socket
-import typing
+from typing import Union, List
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -553,6 +553,7 @@ def code_to_function(
     code_output="",
     embed_code=True,
     description="",
+    requirements: Union[str, List[str]] = None,
     categories: list = None,
     labels: dict = None,
     with_doc=True,
@@ -561,19 +562,20 @@ def code_to_function(
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
 
-    :param name:        function name
-    :param project:     function project (none for 'default')
-    :param tag:         function tag (none for 'latest')
-    :param filename:    blank for current notebook, or path to .py/.ipynb file
-    :param handler:     name of function handler (if not main)
-    :param kind:        optional, runtime type local, job, dask, mpijob, ..
-    :param image:       optional, container image
-    :param code_output: save the generated code (from notebook) in that path
-    :param embed_code:  embed the source code into the function spec
-    :param description: function description
-    :param categories:  list of categories (for function marketplace)
-    :param labels:      dict of label names and values to tag the function
-    :param with_doc:    document the function parameters
+    :param name:         function name
+    :param project:      function project (none for 'default')
+    :param tag:          function tag (none for 'latest')
+    :param filename:     blank for current notebook, or path to .py/.ipynb file
+    :param handler:      name of function handler (if not main)
+    :param kind:          optional, runtime type local, job, dask, mpijob, ..
+    :param image:        optional, container image
+    :param code_output:  save the generated code (from notebook) in that path
+    :param embed_code:   embed the source code into the function spec
+    :param description:  function description
+    :param requirements: python requirements file path or list of packages
+    :param categories:   list of categories (for function marketplace)
+    :param labels:       dict of label names and values to tag the function
+    :param with_doc:     document the function parameters
 
     :return:
            function object
@@ -659,6 +661,8 @@ def code_to_function(
             raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
+        if requirements:
+            r.with_requirements(requirements)
         update_meta(r)
         return r
 
@@ -695,6 +699,9 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     build.secret = get_in(spec, "spec.build.secret")
+    if requirements:
+        r.with_requirements(requirements)
+
     if r.kind != "local":
         r.spec.env = get_in(spec, "spec.env")
         for vol in get_in(spec, "spec.volumes", []):
@@ -795,7 +802,7 @@ def run_pipeline(
 
 
 def wait_for_pipeline_completion(
-    run_id, timeout=60 * 60, expected_statuses: typing.List[str] = None, namespace=None
+    run_id, timeout=60 * 60, expected_statuses: List[str] = None, namespace=None
 ):
     """Wait for Pipeline status, timeout in sec
 

@@ -81,6 +81,7 @@ def load_project(
     :param context:    project local directory path
     :param url:        git or tar.gz sources archive path e.g.:
                        git://github.com/mlrun/demo-xgb-project.git
+                       db://<project-name>
     :param name:       project name
     :param secrets:    key:secret dict or SecretsStore used to download sources
     :param init_git:   if True, will git init the context dir
@@ -100,6 +101,8 @@ def load_project(
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets)
+        elif url.startswith("db://"):
+            project = _load_project_from_db(url, secrets)
         else:
             raise ValueError("unsupported code archive {}".format(url))
 
@@ -146,6 +149,12 @@ def _load_project_dir(context, name="", subpath=""):
     project.metadata.name = name or project.metadata.name
     project.spec.subpath = subpath
     return project
+
+
+def _load_project_from_db(url, secrets):
+    db = get_run_db().connect(secrets)
+    project_name = url.replace("git://", "")
+    return db.get_project(project_name)
 
 
 def _load_project_file(url, name="", secrets=None):

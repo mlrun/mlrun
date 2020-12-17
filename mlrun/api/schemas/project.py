@@ -19,15 +19,15 @@ class ProjectMetadata(pydantic.BaseModel):
 
 class ProjectSpec(pydantic.BaseModel):
     description: typing.Optional[str] = None
-    source: typing.Optional[str] = None
-    artifact_path: typing.Optional[str] = None
-    subpath: typing.Optional[str] = None
-    origin_url: typing.Optional[str] = None
-    tag: typing.Optional[str] = None
     params: typing.Optional[dict] = None
     functions: typing.Optional[list] = None
-    artifacts: typing.Optional[list] = None
     workflows: typing.Optional[list] = None
+    artifacts: typing.Optional[list] = None
+    artifact_path: typing.Optional[str] = None
+    conda: typing.Optional[str] = None
+    source: typing.Optional[str] = None
+    subpath: typing.Optional[str] = None
+    origin_url: typing.Optional[str] = None
 
     class Config:
         extra = pydantic.Extra.allow

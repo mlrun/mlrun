@@ -222,25 +222,20 @@ class ProjectSpec(ModelObj):
         artifact_path=None,
         conda=None,
         source=None,
-        context=None,
-        mountdir=None,
         subpath=None,
         origin_url=None,
-        branch=None,
-        tag=None,
     ):
         self.repo = None
 
         self.description = description
-        self.context = context
+        self.context = ""
         self._mountdir = None
-        self.mountdir = mountdir
         self._source = None
         self.source = source or ""
         self.subpath = subpath or ""
         self.origin_url = origin_url or ""
-        self.branch = branch
-        self.tag = tag or ""
+        self.branch = None
+        self.tag = ""
         self.params = params or {}
         self.conda = conda or {}
         self.artifact_path = artifact_path or config.artifact_path

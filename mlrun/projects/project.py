@@ -226,9 +226,9 @@ class ProjectSpec(ModelObj):
         self._mountdir = None
         self.mountdir = mountdir
         self._source = None
-        self.source = source
-        self.subpath = subpath
-        self.origin_url = origin_url
+        self.source = source or ""
+        self.subpath = subpath or ""
+        self.origin_url = origin_url or ""
         self.branch = branch
         self.tag = tag or ""
         self.params = params or {}

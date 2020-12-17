@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import shutil
+import warnings
 
 from ..db import get_run_db
 from ..artifacts import ArtifactManager, ArtifactProducer, dict_to_artifact
@@ -485,40 +486,110 @@ class MlrunProject(ModelObj):
     def source(self) -> str:
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.source instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         return self.spec.source
 
     @source.setter
     def source(self, source):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.source instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         self.spec.source = source
+
+    @property
+    def context(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.context instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.context
+
+    @context.setter
+    def context(self, context):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.context instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.context = context
 
     @property
     def mountdir(self) -> str:
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.mountdir instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         return self.spec.mountdir
 
     @mountdir.setter
     def mountdir(self, mountdir):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.mountdir instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         self.spec.mountdir = mountdir
 
     @property
     def functions(self) -> list:
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.functions instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         return self.spec.functions
 
     @functions.setter
     def functions(self, functions):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.functions instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         self.spec.functions = functions
 
     @property
     def workflows(self) -> list:
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.workflows instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         return self.spec.workflows
 
     @workflows.setter
     def workflows(self, workflows):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.workflows instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         self.spec.workflows = workflows
 
     def set_workflow(self, name, workflow_path: str, embed=False, **args):
@@ -541,10 +612,22 @@ class MlrunProject(ModelObj):
     def artifacts(self) -> list:
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifacts instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         return self.spec.artifacts
 
     @artifacts.setter
     def artifacts(self, artifacts):
+        warnings.warn(
+            "This is a property of the spec, use project.spec.artifacts instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
         self.spec.artifacts = artifacts
 
     def register_artifacts(self):

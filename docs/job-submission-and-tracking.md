@@ -364,8 +364,8 @@ Pipelines are reusable end-to-end ML workflows. MLRun enables you to run your fu
 - Easy experimentation: making it easy for you to try numerous ideas and techniques, and manage your various trials/experiments.
 - Easy re-use: enabling you to re-use components and pipelines to quickly cobble together end to end solutions, without having to re-build each time.
 
-For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe)).
-The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/tree/master/sklearn-pipe/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
+For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demos/scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline)).
+The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/blob/master/scikit-learn-pipeline/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
 ```python
 from kfp import dsl
 from mlrun import mount_v3io

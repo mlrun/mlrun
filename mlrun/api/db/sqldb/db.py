@@ -650,13 +650,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
         created = datetime.utcnow()
-        project.created = created
+        project.metadata.created = created
+        # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record = Project(
-            name=project.name,
-            description=project.description,
-            owner=project.owner,
-            source=project.source,
-            state=project.state,
+            name=project.metadata.name,
+            description=project.spec.description,
+            source=project.spec.source,
+            state=project.status.state,
             created=created,
             full_object=project.dict(),
         )
@@ -676,7 +676,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self,
         session: Session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         logger.debug(
@@ -684,7 +684,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         )
         project_record = self._get_project_record(session, name)
         self._patch_project_record_from_project(
-            session, project_record, project, patch_mode
+            session, name, project_record, project, patch_mode
         )
 
     def get_project(
@@ -734,31 +734,34 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def _update_project_record_from_project(
         self, session: Session, project_record: Project, project: schemas.Project
     ):
-        project.created = project_record.created
+        project.metadata.created = project_record.created
         project_dict = project.dict()
+        # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record.full_object = project_dict
-        project_record.description = project.description
-        project_record.source = project.source
-        project_record.state = project.state
+        project_record.description = project.spec.description
+        project_record.source = project.spec.source
+        project_record.state = project.status.state
         self._upsert(session, project_record)
 
     def _patch_project_record_from_project(
         self,
         session: Session,
+        name: str,
         project_record: Project,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode,
     ):
-        project_dict = project.dict(exclude_unset=True)
-        if project.description:
-            project_record.description = project.description
-        if project.source:
-            project_record.source = project.source
-        if project.state:
-            project_record.state = project.state
+        project.setdefault("metadata", {})["created"] = project_record.created
         strategy = patch_mode.to_mergedeep_strategy()
         project_record_full_object = project_record.full_object
-        mergedeep.merge(project_record_full_object, project_dict, strategy=strategy)
+        mergedeep.merge(project_record_full_object, project, strategy=strategy)
+
+        # If a bad kind value was passed, it will fail here (return 422 to caller)
+        project = schemas.Project(**project_record_full_object)
+        self.store_project(
+            session, name, project,
+        )
+
         project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
 
@@ -873,8 +876,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def _generate_feature_set_digest(feature_set: schemas.FeatureSet):
         return schemas.FeatureSetDigestOutput(
             metadata=feature_set.metadata,
-            spec=schemas.FeatureSetDigestSpec(entities=feature_set.spec.entities),
+            spec=schemas.FeatureSetDigestSpec(
+                entities=feature_set.spec.entities, features=feature_set.spec.features,
+            ),
         )
+
+    def _generate_feature_or_entity_list_query(
+        self,
+        session,
+        query_class,
+        project: str,
+        feature_set_keys,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ):
+        # Query the actual objects to be returned
+        query = (
+            session.query(FeatureSet, query_class)
+            .filter_by(project=project)
+            .join(query_class)
+        )
+
+        if name:
+            query = query.filter(query_class.name.ilike(f"%{name}%"))
+        if labels:
+            query = self._add_labels_filter(session, query, query_class, labels)
+        if tag:
+            query = query.filter(FeatureSet.id.in_(feature_set_keys))
+
+        return query
 
     def list_features(
         self,
@@ -890,19 +921,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureSet, project, tag, name=None
         )
 
-        # Query the actual objects to be returned
-        query = (
-            session.query(FeatureSet, Feature)
-            .filter_by(project=project)
-            .join(FeatureSet.features)
+        query = self._generate_feature_or_entity_list_query(
+            session, Feature, project, feature_set_id_tags.keys(), name, tag, labels
         )
 
-        if name:
-            query = query.filter(Feature.name.ilike(f"%{name}%"))
-        if labels:
-            query = self._add_labels_filter(session, query, Feature, labels)
-        if tag:
-            query = query.filter(FeatureSet.id.in_(feature_set_id_tags.keys()))
         if entities:
             query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
 
@@ -943,6 +965,60 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     )
                 )
         return schemas.FeaturesOutput(features=features_results)
+
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
+        feature_set_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name=None
+        )
+
+        query = self._generate_feature_or_entity_list_query(
+            session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
+        )
+
+        entities_results = []
+        for row in query:
+            entity_record = schemas.FeatureRecord.from_orm(row.Entity)
+            entity_name = entity_record.name
+
+            feature_sets = self._generate_records_with_tags_assigned(
+                row.FeatureSet,
+                self._transform_feature_set_model_to_schema,
+                feature_set_id_tags,
+                tag,
+            )
+
+            for feature_set in feature_sets:
+                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
+                # in the DB)
+                entity = next(
+                    (
+                        entity
+                        for entity in feature_set.spec.entities
+                        if entity.name == entity_name
+                    ),
+                    None,
+                )
+                if not entity:
+                    raise DBError(
+                        "Inconsistent data in DB - entities in DB not in feature-set document"
+                    )
+
+                entities_results.append(
+                    schemas.EntityListOutput(
+                        entity=entity,
+                        feature_set_digest=self._generate_feature_set_digest(
+                            feature_set
+                        ),
+                    )
+                )
+        return schemas.EntitiesOutput(entities=entities_results)
 
     def list_feature_sets(
         self,
@@ -1774,13 +1850,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
             project = schemas.Project(
-                name=project_record.name,
-                description=project_record.description,
-                source=project_record.source,
-                state=project_record.state,
-                owner=project_record.owner,
-                created=project_record.created,
+                metadata=schemas.ProjectMetadata(
+                    name=project_record.name, created=project_record.created,
+                ),
+                spec=schemas.ProjectSpec(
+                    description=project_record.description,
+                    source=project_record.source,
+                ),
+                status=schemas.ObjectStatus(state=project_record.state,),
             )
             self.store_project(session, project_record.name, project)
             return project
+        # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)

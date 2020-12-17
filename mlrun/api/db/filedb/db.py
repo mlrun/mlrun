@@ -146,7 +146,7 @@ class FileDB(DBInterface):
         self,
         session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         raise NotImplementedError()
@@ -195,6 +195,16 @@ class FileDB(DBInterface):
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
         raise NotImplementedError()
+
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
+        pass
 
     def list_feature_sets(
         self,

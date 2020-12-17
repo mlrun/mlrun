@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import codecs
+import deepdiff
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -29,8 +30,10 @@ from mlrun.api import schemas
 import mlrun.errors
 from mlrun import RunObject
 from mlrun.artifacts import Artifact
-from mlrun.db import HTTPRunDB, RunDBError
-from tests.conftest import wait_for_server
+from mlrun.db import RunDBError
+from mlrun.db.httpdb import HTTPRunDB
+from tests.conftest import wait_for_server, tests_root_directory
+import mlrun.projects.project
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple("Server", "url conn workdir")
@@ -433,11 +436,23 @@ def test_feature_sets(create_server):
     feature_set_without_labels["metadata"]["project"] = project
     db.store_feature_set(feature_set_without_labels)
     feature_set_update = {
-        "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
+        "spec": {"entities": [{"name": "nothing", "value_type": "bool"}]},
+        "metadata": {"labels": {"label1": "value1", "label2": "value2"}},
     }
     db.patch_feature_set(name, feature_set_update, project)
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"
+
+    features = db.list_features(project, "time")
+    # The feature-set with different labels also counts here
+    assert len(features) == count + 1
+    # Only count, since we modified the entity of the last feature-set - other name, no labels
+    entities = db.list_entities(project, "ticker")
+    assert len(entities) == count
+    entities = db.list_entities(project, labels=["type"])
+    assert len(entities) == count
+    entities = db.list_entities(project, labels=["type=prod"])
+    assert len(entities) == count
 
 
 def _create_feature_vector(name):
@@ -505,3 +520,69 @@ def test_feature_vectors(create_server):
     assert (
         len(feature_vector["spec"]["features"]) == 2
     ), "Features didn't get updated properly"
+
+
+def test_project_file_db_roundtrip(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project_name = "project-name"
+    description = "project description"
+    params = {"param_key": "param value"}
+    artifact_path = "/tmp"
+    conda = "conda"
+    source = "source"
+    subpath = "subpath"
+    origin_url = "origin_url"
+    project_metadata = mlrun.projects.project.ProjectMetadata(project_name)
+    project_spec = mlrun.projects.project.ProjectSpec(
+        description,
+        params,
+        artifact_path=artifact_path,
+        conda=conda,
+        source=source,
+        subpath=subpath,
+        origin_url=origin_url,
+    )
+    project = mlrun.projects.project.MlrunProject(
+        metadata=project_metadata, spec=project_spec
+    )
+    function_name = "trainer-function"
+    function = mlrun.new_function(function_name, project_name)
+    project.set_function(function, function_name)
+    project.set_function("hub://describe", "describe")
+    workflow_name = "workflow-name"
+    workflow_file_path = Path(tests_root_directory) / "rundb" / "workflow.py"
+    project.set_workflow(workflow_name, str(workflow_file_path))
+    artifact_dict = {
+        "key": "raw-data",
+        "kind": "",
+        "iter": 0,
+        "tree": "latest",
+        "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
+        "o-Customer-Churn.csv",
+        "db_key": "raw-data",
+    }
+    project.artifacts = [artifact_dict]
+    created_project = db.create_project(project)
+    _assert_projects(project, created_project)
+    stored_project = db.store_project(project_name, project)
+    _assert_projects(project, stored_project)
+    patched_project = db.patch_project(project_name, {})
+    _assert_projects(project, patched_project)
+    get_project = db.get_project(project_name)
+    _assert_projects(project, get_project)
+    list_projects = db.list_projects()
+    _assert_projects(project, list_projects[0])
+
+
+def _assert_projects(expected_project, project):
+    assert (
+        deepdiff.DeepDiff(
+            expected_project.to_dict(),
+            project.to_dict(),
+            ignore_order=True,
+            exclude_paths={"root['metadata']['created']"},
+        )
+        == {}
+    )

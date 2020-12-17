@@ -19,7 +19,7 @@ from kubernetes.client.rest import ApiException
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import RunError
 from .pod import KubeResource
-from .utils import AsyncLogWriter, default_image_name
+from .utils import AsyncLogWriter, generate_function_image_name
 from ..builder import build_runtime
 from ..db import RunDBError
 from ..kfpops import build_op
@@ -52,7 +52,13 @@ class KubejobRuntime(KubeResource):
         return False
 
     def build_config(
-        self, image="", base_image=None, commands: list = None, secret=None, source=None
+        self,
+        image="",
+        base_image=None,
+        commands: list = None,
+        secret=None,
+        source=None,
+        extra=None,
     ):
         if image:
             self.spec.build.image = image
@@ -61,6 +67,8 @@ class KubejobRuntime(KubeResource):
                 raise ValueError("commands must be a string list")
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands
+        if extra:
+            self.spec.build.extra = extra
         if secret:
             self.spec.build.secret = secret
         if base_image:
@@ -71,7 +79,14 @@ class KubejobRuntime(KubeResource):
     def build(self, **kw):
         raise ValueError(".build() is deprecated, use .deploy() instead")
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
@@ -80,7 +95,12 @@ class KubejobRuntime(KubeResource):
             return True
 
         build = self.spec.build
-        if not build.source and not build.commands and not with_mlrun:
+        if (
+            not build.source
+            and not build.commands
+            and not build.extra
+            and not with_mlrun
+        ):
             if not self.spec.image:
                 raise ValueError(
                     "noting to build and image is not specified, "
@@ -90,13 +110,15 @@ class KubejobRuntime(KubeResource):
             self.save(versioned=False)
             return True
 
-        if not build.source and not build.commands and with_mlrun:
+        if not build.source and not build.commands and not build.extra and with_mlrun:
             logger.info(
                 "running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"
             )
 
-        self.spec.build.image = self.spec.build.image or default_image_name(self)
+        self.spec.build.image = self.spec.build.image or generate_function_image_name(
+            self
+        )
         self.status.state = ""
 
         if self._is_remote_api() and not is_kfp:
@@ -104,7 +126,7 @@ class KubejobRuntime(KubeResource):
             logger.info(
                 "starting remote build, image: {}".format(self.spec.build.image)
             )
-            data = db.remote_builder(self, with_mlrun)
+            data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
@@ -114,7 +136,9 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(self, with_mlrun, watch or is_kfp)
+            ready = build_runtime(
+                self, with_mlrun, mlrun_version_specifier, watch or is_kfp
+            )
             self.save(versioned=False)
 
         return ready

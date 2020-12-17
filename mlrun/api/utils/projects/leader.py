@@ -47,14 +47,17 @@ class Member(
         logger.info(
             "Ensure project called, but project does not exist. Creating", name=name
         )
-        self.create_project(session, mlrun.api.schemas.Project(name=name))
+        project = mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=name),
+        )
+        self.create_project(session, project)
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:
-        self._validate_project_name(project.name)
+        self._validate_project_name(project.metadata.name)
         self._run_on_all_followers("create_project", session, project)
-        return self.get_project(session, project.name)
+        return self.get_project(session, project.metadata.name)
 
     def store_project(
         self,
@@ -62,6 +65,7 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
     ):
+        self._validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers("store_project", session, name, project)
         return self.get_project(session, name)
@@ -70,7 +74,7 @@ class Member(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectPatch,
+        project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
         self._validate_body_and_path_names_matches(name, project)
@@ -121,24 +125,28 @@ class Member(
                 "list_projects", session
             )
             leader_project_names = {
-                project.name for project in leader_projects.projects
+                project.metadata.name for project in leader_projects.projects
             }
             # create reverse map project -> follower names
             project_follower_names_map = collections.defaultdict(set)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    project_follower_names_map[project.name].add(_follower_name)
+                    project_follower_names_map[project.metadata.name].add(
+                        _follower_name
+                    )
 
             # create map - follower name -> project name -> project for easier searches
             followers_projects_map = collections.defaultdict(dict)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    followers_projects_map[_follower_name][project.name] = project
+                    followers_projects_map[_follower_name][
+                        project.metadata.name
+                    ] = project
 
             # create map - leader project name -> leader project for easier searches
             leader_projects_map = {}
             for leader_project in leader_projects.projects:
-                leader_projects_map[leader_project.name] = leader_project
+                leader_projects_map[leader_project.metadata.name] = leader_project
 
             all_project = leader_project_names.copy()
             all_project.update(project_follower_names_map.keys())
@@ -206,6 +214,14 @@ class Member(
                 self._followers.keys()
             )
             if missing_followers:
+                # projects name validation is enforced on creation, the only way for a project name to be invalid is
+                # if it was created prior to 0.6.0, and the version was upgraded
+                # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
+                # as well)
+                if not self._validate_project_name(
+                    project_name, raise_on_failure=False
+                ):
+                    return
                 for missing_follower in missing_followers:
                     logger.debug(
                         "Project is missing from follower. Creating",
@@ -274,17 +290,29 @@ class Member(
         return followers_classes_map[name]
 
     @staticmethod
-    def _validate_project_name(name: str):
-        mlrun.utils.helpers.verify_field_regex(
-            "project.metadata.name", name, mlrun.utils.regex.project_name
-        )
+    def _validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
+        try:
+            mlrun.utils.helpers.verify_field_regex(
+                "project.metadata.name", name, mlrun.utils.regex.project_name
+            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
 
     @staticmethod
     def _validate_body_and_path_names_matches(
-        name: str, project: mlrun.api.schemas.ProjectPatch
+        path_name: str, project: typing.Union[mlrun.api.schemas.Project, dict]
     ):
-        # ProjectPatch allow extra fields, therefore although it doesn't have name in the schema, name might be there
-        if hasattr(project, "name") and name != getattr(project, "name"):
+        if isinstance(project, mlrun.api.schemas.Project):
+            body_name = project.metadata.name
+        elif isinstance(project, dict):
+            body_name = project.get("metadata", {}).get("name")
+        else:
+            raise NotImplementedError("Unsupported project instance type")
+
+        if body_name and path_name != body_name:
             message = "Conflict between name in body and name in path"
-            logger.warning(message, path_name=name, body_name=getattr(project, "name"))
+            logger.warning(message, path_name=path_name, body_name=body_name)
             raise mlrun.errors.MLRunConflictError(message)

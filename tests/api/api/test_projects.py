@@ -11,7 +11,8 @@ import mlrun.api.schemas
 def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
-        name=name1, owner="owner", description="banana"
+        metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source"),
     )
 
     # create
@@ -24,17 +25,20 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     _assert_project_response(project_1, response)
 
     # patch
-    project_update = mlrun.api.schemas.ProjectPatch(description="lemon")
-    response = client.patch(
-        f"/api/projects/{name1}", json=project_update.dict(exclude_unset=True)
-    )
+    project_patch = {"spec": {"description": "lemon"}}
+    response = client.patch(f"/api/projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
-    _assert_project_response(project_1, response, extra_exclude={"description"})
-    assert project_update.description == response.json()["description"]
+    _assert_project_response(
+        project_1, response, extra_exclude={"spec": {"description"}}
+    )
+    assert (
+        project_patch["spec"]["description"] == response.json()["spec"]["description"]
+    )
 
     name2 = f"prj-{uuid4().hex}"
     project_2 = mlrun.api.schemas.Project(
-        name=name2, owner="owner", description="banana"
+        metadata=mlrun.api.schemas.ProjectMetadata(name=name2),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source"),
     )
 
     # store
@@ -56,7 +60,9 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
     for index, project in enumerate(projects_output.projects):
-        _assert_project(expected[index], project, extra_exclude={"description"})
+        _assert_project(
+            expected[index], project, extra_exclude={"spec": {"description"}}
+        )
 
     # delete
     response = client.delete(f"/api/projects/{name1}")
@@ -71,7 +77,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
 
 
 def _assert_project_response(
-    expected_project: mlrun.api.schemas.Project, response, extra_exclude: set = None
+    expected_project: mlrun.api.schemas.Project, response, extra_exclude: dict = None
 ):
     project = mlrun.api.schemas.Project(**response.json())
     _assert_project(expected_project, project, extra_exclude)
@@ -80,9 +86,9 @@ def _assert_project_response(
 def _assert_project(
     expected_project: mlrun.api.schemas.Project,
     project: mlrun.api.schemas.Project,
-    extra_exclude: set = None,
+    extra_exclude: dict = None,
 ):
-    exclude = {"id", "created"}
+    exclude = {"id": ..., "metadata": {"created"}}
     if extra_exclude:
         exclude.update(extra_exclude)
     assert (

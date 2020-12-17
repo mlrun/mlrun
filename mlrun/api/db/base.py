@@ -205,7 +205,7 @@ class DBInterface(ABC):
         self,
         session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         pass
@@ -250,6 +250,17 @@ class DBInterface(ABC):
         entities: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
         pass
 
     @abstractmethod

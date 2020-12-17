@@ -688,6 +688,7 @@ def code_to_function(
     build.code_origin = code_origin
     build.base_image = get_in(spec, "spec.build.baseImage")
     build.commands = get_in(spec, "spec.build.commands")
+    build.extra = get_in(spec, "spec.build.extra")
     if embed_code:
         build.functionSourceCode = get_in(spec, "spec.build.functionSourceCode")
     else:

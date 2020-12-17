@@ -441,7 +441,7 @@ class FileRunDB(RunDBInterface):
     def patch_project(
         self,
         name: str,
-        project: mlrun.api.schemas.ProjectPatch,
+        project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
@@ -521,6 +521,11 @@ class FileRunDB(RunDBInterface):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
     ):
         raise NotImplementedError()
 

@@ -11,15 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import inspect
 import socket
 from os import environ
+import time
 from typing import Dict, List
 
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
+import mlrun.api.schemas
 from mlrun.runtimes.base import BaseRuntimeHandler
 from .base import FunctionStatus
 from .kubejob import KubejobRuntime
@@ -70,7 +73,6 @@ class DaskSpec(KubeResourceSpec):
         min_replicas=None,
         max_replicas=None,
         scheduler_timeout=None,
-        rundb=None,
     ):
 
         super().__init__(
@@ -90,7 +92,6 @@ class DaskSpec(KubeResourceSpec):
             entry_points=entry_points,
             description=description,
             image_pull_secret=image_pull_secret,
-            rundb=rundb,
         )
         self.args = args
 
@@ -104,6 +105,7 @@ class DaskSpec(KubeResourceSpec):
         self.node_port = node_port
         self.min_replicas = min_replicas or 0
         self.max_replicas = max_replicas or 16
+        # supported format according to https://github.com/dask/dask/blob/master/dask/utils.py#L1402
         self.scheduler_timeout = scheduler_timeout or "60 minutes"
         self.nthreads = nthreads or 1
 
@@ -181,7 +183,7 @@ class DaskCluster(KubejobRuntime):
 
         return False
 
-    def _start(self):
+    def _start(self, watch=True):
         if self._is_remote_api():
             db = self._get_db()
             if not self.is_deployed:
@@ -191,13 +193,29 @@ class DaskCluster(KubejobRuntime):
                 )
 
             self.save(versioned=False)
-            resp = db.remote_start(self._function_uri())
-            if resp and "status" in resp:
-                self.status = resp["status"]
-            return
-
-        self._cluster = deploy_function(self)
-        self.save(versioned=False)
+            background_task = db.remote_start(self._function_uri())
+            if watch:
+                now = datetime.datetime.utcnow()
+                timeout = now + datetime.timedelta(minutes=10)
+                while now < timeout:
+                    background_task = db.get_background_task(
+                        background_task.metadata.project, background_task.metadata.name
+                    )
+                    if (
+                        background_task.status.state
+                        in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+                    ):
+                        function = db.get_function(
+                            self.metadata.name, self.metadata.project, self.metadata.tag
+                        )
+                        if function and function.get("status"):
+                            self.status = function.get("status")
+                        return
+                    time.sleep(5)
+                    now = datetime.datetime.utcnow()
+        else:
+            self._cluster = deploy_function(self)
+            self.save(versioned=False)
 
     def close(self, running=True):
         from dask.distributed import default_client

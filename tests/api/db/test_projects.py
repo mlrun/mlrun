@@ -69,12 +69,15 @@ def test_get_project(
     project_description = "some description"
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+        ),
     )
 
     project_output = db.get_project(db_session, project_name)
-    assert project_output.name == project_name
-    assert project_output.description == project_description
+    assert project_output.metadata.name == project_name
+    assert project_output.spec.description == project_description
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -93,7 +96,7 @@ def test_get_project_with_pre_060_record(
     )
     assert pre_060_record.full_object is None
     project = db.get_project(db_session, project_name,)
-    assert project.name == project_name
+    assert project.metadata.name == project_name
     updated_record = (
         db_session.query(Project).filter(Project.name == project_name).one()
     )
@@ -118,13 +121,16 @@ def test_list_project(
         db.create_project(
             db_session,
             mlrun.api.schemas.Project(
-                name=project["name"], description=project.get("description")
+                metadata=mlrun.api.schemas.ProjectMetadata(name=project["name"]),
+                spec=mlrun.api.schemas.ProjectSpec(
+                    description=project.get("description")
+                ),
             ),
         )
     projects_output = db.list_projects(db_session)
     for index, project in enumerate(projects_output.projects):
-        assert project.name == expected_projects[index]["name"]
-        assert project.description == expected_projects[index].get("description")
+        assert project.metadata.name == expected_projects[index]["name"]
+        assert project.spec.description == expected_projects[index].get("description")
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -141,15 +147,18 @@ def test_create_project(
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
-            name=project_name, description=project_description, created=project_created
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, created=project_created
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
 
     project_output = db.get_project(db_session, project_name)
-    assert project_output.name == project_name
-    assert project_output.description == project_description
+    assert project_output.metadata.name == project_name
+    assert project_output.spec.description == project_description
     # Created in request body should be ignored and set by the DB layer
-    assert project_output.created != project_created
+    assert project_output.metadata.created != project_created
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -166,14 +175,17 @@ def test_store_project_creation(
         db_session,
         project_name,
         mlrun.api.schemas.Project(
-            name=project_name, description=project_description, created=project_created
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, created=project_created
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
     project_output = db.get_project(db_session, project_name)
-    assert project_output.name == project_name
-    assert project_output.description == project_description
+    assert project_output.metadata.name == project_name
+    assert project_output.spec.description == project_description
     # Created in request body should be ignored and set by the DB layer
-    assert project_output.created != project_created
+    assert project_output.metadata.created != project_created
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -189,18 +201,25 @@ def test_store_project_update(
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
-            name=project_name, description=project_description, created=project_created
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, created=project_created
+            ),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
 
     db.store_project(
-        db_session, project_name, mlrun.api.schemas.Project(name=project_name),
+        db_session,
+        project_name,
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        ),
     )
     project_output = db.get_project(db_session, project_name)
-    assert project_output.name == project_name
-    assert project_output.description is None
+    assert project_output.metadata.name == project_name
+    assert project_output.spec.description is None
     # Created in request body should be ignored and set by the DB layer
-    assert project_output.created != project_created
+    assert project_output.metadata.created != project_created
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -212,20 +231,29 @@ def test_patch_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_created = datetime.datetime.utcnow()
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+        ),
     )
 
     updated_project_description = "some description 2"
     db.patch_project(
         db_session,
         project_name,
-        mlrun.api.schemas.ProjectPatch(description=updated_project_description),
+        {
+            "metadata": {"created": project_created},
+            "spec": {"description": updated_project_description},
+        },
     )
     project_output = db.get_project(db_session, project_name)
-    assert project_output.name == project_name
-    assert project_output.description == updated_project_description
+    assert project_output.metadata.name == project_name
+    assert project_output.spec.description == updated_project_description
+    # Created in request body should be ignored and set by the DB layer
+    assert project_output.metadata.created != project_created
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -239,7 +267,10 @@ def test_delete_project(
     project_description = "some description"
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+        ),
     )
     db.delete_project(db_session, project_name)
 

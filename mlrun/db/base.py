@@ -129,7 +129,7 @@ class RunDBInterface(ABC):
     def patch_project(
         self,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ) -> schemas.Project:
         pass
@@ -172,6 +172,12 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
         pass
 
     @abstractmethod

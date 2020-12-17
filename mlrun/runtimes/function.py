@@ -101,15 +101,29 @@ class NuclioSpec(KubeResourceSpec):
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
 
-    def to_nuclio_vol(self):
-        vols = []
-        for name, vol in self._volumes.items():
-            if name not in self._volume_mounts:
+    def generate_nuclio_volumes(self):
+        nuclio_volumes = []
+        volume_with_volume_mounts_names = set()
+        for volume_mount in self._volume_mounts.values():
+            volume_name = get_item_name(volume_mount, "name")
+            if volume_name not in self._volumes:
                 raise ValueError(
-                    "found volume without a volume mount ({})".format(name)
+                    f"Found volume mount without a volume. name={volume_name}"
                 )
-            vols.append({"volume": vol, "volumeMount": self._volume_mounts[name]})
-        return vols
+            volume_with_volume_mounts_names.add(volume_name)
+            nuclio_volumes.append(
+                {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
+            )
+
+        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(
+            self._volumes.keys()
+        )
+        if volumes_without_volume_mounts:
+            raise ValueError(
+                f"Found volumes without volume mounts. names={volumes_without_volume_mounts}"
+            )
+
+        return nuclio_volumes
 
 
 class NuclioStatus(FunctionStatus):
@@ -229,7 +243,6 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-        self._ensure_run_db()
         state = ""
         last_log_timestamp = 1
 
@@ -262,6 +275,7 @@ class RemoteRuntime(KubeResource):
 
         else:
             self.save(versioned=False)
+            self._ensure_run_db()
             address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
             if address:
                 self.spec.command = "http://{}".format(address)
@@ -308,8 +322,8 @@ class RemoteRuntime(KubeResource):
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {}
-        if self.spec.rundb:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb
+        if self.spec.rundb or mlconf.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         return runtime_env
@@ -640,7 +654,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
             function.spec.base_spec, spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
-        update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         base_image = get_in(config, "spec.build.baseImage") or function.spec.image
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
@@ -672,7 +686,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
             verbose=function.verbose,
         )
 
-        update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         if function.spec.image:
             update_in(
                 config, "spec.build.baseImage", enrich_image_url(function.spec.image)

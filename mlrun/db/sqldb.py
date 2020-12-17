@@ -195,7 +195,7 @@ class SQLDB(RunDBInterface):
     def patch_project(
         self,
         name: str,
-        project: mlrun.api.schemas.ProjectPatch,
+        project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
@@ -249,6 +249,13 @@ class SQLDB(RunDBInterface):
     ):
         return self._transform_db_error(
             self.db.list_features, self.session, project, name, tag, entities, labels,
+        )
+
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ):
+        return self._transform_db_error(
+            self.db.list_entities, self.session, project, name, tag, labels,
         )
 
     def list_feature_sets(

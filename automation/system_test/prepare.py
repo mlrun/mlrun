@@ -31,6 +31,7 @@ class SystemTestPreparer:
     def __init__(
         self,
         mlrun_version: str,
+        mlrun_commit: str,
         override_image_registry: str,
         override_image_repo: str,
         override_mlrun_images: str,
@@ -48,7 +49,12 @@ class SystemTestPreparer:
         self._logger = logger
         self._debug = debug
         self._mlrun_version = mlrun_version
-        self._override_image_registry = override_image_registry.strip().strip("/") + "/"
+        self._mlrun_commit = mlrun_commit
+        self._override_image_registry = (
+            override_image_registry.strip().strip("/") + "/"
+            if override_image_registry is not None
+            else override_image_registry
+        )
         self._override_image_repo = override_image_repo
         self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip
@@ -82,8 +88,7 @@ class SystemTestPreparer:
 
         self._prepare_test_env()
 
-        if self._override_image_registry:
-            self._override_k8s_mlrun_registry()
+        self._override_mlrun_api_env()
 
         provctl_path = self._download_provctl()
         self._patch_mlrun(provctl_path)
@@ -272,11 +277,20 @@ class SystemTestPreparer:
             "cat > ", args=[filepath], stdin=contents, local=True,
         )
 
-    def _override_k8s_mlrun_registry(self):
-        mlrun_registry_override = self._override_image_registry.strip().strip("/") + "/"
+    def _override_mlrun_api_env(self):
+        version_specifier = (
+            f"git+https://github.com/mlrun/mlrun@{self._mlrun_commit}"
+            if self._mlrun_commit
+            else "mlrun"
+        )
+        data = {
+            "MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER": version_specifier,
+        }
+        if self._override_image_registry:
+            data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"
         override_mlrun_registry_manifest = {
             "apiVersion": "v1",
-            "data": {"MLRUN_IMAGES_REGISTRY": f"{mlrun_registry_override}"},
+            "data": data,
             "kind": "ConfigMap",
             "metadata": {"name": "mlrun-override-env", "namespace": "default-tenant"},
         }
@@ -348,6 +362,8 @@ class SystemTestPreparer:
                 "appservice",
                 "mlrun",
                 mlrun_archive,
+                # TODO: remove when 0.6.0 is out
+                "--skip-chart-patching",
             ],
         )
 
@@ -377,6 +393,12 @@ def main():
     default=None,
     help="Override default images (comma delimited list).",
 )
+@click.option(
+    "--mlrun-commit",
+    "-mc",
+    default=None,
+    help="The commit (in mlrun/mlrun) of the tested mlrun version.",
+)
 @click.argument("data-cluster-ip", type=str, required=True)
 @click.argument("data-cluster-ssh-password", type=str, required=True)
 @click.argument("app-cluster-ssh-password", type=str, required=True)
@@ -394,6 +416,7 @@ def main():
 )
 def run(
     mlrun_version: str,
+    mlrun_commit: str,
     override_image_registry: str,
     override_image_repo: str,
     override_mlrun_images: str,
@@ -410,6 +433,7 @@ def run(
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_version,
+        mlrun_commit,
         override_image_registry,
         override_image_repo,
         override_mlrun_images,

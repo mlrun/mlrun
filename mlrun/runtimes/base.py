@@ -23,7 +23,6 @@ from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Tuple, Union, Optional
 
-from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -56,6 +55,7 @@ from ..utils import (
     enrich_image_url,
     dict_to_yaml,
     dict_to_json,
+    get_parsed_docker_registry,
 )
 
 
@@ -78,14 +78,13 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
-        rundb=None,
     ):
 
         self.command = command or ""
         self.image = image or ""
         self.mode = mode
         self.args = args or []
-        self.rundb = rundb
+        self.rundb = None
         self.description = description or ""
         self.workdir = workdir
         self.pythonpath = pythonpath
@@ -109,7 +108,7 @@ class BaseRuntime(ModelObj):
     kind = "base"
     _is_nested = False
     _is_remote = False
-    _dict_fields = ["kind", "metadata", "spec", "status"]
+    _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -490,8 +489,8 @@ class BaseRuntime(ModelObj):
         runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
             runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
-        if self.spec.rundb:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb
+        if config.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
@@ -609,8 +608,9 @@ class BaseRuntime(ModelObj):
         image = enrich_image_url(image)
         if not image.startswith("."):
             return image
-        if "DEFAULT_DOCKER_REGISTRY" in environ:
-            return "{}/{}".format(environ.get("DEFAULT_DOCKER_REGISTRY"), image[1:])
+        registry, _ = get_parsed_docker_registry()
+        if registry:
+            return "{}/{}".format(registry, image[1:])
         if "IGZ_NAMESPACE_DOMAIN" in environ:
             return "docker-registry.{}:80/{}".format(
                 environ.get("IGZ_NAMESPACE_DOMAIN"), image[1:]
@@ -1416,12 +1416,7 @@ class BaseRuntimeHandler(ABC):
         name = crd_object["metadata"]["name"]
         try:
             k8s_helper.crdapi.delete_namespaced_custom_object(
-                crd_group,
-                crd_version,
-                namespace,
-                crd_plural,
-                name,
-                client.V1DeleteOptions(),
+                crd_group, crd_version, namespace, crd_plural, name,
             )
             logger.info(
                 "Deleted crd object",

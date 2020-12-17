@@ -1122,10 +1122,10 @@ def params_to_state(
     if class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get('kind', StateKinds.task)
+        name = name or struct.get('name', struct.get('class_name'))
         cls = classes_map.get(kind, RootFlowState)
         state = cls.from_dict(struct)
         state.function = function
-        name = get_name(name or state.name, state.class_name)
     elif class_name and class_name == ">":
         if "path" not in class_args:
             raise ValueError("path=<stream path or None> must be specified for queues")

@@ -53,4 +53,4 @@ RUN pip install \
 
 COPY . .
 
-RUN python setup.py develop
+RUN pip install -e .

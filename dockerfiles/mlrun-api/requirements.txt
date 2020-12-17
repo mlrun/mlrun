@@ -1,4 +1,9 @@
 uvicorn~=0.12.0
+# dask-kubernetes 0.11.0 has distributed>=2.5.2, but after 2.30.1 they moved to CalVer and released 2020.12.0
+# so without our limitation to <3, 2020.12.0 is installed which is incompatible since it has dask>=2020.12.0 while ours
+# is ~=2.12
+# TODO: dask-kubernetes will probably release 0.11.1 with a fix for this soon and this could be removed
+distributed>=2.5.2, <3
 dask-kubernetes~=0.11.0
 # 3.0 iguazio system is running k8s 1.17 so ideally we would use 17.X, but kfp limiting to <12.0
 kubernetes-asyncio~=11.0

@@ -1125,7 +1125,7 @@ def params_to_state(
         cls = classes_map.get(kind, RootFlowState)
         state = cls.from_dict(struct)
         state.function = function
-        name = get_name(name or state.name, class_name)
+        name = get_name(name or state.name, state.class_name)
     elif class_name and class_name == ">":
         if "path" not in class_args:
             raise ValueError("path=<stream path or None> must be specified for queues")

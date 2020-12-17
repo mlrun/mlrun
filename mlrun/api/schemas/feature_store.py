@@ -73,6 +73,7 @@ class FeatureSetsOutput(BaseModel):
 
 class FeatureSetDigestSpec(BaseModel):
     entities: List[Entity]
+    features: List[Feature]
 
 
 class FeatureSetDigestOutput(BaseModel):
@@ -87,6 +88,15 @@ class FeatureListOutput(BaseModel):
 
 class FeaturesOutput(BaseModel):
     features: List[FeatureListOutput]
+
+
+class EntityListOutput(BaseModel):
+    entity: Entity
+    feature_set_digest: FeatureSetDigestOutput
+
+
+class EntitiesOutput(BaseModel):
+    entities: List[EntityListOutput]
 
 
 class FeatureVector(BaseModel):

@@ -196,6 +196,16 @@ class FileDB(DBInterface):
     ) -> schemas.FeaturesOutput:
         raise NotImplementedError()
 
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
+        pass
+
     def list_feature_sets(
         self,
         session,

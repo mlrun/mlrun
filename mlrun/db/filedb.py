@@ -524,6 +524,11 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
     def list_feature_sets(
         self,
         project: str = "",

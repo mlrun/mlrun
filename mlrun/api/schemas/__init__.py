@@ -22,6 +22,8 @@ from .feature_store import (
     FeatureSetDigestSpec,
     FeatureListOutput,
     FeaturesOutput,
+    EntityListOutput,
+    EntitiesOutput,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,

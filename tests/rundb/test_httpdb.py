@@ -436,11 +436,23 @@ def test_feature_sets(create_server):
     feature_set_without_labels["metadata"]["project"] = project
     db.store_feature_set(feature_set_without_labels)
     feature_set_update = {
-        "metadata": {"labels": {"label1": "value1", "label2": "value2"}}
+        "spec": {"entities": [{"name": "nothing", "value_type": "bool"}]},
+        "metadata": {"labels": {"label1": "value1", "label2": "value2"}},
     }
     db.patch_feature_set(name, feature_set_update, project)
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set["metadata"]["labels"]) == 2, "Labels didn't get updated"
+
+    features = db.list_features(project, "time")
+    # The feature-set with different labels also counts here
+    assert len(features) == count + 1
+    # Only count, since we modified the entity of the last feature-set - other name, no labels
+    entities = db.list_entities(project, "ticker")
+    assert len(entities) == count
+    entities = db.list_entities(project, labels=["type"])
+    assert len(entities) == count
+    entities = db.list_entities(project, labels=["type=prod"])
+    assert len(entities) == count
 
 
 def _create_feature_vector(name):

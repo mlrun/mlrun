@@ -126,6 +126,18 @@ def list_features(
     return features
 
 
+@router.get("/projects/{project}/entities", response_model=schemas.EntitiesOutput)
+def list_entities(
+    project: str,
+    name: str = None,
+    tag: str = None,
+    labels: List[str] = Query(None, alias="label"),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    features = get_db().list_entities(db_session, project, name, tag, labels)
+    return features
+
+
 @router.post(
     "/projects/{project}/feature-vectors", response_model=schemas.FeatureVector
 )

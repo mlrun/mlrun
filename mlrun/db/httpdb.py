@@ -739,7 +739,7 @@ class HTTPRunDB(RunDBInterface):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeaturesOutput:
+    ) -> List[dict]:
         project = project or default_project
         params = {
             "name": name,
@@ -752,7 +752,23 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed listing features, project: {project}, query: {params}"
         resp = self.api_call("GET", path, error_message, params=params)
-        return schemas.FeaturesOutput(**resp.json())
+        return resp.json()["features"]
+
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ) -> List[dict]:
+        project = project or default_project
+        params = {
+            "name": name,
+            "tag": tag,
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/entities"
+
+        error_message = f"Failed listing entities, project: {project}, query: {params}"
+        resp = self.api_call("GET", path, error_message, params=params)
+        return resp.json()["entities"]
 
     def list_feature_sets(
         self,

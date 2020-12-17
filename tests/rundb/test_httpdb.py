@@ -166,7 +166,7 @@ def server_fixture():
 
 servers = [
     "server",
-    "docker",
+    # "docker",
 ]
 
 
@@ -587,7 +587,7 @@ def test_project_file_db_roundtrip(create_server):
 def _assert_projects(expected_project, project):
     assert (
         deepdiff.DeepDiff(
-            expected_project.to_dict(), project.to_dict(), ignore_order=True,
+            expected_project.to_dict(), project.to_dict(), ignore_order=True, exclude_paths={"root['metadata']['created']"}
         )
         == {}
     )

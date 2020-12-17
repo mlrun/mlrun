@@ -21,6 +21,7 @@ from ..utils import generate_object_uri
 
 class FunctionRef(ModelObj):
     """function reference/template"""
+
     def __init__(
         self,
         url=None,

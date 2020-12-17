@@ -32,7 +32,7 @@ from mlrun import RunObject
 from mlrun.artifacts import Artifact
 from mlrun.db import RunDBError
 from mlrun.db.httpdb import HTTPRunDB
-from tests.conftest import wait_for_server, tests_root_directory, results
+from tests.conftest import wait_for_server, tests_root_directory
 import mlrun.projects.project
 
 project_dir_path = Path(__file__).absolute().parent.parent.parent
@@ -579,7 +579,10 @@ def test_project_file_db_roundtrip(create_server):
 def _assert_projects(expected_project, project):
     assert (
         deepdiff.DeepDiff(
-            expected_project.to_dict(), project.to_dict(), ignore_order=True, exclude_paths={"root['metadata']['created']"}
+            expected_project.to_dict(),
+            project.to_dict(),
+            ignore_order=True,
+            exclude_paths={"root['metadata']['created']"},
         )
         == {}
     )

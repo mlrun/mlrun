@@ -31,9 +31,10 @@ from .feature_store import (
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
 from .project import (
     Project,
+    ProjectMetadata,
+    ProjectSpec,
     ProjectsOutput,
     ProjectRecord,
-    ProjectPatch,
 )
 from .schedule import (
     SchedulesOutput,

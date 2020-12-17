@@ -16,9 +16,9 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
-        if project.name in self._projects:
+        if project.metadata.name in self._projects:
             raise mlrun.errors.MLRunConflictError("Project already exists")
-        self._projects[project.name] = project
+        self._projects[project.metadata.name] = project
 
     def store_project(
         self,
@@ -32,14 +32,12 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectPatch,
+        project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
         existing_project_dict = self._projects[name].dict()
         strategy = patch_mode.to_mergedeep_strategy()
-        mergedeep.merge(
-            existing_project_dict, project.dict(exclude_unset=True), strategy=strategy
-        )
+        mergedeep.merge(existing_project_dict, project, strategy=strategy)
         self._projects[name] = mlrun.api.schemas.Project(**existing_project_dict)
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
@@ -64,7 +62,9 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
                 projects=list(self._projects.values())
             )
         elif format_ == mlrun.api.schemas.Format.name_only:
-            project_names = [project.name for project in list(self._projects.values())]
+            project_names = [
+                project.metadata.name for project in list(self._projects.values())
+            ]
             return mlrun.api.schemas.ProjectsOutput(projects=project_names)
         else:
             raise NotImplementedError(

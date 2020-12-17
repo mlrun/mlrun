@@ -26,6 +26,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
 import mlrun
+import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
@@ -969,7 +970,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
-    ) -> schemas.ProjectsOutput:
+    ) -> List[Union[mlrun.projects.MlrunProject, str]]:
         params = {
             "owner": owner,
             "format": format_,
@@ -977,16 +978,26 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
-        return schemas.ProjectsOutput(**response.json())
+        if format_ == mlrun.api.schemas.Format.name_only:
+            return response.json()["projects"]
+        elif format_ == mlrun.api.schemas.Format.full:
+            return [
+                mlrun.projects.MlrunProject.from_dict(project_dict)
+                for project_dict in response.json()["projects"]
+            ]
+        else:
+            raise NotImplementedError(
+                f"Provided format is not supported. format={format_}"
+            )
 
-    def get_project(self, name: str) -> schemas.Project:
+    def get_project(self, name: str) -> mlrun.projects.MlrunProject:
         if not name:
             raise MLRunInvalidArgumentError("Name must be provided")
 
         path = f"projects/{name}"
         error_message = f"Failed retrieving project {name}"
         response = self.api_call("GET", path, error_message)
-        return schemas.Project(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def delete_project(self, name: str):
         path = f"projects/{name}"
@@ -994,43 +1005,48 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error_message)
 
     def store_project(
-        self, name: str, project: Union[dict, mlrun.api.schemas.Project]
-    ) -> mlrun.api.schemas.Project:
+        self,
+        name: str,
+        project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
+    ) -> mlrun.projects.MlrunProject:
         path = f"projects/{name}"
         error_message = f"Failed storing project {name}"
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
+        elif isinstance(project, mlrun.projects.MlrunProject):
+            project = project.to_dict()
         response = self.api_call("PUT", path, error_message, body=json.dumps(project),)
-        return schemas.Project(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(
         self,
         name: str,
-        project: Union[dict, mlrun.api.schemas.ProjectPatch],
+        project: dict,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.projects.MlrunProject:
         path = f"projects/{name}"
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
-        if isinstance(project, mlrun.api.schemas.Project):
-            project = project.dict(exclude_unset=True)
         response = self.api_call(
             "PATCH", path, error_message, body=json.dumps(project), headers=headers
         )
-        return schemas.Project(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def create_project(
-        self, project: Union[dict, mlrun.api.schemas.Project]
-    ) -> mlrun.api.schemas.Project:
+        self,
+        project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
+    ) -> mlrun.projects.MlrunProject:
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
-        error_message = f"Failed creating project {project['name']}"
+        elif isinstance(project, mlrun.projects.MlrunProject):
+            project = project.to_dict()
+        error_message = f"Failed creating project {project['metadata']['name']}"
         response = self.api_call(
             "POST", "projects", error_message, body=json.dumps(project),
         )
-        return schemas.Project(**response.json())
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     @staticmethod
     def _validate_version_compatibility(server_version, client_version):

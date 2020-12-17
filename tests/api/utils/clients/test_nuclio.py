@@ -36,15 +36,15 @@ def test_get_project(
     )
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
     project = nuclio_client.get_project(None, project_name)
-    assert project.name == project_name
-    assert project.description == project_description
+    assert project.metadata.name == project_name
+    assert project.spec.description == project_description
 
     # now without description
     response_body = _generate_project_body(project_name, with_spec=True)
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
     project = nuclio_client.get_project(None, project_name)
-    assert project.name == project_name
-    assert project.description is None
+    assert project.metadata.name == project_name
+    assert project.spec.description is None
 
 
 def test_list_project(
@@ -67,8 +67,8 @@ def test_list_project(
     requests_mock.get(f"{api_url}/api/projects", json=response_body)
     projects = nuclio_client.list_projects(None)
     for index, project in enumerate(projects.projects):
-        assert project.name == mock_projects[index]["name"]
-        assert project.description == mock_projects[index].get("description")
+        assert project.metadata.name == mock_projects[index]["name"]
+        assert project.spec.description == mock_projects[index].get("description")
 
 
 def test_create_project(
@@ -95,7 +95,10 @@ def test_create_project(
     requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
     nuclio_client.create_project(
         None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+        ),
     )
 
 
@@ -129,7 +132,10 @@ def test_store_project_creation(
     nuclio_client.store_project(
         None,
         project_name,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+        ),
     )
 
 
@@ -165,7 +171,10 @@ def test_store_project_update(
     nuclio_client.store_project(
         None,
         project_name,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+        ),
     )
 
 
@@ -194,9 +203,7 @@ def test_patch_project(
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
-        None,
-        project_name,
-        mlrun.api.schemas.ProjectPatch(description=project_description),
+        None, project_name, {"spec": {"description": project_description}},
     )
 
 

@@ -205,7 +205,7 @@ class DBInterface(ABC):
         self,
         session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         pass

@@ -146,7 +146,7 @@ class FileDB(DBInterface):
         self,
         session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         raise NotImplementedError()

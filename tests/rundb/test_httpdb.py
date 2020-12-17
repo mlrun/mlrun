@@ -532,12 +532,8 @@ def test_project_file_db_roundtrip(create_server):
     artifact_path = "/tmp"
     conda = "conda"
     source = "source"
-    context = str(results)
-    mountdir = "mountdir"
     subpath = "subpath"
     origin_url = "origin_url"
-    branch = "branch"
-    tag = "tag"
     project_metadata = mlrun.projects.project.ProjectMetadata(project_name)
     project_spec = mlrun.projects.project.ProjectSpec(
         description,
@@ -545,12 +541,8 @@ def test_project_file_db_roundtrip(create_server):
         artifact_path=artifact_path,
         conda=conda,
         source=source,
-        context=context,
-        mountdir=mountdir,
         subpath=subpath,
         origin_url=origin_url,
-        branch=branch,
-        tag=tag,
     )
     project = mlrun.projects.project.MlrunProject(
         metadata=project_metadata, spec=project_spec

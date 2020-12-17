@@ -692,7 +692,7 @@ class MlrunProject(ModelObj):
     def remove_function(self, name):
         """remove a function from a project
 
-            :param name:      name of the function (under the project)
+        :param name:    name of the function (under the project)
         """
         self.spec.remove_function(name)
 

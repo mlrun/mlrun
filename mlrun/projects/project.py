@@ -483,6 +483,28 @@ class MlrunProject(ModelObj):
         self._status = self._verify_dict(status, "status", ProjectStatus)
 
     @property
+    def name(self) -> str:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
+        warnings.warn(
+            "This is a property of the metadata, use project.metadata.name instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.metadata.name
+
+    @name.setter
+    def name(self, name):
+        warnings.warn(
+            "This is a property of the metadata, use project.metadata.name instead"
+            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        self.metadata.name = name
+
+    @property
     def source(self) -> str:
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""

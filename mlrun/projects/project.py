@@ -598,8 +598,8 @@ class MlrunProject(ModelObj):
     def get_param(self, key: str, default=None):
         """get project param by key"""
         if self.params:
-            return self.params.get(key, default)
-        return default
+            return self.params.get(key)
+        return None
 
     def run(
         self,

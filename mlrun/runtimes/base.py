@@ -17,6 +17,7 @@ import traceback
 import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
+from base64 import b64encode
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
@@ -34,6 +35,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import verify_field_regex, generate_object_uri
 from .constants import PodPhases, RunStates
+from .funcdoc import update_function_entry_points
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
 from ..config import config
@@ -61,23 +63,6 @@ class FunctionStatus(ModelObj):
     def __init__(self, state=None, build_pod=None):
         self.state = state
         self.build_pod = build_pod
-
-
-class EntrypointParam(ModelObj):
-    def __init__(self, name="", type=None, default=None, doc=""):
-        self.name = name
-        self.type = type
-        self.default = default
-        self.doc = doc
-
-
-class FunctionEntrypoint(ModelObj):
-    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
-        self.name = name
-        self.doc = doc
-        self.parameters = [] if parameters is None else parameters
-        self.outputs = [] if outputs is None else outputs
-        self.lineno = lineno
 
 
 class FunctionSpec(ModelObj):
@@ -706,6 +691,46 @@ class BaseRuntime(ModelObj):
             verbose=verbose,
             scrape_metrics=scrape_metrics,
         )
+
+    def with_code(self, from_file="", body=None, with_doc=True):
+        """Update the function code
+        This function eliminates the need to build container images every time we edit the code
+
+        :param from_file:   blank for current notebook, or path to .py/.ipynb file
+        :param body:        will use the body as the function code
+        :param with_doc:    update the document of the function parameters
+
+        :return: function object
+        """
+        if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
+            from nuclio import build_file
+
+            _, _, body = build_file(from_file)
+
+        if from_file:
+            with open(from_file) as fp:
+                body = fp.read()
+        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
+            "utf-8"
+        )
+        if with_doc:
+            update_function_entry_points(self, body)
+        return self
+
+    def with_requirements(self, requirements: Union[str, List[str]]):
+        """add package requirements from file or list to build spec.
+
+        :param requirements:  python requirements file path or list of packages
+
+        :return: function object
+        """
+        if isinstance(requirements, str):
+            with open(requirements, 'r') as fp:
+                requirements = fp.readlines()
+        commands = self.spec.build.commands or []
+        commands.append("python -m pip install " + " ".join(requirements))
+        self.spec.build.commands = commands
+        return self
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to

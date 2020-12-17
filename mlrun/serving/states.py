@@ -45,6 +45,7 @@ class StateKinds:
     flow = "flow"
     queue = "queue"
     choice = "choice"
+    root = "root"
 
 
 _task_state_fields = [
@@ -925,7 +926,7 @@ class FlowState(BaseState):
 
 
 class RootFlowState(FlowState):
-    kind = "rootFlow"
+    kind = "root"
     _dict_fields = ["states", "start_at", "engine", "result_state", "on_error"]
 
 
@@ -1100,7 +1101,7 @@ def graph_root_setter(server, graph):
             raise ValueError("graph must be a dict or a valid object")
         if kind == StateKinds.router:
             server._graph = server._verify_dict(graph, "graph", RouterState)
-        elif not kind:
+        elif not kind or kind == StateKinds.root:
             server._graph = server._verify_dict(graph, "graph", RootFlowState)
         else:
             raise GraphError(f'illegal root state {kind}')

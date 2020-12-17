@@ -24,11 +24,12 @@ import asyncio
 from aiohttp.client import ClientSession
 from mlrun.db import RunDBError
 from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
+from nuclio.triggers import V3IOStreamTrigger
 import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io, split_path, V3IOStreamTrigger
+from ..platforms.iguazio import mount_v3io, split_path
 from .base import RunError, FunctionStatus
 from .utils import log_std, get_item_name
 from ..utils import logger, update_in, get_in, enrich_image_url, generate_object_uri
@@ -540,9 +541,7 @@ class FunctionRef(ModelObj):
         else:
             raise ValueError("unsupported function url {} or no spec".format(self.url))
         if self.requirements:
-            commands = func.spec.build.commands or []
-            commands.append("python -m pip install " + " ".join(self.requirements))
-            func.spec.build.commands = commands
+            func.with_requirements(self.requirements)
         self._function = func
         return func
 

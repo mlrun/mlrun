@@ -19,7 +19,6 @@ from http import HTTPStatus
 from datetime import datetime
 from collections import namedtuple
 
-from nuclio.triggers import NuclioTrigger
 
 _cached_control_session = None
 
@@ -381,58 +380,3 @@ def add_or_refresh_credentials(
     control_session = create_control_session(iguazio_dashboard_url, username, password)
     _cached_control_session = (control_session, now, username, password)
     return username, control_session, ""
-
-
-class V3IOStreamTrigger(NuclioTrigger):
-    kind = "v3ioStream"
-
-    def __init__(
-        self,
-        url: str = None,
-        seekTo: str = "latest",
-        partitions: list = None,
-        pollingIntervalMS: int = 500,
-        readBatchSize: int = 64,
-        maxWorkers: int = 1,
-        access_key: str = None,
-        sessionTimeout: str = "10s",
-        name: str = "streamtrigger",
-        container: str = None,
-        path: str = None,
-        workerAllocationMode: str = "pool",
-        webapi: str = "http://v3io-webapi:8081",
-        consumerGroup: str = "default",
-        sequenceNumberCommitInterval: str = "1s",
-        heartbeatInterval: str = "3s",
-    ):
-
-        if url and not container and not path:
-            self._struct = {"kind": self.kind, "url": url, "attributes": {}}
-        else:
-            self._struct = {
-                "kind": self.kind,
-                "url": webapi,
-                "name": name,
-                "attributes": {
-                    "containerName": container,
-                    "streamPath": path,
-                    "consumerGroup": consumerGroup,
-                    "sequenceNumberCommitInterval": sequenceNumberCommitInterval,
-                    "workerAllocationMode": workerAllocationMode,
-                    "sessionTimeout": sessionTimeout,
-                    "heartbeatInterval": heartbeatInterval,
-                },
-            }
-
-        if maxWorkers:
-            self._struct["maxWorkers"] = maxWorkers
-        if seekTo:
-            self._struct["attributes"]["seekTo"] = seekTo
-        if readBatchSize:
-            self._struct["attributes"]["readBatchSize"] = readBatchSize
-        if partitions:
-            self._struct["attributes"]["partitions"] = partitions
-        if pollingIntervalMS:
-            self._struct["attributes"]["pollingIntervalMs"] = pollingIntervalMS
-        access_key = access_key if access_key else os.environ["V3IO_ACCESS_KEY"]
-        self._struct["password"] = access_key

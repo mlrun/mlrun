@@ -173,9 +173,19 @@ class DataTarget(DataTargetSpec):
 
 
 class DataSource(ModelObj):
-    _dict_fields = ["name", "kind", "path", "attributes", "online", "workers", "max_age"]
+    _dict_fields = [
+        "name",
+        "kind",
+        "path",
+        "attributes",
+        "online",
+        "workers",
+        "max_age",
+    ]
 
-    def __init__(self, name: str = "", kind: TargetTypes = None, path=None, online=None):
+    def __init__(
+        self, name: str = "", kind: TargetTypes = None, path=None, online=None
+    ):
         self.name = name
         self.online = online
         self.kind: SourceTypes = kind

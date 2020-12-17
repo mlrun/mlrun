@@ -39,12 +39,7 @@ def new_graph_context(tables, client=None, default_featureset=None):
 
 
 def init_featureset_graph(
-    df,
-    featureset,
-    namespace,
-    client=None,
-    with_targets=False,
-    return_df=True,
+    df, featureset, namespace, client=None, with_targets=False, return_df=True,
 ):
     graph = featureset.spec.graph.copy()
     tables = {}

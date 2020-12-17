@@ -657,7 +657,7 @@ class FlowState(BaseState):
         )
 
         if not after and not before:
-            after = '$prev'
+            after = "$prev"
 
         self.insert_state(name, state, after, before)
         return state
@@ -1104,7 +1104,7 @@ def graph_root_setter(server, graph):
         elif not kind or kind == StateKinds.root:
             server._graph = server._verify_dict(graph, "graph", RootFlowState)
         else:
-            raise GraphError(f'illegal root state {kind}')
+            raise GraphError(f"illegal root state {kind}")
 
 
 def get_name(name, class_name):
@@ -1122,8 +1122,8 @@ def params_to_state(
 ):
     if class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
-        kind = struct.get('kind', StateKinds.task)
-        name = name or struct.get('name', struct.get('class_name'))
+        kind = struct.get("kind", StateKinds.task)
+        name = name or struct.get("name", struct.get("class_name"))
         cls = classes_map.get(kind, RootFlowState)
         state = cls.from_dict(struct)
         state.function = function

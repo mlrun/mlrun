@@ -39,12 +39,11 @@ class FeaturesetValidator(MapClass):
         return event
 
     def to_dict(self):
-        return {"class_name": this_path + ".FeaturesetValidator",
-                "name": self.name or "FeaturesetValidator",
-                "class_args": {
-                    "featureset": self.featureset,
-                    "columns": self.columns},
-                }
+        return {
+            "class_name": this_path + ".FeaturesetValidator",
+            "name": self.name or "FeaturesetValidator",
+            "class_args": {"featureset": self.featureset, "columns": self.columns},
+        }
 
 
 class MapValues(MapClass):
@@ -92,13 +91,15 @@ class MapValues(MapClass):
         return mapped_values
 
     def to_dict(self):
-        return {"class_name": this_path + ".MapValues",
-                "name": self.name or "MapValues",
-                "class_args": {
-                    "mapping": self.mapping,
-                    "with_original_features": self.with_original_features,
-                    "suffix": self.suffix},
-                }
+        return {
+            "class_name": this_path + ".MapValues",
+            "name": self.name or "MapValues",
+            "class_args": {
+                "mapping": self.mapping,
+                "with_original_features": self.with_original_features,
+                "suffix": self.suffix,
+            },
+        }
 
 
 class Imputer(MapClass):
@@ -126,13 +127,15 @@ class Imputer(MapClass):
         return imputed_values
 
     def to_dict(self):
-        return {"class_name": this_path + ".Imputer",
-                "name": self.name or "Imputer",
-                "class_args": {
-                    "mapping": self.mapping,
-                    "method": self.method,
-                    "default_value": self.default_value},
-                }
+        return {
+            "class_name": this_path + ".Imputer",
+            "name": self.name or "Imputer",
+            "class_args": {
+                "mapping": self.mapping,
+                "method": self.method,
+                "default_value": self.default_value,
+            },
+        }
 
 
 class OneHotEncoder(MapClass):
@@ -160,7 +163,8 @@ class OneHotEncoder(MapClass):
         return encoded_values
 
     def to_dict(self):
-        return {"class_name": this_path + ".OneHotEncoder",
-                "name": self.name or "OneHotEncoder",
-                "class_args": {"mapping": self.mapping}
-                }
+        return {
+            "class_name": this_path + ".OneHotEncoder",
+            "name": self.name or "OneHotEncoder",
+            "class_args": {"mapping": self.mapping},
+        }

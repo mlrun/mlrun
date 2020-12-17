@@ -725,7 +725,7 @@ class BaseRuntime(ModelObj):
         :return: function object
         """
         if isinstance(requirements, str):
-            with open(requirements, 'r') as fp:
+            with open(requirements, "r") as fp:
                 requirements = fp.readlines()
         commands = self.spec.build.commands or []
         commands.append("python -m pip install " + " ".join(requirements))

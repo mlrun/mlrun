@@ -37,7 +37,6 @@ def test_create_project_from_file_with_legacy_structure():
     legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     legacy_project.save(str(legacy_project_file_path))
     project = mlrun.load_project(None, str(legacy_project_file_path))
-    project.export(str(legacy_project_file_path))
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description

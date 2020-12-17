@@ -843,7 +843,7 @@ class MlrunProject(ModelObj):
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         try:
-            url = "{}#refs/heads/{}".format(url, self.repo.active_branch.name)
+            url = "{}#refs/heads/{}".format(url, self.spec.repo.active_branch.name)
         except Exception:
             pass
         self.spec._source = self.spec.source or url

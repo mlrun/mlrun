@@ -297,11 +297,11 @@ class RemoteRuntime(KubeResource):
         return self.spec.command
 
     def _get_state(
-            self,
-            dashboard="",
-            last_log_timestamp=None,
-            verbose=False,
-            raise_on_exception=True,
+        self,
+        dashboard="",
+        last_log_timestamp=None,
+        verbose=False,
+        raise_on_exception=True,
     ):
         if dashboard:
             state, address, name, last_log_timestamp, text = get_nuclio_deploy_status(

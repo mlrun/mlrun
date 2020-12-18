@@ -50,15 +50,15 @@ def init_featureset_graph(
         init_featureset_targets(featureset, tables)
         targets = featureset.spec.targets
     add_target_states(graph, featureset, targets, to_df=return_df)
+    entity_columns = list(featureset.spec.entities.keys())
+    if not entity_columns:
+        raise ValueError("entity column(s) are not defined in feature set")
+    key_column = entity_columns[0]
 
     context = new_graph_context(tables, client, featureset)
     setattr(context, "verbose", verbose)
     setattr(context, "root", graph)
 
-    entity_columns = list(featureset.spec.entities.keys())
-    if not entity_columns:
-        raise ValueError("entity column(s) are not defined in feature set")
-    key_column = entity_columns[0]
     source = DataframeSource(df, key_column, featureset.spec.timestamp_key)
     graph.set_flow_source(source)
     graph.init_object(context, namespace)

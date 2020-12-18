@@ -28,7 +28,7 @@ from .vector import (
 )
 from mlrun.featurestore.mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
-from .model import FeatureClassKind, store_config
+from .model import store_config
 from ..utils import get_caller_globals, parse_function_uri
 
 
@@ -169,8 +169,7 @@ class FeatureStoreClient:
 
         if use_cache and uri in self._fs:
             return self._fs[uri]
-        project, name, tag, uid = parse_function_uri(uri)
-        project = project or mlconf.default_project
+        project, name, tag, uid = parse_function_uri(uri, mlconf.default_project)
         obj = self._get_db().get_feature_set(name, project, tag, uid)
         fs = FeatureSet.from_dict(obj)
         self._fs[uri] = fs
@@ -195,7 +194,7 @@ class FeatureStoreClient:
     def get_feature_vector(self, uri):
         project, name, tag, uid = parse_function_uri(uri)
         project = project or mlconf.default_project
-        obj = self._get_db().get_feature_vector(name, project, tag, uid)
+        obj = self._get_db().read_artifact().get_feature_vector(name, project, tag, uid)
         return FeatureVector.from_dict(obj)
 
     def list_feature_vectors(
@@ -219,12 +218,12 @@ class FeatureStoreClient:
         db = self._get_db()
         obj.metadata.project = obj.metadata.project or mlconf.default_project
         obj_dict = obj.to_dict()
-        if obj.kind == FeatureClassKind.FeatureSet:
+        if obj.kind == DataClass.FeatureSet:
             obj_dict["spec"]["features"] = obj_dict["spec"].get(
                 "features", []
             )  # bypass DB bug
             db.store_feature_set(obj_dict, tag=obj.metadata.tag, versioned=versioned)
-        elif obj.kind == FeatureClassKind.FeatureVector:
+        elif obj.kind == DataClass.FeatureVector:
             db.store_feature_vector(obj_dict, tag=obj.metadata.tag, versioned=versioned)
         else:
             raise NotImplementedError(f"object kind not supported ({obj.kind})")

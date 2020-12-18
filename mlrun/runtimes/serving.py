@@ -14,11 +14,16 @@
 
 import json
 from typing import List, Union
+
+from mlrun.platforms.iguazio import split_path
+from nuclio.triggers import V3IOStreamTrigger
+
 import mlrun
 import nuclio
 
 from ..model import ObjectList
-from .function import RemoteRuntime, NuclioSpec, FunctionRef
+from .function import RemoteRuntime, NuclioSpec
+from .funcref import FunctionRef
 from ..utils import logger, get_caller_globals
 from ..serving.server import create_graph_server, GraphServer
 from ..serving.states import (
@@ -269,7 +274,7 @@ class ServingRuntime(RemoteRuntime):
             url, image, requirements=requirements, kind=kind or "serving"
         )
         self._spec.function_refs.update(function_ref, name)
-        func = function_ref.to_function()
+        func = function_ref.to_function(self.kind)
         func.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
         return func
 
@@ -280,8 +285,8 @@ class ServingRuntime(RemoteRuntime):
                     raise ValueError(f"function reference {function} not present")
                 child_function = self._spec.function_refs[function]
                 group = stream.options.get("group", "serving")
-                child_function.add_stream_trigger(
-                    stream.path, group=group, shards=stream.shards or 1
+                add_stream_trigger(
+                    child_function, stream.path, group=group, shards=stream.shards or 1
                 )
 
     def _deploy_function_refs(self):
@@ -358,3 +363,22 @@ class ServingRuntime(RemoteRuntime):
             level=log_level,
             current_function=current_function,
         )
+
+
+def add_stream_trigger(
+    function, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
+):
+    container, path = split_path(stream_path)
+    function_object = function.function_object()
+    function_object.add_trigger(
+        name,
+        V3IOStreamTrigger(
+            name=name,
+            container=container,
+            path=path[1:],
+            consumerGroup=group,
+            seekTo=seek_to,
+        ),
+    )
+    function_object.spec.min_replicas = shards
+    function_object.spec.max_replicas = shards

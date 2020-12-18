@@ -17,14 +17,8 @@ from mlrun.model import ModelObj
 from .datatypes import ValueType
 from .validators import validator_types
 from ..model import ObjectList
-from ..runtimes.function import FunctionRef
+from ..runtimes.funcref import FunctionRef
 from ..serving.states import RootFlowState
-
-
-class FeatureClassKind:
-    FeatureVector = "FeatureVector"
-    FeatureSet = "FeatureSet"
-    Entity = "Entity"
 
 
 class TargetTypes:

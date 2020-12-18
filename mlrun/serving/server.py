@@ -20,6 +20,10 @@ import uuid
 from copy import deepcopy
 from typing import Union
 
+from mlrun import get_run_db
+
+from mlrun.secrets import SecretsStore
+
 from mlrun.config import config
 
 from .states import (
@@ -29,9 +33,10 @@ from .states import (
     get_function,
     graph_root_setter,
 )
-from ..model import ModelObj
+from ..featurestore import FeatureSet
+from ..model import ModelObj, DataClass
 from ..platforms.iguazio import OutputStream
-from ..utils import create_logger, get_caller_globals
+from ..utils import create_logger, get_caller_globals, parse_function_uri
 
 
 class _StreamContext:
@@ -77,6 +82,8 @@ class GraphServer(ModelObj):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self._error_stream = None
+        self._secrets = SecretsStore()
+        self._db_conn = None
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -97,7 +104,12 @@ class GraphServer(ModelObj):
         else:
             self._error_stream = None
 
-    def init(self, context, namespace):
+    def _get_db(self):
+        if not self._db_conn:
+            self._db_conn = get_run_db().connect(self._secrets)
+        return self._db_conn
+
+    def init(self, context, namespace, resource_cache={}):
         """for internal use, initialize all states (recursively)"""
         self.context = context
         # enrich the context with classes and methods which will be used when
@@ -116,9 +128,16 @@ class GraphServer(ModelObj):
                 return self.parameters.get(key, default)
             return default
 
+        def get_secret(self, key: str):
+            if self._secrets:
+                return self._secrets.get(key)
+            return None
+
         setattr(context, "stream", _StreamContext(self.parameters, self.function_uri))
         setattr(context, "current_function", self._current_function)
         setattr(context, "get_param", get_param)
+        setattr(context, "get_secret", get_secret)
+        setattr(context, "get_data_resource", data_resource_getter(self._get_db(), resource_cache, self._secrets))
         setattr(context, "push_error", push_error)
         setattr(context, "verbose", self.verbose)
         setattr(context, "root", self.graph)
@@ -328,3 +347,39 @@ def format_error(server, context, source, event, message, args):
         "message": message,
         "args": args,
     }
+
+
+def data_resource_getter(db, resource_cache, secrets=None):
+
+    def _get_data_resource(kind, uri, use_cache=True):
+        key = f'{kind}.{uri}'
+        if (uri == '.' or use_cache) and key in resource_cache:
+            return resource_cache[key]
+        resource = get_data_resource(kind, uri, db, secrets=secrets)
+        if use_cache:
+            resource_cache[key] = resource
+        return resource
+
+    return _get_data_resource
+
+
+def get_data_resource(kind, uri, db, secrets=None):
+    if kind == DataClass.FeatureSet:
+        project, name, tag, uid = parse_function_uri(uri, config.default_project)
+        obj = db.get_feature_set(name, project, tag, uid)
+        return FeatureSet.from_dict(obj)
+
+    elif kind == DataClass.FeatureVector:
+        project, name, tag, uid = parse_function_uri(uri, config.default_project)
+        obj = db.get_feature_vector(name, project, tag, uid)
+        return FeatureSet.from_dict(obj)
+
+    elif DataClass.is_artifact(kind):
+        project, name, tag, uid = parse_function_uri(uri, config.default_project)
+        # todo: convert artifact dict to object
+        return db.read_artifact(name, project=project, tag=tag or uid)
+
+    # todo: elif get data items
+    else:
+        raise NotImplementedError()
+

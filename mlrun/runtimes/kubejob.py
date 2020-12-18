@@ -99,7 +99,14 @@ class KubejobRuntime(KubeResource):
     def build(self, **kw):
         raise ValueError(".build() is deprecated, use .deploy() instead")
 
-    def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
+    def deploy(
+            self,
+            watch=True,
+            with_mlrun=True,
+            skip_deployed=False,
+            is_kfp=False,
+            mlrun_version_specifier=None,
+    ):
         """deploy function, build container with dependencies"""
 
         if skip_deployed and self.is_deployed:
@@ -132,7 +139,7 @@ class KubejobRuntime(KubeResource):
             logger.info(
                 "starting remote build, image: {}".format(self.spec.build.image)
             )
-            data = db.remote_builder(self, with_mlrun)
+            data = db.remote_builder(self, with_mlrun, mlrun_version_specifier)
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
             ready = data.get("ready", False)
@@ -142,7 +149,7 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
         else:
             self.save(versioned=False)
-            ready = build_runtime(self, with_mlrun, watch or is_kfp)
+            ready = build_runtime(self, with_mlrun, mlrun_version_specifier, watch or is_kfp)
             self.save(versioned=False)
 
         return ready

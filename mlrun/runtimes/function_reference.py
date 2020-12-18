@@ -19,7 +19,7 @@ from ..model import ModelObj
 from ..utils import generate_object_uri
 
 
-class FunctionRef(ModelObj):
+class FunctionReference(ModelObj):
     """function reference/template"""
 
     def __init__(

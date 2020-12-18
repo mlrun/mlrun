@@ -472,9 +472,11 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed deleting project {name}"
         self.api_call("DELETE", path, error_message)
 
-    def remote_builder(self, func, with_mlrun):
+    def remote_builder(self, func, with_mlrun, mlrun_version_specifier=None):
         try:
             req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
+            if mlrun_version_specifier:
+                req["mlrun_version_specifier"] = mlrun_version_specifier
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
             logger.error("error submitting build task: {}".format(err))

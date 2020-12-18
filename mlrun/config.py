@@ -93,6 +93,12 @@ default_config = {
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
+        "builder": {
+            # the requirement specifier used by the builder when installing mlrun in images when it runs
+            # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
+            # git+https://github.com/mlrun/mlrun@development. by default uses the version
+            "mlrun_version_specifier": "",
+        },
     },
 }
 

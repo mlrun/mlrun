@@ -619,6 +619,23 @@ class RunObject(RunTemplate):
         )
 
 
+class EntrypointParam(ModelObj):
+    def __init__(self, name="", type=None, default=None, doc=""):
+        self.name = name
+        self.type = type
+        self.default = default
+        self.doc = doc
+
+
+class FunctionEntrypoint(ModelObj):
+    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
+        self.name = name
+        self.doc = doc
+        self.parameters = [] if parameters is None else parameters
+        self.outputs = [] if outputs is None else outputs
+        self.lineno = lineno
+
+
 # TODO: remove in 0.9.0
 def NewTask(
     name=None,

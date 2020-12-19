@@ -59,6 +59,7 @@ class NuclioSpec(KubeResourceSpec):
         source=None,
         image_pull_policy=None,
         function_kind=None,
+        build=None,
         service_account=None,
         readiness_timeout=None,
         default_handler=None,
@@ -76,6 +77,7 @@ class NuclioSpec(KubeResourceSpec):
             replicas=replicas,
             image_pull_policy=image_pull_policy,
             service_account=service_account,
+            build=build,
             entry_points=entry_points,
             description=description,
             default_handler=default_handler,
@@ -232,6 +234,8 @@ class RemoteRuntime(KubeResource):
         self, dashboard="", project="", tag="", verbose=False,
     ):
         verbose = verbose or self.verbose
+        if verbose:
+            self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
         if project:
             self.metadata.project = project
         if tag:

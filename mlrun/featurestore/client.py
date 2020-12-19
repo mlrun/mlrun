@@ -14,10 +14,7 @@
 from typing import List, Union
 from storey import Table, V3ioDriver
 
-from mlrun import get_run_db
-from mlrun.datastore import store_manager
-from mlrun.config import config as mlconf
-
+import mlrun
 from .infer import get_df_stats, get_df_preview
 from .pipeline import init_featureset_graph
 
@@ -26,10 +23,14 @@ from .vector import (
     OnlineVectorService,
     FeatureVector,
 )
-from mlrun.featurestore.mergers.local import LocalFeatureMerger
+from .mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
 from .model import store_config
+from ..model import DataClass
 from ..utils import get_caller_globals, parse_function_uri
+from ..datastore import store_manager
+from ..config import config as mlconf
+
 
 
 def store_client(project=None, secrets=None, api_address=None):
@@ -64,7 +65,7 @@ class FeatureStoreClient:
 
     def _get_db(self):
         if not self._db_conn:
-            self._db_conn = get_run_db(self._api_address).connect(self._secrets)
+            self._db_conn = mlrun.get_run_db(self._api_address).connect(self._secrets)
         return self._db_conn
 
     def get_data_stores(self):

@@ -14,9 +14,9 @@ def has_storey():
 @pytest.mark.skipif(not has_storey(), reason="storey not installed")
 def test_handler():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="s2")
+    graph = fn.set_topology("flow", start_at="s1", engine="async")
     graph.add_step(name="s1", handler="(event + 1)")
-    graph.add_step(name="s2", handler="json.dumps", after="$prev")
+    graph.add_step(name="s2", handler="json.dumps", after="$prev").respond()
 
     server = fn.to_mock_server()
     resp = server.test(body=5)
@@ -58,7 +58,7 @@ def test_async_basic():
 @pytest.mark.skipif(not has_storey(), reason="storey not installed")
 def test_async_nested():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="final")
+    graph = fn.set_topology("flow", start_at="s1", engine="async")
     graph.add_step(name="s1", class_name="Echo")
     graph.add_step(name="s2", handler="multiply_input", after="s1")
     graph.add_step(name="s3", class_name="Echo", after="s2")
@@ -68,7 +68,7 @@ def test_async_nested():
     router.add_model("m2", class_name="ModelClass", model_path=".", z=200)
     router.add_model("m3:v1", class_name="ModelClass", model_path=".", z=300)
 
-    graph.add_step(name="final", class_name="Echo", after="ensemble")
+    graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
     graph.plot("nested.png")
 
     print(graph.to_yaml())

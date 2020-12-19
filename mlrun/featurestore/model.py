@@ -17,7 +17,7 @@ from mlrun.model import ModelObj
 from .datatypes import ValueType
 from .validators import validator_types
 from ..model import ObjectList
-from ..runtimes.funcref import FunctionRef
+from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowState
 
 
@@ -242,7 +242,7 @@ class FeatureSetSpec(ModelObj):
         self._targets: ObjectList = None
         self._graph: RootFlowState = None
         self._source = None
-        self._function: FunctionRef = None
+        self._function: FunctionReference = None
 
         self.owner = owner
         self.description = description
@@ -295,12 +295,12 @@ class FeatureSetSpec(ModelObj):
         self._graph.engine = "async"
 
     @property
-    def function(self) -> FunctionRef:
+    def function(self) -> FunctionReference:
         return self._spec
 
     @function.setter
     def function(self, function):
-        self._function = self._verify_dict(function, "function", FunctionRef)
+        self._function = self._verify_dict(function, "function", FunctionReference)
 
     @property
     def source(self) -> DataSource:

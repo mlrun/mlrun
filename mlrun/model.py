@@ -43,7 +43,6 @@ class DataClass:
         return kind in [cls.Artifact, cls.Model, cls.DataSet]
 
 
-
 class ModelObj:
     _dict_fields = []
 

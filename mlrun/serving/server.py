@@ -20,14 +20,8 @@ import uuid
 from copy import deepcopy
 from typing import Union
 
-from mlrun.datastore import store_manager
-
-from mlrun.artifacts import dict_to_artifact
-
-from mlrun import get_run_db
-
+from mlrun.db import get_run_db
 from mlrun.secrets import SecretsStore
-
 from mlrun.config import config
 
 from .states import (
@@ -37,10 +31,10 @@ from .states import (
     get_function,
     graph_root_setter,
 )
-from ..featurestore import FeatureSet
-from ..model import ModelObj, DataClass
+from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
-from ..utils import create_logger, get_caller_globals, parse_function_uri
+from ..utils import create_logger, get_caller_globals
+from mlrun.data_resources import get_data_resource
 
 
 class _StreamContext:
@@ -142,7 +136,11 @@ class GraphServer(ModelObj):
         setattr(context, "get_param", get_param)
         setattr(context, "get_secret", get_secret)
         setattr(context, "_resource_cache", resource_cache)
-        setattr(context, "get_data_resource", data_resource_getter(self._get_db(), resource_cache, self._secrets))
+        setattr(
+            context,
+            "get_data_resource",
+            data_resource_getter(self._get_db(), resource_cache, self._secrets),
+        )
         setattr(context, "push_error", push_error)
         setattr(context, "verbose", self.verbose)
         setattr(context, "root", self.graph)
@@ -355,10 +353,9 @@ def format_error(server, context, source, event, message, args):
 
 
 def data_resource_getter(db, resource_cache, secrets=None):
-
     def _get_data_resource(kind, uri, use_cache=True):
-        key = f'{kind}.{uri}'
-        if (uri == '.' or use_cache) and key in resource_cache:
+        key = f"{kind}.{uri}"
+        if (uri == "." or use_cache) and key in resource_cache:
             return resource_cache[key]
         resource = get_data_resource(kind, uri, db, secrets=secrets)
         if use_cache:
@@ -366,30 +363,3 @@ def data_resource_getter(db, resource_cache, secrets=None):
         return resource
 
     return _get_data_resource
-
-
-def get_data_resource(kind, uri, db=None, secrets=None):
-    db = db or get_run_db().connect(secrets)
-
-    if kind == DataClass.FeatureSet:
-        project, name, tag, uid = parse_function_uri(uri, config.default_project)
-        obj = db.get_feature_set(name, project, tag, uid)
-        return FeatureSet.from_dict(obj)
-
-    elif kind == DataClass.FeatureVector:
-        project, name, tag, uid = parse_function_uri(uri, config.default_project)
-        obj = db.get_feature_vector(name, project, tag, uid)
-        return FeatureSet.from_dict(obj)
-
-    elif DataClass.is_artifact(kind):
-        project, name, tag, uid = parse_function_uri(uri, config.default_project)
-        resp = db.read_artifact(name, project=project, tag=tag or uid)
-        if resp:
-            return dict_to_artifact(resp)
-
-    elif DataClass.Object:
-        stores = store_manager.set(secrets, db=db)
-        return stores.object(url=uri)
-    else:
-        raise ValueError(f'illegal kind {kind}')
-

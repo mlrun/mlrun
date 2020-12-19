@@ -44,7 +44,6 @@ default_config = {
     "nuclio_dashboard_url": "",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks)
-    "frames_url": "framesd:8081",  # v3io frames service url
     "remote_host": "",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)

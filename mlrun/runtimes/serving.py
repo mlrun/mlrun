@@ -14,10 +14,6 @@
 
 import json
 from typing import List, Union
-
-from mlrun.platforms.iguazio import split_path
-from nuclio.triggers import V3IOStreamTrigger
-
 import mlrun
 import nuclio
 
@@ -132,7 +128,7 @@ class ServingSpec(NuclioSpec):
 
         self.models = models or {}
         self._graph = None
-        self.graph: RouterState = graph
+        self.graph: Union[RouterState, RootFlowState] = graph
         self.parameters = parameters or {}
         self.default_class = default_class
         self.load_mode = load_mode
@@ -142,7 +138,7 @@ class ServingSpec(NuclioSpec):
         self.error_stream = error_stream
 
     @property
-    def graph(self) -> RouterState:
+    def graph(self) -> Union[RouterState, RootFlowState]:
         return self._graph
 
     @graph.setter
@@ -181,21 +177,24 @@ class ServingRuntime(RemoteRuntime):
     ) -> Union[RootFlowState, RouterState]:
         """set the serving graph topology (router/flow) and root class or params
 
-        e.g.: graph = fn.set_topology("flow", start_at="s1", engine="async", result_state="s5")
+        e.g.:
+            graph = fn.set_topology("flow", engine="async")
+            graph.to("MyClass").to(name="to_json", handler="json.dumps").respond()
 
         topology can be:
           router - root router + multiple child route states/models
+                   route is usually determined by the path (route key/name)
                    can specify special router class and router arguments
+
           flow   - workflow (DAG) with a chain of states, starting at "start_at" state
                    flow support "sync" and "async" engines, branches are note allowed in sync mode
-                   when using async mode the optional result_state indicate the state which will
+                   when using async mode .respond() can indicate the state which will
                    generate the (REST) call response
 
         :param topology:     - graph topology, router or flow
         :param class_name:   - optional for router, router class name/path
         :param start_at:     - for flow, starting state
         :param engine:       - optional for flow, sync or async engine (default to sync)
-        :param result_state: - optional for flow, the state which returns the results
         :param exist_ok:     - allow overriding existing topology
         :param class_args:   - optional, router/flow class extra args
 
@@ -209,9 +208,7 @@ class ServingRuntime(RemoteRuntime):
         if topology == StateKinds.router:
             self.spec.graph = RouterState(class_name=class_name, class_args=class_args)
         elif topology == StateKinds.flow:
-            self.spec.graph = RootFlowState(
-                start_at=start_at, engine=engine, result_state=result_state
-            )
+            self.spec.graph = RootFlowState(start_at=start_at, engine=engine)
         else:
             raise ValueError(f"unsupported topology {topology}, use 'router' or 'flow'")
         return self.spec.graph
@@ -254,42 +251,45 @@ class ServingRuntime(RemoteRuntime):
         if not graph:
             self.set_topology()
 
-        if graph.kind == StateKinds.router:
-            return graph.add_model(
-                key,
-                model_path,
-                class_name,
-                model_url=model_url,
-                handler=handler,
-                **class_args,
-            )
-        else:
+        if graph.kind != StateKinds.router:
             raise ValueError("models can only be added under router state")
+
+        return graph.add_model(
+            key,
+            model_path,
+            class_name,
+            model_url=model_url,
+            handler=handler,
+            **class_args,
+        )
 
     def add_child_function(
         self, name, url=None, image=None, requirements=None, kind=None
     ):
         """in a multi-function pipeline add child function"""
-        function_ref = FunctionReference(
+        function_reference = FunctionReference(
             url, image, requirements=requirements, kind=kind or "serving"
         )
-        self._spec.function_refs.update(function_ref, name)
-        func = function_ref.to_function(self.kind)
-        func.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
+        self._spec.function_refs.update(function_reference, name)
+        func = function_reference.to_function(self.kind)
+        func.set_env("SERVING_CURRENT_FUNCTION", function_reference.name)
         return func
 
     def _add_ref_triggers(self):
+        """add stream trigger to downstream child functions"""
         for function, stream in self.spec.graph.get_queue_links().items():
             if stream.path:
                 if function not in self._spec.function_refs.keys():
                     raise ValueError(f"function reference {function} not present")
-                child_function = self._spec.function_refs[function]
                 group = stream.options.get("group", "serving")
-                add_stream_trigger(
-                    child_function, stream.path, group=group, shards=stream.shards or 1
+
+                child_function = self._spec.function_refs[function]
+                child_function.function_object().add_stream_trigger(
+                    stream.path, group=group, shards=stream.shards
                 )
 
     def _deploy_function_refs(self):
+        """set metadata and deploy child functions"""
         for function in self._spec.function_refs.values():
             logger.info(f"deploy child function {function.name} ...")
             function_object = function.function_object
@@ -297,6 +297,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.project = self.metadata.project
             function_object.metadata.tag = self.metadata.tag
             function_object.spec.graph = self.spec.graph
+            # todo: may want to copy parent volumes to child functions
             function_object.apply(mlrun.v3io_cred())
             function.db_uri = function_object._function_uri()
             function_object.verbose = self.verbose
@@ -347,12 +348,13 @@ class ServingRuntime(RemoteRuntime):
         return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
 
     def to_mock_server(
-        self, namespace=None, log_level="debug", current_function=None
+        self, namespace=None, log_level="debug", current_function=None, **kwargs
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
         :param namespace: classes search namespace, use globals() for current notebook
         :param log_level: log level (error | info | debug)
+        :param current_function: specify if you want to simulate a child function
         """
         return create_graph_server(
             parameters=self.spec.parameters,
@@ -362,23 +364,5 @@ class ServingRuntime(RemoteRuntime):
             logger=logger,
             level=log_level,
             current_function=current_function,
+            **kwargs,
         )
-
-
-def add_stream_trigger(
-    function, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
-):
-    container, path = split_path(stream_path)
-    function_object = function.function_object()
-    function_object.add_trigger(
-        name,
-        V3IOStreamTrigger(
-            name=name,
-            container=container,
-            path=path[1:],
-            consumerGroup=group,
-            seekTo=seek_to,
-        ),
-    )
-    function_object.spec.min_replicas = shards
-    function_object.spec.max_replicas = shards

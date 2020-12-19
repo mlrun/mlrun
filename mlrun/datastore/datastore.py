@@ -145,7 +145,7 @@ class StoreManager:
             meta = db.read_artifact(key, tag=tag, iter=iteration, project=project)
             if meta.get("kind", "") == "link":
                 # todo: support other link types (not just iter, move this to the db/api layer
-                meta = self._get_db().read_artifact(
+                meta = db.read_artifact(
                     parsed_url.path[1:],
                     tag=tag,
                     iter=meta.get("link_iteration", 0),

@@ -23,7 +23,7 @@ import nuclio
 
 from ..model import ObjectList
 from .function import RemoteRuntime, NuclioSpec
-from .funcref import FunctionRef
+from .function_reference import FunctionReference
 from ..utils import logger, get_caller_globals
 from ..serving.server import create_graph_server, GraphServer
 from ..serving.states import (
@@ -150,12 +150,12 @@ class ServingSpec(NuclioSpec):
         graph_root_setter(self, graph)
 
     @property
-    def function_refs(self) -> List[FunctionRef]:
+    def function_refs(self) -> List[FunctionReference]:
         return self._function_refs
 
     @function_refs.setter
-    def function_refs(self, function_refs: List[FunctionRef]):
-        self._function_refs = ObjectList.from_list(FunctionRef, function_refs)
+    def function_refs(self, function_refs: List[FunctionReference]):
+        self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 
 class ServingRuntime(RemoteRuntime):
@@ -270,7 +270,7 @@ class ServingRuntime(RemoteRuntime):
         self, name, url=None, image=None, requirements=None, kind=None
     ):
         """in a multi-function pipeline add child function"""
-        function_ref = FunctionRef(
+        function_ref = FunctionReference(
             url, image, requirements=requirements, kind=kind or "serving"
         )
         self._spec.function_refs.update(function_ref, name)

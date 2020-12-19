@@ -20,6 +20,10 @@ import uuid
 from copy import deepcopy
 from typing import Union
 
+from mlrun.datastore import store_manager
+
+from mlrun.artifacts import dict_to_artifact
+
 from mlrun import get_run_db
 
 from mlrun.secrets import SecretsStore
@@ -137,6 +141,7 @@ class GraphServer(ModelObj):
         setattr(context, "current_function", self._current_function)
         setattr(context, "get_param", get_param)
         setattr(context, "get_secret", get_secret)
+        setattr(context, "_resource_cache", resource_cache)
         setattr(context, "get_data_resource", data_resource_getter(self._get_db(), resource_cache, self._secrets))
         setattr(context, "push_error", push_error)
         setattr(context, "verbose", self.verbose)
@@ -363,7 +368,9 @@ def data_resource_getter(db, resource_cache, secrets=None):
     return _get_data_resource
 
 
-def get_data_resource(kind, uri, db, secrets=None):
+def get_data_resource(kind, uri, db=None, secrets=None):
+    db = db or get_run_db().connect(secrets)
+
     if kind == DataClass.FeatureSet:
         project, name, tag, uid = parse_function_uri(uri, config.default_project)
         obj = db.get_feature_set(name, project, tag, uid)
@@ -376,10 +383,13 @@ def get_data_resource(kind, uri, db, secrets=None):
 
     elif DataClass.is_artifact(kind):
         project, name, tag, uid = parse_function_uri(uri, config.default_project)
-        # todo: convert artifact dict to object
-        return db.read_artifact(name, project=project, tag=tag or uid)
+        resp = db.read_artifact(name, project=project, tag=tag or uid)
+        if resp:
+            return dict_to_artifact(resp)
 
-    # todo: elif get data items
+    elif DataClass.Object:
+        stores = store_manager.set(secrets, db=db)
+        return stores.object(url=uri)
     else:
-        raise NotImplementedError()
+        raise ValueError(f'illegal kind {kind}')
 

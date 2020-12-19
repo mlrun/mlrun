@@ -84,6 +84,6 @@ jobs:
       run: |
         MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registry }} \
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-        MLRUN_VERSION=unstable-cache \
-        MLRUN_DOCKER_CACHE_FROM_TAG=unstable-cache \
+        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         make push-${{ matrix.image-name }}

@@ -67,10 +67,13 @@ def test_get_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, labels=project_labels),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -78,6 +81,14 @@ def test_get_project(
     project_output = db.get_project(db_session, project_name)
     assert project_output.metadata.name == project_name
     assert project_output.spec.description == project_description
+    assert (
+            deepdiff.DeepDiff(
+                project_labels,
+                project_output.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
+    )
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -114,14 +125,14 @@ def test_list_project(
     expected_projects = [
         {"name": "project-name-1"},
         {"name": "project-name-2", "description": "project-description-2"},
-        {"name": "project-name-3"},
-        {"name": "project-name-4", "description": "project-description-4"},
+        {"name": "project-name-3", "labels": {"key": "value"}},
+        {"name": "project-name-4", "description": "project-description-4", "labels": {"key2": "value2"}},
     ]
     for project in expected_projects:
         db.create_project(
             db_session,
             mlrun.api.schemas.Project(
-                metadata=mlrun.api.schemas.ProjectMetadata(name=project["name"]),
+                metadata=mlrun.api.schemas.ProjectMetadata(name=project["name"], labels=project.get('labels')),
                 spec=mlrun.api.schemas.ProjectSpec(
                     description=project.get("description")
                 ),
@@ -131,6 +142,14 @@ def test_list_project(
     for index, project in enumerate(projects_output.projects):
         assert project.metadata.name == expected_projects[index]["name"]
         assert project.spec.description == expected_projects[index].get("description")
+        assert (
+                deepdiff.DeepDiff(
+                    expected_projects[index].get("labels"),
+                    project.metadata.labels,
+                    ignore_order=True,
+                )
+                == {}
+        )
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -142,13 +161,16 @@ def test_create_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
     project_created = datetime.datetime.utcnow()
 
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created
+                name=project_name, created=project_created, labels=project_labels,
             ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
@@ -159,6 +181,14 @@ def test_create_project(
     assert project_output.spec.description == project_description
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project_created
+    assert (
+            deepdiff.DeepDiff(
+                project_labels,
+                project_output.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
+    )
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -171,12 +201,15 @@ def test_store_project_creation(
     project_name = "project-name"
     project_description = "some description"
     project_created = datetime.datetime.utcnow()
+    project_labels = {
+        "some-label": "some-label-value",
+    }
     db.store_project(
         db_session,
         project_name,
         mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created
+                name=project_name, created=project_created, labels=project_labels,
             ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
@@ -186,6 +219,14 @@ def test_store_project_creation(
     assert project_output.spec.description == project_description
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project_created
+    assert (
+            deepdiff.DeepDiff(
+                project_labels,
+                project_output.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
+    )
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -197,12 +238,15 @@ def test_store_project_update(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
     project_created = datetime.datetime.utcnow()
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created
+                name=project_name, created=project_created, labels=project_labels,
             ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
@@ -218,6 +262,7 @@ def test_store_project_update(
     project_output = db.get_project(db_session, project_name)
     assert project_output.metadata.name == project_name
     assert project_output.spec.description is None
+    assert project_output.metadata.labels is None
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project_created
 
@@ -240,20 +285,31 @@ def test_patch_project(
         ),
     )
 
-    updated_project_description = "some description 2"
+    patched_project_description = "some description 2"
+    patched_project_labels = {
+        "some-label": "some-label-value",
+    }
     db.patch_project(
         db_session,
         project_name,
         {
-            "metadata": {"created": project_created},
-            "spec": {"description": updated_project_description},
+            "metadata": {"created": project_created, "labels": patched_project_labels},
+            "spec": {"description": patched_project_description},
         },
     )
     project_output = db.get_project(db_session, project_name)
     assert project_output.metadata.name == project_name
-    assert project_output.spec.description == updated_project_description
+    assert project_output.spec.description == patched_project_description
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project_created
+    assert (
+            deepdiff.DeepDiff(
+                patched_project_labels,
+                project_output.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
+    )
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -361,6 +417,13 @@ def _assert_resources_in_project(
                         .filter(FeatureVector.project == project)
                         .count()
                     )
+                if cls.__tablename__ == "projects_labels":
+                    number_of_cls_records = (
+                        db_session.query(Project)
+                        .join(cls)
+                        .filter(Project.name == project)
+                        .count()
+                    )
             else:
                 number_of_cls_records = (
                     db_session.query(Project).filter(Project.name == project).count()
@@ -380,6 +443,13 @@ def _assert_resources_in_project(
 def _create_resources_of_all_kinds(
     db: DBInterface, db_session: sqlalchemy.orm.Session, project: str
 ):
+    # add labels to project
+    project_schema = schemas.Project(
+        metadata=schemas.ProjectMetadata(name=project, labels={'key': 'value'}),
+        spec=schemas.ProjectSpec(description='some desc')
+    )
+    db.store_project(db_session, project, project_schema)
+
     # Create several functions with several tags
     labels = {
         "name": "value",

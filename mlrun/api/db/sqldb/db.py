@@ -654,13 +654,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record = Project(
             name=project.metadata.name,
-            labels=project.metadata.labels or {},
             description=project.spec.description,
             source=project.spec.source,
             state=project.status.state,
             created=created,
             full_object=project.dict(),
         )
+        labels = project.metadata.labels or {}
+        update_labels(project_record, labels)
         self._upsert(session, project_record)
 
     def store_project(self, session: Session, name: str, project: schemas.Project):
@@ -742,10 +743,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project_dict = project.dict()
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record.full_object = project_dict
-        project_record.labels = project.metadata.labels or {}
         project_record.description = project.spec.description
         project_record.source = project.spec.source
         project_record.state = project.status.state
+        labels = project.metadata.labels or {}
+        update_labels(project_record, labels)
         self._upsert(session, project_record)
 
     def _patch_project_record_from_project(

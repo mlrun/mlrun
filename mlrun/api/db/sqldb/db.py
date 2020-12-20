@@ -1615,7 +1615,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 if (
                     not run_json
                     or not isinstance(run_json, dict)
-                    or name not in run_json.get("metadata", {}).get("name")
+                    or name not in run_json.get("metadata", {}).get("name", "")
                 ):
                     continue
             if state:

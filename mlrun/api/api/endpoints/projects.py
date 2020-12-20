@@ -61,7 +61,7 @@ def list_projects(
     format_: schemas.Format = Query(schemas.Format.full, alias="format"),
     owner: str = None,
     labels: typing.List[str] = Query(None, alias="label"),
-    state: str = None,
+    state: schemas.ProjectState = None,
     db_session: Session = Depends(deps.get_db_session),
 ):
     return get_project_member().list_projects(db_session, owner, format_, labels, state)

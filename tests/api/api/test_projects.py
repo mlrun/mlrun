@@ -88,6 +88,17 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     expected = [name2]
     assert expected == response.json()["projects"]
 
+    # list - names only - filter by state
+    response = client.get(
+        "/api/projects",
+        params={
+            "format": mlrun.api.schemas.Format.name_only,
+            "state": mlrun.api.schemas.ProjectState.archived,
+        },
+    )
+    expected = [name1]
+    assert expected == response.json()["projects"]
+
     # list - full
     response = client.get(
         "/api/projects", params={"format": mlrun.api.schemas.Format.full}

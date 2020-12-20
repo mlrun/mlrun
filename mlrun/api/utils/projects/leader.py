@@ -99,7 +99,7 @@ class Member(
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        return self._leader_follower.list_projects(session, owner, format_, labels)
+        return self._leader_follower.list_projects(session, owner, format_, labels, state)
 
     def _start_periodic_sync(self):
         # if no followers no need for sync

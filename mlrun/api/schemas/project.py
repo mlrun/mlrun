@@ -1,4 +1,5 @@
 import datetime
+import enum
 import typing
 
 import pydantic
@@ -18,6 +19,15 @@ class ProjectMetadata(pydantic.BaseModel):
         extra = pydantic.Extra.allow
 
 
+class ProjectState(str, enum.Enum):
+    online = "online"
+    archived = "archived"
+
+
+class ProjectStatus(ObjectStatus):
+    state: typing.Optional[ProjectState]
+
+
 class ProjectSpec(pydantic.BaseModel):
     description: typing.Optional[str] = None
     goals: typing.Optional[str] = None
@@ -30,6 +40,7 @@ class ProjectSpec(pydantic.BaseModel):
     source: typing.Optional[str] = None
     subpath: typing.Optional[str] = None
     origin_url: typing.Optional[str] = None
+    desired_state: typing.Optional[ProjectState] = ProjectState.online
 
     class Config:
         extra = pydantic.Extra.allow

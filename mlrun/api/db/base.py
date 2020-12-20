@@ -187,6 +187,7 @@ class DBInterface(ABC):
         owner: str = None,
         format_: schemas.Format = schemas.Format.full,
         labels: List[str] = None,
+        state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
         pass
 

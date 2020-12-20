@@ -140,9 +140,10 @@ class FileDB(DBInterface):
         owner: str = None,
         format_: schemas.Format = schemas.Format.full,
         labels: List[str] = None,
+        state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
         return self._transform_run_db_error(
-            self.db.list_projects, owner, format_, labels
+            self.db.list_projects, owner, format_, labels, state
         )
 
     def store_project(self, session, name: str, project: schemas.Project):

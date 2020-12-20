@@ -718,8 +718,9 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
-        query = self._query(session, Project, owner=owner)
+        query = self._query(session, Project, owner=owner, state=state)
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
         projects = []

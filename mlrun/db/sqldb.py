@@ -218,6 +218,7 @@ class SQLDB(RunDBInterface):
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         raise NotImplementedError()
 

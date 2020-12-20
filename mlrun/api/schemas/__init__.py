@@ -34,6 +34,8 @@ from .project import (
     ProjectMetadata,
     ProjectSpec,
     ProjectsOutput,
+    ProjectStatus,
+    ProjectState,
 )
 from .schedule import (
     SchedulesOutput,

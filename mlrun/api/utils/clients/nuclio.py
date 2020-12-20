@@ -70,7 +70,7 @@ class Client(
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         logger.debug("Deleting project in Nuclio", name=name)
-        body = self._generate_request_body(name)
+        body = self._generate_request_body(mlrun.api.schemas.Project(metadata=mlrun.api.schemas.ProjectMetadata(name=name)))
         self._send_request_to_api("DELETE", "projects", json=body)
 
     def get_project(
@@ -146,8 +146,10 @@ class Client(
     @staticmethod
     def _generate_request_body(project: mlrun.api.schemas.Project):
         body = {
-            "metadata": {"name": project.metadata.name, "labels": project.metadata.labels},
+            "metadata": {"name": project.metadata.name},
         }
+        if project.metadata.labels:
+            body["metadata"]["labels"] = project.metadata.labels
         if project.spec.description:
             body["spec"] = {"description": project.spec.description}
         return body

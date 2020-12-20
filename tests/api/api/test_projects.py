@@ -12,7 +12,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
-        spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source"),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source", goals="some goals"),
     )
 
     # create
@@ -39,7 +39,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     labels_2 = {"key": "value"}
     project_2 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name2, labels=labels_2),
-        spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source"),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana2", source="source2"),
     )
 
     # store

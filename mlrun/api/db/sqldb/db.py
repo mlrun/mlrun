@@ -660,6 +660,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             created=created,
             full_object=project.dict(),
         )
+        labels = project.metadata.labels or {}
+        update_labels(project_record, labels)
         self._upsert(session, project_record)
 
     def store_project(self, session: Session, name: str, project: schemas.Project):
@@ -715,10 +717,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         session: Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: List[str] = None,
     ) -> schemas.ProjectsOutput:
-        project_records = self._query(session, Project, owner=owner)
+        query = self._query(session, Project, owner=owner)
+        if labels:
+            query = self._add_labels_filter(session, query, Project, labels)
         projects = []
-        for project_record in project_records:
+        for project_record in query:
             if format_ == mlrun.api.schemas.Format.name_only:
                 projects.append(project_record.name)
             elif format_ == mlrun.api.schemas.Format.full:
@@ -741,6 +746,8 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project_record.description = project.spec.description
         project_record.source = project.spec.source
         project_record.state = project.status.state
+        labels = project.metadata.labels or {}
+        update_labels(project_record, labels)
         self._upsert(session, project_record)
 
     def _patch_project_record_from_project(

@@ -204,9 +204,10 @@ def _project_instance_from_struct(struct, name):
 
 
 class ProjectMetadata(ModelObj):
-    def __init__(self, name=None, created=None):
+    def __init__(self, name=None, created=None, labels=None):
         self.name = name
         self.created = created
+        self.labels = labels or {}
 
 
 class ProjectSpec(ModelObj):

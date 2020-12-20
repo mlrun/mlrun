@@ -1,4 +1,5 @@
 import abc
+import typing
 
 import sqlalchemy.orm
 
@@ -47,5 +48,6 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: typing.List[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         pass

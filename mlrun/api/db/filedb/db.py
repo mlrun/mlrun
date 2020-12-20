@@ -135,9 +135,15 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
     def list_projects(
-        self, session, owner: str = None, format_: schemas.Format = schemas.Format.full,
+        self,
+        session,
+        owner: str = None,
+        format_: schemas.Format = schemas.Format.full,
+        labels: List[str] = None,
     ) -> schemas.ProjectsOutput:
-        return self._transform_run_db_error(self.db.list_projects, owner, format_)
+        return self._transform_run_db_error(
+            self.db.list_projects, owner, format_, labels
+        )
 
     def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()

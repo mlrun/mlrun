@@ -31,20 +31,28 @@ def test_get_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
     response_body = _generate_project_body(
-        project_name, project_description, with_spec=True
+        project_name, project_description, project_labels, with_spec=True,
     )
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
     project = nuclio_client.get_project(None, project_name)
     assert project.metadata.name == project_name
     assert project.spec.description == project_description
+    assert (
+        deepdiff.DeepDiff(project_labels, project.metadata.labels, ignore_order=True,)
+        == {}
+    )
 
-    # now without description
+    # now without description and labels
     response_body = _generate_project_body(project_name, with_spec=True)
     requests_mock.get(f"{api_url}/api/projects/{project_name}", json=response_body)
     project = nuclio_client.get_project(None, project_name)
     assert project.metadata.name == project_name
     assert project.spec.description is None
+    assert project.metadata.labels is None
 
 
 def test_list_project(
@@ -55,12 +63,19 @@ def test_list_project(
     mock_projects = [
         {"name": "project-name-1"},
         {"name": "project-name-2", "description": "project-description-2"},
-        {"name": "project-name-3"},
-        {"name": "project-name-4", "description": "project-description-4"},
+        {"name": "project-name-3", "labels": {"key": "value"}},
+        {
+            "name": "project-name-4",
+            "description": "project-description-4",
+            "labels": {"key2": "value2"},
+        },
     ]
     response_body = {
         mock_project["name"]: _generate_project_body(
-            mock_project["name"], mock_project.get("description"), with_spec=True
+            mock_project["name"],
+            mock_project.get("description"),
+            mock_project.get("labels"),
+            with_spec=True,
         )
         for mock_project in mock_projects
     }
@@ -69,6 +84,14 @@ def test_list_project(
     for index, project in enumerate(projects.projects):
         assert project.metadata.name == mock_projects[index]["name"]
         assert project.spec.description == mock_projects[index].get("description")
+        assert (
+            deepdiff.DeepDiff(
+                mock_projects[index].get("labels"),
+                project.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
+        )
 
 
 def test_create_project(
@@ -78,12 +101,18 @@ def test_create_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
 
     def verify_creation(request, context):
         assert (
             deepdiff.DeepDiff(
                 _generate_project_body(
-                    project_name, project_description, with_namespace=False
+                    project_name,
+                    project_description,
+                    project_labels,
+                    with_namespace=False,
                 ),
                 request.json(),
                 ignore_order=True,
@@ -96,7 +125,9 @@ def test_create_project(
     nuclio_client.create_project(
         None,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -109,12 +140,18 @@ def test_store_project_creation(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
 
     def verify_store_creation(request, context):
         assert (
             deepdiff.DeepDiff(
                 _generate_project_body(
-                    project_name, project_description, with_namespace=False
+                    project_name,
+                    project_description,
+                    project_labels,
+                    with_namespace=False,
                 ),
                 request.json(),
                 ignore_order=True,
@@ -133,7 +170,9 @@ def test_store_project_creation(
         None,
         project_name,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -146,6 +185,9 @@ def test_store_project_update(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
     mocked_project_body = _generate_project_body(
         project_name, labels={"label-key": "label-value"}, with_spec=True
     )
@@ -154,7 +196,10 @@ def test_store_project_update(
         assert (
             deepdiff.DeepDiff(
                 _generate_project_body(
-                    project_name, project_description, with_namespace=False
+                    project_name,
+                    project_description,
+                    project_labels,
+                    with_namespace=False,
                 ),
                 request.json(),
                 ignore_order=True,
@@ -172,7 +217,9 @@ def test_store_project_update(
         None,
         project_name,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -185,14 +232,18 @@ def test_patch_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
     mocked_project_body = _generate_project_body(
         project_name, labels={"label-key": "label-value"}, with_spec=True
     )
 
     def verify_patch(request, context):
-        # verifying the patch kept the labels and only patched the description
+        # verifying the patch kept the old labels, patched the description, and added the new label
         expected_body = mocked_project_body
         expected_body["spec"]["description"] = project_description
+        expected_body["metadata"]["labels"].update(project_labels)
         assert (
             deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
         )
@@ -203,7 +254,12 @@ def test_patch_project(
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
-        None, project_name, {"spec": {"description": project_description}},
+        None,
+        project_name,
+        {
+            "metadata": {"labels": project_labels},
+            "spec": {"description": project_description},
+        },
     )
 
 

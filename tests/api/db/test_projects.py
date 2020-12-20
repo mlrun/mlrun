@@ -1,5 +1,6 @@
 import datetime
 import typing
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -134,6 +135,10 @@ def test_data_migration_fill_project_state(
     for project in projects.projects:
         assert project.spec.desired_state == mlrun.api.schemas.ProjectState.online
         assert project.status.state == project.spec.desired_state
+    # verify not storing for no reason
+    db.store_project = unittest.mock.Mock()
+    mlrun.api.initial_data._fill_project_state(db, db_session)
+    db.store_project.call_count == 0
 
 
 def _generate_and_insert_pre_060_record(

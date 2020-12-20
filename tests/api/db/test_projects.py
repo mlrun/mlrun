@@ -73,7 +73,9 @@ def test_get_project(
     db.create_project(
         db_session,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, labels=project_labels),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -82,12 +84,10 @@ def test_get_project(
     assert project_output.metadata.name == project_name
     assert project_output.spec.description == project_description
     assert (
-            deepdiff.DeepDiff(
-                project_labels,
-                project_output.metadata.labels,
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            project_labels, project_output.metadata.labels, ignore_order=True,
+        )
+        == {}
     )
 
 
@@ -126,13 +126,19 @@ def test_list_project(
         {"name": "project-name-1"},
         {"name": "project-name-2", "description": "project-description-2"},
         {"name": "project-name-3", "labels": {"key": "value"}},
-        {"name": "project-name-4", "description": "project-description-4", "labels": {"key2": "value2"}},
+        {
+            "name": "project-name-4",
+            "description": "project-description-4",
+            "labels": {"key2": "value2"},
+        },
     ]
     for project in expected_projects:
         db.create_project(
             db_session,
             mlrun.api.schemas.Project(
-                metadata=mlrun.api.schemas.ProjectMetadata(name=project["name"], labels=project.get('labels')),
+                metadata=mlrun.api.schemas.ProjectMetadata(
+                    name=project["name"], labels=project.get("labels")
+                ),
                 spec=mlrun.api.schemas.ProjectSpec(
                     description=project.get("description")
                 ),
@@ -143,12 +149,12 @@ def test_list_project(
         assert project.metadata.name == expected_projects[index]["name"]
         assert project.spec.description == expected_projects[index].get("description")
         assert (
-                deepdiff.DeepDiff(
-                    expected_projects[index].get("labels"),
-                    project.metadata.labels,
-                    ignore_order=True,
-                )
-                == {}
+            deepdiff.DeepDiff(
+                expected_projects[index].get("labels"),
+                project.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
         )
 
 
@@ -182,12 +188,10 @@ def test_create_project(
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project_created
     assert (
-            deepdiff.DeepDiff(
-                project_labels,
-                project_output.metadata.labels,
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            project_labels, project_output.metadata.labels, ignore_order=True,
+        )
+        == {}
     )
 
 
@@ -220,12 +224,10 @@ def test_store_project_creation(
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project_created
     assert (
-            deepdiff.DeepDiff(
-                project_labels,
-                project_output.metadata.labels,
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            project_labels, project_output.metadata.labels, ignore_order=True,
+        )
+        == {}
     )
 
 
@@ -303,12 +305,10 @@ def test_patch_project(
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project_created
     assert (
-            deepdiff.DeepDiff(
-                patched_project_labels,
-                project_output.metadata.labels,
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            patched_project_labels, project_output.metadata.labels, ignore_order=True,
+        )
+        == {}
     )
 
 
@@ -445,8 +445,8 @@ def _create_resources_of_all_kinds(
 ):
     # add labels to project
     project_schema = schemas.Project(
-        metadata=schemas.ProjectMetadata(name=project, labels={'key': 'value'}),
-        spec=schemas.ProjectSpec(description='some desc')
+        metadata=schemas.ProjectMetadata(name=project, labels={"key": "value"}),
+        spec=schemas.ProjectSpec(description="some desc"),
     )
     db.store_project(db_session, project, project_schema)
 

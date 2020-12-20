@@ -140,7 +140,10 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_projects(
-        self, owner: str = None, format_: schemas.Format = schemas.Format.full, labels: List[str] = None,
+        self,
+        owner: str = None,
+        format_: schemas.Format = schemas.Format.full,
+        labels: List[str] = None,
     ) -> schemas.ProjectsOutput:
         pass
 

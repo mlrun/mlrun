@@ -42,12 +42,8 @@ def test_get_project(
     assert project.metadata.name == project_name
     assert project.spec.description == project_description
     assert (
-            deepdiff.DeepDiff(
-                project_labels,
-                project.metadata.labels,
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(project_labels, project.metadata.labels, ignore_order=True,)
+        == {}
     )
 
     # now without description and labels
@@ -68,11 +64,18 @@ def test_list_project(
         {"name": "project-name-1"},
         {"name": "project-name-2", "description": "project-description-2"},
         {"name": "project-name-3", "labels": {"key": "value"}},
-        {"name": "project-name-4", "description": "project-description-4", "labels": {"key2": "value2"}},
+        {
+            "name": "project-name-4",
+            "description": "project-description-4",
+            "labels": {"key2": "value2"},
+        },
     ]
     response_body = {
         mock_project["name"]: _generate_project_body(
-            mock_project["name"], mock_project.get("description"), mock_project.get("labels"), with_spec=True
+            mock_project["name"],
+            mock_project.get("description"),
+            mock_project.get("labels"),
+            with_spec=True,
         )
         for mock_project in mock_projects
     }
@@ -82,12 +85,12 @@ def test_list_project(
         assert project.metadata.name == mock_projects[index]["name"]
         assert project.spec.description == mock_projects[index].get("description")
         assert (
-                deepdiff.DeepDiff(
-                    mock_projects[index].get("labels"),
-                    project.metadata.labels,
-                    ignore_order=True,
-                )
-                == {}
+            deepdiff.DeepDiff(
+                mock_projects[index].get("labels"),
+                project.metadata.labels,
+                ignore_order=True,
+            )
+            == {}
         )
 
 
@@ -106,7 +109,10 @@ def test_create_project(
         assert (
             deepdiff.DeepDiff(
                 _generate_project_body(
-                    project_name, project_description, project_labels, with_namespace=False
+                    project_name,
+                    project_description,
+                    project_labels,
+                    with_namespace=False,
                 ),
                 request.json(),
                 ignore_order=True,
@@ -119,7 +125,9 @@ def test_create_project(
     nuclio_client.create_project(
         None,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, labels=project_labels),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -140,7 +148,10 @@ def test_store_project_creation(
         assert (
             deepdiff.DeepDiff(
                 _generate_project_body(
-                    project_name, project_description, project_labels, with_namespace=False
+                    project_name,
+                    project_description,
+                    project_labels,
+                    with_namespace=False,
                 ),
                 request.json(),
                 ignore_order=True,
@@ -159,7 +170,9 @@ def test_store_project_creation(
         None,
         project_name,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, labels=project_labels),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -183,7 +196,10 @@ def test_store_project_update(
         assert (
             deepdiff.DeepDiff(
                 _generate_project_body(
-                    project_name, project_description, project_labels, with_namespace=False
+                    project_name,
+                    project_description,
+                    project_labels,
+                    with_namespace=False,
                 ),
                 request.json(),
                 ignore_order=True,
@@ -201,7 +217,9 @@ def test_store_project_update(
         None,
         project_name,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name, labels=project_labels),
+            metadata=mlrun.api.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.api.schemas.ProjectSpec(description=project_description),
         ),
     )
@@ -236,7 +254,12 @@ def test_patch_project(
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
-        None, project_name, {"metadata": {"labels": project_labels}, "spec": {"description": project_description}},
+        None,
+        project_name,
+        {
+            "metadata": {"labels": project_labels},
+            "spec": {"description": project_description},
+        },
     )
 
 

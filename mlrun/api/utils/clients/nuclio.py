@@ -59,9 +59,9 @@ class Client(
         response = self._get_project_from_nuclio(name)
         response_body = response.json()
         if project.get("metadata").get("labels") is not None:
-            response_body.setdefault("metadata", {}).setdefault("labels", {}).update(project["metadata"][
-                "labels"
-            ])
+            response_body.setdefault("metadata", {}).setdefault("labels", {}).update(
+                project["metadata"]["labels"]
+            )
         if project.get("spec").get("description") is not None:
             response_body.setdefault("spec", {})["description"] = project["spec"][
                 "description"
@@ -70,7 +70,11 @@ class Client(
 
     def delete_project(self, session: sqlalchemy.orm.Session, name: str):
         logger.debug("Deleting project in Nuclio", name=name)
-        body = self._generate_request_body(mlrun.api.schemas.Project(metadata=mlrun.api.schemas.ProjectMetadata(name=name)))
+        body = self._generate_request_body(
+            mlrun.api.schemas.Project(
+                metadata=mlrun.api.schemas.ProjectMetadata(name=name)
+            )
+        )
         self._send_request_to_api("DELETE", "projects", json=body)
 
     def get_project(
@@ -159,7 +163,7 @@ class Client(
         return mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
                 name=nuclio_project["metadata"]["name"],
-                labels=nuclio_project["metadata"].get('labels'),
+                labels=nuclio_project["metadata"].get("labels"),
             ),
             spec=mlrun.api.schemas.ProjectSpec(
                 description=nuclio_project["spec"].get("description")

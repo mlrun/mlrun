@@ -36,9 +36,7 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     )
 
     name2 = f"prj-{uuid4().hex}"
-    labels_2 = {
-        'key': 'value'
-    }
+    labels_2 = {"key": "value"}
     project_2 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name2, labels=labels_2),
         spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source"),
@@ -58,14 +56,22 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
 
     # list - names only - filter by label existence
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.name_only, "label": list(labels_2.keys())[0]}
+        "/api/projects",
+        params={
+            "format": mlrun.api.schemas.Format.name_only,
+            "label": list(labels_2.keys())[0],
+        },
     )
     expected = [name2]
     assert expected == response.json()["projects"]
 
     # list - names only - filter by label match
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.name_only, "label": f"{list(labels_2.keys())[0]}={list(labels_2.values())[0]}"}
+        "/api/projects",
+        params={
+            "format": mlrun.api.schemas.Format.name_only,
+            "label": f"{list(labels_2.keys())[0]}={list(labels_2.values())[0]}",
+        },
     )
     expected = [name2]
     assert expected == response.json()["projects"]

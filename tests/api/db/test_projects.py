@@ -136,10 +136,13 @@ def test_data_migration_fill_project_state(
         assert project.status.state == project.spec.desired_state
 
 
-def _generate_and_insert_pre_060_record(db_session:sqlalchemy.orm.Session, project_name: str):
+def _generate_and_insert_pre_060_record(
+    db_session: sqlalchemy.orm.Session, project_name: str
+):
     pre_060_record = Project(name=project_name)
     db_session.add(pre_060_record)
     db_session.commit()
+
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(

@@ -35,7 +35,9 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     _fill_project_state(db, db_session)
 
 
-def _fill_project_state(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def _fill_project_state(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     projects = db.list_projects(db_session)
     for project in projects.projects:
         logger.debug("Found project without state data. Enriching")

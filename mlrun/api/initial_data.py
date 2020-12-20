@@ -49,7 +49,10 @@ def _fill_project_state(
             changed = True
             project.status.state = project.spec.desired_state
         if changed:
-            logger.debug("Found project without state data. Enriching")
+            logger.debug(
+                "Found project without state data. Enriching",
+                name=project.metadata.name,
+            )
             db.store_project(db_session, project.metadata.name, project)
 
 

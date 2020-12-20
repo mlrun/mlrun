@@ -654,6 +654,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record = Project(
             name=project.metadata.name,
+            labels=project.metadata.labels or {},
             description=project.spec.description,
             source=project.spec.source,
             state=project.status.state,
@@ -715,10 +716,13 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         session: Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: List[str] = None,
     ) -> schemas.ProjectsOutput:
-        project_records = self._query(session, Project, owner=owner)
+        query = self._query(session, Project, owner=owner)
+        if labels:
+            query = self._add_labels_filter(session, query, Project, labels)
         projects = []
-        for project_record in project_records:
+        for project_record in query:
             if format_ == mlrun.api.schemas.Format.name_only:
                 projects.append(project_record.name)
             elif format_ == mlrun.api.schemas.Format.full:
@@ -738,6 +742,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         project_dict = project.dict()
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record.full_object = project_dict
+        project_record.labels = project.metadata.labels or {}
         project_record.description = project.spec.description
         project_record.source = project.spec.source
         project_record.state = project.status.state

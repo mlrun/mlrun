@@ -12,6 +12,7 @@ from .object import (
 class ProjectMetadata(pydantic.BaseModel):
     name: str
     created: typing.Optional[datetime.datetime] = None
+    labels: typing.Optional[dict]
 
     class Config:
         extra = pydantic.Extra.allow
@@ -38,13 +39,6 @@ class Project(pydantic.BaseModel):
     metadata: ProjectMetadata
     spec: ProjectSpec = ProjectSpec()
     status: ObjectStatus = ObjectStatus()
-
-
-class ProjectRecord(Project):
-    id: int = None
-
-    class Config:
-        orm_mode = True
 
 
 class ProjectsOutput(pydantic.BaseModel):

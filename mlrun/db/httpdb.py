@@ -970,10 +970,12 @@ class HTTPRunDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: List[str] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
         params = {
             "owner": owner,
             "format": format_,
+            "label": labels or [],
         }
 
         error_message = f"Failed listing projects, query: {params}"

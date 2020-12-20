@@ -94,8 +94,9 @@ class Member(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: typing.List[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        return self._leader_follower.list_projects(session, owner, format_)
+        return self._leader_follower.list_projects(session, owner, format_, labels)
 
     def _start_periodic_sync(self):
         # if no followers no need for sync

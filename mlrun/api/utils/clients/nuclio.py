@@ -1,5 +1,6 @@
 import copy
 import http
+import typing
 
 import requests.adapters
 import sqlalchemy.orm
@@ -28,9 +29,7 @@ class Client(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
         logger.debug("Creating project in Nuclio", project=project)
-        body = self._generate_request_body(
-            project.metadata.name, project.spec.description
-        )
+        body = self._generate_request_body(project)
         self._post_project_to_nuclio(body)
 
     def store_project(
@@ -40,7 +39,7 @@ class Client(
         project: mlrun.api.schemas.Project,
     ):
         logger.debug("Storing project in Nuclio", name=name, project=project)
-        body = self._generate_request_body(name, project.spec.description)
+        body = self._generate_request_body(project)
         try:
             self._get_project_from_nuclio(name)
         except requests.HTTPError as exc:
@@ -59,6 +58,10 @@ class Client(
     ):
         response = self._get_project_from_nuclio(name)
         response_body = response.json()
+        if project.get("metadata").get("labels") is not None:
+            response_body.setdefault("metadata", {}).setdefault("labels", {}).update(project["metadata"][
+                "labels"
+            ])
         if project.get("spec").get("description") is not None:
             response_body.setdefault("spec", {})["description"] = project["spec"][
                 "description"
@@ -82,10 +85,15 @@ class Client(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: typing.List[str] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
                 "Listing nuclio projects by owner is currently not supported"
+            )
+        if labels:
+            raise NotImplementedError(
+                "Filtering nuclio projects by labels is currently not supported"
             )
         response = self._send_request_to_api("GET", "projects")
         response_body = response.json()
@@ -136,19 +144,20 @@ class Client(
         return response
 
     @staticmethod
-    def _generate_request_body(name, description=None):
+    def _generate_request_body(project: mlrun.api.schemas.Project):
         body = {
-            "metadata": {"name": name},
+            "metadata": {"name": project.metadata.name, "labels": project.metadata.labels},
         }
-        if description:
-            body["spec"] = {"description": description}
+        if project.spec.description:
+            body["spec"] = {"description": project.spec.description}
         return body
 
     @staticmethod
     def _transform_nuclio_project_to_schema(nuclio_project):
         return mlrun.api.schemas.Project(
             metadata=mlrun.api.schemas.ProjectMetadata(
-                name=nuclio_project["metadata"]["name"]
+                name=nuclio_project["metadata"]["name"],
+                labels=nuclio_project["metadata"].get('labels'),
             ),
             spec=mlrun.api.schemas.ProjectSpec(
                 description=nuclio_project["spec"].get("description")

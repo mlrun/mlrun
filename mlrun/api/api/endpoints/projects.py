@@ -1,3 +1,4 @@
+import typing
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Response, Header, Query
@@ -59,6 +60,7 @@ def delete_project(
 def list_projects(
     format_: schemas.Format = Query(schemas.Format.full, alias="format"),
     owner: str = None,
+    labels: typing.List[str] = Query(None, alias="label"),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return get_project_member().list_projects(db_session, owner, format_)
+    return get_project_member().list_projects(db_session, owner, format_, labels)

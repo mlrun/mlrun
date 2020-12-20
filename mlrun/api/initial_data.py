@@ -32,6 +32,7 @@ def init_data(from_scratch: bool = False) -> None:
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     # FileDB is not really a thing anymore, so using SQLDB directly
     db = mlrun.api.db.sqldb.db.SQLDB("")
+    logger.info("Performing data migrations")
     _fill_project_state(db, db_session)
 
 
@@ -40,12 +41,16 @@ def _fill_project_state(
 ):
     projects = db.list_projects(db_session)
     for project in projects.projects:
-        logger.debug("Found project without state data. Enriching")
+        changed = False
         if not project.spec.desired_state:
+            changed = True
             project.spec.desired_state = mlrun.api.schemas.ProjectState.online
         if not project.status.state:
+            changed = True
             project.status.state = project.spec.desired_state
-        db.store_project(db_session, project.metadata.name, project)
+        if changed:
+            logger.debug("Found project without state data. Enriching")
+            db.store_project(db_session, project.metadata.name, project)
 
 
 def main() -> None:

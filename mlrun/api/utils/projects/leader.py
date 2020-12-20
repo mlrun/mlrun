@@ -195,9 +195,7 @@ class Member(
                 project_follower_name = list(follower_names)[0]
                 project = followers_projects_map[project_follower_name][project_name]
                 self._enrich_and_validate_before_creation(project)
-                self._leader_follower.create_project(
-                    session, project
-                )
+                self._leader_follower.create_project(session, project)
             except Exception as exc:
                 logger.warning(
                     "Failed creating missing project in leader",
@@ -304,8 +302,10 @@ class Member(
 
     @staticmethod
     def _enrich_project_patch(project_patch: dict):
-        if project_patch.get('spec', {}).get('desired_state'):
-            project_patch.setdefault('status', {})['state'] = project_patch['spec']['desired_state']
+        if project_patch.get("spec", {}).get("desired_state"):
+            project_patch.setdefault("status", {})["state"] = project_patch["spec"][
+                "desired_state"
+            ]
 
     @staticmethod
     def _validate_project_name(name: str, raise_on_failure: bool = True) -> bool:

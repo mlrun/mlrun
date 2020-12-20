@@ -223,6 +223,7 @@ class ProjectSpec(ModelObj):
         source=None,
         subpath=None,
         origin_url=None,
+        goals=None,
     ):
         self.repo = None
 
@@ -233,6 +234,7 @@ class ProjectSpec(ModelObj):
         self.source = source or ""
         self.subpath = subpath or ""
         self.origin_url = origin_url or ""
+        self.goals = goals
         self.branch = None
         self.tag = ""
         self.params = params or {}

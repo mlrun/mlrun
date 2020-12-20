@@ -58,7 +58,9 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner or labels or state:
-            raise NotImplementedError("Filtering by owner, labels or state is not supported")
+            raise NotImplementedError(
+                "Filtering by owner, labels or state is not supported"
+            )
         if format_ == mlrun.api.schemas.Format.full:
             return mlrun.api.schemas.ProjectsOutput(
                 projects=list(self._projects.values())

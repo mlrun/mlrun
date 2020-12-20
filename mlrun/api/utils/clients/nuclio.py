@@ -90,6 +90,7 @@ class Client(
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
         labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -98,6 +99,10 @@ class Client(
         if labels:
             raise NotImplementedError(
                 "Filtering nuclio projects by labels is currently not supported"
+            )
+        if state:
+            raise NotImplementedError(
+                "Filtering nuclio projects by state is currently not supported"
             )
         response = self._send_request_to_api("GET", "projects")
         response_body = response.json()

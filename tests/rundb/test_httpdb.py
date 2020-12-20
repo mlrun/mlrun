@@ -166,7 +166,7 @@ def server_fixture():
 
 servers = [
     "server",
-    "docker",
+    # "docker",
 ]
 
 
@@ -529,6 +529,7 @@ def test_project_file_db_roundtrip(create_server):
     project_name = "project-name"
     description = "project description"
     goals = "project goals"
+    desired_state = mlrun.api.schemas.ProjectState.archived
     params = {"param_key": "param value"}
     artifact_path = "/tmp"
     conda = "conda"
@@ -548,6 +549,7 @@ def test_project_file_db_roundtrip(create_server):
         subpath=subpath,
         origin_url=origin_url,
         goals=goals,
+        desired_state=desired_state,
     )
     project = mlrun.projects.project.MlrunProject(
         metadata=project_metadata, spec=project_spec
@@ -587,7 +589,9 @@ def _assert_projects(expected_project, project):
             expected_project.to_dict(),
             project.to_dict(),
             ignore_order=True,
-            exclude_paths={"root['metadata']['created']"},
+            exclude_paths={"root['metadata']['created']", "root['spec']['desired_state']", "root['status']"},
         )
         == {}
     )
+    assert expected_project.spec.desired_state == project.spec.desired_state
+    assert expected_project.spec.desired_state == project.status.state

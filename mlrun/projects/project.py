@@ -48,6 +48,7 @@ from ..utils import (
     RunNotifications,
 )
 from ..runtimes.utils import add_code_metadata
+import mlrun.api.schemas
 
 
 class ProjectError(Exception):
@@ -224,6 +225,7 @@ class ProjectSpec(ModelObj):
         subpath=None,
         origin_url=None,
         goals=None,
+        desired_state=mlrun.api.schemas.ProjectState.online.value,
     ):
         self.repo = None
 
@@ -235,6 +237,7 @@ class ProjectSpec(ModelObj):
         self.subpath = subpath or ""
         self.origin_url = origin_url or ""
         self.goals = goals
+        self.desired_state = desired_state
         self.branch = None
         self.tag = ""
         self.params = params or {}

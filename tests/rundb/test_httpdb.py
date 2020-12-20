@@ -534,7 +534,8 @@ def test_project_file_db_roundtrip(create_server):
     source = "source"
     subpath = "subpath"
     origin_url = "origin_url"
-    project_metadata = mlrun.projects.project.ProjectMetadata(project_name)
+    labels = {"key": "value"}
+    project_metadata = mlrun.projects.project.ProjectMetadata(project_name, labels=labels)
     project_spec = mlrun.projects.project.ProjectSpec(
         description,
         params,

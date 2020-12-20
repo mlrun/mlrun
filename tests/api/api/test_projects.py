@@ -12,7 +12,9 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
-        spec=mlrun.api.schemas.ProjectSpec(description="banana", source="source", goals="some goals"),
+        spec=mlrun.api.schemas.ProjectSpec(
+            description="banana", source="source", goals="some goals"
+        ),
     )
 
     # create

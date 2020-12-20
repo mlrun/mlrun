@@ -547,7 +547,7 @@ def test_project_file_db_roundtrip(create_server):
         source=source,
         subpath=subpath,
         origin_url=origin_url,
-        goals=goals
+        goals=goals,
     )
     project = mlrun.projects.project.MlrunProject(
         metadata=project_metadata, spec=project_spec

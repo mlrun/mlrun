@@ -589,7 +589,11 @@ def _assert_projects(expected_project, project):
             expected_project.to_dict(),
             project.to_dict(),
             ignore_order=True,
-            exclude_paths={"root['metadata']['created']", "root['spec']['desired_state']", "root['status']"},
+            exclude_paths={
+                "root['metadata']['created']",
+                "root['spec']['desired_state']",
+                "root['status']",
+            },
         )
         == {}
     )

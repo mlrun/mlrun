@@ -27,7 +27,12 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     _assert_project_response(project_1, response)
 
     # patch
-    project_patch = {"spec": {"description": "lemon", "desired_state": mlrun.api.schemas.ProjectState.archived}}
+    project_patch = {
+        "spec": {
+            "description": "lemon",
+            "desired_state": mlrun.api.schemas.ProjectState.archived,
+        }
+    }
     response = client.patch(f"/api/projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(
@@ -37,11 +42,10 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
         project_patch["spec"]["description"] == response.json()["spec"]["description"]
     )
     assert (
-            project_patch["spec"]["desired_state"] == response.json()["spec"]["desired_state"]
+        project_patch["spec"]["desired_state"]
+        == response.json()["spec"]["desired_state"]
     )
-    assert (
-            project_patch["spec"]["desired_state"] == response.json()["status"]["state"]
-    )
+    assert project_patch["spec"]["desired_state"] == response.json()["status"]["state"]
 
     name2 = f"prj-{uuid4().hex}"
     labels_2 = {"key": "value"}
@@ -92,7 +96,9 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     expected = [project_1, project_2]
     for index, project in enumerate(projects_output.projects):
         _assert_project(
-            expected[index], project, extra_exclude={"spec": {"description", "desired_state"}}
+            expected[index],
+            project,
+            extra_exclude={"spec": {"description", "desired_state"}},
         )
 
     # delete

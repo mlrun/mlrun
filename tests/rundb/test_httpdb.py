@@ -528,6 +528,7 @@ def test_project_file_db_roundtrip(create_server):
 
     project_name = "project-name"
     description = "project description"
+    goals = "project goals"
     params = {"param_key": "param value"}
     artifact_path = "/tmp"
     conda = "conda"
@@ -546,6 +547,7 @@ def test_project_file_db_roundtrip(create_server):
         source=source,
         subpath=subpath,
         origin_url=origin_url,
+        goals=goals,
     )
     project = mlrun.projects.project.MlrunProject(
         metadata=project_metadata, spec=project_spec

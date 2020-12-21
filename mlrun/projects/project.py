@@ -49,6 +49,7 @@ from ..utils import (
 )
 from ..runtimes.utils import add_code_metadata
 import mlrun.api.schemas
+import mlrun.api.utils.projects.leader
 
 
 class ProjectError(Exception):
@@ -209,6 +210,17 @@ class ProjectMetadata(ModelObj):
         self.name = name
         self.created = created
         self.labels = labels or {}
+
+    @property
+    def name(self) -> str:
+        """Project name"""
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        if name:
+            mlrun.api.utils.projects.leader.Member.validate_project_name(name)
+        self._name = name
 
 
 class ProjectSpec(ModelObj):

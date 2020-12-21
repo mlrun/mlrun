@@ -10,7 +10,7 @@
 *The fastest way to develop and deploy your AI application today.*
 
 
-**MLRun** is the first end-to-end open source MLOps solution to manage and automate your entire analytics and machine learning lifecycle, from data ingestion through model development and full pipeline deployment.
+**MLRun** is the first end-to-end open source MLOps solution to manage and automate your entire analytics and machine learning life cycle, from data ingestion through model development and full pipeline deployment.
 
 Benefits <!-- omit in toc -->
 --------
@@ -27,7 +27,7 @@ Components <!-- omit in toc -->
 
 MLRun includes the following components:
 
-* **Project lifecycle management**: experiment management and tracking of jobs, functions and artifacts.
+* **Project life-cycle management**: experiment management and tracking of jobs, functions and artifacts.
 * **Scalable functions**: turn code to scalable microservices in a single command.
 * **Managed Pipelines**: deploy, run and monitor your machine learning execution plan.
 
@@ -140,7 +140,7 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
   - Serverless model serving with Nuclio &mdash; [**examples/xgb_serving.ipynb**](examples/xgb_serving.ipynb)
   - Dask &mdash; [**examples/mlrun_dask.ipynb**](examples/mlrun_dask.ipynb)
   - Spark &mdash; [**examples/mlrun_sparkk8s.ipynb**](examples/mlrun_sparkk8s.ipynb)
-- MLRun project and Git lifecycle &mdash;
+- MLRun project and Git life cycle &mdash;
   - Load a project from a remote Git location and run pipelines &mdash; [**examples/load-project.ipynb**](examples/load-project.ipynb)
   - Create a new project, functions, and pipelines, and upload to Git &mdash; [**examples/new-project.ipynb**](examples/new-project.ipynb)
 - Import and export functions using different modes &mdash; [**examples/mlrun_export_import.ipynb**](examples/mlrun_export_import.ipynb)

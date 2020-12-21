@@ -5,8 +5,8 @@ Mlrun serving can take MLRun models or standard model files and produce managed 
 
 Simple model serving classes can be written in Python or be taken from a set of pre-developed 
 ML/DL classes, the code can handle complex data, feature preparation, binary data (images/video).
-The serving engine supports the full lifecycle including auto generation of micro-services, APIs, 
-load-balancing, logging, model monitoring, configuration management, etc.  
+The serving engine supports the full life cycle, including auto generation of micro-services, APIs, 
+load-balancing, logging, model monitoring, and configuration management.
 
 The underline Nuclio serverless engine is built on top of a high-performance parallel processing engine 
 which maximize the utilization of CPUs and GPUs, support 13 protocols 

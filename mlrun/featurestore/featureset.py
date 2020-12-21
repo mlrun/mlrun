@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
+
+import mlrun
 import pandas as pd
 from mlrun.utils import get_caller_globals
 
@@ -23,12 +25,15 @@ from .model import (
     Feature,
     store_config,
     DataTargetSpec,
+    ResourceKinds,
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
 from .pipeline import init_featureset_graph
-from .targets import init_target
-from ..model import ModelObj
+from .targets import init_store_driver
+from ..model import ModelObj, ResourceSchema
 from ..serving.states import BaseState
+from ..config import config as mlconf
+
 
 aggregates_step = "Aggregates"
 
@@ -36,8 +41,9 @@ aggregates_step = "Aggregates"
 class FeatureSet(ModelObj):
     """Feature Set"""
 
-    kind = "FeatureSet"
+    kind = ResourceKinds.FeatureSet
     _dict_fields = ["kind", "metadata", "spec", "status"]
+    _schema = ResourceSchema.FeatureSet
 
     def __init__(self, name=None, description=None, entities=None, timestamp_key=None):
         self._spec: FeatureSetSpec = None
@@ -77,7 +83,7 @@ class FeatureSet(ModelObj):
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
     def uri(self):
-        uri = f'{self._metadata.project or ""}/{self._metadata.name}'
+        uri = f'{self._schema}://{self._metadata.project or ""}/{self._metadata.name}'
         if self._metadata.tag:
             uri += ":" + self._metadata.tag
         return uri
@@ -93,7 +99,6 @@ class FeatureSet(ModelObj):
         with_histogram=False,
         with_preview=False,
         namespace=None,
-        client=None,
     ):
         """Infer features schema and stats from a local DataFrame"""
         if timestamp_key is not None:
@@ -106,7 +111,7 @@ class FeatureSet(ModelObj):
                 df, self._spec, entity_columns, with_index, with_features=False
             )
             controller = init_featureset_graph(
-                df, self, namespace, client, with_targets=False, return_df=True
+                df, self, namespace, with_targets=False, return_df=True
             )
             df = controller.await_termination()
             # df = ingest_from_df(context, self, df, namespace=namespace).await_termination()
@@ -129,7 +134,7 @@ class FeatureSet(ModelObj):
         for target in targets:
             if not isinstance(target, DataTargetSpec):
                 target = DataTargetSpec(target, name=str(target))
-            init_target(self, target)
+            init_store_driver(self, target)
             self.spec.targets.update(target)
 
     def add_entity(self, entity, name=None):
@@ -209,3 +214,13 @@ class FeatureSet(ModelObj):
                 BaseState(target.kind, shape="cylinder") for target in self.spec.targets
             ]
         return graph.plot(filename, format, targets=targets, **kw)
+
+    def save(self, tag="", versioned=False):
+        db = mlrun.get_db_connection()
+        self.metadata.project = self.metadata.project or mlconf.default_project
+        tag = tag or self.metadata.tag
+        as_dict = self.to_dict()
+        as_dict["spec"]["features"] = as_dict["spec"].get(
+            "features", []
+        )  # bypass DB bug
+        db.store_feature_set(as_dict, tag=tag, versioned=versioned)

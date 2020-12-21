@@ -17,16 +17,14 @@ import socket
 import sys
 import traceback
 import uuid
-from copy import deepcopy
 from typing import Union
 
-from mlrun.db import get_run_db
+import mlrun
 from mlrun.secrets import SecretsStore
 from mlrun.config import config
 
 from .states import (
     RouterState,
-    TaskState,
     RootFlowState,
     get_function,
     graph_root_setter,
@@ -34,7 +32,7 @@ from .states import (
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from ..utils import create_logger, get_caller_globals
-from mlrun.data_resources import get_data_resource
+from ..data_resources import ResourceCache
 
 
 class _StreamContext:
@@ -49,8 +47,6 @@ class _StreamContext:
             self.output_stream = OutputStream(out_stream)
 
 
-# Model server host currently support a basic topology of single router + multiple
-# routes (models/tasks). it will be enhanced later to support more complex topologies
 class GraphServer(ModelObj):
     kind = "server"
 
@@ -82,6 +78,7 @@ class GraphServer(ModelObj):
         self._error_stream = None
         self._secrets = SecretsStore()
         self._db_conn = None
+        self.resource_cache = None
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -103,47 +100,27 @@ class GraphServer(ModelObj):
             self._error_stream = None
 
     def _get_db(self):
-        if not self._db_conn:
-            self._db_conn = get_run_db().connect(self._secrets)
-        return self._db_conn
+        return mlrun.get_db_connection(secrets=self._secrets)
 
-    def init(self, context, namespace, resource_cache={}):
+    def init(
+        self, context, namespace, resource_cache: ResourceCache = None, logger=None
+    ):
         """for internal use, initialize all states (recursively)"""
-        self.context = context
-        # enrich the context with classes and methods which will be used when
-        # initializing classes or handling the event
 
         if self.error_stream:
             self._error_stream = OutputStream(self.error_stream)
+        self.resource_cache = resource_cache or ResourceCache()
+        context = GraphContext(server=self, nuclio_context=context, logger=logger)
 
-        def push_error(event, message, source=None, **kwargs):
-            if self._error_stream:
-                message = format_error(self, context, source, event, message, kwargs)
-                self._error_stream.push(message)
-
-        def get_param(self, key: str, default=None):
-            if self.parameters:
-                return self.parameters.get(key, default)
-            return default
-
-        def get_secret(self, key: str):
-            if self._secrets:
-                return self._secrets.get(key)
-            return None
-
-        setattr(context, "stream", _StreamContext(self.parameters, self.function_uri))
-        setattr(context, "current_function", self._current_function)
-        setattr(context, "get_param", get_param)
-        setattr(context, "get_secret", get_secret)
-        setattr(context, "_resource_cache", resource_cache)
-        setattr(
-            context,
-            "get_data_resource",
-            data_resource_getter(self._get_db(), resource_cache, self._secrets),
+        context.stream = _StreamContext(self.parameters, self.function_uri)
+        context.current_function = self._current_function
+        context.get_data_resource = self.resource_cache.resource_getter(
+            self._get_db(), self._secrets
         )
-        setattr(context, "push_error", push_error)
-        setattr(context, "verbose", self.verbose)
-        setattr(context, "root", self.graph)
+        context.get_table = self.resource_cache.get_table
+        context.verbose = self.verbose
+        context.root = self.graph
+        self.context = context
 
         if self.graph_initializer:
             handler = get_function(self.graph_initializer, namespace)
@@ -151,32 +128,6 @@ class GraphServer(ModelObj):
 
         self.graph.init_object(context, namespace, self.load_mode)
         return v2_serving_handler
-
-    def add_model(
-        self, name, class_name, model_path, handler=None, namespace=None, **class_args
-    ):
-        """add child model/route to the server, will register, init and connect the child class
-        the local or global (module.submodule.class) class specified by the class_name
-        the context, name, model_path, and **class_args will be used to initialize that class
-
-        every event with "/{router.url_prefix}/{name}/.." or "{name}/.." will be routed to the class.
-
-        keep the handler=None for model server classes, for custom classes you can specify the class handler
-        which will be invoked when traffic arrives to that route (class.{handler}(event))
-
-        :param name:        name (and url prefix) used for the route/model
-        :param class_name:  class object or name (str) or full path (module.submodule.class)
-        :param model_path:  path to mlrun model artifact or model directory file/object path
-        :param handler:     for advanced users!, override default class handler name (do_event)
-        :param namespace:   class search path when using string_name, for local use py globals()
-        :param class_args:  extra kwargs to pass to the model serving class __init__
-                            (can be read in the model using .get_param(key) method)
-        """
-        class_args = deepcopy(class_args)
-        class_args["model_path"] = model_path
-        route = TaskState(class_name, class_args, handler)
-        namespace = namespace or get_caller_globals()
-        self.graph.add_route(name, route).init_object(self.context, namespace)
 
     def test(
         self,
@@ -229,6 +180,7 @@ def v2_serving_init(context, namespace=None):
     serving_handler = server.init(context, namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
+    setattr(context, "root", server.graph)
     context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())
@@ -260,34 +212,25 @@ def v2_serving_handler(context, event, get_body=False):
 
 
 def create_graph_server(
-    context=None,
     parameters={},
     load_mode=None,
     graph=None,
-    namespace=None,
-    logger=None,
-    level="debug",
+    verbose=False,
     current_function=None,
     **kwargs,
 ) -> GraphServer:
     """create serving emulator/tester for locally testing models and servers
 
         Usage:
-                host = create_graph_server()
-                host.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
-                print(host.test("my/infer", testdata))
+                server = create_graph_server()
+                server.init(None, globals())
+                server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
+                print(server.test("my/infer", testdata))
     """
-    if not context:
-        context = GraphContext(level, logger=logger)
-
-    namespace = namespace or get_caller_globals()
-    server = GraphServer(
-        graph, parameters, load_mode, verbose=level == "debug", **kwargs
-    )
+    server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
     server.set_current_function(
         current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")
     )
-    server.init(context, namespace or {})
     return server
 
 
@@ -330,14 +273,43 @@ class Response(object):
 
 
 class GraphContext:
-    """mock basic nuclio context object"""
+    """Graph context object"""
 
-    def __init__(self, level="debug", logger=None):
+    def __init__(self, level="debug", logger=None, server=None, nuclio_context=None):
         self.state = None
-        self.logger = logger or create_logger(level, "human", "flow", sys.stdout)
+        self.logger = logger
         self.worker_id = 0
         self.Response = Response
         self.verbose = False
+        self.stream = None
+        self.root = None
+
+        if nuclio_context:
+            self.logger = nuclio_context.logger
+            self.Response = nuclio_context.Response
+            self.worker_id = nuclio_context.worker_id
+        elif not logger:
+            self.logger = create_logger(level, "human", "flow", sys.stdout)
+
+        self._server = server
+        self.current_function = None
+        self.get_data_resource = None
+        self.get_table = None
+
+    def push_error(self, event, message, source=None, **kwargs):
+        if self._server and self._server._error_stream:
+            message = format_error(self._server, self, source, event, message, kwargs)
+            self._server._error_stream.push(message)
+
+    def get_param(self, key: str, default=None):
+        if self._server and self._server.parameters:
+            return self.parameters.get(key, default)
+        return default
+
+    def get_secret(self, key: str):
+        if self._server and self._server._secrets:
+            return self._secrets.get(key)
+        return None
 
 
 def format_error(server, context, source, event, message, args):
@@ -350,16 +322,3 @@ def format_error(server, context, source, event, message, args):
         "message": message,
         "args": args,
     }
-
-
-def data_resource_getter(db, resource_cache, secrets=None):
-    def _get_data_resource(kind, uri, use_cache=True):
-        key = f"{kind}.{uri}"
-        if (uri == "." or use_cache) and key in resource_cache:
-            return resource_cache[key]
-        resource = get_data_resource(kind, uri, db, secrets=secrets)
-        if use_cache:
-            resource_cache[key] = resource
-        return resource
-
-    return _get_data_resource

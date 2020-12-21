@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import mlrun
 from typing import Dict, List, Optional
-from mlrun.model import ModelObj
+
+from ..model import ModelObj
 from .datatypes import ValueType
 from .validators import validator_types
 from ..model import ObjectList
@@ -28,6 +30,11 @@ class TargetTypes:
     tsdb = "tsdb"
     stream = "stream"
     dataframe = "dataframe"
+
+
+class ResourceKinds:
+    FeatureSet = "FeatureSet"
+    FeatureVector = "FeatureVector"
 
 
 default_config = {
@@ -129,7 +136,7 @@ class SourceTypes:
 
 
 class DataTargetSpec(ModelObj):
-    _dict_fields = ["name", "kind", "path", "after_state", "options"]
+    _dict_fields = ["name", "kind", "path", "after_state", "attributes"]
 
     def __init__(
         self, kind: TargetTypes = None, name: str = "", path=None, after_state=None
@@ -138,8 +145,16 @@ class DataTargetSpec(ModelObj):
         self.kind: TargetTypes = kind
         self.path = path
         self.after_state = after_state
-        self.options = None
+        self.attributes = None
         self.driver = None
+        self._table = None
+
+    def set_table(self, table):
+        self._table = table
+
+    @property
+    def table(self):
+        return self._table
 
 
 class DataTarget(DataTargetSpec):
@@ -342,7 +357,6 @@ class FeatureVectorSpec(ModelObj):
         entity_source=None,
         entity_fields=None,
         timestamp_field=None,
-        target_path=None,
         graph=None,
         label_column=None,
     ):
@@ -354,7 +368,6 @@ class FeatureVectorSpec(ModelObj):
         self.features: List[str] = features or []
         self.entity_source = entity_source
         self.entity_fields = entity_fields or []
-        self.target_path = target_path
         self.graph = graph
         self.timestamp_field = timestamp_field
         self.label_column = label_column
@@ -387,24 +400,27 @@ class FeatureVectorSpec(ModelObj):
 
 class FeatureVectorStatus(ModelObj):
     def __init__(
-        self, state=None, target=None, features=None, stats=None, preview=None
+        self, state=None, targets=None, features=None, stats=None, preview=None
     ):
-        self._target: DataTarget = None
+        self._targets: ObjectList = None
         self._features: ObjectList = None
 
         self.state = state or "created"
-        self.target = target
+        self.targets = targets
         self.stats = stats or {}
         self.preview = preview or []
         self.features: List[Feature] = features or []
 
     @property
-    def target(self) -> DataTarget:
-        return self._spec
+    def targets(self) -> List[DataTarget]:
+        return self._targets
 
-    @target.setter
-    def target(self, target):
-        self._target = self._verify_dict(target, "target", DataTarget)
+    @targets.setter
+    def targets(self, targets: List[DataTarget]):
+        self._targets = ObjectList.from_list(DataTarget, targets)
+
+    def update_target(self, target: DataTarget):
+        self._targets.update(target)
 
     @property
     def features(self) -> List[Feature]:

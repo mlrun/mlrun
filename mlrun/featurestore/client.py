@@ -26,11 +26,9 @@ from .vector import (
 from .mergers.local import LocalFeatureMerger
 from .featureset import FeatureSet
 from .model import store_config
-from ..model import DataClass
 from ..utils import get_caller_globals, parse_function_uri
 from ..datastore import store_manager
 from ..config import config as mlconf
-
 
 
 def store_client(project=None, secrets=None, api_address=None):
@@ -55,7 +53,6 @@ class FeatureStoreClient:
             pass
 
         self._api_address = api_address
-        self._db_conn = None
         self._secrets = secrets
         self._data_stores = store_manager.set(secrets)
         self._fs = {}
@@ -64,9 +61,9 @@ class FeatureStoreClient:
             store_config.default_targets = default_targets
 
     def _get_db(self):
-        if not self._db_conn:
-            self._db_conn = mlrun.get_run_db(self._api_address).connect(self._secrets)
-        return self._db_conn
+        return mlrun.get_db_connection(
+            secrets=self._secrets, api_address=self._api_address
+        )
 
     def get_data_stores(self):
         return self._data_stores
@@ -95,17 +92,17 @@ class FeatureStoreClient:
         if infer_schema:
             featureset.infer_from_df(source, namespace=namespace)
         return_df = return_df or with_stats or with_preview
-        self.save_object(featureset)
+        featureset.save()
 
         controller = init_featureset_graph(
-            source, featureset, namespace, self, with_targets=True, return_df=return_df
+            source, featureset, namespace, with_targets=True, return_df=return_df
         )
         df = controller.await_termination()
         if with_stats:
             featureset.status.stats = get_df_stats(df, with_histogram)
         if with_preview:
             featureset.status.preview = get_df_preview(df)
-        self.save_object(featureset)
+        featureset.save()
         return df
 
     def run_ingestion_job(
@@ -195,7 +192,7 @@ class FeatureStoreClient:
     def get_feature_vector(self, uri):
         project, name, tag, uid = parse_function_uri(uri)
         project = project or mlconf.default_project
-        obj = self._get_db().read_artifact().get_feature_vector(name, project, tag, uid)
+        obj = self._get_db().get_feature_vector(name, project, tag, uid)
         return FeatureVector.from_dict(obj)
 
     def list_feature_vectors(
@@ -213,18 +210,3 @@ class FeatureStoreClient:
         )
         if resp:
             return [FeatureVector.from_dict(obj) for obj in resp]
-
-    def save_object(self, obj, versioned=False):
-        """save feature set/vector or other definitions into the DB"""
-        db = self._get_db()
-        obj.metadata.project = obj.metadata.project or mlconf.default_project
-        obj_dict = obj.to_dict()
-        if obj.kind == DataClass.FeatureSet:
-            obj_dict["spec"]["features"] = obj_dict["spec"].get(
-                "features", []
-            )  # bypass DB bug
-            db.store_feature_set(obj_dict, tag=obj.metadata.tag, versioned=versioned)
-        elif obj.kind == DataClass.FeatureVector:
-            db.store_feature_vector(obj_dict, tag=obj.metadata.tag, versioned=versioned)
-        else:
-            raise NotImplementedError(f"object kind not supported ({obj.kind})")

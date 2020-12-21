@@ -424,9 +424,7 @@ class RouterState(TaskState):
     def routes(self, routes: dict):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
-    def add_route(
-        self, key, route=None, class_name=None, class_args=None, handler=None
-    ):
+    def add_route(self, key, route=None, class_name=None, handler=None, **class_args):
         """add child route state or class to the router
 
         :param key:        unique name (and route path) for the child state
@@ -608,6 +606,10 @@ class FlowState(BaseState):
     @property
     def states(self):
         return self._states
+
+    @property
+    def controller(self):
+        return self._controller
 
     @states.setter
     def states(self, states):

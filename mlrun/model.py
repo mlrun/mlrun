@@ -25,22 +25,14 @@ from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
 
 
-class DataClass:
-    FeatureVector = "featureVector"
-    FeatureSet = "featureSet"
-    DataSet = "dataSet"
-    DataFrame = "dataFrame"
-    Table = "table"
-    Stream = "stream"
-    Model = "model"
-    Artifact = "artifact"
-    Entity = "entity"
-    Feature = "feature"
-    Object = "object"
+class ResourceSchema:
+    FeatureSet = "fset"
+    FeatureVector = "fvec"
+    Artifact = "store"
 
     @classmethod
-    def is_artifact(cls, kind):
-        return kind in [cls.Artifact, cls.Model, cls.DataSet]
+    def is_resource(cls, kind):
+        return kind in [cls.Artifact, cls.FeatureSet, cls.FeatureVector]
 
 
 class ModelObj:

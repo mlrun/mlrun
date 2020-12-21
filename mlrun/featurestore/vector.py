@@ -13,6 +13,8 @@
 # limitations under the License.
 import os
 from tempfile import mktemp
+
+import mlrun
 import pandas as pd
 
 from mlrun.model import ModelObj
@@ -26,6 +28,7 @@ from .model import (
 )
 from .pipeline import init_feature_vector_graph
 from .targets import get_offline_target
+from ..config import config as mlconf
 
 
 class FeatureVectorError(Exception):
@@ -160,6 +163,13 @@ class FeatureVector(ModelObj):
             )
             dfs.append(df)
         return feature_sets, dfs
+
+    def save(self, tag="", versioned=False):
+        db = mlrun.get_db_connection()
+        self.metadata.project = self.metadata.project or mlconf.default_project
+        tag = tag or self.metadata.tag
+        as_dict = self.to_dict()
+        db.store_feature_vector(as_dict, tag=tag, versioned=versioned)
 
 
 class OfflineVectorResponse:

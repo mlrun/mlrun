@@ -17,7 +17,7 @@ class FeaturesetValidator(MapClass):
         self.name = name
         if not self.context:
             return
-        self._featureset = self.context.get_feature_set(featureset)
+        self._featureset = self.context.get_data_resource(featureset)
         for key, feature in self._featureset.spec.features.items():
             if feature.validator and (not columns or key in columns):
                 feature.validator.set_feature(feature)

@@ -3,41 +3,59 @@ from urllib.parse import urlparse
 from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf
 
-from .model import DataTargetSpec, TargetTypes, DataTarget, store_config
+from .model import DataTargetSpec, TargetTypes, DataTarget, store_config, ResourceKinds
 
 
-def init_target(featureset, target, tables=None):
-    driver = kind_to_driver[target.kind](featureset, target)
-    driver.init_table(tables)
-    driver.update_featureset_status()
+def init_store_driver(resource, target):
+    driver = kind_to_driver[target.kind](resource, target)
+    table = driver.get_table_object()
+    driver.update_resource_status(resource)
     target.driver = driver
+    return table
 
 
-def init_featureset_targets(featureset, tables):
+def init_featureset_targets(featureset):
     targets = featureset.spec.targets
+    table = None
 
     if not targets:
-        defaults = copy(store_config.default_targets)
-        for target in defaults:
+        for target in store_config.default_targets:
             target_obj = targets.update(DataTargetSpec(target), str(target))
-            init_target(featureset, target_obj, tables)
+            table = init_store_driver(featureset, target_obj) or table
     else:
         for target in targets:
-            init_target(featureset, target, tables)
+            table = init_store_driver(featureset, target) or table
+    return table
 
 
-def add_target_states(graph, featureset, targets, to_df=False):
+def add_target_states(graph, resource, targets, to_df=False):
     if len(graph.states) > 0:
-        after = featureset.spec.get_final_state()
+        after = resource.spec.get_final_state()
     else:
         graph.add_step(name="_in", handler="(event)", after="$start")
         after = "_in"
     targets = targets or []
+    key_column = resource.spec.entities[0].name
+    timestamp_key = resource.spec.timestamp_key
+    features = resource.spec.features
+
     for target in targets:
-        target.driver.add_writer_state(graph, target.after_state or after)
+        target.driver.add_writer_state(
+            graph,
+            target.after_state or after,
+            features=features,
+            key_column=key_column,
+            timestamp_key=timestamp_key,
+        )
     if to_df:
-        driver = DFTarget(featureset)
-        driver.add_writer_state(graph, after)
+        driver = DFStore(resource)
+        driver.add_writer_state(
+            graph,
+            after,
+            features=features,
+            key_column=key_column,
+            timestamp_key=timestamp_key,
+        )
 
 
 def update_target_status(featureset, status, producer):
@@ -60,54 +78,49 @@ def get_online_target(featureset):
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_online:
-            return target, driver
+            return target, driver(featureset, target)
 
 
-class BaseTargetDriver:
+class BaseStoreDriver:
     kind = None
     is_table = False
     suffix = ""
     is_online = False
     is_offline = False
 
-    def __init__(self, featureset, target_spec: DataTargetSpec):
+    def __init__(self, resource, target_spec: DataTargetSpec):
         self.name = target_spec.name
-        self.target_path = target_spec.path or _get_target_path(
-            self.kind, featureset, self.suffix
-        )
-        self.featureset = featureset
+        self.target_path = target_spec.path or _get_target_path(self, resource)
+        self.attributes = target_spec.attributes
         self.target = None
 
-    @staticmethod
-    def get_table_object(target_path):
-        pass
+    def get_table_object(self):
+        return None
 
-    def init_table(self, tables, default=True):
-        if self.is_table and tables is not None:
-            table = self.get_table_object(self.target_path)
-            tables[self.featureset.uri()] = table
-            if default:
-                tables["."] = table
-
-    def update_featureset_status(self, status="", producer=None):
+    def update_resource_status(self, resource, status="", producer=None):
         self.target = self.target or DataTarget(self.kind, self.name, self.target_path)
         self.target.status = status or self.target.status
         self.target.producer = producer or self.target.producer
-        self.featureset.status.update_target(self.target)
+        resource.status.update_target(self.target)
 
-    def add_writer_state(self, graph, after):
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
         pass
 
+    def source_to_step(self, source):
+        return None
 
-class ParquetTarget(BaseTargetDriver):
+
+class ParquetStore(BaseStoreDriver):
     kind = TargetTypes.parquet
     suffix = ".parquet"
     is_offline = True
 
-    def add_writer_state(self, graph, after):
-        key_column = self.featureset.spec.entities[0].name
-        timestamp_key = self.featureset.spec.timestamp_key
-        column_list = list(self.featureset.spec.features.keys())
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
+        column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
 
@@ -122,15 +135,15 @@ class ParquetTarget(BaseTargetDriver):
         )
 
 
-class CSVTarget(BaseTargetDriver):
+class CSVStore(BaseStoreDriver):
     kind = TargetTypes.csv
     suffix = ".csv"
     is_offline = True
 
-    def add_writer_state(self, graph, after):
-        key_column = self.featureset.spec.entities[0].name
-        timestamp_key = self.featureset.spec.timestamp_key
-        column_list = list(self.featureset.spec.features.keys())
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
+        column_list = list(features.keys())
         if timestamp_key:
             column_list = [timestamp_key] + column_list
 
@@ -145,30 +158,28 @@ class CSVTarget(BaseTargetDriver):
         )
 
 
-class NoSqlTarget(BaseTargetDriver):
+class NoSqlStore(BaseStoreDriver):
     kind = TargetTypes.nosql
     is_table = True
     is_online = True
 
-    def __init__(self, featureset, target_spec: DataTargetSpec):
+    def __init__(self, resource, target_spec: DataTargetSpec):
         self.name = target_spec.name
-        self.target_path = nosql_path(
-            target_spec.path or _get_target_path(self.kind, featureset, self.suffix)
-        )
-        self.featureset = featureset
+        self.target_path = target_spec.path or _get_target_path(self, resource)
+        self.resource = resource
+        self.attributes = target_spec.attributes
         self.target = None
 
-    @staticmethod
-    def get_table_object(target_path, options=None):
+    def get_table_object(self):
         # TODO use options/cred
-        return Table(target_path, V3ioDriver())
+        return Table(nosql_path(self.target_path), V3ioDriver())
 
-    def add_writer_state(self, graph, after):
-        table = self.featureset.uri()
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
+        table = self.resource.uri()
         column_list = [
-            key
-            for key, feature in self.featureset.spec.features.items()
-            if not feature.aggregate
+            key for key, feature in features.items() if not feature.aggregate
         ]
         graph.add_step(
             name="WriteToTable",
@@ -180,17 +191,18 @@ class NoSqlTarget(BaseTargetDriver):
         )
 
 
-class DFTarget(BaseTargetDriver):
-    def __init__(self, featureset, target_spec: DataTargetSpec = None):
+class DFStore(BaseStoreDriver):
+    def __init__(self, resource, target_spec: DataTargetSpec = None):
         self.name = "dataframe"
-        self.featureset = featureset
         self.target = None
 
-    def update_featureset_status(self, status="", producer=None):
+    def update_resource_status(self, resource, status="", producer=None):
         pass
 
-    def add_writer_state(self, graph, after):
-        key_column = self.featureset.spec.entities[0].name
+    def add_writer_state(
+        self, graph, after, features, key_column=None, timestamp_key=None
+    ):
+        # todo: column filter
         graph.add_step(
             name="WriteToDataFrame",
             after=after,
@@ -198,14 +210,15 @@ class DFTarget(BaseTargetDriver):
             class_name="storey.ReduceToDataFrame",
             index=key_column,
             insert_key_column_as=key_column,
-            insert_time_column_as=self.featureset.spec.timestamp_key,
+            insert_time_column_as=timestamp_key,
         )
 
 
 kind_to_driver = {
-    TargetTypes.parquet: ParquetTarget,
-    TargetTypes.nosql: NoSqlTarget,
-    TargetTypes.dataframe: DFTarget,
+    TargetTypes.parquet: ParquetStore,
+    TargetTypes.csv: CSVStore,
+    TargetTypes.nosql: NoSqlStore,
+    TargetTypes.dataframe: DFStore,
 }
 
 
@@ -224,14 +237,17 @@ def nosql_path(url):
     return parsed_url.path.strip("/") + "/"
 
 
-def _get_target_path(kind, featureset, suffix=""):
-    name = featureset.metadata.name
-    version = featureset.metadata.tag
-    project = featureset.metadata.project or mlconf.default_project
+def _get_target_path(driver, resource):
+    kind = driver.kind
+    suffix = driver.suffix
+    kind_prefix = "sets" if resource.kind == ResourceKinds.FeatureSet else "vectors"
+    name = resource.metadata.name
+    version = resource.metadata.tag
+    project = resource.metadata.project or mlconf.default_project
     data_prefix = store_config.data_prefixes.get(kind, None)
     if not data_prefix:
         data_prefix = store_config.data_prefixes["default"]
     data_prefix = data_prefix.format(project=project, kind=kind)
     if version:
         name = f"{name}-{version}"
-    return f"{data_prefix}/{name}{suffix}"
+    return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

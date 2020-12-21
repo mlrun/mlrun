@@ -249,11 +249,11 @@ class V2ModelServer:
 
     def predict(self, request: Dict) -> Dict:
         """model prediction operation"""
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def explain(self, request: Dict) -> Dict:
         """model explain operation"""
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 class _ModelLogPusher:

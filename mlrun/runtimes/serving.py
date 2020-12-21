@@ -21,7 +21,7 @@ from ..model import ObjectList
 from .function import RemoteRuntime, NuclioSpec
 from .function_reference import FunctionReference
 from ..utils import logger, get_caller_globals
-from ..serving.server import create_graph_server, GraphServer
+from ..serving.server import create_graph_server, GraphServer, GraphContext
 from ..serving.states import (
     RouterState,
     StateKinds,
@@ -348,7 +348,7 @@ class ServingRuntime(RemoteRuntime):
         return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
 
     def to_mock_server(
-        self, namespace=None, log_level="debug", current_function=None, **kwargs
+        self, namespace=None, current_function=None, **kwargs
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
@@ -356,13 +356,13 @@ class ServingRuntime(RemoteRuntime):
         :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function
         """
-        return create_graph_server(
+        server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
             graph=self.spec.graph,
-            namespace=namespace or get_caller_globals(),
-            logger=logger,
-            level=log_level,
+            verbose=self.verbose,
             current_function=current_function,
             **kwargs,
         )
+        server.init(None, namespace or get_caller_globals(), logger=logger)
+        return server

@@ -61,6 +61,16 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
+_db_connection = None
+
+
+def get_db_connection(secrets=None, api_address=None, override=False):
+    global _db_connection
+    if not _db_connection or override:
+        _db_connection = get_run_db(api_address).connect(secrets)
+    return _db_connection
+
+
 def set_environment(api_path: str = None, artifact_path: str = "", project: str = ""):
     """set and test default config for: api path, artifact_path and project
 

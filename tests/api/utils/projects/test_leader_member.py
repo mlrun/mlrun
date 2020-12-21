@@ -193,33 +193,31 @@ def test_create_and_store_project_failure_invalid_name(
         {"name": "asd3", "valid": True},
         {"name": "asd-asd", "valid": True},
         {"name": "333", "valid": True},
-        {"name": "3.a-b", "valid": True},
-        {"name": "5.a-a.5", "valid": True},
+        {"name": "3-a-b", "valid": True},
+        {"name": "5-a-a-5", "valid": True},
         {
             # Invalid because the first letter is -
-            "name": "-as-123_2.8a",
+            "name": "-as-123-2-8a",
             "valid": False,
         },
         {
-            # Invalid because the last letter is .
-            "name": "as-123_2.8a.",
+            # Invalid because there is .
+            "name": "as-123-2.a",
             "valid": False,
         },
         {
             # Invalid because A is not allowed
-            "name": "As-123_2.8Aa",
+            "name": "As-123-2-8Aa",
             "valid": False,
         },
         {
             # Invalid because _ is not allowed
-            "name": "as-123_2.8Aa",
+            "name": "as-123_2-8aa",
             "valid": False,
         },
         {
-            # Invalid because it's more than 253 characters
-            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-"
-            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-"
-            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            # Invalid because it's more than 63 characters
+            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
             "valid": False,
         },
     ]

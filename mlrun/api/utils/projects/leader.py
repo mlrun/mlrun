@@ -66,7 +66,7 @@ class Member(
         project: mlrun.api.schemas.Project,
     ):
         self._enrich_project(project)
-        self._validate_project_name(name)
+        self.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers("store_project", session, name, project)
         return self.get_project(session, name)
@@ -223,9 +223,7 @@ class Member(
                 # if it was created prior to 0.6.0, and the version was upgraded
                 # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
                 # as well)
-                if not self._validate_project_name(
-                    project_name, raise_on_failure=False
-                ):
+                if not self.validate_project_name(project_name, raise_on_failure=False):
                     return
                 for missing_follower in missing_followers:
                     logger.debug(
@@ -297,7 +295,7 @@ class Member(
 
     def _enrich_and_validate_before_creation(self, project: mlrun.api.schemas.Project):
         self._enrich_project(project)
-        self._validate_project_name(project.metadata.name)
+        self.validate_project_name(project.metadata.name)
 
     @staticmethod
     def _enrich_project(project: mlrun.api.schemas.Project):
@@ -311,7 +309,7 @@ class Member(
             ]
 
     @staticmethod
-    def _validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
+    def validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
         try:
             mlrun.utils.helpers.verify_field_regex(
                 "project.metadata.name", name, mlrun.utils.regex.project_name

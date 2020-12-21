@@ -23,6 +23,12 @@ from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowState
 
 
+class FeatureStoreError(Exception):
+    """error in feature store data or configuration"""
+
+    pass
+
+
 class TargetTypes:
     csv = "csv"
     parquet = "parquet"
@@ -330,12 +336,22 @@ class FeatureSetSpec(ModelObj):
 
 
 class FeatureSetStatus(ModelObj):
-    def __init__(self, state=None, targets=None, stats=None, preview=None):
+    def __init__(
+        self,
+        state=None,
+        targets=None,
+        stats=None,
+        preview=None,
+        runtime=None,
+        run_uri=None,
+    ):
         self.state = state or "created"
         self._targets: ObjectList = None
         self.targets = targets or []
         self.stats = stats or {}
         self.preview = preview or []
+        self.runtime = runtime
+        self.run_uri = run_uri
 
     @property
     def targets(self) -> List[DataTarget]:

@@ -1,5 +1,7 @@
 from copy import copy
 from urllib.parse import urlparse
+
+from mlrun.run import get_dataitem
 from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf
 
@@ -66,12 +68,13 @@ offline_lookup_order = [TargetTypes.parquet]
 online_lookup_order = [TargetTypes.nosql]
 
 
-def get_offline_target(featureset, start_time=None):
+def get_offline_target(featureset, start_time=None, name=None):
     # todo take status, start_time and lookup order into account
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
-        if driver.is_offline:
-            return target, driver
+        if driver.is_offline and (not name or name == target.name):
+            return target, driver(featureset, target)
+    return None, None
 
 
 def get_online_target(featureset):
@@ -79,6 +82,7 @@ def get_online_target(featureset):
         driver = kind_to_driver[target.kind]
         if driver.is_online:
             return target, driver(featureset, target)
+    return None, None
 
 
 class BaseStoreDriver:
@@ -110,6 +114,11 @@ class BaseStoreDriver:
 
     def source_to_step(self, source):
         return None
+
+    def as_df(self, columns=None, df_module=None):
+        return get_dataitem(self.target_path).as_df(
+            columns=columns, df_module=df_module
+        )
 
 
 class ParquetStore(BaseStoreDriver):

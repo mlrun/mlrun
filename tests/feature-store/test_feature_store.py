@@ -15,8 +15,6 @@ from mlrun.featurestore.validators import MinMaxValidator
 
 def init_store():
     mlconf.dbpath = os.environ["TEST_DBPATH"]
-    client = fs.store_client()
-    return client
 
 
 class MyMap(MapClass):
@@ -42,12 +40,12 @@ def my_filter(event):
 
 
 def test_ingestion():
-    client = init_store()
+    init_store()
 
     # add feature set without time column (stock ticker metadata)
     stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
     print(stocks_set.spec.graph.to_yaml())
-    resp = client.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
+    resp = fs.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
     print(resp)
 
     stocks_set["name"].description = "some name"
@@ -77,12 +75,12 @@ def test_ingestion():
     quotes_set.plot("pipe.png", rankdir="LR", with_targets=True)
     print(quotes_set.to_yaml())
 
-    print(client.ingest(quotes_set, quotes, return_df=True))
+    print(fs.ingest(quotes_set, quotes, return_df=True))
     print(quotes_set.to_yaml())
 
 
 def test_realtime_query():
-    client = init_store()
+    init_store()
 
     features = [
         "stock-quotes:bid",
@@ -91,14 +89,17 @@ def test_realtime_query():
         "stocks:*",
     ]
 
-    resp = client.get_offline_features(
-        features, entity_rows=trades, entity_timestamp_column="time"
-    )
-    print(resp.vector.to_yaml())
-    print(resp.to_dataframe())
-    print(resp.to_parquet("./xx.parquet"))
+    # resp = fs.get_offline_features(
+    #     features, entity_rows=trades, entity_timestamp_column="time"
+    # )
+    # print(resp.vector.to_yaml())
+    # print(resp.to_dataframe())
+    # print(resp.to_parquet("./xx.parquet"))
 
-    svc = client.get_online_feature_service(features)
+    vector = fs.FeatureVector("my-vec", features)
+    vector.spec.graph.to("storey.Extend", _fn="({'xyw': 88})")
+    svc = fs.get_online_feature_service(vector)
+
     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
     print(resp)
     resp = svc.get([{"ticker": "AAPL"}])
@@ -107,15 +108,16 @@ def test_realtime_query():
 
 
 def test_feature_set_db():
+    init_store()
+
     name = "stocks_test"
-    client = init_store()
     stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
     stocks_set.infer_from_df(stocks)
     print(stocks_set.to_yaml())
-    client.save_object(stocks_set)
+    stocks_set.save()
 
-    print(client.list_feature_sets(name))
+    print(fs.list_feature_sets(name))
     return
 
-    fset = client.get_feature_set(name)
+    fset = fs.get_feature_set(name)
     print(fset)

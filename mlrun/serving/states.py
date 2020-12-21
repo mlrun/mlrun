@@ -31,6 +31,7 @@ from ..model import ModelObj, ObjectDict
 from ..utils import create_class, create_function
 
 callable_prefix = "_"
+path_splitter = "/"
 
 
 class GraphError(Exception):
@@ -138,7 +139,7 @@ class BaseState(ModelObj):
         """full path/name (include parents)"""
         name = self.name or ""
         if self._parent and self._parent.fullname:
-            name = ".".join([self._parent.fullname, name])
+            name = path_splitter.join([self._parent.fullname, name])
         return name.replace(":", "_")  # replace for graphviz escaping
 
     def _post_init(self, mode="sync"):
@@ -171,7 +172,7 @@ class BaseState(ModelObj):
     def path_to_state(self, path: str):
         """return state object from state relative/fullname"""
         path = path or ""
-        tree = path.split(".")
+        tree = path.split(path_splitter)
         next_obj = self
         for state in tree:
             if state not in next_obj:
@@ -864,6 +865,8 @@ class FlowState(BaseState):
     def find_last_state(self):
         if self.result_state:
             return self.result_state
+        if len(self.states) == 0:
+            return None
 
         loop_state = self.detect_loops()
         if loop_state:
@@ -984,7 +987,7 @@ def get_class(class_name, namespace):
     if isinstance(class_name, type):
         return class_name
     namespace = _module_to_namespace(namespace)
-    if class_name in namespace:
+    if namespace and class_name in namespace:
         return namespace[class_name]
 
     try:

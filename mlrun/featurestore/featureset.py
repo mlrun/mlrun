@@ -26,10 +26,11 @@ from .model import (
     store_config,
     DataTargetSpec,
     ResourceKinds,
+    FeatureStoreError,
 )
 from .infer import infer_schema_from_df, get_df_stats, get_df_preview
 from .pipeline import init_featureset_graph
-from .targets import init_store_driver
+from .targets import init_store_driver, get_offline_target
 from ..model import ModelObj, ResourceSchema
 from ..serving.states import BaseState
 from ..config import config as mlconf
@@ -214,6 +215,16 @@ class FeatureSet(ModelObj):
                 BaseState(target.kind, shape="cylinder") for target in self.spec.targets
             ]
         return graph.plot(filename, format, targets=targets, **kw)
+
+    def to_dataframe(self, columns=None, df_module=None, target_name=None):
+        if columns:
+            if self.spec.timestamp_key:
+                columns = [self.spec.timestamp_key] + columns
+            columns = list(self.spec.entities.keys()) + columns
+        target, driver = get_offline_target(self, name=target_name)
+        if not target:
+            raise FeatureStoreError("there are no offline targets for this feature set")
+        return driver.as_df(columns=columns, df_module=df_module)
 
     def save(self, tag="", versioned=False):
         db = mlrun.get_db_connection()

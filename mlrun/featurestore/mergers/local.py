@@ -15,10 +15,40 @@
 from typing import List
 import pandas as pd
 
+from .common import OfflineVectorResponse
+
 
 class LocalFeatureMerger:
-    def __init__(self):
+    def __init__(self, vector):
         self._result_df = None
+        self.vector = vector
+
+    def start(self, entity_rows=None, entity_timestamp_column=None, target=None):
+        feature_set_objects, feature_set_fields = self.vector.parse_features()
+        if self.vector.metadata.name:
+            self.vector.save()
+
+        # load dataframes
+        feature_sets = []
+        dfs = []
+        df_module = None  # for use of dask or other non pandas df module
+        for name, columns in feature_set_fields.items():
+            feature_set = feature_set_objects[name]
+            feature_sets.append(feature_set)
+            column_names = [name for name, alias in columns]
+            df = feature_set.to_dataframe(columns=column_names, df_module=df_module)
+
+            # rename columns with aliases
+            df.rename(
+                columns={name: alias for name, alias in columns if alias}, inplace=True
+            )
+            dfs.append(df)
+
+        self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+
+        # todo: if target, upload to target, save target info to status
+
+        return OfflineVectorResponse(self)
 
     def merge(
         self,

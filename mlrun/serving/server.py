@@ -123,7 +123,10 @@ class GraphServer(ModelObj):
         self.context = context
 
         if self.graph_initializer:
-            handler = get_function(self.graph_initializer, namespace)
+            if callable(self.graph_initializer):
+                handler = self.graph_initializer
+            else:
+                handler = get_function(self.graph_initializer, namespace)
             handler(self)
 
         self.graph.init_object(context, namespace, self.load_mode)

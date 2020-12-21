@@ -11,6 +11,7 @@ from storey import (
 from .targets import init_featureset_targets, add_target_states, get_online_target
 from ..data_resources import ResourceCache
 from ..serving.server import GraphContext, create_graph_server
+from ..serving.states import RootFlowState
 
 
 def init_featureset_graph(
@@ -62,65 +63,47 @@ def featureset_initializer(server):
     # set source
 
 
-def new_graph_context(tables, client=None, default_featureset=None):
-    def get_table(name):
-        if name in tables:
-            return tables[name]
-        if name in ["", "."]:
-            table = Table("", Driver())
-            tables[name] = table
-            return table
-        raise ValueError(f"table name={name} not set")
+def _build_feature_vector_graph(
+    vector, feature_set_fields, feature_set_objects,
+):
+    graph = vector.spec.graph.copy()
+    start_at = graph.start_at
+    next = graph
 
-    def get_feature_set(uri):
-        if uri in ["", "."]:
-            return default_featureset
-        if not client:
-            raise ValueError("client must be set for remote features access")
-        return client.get_feature_set(uri, use_cache=True)
-
-    # enrich the context with classes and methods which will be used when
-    # initializing classes or handling the event
-    context = GraphContext()
-    setattr(context, "get_feature_set", get_feature_set)
-    setattr(context, "get_table", get_table)
-    setattr(context, "current_function", "")
-    return context
-
-
-def print_event(event):
-    print("EVENT:", str(event.key))
-    print(str(event.body))
-    return event
-
-
-def init_feature_vector_graph(client, feature_set_fields, feature_set_objects):
-    tables = {}
-    context = new_graph_context(tables, client)
-    steps = [Source()]
     for name, columns in feature_set_fields.items():
-        fs = feature_set_objects[name]
-        target, driver = get_online_target(fs)
-
-        tables[fs.uri()] = driver.get_table_object()
+        featureset = feature_set_objects[name]
         column_names = [name for name, alias in columns]
         aliases = {name: alias for name, alias in columns if alias}
-        steps.extend(steps_from_featureset(fs, column_names, aliases, context))
-    # steps.append(Map(print_event, full_event=True))
-    steps.append(Complete())
-    return build_flow(steps)
 
-
-def steps_from_featureset(featureset, column_list, aliases, context):
-    table = featureset.uri()
-    entity_list = list(featureset.spec.entities.keys())
-    key_column = entity_list[0]
-    steps = []
-
-    steps.append(
-        QueryByKey(
-            column_list, table, key=key_column, aliases=aliases, context=context,
+        entity_list = list(featureset.spec.entities.keys())
+        key_column = entity_list[0]
+        next = next.to(
+            "storey.QueryByKey",
+            f"query-{name}",
+            features=column_names,
+            table=featureset.uri(),
+            key=key_column,
+            aliases=aliases,
         )
-    )
+    if start_at:
+        next.set_next(start_at)
+    last_state = graph.find_last_state()
+    if not last_state:
+        raise ValueError("the graph doesnt have an explicit final step to respond on")
+    graph[last_state].respond()
 
-    return steps
+    return graph
+
+
+def init_feature_vector_graph(vector):
+    feature_set_objects, feature_set_fields = vector.parse_features()
+    graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)
+    graph.set_flow_source(Source())
+    server = create_graph_server(graph=graph, parameters={})
+
+    cache = ResourceCache()
+    for featureset in feature_set_objects.values():
+        target, driver = get_online_target(featureset)
+        cache.cache_table(featureset.uri(), driver.get_table_object())
+    server.init(None, None, cache)
+    return graph._controller

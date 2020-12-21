@@ -28,9 +28,9 @@ class ResourceCache:
         self._tabels = {}
         self._resources = {}
 
-    def cache_table(self, uri, value, default=False):
+    def cache_table(self, uri, value, is_default=False):
         self._tabels[uri] = value
-        if default:
+        if is_default:
             self._tabels["."] = value
 
     def get_table(self, uri):
@@ -38,6 +38,14 @@ class ResourceCache:
             return self._tabels[uri]
         if uri in [".", ""]:
             return Table("", Driver())
+
+        kind, uri = _parse_uri(uri)
+        if kind == ResourceSchema.FeatureSet:
+            featureset = mlrun.featurestore.get_feature_set(uri)
+            target, driver = mlrun.featurestore.targets.get_online_target(featureset)
+            self._tabels[uri] = driver.get_table_object()
+            return self._tabels[uri]
+
         raise ValueError(f"table {uri} not found in cache")
 
     def cache_resource(self, uri, value, default=False):
@@ -62,15 +70,19 @@ class ResourceCache:
         return _get_data_resource
 
 
-def get_data_resource(uri, db=None, secrets=None):
-    db = db or mlrun.get_db_connection(secrets=secrets)
+def _parse_uri(uri):
     kind = None
     if "://" in uri:
         idx = uri.find("://")
         kind = uri[:idx]
         if ResourceSchema.is_resource(kind):
             uri = uri[idx + 3 :]
+    return kind, uri
 
+
+def get_data_resource(uri, db=None, secrets=None):
+    db = db or mlrun.get_db_connection(secrets=secrets)
+    kind, uri = _parse_uri(uri)
     if kind == ResourceSchema.FeatureSet:
         project, name, tag, uid = parse_function_uri(uri, config.default_project)
         obj = db.get_feature_set(name, project, tag, uid)

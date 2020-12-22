@@ -26,7 +26,7 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 from os import environ, path
 
 from .config import config as mlconf
-from .datastore import DataItem
+from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .execution import MLClientCtx
 from .model import RunTemplate, NewTask, new_task, RunObject
@@ -59,6 +59,18 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
     kfp_ep = "https://dashboard.{}/pipelines".format(igz_domain)
     environ["KF_PIPELINES_UI_ENDPOINT"] = kfp_ep
     mlconf.remote_host = mlconf.remote_host or igz_domain
+
+
+_data_stores = None
+
+
+def get_data_stores(secrets=None, override=False):
+    """singleton mlrun data store client"""
+
+    global _data_stores
+    if not _data_stores or override:
+        _data_stores = store_manager.set(secrets)
+    return _data_stores
 
 
 def set_environment(api_path: str = None, artifact_path: str = "", project: str = ""):

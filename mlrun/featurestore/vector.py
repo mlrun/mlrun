@@ -140,7 +140,7 @@ class FeatureVector(ModelObj):
         return feature_set_objects, feature_set_fields
 
     def save(self, tag="", versioned=False):
-        db = mlrun.get_db_connection()
+        db = mlrun.get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag
         as_dict = self.to_dict()

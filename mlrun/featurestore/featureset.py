@@ -227,7 +227,7 @@ class FeatureSet(ModelObj):
         return driver.as_df(columns=columns, df_module=df_module)
 
     def save(self, tag="", versioned=False):
-        db = mlrun.get_db_connection()
+        db = mlrun.get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag
         as_dict = self.to_dict()

@@ -39,7 +39,7 @@ except Exception:
 def get_feature_set(uri):
     """get feature set from db"""
 
-    db = mlrun.get_db_connection()
+    db = mlrun.get_run_db()
     project, name, tag, uid = parse_function_uri(uri, config.default_project)
     obj = db.get_feature_set(name, project, tag, uid)
     return FeatureSet.from_dict(obj)
@@ -48,7 +48,7 @@ def get_feature_set(uri):
 def get_feature_vector(uri):
     """get feature vector from db"""
 
-    db = mlrun.get_db_connection()
+    db = mlrun.get_run_db()
     project, name, tag, uid = parse_function_uri(uri, config.default_project)
     obj = db.get_feature_vector(name, project, tag, uid)
     return FeatureVector.from_dict(obj)
@@ -64,7 +64,7 @@ def list_feature_sets(
     """list feature sets with optional filter"""
 
     project = project or config.default_project
-    db = mlrun.get_db_connection()
+    db = mlrun.get_run_db()
     resp = db.list_feature_sets(project, name, tag, state, labels=labels)
     if resp:
         return [FeatureSet.from_dict(obj) for obj in resp]
@@ -80,7 +80,7 @@ def list_feature_vectors(
     """list feature vectors with optional filter"""
 
     project = project or config.default_project
-    db = mlrun.get_db_connection()
+    db = mlrun.get_run_db()
     resp = db.list_feature_vectors(project, name, tag, state, labels=labels)
     if resp:
         return [FeatureVector.from_dict(obj) for obj in resp]

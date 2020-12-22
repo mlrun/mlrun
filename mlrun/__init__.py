@@ -61,17 +61,7 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
-_db_connection = None
 _data_stores = None
-
-
-def get_db_connection(secrets=None, api_address=None, override=False):
-    """singleton mlrun db conection"""
-
-    global _db_connection
-    if not _db_connection or override:
-        _db_connection = get_run_db(api_address).connect(secrets)
-    return _db_connection
 
 
 def get_data_stores(secrets=None, override=False):

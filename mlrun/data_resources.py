@@ -81,7 +81,7 @@ def _parse_uri(uri):
 
 
 def get_data_resource(uri, db=None, secrets=None):
-    db = db or mlrun.get_db_connection(secrets=secrets)
+    db = db or mlrun.get_run_db(secrets=secrets)
     kind, uri = _parse_uri(uri)
     if kind == ResourceSchema.FeatureSet:
         project, name, tag, uid = parse_function_uri(uri, config.default_project)

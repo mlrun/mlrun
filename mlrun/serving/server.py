@@ -100,7 +100,7 @@ class GraphServer(ModelObj):
             self._error_stream = None
 
     def _get_db(self):
-        return mlrun.get_db_connection(secrets=self._secrets)
+        return mlrun.get_run_db(secrets=self._secrets)
 
     def init(
         self, context, namespace, resource_cache: ResourceCache = None, logger=None

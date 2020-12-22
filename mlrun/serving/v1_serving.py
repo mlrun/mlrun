@@ -102,10 +102,10 @@ class MLModelServer:
         return request
 
     def predict(self, request: Dict) -> Dict:
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def explain(self, request: Dict) -> Dict:
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 def nuclio_serving_init(context, data):

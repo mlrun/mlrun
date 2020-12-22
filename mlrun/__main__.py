@@ -524,7 +524,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
                     start = i.status.start_time.strftime("%b %d %H:%M:%S")
                 print("{:10} {:16} {:8} {}".format(state, start, task, name))
     elif kind.startswith("runtime"):
-        mldb = get_run_db(db or mlconf.dbpath).connect()
+        mldb = get_run_db(db or mlconf.dbpath)
         if name:
             # the runtime identifier is its kind
             runtime = mldb.get_runtime(kind=name, label_selector=selector)
@@ -533,7 +533,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         runtimes = mldb.list_runtimes(label_selector=selector)
         print(dict_to_yaml(runtimes))
     elif kind.startswith("run"):
-        mldb = get_run_db().connect()
+        mldb = get_run_db()
         if name:
             run = mldb.read_run(name, project=project)
             print(dict_to_yaml(run))
@@ -550,7 +550,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(tabulate(df, headers="keys"))
 
     elif kind.startswith("art"):
-        mldb = get_run_db().connect()
+        mldb = get_run_db()
         artifacts = mldb.list_artifacts(name, project=project, tag=tag, labels=selector)
         df = artifacts.to_df()[
             ["tree", "key", "iter", "kind", "path", "hash", "updated"]
@@ -560,7 +560,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(tabulate(df, headers="keys"))
 
     elif kind.startswith("func"):
-        mldb = get_run_db().connect()
+        mldb = get_run_db()
         if name:
             f = mldb.get_function(name, project=project, tag=tag)
             print(dict_to_yaml(f))
@@ -618,7 +618,7 @@ def version():
 @click.option("--watch", "-w", is_flag=True, help="watch/follow log")
 def logs(uid, project, offset, db, watch):
     """Get or watch task logs"""
-    mldb = get_run_db(db or mlconf.dbpath).connect()
+    mldb = get_run_db(db or mlconf.dbpath)
     if mldb.kind == "http":
         state = mldb.watch_log(uid, project, watch=watch, offset=offset)
     else:
@@ -818,7 +818,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
         # Clean resources for specific job (by uid)
         mlrun clean dask 15d04c19c2194c0a8efb26ea3017254b
     """
-    mldb = get_run_db(api or mlconf.dbpath).connect()
+    mldb = get_run_db(api or mlconf.dbpath)
     if kind:
         if object_id:
             mldb.delete_runtime_object(
@@ -908,7 +908,7 @@ def func_url_to_runtime(func_url):
         if func_url.startswith("db://"):
             func_url = func_url[5:]
             project, name, tag, hash_key = parse_function_uri(func_url)
-            mldb = get_run_db(mlconf.dbpath).connect()
+            mldb = get_run_db(mlconf.dbpath)
             runtime = mldb.get_function(name, project, tag, hash_key)
         else:
             func_url = "function.yaml" if func_url == "." else func_url

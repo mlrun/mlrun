@@ -366,7 +366,7 @@ def import_function(url="", secrets=None, db=""):
     if url.startswith("db://"):
         url = url[5:]
         project, name, tag, hash_key = parse_function_uri(url)
-        db = get_run_db(db or get_or_set_dburl()).connect(secrets)
+        db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:
             raise KeyError("function {}:{} not found in the DB".format(name, tag))
@@ -763,7 +763,7 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
-        mldb = get_run_db(url).connect()
+        mldb = get_run_db(url)
         if mldb.kind != "http":
             raise ValueError(
                 "run pipeline require access to remote api-service"
@@ -828,7 +828,7 @@ def wait_for_pipeline_completion(
     )
 
     if remote:
-        mldb = get_run_db().connect()
+        mldb = get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
@@ -889,7 +889,7 @@ def get_pipeline(run_id, namespace=None):
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     if remote:
-        mldb = get_run_db().connect()
+        mldb = get_run_db()
         if mldb.kind != "http":
             raise ValueError(
                 "get pipeline require access to remote api-service"

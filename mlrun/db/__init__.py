@@ -43,20 +43,10 @@ def get_httpdb_kwargs(host, username, password):
     }
 
 
-_run_db = None
-_last_db_url = None
-
-
-def get_run_db(url="", secrets=None, force_reconnect=False):
+def get_run_db(url=""):
     """Returns the runtime database"""
-    global _run_db, _last_db_url
-
     if not url:
         url = get_or_set_dburl("./")
-
-    if _last_db_url is not None and url == _last_db_url and _run_db and not force_reconnect:
-        return _run_db
-    _last_db_url = url
 
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme.lower()
@@ -78,6 +68,4 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     else:
         cls = SQLDB
 
-    _run_db = cls(url, **kwargs)
-    _run_db.connect(secrets=secrets)
-    return _run_db
+    return cls(url, **kwargs)

@@ -85,7 +85,7 @@ class StoreManager:
 
     def _get_db(self):
         if not self._db:
-            self._db = mlrun.get_run_db().connect(self._secrets)
+            self._db = mlrun.get_run_db(secrets=self._secrets)
         return self._db
 
     def from_dict(self, struct: dict):

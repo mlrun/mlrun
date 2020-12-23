@@ -558,7 +558,7 @@ from mlrun import get_run_db
 # Get an MLRun DB object and connect to an MLRun database/API service.
 # Specify the DB path (for example, './' for the current directory) or
 # the API URL ('http://mlrun-api:8080' for the default configuration).
-db = get_run_db('./').connect()
+db = get_run_db('./')
 
 # List all runs
 db.list_runs('').show()

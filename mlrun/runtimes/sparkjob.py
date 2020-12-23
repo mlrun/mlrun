@@ -174,7 +174,7 @@ class SparkRuntime(KubejobRuntime):
     def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config
-        get_run_db().connect()
+        get_run_db()
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._default_image
         return super().deploy(

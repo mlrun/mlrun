@@ -154,7 +154,7 @@ def _load_project_dir(context, name="", subpath=""):
 
 
 def _load_project_from_db(url, secrets):
-    db = get_run_db().connect(secrets)
+    db = get_run_db(secrets=secrets)
     project_name = url.replace("git://", "")
     return db.get_project(project_name)
 
@@ -206,10 +206,11 @@ def _project_instance_from_struct(struct, name):
 
 
 class ProjectMetadata(ModelObj):
-    def __init__(self, name=None, created=None, labels=None):
+    def __init__(self, name=None, created=None, labels=None, annotations=None):
         self.name = name
         self.created = created
         self.labels = labels or {}
+        self.annotations = annotations or {}
 
     @property
     def name(self) -> str:
@@ -1076,7 +1077,7 @@ class MlrunProject(ModelObj):
             if run_info:
                 status = run_info["run"].get("status")
 
-        mldb = get_run_db().connect(self._secrets)
+        mldb = get_run_db(secrets=self._secrets)
         runs = mldb.list_runs(
             project=self.metadata.name, labels=f"workflow={workflow_id}"
         )
@@ -1110,7 +1111,7 @@ class MlrunProject(ModelObj):
         self.save_to_db()
 
     def save_to_db(self):
-        db = get_run_db().connect(self._secrets)
+        db = get_run_db(secrets=self._secrets)
         db.store_project(self.metadata.name, self.to_dict())
 
     def export(self, filepath=None):

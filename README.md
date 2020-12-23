@@ -12,7 +12,7 @@
 **MLRun** is the first end-to-end open-source MLOps solution for managing and automating your entire analytics and machine-learning life cycle, from data ingestion through model development to full pipeline deployment in production.
 
 <a id="key-benefits"></a>
-#### Key Benefits
+#### Key Benefits <!-- omit in toc -->
 
 - Develop your training pipeline on any framework, locally and/or on a cluster.
 - Leverage the power of the open-source functions marketplace to focus on your research.
@@ -20,7 +20,7 @@
 - Monitor your model performance and automate your actions.
 
 <a id="key-features"></a>
-#### Key Features
+#### Key Features <!-- omit in toc -->
 
 - **Project life-cycle management** &mdash; experiment management and tracking of jobs, functions, and artifacts.
 - **Scalable functions** &mdash; turn code to scalable microservices in a single command.
@@ -30,7 +30,7 @@ MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), a
 
 &#x25B6; For more information, see the [MLRun Python package documentation](https://mlrun.readthedocs.io).
 
-#### In This Document
+#### In This Document <!-- omit in toc -->
 - [General Concept and Motivation](#general-concept-and-motivation)
   - [The Challenge](#the-challenge)
   - [The MLRun Vision](#the-mlrun-vision)

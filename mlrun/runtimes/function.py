@@ -232,7 +232,7 @@ class RemoteRuntime(KubeResource):
 
         return self
 
-    def add_stream_trigger(
+    def add_v3io_stream_trigger(
         self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
     ):
         """add v3io stream trigger to the function"""

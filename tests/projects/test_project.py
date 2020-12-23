@@ -1,8 +1,10 @@
 import pathlib
+import pytest
 
 import deepdiff
 
 import mlrun
+import mlrun.errors
 import mlrun.projects.project
 import tests.conftest
 
@@ -60,3 +62,9 @@ def test_create_project_from_file_with_legacy_structure():
         )
         == {}
     )
+
+
+def test_create_project_with_invalid_name():
+    invalid_name = "project_name"
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.projects.project.new_project(invalid_name, init_git=False)

@@ -170,7 +170,7 @@ def test_local_no_context():
     ).run(spec)
     verify_state(result)
 
-    db = get_run_db().connect()
+    db = get_run_db()
     state, log = db.get_log(result.metadata.uid)
     log = str(log)
     print(state)

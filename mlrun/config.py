@@ -197,7 +197,7 @@ class Config:
             import mlrun.db
 
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value).connect()
+            mlrun.db.get_run_db(value)
 
 
 # Global configuration

@@ -153,12 +153,11 @@ class MLClientCtx(object):
     def _init_dbs(self, rundb):
         if rundb:
             if isinstance(rundb, str):
-                self._rundb = get_run_db(rundb)
-                self._rundb.connect(self._secrets_manager)
+                self._rundb = get_run_db(rundb, secrets=self._secrets_manager)
             else:
                 self._rundb = rundb
         self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
-        self._artifacts_manager = ArtifactManager(self._data_stores, db=self._rundb)
+        self._artifacts_manager = ArtifactManager(db=self._rundb)
 
     def get_meta(self):
         """Reserved for internal use"""

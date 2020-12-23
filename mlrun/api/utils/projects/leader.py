@@ -55,7 +55,7 @@ class Member(
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ) -> mlrun.api.schemas.Project:
-        self._validate_project_name(project.metadata.name)
+        self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers("create_project", session, project)
         return self.get_project(session, project.metadata.name)
 
@@ -65,7 +65,8 @@ class Member(
         name: str,
         project: mlrun.api.schemas.Project,
     ):
-        self._validate_project_name(name)
+        self._enrich_project(project)
+        self.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers("store_project", session, name, project)
         return self.get_project(session, name)
@@ -77,6 +78,7 @@ class Member(
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
+        self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers("patch_project", session, name, project, patch_mode)
         return self.get_project(session, name)
@@ -94,8 +96,12 @@ class Member(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        return self._leader_follower.list_projects(session, owner, format_)
+        return self._leader_follower.list_projects(
+            session, owner, format_, labels, state
+        )
 
     def _start_periodic_sync(self):
         # if no followers no need for sync
@@ -191,9 +197,8 @@ class Member(
                 # Heuristically pick the first follower
                 project_follower_name = list(follower_names)[0]
                 project = followers_projects_map[project_follower_name][project_name]
-                self._leader_follower.create_project(
-                    session, mlrun.api.schemas.Project(**project.dict())
-                )
+                self._enrich_and_validate_before_creation(project)
+                self._leader_follower.create_project(session, project)
             except Exception as exc:
                 logger.warning(
                     "Failed creating missing project in leader",
@@ -218,9 +223,7 @@ class Member(
                 # if it was created prior to 0.6.0, and the version was upgraded
                 # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
                 # as well)
-                if not self._validate_project_name(
-                    project_name, raise_on_failure=False
-                ):
+                if not self.validate_project_name(project_name, raise_on_failure=False):
                     return
                 for missing_follower in missing_followers:
                     logger.debug(
@@ -231,8 +234,9 @@ class Member(
                         project=project,
                     )
                     try:
+                        self._enrich_and_validate_before_creation(project)
                         self._followers[missing_follower].create_project(
-                            session, mlrun.api.schemas.Project(**project.dict()),
+                            session, project,
                         )
                     except Exception as exc:
                         logger.warning(
@@ -289,8 +293,23 @@ class Member(
             raise ValueError(f"Unknown follower name: {name}")
         return followers_classes_map[name]
 
+    def _enrich_and_validate_before_creation(self, project: mlrun.api.schemas.Project):
+        self._enrich_project(project)
+        self.validate_project_name(project.metadata.name)
+
     @staticmethod
-    def _validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
+    def _enrich_project(project: mlrun.api.schemas.Project):
+        project.status.state = project.spec.desired_state
+
+    @staticmethod
+    def _enrich_project_patch(project_patch: dict):
+        if project_patch.get("spec", {}).get("desired_state"):
+            project_patch.setdefault("status", {})["state"] = project_patch["spec"][
+                "desired_state"
+            ]
+
+    @staticmethod
+    def validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
         try:
             mlrun.utils.helpers.verify_field_regex(
                 "project.metadata.name", name, mlrun.utils.regex.project_name

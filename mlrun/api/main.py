@@ -175,7 +175,6 @@ def _monitor_runs():
 
 
 def _cleanup_runtimes():
-    logger.debug("Cleaning runtimes")
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():

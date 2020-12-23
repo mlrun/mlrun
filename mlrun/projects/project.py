@@ -48,6 +48,8 @@ from ..utils import (
     RunNotifications,
 )
 from ..runtimes.utils import add_code_metadata
+import mlrun.api.schemas
+import mlrun.api.utils.projects.leader
 
 
 class ProjectError(Exception):
@@ -152,7 +154,7 @@ def _load_project_dir(context, name="", subpath=""):
 
 
 def _load_project_from_db(url, secrets):
-    db = get_run_db().connect(secrets)
+    db = get_run_db(secrets=secrets)
     project_name = url.replace("git://", "")
     return db.get_project(project_name)
 
@@ -204,9 +206,22 @@ def _project_instance_from_struct(struct, name):
 
 
 class ProjectMetadata(ModelObj):
-    def __init__(self, name=None, created=None):
+    def __init__(self, name=None, created=None, labels=None, annotations=None):
         self.name = name
         self.created = created
+        self.labels = labels or {}
+        self.annotations = annotations or {}
+
+    @property
+    def name(self) -> str:
+        """Project name"""
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        if name:
+            mlrun.api.utils.projects.leader.Member.validate_project_name(name)
+        self._name = name
 
 
 class ProjectSpec(ModelObj):
@@ -222,6 +237,8 @@ class ProjectSpec(ModelObj):
         source=None,
         subpath=None,
         origin_url=None,
+        goals=None,
+        desired_state=mlrun.api.schemas.ProjectState.online.value,
     ):
         self.repo = None
 
@@ -232,6 +249,8 @@ class ProjectSpec(ModelObj):
         self.source = source or ""
         self.subpath = subpath or ""
         self.origin_url = origin_url or ""
+        self.goals = goals
+        self.desired_state = desired_state
         self.branch = None
         self.tag = ""
         self.params = params or {}
@@ -671,9 +690,9 @@ class MlrunProject(ModelObj):
     def _get_artifact_manager(self):
         if self._artifact_manager:
             return self._artifact_manager
-        db = get_run_db().connect(self._secrets)
-        sm = store_manager.set(self._secrets, db)
-        self._artifact_manager = ArtifactManager(sm, db)
+        db = get_run_db(secrets=self._secrets)
+        store_manager.set(self._secrets, db)
+        self._artifact_manager = ArtifactManager(db)
         return self._artifact_manager
 
     def _get_hexsha(self):
@@ -1058,7 +1077,7 @@ class MlrunProject(ModelObj):
             if run_info:
                 status = run_info["run"].get("status")
 
-        mldb = get_run_db().connect(self._secrets)
+        mldb = get_run_db(secrets=self._secrets)
         runs = mldb.list_runs(
             project=self.metadata.name, labels=f"workflow={workflow_id}"
         )
@@ -1092,7 +1111,7 @@ class MlrunProject(ModelObj):
         self.save_to_db()
 
     def save_to_db(self):
-        db = get_run_db().connect(self._secrets)
+        db = get_run_db(secrets=self._secrets)
         db.store_project(self.metadata.name, self.to_dict())
 
     def export(self, filepath=None):

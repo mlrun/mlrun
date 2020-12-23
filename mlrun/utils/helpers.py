@@ -85,7 +85,7 @@ def verify_field_regex(field_name, field_value, patterns):
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             logger.warn(
-                "Field is malformed. Does not match required pattern)",
+                "Field is malformed. Does not match required pattern",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,

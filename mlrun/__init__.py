@@ -92,7 +92,7 @@ def set_environment(api_path: str = None, artifact_path: str = "", project: str 
         raise ValueError("DB/API path was not detected, please specify its address")
 
     # check connectivity and load remote defaults
-    get_run_db().connect()
+    get_run_db()
     if api_path:
         environ["MLRUN_DBPATH"] = mlconf.dbpath
 

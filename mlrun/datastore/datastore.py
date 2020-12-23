@@ -27,11 +27,6 @@ from ..utils import run_keys, DB_SCHEMA
 in_memory_store = InMemoryStore()
 
 
-def get_object_stat(url, secrets=None):
-    stores = StoreManager(secrets)
-    return stores.object(url=url).stat()
-
-
 def parse_url(url):
     parsed_url = urlparse(url)
     schema = parsed_url.scheme.lower()
@@ -90,7 +85,7 @@ class StoreManager:
 
     def _get_db(self):
         if not self._db:
-            self._db = mlrun.get_run_db().connect(self._secrets)
+            self._db = mlrun.get_run_db(secrets=self._secrets)
         return self._db
 
     def from_dict(self, struct: dict):

@@ -54,7 +54,12 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     if not url:
         url = get_or_set_dburl("./")
 
-    if _last_db_url is not None and url == _last_db_url and _run_db and not force_reconnect:
+    if (
+        _last_db_url is not None
+        and url == _last_db_url
+        and _run_db
+        and not force_reconnect
+    ):
         return _run_db
     _last_db_url = url
 

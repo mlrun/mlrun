@@ -54,9 +54,13 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        if owner:
-            raise NotImplementedError()
+        if owner or labels or state:
+            raise NotImplementedError(
+                "Filtering by owner, labels or state is not supported"
+            )
         if format_ == mlrun.api.schemas.Format.full:
             return mlrun.api.schemas.ProjectsOutput(
                 projects=list(self._projects.values())

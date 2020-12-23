@@ -4,7 +4,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Query, Request, Response
 
 from mlrun.api.api.utils import log_and_raise, get_obj_path, get_secrets
-from mlrun.datastore import get_object_stat, store_manager
+from mlrun.datastore import store_manager
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -74,7 +74,8 @@ def get_filestat(request: Request, schema: str = "", path: str = "", user: str =
     secrets = get_secrets(request)
     stat = None
     try:
-        stat = get_object_stat(path, secrets)
+        stores = store_manager.set(secrets)
+        stat = stores.object(url=path).stat()
     except FileNotFoundError as exc:
         log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=str(exc))
 

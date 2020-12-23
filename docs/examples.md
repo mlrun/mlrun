@@ -15,7 +15,7 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
   - Serverless model serving with Nuclio &mdash; [**xgb_serving.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/xgb_serving.ipynb)
   - Dask &mdash; [**mlrun_dask.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_dask.ipynb)
   - Spark &mdash; [**mlrun_sparkk8s.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_sparkk8s.ipynb)
-- MLRun project and Git lifecycle &mdash;
+- MLRun project and Git life cycle &mdash;
   - Load a project from a remote Git location and run pipelines &mdash; [**load-project.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/load-project.ipynb)
   - Create a new project, functions, and pipelines, and upload to Git &mdash; [**new-project.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/new-project.ipynb)
 - Import and export functions using files or Git &mdash; [**mlrun_export_import.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_export_import.ipynb)

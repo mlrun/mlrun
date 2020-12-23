@@ -16,6 +16,9 @@ import os
 import pathlib
 import v3io_frames as v3f
 from tempfile import mktemp
+
+from mlrun.datastore import store_manager
+
 from .model import TargetTypes
 from ..platforms.iguazio import split_path
 from ..config import config as mlconf
@@ -23,21 +26,20 @@ from ..config import config as mlconf
 
 def write_to_target_store(client, kind, source, target_path, featureset, **kw):
     """write/ingest data to a target store"""
-    data_stores = client.get_data_stores()
     if kind == TargetTypes.parquet:
-        return upload_file(source, data_stores, target_path, **kw)
+        return upload_file(source, target_path, **kw)
     if kind == TargetTypes.nosql:
         index = list(featureset.spec.entities.keys())
-        return upload_nosql(source, data_stores, target_path, index)
+        return upload_nosql(source, target_path, index)
     raise NotImplementedError(
         "currently only parquet/file and nosql targets are supported"
     )
 
 
-def upload_nosql(source, data_stores, target_path, index):
+def upload_nosql(source, target_path, index):
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
-        source = data_stores.object(url=source).as_df()
+        source = store_manager.object(url=source).as_df()
 
     container, subpath = split_path(target_path)
     client = v3f.Client(mlconf.frames_url, container=container)
@@ -48,13 +50,13 @@ def upload_nosql(source, data_stores, target_path, index):
     )
 
 
-def upload_file(source, data_stores, target_path, format="parquet", **kw):
+def upload_file(source, target_path, format="parquet", **kw):
     suffix = pathlib.Path(target_path).suffix
     if not suffix:
         target_path = target_path + "." + format
     if isinstance(source, str):
         if source and os.path.isfile(source):
-            data_stores.object(url=target_path).upload(source)
+            store_manager.object(url=target_path).upload(source)
         return target_path
 
     df = source
@@ -76,7 +78,7 @@ def upload_file(source, data_stores, target_path, format="parquet", **kw):
 
         saving_func(target, **kw)
         if to_upload:
-            data_stores.object(url=target_path).upload(target)
+            store_manager.object(url=target_path).upload(target)
             os.remove(target)
         return target_path
 

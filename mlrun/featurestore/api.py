@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import List, Union
-
-from storey import V3ioDriver, Table
-
 import mlrun
 from .infer import get_df_stats, get_df_preview
 from .mergers.local import LocalFeatureMerger
@@ -133,7 +130,7 @@ def ingest(
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
-        source = mlrun.get_data_stores().object(url=source).as_df()
+        source = mlrun.store_manager.object(url=source).as_df()
 
     if infer_schema:
         featureset.infer_from_df(source, namespace=namespace)

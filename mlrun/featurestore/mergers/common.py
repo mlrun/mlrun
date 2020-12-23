@@ -1,4 +1,6 @@
 import os
+from tempfile import mktemp
+
 import mlrun
 
 
@@ -24,7 +26,6 @@ class OfflineVectorResponse:
 
     def _upload(self, target_path, format="parquet", **kw):
         df = self._merger.get_df()
-        data_stores = mlrun.get_data_stores()
 
         if format in ["csv", "parquet"]:
             writer_string = "to_{}".format(format)
@@ -41,7 +42,7 @@ class OfflineVectorResponse:
 
             saving_func(target, **kw)
             if to_upload:
-                data_stores.object(url=target_path).upload(target)
+                mlrun.store_manager.object(url=target_path).upload(target)
                 os.remove(target)
             return target_path
 

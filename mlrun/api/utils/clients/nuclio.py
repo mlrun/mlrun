@@ -62,6 +62,10 @@ class Client(
             response_body.setdefault("metadata", {}).setdefault("labels", {}).update(
                 project["metadata"]["labels"]
             )
+        if project.get("metadata").get("annotations") is not None:
+            response_body.setdefault("metadata", {}).setdefault(
+                "annotations", {}
+            ).update(project["metadata"]["annotations"])
         if project.get("spec").get("description") is not None:
             response_body.setdefault("spec", {})["description"] = project["spec"][
                 "description"
@@ -159,6 +163,8 @@ class Client(
         }
         if project.metadata.labels:
             body["metadata"]["labels"] = project.metadata.labels
+        if project.metadata.annotations:
+            body["metadata"]["annotations"] = project.metadata.annotations
         if project.spec.description:
             body["spec"] = {"description": project.spec.description}
         return body
@@ -169,6 +175,7 @@ class Client(
             metadata=mlrun.api.schemas.ProjectMetadata(
                 name=nuclio_project["metadata"]["name"],
                 labels=nuclio_project["metadata"].get("labels"),
+                annotations=nuclio_project["metadata"].get("annotations"),
             ),
             spec=mlrun.api.schemas.ProjectSpec(
                 description=nuclio_project["spec"].get("description")

@@ -14,6 +14,7 @@ class ProjectMetadata(pydantic.BaseModel):
     name: str
     created: typing.Optional[datetime.datetime] = None
     labels: typing.Optional[dict]
+    annotations: typing.Optional[dict]
 
     class Config:
         extra = pydantic.Extra.allow

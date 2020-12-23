@@ -20,13 +20,15 @@ import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
+from nuclio.triggers import V3IOStreamTrigger
+
 from mlrun.db import RunDBError
 from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
 import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io
+from ..platforms.iguazio import mount_v3io, split_path
 from .base import RunError, FunctionStatus
 from .utils import log_std, get_item_name
 from ..utils import logger, update_in, get_in, enrich_image_url
@@ -229,6 +231,25 @@ class RemoteRuntime(KubeResource):
             self.from_image(image)
 
         return self
+
+    def add_v3io_stream_trigger(
+        self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
+    ):
+        """add v3io stream trigger to the function"""
+        container, path = split_path(stream_path)
+        shards = shards or 1
+        self.add_trigger(
+            name,
+            V3IOStreamTrigger(
+                name=name,
+                container=container,
+                path=path[1:],
+                consumerGroup=group,
+                seekTo=seek_to,
+            ),
+        )
+        self.spec.min_replicas = shards
+        self.spec.max_replicas = shards
 
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,

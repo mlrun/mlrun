@@ -328,8 +328,8 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
     return "{}{}".format(base or "", local_path)
 
 
-def parse_function_uri(uri):
-    project = ""
+def parse_function_uri(uri, default_project=""):
+    project = default_project
     tag = ""
     hash_key = ""
     if "/" in uri:

@@ -15,7 +15,6 @@
 import pathlib
 from os.path import isdir
 
-from ..datastore import StoreManager
 from ..db import RunDBInterface
 from ..utils import uxjoin, logger
 
@@ -59,11 +58,10 @@ def dict_to_artifact(struct: dict):
 
 class ArtifactManager:
     def __init__(
-        self, stores: StoreManager, db: RunDBInterface = None, calc_hash=True,
+        self, db: RunDBInterface = None, calc_hash=True,
     ):
         self.calc_hash = calc_hash
 
-        self.data_stores = stores
         self.artifact_db = db
         self.input_artifacts = {}
         self.artifacts = {}
@@ -154,7 +152,7 @@ class ArtifactManager:
         self.artifacts[key] = item
 
         if (upload is None and item.kind != "dir") or upload:
-            item.upload(self.data_stores)
+            item.upload()
 
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
@@ -209,9 +207,6 @@ class ArtifactManager:
                 tag=tag,
                 project=project,
             )
-
-    def _get_store(self, url):
-        return self.data_stores.get_or_create_store(url)
 
 
 def filename(key, format):

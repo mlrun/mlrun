@@ -45,7 +45,7 @@ class BaseModelRouter:
         self.protocol = protocol or "v2"
         self.url_prefix = url_prefix or f"/{self.protocol}/models"
         self.health_prefix = health_prefix or f"/{self.protocol}/health"
-        self.inputs_key == "instances" if self.protocol == "v1" else "inputs"
+        self.inputs_key = "instances" if self.protocol == "v1" else "inputs"
         self.kwargs = kwargs
 
     def parse_event(self, event):
@@ -67,7 +67,8 @@ class BaseModelRouter:
 
         except Exception as e:
             #  if images convert to bytes
-            if getattr(event, "content_type", "").startswith("image/"):
+            content_type = getattr(event, "content_type") or ""
+            if content_type.startswith("image/"):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
             else:

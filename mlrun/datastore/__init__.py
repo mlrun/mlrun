@@ -14,7 +14,7 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .datastore import StoreManager, uri_to_ipython, get_object_stat, in_memory_store
+from .datastore import StoreManager, uri_to_ipython, in_memory_store
 from .base import DataItem
 
 

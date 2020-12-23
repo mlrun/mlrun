@@ -27,11 +27,6 @@ from ..utils import run_keys, DB_SCHEMA
 in_memory_store = InMemoryStore()
 
 
-def get_object_stat(url, secrets=None):
-    stores = StoreManager(secrets)
-    return stores.object(url=url).stat()
-
-
 def parse_url(url):
     parsed_url = urlparse(url)
     schema = parsed_url.scheme.lower()

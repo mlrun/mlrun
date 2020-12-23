@@ -61,18 +61,6 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
     mlconf.remote_host = mlconf.remote_host or igz_domain
 
 
-_data_stores = None
-
-
-def get_data_stores(secrets=None, override=False):
-    """singleton mlrun data store client"""
-
-    global _data_stores
-    if not _data_stores or override:
-        _data_stores = store_manager.set(secrets)
-    return _data_stores
-
-
 def set_environment(api_path: str = None, artifact_path: str = "", project: str = ""):
     """set and test default config for: api path, artifact_path and project
 

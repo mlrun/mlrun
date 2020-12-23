@@ -689,9 +689,9 @@ class MlrunProject(ModelObj):
     def _get_artifact_manager(self):
         if self._artifact_manager:
             return self._artifact_manager
-        db = get_run_db().connect(self._secrets)
-        sm = store_manager.set(self._secrets, db)
-        self._artifact_manager = ArtifactManager(sm, db)
+        db = get_run_db(secrets=self._secrets)
+        store_manager.set(self._secrets, db)
+        self._artifact_manager = ArtifactManager(db)
         return self._artifact_manager
 
     def _get_hexsha(self):

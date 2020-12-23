@@ -63,9 +63,9 @@ class Client(
                 project["metadata"]["labels"]
             )
         if project.get("metadata").get("annotations") is not None:
-            response_body.setdefault("metadata", {}).setdefault("annotations", {}).update(
-                project["metadata"]["annotations"]
-            )
+            response_body.setdefault("metadata", {}).setdefault(
+                "annotations", {}
+            ).update(project["metadata"]["annotations"])
         if project.get("spec").get("description") is not None:
             response_body.setdefault("spec", {})["description"] = project["spec"][
                 "description"

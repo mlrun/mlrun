@@ -9,33 +9,28 @@
 
 *The fastest way to develop and deploy your AI application today.*
 
+**MLRun** is the first end-to-end open-source MLOps solution for managing and automating your entire analytics and machine-learning life cycle, from data ingestion through model development to full pipeline deployment in production.
 
-**MLRun** is the first end-to-end open source MLOps solution to manage and automate your entire analytics and machine learning life cycle, from data ingestion through model development and full pipeline deployment.
+<a id="key-benefits"></a>
+#### Key Benefits
 
-Benefits <!-- omit in toc -->
---------
+- Develop your training pipeline on any framework, locally and/or on a cluster.
+- Leverage the power of the open-source functions marketplace to focus on your research.
+- Deploy your pipeline at scale in a single click.
+- Monitor your model performance and automate your actions.
 
-With MLRun you can:
+<a id="key-features"></a>
+#### Key Features
 
-* Develop your training pipeline on any framework locally and/or on a cluster.
-* Leverage the power of the open source function marketplace to focus on your research.
-* Deploy your pipeline at scale in a single click.
-* Monitor your model performance and automate your actions.
-
-Components <!-- omit in toc -->
-----------
-
-MLRun includes the following components:
-
-* **Project life-cycle management**: experiment management and tracking of jobs, functions and artifacts.
-* **Scalable functions**: turn code to scalable microservices in a single command.
-* **Managed Pipelines**: deploy, run and monitor your machine learning execution plan.
+- **Project life-cycle management** &mdash; experiment management and tracking of jobs, functions, and artifacts.
+- **Scalable functions** &mdash; turn code to scalable microservices in a single command.
+- **Managed pipelines** &mdash; deploy, run, and monitor your machine-learning execution plan.
 
 MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), and a graphical user interface (the MLRun dashboard).
 
-Read more [**detailed documentation here**](https://mlrun.readthedocs.io/en/latest/)
+&#x25B6; For more information, see the [MLRun Python package documentation](https://mlrun.readthedocs.io).
 
-## In This Document <!-- omit in toc -->
+#### In This Document
 - [General Concept and Motivation](#general-concept-and-motivation)
   - [The Challenge](#the-challenge)
   - [The MLRun Vision](#the-mlrun-vision)

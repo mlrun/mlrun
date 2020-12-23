@@ -11,26 +11,26 @@ MLRun Package Documentation
 Introduction
 ************
 
-**MLRun** is the first end-to-end open source MLOps solution to manage and automate your entire analytics and machine learning life cycle, from data ingestion through model development and full pipeline deployment.
+**MLRun** is the first end-to-end open-source MLOps solution for managing and automating your entire analytics and machine-learning life cycle, from data ingestion through model development to full pipeline deployment in production.
 
-Benefits
---------
+Key Benefits
+------------
 
-With MLRun you can:
+MLRun provides the following key benefits:
 
-* Develop your training pipeline on any framework locally and/or on a cluster.
-* Leverage the power of the open source function marketplace to focus on your research.
-* Deploy your pipeline at scale in a single click.
-* Monitor your model performance and automate your actions.
+- Develop your training pipeline on any framework, locally and/or on a cluster.
+- Leverage the power of the open-source functions marketplace to focus on your research.
+- Deploy your pipeline at scale in a single click.
+- Monitor your model performance and automate your actions.
 
-Components
-----------
+Key Features
+--------------
 
-MLRun includes the following components:
+MLRun includes the following key features:
 
-* **Project life-cycle management**: experiment management and tracking of jobs, functions and artifacts.
-* **Scalable functions**: turn code to scalable microservices in a single command.
-* **Managed Pipelines**: deploy, run and monitor your machine learning execution plan.
+- **Project life-cycle management** &mdash; experiment management and tracking of jobs, functions, and artifacts.
+- **Scalable functions** &mdash; turn code to scalable microservices in a single command.
+- **Managed pipelines** &mdash; deploy, run, and monitor your machine-learning execution plan.
 
 .. toctree::
    :maxdepth: 1

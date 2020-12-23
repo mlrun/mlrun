@@ -563,7 +563,7 @@ class RunObject(RunTemplate):
         return self.metadata.uid
 
     def state(self):
-        db = get_run_db().connect()
+        db = get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
             project=self.metadata.project,
@@ -573,12 +573,12 @@ class RunObject(RunTemplate):
             return get_in(run, "status.state", "unknown")
 
     def show(self):
-        db = get_run_db().connect()
+        db = get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
     def logs(self, watch=True, db=None):
         if not db:
-            db = get_run_db().connect()
+            db = get_run_db()
         if not db:
             print("DB is not configured, cannot show logs")
             return None

@@ -197,7 +197,7 @@ class BaseRuntime(ModelObj):
         self._ensure_run_db()
         if not self._db_conn:
             if self.spec.rundb:
-                self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
+                self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
         return self._db_conn
 
     def run(

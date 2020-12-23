@@ -154,7 +154,7 @@ def _load_project_dir(context, name="", subpath=""):
 
 
 def _load_project_from_db(url, secrets):
-    db = get_run_db().connect(secrets)
+    db = get_run_db(secrets=secrets)
     project_name = url.replace("git://", "")
     return db.get_project(project_name)
 
@@ -689,7 +689,7 @@ class MlrunProject(ModelObj):
     def _get_artifact_manager(self):
         if self._artifact_manager:
             return self._artifact_manager
-        db = get_run_db().connect(self._secrets)
+        db = get_run_db(secrets=self._secrets)
         sm = store_manager.set(self._secrets, db)
         self._artifact_manager = ArtifactManager(sm, db)
         return self._artifact_manager
@@ -1076,7 +1076,7 @@ class MlrunProject(ModelObj):
             if run_info:
                 status = run_info["run"].get("status")
 
-        mldb = get_run_db().connect(self._secrets)
+        mldb = get_run_db(secrets=self._secrets)
         runs = mldb.list_runs(
             project=self.metadata.name, labels=f"workflow={workflow_id}"
         )
@@ -1110,7 +1110,7 @@ class MlrunProject(ModelObj):
         self.save_to_db()
 
     def save_to_db(self):
-        db = get_run_db().connect(self._secrets)
+        db = get_run_db(secrets=self._secrets)
         db.store_project(self.metadata.name, self.to_dict())
 
     def export(self, filepath=None):

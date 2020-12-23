@@ -88,7 +88,7 @@ def resolve_mpijob_crd_version(api_context=False):
             elif not in_k8s_cluster and not api_context:
                 # connect will populate the config from the server config
                 # TODO: something nicer
-                get_run_db().connect()
+                get_run_db()
                 mpijob_crd_version = config.mpijob_crd_version
 
             # If resolution failed simply use default

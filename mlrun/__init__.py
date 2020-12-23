@@ -26,7 +26,7 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 from os import environ, path
 
 from .config import config as mlconf
-from .datastore import DataItem
+from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .execution import MLClientCtx
 from .model import RunTemplate, NewTask, new_task, RunObject

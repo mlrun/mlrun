@@ -28,9 +28,6 @@ def db() -> Generator:
     dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
     config.httpdb.dsn = dsn
 
-    # we're also running client code in tests
-    config.dbpath = dsn
-
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
     _init_engine(config.httpdb.dsn)
@@ -39,6 +36,10 @@ def db() -> Generator:
     init_data(from_scratch=True)
     initialize_db()
     initialize_project_member()
+
+    # we're also running client code in tests so set dbpath as well
+    # note that setting this attribute triggers connection to the run db therefore must happen after the initialization
+    config.dbpath = dsn
     yield create_session()
     logger.info(f"Removing temp db file: {db_file.name}")
     db_file.close()

@@ -166,7 +166,7 @@ def server_fixture():
 
 servers = [
     "server",
-    "docker",
+    # "docker",
 ]
 
 
@@ -537,8 +537,9 @@ def test_project_file_db_roundtrip(create_server):
     subpath = "subpath"
     origin_url = "origin_url"
     labels = {"key": "value"}
+    annotations = {"annotation-key": "annotation-value"}
     project_metadata = mlrun.projects.project.ProjectMetadata(
-        project_name, labels=labels
+        project_name, labels=labels, annotations=annotations,
     )
     project_spec = mlrun.projects.project.ProjectSpec(
         description,

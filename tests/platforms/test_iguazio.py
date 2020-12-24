@@ -1,8 +1,10 @@
 import os
+import pytest
 import deepdiff
 from http import HTTPStatus
 from unittest.mock import Mock
 import mlrun
+import mlrun.errors
 
 import requests
 
@@ -67,16 +69,15 @@ def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
     assert access_key == result_access_key
 
 
-def test_mount_v3io():
+def test_mount_v3io_legacy():
     username = "username"
     access_key = "access-key"
-    env = os.environ
-    env["V3IO_USERNAME"] = username
-    env["V3IO_ACCESS_KEY"] = access_key
+    os.environ["V3IO_USERNAME"] = username
+    os.environ["V3IO_ACCESS_KEY"] = access_key
     function = mlrun.new_function(
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
-    function.apply(mlrun.mount_v3io())
+    function.apply(mlrun.mount_v3io_legacy())
     expected_volume = {
         "flexVolume": {
             "driver": "v3io/fuse",
@@ -101,12 +102,105 @@ def test_mount_v3io():
     )
 
 
+def test_mount_v3io():
+    cases = [
+        {
+            'mount_path': '/custom-mount-path',
+            'volume_mounts': [mlrun.VolumeMount('/volume-mount-path', 'volume-sub-path')],
+            'expect_failure': True
+        },
+        {
+            'mount_path': '/custom-mount-path',
+            'volume_mounts': [mlrun.VolumeMount('/volume-mount-path', 'volume-sub-path')],
+            'remote': '~/custom-remote',
+            'expect_failure': True
+        },
+        {
+            'mount_path': '/custom-mount-path',
+            'remote': '~/custom-remote',
+            'set_user': True,
+        },
+        {
+            'mount_path': '/custom-mount-path',
+            'set_user': True,
+        },
+        {
+            'remote': '~/custom-remote',
+            'set_user': True,
+        },
+        {
+            'remote': '~/custom-remote',
+            'volume_mounts': [mlrun.VolumeMount('/volume-mount-path', 'volume-sub-path')],
+            'set_user': True,
+        },
+        {
+            'volume_mounts': [mlrun.VolumeMount('/volume-mount-path', 'volume-sub-path')],
+            'set_user': True,
+        },
+        {
+            'set_user': True,
+        },
+    ]
+    for case in cases:
+        username = "username"
+        tested_function = mlrun.new_function(
+            "tested-function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+        )
+        expectation_function = mlrun.new_function(
+            "expectation-function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+        )
+        if case.get('set_user'):
+            os.environ["V3IO_USERNAME"] = username
+            os.environ["V3IO_ACCESS_KEY"] = "access-key"
+        else:
+            os.environ.pop("V3IO_USERNAME", None)
+            os.environ.pop("V3IO_ACCESS_KEY", None)
+        mount_v3io_kwargs = {
+            'remote': case.get('remote'),
+            'mount_path': case.get('mount_path'),
+            'volume_mounts': case.get('volume_mounts'),
+        }
+        mount_v3io_kwargs = {k: v for k, v in mount_v3io_kwargs.items() if v}
+        if case.get('expect_failure'):
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                tested_function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
+        else:
+            tested_function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
+            if not case.get('volume_mounts') and case.get('remote'):
+                expectation_modifier = mlrun.mount_v3io_legacy
+                expectation_modifier_kwargs = {
+                    'remote': case.get('remote'),
+                    'mount_path': case.get('mount_path'),
+                }
+            else:
+                expectation_modifier = mlrun.mount_v3io_extended
+                expectation_modifier_kwargs = {
+                    'remote': case.get('remote'),
+                    'mounts': case.get('volume_mounts'),
+                }
+            expectation_modifier_kwargs = {k: v for k, v in expectation_modifier_kwargs.items() if v}
+            if list(mount_v3io_kwargs.keys()) == ['mount_path']:
+                expectation_modifier_kwargs['mounts'] = [
+                    mlrun.VolumeMount(path="/v3io", sub_path=""),
+                    mlrun.VolumeMount(path=mount_v3io_kwargs['mount_path'], sub_path="users/" + username),
+                ]
+            expectation_function.apply(expectation_modifier(**expectation_modifier_kwargs))
+            assert (
+                deepdiff.DeepDiff(expectation_function.spec.volumes, tested_function.spec.volumes, ignore_order=True,)
+                == {}
+            )
+            assert (
+                    deepdiff.DeepDiff(expectation_function.spec.volume_mounts, tested_function.spec.volume_mounts,
+                                      ignore_order=True, )
+                    == {}
+            )
+
+
 def test_mount_v3io_extended():
     username = "username"
     access_key = "access-key"
-    env = os.environ
-    env["V3IO_USERNAME"] = username
-    env["V3IO_ACCESS_KEY"] = access_key
+    os.environ["V3IO_USERNAME"] = username
+    os.environ["V3IO_ACCESS_KEY"] = access_key
     function = mlrun.new_function(
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )

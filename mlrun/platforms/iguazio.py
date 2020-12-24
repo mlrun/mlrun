@@ -110,7 +110,13 @@ def _resolve_mount_user(user=None):
 
 
 def mount_v3io(
-    name="v3io", remote="", mount_path="", access_key="", user="", secret=None, volume_mounts=None,
+    name="v3io",
+    remote="",
+    mount_path="",
+    access_key="",
+    user="",
+    secret=None,
+    volume_mounts=None,
 ):
     """Modifier function to apply to a Container Op to volume mount a v3io path
 
@@ -124,7 +130,9 @@ def mount_v3io(
     :param volume_mounts:   list of VolumeMount. empty volume mounts & remote will default to mount /v3io & /User.
     """
     if mount_path and volume_mounts:
-        raise mlrun.errors.MLRunInvalidArgumentError('mount_path and mounts can not be given toegther')
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "mount_path and mounts can not be given toegther"
+        )
 
     if mount_path:
         warnings.warn(
@@ -140,7 +148,9 @@ def mount_v3io(
             if remote:
                 # If both remote and mount_path given, no default behavior is expected, we can't assume anything
                 # therefore we don't add the v3io volume mount and default to legacy behavior
-                return mount_v3io_legacy(name, remote, mount_path, access_key, user, secret)
+                return mount_v3io_legacy(
+                    name, remote, mount_path, access_key, user, secret
+                )
             else:
                 # If mount path but no remote, it means the user "counted" on the default remote
                 # Back then remote default was ~/ which is /users/<username>, but since we now use multi mount, we're
@@ -159,7 +169,9 @@ def mount_v3io(
                 # If remote but no mount path, it means the user "counted" on the default mount path
                 # Back then mount_path default was /User, but since the remote was given we can't assume anything
                 # therefore we don't add the v3io volume mount and default to legacy behavior
-                return mount_v3io_legacy(name, remote, access_key=access_key, user=user, secret=secret)
+                return mount_v3io_legacy(
+                    name, remote, access_key=access_key, user=user, secret=secret
+                )
             # not remote and not mounts (and not mount_path) handled by the extended handler
 
     return mount_v3io_extended(

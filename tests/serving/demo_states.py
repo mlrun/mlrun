@@ -29,6 +29,7 @@ class RespName(BaseClass):
 class EchoError(BaseClass):
     def do(self, x):
         x.body = {"body": x.body, "origin_state": x.origin_state, "error": x.error}
+        print("EchoError:", x)
         return x
 
 

@@ -228,7 +228,7 @@ def test_v2_mock():
     host.graph.add_route("my", class_name=ModelTestingClass, model_path="", z=100)
     host.init(None, globals())
     print(host.to_yaml())
-    resp = host.test("my/infer", testdata)
+    resp = host.test("/v2/models/my/infer", testdata)
     print(resp)
     assert resp["outputs"] == 500, f"wrong health response {resp}"
 
@@ -241,5 +241,5 @@ def test_function():
     server = fn.to_mock_server()
     graph.plot("router.png")
     print("\nFlow:\n", graph.to_yaml())
-    resp = server.test("my/infer", testdata)
+    resp = server.test("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 500, f"wrong health response {resp}"

@@ -21,12 +21,14 @@ from ..model import ObjectList
 from .function import RemoteRuntime, NuclioSpec
 from .function_reference import FunctionReference
 from ..utils import logger, get_caller_globals
-from ..serving.server import create_graph_server, GraphServer, GraphContext
+from ..serving.server import create_graph_server, GraphServer
 from ..serving.states import (
     RouterState,
     StateKinds,
     RootFlowState,
     graph_root_setter,
+    new_remote_endpoint,
+    new_model_endpoint,
 )
 
 serving_subkind = "serving_v2"
@@ -171,7 +173,6 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         start_at=None,
         engine=None,
-        result_state=None,
         exist_ok=False,
         **class_args,
     ) -> Union[RootFlowState, RouterState]:
@@ -194,7 +195,7 @@ class ServingRuntime(RemoteRuntime):
         :param topology:     - graph topology, router or flow
         :param class_name:   - optional for router, router class name/path
         :param start_at:     - for flow, starting state
-        :param engine:       - optional for flow, sync or async engine (default to sync)
+        :param engine:       - optional for flow, sync or async engine (default to async)
         :param exist_ok:     - allow overriding existing topology
         :param class_args:   - optional, router/flow class extra args
 
@@ -254,14 +255,24 @@ class ServingRuntime(RemoteRuntime):
         if graph.kind != StateKinds.router:
             raise ValueError("models can only be added under router state")
 
-        return graph.add_model(
-            key,
-            model_path,
-            class_name,
-            model_url=model_url,
-            handler=handler,
-            **class_args,
-        )
+        if not model_path and not model_url:
+            raise ValueError("model_path or model_url must be provided")
+        class_name = class_name or self.spec.default_class
+        if class_name and not isinstance(class_name, str):
+            raise ValueError(
+                "class name must be a string (name ot module.submodule.name)"
+            )
+        if model_path and not class_name:
+            raise ValueError("model_path must be provided with class_name")
+        if model_path:
+            model_path = str(model_path)
+
+        if model_url:
+            state = new_remote_endpoint(model_url, **class_args)
+        else:
+            state = new_model_endpoint(class_name, model_path, handler, **class_args)
+
+        return graph.add_route(key, state)
 
     def add_child_function(
         self, name, url=None, image=None, requirements=None, kind=None

@@ -64,9 +64,9 @@ def test_async_nested():
     graph.add_step(name="s3", class_name="Echo", after="s2")
 
     router = graph.add_step("*", name="ensemble", after="s2")
-    router.add_model("m1", class_name="ModelClass", model_path=".", z=100)
-    router.add_model("m2", class_name="ModelClass", model_path=".", z=200)
-    router.add_model("m3:v1", class_name="ModelClass", model_path=".", z=300)
+    router.add_route("m1", class_name="ModelClass", model_path=".", z=100)
+    router.add_route("m2", class_name="ModelClass", model_path=".", z=200)
+    router.add_route("m3:v1", class_name="ModelClass", model_path=".", z=300)
 
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
     graph.plot("nested.png")
@@ -76,3 +76,22 @@ def test_async_nested():
     resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
     server.wait_for_completion()
     assert resp["outputs"] == 2000, f"wrong health response {resp}"
+
+
+def test_on_error():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", start_at="s1", engine="async")
+    chain = graph.to("Chain", name="s1")
+    chain.to("Raiser").error_handler("catch").to("Chain", name="s3")
+
+    graph.add_step(
+        name="catch", class_name="EchoError", after=""
+    ).respond().full_event = True
+    fn.verbose = True
+    server = fn.to_mock_server()
+    print(graph.to_yaml())
+    resp = server.test(body=[])
+    server.wait_for_completion()
+    print(resp)
+    print(dir(resp))
+    # assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"

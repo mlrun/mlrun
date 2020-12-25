@@ -4,7 +4,7 @@ from .demo_states import *  # noqa
 
 def test_basic_flow():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1")
+    graph = fn.set_topology("flow", start_at="s1", engine="sync")
     graph.add_step(name="s1", class_name="Chain")
     graph.add_step(name="s2", class_name="Chain", after="$prev")
     graph.add_step(name="s3", class_name="Chain", after="$prev")
@@ -15,7 +15,7 @@ def test_basic_flow():
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow1 result is incorrect"
 
-    graph = fn.set_topology("flow", exist_ok=True)
+    graph = fn.set_topology("flow", exist_ok=True, engine="sync")
     graph.add_step(name="s2", class_name="Chain", after="$last")
     graph.add_step(
         name="s1", class_name="Chain", after="$start"
@@ -27,7 +27,7 @@ def test_basic_flow():
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow2 result is incorrect"
 
-    graph = fn.set_topology("flow", exist_ok=True)
+    graph = fn.set_topology("flow", exist_ok=True, engine="sync")
     graph.add_step(name="s1", class_name="Chain", after="$start")
     graph.add_step(name="s3", class_name="Chain", after="$last")
     graph.add_step(name="s2", class_name="Chain", after="s1", before="s3")
@@ -40,7 +40,7 @@ def test_basic_flow():
 
 def test_handler():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow")
+    graph = fn.set_topology("flow", engine="sync")
     graph.to(name="s1", handler="(event + 1)").to(name="s2", handler="json.dumps")
 
     server = fn.to_mock_server()
@@ -50,7 +50,7 @@ def test_handler():
 
 def test_init_class():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow")
+    graph = fn.set_topology("flow", engine="sync")
     graph.to(name="s1", class_name="Echo").to(name="s2", class_name="RespName")
 
     server = fn.to_mock_server()
@@ -60,7 +60,7 @@ def test_init_class():
 
 def test_on_error():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1")
+    graph = fn.set_topology("flow", start_at="s1", engine="sync")
     graph.add_step(name="s1", class_name="Chain")
     graph.add_step(name="raiser", class_name="Raiser", after="$prev").error_handler(
         "catch"

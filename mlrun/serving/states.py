@@ -190,6 +190,7 @@ class BaseState(ModelObj):
         graph_shape: str = None,
         function: str = None,
         next_states: list = None,
+        full_event: bool = None,
         **class_args,
     ) -> Union[TaskState, QueueState, RouterState]:
         """add a state right after this state and return the new state
@@ -208,6 +209,7 @@ class BaseState(ModelObj):
         :param next_states: list of next step names that will run after this step
         :param graph_shape: graphviz shape name
         :param function:    function this state should run in
+        :param full_event:  this step accepts the full event (not just body)
         :param class_args:  class init arguments
         """
         if hasattr(self, "start_at"):
@@ -225,6 +227,7 @@ class BaseState(ModelObj):
             handler,
             graph_shape=graph_shape,
             function=function,
+            full_event=full_event,
             class_args=class_args,
         )
         state = parent._states.update(name, state)
@@ -252,6 +255,7 @@ class TaskState(BaseState):
         next: list = None,
         full_event: bool = None,
         function: str = None,
+        responder: bool = None,
     ):
         super().__init__(name, next)
         self.class_name = class_name
@@ -260,9 +264,11 @@ class TaskState(BaseState):
         self.function = function
         self._handler = None
         self._object = None
+        self._async_object = None
         self.skip_context = None
         self.context = None
         self._class_object = None
+        self.responder = responder
         self.full_event = full_event
         self.on_error = None
 
@@ -350,8 +356,8 @@ class TaskState(BaseState):
         return False
 
     @property
-    def object(self):
-        return self._object
+    def async_object(self):
+        return self._async_object or self._object
 
     def clear_object(self):
         self._object = None
@@ -363,14 +369,11 @@ class TaskState(BaseState):
     def respond(self):
         """mark this state as the responder.
 
-        state output will be returned as the flow result, now other state can follow
+        state output will be returned as the flow result, no other state can follow
         """
-        if not self._parent or not hasattr(self._parent, "result_state"):
-            raise GraphError(
-                f"state {self.name} parent is not set or its not part of a flow"
-            )
-        self._parent.result_state = self.name
+        self.responder = True
         self.next = None
+        return self
 
     def run(self, event, *args, **kwargs):
         """run this state, in async flows the run is done through storey"""
@@ -442,46 +445,6 @@ class RouterState(TaskState):
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
-
-    def add_model(
-        self,
-        name=None,
-        model_path=None,
-        class_name=None,
-        model_url=None,
-        handler=None,
-        **class_args,
-    ):
-        """add ml model or route
-
-        :param name:        model api key (or name:version), will determine the relative url/path
-        :param model_path:  path to mlrun model artifact or model directory file/object path
-        :param class_name:  V2 Model python class name
-                            (can also module.submodule.class and it will be imported automatically)
-        :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
-        :param handler:     for advanced users!, override default class handler name (do_event)
-        :param class_args:  extra kwargs to pass to the model serving class __init__
-                            (can be read in the model using .get_param(key) method)
-        """
-        if not model_path and not model_url:
-            raise ValueError("model_path or model_url must be provided")
-        class_name = class_name or self.spec.default_class
-        if not isinstance(class_name, str):
-            raise ValueError(
-                "class name must be a string (name ot module.submodule.name)"
-            )
-        if model_path and not class_name:
-            raise ValueError("model_path must be provided with class_name")
-        if model_path:
-            model_path = str(model_path)
-
-        if model_url:
-            state = new_remote_endpoint(model_url, **class_args)
-        else:
-            state = new_model_endpoint(class_name, model_path, handler, **class_args)
-
-        self.add_route(name, state)
-        return self
 
     def clear_children(self, routes: list):
         """clear child states (routes)"""
@@ -576,7 +539,7 @@ class FlowState(BaseState):
         "states",
         "start_at",
         "engine",
-        "result_state",
+        "final_state",
     ]
 
     def __init__(
@@ -586,7 +549,7 @@ class FlowState(BaseState):
         next=None,
         start_at=None,
         engine=None,
-        result_state=None,
+        final_state=None,
     ):
         super().__init__(name, next)
         self._states = None
@@ -594,7 +557,7 @@ class FlowState(BaseState):
         self.start_at = start_at
         self.engine = engine
         self.from_state = os.environ.get("START_FROM_STATE", None)
-        self.result_state = result_state
+        self.final_state = final_state
 
         self._last_added = None
         self._controller = None
@@ -659,7 +622,7 @@ class FlowState(BaseState):
             class_args=class_args,
         )
 
-        if not after and not before:
+        if after is None and not before:
             after = "$prev"
 
         self.insert_state(name, state, after, before)
@@ -752,14 +715,17 @@ class FlowState(BaseState):
         self._set_error_handler()
         self._post_init(mode)
 
-        if self.engine in ["storey", "async"]:
+        if self.engine != "sync":
             self._build_async_flow()
 
     def set_flow_source(self, source):
         self._source = source
 
     def _build_async_flow(self):
-        import storey
+        try:
+            import storey
+        except ImportError:
+            raise GraphError("storey package is not installed, use pip install storey")
 
         def get_step(state):
             if state.kind == StateKinds.queue:
@@ -767,36 +733,55 @@ class FlowState(BaseState):
                     return storey.WriteToV3IOStream(storey.V3ioDriver(), state.path)
                 else:
                     return storey.Map(lambda x: x)
-            is_storey = (
-                hasattr(state, "object")
-                and state.object
-                and hasattr(state.object, "_outlets")
-            )
-            if is_storey:
-                return state.object
-            # todo Q state & choice
-            return storey.Map(state.run, full_event=True)
+            # is_storey = (
+            #     hasattr(state, "object")
+            #     and state.object
+            #     and hasattr(state.object, "_outlets")
+            # )
+            # if is_storey:
+            #     return state.object
+            # # todo & choice
+            # state._async_object = storey.Map(state.run, full_event=True)
+            return state.async_object
 
         def process_step(state, step, root):
             if not state._is_local_function(self.context):
                 return
-
-            if not state.next and self.result_state == state.name:
-                # print("set complete:", state.name)
-                step.to(storey.Complete(full_event=True))
-                self._wait_for_result = True
-                return
             for item in state.next or []:
-                # print("visit:", state.name, item)
+                print("visit:", state.name, item)
                 next_state = root[item]
                 next_step = step.to(get_step(next_state))
                 process_step(next_state, next_step, root)
+
+        for state in self._states.values():
+            if hasattr(state, "async_object"):
+                if not state.async_object or not hasattr(
+                    state.async_object, "_outlets"
+                ):
+                    # if regular class, wrap with storey Map
+                    state._async_object = storey.Map(
+                        state._handler,
+                        full_event=state.full_event,
+                        name=state.name,
+                        context=self.context,
+                    )
+                if not state.next and state.responder:
+                    # if responder state (return result), add Complete()
+                    state.async_object.to(storey.Complete(full_event=True))
+                    self._wait_for_result = True
 
         next_state = self.get_start_state()
         # todo: allow source array (e.g. data->json loads..)
         source = self._source or storey.Source()
         next_step = source.to(get_step(next_state))
         process_step(next_state, next_step, self)
+
+        for state in self._states.values():
+            # add error handler hooks
+            if state.on_error and state.async_object:
+                error_state = self._states[state.on_error]
+                state.async_object.set_recovery_step(error_state.async_object)
+
         self._controller = source.run()
 
     def detect_loops(self):
@@ -863,8 +848,8 @@ class FlowState(BaseState):
                 state.init_object(self.context, None)
 
     def find_last_state(self):
-        if self.result_state:
-            return self.result_state
+        if self.final_state:
+            return self.final_state
         if len(self.states) == 0:
             return None
 
@@ -932,7 +917,7 @@ class FlowState(BaseState):
 
 class RootFlowState(FlowState):
     kind = "root"
-    _dict_fields = ["states", "start_at", "engine", "result_state", "on_error"]
+    _dict_fields = ["states", "start_at", "engine", "final_state", "on_error"]
 
 
 http_adapter = HTTPAdapter(
@@ -1097,6 +1082,7 @@ def _generate_graphviz(
 
 
 def graph_root_setter(server, graph):
+    """set graph root object from class or dict"""
     if graph:
         if isinstance(graph, dict):
             kind = graph.get("kind")
@@ -1113,6 +1099,7 @@ def graph_root_setter(server, graph):
 
 
 def get_name(name, class_name):
+    """get task name from provided name or class"""
     if name:
         return name
     if not class_name:
@@ -1123,8 +1110,15 @@ def get_name(name, class_name):
 
 
 def params_to_state(
-    class_name, name, handler=None, graph_shape=None, function=None, class_args=None
+    class_name,
+    name,
+    handler=None,
+    graph_shape=None,
+    function=None,
+    full_event=None,
+    class_args=None,
 ):
+    """return state object from provided params or classes/objects"""
     if class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StateKinds.task)
@@ -1132,10 +1126,13 @@ def params_to_state(
         cls = classes_map.get(kind, RootFlowState)
         state = cls.from_dict(struct)
         state.function = function
+        state.full_event = full_event
+
     elif class_name and class_name == ">":
         if "path" not in class_args:
             raise ValueError("path=<stream path or None> must be specified for queues")
         state = QueueState(name, **class_args)
+
     elif class_name and class_name.startswith("*"):
         routes = class_args.get("routes", None)
         class_name = class_name[1:]
@@ -1143,9 +1140,17 @@ def params_to_state(
         state = RouterState(
             class_name, class_args, handler, name=name, function=function, routes=routes
         )
+
     elif class_name or handler:
         name = get_name(name, class_name)
-        state = TaskState(class_name, class_args, handler, name=name, function=function)
+        state = TaskState(
+            class_name,
+            class_args,
+            handler,
+            name=name,
+            function=function,
+            full_event=full_event,
+        )
     else:
         raise ValueError("class_name or handler must be provided")
 

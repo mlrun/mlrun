@@ -41,6 +41,7 @@ _missing = object()
 
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
+FEATURE_STORE_SCHEMA = "fs"
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)

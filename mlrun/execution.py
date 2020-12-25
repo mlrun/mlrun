@@ -22,7 +22,7 @@ import mlrun
 from mlrun.artifacts import ModelArtifact
 
 from .artifacts import ArtifactManager, DatasetArtifact
-from .data_resources import get_data_resource
+from mlrun.datastore.data_resources import get_data_resource
 from .datastore import store_manager
 from .secrets import SecretsStore
 from .db import get_run_db

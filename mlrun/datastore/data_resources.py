@@ -19,8 +19,8 @@ import mlrun
 from mlrun.config import config
 from mlrun.model import ResourceSchema
 from mlrun.utils.helpers import parse_function_uri
-from mlrun.datastore import store_manager
 from mlrun.artifacts import dict_to_artifact
+from ..utils.helpers import DB_SCHEMA, FEATURE_STORE_SCHEMA
 
 
 class ResourceCache:
@@ -100,5 +100,5 @@ def get_data_resource(uri, db=None, secrets=None):
             return dict_to_artifact(resp)
 
     else:
-        stores = store_manager.set(secrets, db=db)
+        stores = mlrun.store_manager.set(secrets, db=db)
         return stores.object(url=uri)

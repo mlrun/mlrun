@@ -32,7 +32,7 @@ from .states import (
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from ..utils import create_logger, get_caller_globals
-from ..data_resources import ResourceCache
+from mlrun.datastore.data_resources import ResourceCache
 
 
 class _StreamContext:
@@ -156,9 +156,9 @@ class GraphServer(ModelObj):
         :param get_body: return the body (vs serialize response into json)
         """
         if not self.graph:
-            raise ValueError("no model or router was added, use .add_model()")
-        if path and not path.startswith("/"):
-            path = self.graph.object.url_prefix + path
+            raise ValueError(
+                "no models or steps were set, use function.set_topology() and add steps"
+            )
         event = MockEvent(
             body=body, path=path, method=method, content_type=content_type
         )
@@ -300,6 +300,8 @@ class GraphContext:
         self.get_table = None
 
     def push_error(self, event, message, source=None, **kwargs):
+        if self.verbose:
+            self.logger.error(f'got error from {source} state:\n{event.body}\n{message}')
         if self._server and self._server._error_stream:
             message = format_error(self._server, self, source, event, message, kwargs)
             self._server._error_stream.push(message)

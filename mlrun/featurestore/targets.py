@@ -32,7 +32,7 @@ def init_featureset_targets(featureset):
 
 def add_target_states(graph, resource, targets, to_df=False):
     if len(graph.states) > 0:
-        after = resource.spec.get_final_state()
+        after = graph.find_last_state()
     else:
         graph.add_step(name="_in", handler="(event)", after="$start")
         after = "_in"

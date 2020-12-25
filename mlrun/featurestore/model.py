@@ -255,7 +255,6 @@ class FeatureSetSpec(ModelObj):
         source=None,
         targets=None,
         graph=None,
-        final_graph_state=None,
         function=None,
     ):
         self._features: ObjectList = None
@@ -276,11 +275,7 @@ class FeatureSetSpec(ModelObj):
         self.targets = targets or []
         self.graph = graph
         self.label_column = label_column
-        self.final_graph_state = final_graph_state
         self.function = function
-
-    def get_final_state(self):
-        return self.final_graph_state or self._graph.find_last_state()
 
     @property
     def entities(self) -> List[Entity]:

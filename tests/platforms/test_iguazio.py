@@ -219,24 +219,22 @@ def test_mount_v3io_extended():
     access_key = "access-key"
     cases = [
         {
-            'set_user': True,
-            'expected_volume': {
-                "flexVolume": {"driver": "v3io/fuse", "options": {"accessKey": access_key}},
+            "set_user": True,
+            "expected_volume": {
+                "flexVolume": {
+                    "driver": "v3io/fuse",
+                    "options": {"accessKey": access_key},
+                },
                 "name": "v3io",
             },
-            'expected_volume_mounts': [
+            "expected_volume_mounts": [
                 {"mountPath": "/User", "name": "v3io", "subPath": f"users/{username}"},
                 {"mountPath": "/v3io", "name": "v3io", "subPath": ""},
-            ]
-        },
-        {
-            "remote": '~/custom-remote',
-            'expect_failure': True,
-        },
-        {
-            "mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path")
             ],
+        },
+        {"remote": "~/custom-remote", "expect_failure": True},
+        {
+            "mounts": [mlrun.VolumeMount("/volume-mount-path", "volume-sub-path")],
             "remote": "~/custom-remote",
             "expect_failure": True,
         },
@@ -246,35 +244,60 @@ def test_mount_v3io_extended():
                 mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
             ],
             "remote": "~/custom-remote",
-            'set_user': True,
-            'expected_volume': {
-                "flexVolume": {"driver": "v3io/fuse", "options": {"accessKey": access_key, "container": "users",
-                "subPath": f"/{username}/custom-remote"}},
+            "set_user": True,
+            "expected_volume": {
+                "flexVolume": {
+                    "driver": "v3io/fuse",
+                    "options": {
+                        "accessKey": access_key,
+                        "container": "users",
+                        "subPath": f"/{username}/custom-remote",
+                    },
+                },
                 "name": "v3io",
             },
-            'expected_volume_mounts': [
-                {"mountPath": "/volume-mount-path", "name": "v3io", "subPath": "volume-sub-path"},
-                {"mountPath": "/volume-mount-path-2", "name": "v3io", "subPath": "volume-sub-path-2"},
-            ]
+            "expected_volume_mounts": [
+                {
+                    "mountPath": "/volume-mount-path",
+                    "name": "v3io",
+                    "subPath": "volume-sub-path",
+                },
+                {
+                    "mountPath": "/volume-mount-path-2",
+                    "name": "v3io",
+                    "subPath": "volume-sub-path-2",
+                },
+            ],
         },
         {
             "mounts": [
                 mlrun.VolumeMount("/volume-mount-path", "volume-sub-path"),
                 mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
             ],
-            'set_user': True,
-            'expected_volume': {
-                "flexVolume": {"driver": "v3io/fuse", "options": {"accessKey": access_key}},
+            "set_user": True,
+            "expected_volume": {
+                "flexVolume": {
+                    "driver": "v3io/fuse",
+                    "options": {"accessKey": access_key},
+                },
                 "name": "v3io",
             },
-            'expected_volume_mounts': [
-                {"mountPath": "/volume-mount-path", "name": "v3io", "subPath": "volume-sub-path"},
-                {"mountPath": "/volume-mount-path-2", "name": "v3io", "subPath": "volume-sub-path-2"},
-            ]
+            "expected_volume_mounts": [
+                {
+                    "mountPath": "/volume-mount-path",
+                    "name": "v3io",
+                    "subPath": "volume-sub-path",
+                },
+                {
+                    "mountPath": "/volume-mount-path-2",
+                    "name": "v3io",
+                    "subPath": "volume-sub-path-2",
+                },
+            ],
         },
     ]
     for case in cases:
-        if case.get('set_user'):
+        if case.get("set_user"):
             os.environ["V3IO_USERNAME"] = username
             os.environ["V3IO_ACCESS_KEY"] = access_key
         else:
@@ -299,12 +322,18 @@ def test_mount_v3io_extended():
             function.apply(mlrun.mount_v3io_extended(**mount_v3io_extended_kwargs))
 
             assert (
-                deepdiff.DeepDiff([case.get("expected_volume")], function.spec.volumes, ignore_order=True,)
+                deepdiff.DeepDiff(
+                    [case.get("expected_volume")],
+                    function.spec.volumes,
+                    ignore_order=True,
+                )
                 == {}
             )
             assert (
                 deepdiff.DeepDiff(
-                    case.get("expected_volume_mounts"), function.spec.volume_mounts, ignore_order=True,
+                    case.get("expected_volume_mounts"),
+                    function.spec.volume_mounts,
+                    ignore_order=True,
                 )
                 == {}
             )

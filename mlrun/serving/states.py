@@ -55,7 +55,7 @@ _task_state_fields = [
     "class_args",
     "handler",
     "skip_context",
-    "next",
+    "after",
     "function",
     "comment",
     "shape",
@@ -79,14 +79,15 @@ def new_remote_endpoint(url, **class_args):
 class BaseState(ModelObj):
     kind = "BaseState"
     default_shape = "ellipse"
-    _dict_fields = ["kind", "comment", "next", "on_error"]
+    _dict_fields = ["kind", "comment", "after", "on_error"]
 
-    def __init__(self, name: str = None, next: str = None, shape: str = None):
+    def __init__(self, name: str = None, after: list = None, shape: str = None):
         self.name = name
         self._parent = None
         self.comment = None
         self.context = None
-        self.next = next
+        self.after = after
+        self.next = None
         self.shape = shape
         self.on_error = None
         self._on_error_handler = None
@@ -113,6 +114,11 @@ class BaseState(ModelObj):
         for state in remove or []:
             if state in self.next:
                 self.next.remove(state)
+        return self
+
+    def after_state(self, after):
+        # most states only accept one source
+        self.after = [after] if after else []
         return self
 
     def error_handler(self, state_name: str):
@@ -173,14 +179,14 @@ class BaseState(ModelObj):
         """return state object from state relative/fullname"""
         path = path or ""
         tree = path.split(path_splitter)
-        next_obj = self
+        next_level = self
         for state in tree:
-            if state not in next_obj:
+            if state not in next_level:
                 raise GraphError(
-                    f"step {state} doesnt exist in the graph under {next_obj.fullname}"
+                    f"step {state} doesnt exist in the graph under {next_level.fullname}"
                 )
-            next_obj = next_obj[state]
-        return next_obj
+            next_level = next_level[state]
+        return next_level
 
     def to(
         self,
@@ -189,7 +195,6 @@ class BaseState(ModelObj):
         handler: str = None,
         graph_shape: str = None,
         function: str = None,
-        next_states: list = None,
         full_event: bool = None,
         **class_args,
     ) -> Union[TaskState, QueueState, RouterState]:
@@ -206,7 +211,6 @@ class BaseState(ModelObj):
                             for queue/stream state the class should be '>'
         :param name:        unique name (and path) for the child state, default is class name
         :param handler:     class/function handler to invoke on run/event
-        :param next_states: list of next step names that will run after this step
         :param graph_shape: graphviz shape name
         :param function:    function this state should run in
         :param full_event:  this step accepts the full event (not just body)
@@ -232,11 +236,9 @@ class BaseState(ModelObj):
         )
         state = parent._states.update(name, state)
         state.set_parent(parent)
-        if hasattr(self, "start_at"):
-            self.start_at = state.name
-        else:
-            self.set_next(state.name, next_states)
-        state.next = next_states
+        if not hasattr(self, "states"):
+            # check that its not the root, todo: in future may gave nested flows
+            state.after_state(self.name)
         parent._last_added = state
         return state
 
@@ -252,12 +254,12 @@ class TaskState(BaseState):
         class_args: dict = None,
         handler: str = None,
         name: str = None,
-        next: list = None,
+        after: list = None,
         full_event: bool = None,
         function: str = None,
         responder: bool = None,
     ):
-        super().__init__(name, next)
+        super().__init__(name, after)
         self.class_name = class_name
         self.class_args = class_args or {}
         self.handler = handler
@@ -372,7 +374,6 @@ class TaskState(BaseState):
         state output will be returned as the flow result, no other state can follow
         """
         self.responder = True
-        self.next = None
         return self
 
     def run(self, event, *args, **kwargs):
@@ -503,12 +504,12 @@ class QueueState(BaseState):
         self,
         name: str = None,
         path: str = None,
-        next: list = None,
+        after: list = None,
         shards: int = None,
         retention_in_hours: int = None,
         **options,
     ):
-        super().__init__(name, next)
+        super().__init__(name, after)
         self.path = path
         self.shards = shards
         self.retention_in_hours = retention_in_hours
@@ -546,12 +547,12 @@ class FlowState(BaseState):
         self,
         name=None,
         states=None,
-        next=None,
+        after: list = None,
         start_at=None,
         engine=None,
         final_state=None,
     ):
-        super().__init__(name, next)
+        super().__init__(name, after)
         self._states = None
         self.states = states
         self.start_at = start_at
@@ -640,45 +641,50 @@ class FlowState(BaseState):
         if before:
             if not isinstance(before, list):
                 before = [before]
-            state.next = before
+            # state.next = before
 
         if after == "$prev" and len(self._states) == 1:
-            after = "$start"
+            after = None
 
-        # re adjust start_at
-        if (
-            after == "$start"
-            or (not self.start_at and after in ["$prev", "$last"])
-            or (before and self.start_at in before)
-        ):
-            if (
-                after == "$start"
-                and not before
-                and self.start_at
-                and self.start_at != state.name
-            ):
-                # move the previous start_at to be after our step
-                state.next = [self.start_at]
-            self.start_at = state.name
+        # # re adjust start_at
+        # if (
+        #     after == "$start"
+        #     or (not self.start_at and after in ["$prev", "$last"])
+        #     or (before and self.start_at in before)
+        # ):
+        #     if (
+        #         after == "$start"
+        #         and not before
+        #         and self.start_at
+        #         and self.start_at != state.name
+        #     ):
+        #         # move the previous start_at to be after our step
+        #         state.next = [self.start_at]
+        #     self.start_at = state.name
 
-        after_state = None
+        previous = ''
         if after and not after.startswith("$"):
             if after not in self._states.keys():
-                raise ValueError(f"there is no state named {after}")
-            after_state = self._states[after]
-        if after == "$prev":
-            after_state = self._last_added
+                raise ValueError(f"cant set after, there is no state named {after}")
+            previous = after
+        elif after == "$prev" and self._last_added:
+            previous = self._last_added.name
         elif after == "$last":
             name = self.find_last_state()
             if name and name != state.name:
-                after_state = self._states[name]
+                previous = name
 
-        if after_state:
-            if before and after_state.name in before:
+        if previous:
+            state.after_state(previous)
+
+        if before:
+            if before not in self._states.keys():
+                raise ValueError(f"cant set before, there is no state named {before}")
+            if before == state.name or before == previous:
                 raise GraphError(
-                    f"graph loop, state {after_state.name} is specified in before and after {key}"
+                    f"graph loop, state {before} is specified in before and/or after {key}"
                 )
-            after_state.set_next(state.name, before)
+            self[before].after_state(state.name)
         self._last_added = state
         return state
 
@@ -715,8 +721,18 @@ class FlowState(BaseState):
         self._set_error_handler()
         self._post_init(mode)
 
+        self._calc_next_states()
+
         if self.engine != "sync":
             self._build_async_flow()
+
+    def _calc_next_states(self):
+        for state in self._states.values():
+            state.next = None
+        for state in self._states.values():
+            if state.after:
+                prev_state = state.after[0]
+                self[prev_state].set_next(state.name)
 
     def set_flow_source(self, source):
         self._source = source
@@ -799,6 +815,7 @@ class FlowState(BaseState):
         return has_loop(self.get_start_state(), [])
 
     def get_start_state(self, from_state=None):
+
         def get_first_function_state(state, current_function):
             if (
                 hasattr(state, "function")

@@ -8,6 +8,7 @@ import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.member
+import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
@@ -172,7 +173,7 @@ class Client(
                         {"error": error, "error_stack_trace": error_stack_trace}
                     )
             logger.warning("Request to nuclio failed", **log_kwargs)
-            response.raise_for_status()
+            mlrun.errors.raise_for_status(response)
         return response
 
     @staticmethod

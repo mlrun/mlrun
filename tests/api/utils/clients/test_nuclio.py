@@ -7,6 +7,7 @@ import requests_mock as requests_mock_package
 import mlrun.api.schemas
 import mlrun.api.utils.clients.nuclio
 import mlrun.config
+import mlrun.errors
 
 
 @pytest.fixture()
@@ -344,6 +345,13 @@ def test_delete_project(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
     )
     nuclio_client.delete_project(None, project_name)
+
+    # assert correctly propagating 412 errors (will be returned when project has functions)
+    requests_mock.delete(
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
+    )
+    with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
+        nuclio_client.delete_project(None, project_name)
 
 
 def _generate_project_body(

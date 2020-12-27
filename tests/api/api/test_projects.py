@@ -1,4 +1,3 @@
-import pytest
 from http import HTTPStatus
 from uuid import uuid4
 

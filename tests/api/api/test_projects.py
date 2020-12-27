@@ -1,3 +1,4 @@
+import pytest
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -6,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
+import mlrun.errors
 
 
 def test_projects_crud(db: Session, client: TestClient) -> None:
@@ -112,9 +114,33 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
             extra_exclude={"spec": {"description", "desired_state"}},
         )
 
-    # delete
-    response = client.delete(f"/api/projects/{name1}")
+    # add function to project 1
+    function_name = "function-name"
+    function = {"metadata": {"name": function_name}}
+    response = client.post(f"/api/func/{name1}/{function_name}", json=function)
+    assert response.status_code == HTTPStatus.OK.value
+
+    # delete - restrict strategy, will fail because function exists
+    response = client.delete(
+        f"/api/projects/{name1}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restrict
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+    # delete - cascade strategy, will succeed and delete function
+    response = client.delete(
+        f"/api/projects/{name1}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascade
+        },
+    )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    # ensure function is gone
+    response = client.get(f"/api/func/{name1}/{function_name}")
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     # list
     response = client.get(

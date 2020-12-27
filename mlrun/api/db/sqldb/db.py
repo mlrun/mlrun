@@ -718,7 +718,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             if not project_record:
                 return
             self._verify_project_has_no_related_resources(session, name)
-        elif deletion_strategy == schemas.DeletionStrategy.restrict:
+        elif deletion_strategy == schemas.DeletionStrategy.cascade:
             self._delete_project_related_resources(session, name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

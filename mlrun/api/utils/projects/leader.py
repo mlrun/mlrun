@@ -89,7 +89,7 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
-        self._run_on_all_followers("delete_project", session, name)
+        self._run_on_all_followers("delete_project", session, name, deletion_strategy)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

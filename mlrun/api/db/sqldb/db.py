@@ -86,8 +86,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def _delete_logs(self, session: Session, project: str):
         logger.debug("Removing logs from db", project=project)
-        for log in self._query(session, Log, project=project):
+        for log in self._list_logs(session, project):
             self.delete_log(session, project, log.uid)
+
+    def _list_logs(self, session: Session, project: str):
+        return self._query(session, Log, project=project).all()
 
     def store_run(self, session, run_data, uid, project="", iter=0):
         project = project or config.default_project
@@ -393,8 +396,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
-        for function in self._query(session, Function, project=project):
+        for function in self._list_project_functions(session, project):
             self.delete_function(session, project, function.name)
+
+    def _list_project_functions(self, session: Session, project: str):
+        return self._query(session, Function, project=project).all()
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -696,20 +702,28 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         return self._transform_project_record_to_schema(session, project_record)
 
-    def delete_project(self, session: Session, name: str):
-        logger.debug("Deleting project from DB", name=name)
-        self.del_artifacts(session, project=name)
-        self._delete_logs(session, name)
-        self.del_runs(session, project=name)
-        self._delete_schedules(session, name)
-        self._delete_functions(session, name)
-        self._delete_feature_sets(session, name)
-        self._delete_feature_vectors(session, name)
-
-        # resources deletion should remove their tags and labels as well, but doing another try in case there are
-        # orphan resources
-        self._delete_resources_tags(session, name)
-        self._delete_resources_labels(session, name)
+    def delete_project(
+        self,
+        session: Session,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
+        logger.debug(
+            "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
+        )
+        if deletion_strategy == schemas.DeletionStrategy.restrict:
+            project_record = self._get_project_record(
+                session, name, raise_on_not_found=False
+            )
+            if not project_record:
+                return
+            self._verify_project_has_no_related_resources(session, name)
+        elif deletion_strategy == schemas.DeletionStrategy.restrict:
+            self._delete_project_related_resources(session, name)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown deletion strategy: {deletion_strategy}"
+            )
         self._delete(session, Project, name=name)
 
     def list_projects(
@@ -795,6 +809,55 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             )
 
         return project_record
+
+    def _verify_project_has_no_related_resources(self, session: Session, project: str):
+        artifacts = self._find_artifacts(session, project, "*")
+        self._verify_empty_list_of_project_related_resources(
+            project, artifacts, "artifacts"
+        )
+        logs = self._list_logs(session, project)
+        self._verify_empty_list_of_project_related_resources(project, logs, "logs")
+        runs = self._find_runs(session, None, project, []).all()
+        self._verify_empty_list_of_project_related_resources(project, runs, "runs")
+        schedules = self.list_schedules(session, project=project)
+        self._verify_empty_list_of_project_related_resources(
+            project, schedules, "schedules"
+        )
+        functions = self._list_project_functions(session, project)
+        self._verify_empty_list_of_project_related_resources(
+            project, functions, "functions"
+        )
+        feature_sets = self.list_feature_sets(session, project).feature_sets
+        self._verify_empty_list_of_project_related_resources(
+            project, feature_sets, "feature_sets"
+        )
+        feature_vectors = self.list_feature_vectors(session, project).feature_vectors
+        self._verify_empty_list_of_project_related_resources(
+            project, feature_vectors, "feature_vectors"
+        )
+
+    def _delete_project_related_resources(self, session: Session, name: str):
+        self.del_artifacts(session, project=name)
+        self._delete_logs(session, name)
+        self.del_runs(session, project=name)
+        self._delete_schedules(session, name)
+        self._delete_functions(session, name)
+        self._delete_feature_sets(session, name)
+        self._delete_feature_vectors(session, name)
+
+        # resources deletion should remove their tags and labels as well, but doing another try in case there are
+        # orphan resources
+        self._delete_resources_tags(session, name)
+        self._delete_resources_labels(session, name)
+
+    @staticmethod
+    def _verify_empty_list_of_project_related_resources(
+        project: str, resources: List, resource_name: str
+    ):
+        if resources:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project} can not be deleted since related resources found: {resource_name}"
+            )
 
     def _get_record_by_name_tag_and_uid(
         self, session, cls, project: str, name: str, tag: str = None, uid: str = None,

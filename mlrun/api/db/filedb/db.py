@@ -166,7 +166,12 @@ class FileDB(DBInterface):
     ) -> schemas.Project:
         raise NotImplementedError()
 
-    def delete_project(self, session, name: str):
+    def delete_project(
+        self,
+        session,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         raise NotImplementedError()
 
     def create_feature_set(

@@ -83,7 +83,12 @@ class Member(
         self._run_on_all_followers("patch_project", session, name, project, patch_mode)
         return self.get_project(session, name)
 
-    def delete_project(self, session: sqlalchemy.orm.Session, name: str):
+    def delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
         self._run_on_all_followers("delete_project", session, name)
 
     def get_project(

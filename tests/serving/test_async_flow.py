@@ -28,7 +28,7 @@ def test_handler():
 def test_async_basic():
     fn = mlrun.new_function("tests", kind="serving")
     flow = fn.set_topology("flow", engine="async")
-    queue = flow.to(name="s1", class_name="ChainWithContext").to(">", path="")
+    queue = flow.to(name="s1", class_name="ChainWithContext").to(">", "q1", path="")
 
     s2 = queue.to(name="s2", class_name="ChainWithContext")
     s2.to(name="s4", class_name="ChainWithContext")
@@ -91,6 +91,7 @@ def test_on_error():
     fn.verbose = True
     server = fn.to_mock_server()
     print(graph.to_yaml())
+    graph.plot("on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
     print(resp)

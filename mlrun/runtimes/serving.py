@@ -335,6 +335,7 @@ class ServingRuntime(RemoteRuntime):
 
         if self.spec.graph.kind != StateKinds.router:
             # initialize or create required streams/queues
+            self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()
         if self._spec.function_refs:
             # deploy child functions

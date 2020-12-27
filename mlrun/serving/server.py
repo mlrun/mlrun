@@ -301,7 +301,9 @@ class GraphContext:
 
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:
-            self.logger.error(f'got error from {source} state:\n{event.body}\n{message}')
+            self.logger.error(
+                f"got error from {source} state:\n{event.body}\n{message}"
+            )
         if self._server and self._server._error_stream:
             message = format_error(self._server, self, source, event, message, kwargs)
             self._server._error_stream.push(message)

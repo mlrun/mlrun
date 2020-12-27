@@ -4,7 +4,7 @@ from .demo_states import *  # noqa
 
 def test_basic_flow():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="sync")
+    graph = fn.set_topology("flow", engine="sync")
     graph.add_step(name="s1", class_name="Chain")
     graph.add_step(name="s2", class_name="Chain", after="$prev")
     graph.add_step(name="s3", class_name="Chain", after="$prev")
@@ -16,9 +16,9 @@ def test_basic_flow():
     assert resp == ["s1", "s2", "s3"], "flow1 result is incorrect"
 
     graph = fn.set_topology("flow", exist_ok=True, engine="sync")
-    graph.add_step(name="s2", class_name="Chain", after="$last")
+    graph.add_step(name="s2", class_name="Chain")
     graph.add_step(
-        name="s1", class_name="Chain", after="$start"
+        name="s1", class_name="Chain", before="s2"
     )  # should place s1 first and s2 after it
     graph.add_step(name="s3", class_name="Chain", after="s2")
 
@@ -28,8 +28,8 @@ def test_basic_flow():
     assert resp == ["s1", "s2", "s3"], "flow2 result is incorrect"
 
     graph = fn.set_topology("flow", exist_ok=True, engine="sync")
-    graph.add_step(name="s1", class_name="Chain", after="$start")
-    graph.add_step(name="s3", class_name="Chain", after="$last")
+    graph.add_step(name="s1", class_name="Chain")
+    graph.add_step(name="s3", class_name="Chain", after="$prev")
     graph.add_step(name="s2", class_name="Chain", after="s1", before="s3")
 
     server = fn.to_mock_server()

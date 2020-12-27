@@ -14,6 +14,9 @@ def init_featureset_graph(
     cache = ResourceCache()
     targets = []
     graph = featureset.spec.graph.copy()
+    start_states, default_final_state, _ = graph.check_and_process_graph(
+        allow_empty=True
+    )
 
     # init targets (and table)
     if with_targets:
@@ -23,7 +26,9 @@ def init_featureset_graph(
         targets = featureset.spec.targets
 
     cache.cache_resource(featureset.uri(), featureset, True)
-    add_target_states(graph, featureset, targets, to_df=return_df)
+    add_target_states(
+        graph, featureset, targets, to_df=return_df, final_state=default_final_state
+    )
 
     # init source
     entity_columns = list(featureset.spec.entities.keys())
@@ -61,7 +66,9 @@ def _build_feature_vector_graph(
     vector, feature_set_fields, feature_set_objects,
 ):
     graph = vector.spec.graph.copy()
-    start_at = graph.start_at
+    start_states, default_final_state, responders = graph.check_and_process_graph(
+        allow_empty=True
+    )
     next = graph
 
     for name, columns in feature_set_fields.items():
@@ -79,13 +86,15 @@ def _build_feature_vector_graph(
             key=key_column,
             aliases=aliases,
         )
-    if start_at:
-        next.set_next(start_at)
-    last_state = graph.find_last_state()
-    if not last_state:
-        raise ValueError("the graph doesnt have an explicit final step to respond on")
-    graph[last_state].respond()
+    for name in start_states:
+        next.set_next(name)
 
+    if not start_states:  # graph was empty
+        next.respond()
+    elif not responders and default_final_state:  # graph has clear state sequence
+        graph[default_final_state].respond()
+    elif not responders:
+        raise ValueError("the graph doesnt have an explicit final step to respond on")
     return graph
 
 

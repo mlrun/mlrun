@@ -87,7 +87,7 @@ class BaseState(ModelObj):
         self.comment = None
         self.context = None
         self.after = after
-        self.next = None
+        self._next = None
         self.shape = shape
         self.on_error = None
         self._on_error_handler = None
@@ -101,6 +101,10 @@ class BaseState(ModelObj):
         self._parent = parent
 
     @property
+    def next(self):
+        return self._next
+
+    @property
     def parent(self):
         """state parent (flow/router)"""
         return self._parent
@@ -108,12 +112,12 @@ class BaseState(ModelObj):
     def set_next(self, key: str, remove: str = None):
         """set/insert the key as next after this state, optionally remove other keys"""
         if not self.next:
-            self.next = [key]
+            self._next = [key]
         elif key not in self.next:
-            self.next.append(key)
+            self._next.append(key)
         for state in remove or []:
             if state in self.next:
-                self.next.remove(state)
+                self._next.remove(state)
         return self
 
     def after_state(self, after):
@@ -515,12 +519,17 @@ class QueueState(BaseState):
         self.retention_in_hours = retention_in_hours
         self.options = options
         self._stream = None
+        self._async_object = None
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
         if self.path:
             self._stream = OutputStream(self.path, self.shards, self.retention_in_hours)
         self._set_error_handler()
+
+    @property
+    def async_object(self):
+        return self._async_object
 
     def run(self, event, *args, **kwargs):
         data = event.body
@@ -538,9 +547,8 @@ class FlowState(BaseState):
     kind = "flow"
     _dict_fields = BaseState._dict_fields + [
         "states",
-        "start_at",
         "engine",
-        "final_state",
+        "default_final_state",
     ]
 
     def __init__(
@@ -564,6 +572,7 @@ class FlowState(BaseState):
         self._controller = None
         self._wait_for_result = False
         self._source = None
+        self._start_states = []
 
     def get_children(self):
         return self._states.values()
@@ -623,58 +632,26 @@ class FlowState(BaseState):
             class_args=class_args,
         )
 
-        if after is None and not before:
-            after = "$prev"
-
         self.insert_state(name, state, after, before)
         return state
 
-    def insert_state(self, key, state, after, before=None, shape=None):
+    def insert_state(self, key, state, after, before=None):
         """insert state object into the flow, specify before and after"""
-
-        if after == "$last" and before:
-            raise ValueError("cannot specify after $last and before state(s) together")
 
         state = self._states.update(key, state)
         state.set_parent(self)
 
-        if before:
-            if not isinstance(before, list):
-                before = [before]
-            # state.next = before
-
         if after == "$prev" and len(self._states) == 1:
             after = None
 
-        # # re adjust start_at
-        # if (
-        #     after == "$start"
-        #     or (not self.start_at and after in ["$prev", "$last"])
-        #     or (before and self.start_at in before)
-        # ):
-        #     if (
-        #         after == "$start"
-        #         and not before
-        #         and self.start_at
-        #         and self.start_at != state.name
-        #     ):
-        #         # move the previous start_at to be after our step
-        #         state.next = [self.start_at]
-        #     self.start_at = state.name
-
-        previous = ''
-        if after and not after.startswith("$"):
-            if after not in self._states.keys():
-                raise ValueError(f"cant set after, there is no state named {after}")
-            previous = after
-        elif after == "$prev" and self._last_added:
-            previous = self._last_added.name
-        elif after == "$last":
-            name = self.find_last_state()
-            if name and name != state.name:
-                previous = name
-
-        if previous:
+        previous = ""
+        if after:
+            if after == "$prev" and self._last_added:
+                previous = self._last_added.name
+            else:
+                if after not in self._states.keys():
+                    raise ValueError(f"cant set after, there is no state named {after}")
+                previous = after
             state.after_state(previous)
 
         if before:
@@ -709,11 +686,7 @@ class FlowState(BaseState):
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
-        loop_state = self.detect_loops()
-        if loop_state:
-            raise GraphError(
-                f"Error, loop detected in state {loop_state}, graph must be acyclic (DAG)"
-            )
+        self.check_and_process_graph()
 
         for state in self._states.values():
             state.set_parent(self)
@@ -721,90 +694,17 @@ class FlowState(BaseState):
         self._set_error_handler()
         self._post_init(mode)
 
-        self._calc_next_states()
-
         if self.engine != "sync":
             self._build_async_flow()
 
-    def _calc_next_states(self):
-        for state in self._states.values():
-            state.next = None
-        for state in self._states.values():
-            if state.after:
-                prev_state = state.after[0]
-                self[prev_state].set_next(state.name)
+    def check_and_process_graph(self, allow_empty=False):
 
-    def set_flow_source(self, source):
-        self._source = source
-
-    def _build_async_flow(self):
-        try:
-            import storey
-        except ImportError:
-            raise GraphError("storey package is not installed, use pip install storey")
-
-        def get_step(state):
-            if state.kind == StateKinds.queue:
-                if state.path:
-                    return storey.WriteToV3IOStream(storey.V3ioDriver(), state.path)
-                else:
-                    return storey.Map(lambda x: x)
-            # is_storey = (
-            #     hasattr(state, "object")
-            #     and state.object
-            #     and hasattr(state.object, "_outlets")
-            # )
-            # if is_storey:
-            #     return state.object
-            # # todo & choice
-            # state._async_object = storey.Map(state.run, full_event=True)
-            return state.async_object
-
-        def process_step(state, step, root):
-            if not state._is_local_function(self.context):
-                return
-            for item in state.next or []:
-                print("visit:", state.name, item)
-                next_state = root[item]
-                next_step = step.to(get_step(next_state))
-                process_step(next_state, next_step, root)
-
-        for state in self._states.values():
-            if hasattr(state, "async_object"):
-                if not state.async_object or not hasattr(
-                    state.async_object, "_outlets"
-                ):
-                    # if regular class, wrap with storey Map
-                    state._async_object = storey.Map(
-                        state._handler,
-                        full_event=state.full_event,
-                        name=state.name,
-                        context=self.context,
-                    )
-                if not state.next and state.responder:
-                    # if responder state (return result), add Complete()
-                    state.async_object.to(storey.Complete(full_event=True))
-                    self._wait_for_result = True
-
-        next_state = self.get_start_state()
-        # todo: allow source array (e.g. data->json loads..)
-        source = self._source or storey.Source()
-        next_step = source.to(get_step(next_state))
-        process_step(next_state, next_step, self)
-
-        for state in self._states.values():
-            # add error handler hooks
-            if state.on_error and state.async_object:
-                error_state = self._states[state.on_error]
-                state.async_object.set_recovery_step(error_state.async_object)
-
-        self._controller = source.run()
-
-    def detect_loops(self):
-        """find loops in the graph"""
+        if self.is_empty() and allow_empty:
+            self._start_states = []
+            return [], None, []
 
         def has_loop(state, previous):
-            for next_state in state.next or []:
+            for next_state in state.after or []:
                 if next_state in previous:
                     return state.name
                 downstream = has_loop(self[next_state], previous + [next_state])
@@ -812,9 +712,48 @@ class FlowState(BaseState):
                     return downstream
             return None
 
-        return has_loop(self.get_start_state(), [])
+        start_states = []
+        for state in self._states.values():
+            state._next = None
+            if state.after:
+                loop_state = has_loop(state, [])
+                if loop_state:
+                    raise GraphError(
+                        f"Error, loop detected in state {loop_state}, graph must be acyclic (DAG)"
+                    )
+            else:
+                start_states.append(state.name)
 
-    def get_start_state(self, from_state=None):
+        responders = []
+        for state in self._states.values():
+            if hasattr(state, "responder") and state.responder:
+                responders.append(state.name)
+            if state.on_error and state.on_error in start_states:
+                start_states.remove(state.on_error)
+            if state.after:
+                prev_state = state.after[0]
+                self[prev_state].set_next(state.name)
+
+        if (
+            not start_states
+        ):  # for safety, not sure if its possible to get here (since its a loop)
+            raise GraphError("there are no starting states (ones without .after)")
+
+        if (
+            len(responders) > 1
+        ):  # should not have multiple steps which respond to request
+            raise GraphError(
+                f'there are more than one responder states in the graph ({",".join(responders)})'
+            )
+
+        if self.from_state:
+            if self.from_state not in self.states:
+                raise GraphError(
+                    f"from_state ({self.from_state}) specified and not found in graph states"
+                )
+            start_states = [self.from_state]
+
+        self._start_states = [self[name] for name in start_states]
 
         def get_first_function_state(state, current_function):
             if (
@@ -825,23 +764,104 @@ class FlowState(BaseState):
                 return state
             for item in state.next or []:
                 next_state = self[item]
-                resp = get_first_function_state(next_state, current_function)
-                if resp:
-                    return resp
+                returned_state = get_first_function_state(next_state, current_function)
+                if returned_state:
+                    return returned_state
 
-        from_state = from_state or self.from_state or self.start_at
         current_function = get_current_function(self.context)
         if current_function:
-            state = get_first_function_state(self[from_state], current_function)
-            if not state:
-                raise ValueError(
-                    f"states not found pointing to function {current_function}"
+            new_start_states = []
+            for from_state in self._start_states:
+                state = get_first_function_state(from_state, current_function)
+                if state:
+                    new_start_states.append(state)
+            if not new_start_states:
+                raise GraphError(
+                    f"did not find states pointing to current function ({current_function})"
                 )
-            return state
+            self._start_states = new_start_states
 
-        if not from_state:
-            raise ValueError("start step was not specified in flow")
-        return self.path_to_state(from_state)
+        if self.engine == "sync" and len(self._start_states) > 1:
+            raise GraphError(
+                "sync engine can only have one starting state (without .after)"
+            )
+
+        default_final_state = None
+        if self.final_state:
+            if self.final_state not in self.states:
+                raise GraphError(
+                    f"final_state ({self.final_state}) specified and not found in graph states"
+                )
+            default_final_state = self.final_state
+
+        elif len(self._start_states) == 1:
+            # find the final state in case if a simple sequence of steps
+            next_obj = self._start_states[0]
+            while next_obj:
+                next = next_obj.next
+                if not next:
+                    default_final_state = next_obj.name
+                    break
+                next_obj = self[next[0]] if len(next) == 1 else None
+
+        return self._start_states, default_final_state, responders
+
+    def set_flow_source(self, source):
+        self._source = source
+
+    def _build_async_flow(self):
+        try:
+            import storey
+        except ImportError:
+            raise GraphError("storey package is not installed, use pip install storey")
+
+        def process_step(state, step, root):
+            if not state._is_local_function(self.context):
+                return
+            for item in state.next or []:
+                print("visit:", state.name, item)
+                next_state = root[item]
+                next_step = step.to(next_state.async_object)
+                process_step(next_state, next_step, root)
+
+        for state in self._states.values():
+            if hasattr(state, "async_object"):
+                if state.kind == StateKinds.queue:
+                    if state.path:
+                        state._async_object = storey.WriteToV3IOStream(
+                            storey.V3ioDriver(), state.path
+                        )
+                    else:
+                        state._async_object = storey.Map(lambda x: x)
+
+                elif not state.async_object or not hasattr(
+                    state.async_object, "_outlets"
+                ):
+                    # if regular class, wrap with storey Map
+                    state._async_object = storey.Map(
+                        state._handler,
+                        full_event=state.full_event,
+                        name=state.name,
+                        context=self.context,
+                    )
+                if not state.next and hasattr(state, "responder") and state.responder:
+                    # if responder state (return result), add Complete()
+                    state.async_object.to(storey.Complete(full_event=True))
+                    self._wait_for_result = True
+
+        # todo: allow source array (e.g. data->json loads..)
+        source = self._source or storey.Source()
+        for next_state in self._start_states:
+            next_step = source.to(next_state.async_object)
+            process_step(next_state, next_step, self)
+
+        for state in self._states.values():
+            # add error handler hooks
+            if state.on_error and state.async_object:
+                error_state = self._states[state.on_error]
+                state.async_object.set_recovery_step(error_state.async_object)
+
+        self._controller = source.run()
 
     def get_queue_links(self):
         """return dict of function and queue its listening on, for building stream triggers"""
@@ -864,24 +884,8 @@ class FlowState(BaseState):
             if state.kind == StateKinds.queue:
                 state.init_object(self.context, None)
 
-    def find_last_state(self):
-        if self.final_state:
-            return self.final_state
-        if len(self.states) == 0:
-            return None
-
-        loop_state = self.detect_loops()
-        if loop_state:
-            raise GraphError(
-                f"Error, loop detected in state {loop_state}, graph must be acyclic (DAG)"
-            )
-
-        next_obj = self.get_start_state()
-        while next_obj:
-            next = next_obj.next
-            if not next:
-                return next_obj.name
-            next_obj = self[next[0]]
+    def is_empty(self):
+        return len(self.states) == 0
 
     def run(self, event, *args, **kwargs):
 
@@ -897,7 +901,7 @@ class FlowState(BaseState):
             event.body = {"id": event.id}
             return event
 
-        next_obj = self.get_start_state(kwargs.get("from_state", None))
+        next_obj = self._start_states[0]
         while next_obj:
             try:
                 event = next_obj.run(event, *args, **kwargs)
@@ -934,7 +938,7 @@ class FlowState(BaseState):
 
 class RootFlowState(FlowState):
     kind = "root"
-    _dict_fields = ["states", "start_at", "engine", "final_state", "on_error"]
+    _dict_fields = ["states", "engine", "final_state", "on_error"]
 
 
 http_adapter = HTTPAdapter(
@@ -1048,9 +1052,13 @@ def _add_gviz_router(g, state, source=None, **kwargs):
 def _add_gviz_flow(
     g, state, source=None, targets=None,
 ):
+    start_states, default_final_state, responders = state.check_and_process_graph(
+        allow_empty=True
+    )
     source = source or BaseState("start", shape="egg")
     g.node("_start", source.name, shape=source.shape, style="filled")
-    g.edge("_start", state.start_at)
+    for start_state in start_states:
+        g.edge("_start", start_state.fullname)
     for child in state.get_children():
         kind = child.kind
         if kind == StateKinds.router:
@@ -1058,22 +1066,25 @@ def _add_gviz_flow(
                 _add_gviz_router(sg, child)
         else:
             g.node(child.fullname, label=child.name, shape=child.get_shape())
-        next = child.next or []
-        for item in next:
-            next_object = state[item]
+        after = child.after or []
+        for item in after:
+            previous_object = state[item]
             kw = (
                 {"ltail": "cluster_" + child.fullname}
                 if child.kind == StateKinds.router
                 else {}
             )
-            g.edge(child.fullname, next_object.fullname, **kw)
+            g.edge(previous_object.fullname, child.fullname, **kw)
+        if child.on_error:
+            g.edge(child.fullname, child.on_error, style="dashed", **kw)
 
     # draw targets after the last state (if specified)
     if targets:
-        last_state = state.find_last_state()
         for target in targets or []:
             g.node(target.fullname, label=target.name, shape=target.get_shape())
-            g.edge(last_state, target.fullname)
+            last_state = target.after or default_final_state
+            if last_state:
+                g.edge(last_state, target.fullname)
 
 
 def _generate_graphviz(
@@ -1148,6 +1159,8 @@ def params_to_state(
     elif class_name and class_name == ">":
         if "path" not in class_args:
             raise ValueError("path=<stream path or None> must be specified for queues")
+        if not name:
+            raise ValueError("queue name must be specified")
         state = QueueState(name, **class_args)
 
     elif class_name and class_name.startswith("*"):

@@ -30,12 +30,12 @@ def init_featureset_targets(featureset):
     return table
 
 
-def add_target_states(graph, resource, targets, to_df=False):
-    if len(graph.states) > 0:
-        after = graph.find_last_state()
-    else:
-        graph.add_step(name="_in", handler="(event)", after="$start")
-        after = "_in"
+def add_target_states(graph, resource, targets, to_df=False, final_state=None):
+    # if not graph.is_empty():
+    #     after = graph.find_last_state()
+    # else:
+    #     graph.add_step(name="_in", handler="(event)", after="$start")
+    #     after = "_in"
     targets = targets or []
     key_column = resource.spec.entities[0].name
     timestamp_key = resource.spec.timestamp_key
@@ -44,7 +44,7 @@ def add_target_states(graph, resource, targets, to_df=False):
     for target in targets:
         target.driver.add_writer_state(
             graph,
-            target.after_state or after,
+            target.after_state or final_state,
             features=features,
             key_column=key_column,
             timestamp_key=timestamp_key,
@@ -53,7 +53,7 @@ def add_target_states(graph, resource, targets, to_df=False):
         driver = DFStore(resource)
         driver.add_writer_state(
             graph,
-            after,
+            final_state,
             features=features,
             key_column=key_column,
             timestamp_key=timestamp_key,
@@ -136,7 +136,7 @@ class ParquetStore(BaseStoreDriver):
         graph.add_step(
             name="WriteToParquet",
             after=after,
-            shape="cylinder",
+            graph_shape="cylinder",
             class_name="storey.WriteToParquet",
             path=self.target_path,
             columns=column_list,
@@ -159,7 +159,7 @@ class CSVStore(BaseStoreDriver):
         graph.add_step(
             name="WriteToCSV",
             after=after,
-            shape="cylinder",
+            graph_shape="cylinder",
             class_name="storey.WriteToCSV",
             path=self.target_path,
             columns=column_list,
@@ -193,7 +193,7 @@ class NoSqlStore(BaseStoreDriver):
         graph.add_step(
             name="WriteToTable",
             after=after,
-            shape="cylinder",
+            graph_shape="cylinder",
             class_name="storey.WriteToTable",
             columns=column_list,
             table=table,
@@ -215,7 +215,7 @@ class DFStore(BaseStoreDriver):
         graph.add_step(
             name="WriteToDataFrame",
             after=after,
-            shape="cylinder",
+            graph_shape="cylinder",
             class_name="storey.ReduceToDataFrame",
             index=key_column,
             insert_key_column_as=key_column,

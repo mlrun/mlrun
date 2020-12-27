@@ -40,7 +40,12 @@ class Member(mlrun.api.utils.projects.remotes.member.Member):
         mergedeep.merge(existing_project_dict, project, strategy=strategy)
         self._projects[name] = mlrun.api.schemas.Project(**existing_project_dict)
 
-    def delete_project(self, session: sqlalchemy.orm.Session, name: str):
+    def delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
         if name in self._projects:
             del self._projects[name]
 

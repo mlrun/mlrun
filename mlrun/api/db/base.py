@@ -216,7 +216,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_project(self, session, name: str):
+    def delete_project(
+        self,
+        session,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         pass
 
     @abstractmethod

@@ -8,6 +8,7 @@ import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.member
+import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
@@ -72,14 +73,33 @@ class Client(
             ]
         self._put_project_to_nuclio(response_body)
 
-    def delete_project(self, session: sqlalchemy.orm.Session, name: str):
-        logger.debug("Deleting project in Nuclio", name=name)
+    def delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
+        logger.debug(
+            "Deleting project in Nuclio", name=name, deletion_strategy=deletion_strategy
+        )
         body = self._generate_request_body(
             mlrun.api.schemas.Project(
                 metadata=mlrun.api.schemas.ProjectMetadata(name=name)
             )
         )
-        self._send_request_to_api("DELETE", "projects", json=body)
+        headers = {
+            "x-nuclio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
+        }
+        try:
+            self._send_request_to_api("DELETE", "projects", json=body, headers=headers)
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            logger.debug(
+                "Project not found in Nuclio. Considering deletion as successful",
+                name=name,
+                deletion_strategy=deletion_strategy,
+            )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -153,7 +173,7 @@ class Client(
                         {"error": error, "error_stack_trace": error_stack_trace}
                     )
             logger.warning("Request to nuclio failed", **log_kwargs)
-            response.raise_for_status()
+            mlrun.errors.raise_for_status(response)
         return response
 
     @staticmethod

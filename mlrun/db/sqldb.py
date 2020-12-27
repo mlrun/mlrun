@@ -205,7 +205,11 @@ class SQLDB(RunDBInterface):
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
-    def delete_project(self, name: str):
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
         raise NotImplementedError()
 
     def get_project(

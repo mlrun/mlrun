@@ -49,9 +49,13 @@ def get_project(name: str, db_session: Session = Depends(deps.get_db_session)):
 
 @router.delete("/projects/{name}", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_project(
-    name: str, db_session: Session = Depends(deps.get_db_session),
+    name: str,
+    deletion_strategy: schemas.DeletionStrategy = Header(
+        schemas.DeletionStrategy.default(), alias=schemas.HeaderNames.deletion_strategy
+    ),
+    db_session: Session = Depends(deps.get_db_session),
 ):
-    get_project_member().delete_project(db_session, name)
+    get_project_member().delete_project(db_session, name, deletion_strategy)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 

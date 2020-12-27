@@ -47,7 +47,12 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def delete_project(self, session: sqlalchemy.orm.Session, name: str):
+    def delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy.default(),
+    ):
         pass
 
     @abc.abstractmethod

@@ -330,9 +330,19 @@ def test_delete_project(
             )
             == {}
         )
+        assert (
+            request.headers["x-nuclio-delete-project-strategy"]
+            == mlrun.api.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
+        )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
+    nuclio_client.delete_project(None, project_name)
+
+    # assert ignoring (and not exploding) on not found
+    requests_mock.delete(
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
+    )
     nuclio_client.delete_project(None, project_name)
 
 

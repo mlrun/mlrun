@@ -15,7 +15,7 @@ test_import () {
 
 test_import ""                      "import mlrun"
 test_import "[api]"                 "import mlrun.api.main"
-test_import "[dask]"                "from dask.distributed import Client"
+test_import "[dask]"                "import dask"
 test_import "[v3io]"                "import mlrun.datastore.v3io"
 test_import "[s3]"                  "import mlrun.datastore.s3"
 test_import "[azure-blob-storage]"  "import mlrun.datastore.azure_blob"

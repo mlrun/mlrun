@@ -237,9 +237,14 @@ def _resolve_mlrun_install_command(mlrun_version_specifier):
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
         elif config.version == "unstable":
-            mlrun_version_specifier = "git+https://github.com/mlrun/mlrun@development"
+            mlrun_version_specifier = (
+                f"{config.package_path}[complete] @ git+"
+                f"https://github.com/mlrun/mlrun@development"
+            )
         else:
-            mlrun_version_specifier = f"{config.package_path}=={config.version}"
+            mlrun_version_specifier = (
+                f"{config.package_path}[complete]=={config.version}"
+            )
     return f"pip install {mlrun_version_specifier}"
 
 

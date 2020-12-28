@@ -32,7 +32,6 @@ from .states import (
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from ..utils import create_logger, get_caller_globals
-from mlrun.datastore.data_resources import ResourceCache
 
 
 class _StreamContext:
@@ -102,22 +101,16 @@ class GraphServer(ModelObj):
     def _get_db(self):
         return mlrun.get_run_db(secrets=self._secrets)
 
-    def init(
-        self, context, namespace, resource_cache: ResourceCache = None, logger=None
-    ):
+    def init(self, context, namespace, resource_cache=None, logger=None):
         """for internal use, initialize all states (recursively)"""
 
         if self.error_stream:
             self._error_stream = OutputStream(self.error_stream)
-        self.resource_cache = resource_cache or ResourceCache()
+        self.resource_cache = resource_cache
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
 
         context.stream = _StreamContext(self.parameters, self.function_uri)
         context.current_function = self._current_function
-        context.get_data_resource = self.resource_cache.resource_getter(
-            self._get_db(), self._secrets
-        )
-        context.get_table = self.resource_cache.get_table
         context.verbose = self.verbose
         context.root = self.graph
         self.context = context

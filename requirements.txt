@@ -1,9 +1,9 @@
 # >=1.25.4, <1.27 from botocore 1.19.28 inside boto3 1.16.28 inside nuclio-jupyter 0.8.8
 urllib3>=1.25.4, <1.27
+# >=3.0.2 from requests 2.25.1 <4.0 from aiohttp 3.7.3, requests is <5, so without the upbound there's a conflict
+chardet>=3.0.2, <4.0
 GitPython~=3.0
-# required by google-auth - TODO: check if still needed
 aiohttp~=3.6
-boto3~=1.9
 click~=7.0
 # 3.0 iguazio system uses 1.0.1, since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 kfp~=1.0.1
@@ -19,9 +19,6 @@ requests~=2.22
 sqlalchemy~=1.3
 tabulate>=0.8.0, <=0.8.3
 v3io~=0.5.0
-# required by some sub-dependency of a package installed in models-gpu, otherwise building this image fails - TODO: check if still happening
-google-auth<2.0dev,>=1.19.1
-azure-storage-blob~=12.0
 pydantic~=1.5
 # <3.4 since 3.4 can't be installed on pip 18.1
 orjson>=3,<3.4
@@ -35,6 +32,6 @@ dask~=2.12
 # 3.0 iguazio system is running k8s 1.17 so ideally we would use 17.X, but kfp limiting to <12.0
 kubernetes~=11.0
 # TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from
-#  separating the SDK and API code) (referring to humanfriendly and fastapi
+#  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2
 fastapi~=0.62.0

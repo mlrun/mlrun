@@ -137,7 +137,7 @@ COPY ./dockerfiles/models-gpu/requirements.txt ./
 RUN python -m pip install -r requirements.txt
 
 COPY . .
-RUN python -m pip install .
+RUN python -m pip install .[complete]
 
 ARG MLRUN_MLUTILS_GITHUB_TAG=development
 ARG MLRUN_MLUTILS_CACHE_DATE=initial

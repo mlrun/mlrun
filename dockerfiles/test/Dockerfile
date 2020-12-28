@@ -53,4 +53,4 @@ RUN pip install \
 
 COPY . .
 
-RUN pip install -e .
+RUN pip install -e .[complete]

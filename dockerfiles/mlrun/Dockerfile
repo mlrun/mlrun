@@ -33,4 +33,4 @@ RUN python -m pip install \
     -r mlrun-image-requirements.txt
 
 COPY . .
-RUN python -m pip install .
+RUN python -m pip install .[complete]

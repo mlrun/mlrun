@@ -36,7 +36,7 @@ def test_async_basic():
 
     queue.to(name="s3", class_name="ChainWithContext")
 
-    flow.plot("async.png")
+    # flow.plot("async.png")
 
     server = fn.to_mock_server()
     server.context.visits = {}
@@ -72,8 +72,7 @@ def test_async_nested():
 
     print(graph.to_yaml())
     server = fn.to_mock_server()
-    graph.plot("nested.png")
-    return
+    # graph.plot("nested.png")
     resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
     server.wait_for_completion()
     assert resp["outputs"] == 2000, f"wrong health response {resp}"
@@ -91,7 +90,7 @@ def test_on_error():
     fn.verbose = True
     server = fn.to_mock_server()
     print(graph.to_yaml())
-    graph.plot("on_error.png")
+    # graph.plot("on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
     print(resp)

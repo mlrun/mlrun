@@ -10,7 +10,7 @@ def test_basic_flow():
     graph.add_step(name="s3", class_name="Chain", after="$prev")
 
     server = fn.to_mock_server()
-    graph.plot("flow.png")
+    # graph.plot("flow.png")
     print("\nFlow1:\n", graph.to_yaml())
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow1 result is incorrect"

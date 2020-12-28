@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
 
 import json
 import os
@@ -192,14 +191,14 @@ class BaseState(ModelObj):
 
     def to(
         self,
-        class_name: Union[str, TaskState, RouterState, QueueState, type] = None,
+        class_name: Union[str, type] = None,
         name: str = None,
         handler: str = None,
         graph_shape: str = None,
         function: str = None,
         full_event: bool = None,
         **class_args,
-    ) -> Union[TaskState, QueueState, RouterState]:
+    ):
         """add a state right after this state and return the new state
 
         example, a 4 step pipeline ending with a stream:
@@ -835,7 +834,6 @@ class FlowState(BaseState):
             if not state._is_local_function(self.context):
                 return
             for item in state.next or []:
-                print("visit:", state.name, item)
                 next_state = root[item]
                 next_step = step.to(next_state.async_object)
                 process_step(next_state, next_step, root)

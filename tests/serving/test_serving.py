@@ -239,7 +239,7 @@ def test_function():
     fn.add_model("my", class_name="ModelTestingClass", model_path=".", z=100)
 
     server = fn.to_mock_server()
-    graph.plot("router.png")
+    # graph.plot("router.png")
     print("\nFlow:\n", graph.to_yaml())
     resp = server.test("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 500, f"wrong health response {resp}"

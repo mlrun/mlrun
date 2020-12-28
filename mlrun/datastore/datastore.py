@@ -15,12 +15,9 @@
 from urllib.parse import urlparse
 
 import mlrun
-from .azure_blob import AzureBlobStore
 from .base import DataItem, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
-from .s3 import S3Store
-from .v3io import V3ioStore
 from ..config import config
 from ..utils import run_keys, DB_SCHEMA
 
@@ -48,13 +45,17 @@ def parse_url(url):
 
 
 def schema_to_store(schema):
+    # import store classes inside to enable making their dependencies optional (package extras)
     if not schema or schema in ["file", "c", "d"]:
         return FileStore
     elif schema == "s3":
+        from .s3 import S3Store
         return S3Store
     elif schema == "az":
+        from .azure_blob import AzureBlobStore
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:
+        from .v3io import V3ioStore
         return V3ioStore
     elif schema in ["http", "https"]:
         return HttpStore

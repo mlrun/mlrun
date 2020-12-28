@@ -834,7 +834,6 @@ class FlowState(BaseState):
             if not state._is_local_function(self.context):
                 return
             for item in state.next or []:
-                print("visit:", state.name, item)
                 next_state = root[item]
                 next_step = step.to(next_state.async_object)
                 process_step(next_state, next_step, root)

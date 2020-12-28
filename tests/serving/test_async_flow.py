@@ -73,7 +73,6 @@ def test_async_nested():
     print(graph.to_yaml())
     server = fn.to_mock_server()
     graph.plot("nested.png")
-    return
     resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
     server.wait_for_completion()
     assert resp["outputs"] == 2000, f"wrong health response {resp}"

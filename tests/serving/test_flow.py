@@ -60,7 +60,7 @@ def test_init_class():
 
 def test_on_error():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="sync")
+    graph = fn.set_topology("flow", engine="sync")
     graph.add_step(name="s1", class_name="Chain")
     graph.add_step(name="raiser", class_name="Raiser", after="$prev").error_handler(
         "catch"

@@ -177,8 +177,6 @@ class FeatureSet(ModelObj):
             aggregations.append(aggregation)
             state.class_args["aggregates"] = aggregations
         else:
-            # last_state = graph._last_added
-            # start_at = graph.start_at
             graph.add_step(
                 name=state_name,
                 after=after or "$prev",
@@ -187,8 +185,6 @@ class FeatureSet(ModelObj):
                 aggregates=[aggregation],
                 table=".",
             )
-            # graph._last_added = last_state
-            # graph.start_at = start_at
 
         for operation in operations:
             for window in windows:

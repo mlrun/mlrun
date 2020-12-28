@@ -109,18 +109,16 @@ class BaseState(ModelObj):
         """state parent (flow/router)"""
         return self._parent
 
-    def set_next(self, key: str, remove: str = None):
+    def set_next(self, key: str):
         """set/insert the key as next after this state, optionally remove other keys"""
         if not self.next:
             self._next = [key]
         elif key not in self.next:
             self._next.append(key)
-        for state in remove or []:
-            if state in self.next:
-                self._next.remove(state)
         return self
 
     def after_state(self, after):
+        """specify the previous state name"""
         # most states only accept one source
         self.after = [after] if after else []
         return self
@@ -162,7 +160,7 @@ class BaseState(ModelObj):
             self._on_error_handler = error_state.run
 
     def _log_error(self, event, err, **kwargs):
-        """on failure log"""
+        """on failure log (for sync mode)"""
         self.context.logger.error(
             f"state {self.name} got error {err} when processing an event:\n {event.body}"
         )
@@ -173,7 +171,7 @@ class BaseState(ModelObj):
         )
 
     def _call_error_handler(self, event, err, **kwargs):
-        """call the error handler"""
+        """call the error handler if exist"""
         if self._on_error_handler:
             event.error = str(err)
             event.origin_state = self.fullname
@@ -220,7 +218,7 @@ class BaseState(ModelObj):
         :param full_event:  this step accepts the full event (not just body)
         :param class_args:  class init arguments
         """
-        if hasattr(self, "start_at"):
+        if hasattr(self, "states"):
             parent = self
         elif self._parent:
             parent = self._parent
@@ -248,6 +246,8 @@ class BaseState(ModelObj):
 
 
 class TaskState(BaseState):
+    """task execution state, runs a class or handler"""
+
     kind = "task"
     _dict_fields = _task_state_fields
     _default_class = ""
@@ -329,6 +329,7 @@ class TaskState(BaseState):
                     f"failed to init state {self.name}, {e}\n args={self.class_args}"
                 )
 
+            # determine the right class handler to use
             handler = self.handler
             if handler:
                 if not hasattr(self._object, handler):
@@ -363,6 +364,7 @@ class TaskState(BaseState):
 
     @property
     def async_object(self):
+        """return the sync or async (storey) class instance"""
         return self._async_object or self._object
 
     def clear_object(self):
@@ -403,6 +405,8 @@ class TaskState(BaseState):
 
 
 class RouterState(TaskState):
+    """router state, implement routing logic for running child routes"""
+
     kind = "router"
     default_shape = "doubleoctagon"
     _dict_fields = _task_state_fields + ["routes"]
@@ -427,6 +431,7 @@ class RouterState(TaskState):
 
     @property
     def routes(self):
+        """child routes/states, traffic is routed to routes based on router logic"""
         return self._routes
 
     @routes.setter
@@ -495,6 +500,8 @@ class RouterState(TaskState):
 
 
 class QueueState(BaseState):
+    """queue state, implement an async queue or represent a stream"""
+
     kind = "queue"
     default_shape = "cds"
     _dict_fields = BaseState._dict_fields + [
@@ -531,6 +538,15 @@ class QueueState(BaseState):
     def async_object(self):
         return self._async_object
 
+    def after_state(self, after):
+        # queue states accept multiple sources
+        if self.after:
+            if after:
+                self.after.append(after)
+        else:
+            self.after = [after] if after else []
+        return self
+
     def run(self, event, *args, **kwargs):
         data = event.body
         if not data:
@@ -544,6 +560,8 @@ class QueueState(BaseState):
 
 
 class FlowState(BaseState):
+    """flow state, represent a workflow or DAG"""
+
     kind = "flow"
     _dict_fields = BaseState._dict_fields + [
         "states",
@@ -552,18 +570,11 @@ class FlowState(BaseState):
     ]
 
     def __init__(
-        self,
-        name=None,
-        states=None,
-        after: list = None,
-        start_at=None,
-        engine=None,
-        final_state=None,
+        self, name=None, states=None, after: list = None, engine=None, final_state=None,
     ):
         super().__init__(name, after)
         self._states = None
         self.states = states
-        self.start_at = start_at
         self.engine = engine
         self.from_state = os.environ.get("START_FROM_STATE", None)
         self.final_state = final_state
@@ -579,10 +590,12 @@ class FlowState(BaseState):
 
     @property
     def states(self):
+        """child (workflow) states"""
         return self._states
 
     @property
     def controller(self):
+        """async (storey) flow controller"""
         return self._controller
 
     @states.setter
@@ -606,8 +619,8 @@ class FlowState(BaseState):
 
         example:
             graph = fn.set_topology("flow", exist_ok=True)
-            graph.add_step(class_name="Chain", name="s1", after="$start")
-            graph.add_step(class_name="Chain", name="s3", after="$last")
+            graph.add_step(class_name="Chain", name="s1")
+            graph.add_step(class_name="Chain", name="s3", after="$prev")
             graph.add_step(class_name="Chain", name="s2", after="s1", before="s3")
 
         :param class_name:  class name or state object to build the state from
@@ -616,7 +629,7 @@ class FlowState(BaseState):
         :param name:        unique name (and path) for the child state, default is class name
         :param handler:     class/function handler to invoke on run/event
         :param after:       the step name this step comes after
-                            can use control strings: $start, $prev, $last
+                            can use $prev to indicate the last added state
         :param before:      string or list of next step names that will run after this step
         :param graph_shape: graphviz shape name
         :param function:    function this state should run in
@@ -698,6 +711,7 @@ class FlowState(BaseState):
             self._build_async_flow()
 
     def check_and_process_graph(self, allow_empty=False):
+        """validate correct graph layout and initialize the .next links"""
 
         if self.is_empty() and allow_empty:
             self._start_states = []
@@ -756,6 +770,7 @@ class FlowState(BaseState):
         self._start_states = [self[name] for name in start_states]
 
         def get_first_function_state(state, current_function):
+            # find the first state which belongs to the function
             if (
                 hasattr(state, "function")
                 and state.function
@@ -807,9 +822,11 @@ class FlowState(BaseState):
         return self._start_states, default_final_state, responders
 
     def set_flow_source(self, source):
+        """set the async flow (storey) source"""
         self._source = source
 
     def _build_async_flow(self):
+        """initialize and build the async/storey DAG"""
         try:
             import storey
         except ImportError:
@@ -885,6 +902,7 @@ class FlowState(BaseState):
                 state.init_object(self.context, None)
 
     def is_empty(self):
+        """is the graph empty (no child states)"""
         return len(self.states) == 0
 
     def run(self, event, *args, **kwargs):
@@ -937,6 +955,8 @@ class FlowState(BaseState):
 
 
 class RootFlowState(FlowState):
+    """root flow state"""
+
     kind = "root"
     _dict_fields = ["states", "engine", "final_state", "on_error"]
 

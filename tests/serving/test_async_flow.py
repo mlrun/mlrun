@@ -14,7 +14,7 @@ def has_storey():
 @pytest.mark.skipif(not has_storey(), reason="storey not installed")
 def test_handler():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="async")
+    graph = fn.set_topology("flow", engine="async")
     graph.add_step(name="s1", handler="(event + 1)")
     graph.add_step(name="s2", handler="json.dumps", after="$prev").respond()
 
@@ -58,7 +58,7 @@ def test_async_basic():
 @pytest.mark.skipif(not has_storey(), reason="storey not installed")
 def test_async_nested():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="async")
+    graph = fn.set_topology("flow", engine="async")
     graph.add_step(name="s1", class_name="Echo")
     graph.add_step(name="s2", handler="multiply_input", after="s1")
     graph.add_step(name="s3", class_name="Echo", after="s2")
@@ -81,7 +81,7 @@ def test_async_nested():
 
 def test_on_error():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", start_at="s1", engine="async")
+    graph = fn.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
     chain.to("Raiser").error_handler("catch").to("Chain", name="s3")
 

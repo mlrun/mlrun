@@ -141,6 +141,7 @@ class ServingSpec(NuclioSpec):
 
     @property
     def graph(self) -> Union[RouterState, RootFlowState]:
+        """states graph, holding the serving workflow/DAG topology"""
         return self._graph
 
     @graph.setter
@@ -149,6 +150,7 @@ class ServingSpec(NuclioSpec):
 
     @property
     def function_refs(self) -> List[FunctionReference]:
+        """"function references, list of optional child function refs"""
         return self._function_refs
 
     @function_refs.setter
@@ -168,13 +170,7 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def set_topology(
-        self,
-        topology=None,
-        class_name=None,
-        start_at=None,
-        engine=None,
-        exist_ok=False,
-        **class_args,
+        self, topology=None, class_name=None, engine=None, exist_ok=False, **class_args,
     ) -> Union[RootFlowState, RouterState]:
         """set the serving graph topology (router/flow) and root class or params
 
@@ -187,17 +183,16 @@ class ServingRuntime(RemoteRuntime):
                    route is usually determined by the path (route key/name)
                    can specify special router class and router arguments
 
-          flow   - workflow (DAG) with a chain of states, starting at "start_at" state
+          flow   - workflow (DAG) with a chain of states
                    flow support "sync" and "async" engines, branches are note allowed in sync mode
                    when using async mode .respond() can indicate the state which will
                    generate the (REST) call response
 
         :param topology:     - graph topology, router or flow
         :param class_name:   - optional for router, router class name/path
-        :param start_at:     - for flow, starting state
         :param engine:       - optional for flow, sync or async engine (default to async)
         :param exist_ok:     - allow overriding existing topology
-        :param class_args:   - optional, router/flow class extra args
+        :param class_args:   - optional, router/flow class init args
 
         :return graph object (fn.spec.graph)
         """
@@ -205,11 +200,10 @@ class ServingRuntime(RemoteRuntime):
         if self.spec.graph and not exist_ok:
             raise ValueError("graph topology is already set, cannot be overwritten")
 
-        # currently we only support router topology
         if topology == StateKinds.router:
             self.spec.graph = RouterState(class_name=class_name, class_args=class_args)
         elif topology == StateKinds.flow:
-            self.spec.graph = RootFlowState(start_at=start_at, engine=engine)
+            self.spec.graph = RootFlowState(engine=engine)
         else:
             raise ValueError(f"unsupported topology {topology}, use 'router' or 'flow'")
         return self.spec.graph
@@ -231,13 +225,16 @@ class ServingRuntime(RemoteRuntime):
         handler=None,
         **class_args,
     ):
-        """add ml model and/or route to the function
+        """add ml model and/or route to the function.
 
         Example, create a function (from the notebook), add a model class, and deploy:
 
             fn = code_to_function(kind='serving')
             fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
             fn.deploy()
+
+        only works with router topology, for nested topologies (model under router under flow)
+        need to add router to flow and use router.add_route()
 
         :param key:         model api key (or name:version), will determine the relative url/path
         :param model_path:  path to mlrun model artifact or model directory file/object path
@@ -315,7 +312,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.deploy()
 
     def remove_states(self, keys: list):
-        """remove one, multiple, or all models from the spec (blank list for all)"""
+        """remove one, multiple, or all states/models from the spec (blank list for all)"""
         if self.spec.graph:
             self.spec.graph.clear_children(keys)
 

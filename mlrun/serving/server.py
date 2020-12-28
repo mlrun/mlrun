@@ -70,9 +70,8 @@ class GraphServer(ModelObj):
         self.load_mode = load_mode or "sync"
         self.version = version or "v2"
         self.context = None
-        self._namespace = None
         self._current_function = None
-        self.functions = functions or []
+        self.functions = functions or {}
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self._error_stream = None
@@ -93,6 +92,7 @@ class GraphServer(ModelObj):
         graph_root_setter(self, graph)
 
     def set_error_stream(self, error_stream):
+        """set/initialize the error notification stream"""
         self.error_stream = error_stream
         if error_stream:
             self._error_stream = OutputStream(error_stream)
@@ -148,12 +148,12 @@ class GraphServer(ModelObj):
                 server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
                 print(server.test("my/infer", testdata))
 
-        :param path:     relative ({route-name}/..) or absolute (/{router.url_prefix}/{name}/..) path
-        :param body:     message body (dict or json str/bytes)
-        :param method:   optional, GET, POST, ..
+        :param path:       api path, e.g. (/{router.url_prefix}/{model-name}/..) path
+        :param body:       message body (dict or json str/bytes)
+        :param method:     optional, GET, POST, ..
         :param content_type:  optional, http mime type
-        :param silent:   dont raise on error responses (when not 20X)
-        :param get_body: return the body (vs serialize response into json)
+        :param silent:     dont raise on error responses (when not 20X)
+        :param get_body:   return the body as py object (vs serialize response into json)
         """
         if not self.graph:
             raise ValueError(
@@ -163,15 +163,18 @@ class GraphServer(ModelObj):
             body=body, path=path, method=method, content_type=content_type
         )
         resp = v2_serving_handler(self.context, event, get_body=get_body)
-        if hasattr(resp, "status_code") and resp.status_code > 300 and not silent:
+        if hasattr(resp, "status_code") and resp.status_code >= 300 and not silent:
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
         return resp
 
     def wait_for_completion(self):
+        """wait for async operation to complete"""
         self.graph.wait_for_completion()
 
 
 def v2_serving_init(context, namespace=None):
+    """hook for nuclio init_context()"""
+
     data = os.environ.get("SERVING_SPEC_ENV", "")
     if not data:
         raise ValueError("failed to find spec env var")
@@ -190,6 +193,8 @@ def v2_serving_init(context, namespace=None):
 
 
 def v2_serving_handler(context, event, get_body=False):
+    """hook for nuclio handler()"""
+
     try:
         response = context.root.run(event)
     except Exception as e:
@@ -222,13 +227,13 @@ def create_graph_server(
     current_function=None,
     **kwargs,
 ) -> GraphServer:
-    """create serving emulator/tester for locally testing models and servers
+    """create serving host/emulator for local or test runs
 
         Usage:
-                server = create_graph_server()
+                server = create_graph_server(graph=RouterState(), parameters={})
                 server.init(None, globals())
-                server.add_model("my", class_name=MyModelClass, model_path="{path}", z=100)
-                print(server.test("my/infer", testdata))
+                server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
+                print(server.test("/v2/models/my/infer", testdata))
     """
     server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
     server.set_current_function(

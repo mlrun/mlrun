@@ -493,7 +493,6 @@ class RouterState(TaskState):
 
     def plot(self, filename=None, format=None, source=None, **kw):
         """plot/save a graphviz plot"""
-        source = source or BaseState("start", shape="egg")
         return _generate_graphviz(
             self, _add_gviz_router, filename, format, source=source, **kw
         )
@@ -1075,7 +1074,6 @@ def _add_gviz_flow(
     start_states, default_final_state, responders = state.check_and_process_graph(
         allow_empty=True
     )
-    source = source or BaseState("start", shape="egg")
     g.node("_start", source.name, shape=source.shape, style="filled")
     for start_state in start_states:
         g.edge("_start", start_state.fullname)
@@ -1118,6 +1116,7 @@ def _generate_graphviz(
         )
     g = Digraph("mlrun-flow", format="jpg")
     g.attr(compound="true", **kw)
+    source = source or BaseState("start", shape="egg")
     renderer(g, state, source=source, targets=targets)
     if filename:
         suffix = pathlib.Path(filename).suffix

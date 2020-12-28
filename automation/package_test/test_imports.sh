@@ -5,6 +5,7 @@ set -o errexit
 test_import () {
     echo "Testing import: python=$PYTHON_VERSION extra=$1 import=$2"
     # Create an empty environment
+    python -m pip install virtualenv
     virtualenv venv
     source venv/bin/activate
     pip install ."$1"

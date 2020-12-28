@@ -54,7 +54,7 @@ install_requires = list(load_deps("requirements.txt"))
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
-# NOTE: These are tested in `continuous_integration/travis/test_imports.sh` If
+# NOTE: These are tested in `automation/package_test/test_imports.sh` If
 # you modify these, make sure to change the corresponding line there.
 extras_require = {
     "api": api_deps,

@@ -1005,10 +1005,19 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
-    def delete_project(self, name: str):
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: Union[
+            str, mlrun.api.schemas.DeletionStrategy
+        ] = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
         path = f"projects/{name}"
+        if isinstance(deletion_strategy, schemas.DeletionStrategy):
+            deletion_strategy = deletion_strategy.value
+        headers = {schemas.HeaderNames.deletion_strategy: deletion_strategy}
         error_message = f"Failed deleting project {name}"
-        self.api_call("DELETE", path, error_message)
+        self.api_call("DELETE", path, error_message, headers=headers)
 
     def store_project(
         self,

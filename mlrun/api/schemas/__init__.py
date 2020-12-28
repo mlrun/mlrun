@@ -8,7 +8,7 @@ from .background_task import (
     BackgroundTaskSpec,
     BackgroundTaskStatus,
 )
-from .constants import Format, PatchMode, HeaderNames
+from .constants import Format, PatchMode, HeaderNames, DeletionStrategy
 from .feature_store import (
     Feature,
     FeatureRecord,

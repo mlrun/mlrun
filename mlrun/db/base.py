@@ -118,7 +118,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_project(self, name: str):
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         pass
 
     @abstractmethod

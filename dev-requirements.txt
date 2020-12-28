@@ -9,3 +9,4 @@ pytest-alembic~=0.2
 requests-mock~=1.8
 # needed for system tests
 matplotlib~=3.0
+git+https://github.com/mlrun/storey.git@development

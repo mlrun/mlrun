@@ -353,7 +353,7 @@ def deploy_function(function: DaskCluster, secrets=None):
     except ImportError as e:
         print(
             "missing dask or dask_kubernetes, please run "
-            '"pip install dask distributed dask_kubernetes", %s',
+            '"pip install mlrun[dask]", %s',
             e,
         )
         raise e

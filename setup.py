@@ -65,9 +65,7 @@ extras_require = {
         "v3io~=0.5.0",
     ],
     "s3": ["boto3~=1.9"],
-    "azure-blob-storage": [
-        "azure-storage-blob~=12.0",
-    ],
+    "azure-blob-storage": ["azure-storage-blob~=12.0"],
 }
 extras_require["complete"] = sorted({v for req in extras_require.values() for v in req})
 

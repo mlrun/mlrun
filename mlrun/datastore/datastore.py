@@ -50,12 +50,15 @@ def schema_to_store(schema):
         return FileStore
     elif schema == "s3":
         from .s3 import S3Store
+
         return S3Store
     elif schema == "az":
         from .azure_blob import AzureBlobStore
+
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:
         from .v3io import V3ioStore
+
         return V3ioStore
     elif schema in ["http", "https"]:
         return HttpStore

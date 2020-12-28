@@ -54,6 +54,28 @@ install_requires = list(load_deps("requirements.txt"))
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
+# NOTE: These are tested in `continuous_integration/travis/test_imports.sh` If
+# you modify these, make sure to change the corresponding line there.
+extras_require = {
+    "api": api_deps,
+    "dask": ['dask~=2.12'],
+    "v3io": [
+        # 3.0 iguazio system uses 0.8.x - limiting to only patch changes
+        'v3io-frames~=0.8.5',
+        'v3io~=0.5.0'
+    ],
+    's3': [
+      'boto3~=1.9',
+    ],
+    'azure-blob-storage': [
+        # required by some sub-dependency of a package installed in models-gpu, otherwise building this image fails -
+        # TODO: check if still happening
+      # 'google-auth<2.0dev,>=1.19.1',
+      'azure-storage-blob~=12.0',
+    ],
+}
+extras_require["complete"] = sorted({v for req in extras_require.values() for v in req})
+
 
 setup(
     name="mlrun",
@@ -93,7 +115,7 @@ setup(
         "mlrun.api.utils.projects.remotes",
     ],
     install_requires=install_requires,
-    extras_require={"api": api_deps},
+    extras_require=extras_require,
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

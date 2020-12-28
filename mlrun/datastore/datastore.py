@@ -15,6 +15,7 @@
 from urllib.parse import urlparse
 
 import mlrun
+import mlrun.errors
 from .base import DataItem, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
@@ -50,11 +51,21 @@ def schema_to_store(schema):
     if not schema or schema in ["file", "c", "d"]:
         return FileStore
     elif schema == "s3":
-        from .s3 import S3Store
+        try:
+            from .s3 import S3Store
+        except ImportError:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "s3 packages are missing, use pip install mlrun[s3]"
+            )
 
         return S3Store
     elif schema == "az":
-        from .azure_blob import AzureBlobStore
+        try:
+            from .azure_blob import AzureBlobStore
+        except ImportError:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "azure blob storage packages are missing, use pip install mlrun[azure-blob-storage]"
+            )
 
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:

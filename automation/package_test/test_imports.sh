@@ -7,7 +7,7 @@ test_import () {
     # Create an empty environment
     virtualenv venv
     source venv/bin/activate
-    pip install ."$1"
+    pip install .["$1"]
     python -c "$2"
     deactivate
     rm -rf venv

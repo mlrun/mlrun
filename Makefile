@@ -425,7 +425,7 @@ test-system: build-test-system ## Run mlrun system tests
 
 .PHONY: test-package
 test-package: ## Run mlrun package tests
-	bash ./automation/package_test/test_imports.sh
+	PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) bash ./automation/package_test/test_imports.sh
 
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)

@@ -18,6 +18,7 @@ import mlrun
 from .base import DataItem, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
+from .v3io import V3ioStore
 from ..config import config
 from ..utils import run_keys, DB_SCHEMA
 
@@ -57,8 +58,6 @@ def schema_to_store(schema):
 
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:
-        from .v3io import V3ioStore
-
         return V3ioStore
     elif schema in ["http", "https"]:
         return HttpStore

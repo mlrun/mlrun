@@ -57,17 +57,20 @@ api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 # NOTE: These are tested in `automation/package_test/test_imports.sh` If
 # you modify these, make sure to change the corresponding line there.
 extras_require = {
-    "api": api_deps,
-    "dask": ["dask~=2.12"],
-    "v3io": [
-        # 3.0 iguazio system uses 0.8.x - limiting to only patch changes
-        "v3io-frames~=0.8.5",
-        "v3io~=0.5.0",
-    ],
     "s3": ["boto3~=1.9"],
     "azure-blob-storage": ["azure-storage-blob~=12.0"],
 }
-extras_require["complete"] = sorted({v for req in extras_require.values() for v in req})
+extras_require["complete"] = sorted(
+    {
+        requirement
+        for requirement_list in extras_require.values()
+        for requirement in requirement_list
+    }
+)
+extras_require["api"] = api_deps
+complete_api_deps = set(api_deps)
+complete_api_deps.update(extras_require["complete"])
+extras_require["complete-api"] = sorted(complete_api_deps)
 
 
 setup(

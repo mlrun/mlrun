@@ -14,13 +14,18 @@ test_import () {
     rm -rf venv
 }
 
-test_import ""                      "import mlrun"
+basic_test="import mlrun"
+api_test="import mlrun.api.main"
+s3_test="import mlrun.datastore.s3"
+azure_blob_storage_test="import mlrun.datastore.azure_blob"
+
+test_import ""                      "$basic_test"
 # API works only with python 3.7 and above
 if [ "$PYTHON_VERSION" != "3.6" ]
   then
-    test_import "[api]"                 "import mlrun.api.main"
+    test_import "[api]"                 "$basic_test; $api_test"
+    test_import "[complete-api]"        "$basic_test; $api_test; $s3_test; $azure_blob_storage_test"
 fi
-test_import "[dask]"                "import dask"
-test_import "[v3io]"                "import mlrun.datastore.v3io"
-test_import "[s3]"                  "import mlrun.datastore.s3"
-test_import "[azure-blob-storage]"  "import mlrun.datastore.azure_blob"
+test_import "[s3]"                  "$basic_test; $s3_test"
+test_import "[azure-blob-storage]"  "$basic_test; $azure_blob_storage_test"
+test_import "[complete]"  "$basic_test; $s3_test; $azure_blob_storage_test"

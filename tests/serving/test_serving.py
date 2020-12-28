@@ -1,27 +1,20 @@
 import json
 import os
 import time
+import mlrun
 
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
-from mlrun.serving.server import MockEvent, MockContext, create_mock_server
-from mlrun.serving.states import ServingRouterState, ServingTaskState
+from mlrun.serving.server import MockEvent, GraphContext, create_graph_server
+from mlrun.serving.states import RouterState, TaskState
 
-router_object = ServingRouterState()
+router_object = RouterState()
 router_object.routes = {
-    "m1": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 100}
-    ),
-    "m2": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 200}
-    ),
-    "m3:v1": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 300}
-    ),
-    "m3:v2": ServingTaskState(
-        "ModelTestingClass", class_args={"model_path": "", "z": 400}
-    ),
+    "m1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 100}),
+    "m2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 200}),
+    "m3:v1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 300}),
+    "m3:v2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 400}),
 }
 
 
@@ -85,7 +78,7 @@ class AsyncModelTestingClass(V2ModelServer):
 
 def init_ctx():
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
-    context = MockContext()
+    context = GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
     return context
 
@@ -135,7 +128,7 @@ def test_v2_stream_mode():
 def test_v2_async_mode():
     # model loading is async
     os.environ["SERVING_SPEC_ENV"] = json.dumps(asyncspec)
-    context = MockContext()
+    context = GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
     context.logger.info("model initialized")
 
@@ -231,7 +224,22 @@ def test_v2_health():
 
 
 def test_v2_mock():
-    host = create_mock_server()
-    host.add_model("my", class_name=ModelTestingClass, model_path="", z=100)
-    print(host.test("my/infer", testdata))
+    host = create_graph_server(graph=RouterState())
+    host.graph.add_route("my", class_name=ModelTestingClass, model_path="", z=100)
+    host.init(None, globals())
     print(host.to_yaml())
+    resp = host.test("/v2/models/my/infer", testdata)
+    print(resp)
+    assert resp["outputs"] == 500, f"wrong health response {resp}"
+
+
+def test_function():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("router")
+    fn.add_model("my", class_name="ModelTestingClass", model_path=".", z=100)
+
+    server = fn.to_mock_server()
+    graph.plot("router.png")
+    print("\nFlow:\n", graph.to_yaml())
+    resp = server.test("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 500, f"wrong health response {resp}"

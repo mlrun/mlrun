@@ -66,9 +66,6 @@ extras_require = {
     ],
     "s3": ["boto3~=1.9"],
     "azure-blob-storage": [
-        # required by some sub-dependency of a package installed in models-gpu, otherwise building this image fails -
-        # TODO: check if still happening
-        # 'google-auth<2.0dev,>=1.19.1',
         "azure-storage-blob~=12.0",
     ],
 }

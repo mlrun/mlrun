@@ -29,10 +29,10 @@ from .states import (
     get_function,
     graph_root_setter,
 )
+from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..platforms.iguazio import OutputStream
 from ..utils import create_logger, get_caller_globals
-from mlrun.datastore.data_resources import ResourceCache
 
 
 class _StreamContext:
@@ -74,7 +74,7 @@ class GraphServer(ModelObj):
         self.functions = functions or {}
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
-        self._error_stream = None
+        self._error_stream_object = None
         self._secrets = SecretsStore()
         self._db_conn = None
         self.resource_cache = None
@@ -95,29 +95,23 @@ class GraphServer(ModelObj):
         """set/initialize the error notification stream"""
         self.error_stream = error_stream
         if error_stream:
-            self._error_stream = OutputStream(error_stream)
+            self._error_stream_object = OutputStream(error_stream)
         else:
-            self._error_stream = None
+            self._error_stream_object = None
 
     def _get_db(self):
         return mlrun.get_run_db(secrets=self._secrets)
 
-    def init(
-        self, context, namespace, resource_cache: ResourceCache = None, logger=None
-    ):
+    def init(self, context, namespace, resource_cache=None, logger=None):
         """for internal use, initialize all states (recursively)"""
 
         if self.error_stream:
-            self._error_stream = OutputStream(self.error_stream)
-        self.resource_cache = resource_cache or ResourceCache()
+            self._error_stream_object = OutputStream(self.error_stream)
+        self.resource_cache = resource_cache
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
 
         context.stream = _StreamContext(self.parameters, self.function_uri)
         context.current_function = self._current_function
-        context.get_data_resource = self.resource_cache.resource_getter(
-            self._get_db(), self._secrets
-        )
-        context.get_table = self.resource_cache.get_table
         context.verbose = self.verbose
         context.root = self.graph
         self.context = context
@@ -156,7 +150,7 @@ class GraphServer(ModelObj):
         :param get_body:   return the body as py object (vs serialize response into json)
         """
         if not self.graph:
-            raise ValueError(
+            raise MLRunInvalidArgumentError(
                 "no models or steps were set, use function.set_topology() and add steps"
             )
         event = MockEvent(
@@ -177,7 +171,7 @@ def v2_serving_init(context, namespace=None):
 
     data = os.environ.get("SERVING_SPEC_ENV", "")
     if not data:
-        raise ValueError("failed to find spec env var")
+        raise MLRunInvalidArgumentError("failed to find spec env var")
     spec = json.loads(data)
     server = GraphServer.from_dict(spec)
     if config.log_level.lower() == "debug":
@@ -309,9 +303,9 @@ class GraphContext:
             self.logger.error(
                 f"got error from {source} state:\n{event.body}\n{message}"
             )
-        if self._server and self._server._error_stream:
+        if self._server and self._server._error_stream_object:
             message = format_error(self._server, self, source, event, message, kwargs)
-            self._server._error_stream.push(message)
+            self._server._error_stream_object.push(message)
 
     def get_param(self, key: str, default=None):
         if self._server and self._server.parameters:

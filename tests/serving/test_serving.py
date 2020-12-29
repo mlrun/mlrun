@@ -3,6 +3,7 @@ import os
 import time
 import mlrun
 
+from mlrun.utils import logger
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
@@ -11,10 +12,18 @@ from mlrun.serving.states import RouterState, TaskState
 
 router_object = RouterState()
 router_object.routes = {
-    "m1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 100}),
-    "m2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 200}),
-    "m3:v1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 300}),
-    "m3:v2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 400}),
+    "m1": TaskState(
+        "ModelTestingClass", class_args={"model_path": "", "multiplier": 100}
+    ),
+    "m2": TaskState(
+        "ModelTestingClass", class_args={"model_path": "", "multiplier": 200}
+    ),
+    "m3:v1": TaskState(
+        "ModelTestingClass", class_args={"model_path": "", "multiplier": 300}
+    ),
+    "m3:v2": TaskState(
+        "ModelTestingClass", class_args={"model_path": "", "multiplier": 400}
+    ),
 }
 
 
@@ -52,7 +61,7 @@ class ModelTestingClass(V2ModelServer):
 
     def predict(self, request):
         print("predict:", request)
-        resp = request["inputs"][0] * self.get_param("z")
+        resp = request["inputs"][0] * self.get_param("multiplier")
         return resp
 
     def explain(self, request):
@@ -120,7 +129,7 @@ def test_v2_stream_mode():
         '{"model": "m3:v2", "operation": "explain", "inputs": [5]}', path=""
     )
     resp = context.mlrun_handler(context, event)
-    print(resp.body)
+    logger.info(f"resp: {resp.body}")
     data = json.loads(resp.body)
     assert data["outputs"]["explained"] == 5, f"wrong model response {data}"
 
@@ -142,7 +151,7 @@ def test_v2_async_mode():
     event = MockEvent(testdata, path="/v2/models/m5/infer")
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
-    print(resp)
+    logger.info(resp)
     assert (
         resp.status_code != 200
     ), f"expected failure, got {resp.status_code} {resp.body}"
@@ -151,7 +160,7 @@ def test_v2_async_mode():
     event.trigger = "stream"
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
-    print(resp)
+    logger.info(resp)
     data = json.loads(resp.body)
     assert data["outputs"] == 5, f"wrong model response {data}"
 
@@ -168,7 +177,7 @@ def test_v2_get_modelmeta():
     def get_model(name, version, url):
         event = MockEvent("", path=f"/v2/models/{url}", method="GET")
         resp = context.mlrun_handler(context, event)
-        print(resp)
+        logger.info(f"resp: {resp}")
         data = json.loads(resp.body)
 
         # expected: {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
@@ -225,21 +234,24 @@ def test_v2_health():
 
 def test_v2_mock():
     host = create_graph_server(graph=RouterState())
-    host.graph.add_route("my", class_name=ModelTestingClass, model_path="", z=100)
+    host.graph.add_route(
+        "my", class_name=ModelTestingClass, model_path="", multiplier=100
+    )
     host.init(None, globals())
-    print(host.to_yaml())
+    logger.info(host.to_yaml())
     resp = host.test("/v2/models/my/infer", testdata)
-    print(resp)
-    assert resp["outputs"] == 500, f"wrong health response {resp}"
+    logger.info(f"resp: {resp}")
+    # expected: source (5) * multiplier (100)
+    assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
 
 
 def test_function():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("router")
-    fn.add_model("my", class_name="ModelTestingClass", model_path=".", z=100)
+    fn.add_model("my", class_name="ModelTestingClass", model_path=".", multiplier=100)
 
     server = fn.to_mock_server()
-    # graph.plot("router.png")
-    print("\nFlow:\n", graph.to_yaml())
+    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/my/infer", testdata)
-    assert resp["outputs"] == 500, f"wrong health response {resp}"
+    # expected: source (5) * multiplier (100)
+    assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"

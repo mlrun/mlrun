@@ -1,48 +1,31 @@
 import mlrun
-import pytest
+from mlrun.utils import logger
 from .demo_states import *  # noqa
+from tests.conftest import results
 
 
-def has_storey():
-    try:
-        import storey  # noqa
-    except ImportError:
-        return False
-    return True
-
-
-@pytest.mark.skipif(not has_storey(), reason="storey not installed")
-def test_handler():
-    fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", engine="async")
-    graph.add_step(name="s1", handler="(event + 1)")
-    graph.add_step(name="s2", handler="json.dumps", after="$prev").respond()
-
-    server = fn.to_mock_server()
-    resp = server.test(body=5)
-    server.wait_for_completion()
-    assert resp == "6", f"got unexpected result {resp}"
-
-
-@pytest.mark.skipif(not has_storey(), reason="storey not installed")
 def test_async_basic():
-    fn = mlrun.new_function("tests", kind="serving")
-    flow = fn.set_topology("flow", engine="async")
-    queue = flow.to(name="s1", class_name="ChainWithContext").to(">", "q1", path="")
+    function = mlrun.new_function("tests", kind="serving")
+    flow = function.set_topology("flow", engine="async")
+    queue = flow.to(name="s1", class_name="ChainWithContext").to(
+        "$queue", "q1", path=""
+    )
 
     s2 = queue.to(name="s2", class_name="ChainWithContext")
     s2.to(name="s4", class_name="ChainWithContext")
-    s2.to(name="s5", class_name="ChainWithContext").respond()
+    s2.to(
+        name="s5", class_name="ChainWithContext"
+    ).respond()  # this state returns the resp
 
     queue.to(name="s3", class_name="ChainWithContext")
 
-    # flow.plot("async.png")
+    # plot the graph for test & debug
+    flow.plot(f"{results}/serving/async.png")
 
-    server = fn.to_mock_server()
+    server = function.to_mock_server()
     server.context.visits = {}
-    print("\nAsync Flow:\n", flow.to_yaml())
+    logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
     resp = server.test(body=[])
-    print(resp)
 
     server.wait_for_completion()
     assert resp == ["s1", "s2", "s5"], "flow result is incorrect"
@@ -55,44 +38,50 @@ def test_async_basic():
     }, "flow didnt visit expected states"
 
 
-@pytest.mark.skipif(not has_storey(), reason="storey not installed")
 def test_async_nested():
-    fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", engine="async")
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
     graph.add_step(name="s1", class_name="Echo")
     graph.add_step(name="s2", handler="multiply_input", after="s1")
     graph.add_step(name="s3", class_name="Echo", after="s2")
 
-    router = graph.add_step("*", name="ensemble", after="s2")
-    router.add_route("m1", class_name="ModelClass", model_path=".", z=100)
-    router.add_route("m2", class_name="ModelClass", model_path=".", z=200)
-    router.add_route("m3:v1", class_name="ModelClass", model_path=".", z=300)
+    router_step = graph.add_step("*", name="ensemble", after="s2")
+    router_step.add_route("m1", class_name="ModelClass", model_path=".", multiplier=100)
+    router_step.add_route("m2", class_name="ModelClass", model_path=".", multiplier=200)
+    router_step.add_route(
+        "m3:v1", class_name="ModelClass", model_path=".", multiplier=300
+    )
 
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 
-    print(graph.to_yaml())
-    server = fn.to_mock_server()
-    # graph.plot("nested.png")
+    logger.info(graph.to_yaml())
+    server = function.to_mock_server()
+
+    # plot the graph for test & debug
+    graph.plot(f"{results}/serving/nested.png")
     resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
     server.wait_for_completion()
-    assert resp["outputs"] == 2000, f"wrong health response {resp}"
+    # resp should be input (5) * multiply_input (2) * m2 multiplier (200)
+    assert resp["outputs"] == 5 * 2 * 200, f"wrong health response {resp}"
 
 
 def test_on_error():
-    fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", engine="async")
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
     chain.to("Raiser").error_handler("catch").to("Chain", name="s3")
 
     graph.add_step(
         name="catch", class_name="EchoError", after=""
     ).respond().full_event = True
-    fn.verbose = True
-    server = fn.to_mock_server()
-    print(graph.to_yaml())
-    # graph.plot("on_error.png")
+    function.verbose = True
+    server = function.to_mock_server()
+    logger.info(graph.to_yaml())
+
+    # plot the graph for test & debug
+    graph.plot(f"{results}/serving/on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
-    print(resp)
-    print(dir(resp))
-    # assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"
+    assert (
+        resp["error"] and resp["origin_state"] == "Raiser"
+    ), f"error wasnt caught, resp={resp}"

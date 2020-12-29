@@ -497,7 +497,7 @@ def is_store_uri(url):
 def parse_store_uri(url):
     if not is_store_uri(url):
         return None, ''
-    uri = url[len(DB_SCHEMA) + 3:]
+    uri = url[len(DB_SCHEMA) + len('://'):]
     split = uri.strip("/").split('/', 1)
     if len(split) == 0:
         raise ValueError(f'url {url} has no path')

@@ -1,3 +1,6 @@
+import typing
+import mergedeep
+import copy
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -61,44 +64,17 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     _assert_project_response(project_2, response)
 
     # list - names only
-    response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.name_only}
-    )
-    expected = [name1, name2]
-    assert expected == response.json()["projects"]
+    _list_project_names_and_assert(client, [name1, name2])
 
     # list - names only - filter by label existence
-    response = client.get(
-        "/api/projects",
-        params={
-            "format": mlrun.api.schemas.Format.name_only,
+    _list_project_names_and_assert(client, [name2], params={
             "label": list(labels_2.keys())[0],
-        },
-    )
-    expected = [name2]
-    assert expected == response.json()["projects"]
+        })
 
     # list - names only - filter by label match
-    response = client.get(
-        "/api/projects",
-        params={
-            "format": mlrun.api.schemas.Format.name_only,
-            "label": f"{list(labels_2.keys())[0]}={list(labels_2.values())[0]}",
-        },
-    )
-    expected = [name2]
-    assert expected == response.json()["projects"]
-
-    # list - names only - filter by state
-    response = client.get(
-        "/api/projects",
-        params={
-            "format": mlrun.api.schemas.Format.name_only,
-            "state": mlrun.api.schemas.ProjectState.archived,
-        },
-    )
-    expected = [name1]
-    assert expected == response.json()["projects"]
+    _list_project_names_and_assert(client, [name2], params={
+        "label": f"{list(labels_2.keys())[0]}={list(labels_2.values())[0]}",
+    })
 
     # list - full
     response = client.get(
@@ -112,6 +88,43 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
             project,
             extra_exclude={"spec": {"description", "desired_state"}},
         )
+
+    # patch project 1 to have the labels as well
+    labels_1 = copy.deepcopy(labels_2)
+    labels_1.update({'another-label':'another-label-value'})
+    project_patch = {
+        "metadata": {
+            "labels": labels_1
+        }
+    }
+    response = client.patch(f"/api/projects/{name1}", json=project_patch)
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(
+        project_1, response, extra_exclude={"spec": {"description", "desired_state"}, "metadata": {"labels"}}
+    )
+    assert (
+            deepdiff.DeepDiff(
+                response.json()["metadata"]["labels"],
+                labels_1,
+                ignore_order=True,
+            )
+            == {}
+    )
+
+    # list - names only - filter by label existence
+    _list_project_names_and_assert(client, [name1, name2], params={
+        "label": list(labels_2.keys())[0],
+    })
+
+    # list - names only - filter by label existence
+    _list_project_names_and_assert(client, [name1], params={
+        "label": list(labels_1.keys())[1],
+    })
+
+    # list - names only - filter by state
+    _list_project_names_and_assert(client, [name1], params={
+        "state": mlrun.api.schemas.ProjectState.archived,
+    })
 
     # add function to project 1
     function_name = "function-name"
@@ -142,11 +155,18 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     # list
+    _list_project_names_and_assert(client, [name2])
+
+
+def _list_project_names_and_assert(client: TestClient, expected_names: typing.List[str], params: typing.Dict = None):
+    params = params or {}
+    params["format"] = mlrun.api.schemas.Format.name_only
+    # list - names only - filter by state
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.Format.name_only}
+        "/api/projects",
+        params=params,
     )
-    expected = [name2]
-    assert expected == response.json()["projects"]
+    assert expected_names == response.json()["projects"]
 
 
 def _assert_project_response(
@@ -163,7 +183,7 @@ def _assert_project(
 ):
     exclude = {"id": ..., "metadata": {"created"}, "status": {"state"}}
     if extra_exclude:
-        exclude.update(extra_exclude)
+        mergedeep.merge(exclude, extra_exclude, strategy=mergedeep.Strategy.ADDITIVE)
     assert (
         deepdiff.DeepDiff(
             expected_project.dict(exclude=exclude),

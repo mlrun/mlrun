@@ -60,3 +60,5 @@ class ObjectRecord(BaseModel):
 class ObjectKind(str, Enum):
     feature_set = "FeatureSet"
     feature_vector = "FeatureVector"
+    model_endpoint = "ModelEndpoint"
+

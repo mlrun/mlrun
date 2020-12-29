@@ -1,51 +1,68 @@
-from datetime import datetime
 from typing import Optional, List, Tuple
 
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, Extra, Field
+from mlrun.api.schemas import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 
 
-NumericHistogram = List[Tuple[float, float]]
-TimeHistogram = List[Tuple[datetime, float]]
-
-
-class ModelEndpoint(BaseModel):
-    project: Optional[str]
+class EndpointSpec(ObjectSpec):
     model: Optional[str]
     function: Optional[str]
-    tag: Optional[str]
     model_class: Optional[str]
-    labels: Optional[List[str]]
-
-    class Config:
-        extra = Extra.allow
 
 
-class ModelEndpointsList(BaseModel):
-    endpoints: List[ModelEndpoint]
+class Endpoint(BaseModel):
+    kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
+    metadata: ObjectMetadata
+    spec: EndpointSpec
+    status: ObjectStatus
+
+
+class Histogram(BaseModel):
+    buckets: List[Tuple[float, float]]
+    count: List[int]
+
+
+class Metric(BaseModel):
+    name: str
+    start_timestamp: str
+    end_timestamp: str
+    headers: List[str]
+    values: List[Tuple[str, float]]
+    min: float
+    avg: float
+    max: float
+
+
+class MetricList(BaseModel):
+    metrics: List[Metric]
 
 
 class FeatureDetails(BaseModel):
     name: str
     weight: float
+    # Expected
     expected_min: float
     expected_avg: float
     expected_max: float
-    expected_hist: NumericHistogram
+    expected_hist: Histogram
+    # Actual
     actual_min: Optional[float]
     actual_avg: Optional[float]
     actual_max: Optional[float]
-    actual_hist: Optional[NumericHistogram]
+    actual_hist: Histogram
 
 
-class ModelEndpointState(BaseModel):
-    model_endpoint: ModelEndpoint
+class EndpointState(BaseModel):
+    endpoint: Endpoint
     first_request: Optional[str]
     last_request: Optional[str]
-    average_latency: Optional[float]
     accuracy: Optional[float]
     error_count: Optional[int]
     alert_count: Optional[int]
     drift_status: Optional[str]
-    requests_histogram: Optional[TimeHistogram]
-    predictions_histogram: Optional[TimeHistogram]
-    feature_details: Optional[FeatureDetails]
+    metrics: Optional[List[Metric]]
+    feature_details: Optional[List[FeatureDetails]]
+
+
+class EndpointStateList(BaseModel):
+    endpoints: List[EndpointState]

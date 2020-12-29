@@ -1,79 +1,109 @@
+import json
+from enum import Enum
 from typing import List, Optional, Dict, Any
-
+import os
 from fastapi import APIRouter, Query
-from pandas import Grouper
+from pandas import DataFrame
 from v3io.dataplane import RaiseForStatus
-
+import hashlib
 from mlrun.api import schemas
 from mlrun.config import config
-from mlrun.errors import MLRunConflictError, MLRunNotFoundError
+from mlrun.errors import (
+    MLRunConflictError,
+    MLRunNotFoundError,
+    MLRunInvalidArgumentError,
+)
 from mlrun.utils import logger
-from mlrun.utils.helpers import get_model_endpoint_id
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 
-ENDPOINTS_KV_TABLE = "endpoints_kv"
-ENDPOINTS_TSDB_TABLE = "endpoints_tsdb"
+ENDPOINTS = "endpoints"
+ENDPOINT_EVENTS = "endpoint_events"
+
+
+class MetricType(Enum):
+    LATENCY = "latency_avg_1s"
+    PREDICTIONS = "predictions_per_second_count_1s"
+
+    # Will be supported later on
+    # REQUESTS = "requests"
+    # DRIFT = "drift_magnitude"
+    # ACCURACY = "accuracy"
+
+    @staticmethod
+    def from_string(name: str):
+        if name in {"microsec", "latency"}:
+            return MetricType.LATENCY
+        elif name in {"preds", "predictions"}:
+            return MetricType.PREDICTIONS
+        # elif name in {"reqs", "requests"}:
+        #     return MetricType.REQUESTS
+        # elif name in {"drift", "drift_magnitude", "drift-magnitude"}:
+        #     return MetricType.DRIFT
+        # elif name in {"acc", "accuracy"}:
+        #     return MetricType.DRIFT
+
+        raise NotImplementedError(
+            f"Unsupported metric '{name}'. metric name must be one of {MetricType.list()}"
+        )
+
+    @staticmethod
+    def list():
+        return list(map(lambda c: c.value, MetricType))
+
 
 router = APIRouter()
 
 
-@router.post(
-    "/projects/{project}/model-endpoints", response_model=schemas.ModelEndpoint
-)
-def create_endpoint(project: str, endpoint_identifies: schemas.ModelEndpoint):
+@router.post("/projects/{project}/model-endpoints", response_model=schemas.Endpoint)
+def create_endpoint(project: str, endpoint: schemas.Endpoint):
     """
-    This function is used to write active model endpoints to endpoints table.
+    Creates an endpoint record in KV, also parses labels into searchable KV fields.
     """
 
-    endpoint_id = get_model_endpoint_id(
-        project,
-        endpoint_identifies.model,
-        endpoint_identifies.function,
-        endpoint_identifies.tag,
-    )
+    endpoint_id = get_endpoint_id(endpoint)
 
-    if _get_endpoint_by_id(endpoint_id):
-        url = f"/projects/{endpoint_identifies.project}/model-endpoints/{endpoint_id}"
+    if _get_endpoint_kv_record_by_id(endpoint_id):
+        url = f"/projects/{endpoint.metadata.project}/model-endpoints/{endpoint_id}"
         raise MLRunConflictError(f"Adding an already-existing ModelEndpoint - {url}")
 
     logger.info(f"Creating endpoint {endpoint_id} table...")
 
-    labels = _encode_labels(endpoint_identifies.labels)
-
-    attributes = {
-        "project": project,
-        "function": endpoint_identifies.function,
-        "model": endpoint_identifies.model,
-        "tag": endpoint_identifies.tag,
-        "model_class": endpoint_identifies.model_class,
-        **labels,
-    }
-
     get_v3io_client().kv.put(
         container=config.model_endpoint_monitoring_container,
-        table_path=ENDPOINTS_KV_TABLE,
+        table_path=ENDPOINTS,
         key=endpoint_id,
-        attributes=attributes,
+        attributes={
+            "project": project,
+            "function": endpoint.spec.function,
+            "model": endpoint.spec.model,
+            "tag": endpoint.metadata.tag,
+            "model_class": endpoint.spec.model_class,
+            "labels": json.dumps(endpoint.metadata.labels),
+            **{f"_{k}": v for k, v in endpoint.metadata.labels.items()},
+        },
     )
 
     logger.info(f"Model endpoint {endpoint_id} table created.")
 
-    return schemas.ModelEndpoint(**attributes)
+    return endpoint
 
 
 @router.delete("/projects/{project}/model-endpoints/{endpoint_id}")
 def delete_endpoint(project: str, endpoint_id: str):
+    """
+    Deletes endpoint record from KV by endpoint_id
+    """
     logger.info(f"Deleting model endpoint {endpoint_id} table...")
     get_v3io_client().kv.delete(
         container=config.model_endpoint_monitoring_container,
-        table_path=ENDPOINTS_KV_TABLE,
+        table_path=ENDPOINTS,
         key=endpoint_id,
     )
     logger.info(f"Model endpoint {endpoint_id} table deleted.")
 
 
 @router.get(
-    "/projects/{project}/model-endpoints", response_model=schemas.ModelEndpointsList
+    "/projects/{project}/model-endpoints", response_model=schemas.EndpointStateList
 )
 def list_endpoints(
     project: str,
@@ -82,119 +112,162 @@ def list_endpoints(
     tag: Optional[str] = Query(None),
     labels: List[str] = Query([], alias="label"),
 ):
-    filter_expression = _build_filter_expression(project, function, model, tag, labels)
+    """
+    Returns a list of endpoints of type 'schema.ModelEndpoint', support filtering by model, function, tag and labels.
+    Labels are expected to be separated by '&' separator, for example:
+
+    api/projects/{project}/model-endpoints/?label=mylabel==1&myotherlabel==150
+    """
     # TODO: call async version of v3io_client
-    records = (
-        get_v3io_client()
-        .kv.new_cursor(
-            container=config.model_endpoint_monitoring_container,
-            table_path=ENDPOINTS_KV_TABLE,
-            filter_expression=filter_expression,
-        )
-        .all()
+    client = get_v3io_client()
+    cursor = client.kv.new_cursor(
+        container=config.model_endpoint_monitoring_container,
+        table_path=ENDPOINTS,
+        attribute_names=[
+            "project",
+            "model",
+            "function",
+            "tag",
+            "model_class",
+            "labels",
+            "first_request",
+            "last_request",
+            "error_count",
+            "alert_count",
+            "drift_status",
+        ],
+        filter_expression=_build_filter_expression(
+            project, function, model, tag, labels
+        ),
     )
+    endpoints = cursor.all()
 
-    endpoints = []
-    for record in records:
-        labels = {
-            k: record[k] for k in record.keys() if k.startswith("_") and k != "__name"
-        }
-        model_endpoint = schemas.ModelEndpoint(
-            project=record.get("project"),
-            model=record.get("model"),
-            function=record.get("function"),
-            tag=record.get("tag"),
-            model_class=record.get("model_class"),
-            labels=_decode_labels(labels),
+    endpoint_state_list = []
+    for endpoint in endpoints:
+        # Collect labels (by convention labels are labeled with underscore '_'), ignore builtin '__name' field
+        state = schemas.EndpointState(
+            endpoint=schemas.Endpoint(
+                metadata=schemas.ObjectMetadata(
+                    name="",
+                    project=endpoint.get("project"),
+                    tag=endpoint.get("tag"),
+                    labels=json.loads(endpoint.get("labels")),
+                    updated=None,
+                    uid=None,
+                ),
+                spec=schemas.EndpointSpec(
+                    model=endpoint.get("model"),
+                    function=endpoint.get("function"),
+                    model_class=endpoint.get("model_class"),
+                ),
+                status=schemas.ObjectStatus(state="active"),
+            ),
+            first_request=endpoint.get("first_request"),
+            last_request=endpoint.get("last_request"),
+            error_count=endpoint.get("error_count"),
+            alert_count=endpoint.get("alert_count"),
+            drift_status=endpoint.get("drift_status"),
+            metrics=None,
+            accuracy=None,
         )
-        endpoints.append(model_endpoint)
+        endpoint_state_list.append(state)
 
-    return schemas.ModelEndpointsList(endpoints=endpoints)
+    return schemas.EndpointStateList(endpoints=endpoint_state_list)
 
 
 @router.get(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    response_model=schemas.ModelEndpointState,
+    response_model=schemas.EndpointState,
 )
-def get_endpoint_state(
+def get_endpoint(
     project: str,
     endpoint_id: str,
-    start: str = Query("now-5m"),
+    start: str = Query("now-1h"),
     end: str = Query("now"),
 ):
-    endpoint = _get_endpoint_by_id(endpoint_id)
+    """
+    Return the current state of an endpoint, meaning all additional data the is relevant to a specified endpoint.
+    This function also takes into account the start and end times and uses the same time-querying as v3io-frames.
+    """
+    endpoint = _get_endpoint_kv_record_by_id(
+        endpoint_id,
+        [
+            "project",
+            "model",
+            "function",
+            "tag",
+            "model_class",
+            "labels",
+            "first_request",
+            "last_request",
+            "error_count",
+            "alert_count",
+            "drift_status",
+        ],
+    )
 
     if not endpoint:
-        raise MLRunNotFoundError(f"Model endpoint {endpoint_id} not found")
+        url = f"/projects/{project}/model-endpoints/{endpoint_id}"
+        raise MLRunNotFoundError(f"Endpoint {endpoint_id} not found - {url}")
 
-    # If model state was collected successfully, try to collect predictions made in time frame
-    time_series_data = get_frames_client().read(
+    return schemas.EndpointState(
+        endpoint=schemas.Endpoint(
+            metadata=schemas.ObjectMetadata(
+                name="",
+                project=endpoint.get("project"),
+                tag=endpoint.get("tag"),
+                labels=json.loads(endpoint.get("labels")),
+                updated=None,
+                uid=None,
+            ),
+            spec=schemas.EndpointSpec(
+                model=endpoint.get("model"),
+                function=endpoint.get("function"),
+                model_class=endpoint.get("model_class"),
+            ),
+            status=schemas.ObjectStatus(state="active"),
+        ),
+        first_request=endpoint.get("first_request"),
+        last_request=endpoint.get("last_request"),
+        error_count=endpoint.get("error_count"),
+        alert_count=endpoint.get("alert_count"),
+        drift_status=endpoint.get("drift_status"),
+        metrics=None,
+        feature_details=None,
+    )
+
+
+@router.get(
+    "/projects/{project}/model-endpoints/{endpoint_id}/metrics",
+    response_model=schemas.MetricList,
+)
+def get_endpoint_metrics(
+    project: str,
+    endpoint_id: str,
+    start: str = Query("now-1h"),
+    end: str = Query("now"),
+    name: List[str] = Query([]),
+):
+    if _get_endpoint_kv_record_by_id(endpoint_id):
+        url = f"projects/{project}/model-endpoints/{endpoint_id}/metrics"
+        raise MLRunNotFoundError(f"Endpoint not found' - {url}")
+
+    try:
+        metrics = [MetricType.from_string(n) for n in name]
+    except NotImplementedError as e:
+        raise MLRunInvalidArgumentError(str(e))
+
+    data = get_frames_client(container="monitoring").read(
         backend="tsdb",
-        table=ENDPOINTS_TSDB_TABLE,
-        columns=["endpoint_id", "microsec", "requests", "predictions"],
+        table=ENDPOINT_EVENTS,
+        columns=[m.value for m in metrics],
+        filter=f"endpoint_id=='{endpoint_id}'",
         start=start,
         end=end,
     )
 
-    average_latency = None  # TODO: Compute
-    requests_histogram = None  # TODO: Compute
-    predictions_histogram = None  # TODO: Compute
-    feature_details = None
-
-    if not time_series_data.empty:
-        predictions_per_second_data = (
-            time_series_data["predictions"].groupby(Grouper(freq="1s")).count()
-        )
-        requests_per_second_data = (
-            time_series_data["requests"].groupby(Grouper(freq="1s")).count()
-        )
-        average_latency_data = (
-            time_series_data["microsec"].groupby(Grouper(freq="1s")).mean().dropna()
-        )
-
-        predictions_per_second_data.index = predictions_per_second_data.index.format()
-        requests_per_second_data.index = requests_per_second_data.index.format()
-        average_latency = average_latency_data.mean()
-
-        # "predictions_per_second": predictions_per_second_data.to_dict(),
-        # "average_latency": average_latency.mean(),
-
-    labels = {
-        k: endpoint[k] for k in endpoint.keys() if k.startswith("_") and k != "__name"
-    }
-
-    return schemas.ModelEndpointState(
-        model_endpoint=schemas.ModelEndpoint(
-            project=endpoint.get("project"),
-            model=endpoint.get("model"),
-            function=endpoint.get("function"),
-            tag=endpoint.get("tag"),
-            model_class=endpoint.get("model_class"),
-            labels=_decode_labels(labels),
-        ),
-        first_request=endpoint.get("first_request"),
-        last_request=endpoint.get("last_request"),
-        accuracy=endpoint.get("accuracy"),
-        error_count=endpoint.get("error_count"),
-        alert_count=endpoint.get("alert_count"),
-        drift_status=endpoint.get("drift_status"),
-        average_latency=average_latency,
-        requests_histogram=requests_histogram,
-        predictions_histogram=predictions_histogram,
-        feature_details=feature_details,
-    )
-
-
-def _encode_labels(labels: Optional[List[str]]) -> Dict[str, Any]:
-    if not labels:
-        return {}
-
-    processed_labels = {}
-    for label in labels:
-        lbl, val = list(map(lambda x: x.strip(), label.split("==")))
-        processed_labels[f"_{lbl}"] = val
-
-    return processed_labels
+    # TODO: Fix frames client not returning anything
+    return schemas.MetricList(metrics=[])
 
 
 def _decode_labels(labels: Dict[str, Any]) -> List[str]:
@@ -231,15 +304,26 @@ def _build_filter_expression(
     return " AND ".join(filter_expression)
 
 
-def _get_endpoint_by_id(endpoint_id: str):
+def _get_endpoint_kv_record_by_id(
+    endpoint_id: str, attribute_names: Optional[List[str]] = None
+) -> Dict[str, Any]:
     endpoint = (
         get_v3io_client()
         .kv.get(
             container=config.model_endpoint_monitoring_container,
-            table_path=ENDPOINTS_KV_TABLE,
+            table_path=ENDPOINTS,
             key=endpoint_id,
+            attribute_names=attribute_names or "*",
             raise_for_status=RaiseForStatus.never,
         )
         .output.item
     )
     return endpoint
+
+
+def get_endpoint_id(endpoint: schemas.Endpoint) -> str:
+    endpoint_unique_string = (
+        f"{endpoint.spec.function}_{endpoint.spec.model}_{endpoint.metadata.tag}"
+    )
+    md5 = hashlib.md5(endpoint_unique_string.encode("utf-8")).hexdigest()
+    return f"{endpoint.metadata.project}.{md5}"

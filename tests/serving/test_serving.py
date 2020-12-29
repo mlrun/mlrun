@@ -251,7 +251,6 @@ def test_function():
     fn.add_model("my", class_name="ModelTestingClass", model_path=".", multiplier=100)
 
     server = fn.to_mock_server()
-    # graph.plot("router.png")
     logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/my/infer", testdata)
     # expected: source (5) * multiplier (100)

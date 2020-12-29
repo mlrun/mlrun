@@ -27,6 +27,7 @@ import requests
 from ..platforms.iguazio import OutputStream
 from ..model import ModelObj, ObjectDict
 from ..utils import get_function, get_class
+from ..errors import MLRunInvalidArgumentError
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -447,7 +448,7 @@ class RouterState(TaskState):
         """
 
         if not route and not class_name:
-            raise ValueError("route or class_name must be specified")
+            raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
             route = TaskState(class_name, class_args, handler=handler)
         route = self._routes.update(key, route)
@@ -660,13 +661,17 @@ class FlowState(BaseState):
                 previous = self._last_added.name
             else:
                 if after not in self._states.keys():
-                    raise ValueError(f"cant set after, there is no state named {after}")
+                    raise MLRunInvalidArgumentError(
+                        f"cant set after, there is no state named {after}"
+                    )
                 previous = after
             state.after_state(previous)
 
         if before:
             if before not in self._states.keys():
-                raise ValueError(f"cant set before, there is no state named {before}")
+                raise MLRunInvalidArgumentError(
+                    f"cant set before, there is no state named {before}"
+                )
             if before == state.name or before == previous:
                 raise GraphError(
                     f"graph loop, state {before} is specified in before and/or after {key}"
@@ -1017,15 +1022,15 @@ def get_current_function(context):
     return ""
 
 
-def _add_graphviz_router(g, state, source=None, **kwargs):
+def _add_graphviz_router(graph, state, source=None, **kwargs):
     if source:
-        g.node("_start", source.name, shape=source.shape, style="filled")
-        g.edge("_start", state.fullname)
+        graph.node("_start", source.name, shape=source.shape, style="filled")
+        graph.edge("_start", state.fullname)
 
-    g.node(state.fullname, label=state.name, shape=state.get_shape())
+    graph.node(state.fullname, label=state.name, shape=state.get_shape())
     for route in state.get_children():
-        g.node(route.fullname, label=route.name, shape=route.get_shape())
-        g.edge(state.fullname, route.fullname)
+        graph.node(route.fullname, label=route.name, shape=route.get_shape())
+        graph.edge(state.fullname, route.fullname)
 
 
 def _add_graphviz_flow(
@@ -1096,7 +1101,7 @@ def graph_root_setter(server, graph):
         elif hasattr(graph, "kind"):
             kind = graph.kind
         else:
-            raise ValueError("graph must be a dict or a valid object")
+            raise MLRunInvalidArgumentError("graph must be a dict or a valid object")
         if kind == StateKinds.router:
             server._graph = server._verify_dict(graph, "graph", RouterState)
         elif not kind or kind == StateKinds.root:
@@ -1110,7 +1115,7 @@ def get_name(name, class_name):
     if name:
         return name
     if not class_name:
-        raise ValueError("name or class_name must be provided")
+        raise MLRunInvalidArgumentError("name or class_name must be provided")
     if isinstance(class_name, type):
         return class_name.__name__
     return class_name
@@ -1137,9 +1142,11 @@ def params_to_state(
 
     elif class_name and class_name in [">>", "$queue"]:
         if "path" not in class_args:
-            raise ValueError("path=<stream path or None> must be specified for queues")
+            raise MLRunInvalidArgumentError(
+                "path=<stream path or None> must be specified for queues"
+            )
         if not name:
-            raise ValueError("queue name must be specified")
+            raise MLRunInvalidArgumentError("queue name must be specified")
         state = QueueState(name, **class_args)
 
     elif class_name and class_name.startswith("*"):
@@ -1161,7 +1168,7 @@ def params_to_state(
             full_event=full_event,
         )
     else:
-        raise ValueError("class_name or handler must be provided")
+        raise MLRunInvalidArgumentError("class_name or handler must be provided")
 
     if graph_shape:
         state.shape = graph_shape

@@ -1,6 +1,7 @@
 import mlrun
 from mlrun.utils import logger
 from .demo_states import *  # noqa
+from tests.conftest import results
 
 
 def test_async_basic():
@@ -18,7 +19,8 @@ def test_async_basic():
 
     queue.to(name="s3", class_name="ChainWithContext")
 
-    # flow.plot("async.png")
+    # plot the graph for test & debug
+    flow.plot(f"{results}/serving/async.png")
 
     server = function.to_mock_server()
     server.context.visits = {}
@@ -54,7 +56,9 @@ def test_async_nested():
 
     logger.info(graph.to_yaml())
     server = function.to_mock_server()
-    graph.plot("nested.png")
+
+    # plot the graph for test & debug
+    graph.plot(f"{results}/serving/nested.png")
     resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
     server.wait_for_completion()
     # resp should be input (5) * multiply_input (2) * m2 multiplier (200)
@@ -73,10 +77,11 @@ def test_on_error():
     function.verbose = True
     server = function.to_mock_server()
     logger.info(graph.to_yaml())
-    graph.plot("on_error.png")
+
+    # plot the graph for test & debug
+    graph.plot(f"{results}/serving/on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
-    print(resp)
     assert (
         resp["error"] and resp["origin_state"] == "Raiser"
     ), f"error wasnt caught, resp={resp}"

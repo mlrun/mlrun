@@ -6,7 +6,9 @@ from .demo_states import *  # noqa
 def test_async_basic():
     function = mlrun.new_function("tests", kind="serving")
     flow = function.set_topology("flow", engine="async")
-    queue = flow.to(name="s1", class_name="ChainWithContext").to(">", "q1", path="")
+    queue = flow.to(name="s1", class_name="ChainWithContext").to(
+        "$queue", "q1", path=""
+    )
 
     s2 = queue.to(name="s2", class_name="ChainWithContext")
     s2.to(name="s4", class_name="ChainWithContext")
@@ -71,7 +73,10 @@ def test_on_error():
     function.verbose = True
     server = function.to_mock_server()
     logger.info(graph.to_yaml())
-    # graph.plot("on_error.png")
+    graph.plot("on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
-    assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"
+    print(resp)
+    assert (
+        resp["error"] and resp["origin_state"] == "Raiser"
+    ), f"error wasnt caught, resp={resp}"

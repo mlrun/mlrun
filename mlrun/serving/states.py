@@ -208,7 +208,7 @@ class BaseState(ModelObj):
 
         :param class_name:  class name or state object to build the state from
                             for router states the class name should start with '*'
-                            for queue/stream state the class should be '>'
+                            for queue/stream state the class should be '>>' or '$queue'
         :param name:        unique name (and path) for the child state, default is class name
         :param handler:     class/function handler to invoke on run/event
         :param graph_shape: graphviz shape name
@@ -622,7 +622,7 @@ class FlowState(BaseState):
 
         :param class_name:  class name or state object to build the state from
                             for router states the class name should start with '*'
-                            for queue/stream state the class should be '>'
+                            for queue/stream state the class should be '>>' or '$queue'
         :param name:        unique name (and path) for the child state, default is class name
         :param handler:     class/function handler to invoke on run/event
         :param after:       the step name this step comes after
@@ -1135,7 +1135,7 @@ def params_to_state(
         state.function = function
         state.full_event = full_event
 
-    elif class_name and class_name == ">":
+    elif class_name and class_name in [">>", "$queue"]:
         if "path" not in class_args:
             raise ValueError("path=<stream path or None> must be specified for queues")
         if not name:

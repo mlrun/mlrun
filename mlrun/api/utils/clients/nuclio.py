@@ -59,15 +59,15 @@ class Client(
     ):
         response = self._get_project_from_nuclio(name)
         response_body = response.json()
-        if project.get("metadata").get("labels") is not None:
+        if project.get("metadata", {}).get("labels") is not None:
             response_body.setdefault("metadata", {}).setdefault("labels", {}).update(
                 project["metadata"]["labels"]
             )
-        if project.get("metadata").get("annotations") is not None:
+        if project.get("metadata", {}).get("annotations") is not None:
             response_body.setdefault("metadata", {}).setdefault(
                 "annotations", {}
             ).update(project["metadata"]["annotations"])
-        if project.get("spec").get("description") is not None:
+        if project.get("spec", {}).get("description") is not None:
             response_body.setdefault("spec", {})["description"] = project["spec"][
                 "description"
             ]

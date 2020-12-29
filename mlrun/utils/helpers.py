@@ -17,6 +17,7 @@ import json
 import re
 import sys
 import time
+from types import ModuleType
 from typing import Optional, Tuple
 from datetime import datetime, timezone
 from dateutil import parser
@@ -722,6 +723,51 @@ def get_caller_globals(level=2):
         return inspect.stack()[level][0].f_globals
     except Exception:
         return None
+
+
+def _module_to_namespace(namespace):
+    if isinstance(namespace, ModuleType):
+        members = inspect.getmembers(
+            namespace, lambda o: inspect.isfunction(o) or isinstance(o, type)
+        )
+        return {key: mod for key, mod in members}
+    return namespace
+
+
+def get_class(class_name, namespace):
+    """return class object from class name string"""
+    if isinstance(class_name, type):
+        return class_name
+    namespace = _module_to_namespace(namespace)
+    if namespace and class_name in namespace:
+        return namespace[class_name]
+
+    try:
+        class_object = create_class(class_name)
+    except (ImportError, ValueError) as e:
+        raise ImportError(f"state init failed, class {class_name} not found, {e}")
+    return class_object
+
+
+def get_function(function, namespace):
+    """return function callable object from function name string"""
+    if callable(function):
+        return function
+
+    function = function.strip()
+    if function.startswith("("):
+        if not function.endswith(")"):
+            raise ValueError('function expression must start with "(" and end with ")"')
+        return eval("lambda event: " + function[1:-1], {}, {})
+    namespace = _module_to_namespace(namespace)
+    if function in namespace:
+        return namespace[function]
+
+    try:
+        function_object = create_function(function)
+    except (ImportError, ValueError) as e:
+        raise ImportError(f"state init failed, function {function} not found, {e}")
+    return function_object
 
 
 def datetime_from_iso(time_str: str) -> Optional[datetime]:

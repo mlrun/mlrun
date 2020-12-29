@@ -918,17 +918,17 @@ def list_pipelines(
     """List pipelines"""
     namespace = namespace or mlconf.namespace
     client = Client(namespace=namespace)
-    resp = client._run_api.list_runs(
+    response = client._run_api.list_runs(
         page_token=page_token, page_size=page_size, sort_by=sort_by
     )
-    runs = resp.runs
-    if not full and runs:
-        runs = []
-        for run in resp.runs:
-            runs.append(
+    runs = [run.to_dict() for run in response.runs or []]
+    if not full:
+        formatted_runs = []
+        for run in runs:
+            formatted_runs.append(
                 {
                     k: str(v)
-                    for k, v in run.to_dict().items()
+                    for k, v in run.items()
                     if k
                     in [
                         "id",
@@ -942,8 +942,9 @@ def list_pipelines(
                     ]
                 }
             )
+        runs = formatted_runs
 
-    return resp.total_size, resp.next_page_token, runs
+    return response.total_size, response.next_page_token, runs
 
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):

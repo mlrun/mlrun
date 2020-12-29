@@ -1,11 +1,11 @@
+import hashlib
 import json
 from enum import Enum
 from typing import List, Optional, Dict, Any
-import os
+
 from fastapi import APIRouter, Query
-from pandas import DataFrame
 from v3io.dataplane import RaiseForStatus
-import hashlib
+
 from mlrun.api import schemas
 from mlrun.config import config
 from mlrun.errors import (

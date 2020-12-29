@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional, List
 from enum import Enum
+from typing import Optional, List
+
 from pydantic import BaseModel, Extra
 
 
@@ -61,4 +62,3 @@ class ObjectKind(str, Enum):
     feature_set = "FeatureSet"
     feature_vector = "FeatureVector"
     model_endpoint = "ModelEndpoint"
-

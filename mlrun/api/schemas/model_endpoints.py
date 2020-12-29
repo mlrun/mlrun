@@ -1,6 +1,7 @@
 from typing import Optional, List, Tuple
 
-from pydantic import BaseModel, Extra, Field
+from pydantic import BaseModel, Field
+
 from mlrun.api.schemas import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 
 

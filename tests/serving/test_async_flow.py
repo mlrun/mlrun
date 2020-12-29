@@ -2,19 +2,6 @@ import mlrun
 from .demo_states import *  # noqa
 
 
-def test_handler():
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    graph.add_step(name="s1", handler="(event + 1)")
-    graph.add_step(name="s2", handler="json.dumps", after="$prev").respond()
-
-    server = function.to_mock_server()
-    resp = server.test(body=5)
-    server.wait_for_completion()
-    # the json.dumps converts the 6 to "6" (string)
-    assert resp == "6", f"got unexpected result {resp}"
-
-
 def test_async_basic():
     function = mlrun.new_function("tests", kind="serving")
     flow = function.set_topology("flow", engine="async")
@@ -61,7 +48,7 @@ def test_async_nested():
 
     print(graph.to_yaml())
     server = function.to_mock_server()
-    # graph.plot("nested.png")
+    graph.plot("nested.png")
     resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
     server.wait_for_completion()
     # resp should be input (5) * multiply_input (2) * m2 multiplier (200)

@@ -28,7 +28,8 @@ RUN apt-get update && apt-get install -y \
         git-core \
         gnupg2 \
         make \
-        software-properties-common
+        software-properties-common \
+        graphviz
 
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 

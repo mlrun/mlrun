@@ -50,11 +50,14 @@ def test_handler(engine):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine=engine)
     graph.to(name="s1", handler="(event + 1)").to(name="s2", handler="json.dumps")
+    if engine == 'async':
+        graph['s2'].respond()
 
     server = fn.to_mock_server()
+    resp = server.test(body=5)
     if engine == 'async':
         server.wait_for_completion()
-    resp = server.test(body=5)
+    # the json.dumps converts the 6 to "6" (string)
     assert resp == "6", f"got unexpected result {resp}"
 
 

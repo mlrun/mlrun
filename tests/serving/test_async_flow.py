@@ -10,7 +10,9 @@ def test_async_basic():
 
     s2 = queue.to(name="s2", class_name="ChainWithContext")
     s2.to(name="s4", class_name="ChainWithContext")
-    s2.to(name="s5", class_name="ChainWithContext").respond()  # this state returns the resp
+    s2.to(
+        name="s5", class_name="ChainWithContext"
+    ).respond()  # this state returns the resp
 
     queue.to(name="s3", class_name="ChainWithContext")
 
@@ -42,7 +44,9 @@ def test_async_nested():
     router_step = graph.add_step("*", name="ensemble", after="s2")
     router_step.add_route("m1", class_name="ModelClass", model_path=".", multiplier=100)
     router_step.add_route("m2", class_name="ModelClass", model_path=".", multiplier=200)
-    router_step.add_route("m3:v1", class_name="ModelClass", model_path=".", multiplier=300)
+    router_step.add_route(
+        "m3:v1", class_name="ModelClass", model_path=".", multiplier=300
+    )
 
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 

@@ -31,7 +31,7 @@ def test_basic_flow():
     graph.add_step(name="s3", class_name="Chain", after="s2")
 
     server = fn.to_mock_server()
-    logger.info(f'flow: {graph.to_yaml()}')
+    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow2 result is incorrect"
 
@@ -41,7 +41,7 @@ def test_basic_flow():
     graph.add_step(name="s2", class_name="Chain", after="s1", before="s3")
 
     server = fn.to_mock_server()
-    logger.info(f'flow: {graph.to_yaml()}')
+    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow3 result is incorrect"
 
@@ -51,12 +51,12 @@ def test_handler(engine):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine=engine)
     graph.to(name="s1", handler="(event + 1)").to(name="s2", handler="json.dumps")
-    if engine == 'async':
-        graph['s2'].respond()
+    if engine == "async":
+        graph["s2"].respond()
 
     server = fn.to_mock_server()
     resp = server.test(body=5)
-    if engine == 'async':
+    if engine == "async":
         server.wait_for_completion()
     # the json.dumps converts the 6 to "6" (string)
     assert resp == "6", f"got unexpected result {resp}"
@@ -83,6 +83,6 @@ def test_on_error():
     graph.add_step(name="catch", class_name="EchoError").full_event = True
 
     server = fn.to_mock_server()
-    logger.info(f'flow: {graph.to_yaml()}')
+    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test(body=[])
     assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"

@@ -150,7 +150,7 @@ class ServingSpec(NuclioSpec):
 
     @property
     def function_refs(self) -> List[FunctionReference]:
-        """"function references, list of optional child function refs"""
+        """function references, list of optional child function refs"""
         return self._function_refs
 
     @function_refs.setter
@@ -184,9 +184,9 @@ class ServingRuntime(RemoteRuntime):
                    can specify special router class and router arguments
 
           flow   - workflow (DAG) with a chain of states
-                   flow support "sync" and "async" engines, branches are note allowed in sync mode
-                   when using async mode .respond() can indicate the state which will
-                   generate the (REST) call response
+                   flow support "sync" and "async" engines, branches are not allowed in sync mode
+                   when using async mode calling state.respond() will mark the state as the
+                   one which generates the (REST) call response
 
         :param topology:     - graph topology, router or flow
         :param class_name:   - optional for router, router class name/path
@@ -198,14 +198,14 @@ class ServingRuntime(RemoteRuntime):
         """
         topology = topology or StateKinds.router
         if self.spec.graph and not exist_ok:
-            raise ValueError("graph topology is already set, cannot be overwritten")
+            raise mlrun.errors.MLRunInvalidArgumentError("graph topology is already set, cannot be overwritten")
 
         if topology == StateKinds.router:
             self.spec.graph = RouterState(class_name=class_name, class_args=class_args)
         elif topology == StateKinds.flow:
             self.spec.graph = RootFlowState(engine=engine)
         else:
-            raise ValueError(f"unsupported topology {topology}, use 'router' or 'flow'")
+            raise mlrun.errors.MLRunInvalidArgumentError(f"unsupported topology {topology}, use 'router' or 'flow'")
         return self.spec.graph
 
     def set_tracking(self, stream_path, batch=None, sample=None):
@@ -274,7 +274,19 @@ class ServingRuntime(RemoteRuntime):
     def add_child_function(
         self, name, url=None, image=None, requirements=None, kind=None
     ):
-        """in a multi-function pipeline add child function"""
+        """in a multi-function pipeline add child function
+
+        example:
+            fn.add_child_function('enrich', './enrich.ipynb', 'mlrun/mlrun')
+
+        :param name:   - child function name
+        :param url:    - function/code url, support .py, .ipynb, .yaml extensions
+        :param image:  - base docker image for the function
+        :param requirements - py package requirements file path OR list of packages
+        :param kind:   - mlrun function/runtime kind
+
+        :return function object
+        """
         function_reference = FunctionReference(
             url, image, requirements=requirements, kind=kind or "serving"
         )
@@ -285,29 +297,29 @@ class ServingRuntime(RemoteRuntime):
 
     def _add_ref_triggers(self):
         """add stream trigger to downstream child functions"""
-        for function, stream in self.spec.graph.get_queue_links().items():
+        for function_name, stream in self.spec.graph.get_queue_links().items():
             if stream.path:
-                if function not in self._spec.function_refs.keys():
-                    raise ValueError(f"function reference {function} not present")
+                if function_name not in self._spec.function_refs.keys():
+                    raise ValueError(f"function reference {function_name} not present")
                 group = stream.options.get("group", "serving")
 
-                child_function = self._spec.function_refs[function]
+                child_function = self._spec.function_refs[function_name]
                 child_function.function_object().add_stream_trigger(
                     stream.path, group=group, shards=stream.shards
                 )
 
     def _deploy_function_refs(self):
         """set metadata and deploy child functions"""
-        for function in self._spec.function_refs.values():
-            logger.info(f"deploy child function {function.name} ...")
-            function_object = function.function_object
-            function_object.metadata.name = function.fullname(self)
+        for function_ref in self._spec.function_refs.values():
+            logger.info(f"deploy child function {function_ref.name} ...")
+            function_object = function_ref.function_object
+            function_object.metadata.name = function_ref.fullname(self)
             function_object.metadata.project = self.metadata.project
             function_object.metadata.tag = self.metadata.tag
             function_object.spec.graph = self.spec.graph
             # todo: may want to copy parent volumes to child functions
             function_object.apply(mlrun.v3io_cred())
-            function.db_uri = function_object._function_uri()
+            function_ref.db_uri = function_object._function_uri()
             function_object.verbose = self.verbose
             function_object.deploy()
 
@@ -343,14 +355,14 @@ class ServingRuntime(RemoteRuntime):
 
     def _get_runtime_env(self):
 
-        functions = {f.name: f.uri(self) for f in self.spec.function_refs}
+        function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
         serving_spec = {
             "function_uri": self._function_uri(),
             "version": "v2",
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict(),
             "load_mode": self.spec.load_mode,
-            "functions": functions,
+            "functions": function_name_uri_map,
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
         }

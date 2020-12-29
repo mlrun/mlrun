@@ -1,5 +1,12 @@
 import mlrun
+import pytest
 from .demo_states import *  # noqa
+
+
+engines = [
+    "sync",
+    "async",
+]
 
 
 def test_basic_flow():
@@ -38,12 +45,15 @@ def test_basic_flow():
     assert resp == ["s1", "s2", "s3"], "flow3 result is incorrect"
 
 
-def test_handler():
+@pytest.mark.parametrize("engine", engines)
+def test_handler(engine):
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("flow", engine="sync")
+    graph = fn.set_topology("flow", engine=engine)
     graph.to(name="s1", handler="(event + 1)").to(name="s2", handler="json.dumps")
 
     server = fn.to_mock_server()
+    if engine == 'async':
+        server.wait_for_completion()
     resp = server.test(body=5)
     assert resp == "6", f"got unexpected result {resp}"
 

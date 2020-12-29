@@ -17,8 +17,7 @@ import os
 import pathlib
 import traceback
 from copy import deepcopy, copy
-from inspect import getmembers, isfunction, getfullargspec
-from types import ModuleType
+from inspect import getfullargspec
 from typing import Union
 
 from requests.adapters import HTTPAdapter
@@ -27,7 +26,7 @@ import requests
 
 from ..platforms.iguazio import OutputStream
 from ..model import ModelObj, ObjectDict
-from ..utils import create_class, create_function
+from ..utils import get_function, get_class
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -493,7 +492,7 @@ class RouterState(TaskState):
     def plot(self, filename=None, format=None, source=None, **kw):
         """plot/save a graphviz plot"""
         return _generate_graphviz(
-            self, _add_gviz_router, filename, format, source=source, **kw
+            self, _add_graphviz_router, filename, format, source=source, **kw
         )
 
 
@@ -947,7 +946,7 @@ class FlowState(BaseState):
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz"""
         return _generate_graphviz(
-            self, _add_gviz_flow, filename, format, source=source, targets=targets, **kw
+            self, _add_graphviz_flow, filename, format, source=source, targets=targets, **kw
         )
 
 
@@ -998,49 +997,6 @@ class RemoteHttpHandler:
         return event
 
 
-def _module_to_namespace(namespace):
-    if isinstance(namespace, ModuleType):
-        members = getmembers(namespace, lambda o: isfunction(o) or isinstance(o, type))
-        return {key: mod for key, mod in members}
-    return namespace
-
-
-def get_class(class_name, namespace):
-    """return class object from class name string"""
-    if isinstance(class_name, type):
-        return class_name
-    namespace = _module_to_namespace(namespace)
-    if namespace and class_name in namespace:
-        return namespace[class_name]
-
-    try:
-        class_object = create_class(class_name)
-    except (ImportError, ValueError) as e:
-        raise ImportError(f"state init failed, class {class_name} not found, {e}")
-    return class_object
-
-
-def get_function(function, namespace):
-    """return function callable object from function name string"""
-    if callable(function):
-        return function
-
-    function = function.strip()
-    if function.startswith("("):
-        if not function.endswith(")"):
-            raise ValueError('function expression must start with "(" and end with ")"')
-        return eval("lambda event: " + function[1:-1], {}, {})
-    namespace = _module_to_namespace(namespace)
-    if function in namespace:
-        return namespace[function]
-
-    try:
-        function_object = create_function(function)
-    except (ImportError, ValueError) as e:
-        raise ImportError(f"state init failed, function {function} not found, {e}")
-    return function_object
-
-
 classes_map = {
     "task": TaskState,
     "router": RouterState,
@@ -1055,7 +1011,7 @@ def get_current_function(context):
     return ""
 
 
-def _add_gviz_router(g, state, source=None, **kwargs):
+def _add_graphviz_router(g, state, source=None, **kwargs):
     if source:
         g.node("_start", source.name, shape=source.shape, style="filled")
         g.edge("_start", state.fullname)
@@ -1066,22 +1022,22 @@ def _add_gviz_router(g, state, source=None, **kwargs):
         g.edge(state.fullname, route.fullname)
 
 
-def _add_gviz_flow(
-    g, state, source=None, targets=None,
+def _add_graphviz_flow(
+    graph, state, source=None, targets=None,
 ):
     start_states, default_final_state, responders = state.check_and_process_graph(
         allow_empty=True
     )
-    g.node("_start", source.name, shape=source.shape, style="filled")
+    graph.node("_start", source.name, shape=source.shape, style="filled")
     for start_state in start_states:
-        g.edge("_start", start_state.fullname)
+        graph.edge("_start", start_state.fullname)
     for child in state.get_children():
         kind = child.kind
         if kind == StateKinds.router:
-            with g.subgraph(name="cluster_" + child.fullname) as sg:
-                _add_gviz_router(sg, child)
+            with graph.subgraph(name="cluster_" + child.fullname) as sg:
+                _add_graphviz_router(sg, child)
         else:
-            g.node(child.fullname, label=child.name, shape=child.get_shape())
+            graph.node(child.fullname, label=child.name, shape=child.get_shape())
         after = child.after or []
         for item in after:
             previous_object = state[item]
@@ -1090,17 +1046,17 @@ def _add_gviz_flow(
                 if child.kind == StateKinds.router
                 else {}
             )
-            g.edge(previous_object.fullname, child.fullname, **kw)
+            graph.edge(previous_object.fullname, child.fullname, **kw)
         if child.on_error:
-            g.edge(child.fullname, child.on_error, style="dashed", **kw)
+            graph.edge(child.fullname, child.on_error, style="dashed", **kw)
 
     # draw targets after the last state (if specified)
     if targets:
         for target in targets or []:
-            g.node(target.fullname, label=target.name, shape=target.get_shape())
+            graph.node(target.fullname, label=target.name, shape=target.get_shape())
             last_state = target.after or default_final_state
             if last_state:
-                g.edge(last_state, target.fullname)
+                graph.edge(last_state, target.fullname)
 
 
 def _generate_graphviz(
@@ -1112,18 +1068,18 @@ def _generate_graphviz(
         raise ImportError(
             'graphviz is not installed, run "pip install graphviz" first!'
         )
-    g = Digraph("mlrun-flow", format="jpg")
-    g.attr(compound="true", **kw)
+    graph = Digraph("mlrun-flow", format="jpg")
+    graph.attr(compound="true", **kw)
     source = source or BaseState("start", shape="egg")
-    renderer(g, state, source=source, targets=targets)
+    renderer(graph, state, source=source, targets=targets)
     if filename:
         suffix = pathlib.Path(filename).suffix
         if suffix:
             filename = filename[: -len(suffix)]
             format = format or suffix[1:]
         format = format or "png"
-        g.render(filename, format=format)
-    return g
+        graph.render(filename, format=format)
+    return graph
 
 
 def graph_root_setter(server, graph):

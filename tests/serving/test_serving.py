@@ -11,10 +11,10 @@ from mlrun.serving.states import RouterState, TaskState
 
 router_object = RouterState()
 router_object.routes = {
-    "m1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 100}),
-    "m2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 200}),
-    "m3:v1": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 300}),
-    "m3:v2": TaskState("ModelTestingClass", class_args={"model_path": "", "z": 400}),
+    "m1": TaskState("ModelTestingClass", class_args={"model_path": "", "multiplier": 100}),
+    "m2": TaskState("ModelTestingClass", class_args={"model_path": "", "multiplier": 200}),
+    "m3:v1": TaskState("ModelTestingClass", class_args={"model_path": "", "multiplier": 300}),
+    "m3:v2": TaskState("ModelTestingClass", class_args={"model_path": "", "multiplier": 400}),
 }
 
 
@@ -52,7 +52,7 @@ class ModelTestingClass(V2ModelServer):
 
     def predict(self, request):
         print("predict:", request)
-        resp = request["inputs"][0] * self.get_param("z")
+        resp = request["inputs"][0] * self.get_param("multiplier")
         return resp
 
     def explain(self, request):
@@ -225,21 +225,23 @@ def test_v2_health():
 
 def test_v2_mock():
     host = create_graph_server(graph=RouterState())
-    host.graph.add_route("my", class_name=ModelTestingClass, model_path="", z=100)
+    host.graph.add_route("my", class_name=ModelTestingClass, model_path="", multiplier=100)
     host.init(None, globals())
     print(host.to_yaml())
     resp = host.test("/v2/models/my/infer", testdata)
     print(resp)
-    assert resp["outputs"] == 500, f"wrong health response {resp}"
+    # expected: source (5) * multiplier (100)
+    assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
 
 
 def test_function():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("router")
-    fn.add_model("my", class_name="ModelTestingClass", model_path=".", z=100)
+    fn.add_model("my", class_name="ModelTestingClass", model_path=".", multiplier=100)
 
     server = fn.to_mock_server()
     # graph.plot("router.png")
     print("\nFlow:\n", graph.to_yaml())
     resp = server.test("/v2/models/my/infer", testdata)
-    assert resp["outputs"] == 500, f"wrong health response {resp}"
+    # expected: source (5) * multiplier (100)
+    assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"

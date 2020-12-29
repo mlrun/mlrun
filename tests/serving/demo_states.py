@@ -79,5 +79,5 @@ class ModelClass(V2ModelServer):
 
     def predict(self, request):
         print("predict:", request)
-        resp = request["inputs"][0] * self.get_param("z")
+        resp = request["inputs"][0] * self.get_param("multiplier")
         return resp

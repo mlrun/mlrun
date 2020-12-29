@@ -727,7 +727,9 @@ def get_caller_globals(level=2):
 
 def _module_to_namespace(namespace):
     if isinstance(namespace, ModuleType):
-        members = inspect.getmembers(namespace, lambda o: inspect.isfunction(o) or isinstance(o, type))
+        members = inspect.getmembers(
+            namespace, lambda o: inspect.isfunction(o) or isinstance(o, type)
+        )
         return {key: mod for key, mod in members}
     return namespace
 

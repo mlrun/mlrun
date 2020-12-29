@@ -1,4 +1,5 @@
 import mlrun
+from mlrun.utils import logger
 from .demo_states import *  # noqa
 
 
@@ -17,9 +18,8 @@ def test_async_basic():
 
     server = function.to_mock_server()
     server.context.visits = {}
-    print("\nAsync Flow:\n", flow.to_yaml())
+    logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
     resp = server.test(body=[])
-    print(resp)
 
     server.wait_for_completion()
     assert resp == ["s1", "s2", "s5"], "flow result is incorrect"
@@ -46,7 +46,7 @@ def test_async_nested():
 
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 
-    print(graph.to_yaml())
+    logger.info(graph.to_yaml())
     server = function.to_mock_server()
     graph.plot("nested.png")
     resp = server.test("/v2/models/m2/infer", body={"inputs": [5]})
@@ -66,10 +66,8 @@ def test_on_error():
     ).respond().full_event = True
     function.verbose = True
     server = function.to_mock_server()
-    print(graph.to_yaml())
+    logger.info(graph.to_yaml())
     # graph.plot("on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
-    print(resp)
-    print(dir(resp))
     assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"

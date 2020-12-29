@@ -3,6 +3,7 @@ import os
 import time
 import mlrun
 
+from mlrun.utils import logger
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
@@ -120,7 +121,7 @@ def test_v2_stream_mode():
         '{"model": "m3:v2", "operation": "explain", "inputs": [5]}', path=""
     )
     resp = context.mlrun_handler(context, event)
-    print(resp.body)
+    logger.info(f'resp: {resp.body}')
     data = json.loads(resp.body)
     assert data["outputs"]["explained"] == 5, f"wrong model response {data}"
 
@@ -142,7 +143,7 @@ def test_v2_async_mode():
     event = MockEvent(testdata, path="/v2/models/m5/infer")
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
-    print(resp)
+    logger.info(resp)
     assert (
         resp.status_code != 200
     ), f"expected failure, got {resp.status_code} {resp.body}"
@@ -151,7 +152,7 @@ def test_v2_async_mode():
     event.trigger = "stream"
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
-    print(resp)
+    logger.info(resp)
     data = json.loads(resp.body)
     assert data["outputs"] == 5, f"wrong model response {data}"
 
@@ -168,7 +169,7 @@ def test_v2_get_modelmeta():
     def get_model(name, version, url):
         event = MockEvent("", path=f"/v2/models/{url}", method="GET")
         resp = context.mlrun_handler(context, event)
-        print(resp)
+        logger.info(f'resp: {resp}')
         data = json.loads(resp.body)
 
         # expected: {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
@@ -227,9 +228,9 @@ def test_v2_mock():
     host = create_graph_server(graph=RouterState())
     host.graph.add_route("my", class_name=ModelTestingClass, model_path="", multiplier=100)
     host.init(None, globals())
-    print(host.to_yaml())
+    logger.info(host.to_yaml())
     resp = host.test("/v2/models/my/infer", testdata)
-    print(resp)
+    logger.info(f'resp: {resp}')
     # expected: source (5) * multiplier (100)
     assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
 
@@ -241,7 +242,7 @@ def test_function():
 
     server = fn.to_mock_server()
     # graph.plot("router.png")
-    print("\nFlow:\n", graph.to_yaml())
+    logger.info(f'flow: {graph.to_yaml()}')
     resp = server.test("/v2/models/my/infer", testdata)
     # expected: source (5) * multiplier (100)
     assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"

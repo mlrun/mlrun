@@ -946,7 +946,13 @@ class FlowState(BaseState):
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz"""
         return _generate_graphviz(
-            self, _add_graphviz_flow, filename, format, source=source, targets=targets, **kw
+            self,
+            _add_graphviz_flow,
+            filename,
+            format,
+            source=source,
+            targets=targets,
+            **kw,
         )
 
 

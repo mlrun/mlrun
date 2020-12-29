@@ -1,4 +1,5 @@
 import mlrun
+from mlrun.utils import logger
 import pytest
 from .demo_states import *  # noqa
 
@@ -30,7 +31,7 @@ def test_basic_flow():
     graph.add_step(name="s3", class_name="Chain", after="s2")
 
     server = fn.to_mock_server()
-    print("\nFlow2:\n", graph.to_yaml())
+    logger.info(f'flow: {graph.to_yaml()}')
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow2 result is incorrect"
 
@@ -40,7 +41,7 @@ def test_basic_flow():
     graph.add_step(name="s2", class_name="Chain", after="s1", before="s3")
 
     server = fn.to_mock_server()
-    print("\nFlow3 (insert):\n", graph.to_yaml())
+    logger.info(f'flow: {graph.to_yaml()}')
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow3 result is incorrect"
 
@@ -82,7 +83,6 @@ def test_on_error():
     graph.add_step(name="catch", class_name="EchoError").full_event = True
 
     server = fn.to_mock_server()
-    print(graph.to_yaml())
+    logger.info(f'flow: {graph.to_yaml()}')
     resp = server.test(body=[])
-    print(resp)
     assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"

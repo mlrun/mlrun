@@ -198,14 +198,18 @@ class ServingRuntime(RemoteRuntime):
         """
         topology = topology or StateKinds.router
         if self.spec.graph and not exist_ok:
-            raise mlrun.errors.MLRunInvalidArgumentError("graph topology is already set, cannot be overwritten")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "graph topology is already set, cannot be overwritten"
+            )
 
         if topology == StateKinds.router:
             self.spec.graph = RouterState(class_name=class_name, class_args=class_args)
         elif topology == StateKinds.flow:
             self.spec.graph = RootFlowState(engine=engine)
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"unsupported topology {topology}, use 'router' or 'flow'")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"unsupported topology {topology}, use 'router' or 'flow'"
+            )
         return self.spec.graph
 
     def set_tracking(self, stream_path, batch=None, sample=None):

@@ -16,7 +16,7 @@ from tempfile import mktemp
 
 import yaml
 
-from ..datastore import StoreManager, store_manager
+from ..datastore import store_manager
 from .base import Artifact, upload_extra_data
 from ..utils import DB_SCHEMA
 
@@ -76,22 +76,22 @@ class ModelArtifact(Artifact):
             self.labels = self.labels or {}
             self.labels["framework"] = self.framework
 
-    def upload(self, data_stores):
+    def upload(self):
 
         target_model_path = path.join(self.target_path, self.model_file)
         body = self.get_body()
         if body:
-            self._upload_body(body, data_stores, target=target_model_path)
+            self._upload_body(body, target=target_model_path)
         else:
             src_model_path = _get_src_path(self, self.model_file)
             if not path.isfile(src_model_path):
                 raise ValueError("model file {} not found".format(src_model_path))
-            self._upload_file(src_model_path, data_stores, target=target_model_path)
+            self._upload_file(src_model_path, target=target_model_path)
 
-        upload_extra_data(self, self.extra_data, data_stores)
+        upload_extra_data(self, self.extra_data)
 
         spec_path = path.join(self.target_path, model_spec_filename)
-        data_stores.object(url=spec_path).put(self.to_yaml())
+        store_manager.object(url=spec_path).put(self.to_yaml())
 
 
 def _get_src_path(model_spec: ModelArtifact, filename):
@@ -125,38 +125,33 @@ def get_model(model_dir, suffix=""):
     model_spec = None
     extra_dataitems = {}
     suffix = suffix or ".pkl"
-    stores = store_manager
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
 
     if model_dir.startswith(DB_SCHEMA + "://"):
-        model_spec, target = stores.get_store_artifact(model_dir)
+        model_spec, target = store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
             raise ValueError("store artifact ({}) is not model kind".format(model_dir))
         model_file = _get_file_path(target, model_spec.model_file)
-        extra_dataitems = _get_extra(stores, target, model_spec.extra_data)
+        extra_dataitems = _get_extra(target, model_spec.extra_data)
 
     elif model_dir.lower().endswith(".yaml"):
-        model_spec = _load_model_spec(model_dir, stores)
+        model_spec = _load_model_spec(model_dir)
         model_file = _get_file_path(model_dir, model_spec.model_file)
-        extra_dataitems = _get_extra(stores, model_dir, model_spec.extra_data)
+        extra_dataitems = _get_extra(model_dir, model_spec.extra_data)
 
     elif model_dir.endswith(suffix):
         model_file = model_dir
     else:
-        dirobj = stores.object(url=model_dir)
+        dirobj = store_manager.object(url=model_dir)
         model_dir_list = dirobj.listdir()
         if model_spec_filename in model_dir_list:
-            model_spec = _load_model_spec(
-                path.join(model_dir, model_spec_filename), stores
-            )
+            model_spec = _load_model_spec(path.join(model_dir, model_spec_filename))
             model_file = _get_file_path(model_dir, model_spec.model_file, isdir=True)
-            extra_dataitems = _get_extra(
-                stores, model_dir, model_spec.extra_data, is_dir=True
-            )
+            extra_dataitems = _get_extra(model_dir, model_spec.extra_data, is_dir=True)
         else:
             extra_dataitems = _get_extra(
-                stores, model_dir, {v: v for v in model_dir_list}, is_dir=True
+                model_dir, {v: v for v in model_dir_list}, is_dir=True
             )
             for file in model_dir_list:
                 if file.endswith(suffix):
@@ -167,7 +162,7 @@ def get_model(model_dir, suffix=""):
             "cant resolve model file for {} suffix{}".format(model_dir, suffix)
         )
 
-    obj = stores.object(url=model_file)
+    obj = store_manager.object(url=model_file)
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
@@ -176,8 +171,8 @@ def get_model(model_dir, suffix=""):
     return tmp, model_spec, extra_dataitems
 
 
-def _load_model_spec(specpath, stores: StoreManager):
-    data = stores.object(url=specpath).get()
+def _load_model_spec(specpath):
+    data = store_manager.object(url=specpath).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 
@@ -190,10 +185,10 @@ def _get_file_path(base_path: str, name: str, isdir=False):
     return path.join(base_path, name).replace("\\", "/")
 
 
-def _get_extra(stores, target, extra_data, is_dir=False):
+def _get_extra(target, extra_data, is_dir=False):
     extra_dataitems = {}
     for k, v in extra_data.items():
-        extra_dataitems[k] = stores.object(
+        extra_dataitems[k] = store_manager.object(
             url=_get_file_path(target, v, isdir=is_dir), key=k
         )
     return extra_dataitems
@@ -231,11 +226,10 @@ def update_model(
     if hasattr(model_artifact, "artifact_url"):
         model_artifact = model_artifact.artifact_url
 
-    stores = store_manager
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
     elif model_artifact.startswith(DB_SCHEMA + "://"):
-        model_spec, _ = stores.get_store_artifact(model_artifact)
+        model_spec, _ = store_manager.get_store_artifact(model_artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
@@ -261,14 +255,12 @@ def update_model(
             if hasattr(item, "target_path"):
                 extra_data[key] = item.target_path
 
-        upload_extra_data(
-            model_spec, extra_data, stores, prefix=key_prefix, update_spec=True
-        )
+        upload_extra_data(model_spec, extra_data, prefix=key_prefix, update_spec=True)
 
     spec_path = path.join(model_spec.target_path, model_spec_filename)
-    stores.object(url=spec_path).put(model_spec.to_yaml())
+    store_manager.object(url=spec_path).put(model_spec.to_yaml())
 
-    stores._get_db().store_artifact(
+    store_manager._get_db().store_artifact(
         model_spec.db_key,
         model_spec.to_dict(),
         model_spec.tree,

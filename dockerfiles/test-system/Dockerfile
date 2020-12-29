@@ -22,8 +22,11 @@ RUN apt-get update && apt-get install -y \
   git-core \
  && rm -rf /var/lib/apt/lists/*
 
+RUN python -m pip install --upgrade pip
+
+COPY ./dockerfiles/test-system/requirements.txt /tmp
+RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
 COPY . /tmp/mlrun
-RUN pip install --upgrade pytest
-RUN cd /tmp/mlrun && python -m pip install ".[api]" && mv tests /tests && cd /tmp && rm -rf mlrun
+RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && cd /tmp && rm -rf mlrun
 
 CMD ["pytest",  "--capture=no", "-rf",  "-v",  "--disable-warnings", "/tests/system"]

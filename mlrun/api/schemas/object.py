@@ -29,11 +29,6 @@ class ObjectSpec(BaseModel):
         extra = Extra.allow
 
 
-class PatchMode(str, Enum):
-    replace = "replace"
-    additive = "additive"
-
-
 class LabelRecord(BaseModel):
     id: int
     name: str
@@ -59,6 +54,8 @@ class ObjectRecord(BaseModel):
 
 
 class ObjectKind(str, Enum):
+    project = "project"
     feature_set = "FeatureSet"
+    background_task = "BackgroundTask"
     feature_vector = "FeatureVector"
     model_endpoint = "ModelEndpoint"

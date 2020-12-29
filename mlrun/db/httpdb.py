@@ -16,7 +16,7 @@ import json
 import tempfile
 import time
 from datetime import datetime
-from os import path, remove, environ
+from os import path, remove
 from typing import List, Dict, Union
 
 import kfp
@@ -26,6 +26,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
 import mlrun
+import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 from .base import RunDBError, RunDBInterface
@@ -139,6 +140,7 @@ class HTTPRunDB(RunDBInterface):
             server_cfg = resp.json()
             self.server_version = server_cfg["version"]
             self._validate_version_compatibility(self.server_version, config.version)
+            config.namespace = config.namespace or server_cfg.get("namespace")
             if (
                 "namespace" in server_cfg
                 and server_cfg["namespace"] != config.namespace
@@ -164,12 +166,10 @@ class HTTPRunDB(RunDBInterface):
             config.spark_app_image_tag = config.spark_app_image_tag or server_cfg.get(
                 "spark_app_image_tag"
             )
-            if (
-                "docker_registry" in server_cfg
-                and "DEFAULT_DOCKER_REGISTRY" not in environ
-            ):
-                environ["DEFAULT_DOCKER_REGISTRY"] = server_cfg["docker_registry"]
-
+            config.httpdb.builder.docker_registry = (
+                config.httpdb.builder.docker_registry
+                or server_cfg.get("docker_registry")
+            )
         except Exception:
             pass
         return self
@@ -498,14 +498,11 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
 
-    def delete_project(self, name: str):
-        path = f"projects/{name}"
-        error_message = f"Failed deleting project {name}"
-        self.api_call("DELETE", path, error_message)
-
-    def remote_builder(self, func, with_mlrun):
+    def remote_builder(self, func, with_mlrun, mlrun_version_specifier=None):
         try:
             req = {"function": func.to_dict(), "with_mlrun": bool2str(with_mlrun)}
+            if mlrun_version_specifier:
+                req["mlrun_version_specifier"] = mlrun_version_specifier
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
             logger.error("error submitting build task: {}".format(err))
@@ -556,7 +553,7 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url):
+    def remote_start(self, func_url) -> schemas.BackgroundTask:
         try:
             req = {"functionUrl": func_url}
             resp = self.api_call(
@@ -573,7 +570,16 @@ class HTTPRunDB(RunDBInterface):
             logger.error("bad resp!!\n{}".format(resp.text))
             raise ValueError("bad function start response")
 
-        return resp.json()["data"]
+        return schemas.BackgroundTask(**resp.json())
+
+    def get_background_task(self, project: str, name: str,) -> schemas.BackgroundTask:
+        project = project or default_project
+        path = f"projects/{project}/background-tasks/{name}"
+        error_message = (
+            f"Failed getting background task. project={project}, name={name}"
+        )
+        response = self.api_call("GET", path, error_message)
+        return schemas.BackgroundTask(**response.json())
 
     def remote_status(self, kind, selector):
         try:
@@ -733,7 +739,7 @@ class HTTPRunDB(RunDBInterface):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeaturesOutput:
+    ) -> List[dict]:
         project = project or default_project
         params = {
             "name": name,
@@ -746,7 +752,23 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed listing features, project: {project}, query: {params}"
         resp = self.api_call("GET", path, error_message, params=params)
-        return schemas.FeaturesOutput(**resp.json())
+        return resp.json()["features"]
+
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ) -> List[dict]:
+        project = project or default_project
+        params = {
+            "name": name,
+            "tag": tag,
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/entities"
+
+        error_message = f"Failed listing entities, project: {project}, query: {params}"
+        resp = self.api_call("GET", path, error_message, params=params)
+        return resp.json()["entities"]
 
     def list_feature_sets(
         self,
@@ -813,7 +835,7 @@ class HTTPRunDB(RunDBInterface):
         reference = self._resolve_reference(tag, uid)
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
-        headers = {"x-mlrun-patch-mode": patch_mode}
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
@@ -927,7 +949,7 @@ class HTTPRunDB(RunDBInterface):
         project = project or default_project
         if isinstance(patch_mode, schemas.PatchMode):
             patch_mode = patch_mode.value
-        headers = {"x-mlrun-patch-mode": patch_mode}
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"
         self.api_call(
@@ -943,6 +965,103 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-vectors/{name}"
         error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
+
+    def list_projects(
+        self,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+    ) -> List[Union[mlrun.projects.MlrunProject, str]]:
+        if isinstance(state, mlrun.api.schemas.ProjectState):
+            state = state.value
+        params = {
+            "owner": owner,
+            "state": state,
+            "format": format_,
+            "label": labels or [],
+        }
+
+        error_message = f"Failed listing projects, query: {params}"
+        response = self.api_call("GET", "projects", error_message, params=params)
+        if format_ == mlrun.api.schemas.Format.name_only:
+            return response.json()["projects"]
+        elif format_ == mlrun.api.schemas.Format.full:
+            return [
+                mlrun.projects.MlrunProject.from_dict(project_dict)
+                for project_dict in response.json()["projects"]
+            ]
+        else:
+            raise NotImplementedError(
+                f"Provided format is not supported. format={format_}"
+            )
+
+    def get_project(self, name: str) -> mlrun.projects.MlrunProject:
+        if not name:
+            raise MLRunInvalidArgumentError("Name must be provided")
+
+        path = f"projects/{name}"
+        error_message = f"Failed retrieving project {name}"
+        response = self.api_call("GET", path, error_message)
+        return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: Union[
+            str, mlrun.api.schemas.DeletionStrategy
+        ] = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
+        path = f"projects/{name}"
+        if isinstance(deletion_strategy, schemas.DeletionStrategy):
+            deletion_strategy = deletion_strategy.value
+        headers = {schemas.HeaderNames.deletion_strategy: deletion_strategy}
+        error_message = f"Failed deleting project {name}"
+        self.api_call("DELETE", path, error_message, headers=headers)
+
+    def store_project(
+        self,
+        name: str,
+        project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
+    ) -> mlrun.projects.MlrunProject:
+        path = f"projects/{name}"
+        error_message = f"Failed storing project {name}"
+        if isinstance(project, mlrun.api.schemas.Project):
+            project = project.dict()
+        elif isinstance(project, mlrun.projects.MlrunProject):
+            project = project.to_dict()
+        response = self.api_call("PUT", path, error_message, body=json.dumps(project),)
+        return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def patch_project(
+        self,
+        name: str,
+        project: dict,
+        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+    ) -> mlrun.projects.MlrunProject:
+        path = f"projects/{name}"
+        if isinstance(patch_mode, schemas.PatchMode):
+            patch_mode = patch_mode.value
+        headers = {schemas.HeaderNames.patch_mode: patch_mode}
+        error_message = f"Failed patching project {name}"
+        response = self.api_call(
+            "PATCH", path, error_message, body=json.dumps(project), headers=headers
+        )
+        return mlrun.projects.MlrunProject.from_dict(response.json())
+
+    def create_project(
+        self,
+        project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
+    ) -> mlrun.projects.MlrunProject:
+        if isinstance(project, mlrun.api.schemas.Project):
+            project = project.dict()
+        elif isinstance(project, mlrun.projects.MlrunProject):
+            project = project.to_dict()
+        error_message = f"Failed creating project {project['metadata']['name']}"
+        response = self.api_call(
+            "POST", "projects", error_message, body=json.dumps(project),
+        )
+        return mlrun.projects.MlrunProject.from_dict(response.json())
 
     @staticmethod
     def _validate_version_compatibility(server_version, client_version):

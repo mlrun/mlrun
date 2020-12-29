@@ -1,43 +1,59 @@
-from datetime import datetime
-from typing import Optional, List
+import datetime
+import enum
+import typing
 
-from pydantic import BaseModel
+import pydantic
 
-from mlrun.api.schemas.user import User
-
-
-# Shared properties
-class ProjectBase(BaseModel):
-    description: Optional[str] = None
-    source: Optional[str] = None
-    created: Optional[datetime] = None
-    state: Optional[str] = None
-    users: List[User] = []
+from .object import (
+    ObjectStatus,
+    ObjectKind,
+)
 
 
-# Properties to receive via API on creation
-class ProjectCreate(ProjectBase):
+class ProjectMetadata(pydantic.BaseModel):
     name: str
-    owner: Optional[str] = None
-
-
-# Properties to receive via API on update
-class ProjectUpdate(ProjectBase):
-    name: Optional[str] = None
-    owner: Optional[str] = None
-
-
-class ProjectInDB(ProjectCreate):
-    id: int = None
+    created: typing.Optional[datetime.datetime] = None
+    labels: typing.Optional[dict]
+    annotations: typing.Optional[dict]
 
     class Config:
-        orm_mode = True
+        extra = pydantic.Extra.allow
 
 
-# Additional properties to return via API
-class Project(ProjectInDB):
-    pass
+class ProjectState(str, enum.Enum):
+    online = "online"
+    archived = "archived"
 
 
-class ProjectOut(BaseModel):
-    project: Project
+class ProjectStatus(ObjectStatus):
+    state: typing.Optional[ProjectState]
+
+
+class ProjectSpec(pydantic.BaseModel):
+    description: typing.Optional[str] = None
+    goals: typing.Optional[str] = None
+    params: typing.Optional[dict] = None
+    functions: typing.Optional[list] = None
+    workflows: typing.Optional[list] = None
+    artifacts: typing.Optional[list] = None
+    artifact_path: typing.Optional[str] = None
+    conda: typing.Optional[str] = None
+    source: typing.Optional[str] = None
+    subpath: typing.Optional[str] = None
+    origin_url: typing.Optional[str] = None
+    desired_state: typing.Optional[ProjectState] = ProjectState.online
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
+class Project(pydantic.BaseModel):
+    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+    metadata: ProjectMetadata
+    spec: ProjectSpec = ProjectSpec()
+    status: ObjectStatus = ObjectStatus()
+
+
+class ProjectsOutput(pydantic.BaseModel):
+    # use the format query param to control whether the full object will be returned or only the names
+    projects: typing.List[typing.Union[Project, str]]

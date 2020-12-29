@@ -423,6 +423,10 @@ test-migrations: clean ## Run mlrun db migrations tests
 test-system: build-test-system ## Run mlrun system tests
 	docker run -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
 
+.PHONY: test-package
+test-package: ## Run mlrun package tests
+	PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) bash ./automation/package_test/test_imports.sh
+
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db

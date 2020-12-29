@@ -24,7 +24,7 @@ class TestRuntimeHandlerBase:
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
-        self.project = "test_project"
+        self.project = "test-project"
         self.run_uid = "test_run_uid"
 
         self.custom_setup()
@@ -200,7 +200,6 @@ class TestRuntimeHandlerBase:
                 expected_custom_object_namespace,
                 crd_plural,
                 expected_custom_object_name,
-                client.V1DeleteOptions(),
             )
             for expected_custom_object_name in expected_custom_object_names
         ]

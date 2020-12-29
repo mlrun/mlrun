@@ -59,7 +59,7 @@ def patch_feature_set(
     feature_set_update: dict,
     reference: str,
     patch_mode: schemas.PatchMode = Header(
-        schemas.PatchMode.replace, alias="x-mlrun-patch-mode"
+        schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -123,6 +123,18 @@ def list_features(
     db_session: Session = Depends(deps.get_db_session),
 ):
     features = get_db().list_features(db_session, project, name, tag, entities, labels)
+    return features
+
+
+@router.get("/projects/{project}/entities", response_model=schemas.EntitiesOutput)
+def list_entities(
+    project: str,
+    name: str = None,
+    tag: str = None,
+    labels: List[str] = Query(None, alias="label"),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    features = get_db().list_entities(db_session, project, name, tag, labels)
     return features
 
 
@@ -207,7 +219,7 @@ def patch_feature_vector(
     feature_vector_update: dict,
     reference: str,
     patch_mode: schemas.PatchMode = Header(
-        schemas.PatchMode.replace, alias="x-mlrun-patch-mode"
+        schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):

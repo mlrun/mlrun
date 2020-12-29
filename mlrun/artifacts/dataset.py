@@ -135,7 +135,7 @@ class DatasetArtifact(Artifact):
         self._df = df
         self._kw = kwargs
 
-    def upload(self, data_stores):
+    def upload(self):
         suffix = pathlib.Path(self.target_path).suffix
         if not self.format:
             if suffix and suffix in [".csv", ".parquet", ".pq"]:
@@ -145,14 +145,14 @@ class DatasetArtifact(Artifact):
 
         src_path = self.src_path
         if src_path and os.path.isfile(src_path):
-            self._upload_file(src_path, data_stores)
+            self._upload_file(src_path)
             return
 
         if self._df is None:
             return
 
         if self.target_path.startswith("memory://"):
-            data_stores.object(self.target_path).put(self._df)
+            store_manager.object(self.target_path).put(self._df)
             return
 
         if self.format in ["csv", "parquet"]:
@@ -172,7 +172,7 @@ class DatasetArtifact(Artifact):
 
             saving_func(target, **self._kw)
             if to_upload:
-                self._upload_file(target, data_stores)
+                self._upload_file(target)
                 self._set_meta(target)
                 os.remove(target)
             else:

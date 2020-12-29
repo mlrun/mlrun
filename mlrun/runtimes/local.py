@@ -122,7 +122,7 @@ class LocalRuntime(BaseRuntime):
             if runobj.spec.verbose:
                 if not env:
                     env = {}
-                env["MLRUN_LOG_LEVEL"] = "debug"
+                env["MLRUN_LOG_LEVEL"] = "DEBUG"
 
             sout, serr = run_exec(cmd, self.spec.args, env=env, cwd=self.spec.workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)

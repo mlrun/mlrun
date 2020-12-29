@@ -150,16 +150,16 @@ Save the code above to `train_iris.py`. The following code loads the function an
 ``` python
 from mlrun import code_to_function
 
-gen_func = code_to_function(name=train_iris,
+gen_func = code_to_function(name='train_iris',
                             filename='train_iris.py',
-                            handler=train_iris,
+                            handler='train_iris',
                             kind='job',
                             image='mlrun/ml-models')
 
 train_iris_func = project.set_function(gen_func).apply(auto_mount())
 
-train_iris = train_iris_func.run(name=train_iris,
-                                 handler=train_iris,
+train_iris = train_iris_func.run(name='train_iris',
+                                 handler='train_iris',
                                  artifact_path=artifact_path)
 ```
 
@@ -197,16 +197,16 @@ To run the code, place the code above in `test_model.py` and use the following s
 
 ``` python
 from mlrun.platforms import auto_mount
-gen_func = code_to_function(name=test_model,
+gen_func = code_to_function(name='test_model',
                             filename='test_model.py',
-                            handler=test_model,
+                            handler='test_model',
                             kind='job',
                             image='mlrun/ml-models')
 
 func = project.set_function(gen_func).apply(auto_mount())
 
-run = func.run(name=test_model,
-                handler=test_model,
+run = func.run(name='test_model',
+                handler='test_model',
                 params={'label_column': 'label'},
                 inputs={'models_path': train_iris.outputs['model'],
                         'test_set': 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'}),

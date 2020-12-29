@@ -3,8 +3,10 @@ from http import HTTPStatus
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
 
+import mlrun.api.schemas
 
-def _assert_list_objects(
+
+def _list_and_assert_objects(
     client: TestClient, entity_name, project, query, expected_number_of_entities
 ):
     entity_url_name = entity_name.replace("_", "-")
@@ -15,9 +17,10 @@ def _assert_list_objects(
     assert response.status_code == HTTPStatus.OK.value
     response_body = response.json()
     assert entity_name in response_body
+    number_of_entities = len(response_body[entity_name])
     assert (
-        len(response_body[entity_name]) == expected_number_of_entities
-    ), f"wrong number of {entity_name} entities in response"
+        number_of_entities == expected_number_of_entities
+    ), f"wrong number of {entity_name} in response - {number_of_entities} instead of {expected_number_of_entities}"
     return response_body
 
 
@@ -32,7 +35,7 @@ def _patch_object(
     patch_mode = "replace"
     if additive:
         patch_mode = "additive"
-    headers = {"x-mlrun-patch-mode": patch_mode}
+    headers = {mlrun.api.schemas.HeaderNames.patch_mode: patch_mode}
     response = client.patch(
         f"/api/projects/{project_name}/{object_url_path}/{name}/references/latest",
         json=object_update,

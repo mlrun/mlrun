@@ -55,7 +55,7 @@ def get_secrets(_request: Request):
 def get_run_db_instance(db_session: Session):
     db = get_db()
     if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session, db.get_projects_cache())
+        run_db = SQLRunDB(db.dsn, db_session)
     else:
         run_db = db.db
     run_db.connect()
@@ -115,7 +115,9 @@ def _parse_submit_run_body(db_session: Session, data):
                     elif attribute == "volumes":
                         function.spec.update_vols_and_mounts(override_value, [])
                     elif attribute == "volume_mounts":
-                        function.spec.update_vols_and_mounts([], override_value)
+                        # volume mounts don't have a well defined identifier (like name for volume) so we can't merge,
+                        # only override
+                        function.spec.volume_mounts = override_value
                     elif attribute == "resources":
                         # don't override it there are limits and requests but both are empty
                         if override_value.get("limits", {}) or override_value.get(

@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun import config as mlconf
 from contextlib import contextmanager
 from os import environ
-import yaml
 from tempfile import NamedTemporaryFile
 
 import pytest
+import requests_mock as requests_mock_package
+import yaml
+
+from mlrun import config as mlconf
 
 ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 
@@ -26,7 +28,7 @@ ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 @pytest.fixture
 def config():
     old = mlconf.config
-    mlconf.config = mlconf.Config(mlconf.default_config)
+    mlconf.config = mlconf.Config.from_dict(mlconf.default_config)
     mlconf._loaded = False
 
     yield mlconf.config
@@ -100,8 +102,31 @@ def test_env_override(config):
     assert config.namespace == env_ns, "env did not override"
 
 
-def test_can_set(config):
-    config._cfg["x"] = {"y": 10}
-    val = 90
-    config.x.y = val
-    assert config.x.y == val, "bad config update"
+old_config_value = None
+new_config_value = "blabla"
+
+
+def test_overriding_config_not_remain_for_next_tests_setter():
+    global old_config_value, new_config_value
+    old_config_value = mlconf.config.igz_version
+    mlconf.config.igz_version = new_config_value
+    mlconf.config.httpdb.data_volume = new_config_value
+
+
+def test_overriding_config_not_remain_for_next_tests_tester():
+    global old_config_value
+    assert old_config_value == mlconf.config.igz_version
+    assert old_config_value == mlconf.config.httpdb.data_volume
+
+
+def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
+    api_url = "http://mlrun-api-url:8080"
+    remote_host = "some-namespace"
+    response_body = {
+        "version": "some-version",
+        "remote_host": remote_host,
+    }
+    requests_mock.get(f"{api_url}/api/healthz", json=response_body)
+    assert "" == mlconf.config.remote_host
+    mlconf.config.dbpath = api_url
+    assert remote_host == mlconf.config.remote_host

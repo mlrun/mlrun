@@ -28,7 +28,8 @@ RUN apt-get update && apt-get install -y \
         git-core \
         gnupg2 \
         make \
-        software-properties-common
+        software-properties-common \
+        graphviz
 
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 
@@ -36,7 +37,7 @@ RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debia
 
 RUN apt update && apt-get install -y docker-ce-cli
 
-RUN python -m pip install --upgrade --no-cache pip
+RUN python -m pip install --upgrade pip
 
 WORKDIR /mlrun
 
@@ -53,4 +54,4 @@ RUN pip install \
 
 COPY . .
 
-RUN python setup.py develop
+RUN pip install -e .[complete]

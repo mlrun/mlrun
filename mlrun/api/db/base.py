@@ -181,23 +181,47 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_projects(self, session, owner=None):
-        return []
-
-    @abstractmethod
-    def get_project(self, session, name=None, project_id=None):
+    def list_projects(
+        self,
+        session,
+        owner: str = None,
+        format_: schemas.Format = schemas.Format.full,
+        labels: List[str] = None,
+        state: schemas.ProjectState = None,
+    ) -> schemas.ProjectsOutput:
         pass
 
     @abstractmethod
-    def add_project(self, session, project: dict):
+    def get_project(
+        self, session, name: str = None, project_id: int = None
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
-    def update_project(self, session, name, data: dict):
+    def create_project(self, session, project: schemas.Project):
         pass
 
     @abstractmethod
-    def delete_project(self, session, name: str):
+    def store_project(self, session, name: str, project: schemas.Project):
+        pass
+
+    @abstractmethod
+    def patch_project(
+        self,
+        session,
+        name: str,
+        project: dict,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_project(
+        self,
+        session,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         pass
 
     @abstractmethod
@@ -236,6 +260,17 @@ class DBInterface(ABC):
         entities: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
         pass
 
     @abstractmethod

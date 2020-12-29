@@ -26,11 +26,17 @@ The MLRun package (``mlrun``) includes a Python API library and the ``mlrun`` co
 from os import environ, path
 
 from .config import config as mlconf
-from .datastore import DataItem
+from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .execution import MLClientCtx
 from .model import RunTemplate, NewTask, new_task, RunObject
-from .platforms import mount_v3io, v3io_cred
+from .platforms import (
+    mount_v3io,
+    v3io_cred,
+    mount_v3io_extended,
+    VolumeMount,
+    mount_v3io_legacy,
+)
 from .projects import load_project, new_project
 from .run import (
     get_or_create_ctx,
@@ -80,7 +86,7 @@ def set_environment(api_path: str = None, artifact_path: str = "", project: str 
         raise ValueError("DB/API path was not detected, please specify its address")
 
     # check connectivity and load remote defaults
-    get_run_db().connect()
+    get_run_db()
     if api_path:
         environ["MLRUN_DBPATH"] = mlconf.dbpath
 

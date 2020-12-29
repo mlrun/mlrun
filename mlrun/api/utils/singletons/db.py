@@ -14,8 +14,11 @@ def get_db() -> DBInterface:
     return db
 
 
-def initialize_db():
+def initialize_db(override_db=None):
     global db
+    if override_db:
+        db = override_db
+        return
     if config.httpdb.db_type == "filedb":
         logger.info("Creating file db")
         db = FileDB(config.httpdb.dirpath)

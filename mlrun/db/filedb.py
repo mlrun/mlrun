@@ -21,6 +21,7 @@ from typing import List
 import yaml
 from dateutil.parser import parse as parse_time
 
+import mlrun.api.schemas
 import mlrun.errors
 from .base import RunDBError, RunDBInterface
 from ..config import config
@@ -411,15 +412,49 @@ class FileRunDB(RunDBInterface):
         project = project or config.default_project
         return path.join(self.dirpath, "{}/{}/{}{}".format(table, project, tag, key))
 
-    def list_projects(self):
+    def list_projects(
+        self,
+        owner: str = None,
+        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+    ) -> mlrun.api.schemas.ProjectsOutput:
+        if owner or format_ == mlrun.api.schemas.Format.full or labels or state:
+            raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
-            return []
-        return [
-            {"name": d} for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
+            return mlrun.api.schemas.ProjectsOutput(projects=[])
+        project_names = [
+            d for d in listdir(run_dir) if path.isdir(path.join(run_dir, d))
         ]
+        return mlrun.api.schemas.ProjectsOutput(projects=project_names)
 
-    def delete_project(self, name: str):
+    def get_project(self, name: str) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
+        raise NotImplementedError()
+
+    def store_project(
+        self, name: str, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def patch_project(
+        self,
+        name: str,
+        project: dict,
+        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+    ) -> mlrun.api.schemas.Project:
+        raise NotImplementedError()
+
+    def create_project(
+        self, project: mlrun.api.schemas.Project
+    ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
     @property
@@ -492,6 +527,11 @@ class FileRunDB(RunDBInterface):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
     ):
         raise NotImplementedError()
 

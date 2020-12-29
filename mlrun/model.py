@@ -25,6 +25,16 @@ from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
 
 
+class ResourceSchema:
+    FeatureSet = "fset"
+    FeatureVector = "fvec"
+    Artifact = "store"
+
+    @classmethod
+    def is_resource(cls, kind):
+        return kind in [cls.Artifact, cls.FeatureSet, cls.FeatureVector]
+
+
 class ModelObj:
     _dict_fields = []
 
@@ -274,6 +284,7 @@ class ImageBuilder(ModelObj):
         image=None,
         base_image=None,
         commands=None,
+        extra=None,
         secret=None,
         code_origin=None,
         registry=None,
@@ -285,6 +296,7 @@ class ImageBuilder(ModelObj):
         self.image = image  #: image
         self.base_image = base_image  #: base_image
         self.commands = commands or []  #: commands
+        self.extra = extra  #: extra
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.build_pod = None
@@ -561,7 +573,7 @@ class RunObject(RunTemplate):
         return self.metadata.uid
 
     def state(self):
-        db = get_run_db().connect()
+        db = get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
             project=self.metadata.project,
@@ -571,12 +583,12 @@ class RunObject(RunTemplate):
             return get_in(run, "status.state", "unknown")
 
     def show(self):
-        db = get_run_db().connect()
+        db = get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
     def logs(self, watch=True, db=None):
         if not db:
-            db = get_run_db().connect()
+            db = get_run_db()
         if not db:
             print("DB is not configured, cannot show logs")
             return None
@@ -615,6 +627,23 @@ class RunObject(RunTemplate):
             group_dict["iteration"],
             group_dict["tag"],
         )
+
+
+class EntrypointParam(ModelObj):
+    def __init__(self, name="", type=None, default=None, doc=""):
+        self.name = name
+        self.type = type
+        self.default = default
+        self.doc = doc
+
+
+class FunctionEntrypoint(ModelObj):
+    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
+        self.name = name
+        self.doc = doc
+        self.parameters = [] if parameters is None else parameters
+        self.outputs = [] if outputs is None else outputs
+        self.lineno = lineno
 
 
 # TODO: remove in 0.9.0

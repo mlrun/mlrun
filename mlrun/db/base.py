@@ -15,6 +15,7 @@
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Union
+
 from mlrun.api import schemas
 
 
@@ -117,11 +118,43 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_project(self, name: str):
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         pass
 
-    def list_projects(self):
-        return []
+    @abstractmethod
+    def store_project(self, name: str, project: schemas.Project) -> schemas.Project:
+        pass
+
+    @abstractmethod
+    def patch_project(
+        self,
+        name: str,
+        project: dict,
+        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+    ) -> schemas.Project:
+        pass
+
+    @abstractmethod
+    def create_project(self, project: schemas.Project) -> schemas.Project:
+        pass
+
+    @abstractmethod
+    def list_projects(
+        self,
+        owner: str = None,
+        format_: schemas.Format = schemas.Format.full,
+        labels: List[str] = None,
+        state: schemas.ProjectState = None,
+    ) -> schemas.ProjectsOutput:
+        pass
+
+    @abstractmethod
+    def get_project(self, name: str) -> schemas.Project:
+        pass
 
     def list_artifact_tags(self, project):
         return []
@@ -147,6 +180,12 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
         pass
 
     @abstractmethod

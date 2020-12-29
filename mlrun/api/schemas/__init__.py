@@ -1,17 +1,14 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .artifact import ArtifactCategories
-from .project import Project, ProjectOut, ProjectCreate, ProjectInDB, ProjectUpdate
-from .schedule import (
-    SchedulesOutput,
-    ScheduleOutput,
-    ScheduleCronTrigger,
-    ScheduleKinds,
-    ScheduleUpdate,
-    ScheduleInput,
-    ScheduleRecord,
+from .background_task import (
+    BackgroundTaskState,
+    BackgroundTask,
+    BackgroundTaskMetadata,
+    BackgroundTaskSpec,
+    BackgroundTaskStatus,
 )
-from .user import User, UserCreate, UserInDB, UserUpdate
+from .constants import Format, PatchMode, HeaderNames, DeletionStrategy
 from .feature_store import (
     Feature,
     FeatureRecord,
@@ -25,11 +22,30 @@ from .feature_store import (
     FeatureSetDigestSpec,
     FeatureListOutput,
     FeaturesOutput,
+    EntityListOutput,
+    EntitiesOutput,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
-from .object import ObjectMetadata, ObjectSpec, ObjectStatus, PatchMode, ObjectKind
+from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
+from .project import (
+    Project,
+    ProjectMetadata,
+    ProjectSpec,
+    ProjectsOutput,
+    ProjectStatus,
+    ProjectState,
+)
+from .schedule import (
+    SchedulesOutput,
+    ScheduleOutput,
+    ScheduleCronTrigger,
+    ScheduleKinds,
+    ScheduleUpdate,
+    ScheduleInput,
+    ScheduleRecord,
+)
 from .model_endpoints import (
     EndpointSpec,
     Endpoint,

@@ -20,15 +20,17 @@ import requests
 from datetime import datetime
 import asyncio
 from aiohttp.client import ClientSession
+from nuclio.triggers import V3IOStreamTrigger
+
 from mlrun.db import RunDBError
 from nuclio.deploy import deploy_config, get_deploy_status, find_dashboard_url
 import nuclio
 
 from .pod import KubeResourceSpec, KubeResource
 from ..kfpops import deploy_op
-from ..platforms.iguazio import mount_v3io
+from ..platforms.iguazio import mount_v3io, split_path
 from .base import RunError, FunctionStatus
-from .utils import log_std, set_named_item, get_item_name
+from .utils import log_std, get_item_name
 from ..utils import logger, update_in, get_in, enrich_image_url
 from ..lists import RunList
 from ..model import RunObject
@@ -59,6 +61,7 @@ class NuclioSpec(KubeResourceSpec):
         source=None,
         image_pull_policy=None,
         function_kind=None,
+        build=None,
         service_account=None,
         readiness_timeout=None,
         default_handler=None,
@@ -76,6 +79,7 @@ class NuclioSpec(KubeResourceSpec):
             replicas=replicas,
             image_pull_policy=image_pull_policy,
             service_account=service_account,
+            build=build,
             entry_points=entry_points,
             description=description,
             default_handler=default_handler,
@@ -96,46 +100,29 @@ class NuclioSpec(KubeResourceSpec):
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
 
-    @property
-    def volumes(self) -> list:
-        return list(self._volumes.values())
-
-    @volumes.setter
-    def volumes(self, volumes):
-        self._volumes = {}
-        if volumes:
-            for vol in volumes:
-                set_named_item(self._volumes, vol)
-
-    @property
-    def volume_mounts(self) -> list:
-        return list(self._volume_mounts.values())
-
-    @volume_mounts.setter
-    def volume_mounts(self, volume_mounts):
-        self._volume_mounts = {}
-        if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
-
-    def update_vols_and_mounts(self, volumes, volume_mounts):
-        if volumes:
-            for vol in volumes:
-                set_named_item(self._volumes, vol)
-
-        if volume_mounts:
-            for vol in volume_mounts:
-                set_named_item(self._volume_mounts, vol)
-
-    def to_nuclio_vol(self):
-        vols = []
-        for name, vol in self._volumes.items():
-            if name not in self._volume_mounts:
+    def generate_nuclio_volumes(self):
+        nuclio_volumes = []
+        volume_with_volume_mounts_names = set()
+        for volume_mount in self._volume_mounts.values():
+            volume_name = get_item_name(volume_mount, "name")
+            if volume_name not in self._volumes:
                 raise ValueError(
-                    "found volume without a volume mount ({})".format(name)
+                    f"Found volume mount without a volume. name={volume_name}"
                 )
-            vols.append({"volume": vol, "volumeMount": self._volume_mounts[name]})
-        return vols
+            volume_with_volume_mounts_names.add(volume_name)
+            nuclio_volumes.append(
+                {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
+            )
+
+        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(
+            self._volumes.keys()
+        )
+        if volumes_without_volume_mounts:
+            raise ValueError(
+                f"Found volumes without volume mounts. names={volumes_without_volume_mounts}"
+            )
+
+        return nuclio_volumes
 
 
 class NuclioStatus(FunctionStatus):
@@ -245,15 +232,35 @@ class RemoteRuntime(KubeResource):
 
         return self
 
+    def add_v3io_stream_trigger(
+        self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
+    ):
+        """add v3io stream trigger to the function"""
+        container, path = split_path(stream_path)
+        shards = shards or 1
+        self.add_trigger(
+            name,
+            V3IOStreamTrigger(
+                name=name,
+                container=container,
+                path=path[1:],
+                consumerGroup=group,
+                seekTo=seek_to,
+            ),
+        )
+        self.spec.min_replicas = shards
+        self.spec.max_replicas = shards
+
     def deploy(
         self, dashboard="", project="", tag="", verbose=False,
     ):
         verbose = verbose or self.verbose
+        if verbose:
+            self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
         if project:
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-        self._ensure_run_db()
         state = ""
         last_log_timestamp = 1
 
@@ -286,6 +293,7 @@ class RemoteRuntime(KubeResource):
 
         else:
             self.save(versioned=False)
+            self._ensure_run_db()
             address = deploy_nuclio_function(self, dashboard=dashboard, watch=True)
             if address:
                 self.spec.command = "http://{}".format(address)
@@ -332,8 +340,8 @@ class RemoteRuntime(KubeResource):
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {}
-        if self.spec.rundb:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb
+        if self.spec.rundb or mlconf.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         return runtime_env
@@ -567,7 +575,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
             function.spec.base_spec, spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
-        update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         base_image = get_in(config, "spec.build.baseImage") or function.spec.image
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
@@ -599,7 +607,7 @@ def deploy_nuclio_function(function: RemoteRuntime, dashboard="", watch=False):
             verbose=function.verbose,
         )
 
-        update_in(config, "spec.volumes", function.spec.to_nuclio_vol())
+        update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         if function.spec.image:
             update_in(
                 config, "spec.build.baseImage", enrich_image_url(function.spec.image)

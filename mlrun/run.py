@@ -15,7 +15,7 @@
 import importlib.util as imputil
 import json
 import socket
-import typing
+from typing import Union, List
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -366,7 +366,7 @@ def import_function(url="", secrets=None, db=""):
     if url.startswith("db://"):
         url = url[5:]
         project, name, tag, hash_key = parse_function_uri(url)
-        db = get_run_db(db or get_or_set_dburl()).connect(secrets)
+        db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, project, tag, hash_key)
         if not runtime:
             raise KeyError("function {}:{} not found in the DB".format(name, tag))
@@ -553,6 +553,7 @@ def code_to_function(
     code_output="",
     embed_code=True,
     description="",
+    requirements: Union[str, List[str]] = None,
     categories: list = None,
     labels: dict = None,
     with_doc=True,
@@ -561,19 +562,20 @@ def code_to_function(
     code stored in the function spec and can be refreshed using .with_code()
     eliminate the need to build container images every time we edit the code
 
-    :param name:        function name
-    :param project:     function project (none for 'default')
-    :param tag:         function tag (none for 'latest')
-    :param filename:    blank for current notebook, or path to .py/.ipynb file
-    :param handler:     name of function handler (if not main)
-    :param kind:        optional, runtime type local, job, dask, mpijob, ..
-    :param image:       optional, container image
-    :param code_output: save the generated code (from notebook) in that path
-    :param embed_code:  embed the source code into the function spec
-    :param description: function description
-    :param categories:  list of categories (for function marketplace)
-    :param labels:      dict of label names and values to tag the function
-    :param with_doc:    document the function parameters
+    :param name:         function name
+    :param project:      function project (none for 'default')
+    :param tag:          function tag (none for 'latest')
+    :param filename:     blank for current notebook, or path to .py/.ipynb file
+    :param handler:      name of function handler (if not main)
+    :param kind:          optional, runtime type local, job, dask, mpijob, ..
+    :param image:        optional, container image
+    :param code_output:  save the generated code (from notebook) in that path
+    :param embed_code:   embed the source code into the function spec
+    :param description:  function description
+    :param requirements: python requirements file path or list of packages
+    :param categories:   list of categories (for function marketplace)
+    :param labels:       dict of label names and values to tag the function
+    :param with_doc:     document the function parameters
 
     :return:
            function object
@@ -659,6 +661,8 @@ def code_to_function(
             raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
+        if requirements:
+            r.with_requirements(requirements)
         update_meta(r)
         return r
 
@@ -684,6 +688,7 @@ def code_to_function(
     build.code_origin = code_origin
     build.base_image = get_in(spec, "spec.build.baseImage")
     build.commands = get_in(spec, "spec.build.commands")
+    build.extra = get_in(spec, "spec.build.extra")
     if embed_code:
         build.functionSourceCode = get_in(spec, "spec.build.functionSourceCode")
     else:
@@ -694,6 +699,9 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     build.secret = get_in(spec, "spec.build.secret")
+    if requirements:
+        r.with_requirements(requirements)
+
     if r.kind != "local":
         r.spec.env = get_in(spec, "spec.env")
         for vol in get_in(spec, "spec.volumes", []):
@@ -755,7 +763,7 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
-        mldb = get_run_db(url).connect()
+        mldb = get_run_db(url)
         if mldb.kind != "http":
             raise ValueError(
                 "run pipeline require access to remote api-service"
@@ -794,7 +802,7 @@ def run_pipeline(
 
 
 def wait_for_pipeline_completion(
-    run_id, timeout=60 * 60, expected_statuses: typing.List[str] = None, namespace=None
+    run_id, timeout=60 * 60, expected_statuses: List[str] = None, namespace=None
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -820,7 +828,7 @@ def wait_for_pipeline_completion(
     )
 
     if remote:
-        mldb = get_run_db().connect()
+        mldb = get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace)
@@ -881,7 +889,7 @@ def get_pipeline(run_id, namespace=None):
     namespace = namespace or mlconf.namespace
     remote = not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
     if remote:
-        mldb = get_run_db().connect()
+        mldb = get_run_db()
         if mldb.kind != "http":
             raise ValueError(
                 "get pipeline require access to remote api-service"

@@ -54,6 +54,24 @@ install_requires = list(load_deps("requirements.txt"))
 tests_require = list(load_deps("dev-requirements.txt"))
 api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 
+# NOTE: These are tested in `automation/package_test/test_imports.sh` If
+# you modify these, make sure to change the corresponding line there.
+extras_require = {
+    "s3": ["boto3~=1.9"],
+    "azure-blob-storage": ["azure-storage-blob~=12.0"],
+}
+extras_require["complete"] = sorted(
+    {
+        requirement
+        for requirement_list in extras_require.values()
+        for requirement in requirement_list
+    }
+)
+extras_require["api"] = api_deps
+complete_api_deps = set(api_deps)
+complete_api_deps.update(extras_require["complete"])
+extras_require["complete-api"] = sorted(complete_api_deps)
+
 
 setup(
     name="mlrun",
@@ -88,9 +106,12 @@ setup(
         "mlrun.api.crud",
         "mlrun.api.utils",
         "mlrun.api.utils.singletons",
+        "mlrun.api.utils.clients",
+        "mlrun.api.utils.projects",
+        "mlrun.api.utils.projects.remotes",
     ],
     install_requires=install_requires,
-    extras_require={"api": api_deps},
+    extras_require=extras_require,
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

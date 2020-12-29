@@ -16,7 +16,7 @@ import ast
 import inspect
 import re
 
-from mlrun.runtimes.base import FunctionEntrypoint
+from mlrun.model import FunctionEntrypoint
 
 
 def type_name(ann):

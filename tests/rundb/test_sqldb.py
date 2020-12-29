@@ -16,11 +16,12 @@
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from unittest.mock import Mock
 
+import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import _tagged
 from tests.conftest import new_run
@@ -81,7 +82,11 @@ def test_list_projects(db: SQLDB, db_session: Session):
         run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
         db.store_run(db_session, run, "u7", project=f"prj{i % 3}", iter=i)
 
-    assert {"prj0", "prj1", "prj2"} == {p.name for p in db.list_projects(db_session)}
+    projects_output = db.list_projects(db_session)
+
+    assert {"prj0", "prj1", "prj2"} == {
+        project.metadata.name for project in projects_output.projects
+    }
 
 
 def test_run_iter0(db: SQLDB, db_session: Session):
@@ -153,62 +158,34 @@ def test_list_tags(db: SQLDB, db_session: Session):
     assert set(tags) == set(tags1), "tags"
 
 
-def test_projects(db: SQLDB, db_session: Session):
-    prj1 = {
-        "name": "p1",
-        "description": "banana",
-        # 'users': ['u1', 'u2'],
-        "spec": {"company": "ACME"},
-        "state": "active",
-        "created": datetime.now(),
-    }
-    pid1 = db.add_project(db_session, prj1)
-    p1 = db.get_project(db_session, project_id=pid1)
-    assert p1, f"project {pid1} not found"
-    out = {
-        "name": p1.name,
-        "description": p1.description,
-        # 'users': sorted(u.name for u in p1.users),
-        "spec": p1.spec,
-        "state": p1.state,
-        "created": p1.created,
-    }
-    assert prj1 == out, "bad project"
+def test_projects_crud(db: SQLDB, db_session: Session):
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="p1"),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana", other_field="value"),
+        status=mlrun.api.schemas.ObjectStatus(state="active"),
+    )
+    db.create_project(db_session, project)
+    project_output = db.get_project(db_session, name=project.metadata.name)
+    assert (
+        deepdiff.DeepDiff(
+            project.dict(), project_output.dict(exclude={"id"}), ignore_order=True,
+        )
+        == {}
+    )
 
-    data = {"description": "lemon"}
-    db.update_project(db_session, p1.name, data)
-    p1 = db.get_project(db_session, project_id=pid1)
-    assert data["description"] == p1.description, "bad update"
+    project_patch = {"spec": {"description": "lemon"}}
+    db.patch_project(db_session, project.metadata.name, project_patch)
+    project_output = db.get_project(db_session, name=project.metadata.name)
+    assert project_output.spec.description == project_patch["spec"]["description"]
 
-    prj2 = {"name": "p2"}
-    db.add_project(db_session, prj2)
-    prjs = {p.name for p in db.list_projects(db_session)}
-    assert {prj1["name"], prj2["name"]} == prjs, "list"
-
-
-def test_cache_projects(db: SQLDB, db_session: Session):
-    assert 0 == len(db._projects), "empty cache"
-    name = "prj348"
-    db.add_project(db_session, {"name": name})
-    assert {name} == db._projects, "project"
-
-    mock = Mock()
-    with patch(db, add_project=mock):
-        db._ensure_project(db_session, name)
-    mock.assert_not_called()
-
-    mock = Mock()
-    with patch(db, add_project=mock):
-        db._ensure_project(db_session, name + "-new")
-    mock.assert_called_once()
-
-    project_2_name = "project-2"
-    db.add_project(db_session, {"name": project_2_name})
-    db._projects = set()
-    mock = Mock()
-    with patch(db, add_project=mock):
-        db._ensure_project(db_session, name)
-    mock.assert_not_called()
+    project_2 = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="p2"),
+    )
+    db.create_project(db_session, project_2)
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.api.schemas.Format.name_only
+    )
+    assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 
 
 # def test_function_latest(db: SQLDB, db_session: Session):

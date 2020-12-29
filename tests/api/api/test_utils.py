@@ -9,7 +9,7 @@ from mlrun.api.api.utils import _parse_submit_run_body
 
 def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
     task_name = "task_name"
-    task_project = "task_project"
+    task_project = "task-project"
     project, function_name, function_tag, original_function = _mock_original_function(
         client
     )
@@ -38,6 +38,10 @@ def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
                     },
                 ],
                 "volume_mounts": [
+                    {
+                        "name": "old-volume-name",
+                        "mountPath": "/v3io/old/volume/mount/path",
+                    },
                     {
                         "name": "override-volume-name",
                         "mountPath": "/v3io/volume/mount/path",
@@ -89,7 +93,7 @@ def test_parse_submit_job_body_override_values(db: Session, client: TestClient):
 
 def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
     task_name = "task_name"
-    task_project = "task_project"
+    task_project = "task-project"
     project, function_name, function_tag, original_function = _mock_original_function(
         client
     )
@@ -124,7 +128,7 @@ def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
 
 def _mock_original_function(client):
     function_name = "function_name"
-    project = "some_project"
+    project = "some-project"
     function_tag = "function_tag"
     original_function = {
         "kind": "job",
@@ -246,7 +250,7 @@ def _assert_volumes_and_volume_mounts(
     assert (
         DeepDiff(
             submit_job_body["function"]["spec"]["volume_mounts"][0],
-            parsed_function_object.spec.volume_mounts[1],
+            parsed_function_object.spec.volume_mounts[0],
             ignore_order=True,
         )
         == {}
@@ -254,6 +258,14 @@ def _assert_volumes_and_volume_mounts(
     assert (
         DeepDiff(
             submit_job_body["function"]["spec"]["volume_mounts"][1],
+            parsed_function_object.spec.volume_mounts[1],
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        DeepDiff(
+            submit_job_body["function"]["spec"]["volume_mounts"][2],
             parsed_function_object.spec.volume_mounts[2],
             ignore_order=True,
         )

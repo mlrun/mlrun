@@ -315,6 +315,42 @@ def test_patch_project(
     )
 
 
+def test_patch_project_only_labels(
+    api_url: str,
+    nuclio_client: mlrun.api.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    project_labels = {
+        "some-label": "some-label-value",
+    }
+    mocked_project_body = _generate_project_body(
+        project_name,
+        labels={"label-key": "label-value"},
+    )
+
+    def verify_patch(request, context):
+        # verifying the patch kept the old labels, patched the description, and added the new label
+        expected_body = mocked_project_body
+        expected_body["metadata"]["labels"].update(project_labels)
+        assert (
+            deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
+        )
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
+
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}", json=mocked_project_body
+    )
+    requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
+    nuclio_client.patch_project(
+        None,
+        project_name,
+        {
+            "metadata": {"labels": project_labels},
+        },
+    )
+
+
 def test_delete_project(
     api_url: str,
     nuclio_client: mlrun.api.utils.clients.nuclio.Client,

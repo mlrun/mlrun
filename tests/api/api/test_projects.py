@@ -67,14 +67,16 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     _list_project_names_and_assert(client, [name1, name2])
 
     # list - names only - filter by label existence
-    _list_project_names_and_assert(client, [name2], params={
-            "label": list(labels_2.keys())[0],
-        })
+    _list_project_names_and_assert(
+        client, [name2], params={"label": list(labels_2.keys())[0]}
+    )
 
     # list - names only - filter by label match
-    _list_project_names_and_assert(client, [name2], params={
-        "label": f"{list(labels_2.keys())[0]}={list(labels_2.values())[0]}",
-    })
+    _list_project_names_and_assert(
+        client,
+        [name2],
+        params={"label": f"{list(labels_2.keys())[0]}={list(labels_2.values())[0]}"},
+    )
 
     # list - full
     response = client.get(
@@ -91,40 +93,39 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
 
     # patch project 1 to have the labels as well
     labels_1 = copy.deepcopy(labels_2)
-    labels_1.update({'another-label':'another-label-value'})
-    project_patch = {
-        "metadata": {
-            "labels": labels_1
-        }
-    }
+    labels_1.update({"another-label": "another-label-value"})
+    project_patch = {"metadata": {"labels": labels_1}}
     response = client.patch(f"/api/projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(
-        project_1, response, extra_exclude={"spec": {"description", "desired_state"}, "metadata": {"labels"}}
+        project_1,
+        response,
+        extra_exclude={
+            "spec": {"description", "desired_state"},
+            "metadata": {"labels"},
+        },
     )
     assert (
-            deepdiff.DeepDiff(
-                response.json()["metadata"]["labels"],
-                labels_1,
-                ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(
+            response.json()["metadata"]["labels"], labels_1, ignore_order=True,
+        )
+        == {}
     )
 
     # list - names only - filter by label existence
-    _list_project_names_and_assert(client, [name1, name2], params={
-        "label": list(labels_2.keys())[0],
-    })
+    _list_project_names_and_assert(
+        client, [name1, name2], params={"label": list(labels_2.keys())[0]}
+    )
 
     # list - names only - filter by label existence
-    _list_project_names_and_assert(client, [name1], params={
-        "label": list(labels_1.keys())[1],
-    })
+    _list_project_names_and_assert(
+        client, [name1], params={"label": list(labels_1.keys())[1]}
+    )
 
     # list - names only - filter by state
-    _list_project_names_and_assert(client, [name1], params={
-        "state": mlrun.api.schemas.ProjectState.archived,
-    })
+    _list_project_names_and_assert(
+        client, [name1], params={"state": mlrun.api.schemas.ProjectState.archived}
+    )
 
     # add function to project 1
     function_name = "function-name"
@@ -158,14 +159,13 @@ def test_projects_crud(db: Session, client: TestClient) -> None:
     _list_project_names_and_assert(client, [name2])
 
 
-def _list_project_names_and_assert(client: TestClient, expected_names: typing.List[str], params: typing.Dict = None):
+def _list_project_names_and_assert(
+    client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
+):
     params = params or {}
     params["format"] = mlrun.api.schemas.Format.name_only
     # list - names only - filter by state
-    response = client.get(
-        "/api/projects",
-        params=params,
-    )
+    response = client.get("/api/projects", params=params,)
     assert expected_names == response.json()["projects"]
 
 

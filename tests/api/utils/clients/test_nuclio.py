@@ -325,8 +325,7 @@ def test_patch_project_only_labels(
         "some-label": "some-label-value",
     }
     mocked_project_body = _generate_project_body(
-        project_name,
-        labels={"label-key": "label-value"},
+        project_name, labels={"label-key": "label-value"},
     )
 
     def verify_patch(request, context):
@@ -343,11 +342,7 @@ def test_patch_project_only_labels(
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
-        None,
-        project_name,
-        {
-            "metadata": {"labels": project_labels},
-        },
+        None, project_name, {"metadata": {"labels": project_labels}},
     )
 
 

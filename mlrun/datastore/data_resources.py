@@ -13,14 +13,14 @@
 # limitations under the License.
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from storey import Table, Driver
+from storey import Table, Driver, V3ioDriver
 
 import mlrun
 from mlrun.config import config
-from mlrun.model import ResourceSchema
 from mlrun.utils.helpers import parse_function_uri
 from mlrun.artifacts import dict_to_artifact
-from ..utils.helpers import DB_SCHEMA, FEATURE_STORE_SCHEMA
+from .v3io import v3io_path
+from ..utils import StorePrefix, parse_store_uri
 
 
 class ResourceCache:
@@ -37,10 +37,16 @@ class ResourceCache:
         if uri in self._tabels:
             return self._tabels[uri]
         if uri in [".", ""]:
-            return Table("", Driver())
+            self._tabels[uri] = Table("", Driver())
+            return self._tabels[uri]
 
-        kind, uri = _parse_uri(uri)
-        if kind == ResourceSchema.FeatureSet:
+        if uri.startswith('v3io://') or uri.startswith('v3ios://'):
+            endpoint, uri = v3io_path(uri)
+            self._tabels[uri] = Table(uri, V3ioDriver(webapi=endpoint))
+            return self._tabels[uri]
+
+        kind, uri = parse_store_uri(uri)
+        if kind == StorePrefix.FeatureSet:
             featureset = mlrun.featurestore.get_feature_set(uri)
             target, driver = mlrun.featurestore.targets.get_online_target(featureset)
             self._tabels[uri] = driver.get_table_object()
@@ -70,30 +76,20 @@ class ResourceCache:
         return _get_data_resource
 
 
-def _parse_uri(uri):
-    kind = None
-    if "://" in uri:
-        idx = uri.find("://")
-        kind = uri[:idx]
-        if ResourceSchema.is_resource(kind):
-            uri = uri[idx + 3 :]
-    return kind, uri
-
-
 def get_data_resource(uri, db=None, secrets=None):
     db = db or mlrun.get_run_db(secrets=secrets)
-    kind, uri = _parse_uri(uri)
-    if kind == ResourceSchema.FeatureSet:
+    kind, uri = parse_store_uri(uri)
+    if kind == StorePrefix.FeatureSet:
         project, name, tag, uid = parse_function_uri(uri, config.default_project)
         obj = db.get_feature_set(name, project, tag, uid)
         return mlrun.featurestore.FeatureSet.from_dict(obj)
 
-    elif kind == ResourceSchema.FeatureVector:
+    elif kind == StorePrefix.FeatureVector:
         project, name, tag, uid = parse_function_uri(uri, config.default_project)
         obj = db.get_feature_vector(name, project, tag, uid)
         return mlrun.featurestore.FeatureVector.from_dict(obj)
 
-    elif ResourceSchema.Artifact:
+    elif StorePrefix.is_artifact(kind):
         project, name, tag, uid = parse_function_uri(uri, config.default_project)
         resp = db.read_artifact(name, project=project, tag=tag or uid)
         if resp:

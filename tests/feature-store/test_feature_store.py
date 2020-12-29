@@ -8,7 +8,7 @@ from storey.flow import _UnaryFunctionFlow
 
 import mlrun.featurestore as fs
 from mlrun.config import config as mlconf
-from mlrun.featurestore import FeatureSet, Entity, TargetTypes
+from mlrun.featurestore import FeatureSet, Entity
 from mlrun.featurestore.datatypes import ValueType
 from mlrun.featurestore.validators import MinMaxValidator
 
@@ -52,7 +52,7 @@ def test_ingestion():
     print(stocks_set.to_yaml())
 
     quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
-    quotes_set.set_targets()
+    # quotes_set.set_targets()
 
     flow = quotes_set.graph
     flow.to("MyMap", mul=3).to("storey.Extend", _fn="({'z': event['bid'] * 77})").to(
@@ -62,7 +62,8 @@ def test_ingestion():
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
     quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
 
-    df = quotes_set.infer_from_df(
+    df = fs.infer_from_df(
+        quotes_set,
         quotes,
         entity_columns=["ticker"],
         with_stats=True,

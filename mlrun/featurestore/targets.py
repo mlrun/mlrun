@@ -6,6 +6,7 @@ from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf
 
 from .model import DataTargetSpec, TargetTypes, DataTarget, store_config, ResourceKinds
+from ..datastore.v3io import v3io_path
 
 
 def init_store_driver(resource, target):
@@ -31,11 +32,6 @@ def init_featureset_targets(featureset):
 
 
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
-    # if not graph.is_empty():
-    #     after = graph.find_last_state()
-    # else:
-    #     graph.add_step(name="_in", handler="(event)", after="$start")
-    #     after = "_in"
     targets = targets or []
     key_column = resource.spec.entities[0].name
     timestamp_key = resource.spec.timestamp_key
@@ -181,7 +177,8 @@ class NoSqlStore(BaseStoreDriver):
 
     def get_table_object(self):
         # TODO use options/cred
-        return Table(nosql_path(self.target_path), V3ioDriver())
+        endpoint, uri = v3io_path(self.target_path)
+        return Table(uri, V3ioDriver(webapi=endpoint))
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -229,21 +226,6 @@ kind_to_driver = {
     TargetTypes.nosql: NoSqlStore,
     TargetTypes.dataframe: DFStore,
 }
-
-
-def nosql_path(url):
-    parsed_url = urlparse(url)
-    scheme = parsed_url.scheme.lower()
-    if scheme != "v3io":
-        raise ValueError(
-            "url must start with v3io://[host]/{container}/{path}, got " + url
-        )
-
-    endpoint = parsed_url.hostname
-    if parsed_url.port:
-        endpoint += ":{}".format(parsed_url.port)
-    # todo: use endpoint
-    return parsed_url.path.strip("/") + "/"
 
 
 def _get_target_path(driver, resource):

@@ -16,6 +16,8 @@ from copy import deepcopy
 from datetime import datetime
 from os import environ
 import time
+from urllib.parse import urlparse
+
 import v3io.dataplane
 
 import mlrun.errors
@@ -118,3 +120,22 @@ class V3ioStore(DataStore):
 
         # todo: full = key, size, last_modified
         return [obj.key[subpath_length:] for obj in response.output.contents]
+
+
+def v3io_path(url):
+    """return v3io table path from url"""
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme.lower()
+    if scheme != "v3io" and scheme != "v3ios":
+        raise ValueError(
+            "url must start with v3io://[host]/{container}/{path}, got " + url
+        )
+    endpoint = parsed_url.hostname
+    if endpoint:
+        if parsed_url.port:
+            endpoint += ":{}".format(parsed_url.port)
+        prefix = 'https' if scheme == 'v3ios' else 'http'
+        endpoint = f'{prefix}://{endpoint}'
+    else:
+        endpoint = None
+    return endpoint, parsed_url.path.strip("/") + "/"

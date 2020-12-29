@@ -15,7 +15,6 @@ from copy import copy
 
 import mlrun
 import pandas as pd
-from mlrun.utils import get_caller_globals
 
 from .model import (
     FeatureSetStatus,
@@ -23,18 +22,14 @@ from .model import (
     FeatureSetMetadata,
     FeatureAggregation,
     Feature,
-    store_config,
-    DataTargetSpec,
     ResourceKinds,
-    FeatureStoreError,
+    FeatureStoreError, DataTargetSpec, store_config,
 )
-from .infer import infer_schema_from_df, get_df_stats, get_df_preview
-from .pipeline import init_featureset_graph
-from .targets import init_store_driver, get_offline_target
-from ..model import ModelObj, ResourceSchema
+from .targets import get_offline_target, init_store_driver
+from ..model import ModelObj
 from ..serving.states import BaseState
 from ..config import config as mlconf
-
+from ..utils import get_store_uri, StorePrefix
 
 aggregates_step = "Aggregates"
 
@@ -44,7 +39,6 @@ class FeatureSet(ModelObj):
 
     kind = ResourceKinds.FeatureSet
     _dict_fields = ["kind", "metadata", "spec", "status"]
-    _schema = ResourceSchema.FeatureSet
 
     def __init__(self, name=None, description=None, entities=None, timestamp_key=None):
         self._spec: FeatureSetSpec = None
@@ -84,47 +78,11 @@ class FeatureSet(ModelObj):
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
     def uri(self):
-        uri = f'{self._schema}://{self._metadata.project or ""}/{self._metadata.name}'
+        uri = f'{self._metadata.project or ""}/{self._metadata.name}'
+        uri = get_store_uri(StorePrefix.FeatureSet, uri)
         if self._metadata.tag:
             uri += ":" + self._metadata.tag
         return uri
-
-    def infer_from_df(
-        self,
-        df,
-        with_stats=False,
-        entity_columns=None,
-        timestamp_key=None,
-        label_column=None,
-        with_index=True,
-        with_histogram=False,
-        with_preview=False,
-        namespace=None,
-    ):
-        """Infer features schema and stats from a local DataFrame"""
-        if timestamp_key is not None:
-            self._spec.timestamp_key = timestamp_key
-
-        namespace = namespace or get_caller_globals()
-        if self._spec.require_processing():
-            # find/update entities schema
-            infer_schema_from_df(
-                df, self._spec, entity_columns, with_index, with_features=False
-            )
-            controller = init_featureset_graph(
-                df, self, namespace, with_targets=False, return_df=True
-            )
-            df = controller.await_termination()
-            # df = ingest_from_df(context, self, df, namespace=namespace).await_termination()
-
-        infer_schema_from_df(df, self._spec, entity_columns, with_index)
-        if with_stats:
-            self._status.stats = get_df_stats(df, with_histogram=with_histogram)
-        if with_preview:
-            self._status.preview = get_df_preview(df)
-        if label_column:
-            self._spec.label_column = label_column
-        return df
 
     def set_targets(self, targets=None):
         if targets is not None and not isinstance(targets, list):

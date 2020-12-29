@@ -25,16 +25,6 @@ from .db import get_run_db
 from .utils import dict_to_yaml, get_in, dict_to_json, get_artifact_target
 
 
-class ResourceSchema:
-    FeatureSet = "fset"
-    FeatureVector = "fvec"
-    Artifact = "store"
-
-    @classmethod
-    def is_resource(cls, kind):
-        return kind in [cls.Artifact, cls.FeatureSet, cls.FeatureVector]
-
-
 class ModelObj:
     _dict_fields = []
 

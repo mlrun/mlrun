@@ -13,7 +13,7 @@
 # limitations under the License.
 from typing import List, Union
 import mlrun
-from .infer import get_df_stats, get_df_preview
+from .infer import get_df_stats, get_df_preview, infer_schema_from_df
 from .mergers.local import LocalFeatureMerger
 from .pipeline import init_featureset_graph
 from .vector import FeatureVector, OnlineVectorService
@@ -133,7 +133,7 @@ def ingest(
         source = mlrun.store_manager.object(url=source).as_df()
 
     if infer_schema:
-        featureset.infer_from_df(source, namespace=namespace)
+        infer_from_df(featureset, source, namespace=namespace)
     return_df = return_df or with_stats or with_preview
     featureset.save()
 
@@ -146,6 +146,44 @@ def ingest(
     if with_preview:
         featureset.status.preview = get_df_preview(df)
     featureset.save()
+    return df
+
+
+def infer_from_df(
+    featureset,
+    df,
+    with_stats=False,
+    entity_columns=None,
+    timestamp_key=None,
+    label_column=None,
+    with_index=True,
+    with_histogram=False,
+    with_preview=False,
+    namespace=None,
+):
+    """Infer features schema and stats from a local DataFrame"""
+    if timestamp_key is not None:
+        featureset.spec.timestamp_key = timestamp_key
+
+    namespace = namespace or get_caller_globals()
+    if featureset.spec.require_processing():
+        # find/update entities schema
+        infer_schema_from_df(
+            df, featureset.spec, entity_columns, with_index, with_features=False
+        )
+        controller = init_featureset_graph(
+            df, featureset, namespace, with_targets=False, return_df=True
+        )
+        df = controller.await_termination()
+        # df = ingest_from_df(context, self, df, namespace=namespace).await_termination()
+
+    infer_schema_from_df(df, featureset.spec, entity_columns, with_index)
+    if with_stats:
+        featureset.status.stats = get_df_stats(df, with_histogram=with_histogram)
+    if with_preview:
+        featureset.status.preview = get_df_preview(df)
+    if label_column:
+        featureset.spec.label_column = label_column
     return df
 
 

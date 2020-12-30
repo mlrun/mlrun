@@ -3,7 +3,7 @@ FROM jupyter/scipy-notebook
 ENV PIP_NO_CACHE_DIR=1
 ENV PIP_USE_DEPRECATED="legacy-resolver"
 
-RUN python -m pip install --upgrade pip==20.3
+RUN python -m pip install --upgrade pip~=20.3.0
 
 # by default COPY creates files with root permissions, so doing all the preparation with root and chown-ing everything
 # in the end

@@ -121,7 +121,7 @@ RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
 RUN conda clean -aqy
 
-RUN python -m pip install --upgrade pip==20.3
+RUN python -m pip install --upgrade pip~=20.3.0
 
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)

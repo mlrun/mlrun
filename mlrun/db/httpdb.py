@@ -904,7 +904,11 @@ class HTTPRunDB(RunDBInterface):
         name = feature_vector["metadata"]["name"]
         error_message = f"Failed creating feature-vector {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=dict_to_json(feature_vector),
+            "POST",
+            path,
+            error_message,
+            params=params,
+            body=dict_to_json(feature_vector),
         )
         return resp.json()
 
@@ -1064,7 +1068,9 @@ class HTTPRunDB(RunDBInterface):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
-        response = self.api_call("PUT", path, error_message, body=dict_to_json(project),)
+        response = self.api_call(
+            "PUT", path, error_message, body=dict_to_json(project),
+        )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(

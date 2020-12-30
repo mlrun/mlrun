@@ -46,6 +46,7 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
+	python -m pip install --upgrade pip~=20.2.0
 	python -m pip install \
 		-r requirements.txt \
 		-r dev-requirements.txt \

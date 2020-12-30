@@ -17,7 +17,7 @@ import pandas as pd
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
 from .model import Feature, FeatureSetSpec, Entity
-from .datatypes import pd_schema_to_value_type
+from .model.datatypes import pd_schema_to_value_type
 
 
 def infer_schema_from_df(

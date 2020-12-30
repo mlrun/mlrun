@@ -57,12 +57,18 @@ class StorePrefix:
 
     @classmethod
     def kind_to_prefix(cls, kind):
-        kind_map = {'model': cls.Model, 'dataset': cls.Dataset}
+        kind_map = {"model": cls.Model, "dataset": cls.Dataset}
         return kind_map.get(kind, cls.Artifact)
 
     @classmethod
     def is_prefix(cls, prefix):
-        return prefix in [cls.Artifact, cls.Model, cls.Dataset, cls.FeatureSet, cls.FeatureVector]
+        return prefix in [
+            cls.Artifact,
+            cls.Model,
+            cls.Dataset,
+            cls.FeatureSet,
+            cls.FeatureVector,
+        ]
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -492,23 +498,23 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
 
 
 def is_store_uri(url):
-    return url.startswith(DB_SCHEMA + '://')
+    return url.startswith(DB_SCHEMA + "://")
 
 
 def parse_store_uri(url):
     if not is_store_uri(url):
-        return None, ''
-    uri = url[len(DB_SCHEMA) + len('://'):]
-    split = uri.strip("/").split('/', 1)
+        return None, ""
+    uri = url[len(DB_SCHEMA) + len("://") :]
+    split = uri.strip("/").split("/", 1)
     if len(split) == 0:
-        raise ValueError(f'url {url} has no path')
+        raise ValueError(f"url {url} has no path")
     if split and StorePrefix.is_prefix(split[0]):
         return split[0], split[1]
     return StorePrefix.Artifact, uri
 
 
 def get_store_uri(kind, uri):
-    return f'{DB_SCHEMA}://{kind}/{uri}'
+    return f"{DB_SCHEMA}://{kind}/{uri}"
 
 
 def get_artifact_target(item: dict, project=None):

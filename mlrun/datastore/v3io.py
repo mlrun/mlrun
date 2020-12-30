@@ -134,8 +134,8 @@ def v3io_path(url):
     if endpoint:
         if parsed_url.port:
             endpoint += ":{}".format(parsed_url.port)
-        prefix = 'https' if scheme == 'v3ios' else 'http'
-        endpoint = f'{prefix}://{endpoint}'
+        prefix = "https" if scheme == "v3ios" else "http"
+        endpoint = f"{prefix}://{endpoint}"
     else:
         endpoint = None
     return endpoint, parsed_url.path.strip("/") + "/"

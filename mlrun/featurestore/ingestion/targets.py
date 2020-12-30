@@ -1,12 +1,9 @@
-from copy import copy
-from urllib.parse import urlparse
-
 from mlrun.run import get_dataitem
 from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf
 
-from .model import DataTargetSpec, TargetTypes, DataTarget, store_config, ResourceKinds
-from ..datastore.v3io import v3io_path
+from ..model.base import DataTargetSpec, TargetTypes, DataTarget, store_config, ResourceKinds
+from mlrun.datastore.v3io import v3io_path
 
 
 def init_store_driver(resource, target):

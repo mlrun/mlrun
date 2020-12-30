@@ -14,10 +14,9 @@
 from typing import List, Union
 import mlrun
 from .infer import get_df_stats, get_df_preview, infer_schema_from_df
-from .mergers.local import LocalFeatureMerger
-from .pipeline import init_featureset_graph
-from .vector import FeatureVector, OnlineVectorService
-from .featureset import FeatureSet
+from .retrieval import LocalFeatureMerger, init_feature_vector_graph
+from .ingestion import init_featureset_graph
+from .model import FeatureVector, FeatureSet, OnlineVectorService
 from ..config import config
 from ..utils import parse_function_uri, get_caller_globals
 
@@ -189,7 +188,8 @@ def infer_from_df(
 
 def get_online_feature_service(features, name=None, function=None):
     vector = _features_to_vector(features, name)
-    service = OnlineVectorService(vector)
+    controller = init_feature_vector_graph(vector)
+    service = OnlineVectorService(vector, controller)
     service.start()
     return service
 

@@ -12,26 +12,149 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
+from typing import List
 
 import mlrun
 import pandas as pd
 
-from .model import (
-    FeatureSetStatus,
-    FeatureSetSpec,
-    FeatureSetMetadata,
+from .base import (
     FeatureAggregation,
     Feature,
+    Entity,
+    DataTarget,
+    DataSource,
     ResourceKinds,
-    FeatureStoreError, DataTargetSpec, store_config,
+    FeatureStoreError,
+    DataTargetSpec,
+    store_config, CommonMetadata,
 )
-from .targets import get_offline_target, init_store_driver
-from ..model import ModelObj
-from ..serving.states import BaseState
-from ..config import config as mlconf
-from ..utils import get_store_uri, StorePrefix
+from ..ingestion.targets import get_offline_target, init_store_driver
+from mlrun.model import ModelObj, ObjectList
+from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.serving.states import BaseState, RootFlowState
+from mlrun.config import config as mlconf
+from mlrun.utils import get_store_uri, StorePrefix
 
 aggregates_step = "Aggregates"
+
+
+class FeatureSetSpec(ModelObj):
+    def __init__(
+        self,
+        owner=None,
+        description=None,
+        entities=None,
+        features=None,
+        partition_keys=None,
+        timestamp_key=None,
+        label_column=None,
+        relations=None,
+        source=None,
+        targets=None,
+        graph=None,
+        function=None,
+    ):
+        self._features: ObjectList = None
+        self._entities: ObjectList = None
+        self._targets: ObjectList = None
+        self._graph: RootFlowState = None
+        self._source = None
+        self._function: FunctionReference = None
+
+        self.owner = owner
+        self.description = description
+        self.entities: List[Entity] = entities or []
+        self.features: List[Feature] = features or []
+        self.partition_keys = partition_keys or []
+        self.timestamp_key = timestamp_key
+        self.relations = relations or {}
+        self.source = source
+        self.targets = targets or []
+        self.graph = graph
+        self.label_column = label_column
+        self.function = function
+
+    @property
+    def entities(self) -> List[Entity]:
+        return self._entities
+
+    @entities.setter
+    def entities(self, entities: List[Entity]):
+        self._entities = ObjectList.from_list(Entity, entities)
+
+    @property
+    def features(self) -> List[Feature]:
+        return self._features
+
+    @features.setter
+    def features(self, features: List[Feature]):
+        self._features = ObjectList.from_list(Feature, features)
+
+    @property
+    def targets(self) -> List[DataTargetSpec]:
+        return self._targets
+
+    @targets.setter
+    def targets(self, targets: List[DataTargetSpec]):
+        self._targets = ObjectList.from_list(DataTargetSpec, targets)
+
+    @property
+    def graph(self) -> RootFlowState:
+        return self._graph
+
+    @graph.setter
+    def graph(self, graph):
+        self._graph = self._verify_dict(graph, "graph", RootFlowState)
+        self._graph.engine = "async"
+
+    @property
+    def function(self) -> FunctionReference:
+        return self._spec
+
+    @function.setter
+    def function(self, function):
+        self._function = self._verify_dict(function, "function", FunctionReference)
+
+    @property
+    def source(self) -> DataSource:
+        return self._source
+
+    @source.setter
+    def source(self, source: DataSource):
+        self._source = self._verify_dict(source, "source", DataSource)
+
+    def require_processing(self):
+        return len(self._graph.states) > 0
+
+
+class FeatureSetStatus(ModelObj):
+    def __init__(
+        self,
+        state=None,
+        targets=None,
+        stats=None,
+        preview=None,
+        runtime=None,
+        run_uri=None,
+    ):
+        self.state = state or "created"
+        self._targets: ObjectList = None
+        self.targets = targets or []
+        self.stats = stats or {}
+        self.preview = preview or []
+        self.runtime = runtime
+        self.run_uri = run_uri
+
+    @property
+    def targets(self) -> List[DataTarget]:
+        return self._targets
+
+    @targets.setter
+    def targets(self, targets: List[DataTarget]):
+        self._targets = ObjectList.from_list(DataTarget, targets)
+
+    def update_target(self, target: DataTarget):
+        self._targets.update(target)
 
 
 class FeatureSet(ModelObj):
@@ -49,7 +172,7 @@ class FeatureSet(ModelObj):
         self.spec = FeatureSetSpec(
             description=description, entities=entities, timestamp_key=timestamp_key
         )
-        self.metadata = FeatureSetMetadata(name=name)
+        self.metadata = CommonMetadata(name=name)
         self.status = None
         self._last_state = ""
 
@@ -62,12 +185,12 @@ class FeatureSet(ModelObj):
         self._spec = self._verify_dict(spec, "spec", FeatureSetSpec)
 
     @property
-    def metadata(self) -> FeatureSetMetadata:
+    def metadata(self) -> CommonMetadata:
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", FeatureSetMetadata)
+        self._metadata = self._verify_dict(metadata, "metadata", CommonMetadata)
 
     @property
     def status(self) -> FeatureSetStatus:
@@ -158,15 +281,12 @@ class FeatureSet(ModelObj):
     def __setitem__(self, key, item):
         self._spec.features.update(item, key)
 
-    def merge(self, other):
-        pass
-
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         graph = self.spec.graph
         targets = None
         if with_targets:
             targets = [
-                BaseState(target.kind, shape="cylinder") for target in self.spec.targets
+                BaseState(target.kind, after=target.after_state, shape="cylinder") for target in self.spec.targets
             ]
         return graph.plot(filename, format, targets=targets, **kw)
 

@@ -2,9 +2,6 @@ from typing import Dict, Any
 
 from storey import MapClass
 
-from mlrun.featurestore.model import FeatureAggregation
-from mlrun.serving.states import TaskState
-
 this_path = "mlrun.featurestore.steps"
 
 

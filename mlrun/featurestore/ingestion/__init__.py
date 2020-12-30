@@ -12,10 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.featurestore.model.featureset import FeatureSet  # noqa
-from mlrun.featurestore.model.vector import FeatureVector  # noqa
-from mlrun.featurestore.model.base import Feature, Entity, TargetTypes, store_config  # noqa
-from mlrun.featurestore.model.datatypes import ValueType  # noqa
-from .steps import FeaturesetValidator  # noqa
-from mlrun.featurestore.model.validators import MinMaxValidator  # noqa
-from .api import *  # noqa
+from .pipeline import init_featureset_graph

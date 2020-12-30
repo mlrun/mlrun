@@ -40,7 +40,7 @@ class ResourceCache:
             self._tabels[uri] = Table("", Driver())
             return self._tabels[uri]
 
-        if uri.startswith('v3io://') or uri.startswith('v3ios://'):
+        if uri.startswith("v3io://") or uri.startswith("v3ios://"):
             endpoint, uri = v3io_path(uri)
             self._tabels[uri] = Table(uri, V3ioDriver(webapi=endpoint))
             return self._tabels[uri]

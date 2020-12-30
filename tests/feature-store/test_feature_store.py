@@ -2,15 +2,15 @@ import os
 
 from mlrun.featurestore.steps import FeaturesetValidator
 
-from data_sample import quotes, trades, stocks
+from data_sample import quotes, stocks
 from storey import MapClass
 from storey.flow import _UnaryFunctionFlow
 
 import mlrun.featurestore as fs
 from mlrun.config import config as mlconf
 from mlrun.featurestore import FeatureSet, Entity
-from mlrun.featurestore.datatypes import ValueType
-from mlrun.featurestore.validators import MinMaxValidator
+from mlrun.featurestore.model.datatypes import ValueType
+from mlrun.featurestore.model.validators import MinMaxValidator
 
 
 def init_store():

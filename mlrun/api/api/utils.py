@@ -38,14 +38,14 @@ def get_obj_path(schema, path, user=""):
         path = "v3io:///users/" + user + path[5:]
         schema = schema or "v3io"
     elif path.startswith("/v3io"):
-        path = "v3io://" + path[len("/v3io"):]
+        path = "v3io://" + path[len("/v3io") :]
         schema = schema or "v3io"
     elif config.httpdb.data_volume and path.startswith(config.httpdb.data_volume):
         data_volume_prefix = config.httpdb.data_volume
         if data_volume_prefix.endswith("/"):
             data_volume_prefix = data_volume_prefix[:-1]
         if config.httpdb.real_path:
-            path_from_volume = path[len(data_volume_prefix):]
+            path_from_volume = path[len(data_volume_prefix) :]
             if path_from_volume.startswith("/"):
                 path_from_volume = path_from_volume[1:]
             path = str(Path(config.httpdb.real_path) / Path(path_from_volume))

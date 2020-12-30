@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y \
   git-core \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip~=20.2.0
 
 COPY ./dockerfiles/test-system/requirements.txt /tmp
 RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt

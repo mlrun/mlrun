@@ -61,7 +61,7 @@ class EndpointState(BaseModel):
     error_count: Optional[int]
     alert_count: Optional[int]
     drift_status: Optional[str]
-    metrics: Optional[List[Metric]]
+    metrics: Optional[MetricList]
     feature_details: Optional[List[FeatureDetails]]
 
 

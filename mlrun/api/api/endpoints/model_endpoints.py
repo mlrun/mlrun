@@ -1,8 +1,9 @@
 import hashlib
 import json
-from enum import Enum
+from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 
+import pandas as pd
 from fastapi import APIRouter, Query
 from v3io.dataplane import RaiseForStatus
 
@@ -16,39 +17,50 @@ from mlrun.errors import (
 from mlrun.utils import logger
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 
-ENDPOINTS = "endpoints"
-ENDPOINT_EVENTS = "endpoint_events"
+ENDPOINTS = "monitoring/endpoints"
+ENDPOINT_EVENTS = "monitoring/endpoint_events"
 
 
-class MetricType(Enum):
-    LATENCY = "latency_avg_1s"
-    PREDICTIONS = "predictions_per_second_count_1s"
+@dataclass
+class TimeMetric:
+    tsdb_column: str
+    metric_name: str
+    headers: List[str]
 
-    # Will be supported later on
-    # REQUESTS = "requests"
-    # DRIFT = "drift_magnitude"
-    # ACCURACY = "accuracy"
+    def to_metric(self, data: pd.DataFrame) -> Optional[schemas.Metric]:
+        if data.empty or self.tsdb_column not in data.columns:
+            return None
 
-    @staticmethod
-    def from_string(name: str):
-        if name in {"microsec", "latency"}:
-            return MetricType.LATENCY
-        elif name in {"preds", "predictions"}:
-            return MetricType.PREDICTIONS
-        # elif name in {"reqs", "requests"}:
-        #     return MetricType.REQUESTS
-        # elif name in {"drift", "drift_magnitude", "drift-magnitude"}:
-        #     return MetricType.DRIFT
-        # elif name in {"acc", "accuracy"}:
-        #     return MetricType.DRIFT
+        values = data[self.tsdb_column].reset_index().to_numpy()
+        describe = data[self.tsdb_column].describe().to_dict()
 
-        raise NotImplementedError(
-            f"Unsupported metric '{name}'. metric name must be one of {MetricType.list()}"
+        return schemas.Metric(
+            name=self.metric_name,
+            start_timestamp=str(data.index[0]),
+            end_timestamp=str(data.index[-1]),
+            headers=self.headers,
+            values=[(str(timestamp), float(value)) for timestamp, value in values],
+            min=describe["min"],
+            avg=describe["mean"],
+            max=describe["max"],
         )
 
     @staticmethod
-    def list():
-        return list(map(lambda c: c.value, MetricType))
+    def from_string(name) -> "TimeMetric":
+        if name in {"microsec", "latency"}:
+            return TimeMetric(
+                tsdb_column="latency_avg_1s",
+                metric_name="average_latency",
+                headers=["timestamp", "average"],
+            )
+        elif name in {"preds", "predictions"}:
+            return TimeMetric(
+                tsdb_column="predictions_per_second_count_1s",
+                metric_name="predictions_per_second",
+                headers=["timestamp", "count"],
+            )
+        else:
+            raise NotImplementedError(f"Unsupported metric '{name}'")
 
 
 router = APIRouter()
@@ -210,6 +222,14 @@ def get_endpoint(
         url = f"/projects/{project}/model-endpoints/{endpoint_id}"
         raise MLRunNotFoundError(f"Endpoint {endpoint_id} not found - {url}")
 
+    metrics = get_endpoint_metrics(
+        project=project,
+        endpoint_id=endpoint_id,
+        start=start,
+        end=end,
+        name=["predictions", "latency"],
+    ).metrics
+
     return schemas.EndpointState(
         endpoint=schemas.Endpoint(
             metadata=schemas.ObjectMetadata(
@@ -232,7 +252,7 @@ def get_endpoint(
         error_count=endpoint.get("error_count"),
         alert_count=endpoint.get("alert_count"),
         drift_status=endpoint.get("drift_status"),
-        metrics=None,
+        metrics=metrics,
         feature_details=None,
     )
 
@@ -248,26 +268,31 @@ def get_endpoint_metrics(
     end: str = Query("now"),
     name: List[str] = Query([]),
 ):
-    if _get_endpoint_kv_record_by_id(endpoint_id):
+    if not _get_endpoint_kv_record_by_id(endpoint_id):
         url = f"projects/{project}/model-endpoints/{endpoint_id}/metrics"
         raise MLRunNotFoundError(f"Endpoint not found' - {url}")
 
     try:
-        metrics = [MetricType.from_string(n) for n in name]
+        metrics = [TimeMetric.from_string(n) for n in name]
     except NotImplementedError as e:
         raise MLRunInvalidArgumentError(str(e))
 
-    data = get_frames_client(container="monitoring").read(
+    columns = ["endpoint_id"]
+    for metric in metrics:
+        columns.append(metric.tsdb_column)
+
+    data = get_frames_client(container=config.model_endpoint_monitoring_container).read(
         backend="tsdb",
         table=ENDPOINT_EVENTS,
-        columns=[m.value for m in metrics],
+        columns=columns,
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,
         end=end,
     )
 
-    # TODO: Fix frames client not returning anything
-    return schemas.MetricList(metrics=[])
+    metrics = [time_metric.to_metric(data) for time_metric in metrics]
+    metrics = [metric for metric in metrics if metrics is not None]
+    return schemas.MetricList(metrics=metrics)
 
 
 def _decode_labels(labels: Dict[str, Any]) -> List[str]:

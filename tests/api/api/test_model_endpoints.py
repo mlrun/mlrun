@@ -1,20 +1,24 @@
 import json
 import os
 import string
+from datetime import datetime, timedelta
 from random import randint, choice
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from v3io_frames import frames_pb2 as fpb2
 
 from mlrun.api import schemas
 from mlrun.api.api.endpoints.model_endpoints import (
     get_endpoint_id,
     _get_endpoint_kv_record_by_id,
     ENDPOINTS,
+    ENDPOINT_EVENTS,
 )
 from mlrun.config import config
-from mlrun.utils.v3io_clients import get_v3io_client
+from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
 
 
 def is_env_params_exist() -> bool:
@@ -178,15 +182,28 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
 
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
-    response = client.get("/api/projects/test/model-endpoints")
-    for endpoint_stats in json.loads(response.text).get("endpoints", []):
-        endpoint = schemas.Endpoint(**endpoint_stats["endpoint"])
-        endpoint_id = get_endpoint_id(endpoint)
+    v3io = get_v3io_client()
+    frames = get_frames_client(container="projects")
+
+    all_records = v3io.kv.new_cursor(
+        container=config.model_endpoint_monitoring_container, table_path=ENDPOINTS
+    ).all()
+    all_records = [r["__name"] for r in all_records]
+
+    # Cleanup KV
+    for record in all_records:
         get_v3io_client().kv.delete(
             container=config.model_endpoint_monitoring_container,
             table_path=ENDPOINTS,
-            key=endpoint_id,
+            key=record,
         )
+
+    # Cleanup TSDB
+    frames.delete(
+        backend="tsdb",
+        table=ENDPOINT_EVENTS,
+        if_missing=fpb2.IGNORE,
+    )
 
 
 @pytest.mark.skipif(
@@ -194,8 +211,54 @@ def cleanup_endpoints(db: Session, client: TestClient):
     reason="Either V3IO_ACCESS_KEY or V3IO_API environment params not found",
 )
 def test_get_endpoint_metrics(db: Session, client: TestClient):
-    # response = client.get(f"/api/projects/test/model-endpoints/{endpoint_id}/metrics?name=predictions")
-    # TODO: Test after fix
+    endpoint_id = "test.0dc1b5d623bf5d6584ee5d5ead27a7b2"
+
+    frames = get_frames_client(container="projects")
+    v3io = get_v3io_client()
+
+    v3io.kv.put(
+        container="projects",
+        table_path=ENDPOINTS,
+        key=endpoint_id,
+        attributes={"test": True},
+    )
+
+    frames.create(backend="tsdb", table=ENDPOINT_EVENTS, rate="10/m")
+
+    start = datetime.utcnow()
+
+    total = 0
+    dfs = []
+    for i in range(10):
+        count = randint(1, 10)
+        total += count
+        data = {
+            "predictions_per_second_count_1s": count,
+            "endpoint_id": endpoint_id,
+            "timestamp": start - timedelta(minutes=10 - i),
+        }
+        df = pd.DataFrame(data=[data])
+        dfs.append(df)
+
+    frames.write(
+        backend="tsdb",
+        table=ENDPOINT_EVENTS,
+        dfs=dfs,
+        index_cols=["timestamp", "endpoint_id"],
+    )
+
+    response = client.get(
+        f"/api/projects/test/model-endpoints/{endpoint_id}/metrics?name=predictions"
+    )
+
+    metric = json.loads(response.content)["metrics"][0]
+
+    assert metric["name"] == "predictions_per_second"
+
+    response_total = sum((m[1] for m in metric["values"]))
+
+    assert total == response_total
+
     pass
 
 

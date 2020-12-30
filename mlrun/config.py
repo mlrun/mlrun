@@ -75,7 +75,7 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
-    "model_endpoint_monitoring_container": "monitoring",
+    "model_endpoint_monitoring_container": "projects",
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),

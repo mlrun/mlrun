@@ -7,7 +7,10 @@ _v3io_clients: Dict[FrozenSet, V3IOClient] = {}
 _frames_clients: Dict[FrozenSet, FramesClient] = {}
 
 
-def get_frames_client(**kwargs) -> FramesClient:
+# TODO: Fix type hints for frames and v3io clients
+
+
+def get_frames_client(**kwargs):
     global _frames_clients
     kw_set = frozenset(kwargs.items())
     if kw_set not in _frames_clients:
@@ -16,7 +19,7 @@ def get_frames_client(**kwargs) -> FramesClient:
     return _frames_clients[kw_set]
 
 
-def get_v3io_client(**kwargs) -> V3IOClient:
+def get_v3io_client(**kwargs):
     global _v3io_clients
     kw_set = frozenset(kwargs.items())
     if kw_set not in _v3io_clients:

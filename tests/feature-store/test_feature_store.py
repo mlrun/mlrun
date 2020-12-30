@@ -2,10 +2,10 @@ import os
 
 from mlrun.featurestore.steps import FeaturesetValidator
 
-from data_sample import quotes, stocks
+from data_sample import quotes, stocks, trades
 from storey import MapClass
-from storey.flow import _UnaryFunctionFlow
 
+from mlrun.utils import logger
 import mlrun.featurestore as fs
 from mlrun.config import config as mlconf
 from mlrun.featurestore import FeatureSet, Entity
@@ -15,6 +15,23 @@ from mlrun.featurestore.model.validators import MinMaxValidator
 
 def init_store():
     mlconf.dbpath = os.environ["TEST_DBPATH"]
+
+
+def test_basic_featureset():
+    init_store()
+
+    # add feature set without time column (stock ticker metadata)
+    stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
+    df = fs.ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
+
+    logger.info(f"output df:\n{df}")
+    stocks_set["name"].description = "some name"
+
+    logger.info(f'stocks spec: {stocks_set.spec.to_yaml()}')
+    assert stocks_set.spec.features['name'].description == "some name", 'description was not set'
+    assert len(df) == len(stocks), 'datafreame size doesnt match'
+    assert stocks_set.status.stats['exchange'], 'stats not created'
+
 
 
 class MyMap(MapClass):
@@ -28,31 +45,14 @@ class MyMap(MapClass):
         return event
 
 
-class Extend(_UnaryFunctionFlow):
-    async def _do_internal(self, event, fn_result):
-        for key, value in fn_result.items():
-            event.body[key] = value
-        await self._do_downstream(event)
-
-
 def my_filter(event):
     return event["bid"] > 51.96
 
 
-def test_ingestion():
+def test_advanced_featureset():
     init_store()
 
-    # add feature set without time column (stock ticker metadata)
-    stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
-    print(stocks_set.spec.graph.to_yaml())
-    resp = fs.ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
-    print(resp)
-
-    stocks_set["name"].description = "some name"
-    print(stocks_set.to_yaml())
-
     quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
-    # quotes_set.set_targets()
 
     flow = quotes_set.graph
     flow.to("MyMap", mul=3).to("storey.Extend", _fn="({'z': event['bid'] * 77})").to(
@@ -69,14 +69,14 @@ def test_ingestion():
         timestamp_key="time",
         options=fs.InferOptions.default(),
     )
-    print(df)
+    logger.info(f'quotes spec: {quotes_set.spec.to_yaml()}')
+    assert df['zz'].mean() == 9, 'map didnt set the zz column properly'
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
     quotes_set.plot("pipe.png", rankdir="LR", with_targets=True)
-    print(quotes_set.to_yaml())
-
-    print(fs.ingest(quotes_set, quotes, return_df=True))
-    print(quotes_set.to_yaml())
+    df = fs.ingest(quotes_set, quotes, return_df=True)
+    logger.info(f"output df:\n{df}")
+    assert quotes_set.status.stats.get('asks_sum_1h'), 'stats not created'
 
 
 def test_realtime_query():
@@ -89,12 +89,12 @@ def test_realtime_query():
         "stocks#*",
     ]
 
-    # resp = fs.get_offline_features(
-    #     features, entity_rows=trades, entity_timestamp_column="time"
-    # )
-    # print(resp.vector.to_yaml())
-    # print(resp.to_dataframe())
-    # print(resp.to_parquet("./xx.parquet"))
+    resp = fs.get_offline_features(
+        features, entity_rows=trades, entity_timestamp_column="time"
+    )
+    print(resp.vector.to_yaml())
+    print(resp.to_dataframe())
+    print(resp.to_parquet("./xx.parquet"))
 
     vector = fs.FeatureVector("my-vec", features)
     vector.spec.graph.to("storey.Extend", _fn="({'xyw': 88})")
@@ -112,12 +112,14 @@ def test_feature_set_db():
 
     name = "stocks_test"
     stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
-    stocks_set.infer_from_df(stocks)
+    fs.infer_metadata(
+        stocks_set,
+        stocks,
+    )
     print(stocks_set.to_yaml())
     stocks_set.save()
 
     print(fs.list_feature_sets(name))
-    return
 
     fset = fs.get_feature_set(name)
     print(fset)

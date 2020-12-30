@@ -173,7 +173,6 @@ def infer_metadata(
         source = mlrun.store_manager.object(url=source).as_df()
 
     namespace = namespace or get_caller_globals()
-    df = None
     if featureset.spec.require_processing():
         # find/update entities schema
         infer_from_source(
@@ -182,12 +181,12 @@ def infer_metadata(
         controller = init_featureset_graph(
             source, featureset, namespace, with_targets=False, return_df=True
         )
-        df = controller.await_termination()
+        source = controller.await_termination()
 
     infer_from_source(source, featureset, entity_columns, options)
     if label_column:
         featureset.spec.label_column = label_column
-    return df
+    return source
 
 
 def get_online_feature_service(features, name=None, function=None):

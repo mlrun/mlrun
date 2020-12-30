@@ -29,7 +29,7 @@ from .base import (
     store_config,
     CommonMetadata,
 )
-from ..targets import get_offline_target, init_store_driver
+from ..targets import get_offline_target
 from mlrun.model import ModelObj, ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.serving.states import BaseState, RootFlowState
@@ -217,7 +217,6 @@ class FeatureSet(ModelObj):
         for target in targets:
             if not isinstance(target, DataTargetSpec):
                 target = DataTargetSpec(target, name=str(target))
-            init_store_driver(self, target)
             self.spec.targets.update(target)
 
     def add_entity(self, entity, name=None):

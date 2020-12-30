@@ -346,6 +346,14 @@ class HTTPRunDB(RunDBInterface):
         error = "del artifacts"
         self.api_call("DELETE", "artifacts", error, params=params)
 
+    def list_artifact_tags(self, project=None):
+        project = project or default_project
+        error_message = f"Failed listing artifact tags. project={project}"
+        response = self.api_call(
+            "GET", f"/projects/{project}/artifact-tags", error_message
+        )
+        return response.json()
+
     def store_function(self, function, name, project="", tag=None, versioned=False):
         params = {"tag": tag, "versioned": versioned}
         project = project or default_project
@@ -904,7 +912,11 @@ class HTTPRunDB(RunDBInterface):
         name = feature_vector["metadata"]["name"]
         error_message = f"Failed creating feature-vector {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=dict_to_json(feature_vector),
+            "POST",
+            path,
+            error_message,
+            params=params,
+            body=dict_to_json(feature_vector),
         )
         return resp.json()
 
@@ -1064,7 +1076,9 @@ class HTTPRunDB(RunDBInterface):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
-        response = self.api_call("PUT", path, error_message, body=dict_to_json(project),)
+        response = self.api_call(
+            "PUT", path, error_message, body=dict_to_json(project),
+        )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def patch_project(

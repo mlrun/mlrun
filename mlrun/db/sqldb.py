@@ -160,7 +160,7 @@ class SQLDB(RunDBInterface):
             self.db.list_functions, self.session, name, project, tag, labels
         )
 
-    def list_artifact_tags(self, project):
+    def list_artifact_tags(self, project=None):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
         )

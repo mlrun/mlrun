@@ -156,8 +156,9 @@ class RunDBInterface(ABC):
     def get_project(self, name: str) -> schemas.Project:
         pass
 
-    def list_artifact_tags(self, project):
-        return []
+    @abstractmethod
+    def list_artifact_tags(self, project=None):
+        pass
 
     @abstractmethod
     def create_feature_set(

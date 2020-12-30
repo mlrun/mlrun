@@ -16,7 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
-from typing import List
+from typing import List, Union
 
 import yaml
 from dateutil.parser import parse as parse_time
@@ -595,6 +595,17 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def delete_feature_vector(self, name, project=""):
+        raise NotImplementedError()
+
+    def list_pipelines(self,
+                       project: str,
+                       namespace: str = None,
+                       sort_by: str = "",
+                       page_token: str = "",
+                       filter_: str = "",
+                       format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.metadata_only,
+                       page_size: int = None,
+                       ) -> mlrun.api.schemas.PipelinesOutput:
         raise NotImplementedError()
 
 

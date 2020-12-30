@@ -678,6 +678,33 @@ class HTTPRunDB(RunDBInterface):
         logger.info("submitted pipeline {} id={}".format(resp["name"], resp["id"]))
         return resp["id"]
 
+    def list_pipelines(self,
+                       project: str,
+                       namespace: str = None,
+                       sort_by: str = "",
+                       page_token: str = "",
+                       filter_: str = "",
+                       format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.metadata_only,
+                       page_size: int = None,
+                       ) -> mlrun.api.schemas.PipelinesOutput:
+        if project != "*" and (page_token or page_size or sort_by or filter_):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                'Filtering by project can not be used together with pagination, sorting, or custom filter')
+        if isinstance(format_, mlrun.api.schemas.Format):
+            format_ = format_.value
+        params = {
+            "namespace": namespace,
+            "sort_by": sort_by,
+            "page_token": page_token,
+            "filter": filter_,
+            "format": format_,
+            "page_size": page_size,
+        }
+
+        error_message = f"Failed listing pipelines, query: {params}"
+        response = self.api_call("GET", f"projects/{project}/pipelines", error_message, params=params)
+        return mlrun.api.schemas.PipelinesOutput(**response.json())
+
     def get_pipeline(self, run_id: str, namespace: str = None, timeout: int = 10):
 
         try:
@@ -969,12 +996,14 @@ class HTTPRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.full,
         labels: List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: Union[str, mlrun.api.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
         if isinstance(state, mlrun.api.schemas.ProjectState):
             state = state.value
+        if isinstance(format_, mlrun.api.schemas.Format):
+            format_ = format_.value
         params = {
             "owner": owner,
             "state": state,

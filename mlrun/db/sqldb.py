@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Union
 
 import mlrun.api.schemas
 from mlrun.api.db.base import DBError
@@ -392,3 +392,14 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(
             self.db.delete_feature_vector, self.session, project, name,
         )
+
+    def list_pipelines(self,
+                       project: str,
+                       namespace: str = None,
+                       sort_by: str = "",
+                       page_token: str = "",
+                       filter_: str = "",
+                       format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.metadata_only,
+                       page_size: int = None,
+                       ) -> mlrun.api.schemas.PipelinesOutput:
+        raise NotImplementedError()

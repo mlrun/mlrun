@@ -393,13 +393,16 @@ class SQLDB(RunDBInterface):
             self.db.delete_feature_vector, self.session, project, name,
         )
 
-    def list_pipelines(self,
-                       project: str,
-                       namespace: str = None,
-                       sort_by: str = "",
-                       page_token: str = "",
-                       filter_: str = "",
-                       format_: Union[str, mlrun.api.schemas.Format] = mlrun.api.schemas.Format.metadata_only,
-                       page_size: int = None,
-                       ) -> mlrun.api.schemas.PipelinesOutput:
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[
+            str, mlrun.api.schemas.Format
+        ] = mlrun.api.schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> mlrun.api.schemas.PipelinesOutput:
         raise NotImplementedError()

@@ -284,13 +284,14 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_pipelines(self,
-                       project: str,
-                       namespace: str = None,
-                       sort_by: str = "",
-                       page_token: str = "",
-                       filter_: str = "",
-                       format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
-                       page_size: int = None,
-                       ) -> schemas.PipelinesOutput:
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> schemas.PipelinesOutput:
         pass

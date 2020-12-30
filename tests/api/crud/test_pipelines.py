@@ -6,7 +6,7 @@ import mlrun.run
 import mlrun.utils.helpers
 
 
-def test_resolution():
+def test_resolve_pipeline_project():
     cases = [
         {
             "expected_project": "project-from-deploy-p",

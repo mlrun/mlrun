@@ -1,4 +1,5 @@
 import http
+import importlib
 import unittest.mock
 
 import deepdiff
@@ -124,6 +125,9 @@ def test_list_pipelines_specific_project(
     )
     _assert_list_pipelines_response(expected_response, response)
 
+    # revert mock setting (it's global function, without reloading it the mock will persist to following tests)
+    importlib.reload(mlrun.api.crud.pipelines)
+
 
 def _generate_run_mocks():
     return [
@@ -168,9 +172,7 @@ def _mock_list_runs_with_one_run_per_page(kfp_client_mock: kfp.Client, runs):
         expected_page_tokens.append(i)
     expected_page_tokens.append(None)
 
-    def list_runs_mock(
-        *args, page_token=None, page_size=None, sort_by=None, filter=None, **kwargs
-    ):
+    def list_runs_mock(*args, page_token=None, page_size=None, **kwargs):
         assert expected_page_tokens.pop(0) == page_token
         assert mlrun.api.schemas.PipelinesPagination.max_page_size == page_size
         return kfp_server_api.models.api_list_runs_response.ApiListRunsResponse(

@@ -29,6 +29,7 @@ from .feature_store import (
     FeatureVectorsOutput,
 )
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
+from .pipeline import PipelinesPagination, PipelinesOutput
 from .project import (
     Project,
     ProjectMetadata,

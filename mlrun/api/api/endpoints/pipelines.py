@@ -8,11 +8,40 @@ from fastapi import APIRouter, Request, Query
 from fastapi.concurrency import run_in_threadpool
 from kfp import Client as kfclient
 
+import mlrun.api.crud
+import mlrun.api.schemas
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
+from mlrun.k8s_utils import get_k8s_helper
 from mlrun.utils import logger
 
 router = APIRouter()
+
+
+@router.get(
+    "/projects/{project}/pipelines", response_model=mlrun.api.schemas.PipelinesOutput
+)
+def list_pipelines(
+    project: str,
+    namespace: str = None,
+    sort_by: str = "",
+    page_token: str = "",
+    filter_: str = Query("", alias="filter"),
+    format_: mlrun.api.schemas.Format = Query(
+        mlrun.api.schemas.Format.metadata_only, alias="format"
+    ),
+    page_size: int = Query(None, gt=0, le=200),
+):
+    total_size, next_page_token, runs = None, None, None
+    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        total_size, next_page_token, runs = mlrun.api.crud.list_pipelines(
+            project, namespace, sort_by, page_token, filter_, format_, page_size,
+        )
+    return mlrun.api.schemas.PipelinesOutput(
+        runs=runs or [],
+        total_size=total_size or 0,
+        next_page_token=next_page_token or None,
+    )
 
 
 # curl -d@/path/to/pipe.yaml http://localhost:8080/submit_pipeline

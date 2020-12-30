@@ -17,7 +17,6 @@ ARG MLRUN_PYTHON_VERSION=3.7
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
-ENV PIP_USE_DEPRECATED="legacy-resolver"
 
 RUN apt-get update && apt-get install -y \
   gcc \
@@ -26,7 +25,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /mlrun
 
-RUN python -m pip install --upgrade pip~=20.3.0
+RUN python -m pip install --upgrade pip~=20.2.0
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./requirements.txt ./
 RUN python -m pip install \

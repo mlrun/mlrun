@@ -1,9 +1,10 @@
 from http import HTTPStatus
 
+from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from deepdiff import DeepDiff
 
+import mlrun
 from mlrun.api.api.utils import _parse_submit_run_body
 
 
@@ -124,6 +125,85 @@ def test_parse_submit_job_body_keep_resources(db: Session, client: TestClient):
         )
         == {}
     )
+
+
+def test_get_obj_path(db: Session, client: TestClient):
+    cases = [
+        {
+            "path": '/local/path',
+            "expected_path": '/local/path',
+        },
+        {
+            "path": '/local/path',
+            "schema": 'v3io',
+            "expected_path": 'v3io:///local/path',
+        },
+        {
+            "path": '/User/my/path',
+            "expected_path": 'v3io:///users/admin/my/path',
+        },
+        {
+            "path": '/User/my/path',
+            "schema": "v3io",
+            "expected_path": 'v3io:///users/admin/my/path',
+        },
+        {
+            "path": '/User/my/path',
+            "user": "hedi",
+            "expected_path": 'v3io:///users/hedi/my/path',
+        },
+        {
+            "path": '/v3io/projects/my-proj/my/path',
+            "expected_path": 'v3io:///projects/my-proj/my/path',
+        },
+        {
+            "path": '/v3io/projects/my-proj/my/path',
+            "schema": "v3io",
+            "expected_path": 'v3io:///projects/my-proj/my/path',
+        },
+        {
+            "path": '/home/jovyan/data/my/path',
+            "data_volume": '/home/jovyan/data',
+            "expected_path": '/home/jovyan/data/my/path',
+        },
+        {
+            "path": '/home/jovyan/data/my/path',
+            "data_volume": '/home/jovyan/data',
+            "real_path": '/root',
+            "expected_path": '/root/my/path',
+        },
+        {
+            "path": '/home/jovyan/data/my/path',
+            "data_volume": '/home/jovyan/data/',
+            "real_path": '/root',
+            "expected_path": '/root/my/path',
+        },
+        {
+            "path": '/home/jovyan/data/my/path',
+            "data_volume": '/home/jovyan/data/',
+            "real_path": '/root/',
+            "expected_path": '/root/my/path',
+        },
+        {
+            "path": '/home/jovyan/data/my/path',
+            "data_volume": '/home/jovyan/data',
+            "real_path": '/root',
+            "expected_path": '/root/my/path',
+        },
+    ]
+    for case in cases:
+        old_real_path = mlrun.mlconf.httpdb.real_path
+        old_data_volume = mlrun.mlconf.httpdb.data_volume
+        if case.get('real_path'):
+            mlrun.mlconf.httpdb.real_path = case['real_path']
+        if case.get('data_volume'):
+            mlrun.mlconf.httpdb.data_volume = case['data_volume']
+        result_path = mlrun.api.api.utils.get_obj_path(case.get('schema'), case.get('path'), case.get('user'))
+        assert result_path == case['expected_path']
+        if case.get('real_path'):
+            mlrun.mlconf.httpdb.real_path = old_real_path
+        if case.get('data_volume'):
+            mlrun.mlconf.httpdb.data_volume = old_data_volume
 
 
 def _mock_original_function(client):

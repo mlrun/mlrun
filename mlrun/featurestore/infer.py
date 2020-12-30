@@ -20,12 +20,46 @@ from .model import Feature, FeatureSetSpec, Entity
 from .model.datatypes import pd_schema_to_value_type
 
 
+default_num_bins = 20
+
+
+class InferOptions:
+    Null = 0
+    Entities = 1
+    Features = 2
+    Index = 4
+    Stats = 8
+    Histogram = 16
+    Preview = 32
+
+    Schema = 1 + 2 + 4
+    AllStats = 8 + 16 + 32
+
+    @classmethod
+    def all(cls):
+        return cls.Schema + cls.Stats + cls.Histogram + cls.Preview
+
+    @classmethod
+    def default(cls):
+        return cls.all()
+
+
+def infer_from_source(
+    df, featureset, entity_columns=None, options: InferOptions = InferOptions.Null
+):
+    if options & InferOptions.Schema:
+        infer_schema_from_df(df, featureset.spec, entity_columns, options)
+    if options & InferOptions.Stats:
+        featureset.status.stats = get_df_stats(df, options)
+    if options & InferOptions.Preview:
+        featureset.status.preview = get_df_preview(df)
+
+
 def infer_schema_from_df(
     df: pd.DataFrame,
     featureset_spec: FeatureSetSpec,
     entity_columns=None,
-    with_index=True,
-    with_features=True,
+    options: InferOptions = InferOptions.Null,
 ):
     """infer feature set schema from dataframe"""
     timestamp_fields = []
@@ -44,12 +78,14 @@ def infer_schema_from_df(
         if is_entity:
             if column not in current_entities:
                 featureset_spec.entities[column] = Entity(value_type=value_type)
-        elif with_features and column != featureset_spec.timestamp_key:
+        elif (
+            options & InferOptions.Features and column != featureset_spec.timestamp_key
+        ):
             upsert_feature(column, value_type)
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
-    if with_index:
+    if options & InferOptions.Index:
         # infer types of index fields
         if df.index.name:
             if column not in current_entities:
@@ -72,11 +108,11 @@ def _get_column_type(column):
     return pd_schema_to_value_type(field["type"])
 
 
-def get_df_stats(df, with_index=True, with_histogram=False, num_bins=20):
+def get_df_stats(df, options, num_bins=default_num_bins):
     """get per column data stats from dataframe"""
 
     results_dict = {}
-    if with_index:
+    if options & InferOptions.Index:
         df = df.reset_index()
     for col, values in df.describe(
         include="all", percentiles=[], datetime_is_numeric=True
@@ -91,7 +127,7 @@ def get_df_stats(df, with_index=True, with_histogram=False, num_bins=20):
                 else:
                     stats_dict[stat] = str(val)
 
-        if with_histogram and pd.api.types.is_numeric_dtype(df[col]):
+        if options & InferOptions.Histogram and pd.api.types.is_numeric_dtype(df[col]):
             # store histogram
             try:
                 hist, bins = np.histogram(df[col], bins=num_bins)

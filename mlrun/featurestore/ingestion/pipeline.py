@@ -1,8 +1,6 @@
-from storey import (
-    DataframeSource,
-)
+from storey import DataframeSource
 
-from mlrun.featurestore.ingestion.targets import init_featureset_targets, add_target_states
+from mlrun.featurestore.targets import init_featureset_targets, add_target_states
 from mlrun.datastore.data_resources import ResourceCache
 from mlrun.serving.server import create_graph_server
 
@@ -59,4 +57,3 @@ def featureset_initializer(server):
     # get source object from spec.source
 
     # set source
-

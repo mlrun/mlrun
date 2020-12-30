@@ -45,7 +45,7 @@ def test_ingestion():
     # add feature set without time column (stock ticker metadata)
     stocks_set = fs.FeatureSet("stocks", entities=[Entity("ticker", ValueType.STRING)])
     print(stocks_set.spec.graph.to_yaml())
-    resp = fs.ingest(stocks_set, stocks, infer_schema=True, with_stats=True)
+    resp = fs.ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
     print(resp)
 
     stocks_set["name"].description = "some name"
@@ -62,13 +62,12 @@ def test_ingestion():
     quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
     quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
 
-    df = fs.infer_from_df(
+    df = fs.infer_metadata(
         quotes_set,
         quotes,
         entity_columns=["ticker"],
-        with_stats=True,
         timestamp_key="time",
-        with_histogram=True,
+        options=fs.InferOptions.default(),
     )
     print(df)
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
@@ -84,10 +83,10 @@ def test_realtime_query():
     init_store()
 
     features = [
-        "stock-quotes:bid",
-        "stock-quotes:asks_sum_5h",
-        "stock-quotes:ask@mycol",
-        "stocks:*",
+        "stock-quotes#bid",
+        "stock-quotes#asks_sum_5h",
+        "stock-quotes#ask as mycol",
+        "stocks#*",
     ]
 
     # resp = fs.get_offline_features(

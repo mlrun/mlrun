@@ -14,4 +14,5 @@
 
 from .featureset import FeatureSet, FeatureSetSpec
 from .vector import FeatureVector, OnlineVectorService, OfflineVectorResponse
-from .base import Feature, Entity, DataTarget
+from .base import Feature, Entity, DataTarget, store_config
+from .datatypes import ValueType

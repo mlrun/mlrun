@@ -2,7 +2,13 @@ from mlrun.run import get_dataitem
 from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf
 
-from ..model.base import DataTargetSpec, TargetTypes, DataTarget, store_config, ResourceKinds
+from mlrun.featurestore.model.base import (
+    DataTargetSpec,
+    TargetTypes,
+    DataTarget,
+    store_config,
+    ResourceKinds,
+)
 from mlrun.datastore.v3io import v3io_path
 
 

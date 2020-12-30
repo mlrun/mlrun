@@ -13,7 +13,13 @@
 # limitations under the License.
 from typing import List, Union
 import mlrun
-from .infer import get_df_stats, get_df_preview, infer_schema_from_df
+from .infer import (
+    get_df_stats,
+    get_df_preview,
+    infer_schema_from_df,
+    InferOptions,
+    infer_from_source,
+)
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
 from .ingestion import init_featureset_graph
 from .model import FeatureVector, FeatureSet, OnlineVectorService
@@ -117,10 +123,7 @@ def ingest(
     targets=None,
     namespace=None,
     return_df=True,
-    infer_schema=False,
-    with_stats=False,
-    with_histogram=False,
-    with_preview=False,
+    infer_options: InferOptions = InferOptions.Null,
 ):
     """Read local DataFrame, file, or URL into the feature store"""
     namespace = namespace or get_caller_globals()
@@ -131,56 +134,57 @@ def ingest(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
-    if infer_schema:
-        infer_from_df(featureset, source, namespace=namespace)
-    return_df = return_df or with_stats or with_preview
+    if infer_options & InferOptions.Schema:
+        infer_metadata(
+            featureset,
+            source,
+            options=infer_options & InferOptions.Schema,
+            namespace=namespace,
+        )
+    infer_stats = infer_options & InferOptions.AllStats
+    return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
     controller = init_featureset_graph(
         source, featureset, namespace, with_targets=True, return_df=return_df
     )
     df = controller.await_termination()
-    if with_stats:
-        featureset.status.stats = get_df_stats(df, with_histogram)
-    if with_preview:
-        featureset.status.preview = get_df_preview(df)
+    infer_from_source(df, featureset, options=infer_stats)
     featureset.save()
     return df
 
 
-def infer_from_df(
+def infer_metadata(
     featureset,
-    df,
-    with_stats=False,
+    source,
     entity_columns=None,
     timestamp_key=None,
     label_column=None,
-    with_index=True,
-    with_histogram=False,
-    with_preview=False,
     namespace=None,
+    options: InferOptions = InferOptions.Null,
 ):
     """Infer features schema and stats from a local DataFrame"""
+    options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
         featureset.spec.timestamp_key = timestamp_key
 
+    if isinstance(source, str):
+        # if source is a path/url convert to DataFrame
+        source = mlrun.store_manager.object(url=source).as_df()
+
     namespace = namespace or get_caller_globals()
+    df = None
     if featureset.spec.require_processing():
         # find/update entities schema
-        infer_schema_from_df(
-            df, featureset.spec, entity_columns, with_index, with_features=False
+        infer_from_source(
+            source, featureset, entity_columns, options & InferOptions.Schema
         )
         controller = init_featureset_graph(
-            df, featureset, namespace, with_targets=False, return_df=True
+            source, featureset, namespace, with_targets=False, return_df=True
         )
         df = controller.await_termination()
-        # df = ingest_from_df(context, self, df, namespace=namespace).await_termination()
 
-    infer_schema_from_df(df, featureset.spec, entity_columns, with_index)
-    if with_stats:
-        featureset.status.stats = get_df_stats(df, with_histogram=with_histogram)
-    if with_preview:
-        featureset.status.preview = get_df_preview(df)
+    infer_from_source(source, featureset, entity_columns, options)
     if label_column:
         featureset.spec.label_column = label_column
     return df
@@ -190,7 +194,6 @@ def get_online_feature_service(features, name=None, function=None):
     vector = _features_to_vector(features, name)
     controller = init_feature_vector_graph(vector)
     service = OnlineVectorService(vector, controller)
-    service.start()
     return service
 
 

@@ -13,4 +13,4 @@
 # limitations under the License.
 
 from .local_merger import LocalFeatureMerger
-from .online_pipeline import init_feature_vector_graph
+from .online import init_feature_vector_graph

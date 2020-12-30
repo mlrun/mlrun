@@ -26,9 +26,10 @@ from .base import (
     ResourceKinds,
     FeatureStoreError,
     DataTargetSpec,
-    store_config, CommonMetadata,
+    store_config,
+    CommonMetadata,
 )
-from ..ingestion.targets import get_offline_target, init_store_driver
+from ..targets import get_offline_target, init_store_driver
 from mlrun.model import ModelObj, ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.serving.states import BaseState, RootFlowState
@@ -286,7 +287,8 @@ class FeatureSet(ModelObj):
         targets = None
         if with_targets:
             targets = [
-                BaseState(target.kind, after=target.after_state, shape="cylinder") for target in self.spec.targets
+                BaseState(target.kind, after=target.after_state, shape="cylinder")
+                for target in self.spec.targets
             ]
         return graph.plot(filename, format, targets=targets, **kw)
 

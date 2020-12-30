@@ -350,7 +350,9 @@ class HTTPRunDB(RunDBInterface):
     def list_artifact_tags(self, project=None):
         project = project or default_project
         error_message = f"Failed listing artifact tags. project={project}"
-        response = self.api_call("GET", f"/projects/{project}/artifact-tags", error_message)
+        response = self.api_call(
+            "GET", f"/projects/{project}/artifact-tags", error_message
+        )
         return response.json()
 
     def store_function(self, function, name, project="", tag=None, versioned=False):

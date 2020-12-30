@@ -33,16 +33,27 @@ def log_path(project, uid) -> Path:
 
 
 def get_obj_path(schema, path, user=""):
-    if schema:
-        return schema + "://" + path
-    elif path.startswith("/User/"):
+    if path.startswith("/User/"):
         user = user or environ.get("V3IO_USERNAME", "admin")
-        return "v3io:///users/" + user + path[5:]
+        path = "v3io:///users/" + user + path[5:]
+        schema = schema or "v3io"
+    elif path.startswith("/v3io"):
+        path = "v3io://" + path[len("/v3io"):]
+        schema = schema or "v3io"
     elif config.httpdb.data_volume and path.startswith(config.httpdb.data_volume):
+        data_volume_prefix = config.httpdb.data_volume
+        if data_volume_prefix.endswith("/"):
+            data_volume_prefix = data_volume_prefix[:-1]
         if config.httpdb.real_path:
-            path = config.httpdb.real_path + path[len(config.httpdb.data_volume) - 1 :]
-        return path
-    return None
+            path_from_volume = path[len(data_volume_prefix):]
+            if path_from_volume.startswith("/"):
+                path_from_volume = path_from_volume[1:]
+            path = str(Path(config.httpdb.real_path) / Path(path_from_volume))
+    if schema:
+        schema_prefix = schema + "://"
+        if not path.startswith(schema_prefix):
+            return schema + "://" + path
+    return path
 
 
 def get_secrets(_request: Request):

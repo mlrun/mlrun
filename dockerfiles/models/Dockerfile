@@ -1,6 +1,7 @@
 FROM continuumio/anaconda3:2020.02
 
 ENV PIP_NO_CACHE_DIR=1
+ENV PIP_USE_DEPRECATED="legacy-resolver"
 
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
@@ -26,7 +27,7 @@ RUN apt update -qqq \
     && apt autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip==20.3
 
 ENV SSL_CERT_DIR /etc/ssl/certs
 

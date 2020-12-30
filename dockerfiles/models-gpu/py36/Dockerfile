@@ -3,6 +3,7 @@ ARG CUDA_VER=10.1
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
 ENV PIP_NO_CACHE_DIR=1
+ENV PIP_USE_DEPRECATED="legacy-resolver"
 
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
@@ -120,7 +121,7 @@ RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
 RUN conda clean -aqy
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip==20.3
 
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)

@@ -16,6 +16,7 @@ ARG MLRUN_PYTHON_VERSION=3.7
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
+ENV PIP_USE_DEPRECATED="legacy-resolver"
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
@@ -37,7 +38,7 @@ RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debia
 
 RUN apt update && apt-get install -y docker-ce-cli
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip==20.3
 
 WORKDIR /mlrun
 

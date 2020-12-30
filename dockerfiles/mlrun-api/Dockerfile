@@ -16,6 +16,7 @@ ARG MLRUN_PYTHON_VERSION=3.7
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
+ENV PIP_USE_DEPRECATED="legacy-resolver"
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
@@ -28,7 +29,7 @@ RUN apt-get update && apt-get install -y \
   vim \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip==20.3
 
 WORKDIR /mlrun
 

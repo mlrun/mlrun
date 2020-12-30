@@ -16,13 +16,14 @@ ARG MLRUN_PYTHON_VERSION=3.7
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
+ENV PIP_USE_DEPRECATED="legacy-resolver"
 
 RUN apt-get update && apt-get install -y \
   gcc \
   git-core \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip==20.3
 
 COPY ./dockerfiles/test-system/requirements.txt /tmp
 RUN python -m pip install -r /tmp/requirements.txt && rm -f /tmp/requirements.txt

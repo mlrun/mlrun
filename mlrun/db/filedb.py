@@ -462,6 +462,9 @@ class FileRunDB(RunDBInterface):
         else:
             raise RunDBError(f"run file is not found or valid ({filepath})")
 
+    def list_artifact_tags(self, project=None):
+        raise NotImplementedError()
+
 
 def make_time_pred(since, until):
     if not (since or until):

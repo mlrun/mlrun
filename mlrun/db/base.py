@@ -121,5 +121,6 @@ class RunDBInterface(ABC):
     def list_projects(self):
         return []
 
-    def list_artifact_tags(self, project):
-        return []
+    @abstractmethod
+    def list_artifact_tags(self, project=None):
+        pass

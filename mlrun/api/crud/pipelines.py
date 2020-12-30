@@ -80,6 +80,7 @@ def _format_runs(runs: typing.List[dict], format_: mlrun.api.schemas.Format = ml
         formatted_runs = []
         for run in runs:
             formatted_runs.append(run.get('name'))
+        return formatted_runs
     else:
         raise NotImplementedError(
             f"Provided format is not supported. format={format_}"

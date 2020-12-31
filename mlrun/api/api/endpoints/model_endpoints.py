@@ -217,7 +217,7 @@ def get_endpoint(
             "error_count",
             "alert_count",
             "drift_status",
-            "features"
+            "features",
         ],
     )
 

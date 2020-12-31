@@ -8,9 +8,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
-from v3io.dataplane import RaiseForStatus
 
 from mlrun.api import schemas
 from mlrun.api.api.endpoints.model_endpoints import (
@@ -201,7 +201,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
                 container=config.model_endpoint_monitoring_container,
                 table_path=ENDPOINTS,
                 key=record,
-                raise_for_status=RaiseForStatus.never
+                raise_for_status=RaiseForStatus.never,
             )
     except RuntimeError:
         pass
@@ -278,7 +278,7 @@ def create_random_endpoint(state: str = "") -> schemas.Endpoint:
         metadata=schemas.ObjectMetadata(
             name="",
             project="test",
-            tag=f"v{randint(0,100)}",
+            tag=f"v{randint(0, 100)}",
             labels={
                 f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
             },
@@ -286,8 +286,8 @@ def create_random_endpoint(state: str = "") -> schemas.Endpoint:
             uid=None,
         ),
         spec=schemas.EndpointSpec(
-            model=f"model_{randint(0,100)}",
-            function=f"function_{randint(0,100)}",
+            model=f"model_{randint(0, 100)}",
+            function=f"function_{randint(0, 100)}",
             model_class="classifier",
         ),
         status=schemas.ObjectStatus(state=state),

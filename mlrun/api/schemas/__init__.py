@@ -28,6 +28,17 @@ from .feature_store import (
     FeatureVectorRecord,
     FeatureVectorsOutput,
 )
+from .model_endpoints import (
+    EndpointSpec,
+    Endpoint,
+    EndpointStateList,
+    EndpointState,
+    Features,
+    FeatureList,
+    Histogram,
+    Metric,
+    MetricList,
+)
 from .object import ObjectMetadata, ObjectSpec, ObjectStatus, ObjectKind
 from .project import (
     Project,
@@ -45,15 +56,4 @@ from .schedule import (
     ScheduleUpdate,
     ScheduleInput,
     ScheduleRecord,
-)
-from .model_endpoints import (
-    EndpointSpec,
-    Endpoint,
-    EndpointStateList,
-    EndpointState,
-    Features,
-    FeatureList,
-    Histogram,
-    Metric,
-    MetricList,
 )

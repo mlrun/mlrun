@@ -22,6 +22,7 @@ from mlrun.artifacts.dataset import upload_dataframe
 from mlrun.config import config as mlconf
 from mlrun.serving.states import RootFlowState
 from ..targets import get_offline_target
+from ...utils import get_store_uri, StorePrefix
 
 
 class FeatureVectorError(Exception):
@@ -41,6 +42,7 @@ class FeatureVectorSpec(ModelObj):
         timestamp_field=None,
         graph=None,
         label_column=None,
+        analysis=None,
     ):
         self._graph: RootFlowState = None
         self._entity_fields: ObjectList = None
@@ -53,6 +55,7 @@ class FeatureVectorSpec(ModelObj):
         self.graph = graph
         self.timestamp_field = timestamp_field
         self.label_column = label_column
+        self.analysis = analysis or {}
 
     @property
     def entity_source(self) -> DataSource:
@@ -160,6 +163,18 @@ class FeatureVector(ModelObj):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
+
+    def uri(self):
+        """fully qualified feature vector uri"""
+        uri = f'{self._metadata.project or ""}/{self._metadata.name}'
+        uri = get_store_uri(StorePrefix.FeatureVector, uri)
+        if self._metadata.tag:
+            uri += ":" + self._metadata.tag
+        return uri
+
+    def link_analysis(self, name, uri):
+        """add a linked file/artifact (chart, data, ..)"""
+        self._spec.analysis[name] = uri
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""

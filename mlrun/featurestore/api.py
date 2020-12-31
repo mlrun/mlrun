@@ -117,6 +117,13 @@ def get_offline_features(
     return merger.start(entity_rows, entity_timestamp_column, store_target)
 
 
+def get_online_feature_service(features, name=None, function=None):
+    vector = _features_to_vector(features, name)
+    controller = init_feature_vector_graph(vector)
+    service = OnlineVectorService(vector, controller)
+    return service
+
+
 def ingest(
     featureset: Union[FeatureSet, str],
     source,
@@ -187,13 +194,6 @@ def infer_metadata(
     if label_column:
         featureset.spec.label_column = label_column
     return source
-
-
-def get_online_feature_service(features, name=None, function=None):
-    vector = _features_to_vector(features, name)
-    controller = init_feature_vector_graph(vector)
-    service = OnlineVectorService(vector, controller)
-    return service
 
 
 def run_ingestion_job(

@@ -27,11 +27,12 @@ def test_basic_featureset():
     logger.info(f"output df:\n{df}")
     stocks_set["name"].description = "some name"
 
-    logger.info(f'stocks spec: {stocks_set.spec.to_yaml()}')
-    assert stocks_set.spec.features['name'].description == "some name", 'description was not set'
-    assert len(df) == len(stocks), 'datafreame size doesnt match'
-    assert stocks_set.status.stats['exchange'], 'stats not created'
-
+    logger.info(f"stocks spec: {stocks_set.to_yaml()}")
+    assert (
+        stocks_set.spec.features["name"].description == "some name"
+    ), "description was not set"
+    assert len(df) == len(stocks), "datafreame size doesnt match"
+    assert stocks_set.status.stats["exchange"], "stats not created"
 
 
 class MyMap(MapClass):
@@ -69,14 +70,14 @@ def test_advanced_featureset():
         timestamp_key="time",
         options=fs.InferOptions.default(),
     )
-    logger.info(f'quotes spec: {quotes_set.spec.to_yaml()}')
-    assert df['zz'].mean() == 9, 'map didnt set the zz column properly'
+    logger.info(f"quotes spec: {quotes_set.spec.to_yaml()}")
+    assert df["zz"].mean() == 9, "map didnt set the zz column properly"
     quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
     quotes_set.plot("pipe.png", rankdir="LR", with_targets=True)
     df = fs.ingest(quotes_set, quotes, return_df=True)
     logger.info(f"output df:\n{df}")
-    assert quotes_set.status.stats.get('asks_sum_1h'), 'stats not created'
+    assert quotes_set.status.stats.get("asks_sum_1h"), "stats not created"
 
 
 def test_realtime_query():
@@ -113,8 +114,7 @@ def test_feature_set_db():
     name = "stocks_test"
     stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
     fs.infer_metadata(
-        stocks_set,
-        stocks,
+        stocks_set, stocks,
     )
     print(stocks_set.to_yaml())
     stocks_set.save()

@@ -2,6 +2,8 @@ from mlrun.model import ModelObj
 
 
 class Validator(ModelObj):
+    """base validator"""
+
     kind = ""
     _dict_fields = ["kind", "check_type", "severity"]
 
@@ -18,6 +20,8 @@ class Validator(ModelObj):
 
 
 class MinMaxValidator(Validator):
+    """validate min/max value ranges"""
+
     kind = "minmax"
     _dict_fields = ["kind", "check_type", "severity", "min", "max"]
 

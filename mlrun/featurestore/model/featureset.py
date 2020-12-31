@@ -54,6 +54,7 @@ class FeatureSetSpec(ModelObj):
         targets=None,
         graph=None,
         function=None,
+        analysis=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -74,9 +75,11 @@ class FeatureSetSpec(ModelObj):
         self.graph = graph
         self.label_column = label_column
         self.function = function
+        self.analysis = analysis or {}
 
     @property
     def entities(self) -> List[Entity]:
+        """feature set entities (indexes)"""
         return self._entities
 
     @entities.setter
@@ -85,6 +88,7 @@ class FeatureSetSpec(ModelObj):
 
     @property
     def features(self) -> List[Feature]:
+        """feature set features list"""
         return self._features
 
     @features.setter
@@ -93,6 +97,7 @@ class FeatureSetSpec(ModelObj):
 
     @property
     def targets(self) -> List[DataTargetSpec]:
+        """list of desired targets (material storage)"""
         return self._targets
 
     @targets.setter
@@ -101,6 +106,7 @@ class FeatureSetSpec(ModelObj):
 
     @property
     def graph(self) -> RootFlowState:
+        """feature set transformation graph/DAG"""
         return self._graph
 
     @graph.setter
@@ -110,6 +116,7 @@ class FeatureSetSpec(ModelObj):
 
     @property
     def function(self) -> FunctionReference:
+        """reference to template graph processing function"""
         return self._spec
 
     @function.setter
@@ -118,6 +125,7 @@ class FeatureSetSpec(ModelObj):
 
     @property
     def source(self) -> DataSource:
+        """feature set data source definitions"""
         return self._source
 
     @source.setter
@@ -148,6 +156,7 @@ class FeatureSetStatus(ModelObj):
 
     @property
     def targets(self) -> List[DataTarget]:
+        """list of material storage targets + their status/path"""
         return self._targets
 
     @targets.setter
@@ -202,6 +211,7 @@ class FeatureSet(ModelObj):
         self._status = self._verify_dict(status, "status", FeatureSetStatus)
 
     def uri(self):
+        """fully qualified feature set uri"""
         uri = f'{self._metadata.project or ""}/{self._metadata.name}'
         uri = get_store_uri(StorePrefix.FeatureSet, uri)
         if self._metadata.tag:
@@ -209,6 +219,7 @@ class FeatureSet(ModelObj):
         return uri
 
     def set_targets(self, targets=None):
+        """set the desired target list"""
         if targets is not None and not isinstance(targets, list):
             raise ValueError(
                 "targets can only be None or a list of kinds/DataTargetSpec"
@@ -220,13 +231,20 @@ class FeatureSet(ModelObj):
             self.spec.targets.update(target)
 
     def add_entity(self, entity, name=None):
+        """add/set an entity"""
         self._spec.entities.update(entity, name)
 
     def add_feature(self, feature, name=None):
+        """add/set a feature"""
         self._spec.features.update(feature, name)
+
+    def link_analysis(self, name, uri):
+        """add a linked file/artifact (chart, data, ..)"""
+        self._spec.analysis[name] = uri
 
     @property
     def graph(self):
+        """feature set transformation graph/DAG"""
         return self.spec.graph
 
     def add_aggregation(
@@ -240,6 +258,20 @@ class FeatureSet(ModelObj):
         after=None,
         before=None,
     ):
+        """add feature aggregation rule
+
+        example:
+                myset.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
+
+        :param name:       - aggregation name/prefix
+        :param column:     - name of column/field aggregate
+        :param operations: - aggregation operations, e.g. ['sum', 'std']
+        :param windows:    - list of time windows, e.g. ['1h', '6h', '1d']
+        :param period:     - optional, sliding window granularity, e.g. '10m'
+        :param state_name: - optional, graph state name
+        :param after:      - optional, after which graph state it runs
+        :param before:     - optional, comes before graph state
+        """
         aggregation = FeatureAggregation(
             name, column, operations, windows, period
         ).to_dict()
@@ -272,6 +304,7 @@ class FeatureSet(ModelObj):
                 upsert_feature(f"{name}_{operation}_{window}")
 
     def get_stats_table(self):
+        """get feature statistics table (as dataframe)"""
         if self.status.stats:
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
 
@@ -282,6 +315,7 @@ class FeatureSet(ModelObj):
         self._spec.features.update(item, key)
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
+        """generate graphviz plot"""
         graph = self.spec.graph
         targets = None
         if with_targets:
@@ -292,6 +326,7 @@ class FeatureSet(ModelObj):
         return graph.plot(filename, format, targets=targets, **kw)
 
     def to_dataframe(self, columns=None, df_module=None, target_name=None):
+        """return featureset (offline) data as dataframe"""
         if columns:
             if self.spec.timestamp_key:
                 columns = [self.spec.timestamp_key] + columns
@@ -302,6 +337,7 @@ class FeatureSet(ModelObj):
         return driver.as_df(columns=columns, df_module=df_module)
 
     def save(self, tag="", versioned=False):
+        """save to mlrun db"""
         db = mlrun.get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag

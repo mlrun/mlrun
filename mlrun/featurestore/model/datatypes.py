@@ -16,9 +16,7 @@
 
 
 class ValueType:
-    """
-    Feature value type. Used to define data types in Feature Tables.
-    """
+    """Feature value type. Used to define data types in Feature Tables."""
 
     UNKNOWN = ""
     BYTES = "bytes"
@@ -29,13 +27,13 @@ class ValueType:
     FLOAT = "float32"
     BOOL = "bool"
     DATETIME = "datetime"
-    BYTES_LIST = ""
-    STRING_LIST = ""
-    INT32_LIST = ""
-    INT64_LIST = ""
-    DOUBLE_LIST = ""
-    FLOAT_LIST = ""
-    BOOL_LIST = ""
+    BYTES_LIST = "List[bytes]"
+    STRING_LIST = "List[string]"
+    INT32_LIST = "List[int32]"
+    INT64_LIST = "List[int]"
+    DOUBLE_LIST = "List[float]"
+    FLOAT_LIST = "List[float32]"
+    BOOL_LIST = "List[bool]"
 
 
 def pd_schema_to_value_type(value):

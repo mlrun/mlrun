@@ -42,7 +42,7 @@ class ResourceKinds:
 default_config = {
     "data_prefixes": {
         "default": "./store/{project}/{kind}",
-        "parquet": "./store/{project}/{kind}",
+        "parquet": "v3io:///projects/{project}/fs/{kind}",
         "nosql": "v3io:///projects/{project}/fs/{kind}",
     },
     "default_targets": [TargetTypes.parquet, TargetTypes.nosql],

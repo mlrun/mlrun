@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import List
-
 import mlrun
 import pandas as pd
 
-from mlrun.model import ModelObj, ObjectList
 
-from .base import DataSource, Feature, DataTarget, CommonMetadata
+from .base import DataSource, Feature, DataTarget, CommonMetadata, FeatureStoreError
+from mlrun.model import ModelObj, ObjectList
 from mlrun.artifacts.dataset import upload_dataframe
 from mlrun.config import config as mlconf
 from mlrun.serving.states import RootFlowState
+from ..targets import get_offline_target
 
 
 class FeatureVectorError(Exception):
@@ -56,6 +56,7 @@ class FeatureVectorSpec(ModelObj):
 
     @property
     def entity_source(self) -> DataSource:
+        """data source used as entity source (events/keys need to be enriched)"""
         return self._entity_source
 
     @entity_source.setter
@@ -64,6 +65,7 @@ class FeatureVectorSpec(ModelObj):
 
     @property
     def entity_fields(self) -> List[Feature]:
+        """the schema/metadata for the entity source fields"""
         return self._entity_fields
 
     @entity_fields.setter
@@ -72,6 +74,7 @@ class FeatureVectorSpec(ModelObj):
 
     @property
     def graph(self) -> RootFlowState:
+        """feature vector transformation graph/DAG"""
         return self._graph
 
     @graph.setter
@@ -95,6 +98,7 @@ class FeatureVectorStatus(ModelObj):
 
     @property
     def targets(self) -> List[DataTarget]:
+        """list of material storage targets + their status/path"""
         return self._targets
 
     @targets.setter
@@ -106,6 +110,7 @@ class FeatureVectorStatus(ModelObj):
 
     @property
     def features(self) -> List[Feature]:
+        """list of features (result of joining features from the source feature sets)"""
         return self._features
 
     @features.setter
@@ -157,10 +162,21 @@ class FeatureVector(ModelObj):
         self._status = self._verify_dict(status, "status", FeatureVectorStatus)
 
     def get_stats_table(self):
+        """get feature statistics table (as dataframe)"""
         if self.status.stats:
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
 
+    def to_dataframe(self, df_module=None, target_name=None):
+        """return feature vector (offline) data as dataframe"""
+        target, driver = get_offline_target(self, name=target_name)
+        if not target:
+            raise FeatureStoreError(
+                "there are no offline targets for this feature vector"
+            )
+        return driver.as_df(df_module=df_module)
+
     def save(self, tag="", versioned=False):
+        """save to mlrun db"""
         db = mlrun.get_run_db()
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag
@@ -169,15 +185,19 @@ class FeatureVector(ModelObj):
 
 
 class OnlineVectorService:
+    """get_online_feature_service response object"""
+
     def __init__(self, vector, controller):
         self.vector = vector
         self._controller = controller
 
     @property
     def status(self):
+        """vector prep function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: list):
+    def get(self, entity_rows: List[dict]):
+        """get feature vector given the provided entity inputs"""
         results = []
         futures = []
         for row in entity_rows:
@@ -189,27 +209,34 @@ class OnlineVectorService:
         return results
 
     def close(self):
+        """terminate the async loop"""
         self._controller.terminate()
 
 
 class OfflineVectorResponse:
+    """get_offline_features response object"""
+
     def __init__(self, merger):
         self._merger = merger
         self.vector = merger.vector
 
     @property
     def status(self):
+        """vector prep job status (ready, running, error)"""
         return self._merger.get_status()
 
     def to_dataframe(self):
+        """return result as dataframe"""
         if self.status != "ready":
             raise FeatureVectorError("feature vector dataset is not ready")
         return self._merger.get_df()
 
     def to_parquet(self, target_path, **kw):
+        """return results as parquet file"""
         return self._upload(target_path, "parquet", **kw)
 
     def to_csv(self, target_path, **kw):
+        """return results as csv file"""
         return self._upload(target_path, "csv", **kw)
 
     def _upload(self, target_path, format="parquet", src_path=None, **kw):

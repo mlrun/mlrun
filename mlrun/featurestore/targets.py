@@ -1,8 +1,7 @@
 from mlrun.run import get_dataitem
-from storey import Table, V3ioDriver
 from mlrun.config import config as mlconf
 
-from mlrun.featurestore.model.base import (
+from .model.base import (
     DataTargetSpec,
     TargetTypes,
     DataTarget,
@@ -13,6 +12,7 @@ from mlrun.datastore.v3io import v3io_path
 
 
 def init_store_driver(resource, target):
+    """initialize the store driver and update the target"""
     driver = kind_to_driver[target.kind](resource, target)
     table = driver.get_table_object()
     driver.update_resource_status(resource)
@@ -21,6 +21,7 @@ def init_store_driver(resource, target):
 
 
 def init_featureset_targets(featureset):
+    """initialize the feature set targets list"""
     targets = featureset.spec.targets
     table = None
 
@@ -35,6 +36,7 @@ def init_featureset_targets(featureset):
 
 
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
+    """add the target states to the graph"""
     targets = targets or []
     key_column = resource.spec.entities[0].name
     timestamp_key = resource.spec.timestamp_key
@@ -60,7 +62,9 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
 
 
 def update_target_status(featureset, status, producer):
-    pass
+    for target in featureset.spec.targets:
+        target.status = status
+        target.producer = producer
 
 
 offline_lookup_order = [TargetTypes.parquet]
@@ -68,7 +72,7 @@ online_lookup_order = [TargetTypes.nosql]
 
 
 def get_offline_target(featureset, start_time=None, name=None):
-    # todo take status, start_time and lookup order into account
+    # todo: take status, start_time and lookup order into account
     for target in featureset.status.targets:
         driver = kind_to_driver[target.kind]
         if driver.is_offline and (not name or name == target.name):
@@ -179,6 +183,8 @@ class NoSqlStore(BaseStoreDriver):
         self.target = None
 
     def get_table_object(self):
+        from storey import Table, V3ioDriver
+
         # TODO use options/cred
         endpoint, uri = v3io_path(self.target_path)
         return Table(uri, V3ioDriver(webapi=endpoint))

@@ -51,7 +51,9 @@ from .model_endpoints import (
     Endpoint,
     EndpointStateList,
     EndpointState,
-    FeatureDetails,
+    Features,
+    FeatureList,
+    Histogram,
     Metric,
     MetricList,
 )

@@ -9,6 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from v3io_frames import frames_pb2 as fpb2
+from v3io_frames.errors import CreateError
+from v3io.dataplane import RaiseForStatus
 
 from mlrun.api import schemas
 from mlrun.api.api.endpoints.model_endpoints import (
@@ -97,7 +99,7 @@ def test_delete_endpoint(db: Session, client: TestClient):
     reason="Either V3IO_ACCESS_KEY or V3IO_API environment params not found",
 )
 def test_list_endpoints(db: Session, client: TestClient):
-    endpoints_in = [create_random_endpoint("created") for _ in range(5)]
+    endpoints_in = [create_random_endpoint("active") for _ in range(5)]
 
     for endpoint in endpoints_in:
         response = client.post(
@@ -184,26 +186,35 @@ def test_list_endpoints_filter(db: Session, client: TestClient):
 def cleanup_endpoints(db: Session, client: TestClient):
     v3io = get_v3io_client()
     frames = get_frames_client(container="projects")
-
-    all_records = v3io.kv.new_cursor(
-        container=config.model_endpoint_monitoring_container, table_path=ENDPOINTS
-    ).all()
-    all_records = [r["__name"] for r in all_records]
-
-    # Cleanup KV
-    for record in all_records:
-        get_v3io_client().kv.delete(
+    try:
+        all_records = v3io.kv.new_cursor(
             container=config.model_endpoint_monitoring_container,
             table_path=ENDPOINTS,
-            key=record,
-        )
+            raise_for_status=RaiseForStatus.never,
+        ).all()
 
-    # Cleanup TSDB
-    frames.delete(
-        backend="tsdb",
-        table=ENDPOINT_EVENTS,
-        if_missing=fpb2.IGNORE,
-    )
+        all_records = [r["__name"] for r in all_records]
+
+        # Cleanup KV
+        for record in all_records:
+            get_v3io_client().kv.delete(
+                container=config.model_endpoint_monitoring_container,
+                table_path=ENDPOINTS,
+                key=record,
+                raise_for_status=RaiseForStatus.never
+            )
+    except RuntimeError:
+        pass
+
+    try:
+        # Cleanup TSDB
+        frames.delete(
+            backend="tsdb",
+            table=ENDPOINT_EVENTS,
+            if_missing=fpb2.IGNORE,
+        )
+    except CreateError:
+        pass
 
 
 @pytest.mark.skipif(

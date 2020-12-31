@@ -194,8 +194,10 @@ def list_endpoints(
 def get_endpoint(
     project: str,
     endpoint_id: str,
-    start: str = Query("now-1h"),
-    end: str = Query("now"),
+    start: str = Query(default="now-1h"),
+    end: str = Query(default="now"),
+    metrics: bool = Query(default=False),
+    features: bool = Query(default=False),
 ):
     """
     Return the current state of an endpoint, meaning all additional data the is relevant to a specified endpoint.
@@ -215,6 +217,7 @@ def get_endpoint(
             "error_count",
             "alert_count",
             "drift_status",
+            "features"
         ],
     )
 
@@ -222,13 +225,20 @@ def get_endpoint(
         url = f"/projects/{project}/model-endpoints/{endpoint_id}"
         raise MLRunNotFoundError(f"Endpoint {endpoint_id} not found - {url}")
 
-    metrics = get_endpoint_metrics(
-        project=project,
-        endpoint_id=endpoint_id,
-        start=start,
-        end=end,
-        name=["predictions", "latency"],
-    ).metrics
+    endpoint_metrics = None
+    if metrics:
+        endpoint_metrics = _get_endpoint_metrics(
+            endpoint_id=endpoint_id,
+            start=start,
+            end=end,
+            name=["predictions", "latency"],
+        )
+
+    endpoint_features = None
+    if features:
+        endpoint_features = _get_endpoint_features(
+            project=project, endpoint_id=endpoint_id, features=endpoint.get("features")
+        )
 
     return schemas.EndpointState(
         endpoint=schemas.Endpoint(
@@ -252,8 +262,8 @@ def get_endpoint(
         error_count=endpoint.get("error_count"),
         alert_count=endpoint.get("alert_count"),
         drift_status=endpoint.get("drift_status"),
-        metrics=metrics,
-        feature_details=None,
+        metrics=endpoint_metrics,
+        features=endpoint_features,
     )
 
 
@@ -264,13 +274,24 @@ def get_endpoint(
 def get_endpoint_metrics(
     project: str,
     endpoint_id: str,
+    name: List[str] = Query([]),
     start: str = Query("now-1h"),
     end: str = Query("now"),
-    name: List[str] = Query([]),
 ):
     if not _get_endpoint_kv_record_by_id(endpoint_id):
         url = f"projects/{project}/model-endpoints/{endpoint_id}/metrics"
         raise MLRunNotFoundError(f"Endpoint not found' - {url}")
+    return _get_endpoint_metrics(endpoint_id, name, start, end)
+
+
+def _get_endpoint_metrics(
+    endpoint_id: str,
+    name: List[str],
+    start: str = "now-1h",
+    end: str = "now",
+) -> schemas.MetricList:
+    if not name:
+        raise MLRunInvalidArgumentError("Metric names must be provided")
 
     try:
         metrics = [TimeMetric.from_string(n) for n in name]
@@ -278,6 +299,7 @@ def get_endpoint_metrics(
         raise MLRunInvalidArgumentError(str(e))
 
     columns = ["endpoint_id"]
+
     for metric in metrics:
         columns.append(metric.tsdb_column)
 
@@ -291,8 +313,20 @@ def get_endpoint_metrics(
     )
 
     metrics = [time_metric.to_metric(data) for time_metric in metrics]
-    metrics = [metric for metric in metrics if metrics is not None]
+    metrics = [metric for metric in metrics if metric is not None]
     return schemas.MetricList(metrics=metrics)
+
+
+def _get_endpoint_features(
+    project: str, endpoint_id: str, features: Optional[str]
+) -> schemas.FeatureList:
+    if not features:
+        url = f"projects/{project}/model-endpoints/{endpoint_id}/features"
+        raise MLRunNotFoundError(f"Endpoint features not found' - {url}")
+
+    features = json.loads(features)
+    features = [schemas.Features(**feature) for feature in features]
+    return schemas.FeatureList(features=features)
 
 
 def _decode_labels(labels: Dict[str, Any]) -> List[str]:

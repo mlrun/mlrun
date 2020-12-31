@@ -38,7 +38,7 @@ class MetricList(BaseModel):
     metrics: List[Metric]
 
 
-class FeatureDetails(BaseModel):
+class Features(BaseModel):
     name: str
     weight: float
     # Expected
@@ -53,6 +53,10 @@ class FeatureDetails(BaseModel):
     actual_hist: Histogram
 
 
+class FeatureList(BaseModel):
+    features: List[Features]
+
+
 class EndpointState(BaseModel):
     endpoint: Endpoint
     first_request: Optional[str]
@@ -61,8 +65,8 @@ class EndpointState(BaseModel):
     error_count: Optional[int]
     alert_count: Optional[int]
     drift_status: Optional[str]
-    metrics: Optional[MetricList]
-    feature_details: Optional[List[FeatureDetails]]
+    metrics: Optional[MetricList] = None
+    features: Optional[FeatureList] = None
 
 
 class EndpointStateList(BaseModel):

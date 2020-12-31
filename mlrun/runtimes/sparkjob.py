@@ -114,7 +114,6 @@ class SparkJobSpec(KubeResourceSpec):
         description=None,
         workdir=None,
         build=None,
-        rundb=None,
     ):
 
         super().__init__(
@@ -135,7 +134,6 @@ class SparkJobSpec(KubeResourceSpec):
             description=description,
             workdir=workdir,
             build=build,
-            rundb=rundb,
         )
 
         self.driver_resources = driver_resources or {}
@@ -157,14 +155,26 @@ class SparkRuntime(KubejobRuntime):
 
     @property
     def _default_image(self):
+        _, driver_gpu = self._get_gpu_type_and_quantity(
+            resources=self.spec.driver_resources["requests"]
+        )
+        _, executor_gpu = self._get_gpu_type_and_quantity(
+            resources=self.spec.executor_resources["requests"]
+        )
+        gpu_bound = bool(driver_gpu or executor_gpu)
         if config.spark_app_image_tag and config.spark_app_image:
-            return config.spark_app_image + ":" + config.spark_app_image_tag
+            return (
+                config.spark_app_image
+                + ("-cuda" if gpu_bound else "")
+                + ":"
+                + config.spark_app_image_tag
+            )
         return None
 
     def deploy(self, watch=True, with_mlrun=True, skip_deployed=False, is_kfp=False):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config
-        get_run_db().connect()
+        get_run_db()
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._default_image
         return super().deploy(
@@ -173,6 +183,18 @@ class SparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
         )
+
+    @staticmethod
+    def _get_gpu_type_and_quantity(resources):
+        gpu_type = [
+            resource_type
+            for resource_type in resources.keys()
+            if resource_type not in ["cpu", "memory"]
+        ]
+        if len(gpu_type) > 1:
+            raise ValueError("Sparkjob supports only a single gpu type")
+        gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
+        return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         if runobj.metadata.iteration:
@@ -228,20 +250,12 @@ class SparkRuntime(KubejobRuntime):
                     "spec.executor.memory",
                     self.spec.executor_resources["requests"]["memory"],
                 )
-            gpu_type = [
-                resource_type
-                for resource_type in self.spec.executor_resources["requests"].keys()
-                if resource_type not in ["cpu", "memory"]
-            ]
-            if len(gpu_type) > 1:
-                raise ValueError("Sparkjob supports only a single gpu type")
+            gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
+                resources=self.spec.executor_resources["requests"]
+            )
             if gpu_type:
-                update_in(job, "spec.executor.gpu.name", gpu_type[0])
-                update_in(
-                    job,
-                    "spec.executor.gpu.quantity",
-                    self.spec.executor_resources["requests"][gpu_type[0]],
-                )
+                update_in(job, "spec.executor.gpu.name", gpu_type)
+                update_in(job, "spec.executor.gpu.quantity", gpu_quantity)
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
                 update_in(
@@ -262,20 +276,13 @@ class SparkRuntime(KubejobRuntime):
                     "spec.driver.memory",
                     self.spec.driver_resources["requests"]["memory"],
                 )
-            gpu_type = [
-                resource_type
-                for resource_type in self.spec.driver_resources["requests"].keys()
-                if resource_type not in ["cpu", "memory"]
-            ]
-            if len(gpu_type) > 1:
-                raise ValueError("Sparkjob supports only a single gpu type")
+            gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
+                resources=self.spec.driver_resources["requests"]
+            )
             if gpu_type:
-                update_in(job, "spec.driver.gpu.name", gpu_type[0])
-                update_in(
-                    job,
-                    "spec.driver.gpu.quantity",
-                    self.spec.driver_resources["requests"][gpu_type[0]],
-                )
+                update_in(job, "spec.driver.gpu.name", gpu_type)
+                update_in(job, "spec.driver.gpu.quantity", gpu_quantity)
+
         if self.spec.command:
             if "://" not in self.spec.command:
                 self.spec.command = "local://" + self.spec.command
@@ -464,7 +471,11 @@ class SparkRuntime(KubejobRuntime):
 
     @property
     def is_deployed(self):
-        if not self.spec.build.source and not self.spec.build.commands:
+        if (
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+        ):
             return True
         return super().is_deployed
 

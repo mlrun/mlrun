@@ -84,8 +84,20 @@ class MLRunConflictError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.CONFLICT.value
 
 
+class MLRunPreconditionFailedError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.PRECONDITION_FAILED.value
+
+
 class MLRunIncompatibleVersionError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
+class MLRunInternalServerError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
+
+
+class MLRunMissingDependencyError(MLRunInternalServerError):
+    pass
 
 
 STATUS_ERRORS = {
@@ -94,4 +106,6 @@ STATUS_ERRORS = {
     HTTPStatus.FORBIDDEN.value: MLRunAccessDeniedError,
     HTTPStatus.NOT_FOUND.value: MLRunNotFoundError,
     HTTPStatus.CONFLICT.value: MLRunConflictError,
+    HTTPStatus.PRECONDITION_FAILED.value: MLRunPreconditionFailedError,
+    HTTPStatus.INTERNAL_SERVER_ERROR.value: MLRunInternalServerError,
 }

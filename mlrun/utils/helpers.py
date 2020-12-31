@@ -17,7 +17,8 @@ import json
 import re
 import sys
 import time
-from typing import Optional
+from types import ModuleType
+from typing import Optional, Tuple
 from datetime import datetime, timezone
 from dateutil import parser
 from os import path, environ
@@ -85,7 +86,7 @@ def verify_field_regex(field_name, field_value, patterns):
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             logger.warn(
-                "Field is malformed. Does not match required pattern)",
+                "Field is malformed. Does not match required pattern",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
@@ -328,8 +329,8 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
     return "{}{}".format(base or "", local_path)
 
 
-def parse_function_uri(uri):
-    project = ""
+def parse_function_uri(uri, default_project=""):
+    project = default_project
     tag = ""
     hash_key = ""
     if "/" in uri:
@@ -446,6 +447,27 @@ def enrich_image_url(image_url: str) -> str:
         if registry and "/mlrun/" not in image_url:
             image_url = f"{registry}{image_url}"
     return image_url
+
+
+def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
+    # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
+    docker_registry = config.httpdb.builder.docker_registry
+    first_slash_index = docker_registry.find("/")
+    # this is exception to the rules from the link above, since the config value is called docker_registry we assume
+    # that if someone gave just one component without any slash they gave a registry and not a repository
+    if first_slash_index == -1:
+        return docker_registry, None
+    if (
+        docker_registry[:first_slash_index].find(".") == -1
+        and docker_registry[:first_slash_index].find(":") == -1
+        and docker_registry[:first_slash_index] != "localhost"
+    ):
+        return None, docker_registry
+    else:
+        return (
+            docker_registry[:first_slash_index],
+            docker_registry[first_slash_index + 1 :],
+        )
 
 
 def get_artifact_target(item: dict, project=None):
@@ -701,6 +723,51 @@ def get_caller_globals(level=2):
         return inspect.stack()[level][0].f_globals
     except Exception:
         return None
+
+
+def _module_to_namespace(namespace):
+    if isinstance(namespace, ModuleType):
+        members = inspect.getmembers(
+            namespace, lambda o: inspect.isfunction(o) or isinstance(o, type)
+        )
+        return {key: mod for key, mod in members}
+    return namespace
+
+
+def get_class(class_name, namespace):
+    """return class object from class name string"""
+    if isinstance(class_name, type):
+        return class_name
+    namespace = _module_to_namespace(namespace)
+    if namespace and class_name in namespace:
+        return namespace[class_name]
+
+    try:
+        class_object = create_class(class_name)
+    except (ImportError, ValueError) as e:
+        raise ImportError(f"state init failed, class {class_name} not found, {e}")
+    return class_object
+
+
+def get_function(function, namespace):
+    """return function callable object from function name string"""
+    if callable(function):
+        return function
+
+    function = function.strip()
+    if function.startswith("("):
+        if not function.endswith(")"):
+            raise ValueError('function expression must start with "(" and end with ")"')
+        return eval("lambda event: " + function[1:-1], {}, {})
+    namespace = _module_to_namespace(namespace)
+    if function in namespace:
+        return namespace[function]
+
+    try:
+        function_object = create_function(function)
+    except (ImportError, ValueError) as e:
+        raise ImportError(f"state init failed, function {function} not found, {e}")
+    return function_object
 
 
 def datetime_from_iso(time_str: str) -> Optional[datetime]:

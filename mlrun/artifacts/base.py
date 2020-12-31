@@ -18,7 +18,7 @@ import yaml
 
 import mlrun
 from ..model import ModelObj
-from ..datastore import StoreManager, store_manager
+from ..datastore import store_manager
 from ..utils import DB_SCHEMA
 
 calc_hash = True
@@ -124,24 +124,24 @@ class Artifact(ModelObj):
         ]
         return super().from_dict(struct, fields=fields)
 
-    def upload(self, data_stores: StoreManager):
+    def upload(self):
         src_path = self.src_path
         body = self.get_body()
         if body:
-            self._upload_body(body, data_stores)
+            self._upload_body(body)
         else:
             if src_path and os.path.isfile(src_path):
-                self._upload_file(src_path, data_stores)
+                self._upload_file(src_path)
 
-    def _upload_body(self, body, data_stores: StoreManager, target=None):
+    def _upload_body(self, body, target=None):
         if calc_hash:
             self.hash = blob_hash(body)
         self.size = len(body)
-        data_stores.object(url=target or self.target_path).put(body)
+        store_manager.object(url=target or self.target_path).put(body)
 
-    def _upload_file(self, src, data_stores: StoreManager, target=None):
+    def _upload_file(self, src, target=None):
         self._set_meta(src)
-        data_stores.object(url=target or self.target_path).upload(src)
+        store_manager.object(url=target or self.target_path).upload(src)
 
     def _set_meta(self, src):
         if calc_hash:
@@ -166,7 +166,7 @@ class DirArtifact(Artifact):
     def is_dir(self):
         return True
 
-    def upload(self, data_stores):
+    def upload(self):
         if not self.src_path:
             raise ValueError("local/source path not specified")
 
@@ -176,7 +176,7 @@ class DirArtifact(Artifact):
             if not os.path.isfile(file_path):
                 raise ValueError("file {} not found, cant upload".format(file_path))
             target = os.path.join(self.target_path, f)
-            data_stores.object(url=target).upload(file_path)
+            store_manager.object(url=target).upload(file_path)
 
 
 class LinkArtifact(Artifact):
@@ -218,11 +218,7 @@ def blob_hash(data):
 
 
 def upload_extra_data(
-    artifact_spec: Artifact,
-    extra_data: dict,
-    data_stores,
-    prefix="",
-    update_spec=False,
+    artifact_spec: Artifact, extra_data: dict, prefix="", update_spec=False,
 ):
     if not extra_data:
         return
@@ -231,7 +227,7 @@ def upload_extra_data(
 
         if isinstance(item, bytes):
             target = os.path.join(target_path, key)
-            data_stores.object(url=target).put(item)
+            store_manager.object(url=target).put(item)
             artifact_spec.extra_data[prefix + key] = target
             continue
 
@@ -244,7 +240,7 @@ def upload_extra_data(
             if not os.path.isfile(src_path):
                 raise ValueError("extra data file {} not found".format(src_path))
             target = os.path.join(target_path, item)
-            data_stores.object(url=target).upload(src_path)
+            store_manager.object(url=target).upload(src_path)
 
         if update_spec:
             artifact_spec.extra_data[prefix + key] = item

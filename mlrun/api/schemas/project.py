@@ -1,31 +1,59 @@
-from datetime import datetime
-from typing import Optional, List, Union
+import datetime
+import enum
+import typing
 
-from pydantic import BaseModel, Extra
+import pydantic
 
-
-class ProjectPatch(BaseModel):
-    description: Optional[str] = None
-    source: Optional[str] = None
-    state: Optional[str] = None
-    owner: Optional[str] = None
-    created: Optional[datetime] = None
-
-    class Config:
-        extra = Extra.allow
+from .object import (
+    ObjectStatus,
+    ObjectKind,
+)
 
 
-class Project(ProjectPatch):
+class ProjectMetadata(pydantic.BaseModel):
     name: str
-
-
-class ProjectRecord(Project):
-    id: int = None
+    created: typing.Optional[datetime.datetime] = None
+    labels: typing.Optional[dict]
+    annotations: typing.Optional[dict]
 
     class Config:
-        orm_mode = True
+        extra = pydantic.Extra.allow
 
 
-class ProjectsOutput(BaseModel):
-    # use the full query param to control whether the full object will be returned or only the names
-    projects: List[Union[Project, str]]
+class ProjectState(str, enum.Enum):
+    online = "online"
+    archived = "archived"
+
+
+class ProjectStatus(ObjectStatus):
+    state: typing.Optional[ProjectState]
+
+
+class ProjectSpec(pydantic.BaseModel):
+    description: typing.Optional[str] = None
+    goals: typing.Optional[str] = None
+    params: typing.Optional[dict] = None
+    functions: typing.Optional[list] = None
+    workflows: typing.Optional[list] = None
+    artifacts: typing.Optional[list] = None
+    artifact_path: typing.Optional[str] = None
+    conda: typing.Optional[str] = None
+    source: typing.Optional[str] = None
+    subpath: typing.Optional[str] = None
+    origin_url: typing.Optional[str] = None
+    desired_state: typing.Optional[ProjectState] = ProjectState.online
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
+class Project(pydantic.BaseModel):
+    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+    metadata: ProjectMetadata
+    spec: ProjectSpec = ProjectSpec()
+    status: ObjectStatus = ObjectStatus()
+
+
+class ProjectsOutput(pydantic.BaseModel):
+    # use the format query param to control whether the full object will be returned or only the names
+    projects: typing.List[typing.Union[Project, str]]

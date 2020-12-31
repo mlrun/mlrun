@@ -86,8 +86,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
     def _delete_logs(self, session: Session, project: str):
         logger.debug("Removing logs from db", project=project)
-        for log in self._query(session, Log, project=project):
+        for log in self._list_logs(session, project):
             self.delete_log(session, project, log.uid)
+
+    def _list_logs(self, session: Session, project: str):
+        return self._query(session, Log, project=project).all()
 
     def store_run(self, session, run_data, uid, project="", iter=0):
         project = project or config.default_project
@@ -393,8 +396,11 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
-        for function in self._query(session, Function, project=project):
+        for function in self._list_project_functions(session, project):
             self.delete_function(session, project, function.name)
+
+    def _list_project_functions(self, session: Session, project: str):
+        return self._query(session, Function, project=project).all()
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -650,16 +656,18 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
         created = datetime.utcnow()
-        project.created = created
+        project.metadata.created = created
+        # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record = Project(
-            name=project.name,
-            description=project.description,
-            owner=project.owner,
-            source=project.source,
-            state=project.state,
+            name=project.metadata.name,
+            description=project.spec.description,
+            source=project.spec.source,
+            state=project.status.state,
             created=created,
             full_object=project.dict(),
         )
+        labels = project.metadata.labels or {}
+        update_labels(project_record, labels)
         self._upsert(session, project_record)
 
     def store_project(self, session: Session, name: str, project: schemas.Project):
@@ -676,7 +684,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         self,
         session: Session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         logger.debug(
@@ -684,7 +692,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         )
         project_record = self._get_project_record(session, name)
         self._patch_project_record_from_project(
-            session, project_record, project, patch_mode
+            session, name, project_record, project, patch_mode
         )
 
     def get_project(
@@ -694,20 +702,28 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
 
         return self._transform_project_record_to_schema(session, project_record)
 
-    def delete_project(self, session: Session, name: str):
-        logger.debug("Deleting project from DB", name=name)
-        self.del_artifacts(session, project=name)
-        self._delete_logs(session, name)
-        self.del_runs(session, project=name)
-        self._delete_schedules(session, name)
-        self._delete_functions(session, name)
-        self._delete_feature_sets(session, name)
-        self._delete_feature_vectors(session, name)
-
-        # resources deletion should remove their tags and labels as well, but doing another try in case there are
-        # orphan resources
-        self._delete_resources_tags(session, name)
-        self._delete_resources_labels(session, name)
+    def delete_project(
+        self,
+        session: Session,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
+        logger.debug(
+            "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
+        )
+        if deletion_strategy == schemas.DeletionStrategy.restrict:
+            project_record = self._get_project_record(
+                session, name, raise_on_not_found=False
+            )
+            if not project_record:
+                return
+            self._verify_project_has_no_related_resources(session, name)
+        elif deletion_strategy == schemas.DeletionStrategy.cascade:
+            self._delete_project_related_resources(session, name)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown deletion strategy: {deletion_strategy}"
+            )
         self._delete(session, Project, name=name)
 
     def list_projects(
@@ -715,10 +731,14 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         session: Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
-        project_records = self._query(session, Project, owner=owner)
+        query = self._query(session, Project, owner=owner, state=state)
+        if labels:
+            query = self._add_labels_filter(session, query, Project, labels)
         projects = []
-        for project_record in project_records:
+        for project_record in query:
             if format_ == mlrun.api.schemas.Format.name_only:
                 projects.append(project_record.name)
             elif format_ == mlrun.api.schemas.Format.full:
@@ -734,31 +754,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def _update_project_record_from_project(
         self, session: Session, project_record: Project, project: schemas.Project
     ):
-        project.created = project_record.created
+        project.metadata.created = project_record.created
         project_dict = project.dict()
+        # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record.full_object = project_dict
-        project_record.description = project.description
-        project_record.source = project.source
-        project_record.state = project.state
+        project_record.description = project.spec.description
+        project_record.source = project.spec.source
+        project_record.state = project.status.state
+        labels = project.metadata.labels or {}
+        update_labels(project_record, labels)
         self._upsert(session, project_record)
 
     def _patch_project_record_from_project(
         self,
         session: Session,
+        name: str,
         project_record: Project,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode,
     ):
-        project_dict = project.dict(exclude_unset=True)
-        if project.description:
-            project_record.description = project.description
-        if project.source:
-            project_record.source = project.source
-        if project.state:
-            project_record.state = project.state
+        project.setdefault("metadata", {})["created"] = project_record.created
         strategy = patch_mode.to_mergedeep_strategy()
         project_record_full_object = project_record.full_object
-        mergedeep.merge(project_record_full_object, project_dict, strategy=strategy)
+        mergedeep.merge(project_record_full_object, project, strategy=strategy)
+
+        # If a bad kind value was passed, it will fail here (return 422 to caller)
+        project = schemas.Project(**project_record_full_object)
+        self.store_project(
+            session, name, project,
+        )
+
         project_record.full_object = project_record_full_object
         self._upsert(session, project_record)
 
@@ -784,6 +809,55 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             )
 
         return project_record
+
+    def _verify_project_has_no_related_resources(self, session: Session, project: str):
+        artifacts = self._find_artifacts(session, project, "*")
+        self._verify_empty_list_of_project_related_resources(
+            project, artifacts, "artifacts"
+        )
+        logs = self._list_logs(session, project)
+        self._verify_empty_list_of_project_related_resources(project, logs, "logs")
+        runs = self._find_runs(session, None, project, []).all()
+        self._verify_empty_list_of_project_related_resources(project, runs, "runs")
+        schedules = self.list_schedules(session, project=project)
+        self._verify_empty_list_of_project_related_resources(
+            project, schedules, "schedules"
+        )
+        functions = self._list_project_functions(session, project)
+        self._verify_empty_list_of_project_related_resources(
+            project, functions, "functions"
+        )
+        feature_sets = self.list_feature_sets(session, project).feature_sets
+        self._verify_empty_list_of_project_related_resources(
+            project, feature_sets, "feature_sets"
+        )
+        feature_vectors = self.list_feature_vectors(session, project).feature_vectors
+        self._verify_empty_list_of_project_related_resources(
+            project, feature_vectors, "feature_vectors"
+        )
+
+    def _delete_project_related_resources(self, session: Session, name: str):
+        self.del_artifacts(session, project=name)
+        self._delete_logs(session, name)
+        self.del_runs(session, project=name)
+        self._delete_schedules(session, name)
+        self._delete_functions(session, name)
+        self._delete_feature_sets(session, name)
+        self._delete_feature_vectors(session, name)
+
+        # resources deletion should remove their tags and labels as well, but doing another try in case there are
+        # orphan resources
+        self._delete_resources_tags(session, name)
+        self._delete_resources_labels(session, name)
+
+    @staticmethod
+    def _verify_empty_list_of_project_related_resources(
+        project: str, resources: List, resource_name: str
+    ):
+        if resources:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project} can not be deleted since related resources found: {resource_name}"
+            )
 
     def _get_record_by_name_tag_and_uid(
         self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
@@ -873,8 +947,36 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
     def _generate_feature_set_digest(feature_set: schemas.FeatureSet):
         return schemas.FeatureSetDigestOutput(
             metadata=feature_set.metadata,
-            spec=schemas.FeatureSetDigestSpec(entities=feature_set.spec.entities),
+            spec=schemas.FeatureSetDigestSpec(
+                entities=feature_set.spec.entities, features=feature_set.spec.features,
+            ),
         )
+
+    def _generate_feature_or_entity_list_query(
+        self,
+        session,
+        query_class,
+        project: str,
+        feature_set_keys,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ):
+        # Query the actual objects to be returned
+        query = (
+            session.query(FeatureSet, query_class)
+            .filter_by(project=project)
+            .join(query_class)
+        )
+
+        if name:
+            query = query.filter(query_class.name.ilike(f"%{name}%"))
+        if labels:
+            query = self._add_labels_filter(session, query, query_class, labels)
+        if tag:
+            query = query.filter(FeatureSet.id.in_(feature_set_keys))
+
+        return query
 
     def list_features(
         self,
@@ -890,19 +992,10 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
             session, FeatureSet, project, tag, name=None
         )
 
-        # Query the actual objects to be returned
-        query = (
-            session.query(FeatureSet, Feature)
-            .filter_by(project=project)
-            .join(FeatureSet.features)
+        query = self._generate_feature_or_entity_list_query(
+            session, Feature, project, feature_set_id_tags.keys(), name, tag, labels
         )
 
-        if name:
-            query = query.filter(Feature.name.ilike(f"%{name}%"))
-        if labels:
-            query = self._add_labels_filter(session, query, Feature, labels)
-        if tag:
-            query = query.filter(FeatureSet.id.in_(feature_set_id_tags.keys()))
         if entities:
             query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
 
@@ -943,6 +1036,60 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                     )
                 )
         return schemas.FeaturesOutput(features=features_results)
+
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
+        feature_set_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name=None
+        )
+
+        query = self._generate_feature_or_entity_list_query(
+            session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
+        )
+
+        entities_results = []
+        for row in query:
+            entity_record = schemas.FeatureRecord.from_orm(row.Entity)
+            entity_name = entity_record.name
+
+            feature_sets = self._generate_records_with_tags_assigned(
+                row.FeatureSet,
+                self._transform_feature_set_model_to_schema,
+                feature_set_id_tags,
+                tag,
+            )
+
+            for feature_set in feature_sets:
+                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
+                # in the DB)
+                entity = next(
+                    (
+                        entity
+                        for entity in feature_set.spec.entities
+                        if entity.name == entity_name
+                    ),
+                    None,
+                )
+                if not entity:
+                    raise DBError(
+                        "Inconsistent data in DB - entities in DB not in feature-set document"
+                    )
+
+                entities_results.append(
+                    schemas.EntityListOutput(
+                        entity=entity,
+                        feature_set_digest=self._generate_feature_set_digest(
+                            feature_set
+                        ),
+                    )
+                )
+        return schemas.EntitiesOutput(entities=entities_results)
 
     def list_feature_sets(
         self,
@@ -1532,7 +1679,7 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
                 if (
                     not run_json
                     or not isinstance(run_json, dict)
-                    or name not in run_json.get("metadata", {}).get("name")
+                    or name not in run_json.get("metadata", {}).get("name", "")
                 ):
                     continue
             if state:
@@ -1774,13 +1921,16 @@ class SQLDB(mlrun.api.utils.projects.remotes.member.Member, DBInterface):
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
             project = schemas.Project(
-                name=project_record.name,
-                description=project_record.description,
-                source=project_record.source,
-                state=project_record.state,
-                owner=project_record.owner,
-                created=project_record.created,
+                metadata=schemas.ProjectMetadata(
+                    name=project_record.name, created=project_record.created,
+                ),
+                spec=schemas.ProjectSpec(
+                    description=project_record.description,
+                    source=project_record.source,
+                ),
+                status=schemas.ObjectStatus(state=project_record.state,),
             )
             self.store_project(session, project_record.name, project)
             return project
+        # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)

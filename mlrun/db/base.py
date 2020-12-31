@@ -118,7 +118,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_project(self, name: str):
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         pass
 
     @abstractmethod
@@ -131,7 +135,7 @@ class RunDBInterface(ABC):
     def patch_project(
         self,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ) -> schemas.Project:
         pass
@@ -144,7 +148,11 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_projects(
-        self, owner: str = None, format_: schemas.Format = schemas.Format.full,
+        self,
+        owner: str = None,
+        format_: schemas.Format = schemas.Format.full,
+        labels: List[str] = None,
+        state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
         pass
 
@@ -176,6 +184,12 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
         pass
 
     @abstractmethod
@@ -271,4 +285,35 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def delete_feature_vector(self, name, project=""):
+        pass
+
+    @abstractmethod
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> schemas.PipelinesOutput:
+        pass
+
+    @abstractmethod
+    def create_project_secrets(
+            self,
+            project: str,
+            provider: Union[str, schemas.SecretProviderName] = schemas.SecretProviderName.vault,
+            secrets: dict = None
+    ):
+        pass
+
+    @abstractmethod
+    def create_user_secrets(
+            self,
+            user: str,
+            provider: Union[str, schemas.SecretProviderName] = schemas.SecretProviderName.vault,
+            secrets: dict = None
+    ):
         pass

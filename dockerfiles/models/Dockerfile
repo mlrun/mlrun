@@ -64,7 +64,7 @@ RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
 RUN python -m pip install -U intel-tensorflow mxnet
 
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-    python -m pip install horovod
+    python -m pip install 'horovod~=0.20.0'
 
 WORKDIR /mlrun
 
@@ -73,7 +73,7 @@ COPY ./dockerfiles/models/requirements.txt ./
 RUN python -m pip install -r requirements.txt
 
 COPY . .
-RUN python -m pip install .
+RUN python -m pip install .[complete]
 
 ARG MLRUN_MLUTILS_GITHUB_TAG=development
 ARG MLRUN_MLUTILS_CACHE_DATE=initial

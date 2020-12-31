@@ -43,6 +43,8 @@ RUN python -m pip install \
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
 COPY . .
+
+RUN python -m pip install .[complete-api]
 VOLUME /mlrun/db
 
 CMD ["python",  "-m",  "mlrun",  "db"]

@@ -135,9 +135,16 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(self.db.store_schedule, data)
 
     def list_projects(
-        self, session, owner: str = None, format_: schemas.Format = schemas.Format.full,
+        self,
+        session,
+        owner: str = None,
+        format_: schemas.Format = schemas.Format.full,
+        labels: List[str] = None,
+        state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
-        return self._transform_run_db_error(self.db.list_projects, owner, format_)
+        return self._transform_run_db_error(
+            self.db.list_projects, owner, format_, labels, state
+        )
 
     def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()
@@ -146,7 +153,7 @@ class FileDB(DBInterface):
         self,
         session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         raise NotImplementedError()
@@ -159,7 +166,12 @@ class FileDB(DBInterface):
     ) -> schemas.Project:
         raise NotImplementedError()
 
-    def delete_project(self, session, name: str):
+    def delete_project(
+        self,
+        session,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         raise NotImplementedError()
 
     def create_feature_set(
@@ -195,6 +207,16 @@ class FileDB(DBInterface):
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
         raise NotImplementedError()
+
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
+        pass
 
     def list_feature_sets(
         self,

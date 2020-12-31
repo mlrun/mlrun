@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from mlrun.api.api import deps
 from mlrun.api.api.endpoints import (
     artifacts,
+    background_tasks,
     files,
     functions,
     healthz,
@@ -14,13 +15,18 @@ from mlrun.api.api.endpoints import (
     schedules,
     submit,
     tags,
-    workflows,
     feature_sets,
+    secrets,
 )
 
 api_router = APIRouter()
 api_router.include_router(
     artifacts.router, tags=["artifacts"], dependencies=[Depends(deps.AuthVerifier)]
+)
+api_router.include_router(
+    background_tasks.router,
+    tags=["background-tasks"],
+    dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(
     files.router, tags=["files"], dependencies=[Depends(deps.AuthVerifier)]
@@ -54,10 +60,10 @@ api_router.include_router(
     tags.router, tags=["tags"], dependencies=[Depends(deps.AuthVerifier)]
 )
 api_router.include_router(
-    workflows.router, tags=["workflows"], dependencies=[Depends(deps.AuthVerifier)]
+    feature_sets.router,
+    tags=["feature-sets"],
+    dependencies=[Depends(deps.AuthVerifier)],
 )
 api_router.include_router(
-    feature_sets.router,
-    tags=["feature_sets"],
-    dependencies=[Depends(deps.AuthVerifier)],
+    secrets.router, tags=["secrets"], dependencies=[Depends(deps.AuthVerifier)]
 )

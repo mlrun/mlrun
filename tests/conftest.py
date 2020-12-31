@@ -41,8 +41,6 @@ root_path = str(Path(tests_root_directory).parent)
 examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
 
-# Uncomment and set proper value for Vault test
-# environ["MLRUN_VAULT_ROLE"] = "user:saarc"
 
 # import package stuff after setting env vars so it will take effect
 from mlrun.api.db.sqldb.db import run_time_fmt  # noqa: E402
@@ -117,6 +115,3 @@ def init_sqldb(dsn):
     Base.metadata.create_all(bind=engine)
     return sessionmaker(bind=engine)
 
-
-def has_vault():
-    return "MLRUN_VAULT_ROLE" in environ

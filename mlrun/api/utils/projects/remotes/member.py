@@ -1,4 +1,5 @@
 import abc
+import typing
 
 import sqlalchemy.orm
 
@@ -26,13 +27,18 @@ class Member(abc.ABC):
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.ProjectPatch,
+        project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ):
         pass
 
     @abc.abstractmethod
-    def delete_project(self, session: sqlalchemy.orm.Session, name: str):
+    def delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
         pass
 
     @abc.abstractmethod
@@ -47,5 +53,7 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         pass

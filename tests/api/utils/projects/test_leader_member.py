@@ -57,18 +57,19 @@ def test_projects_sync_follower_project_adoption(
 ):
     project_name = "project-name"
     project_description = "some description"
-    nop_follower.create_project(
-        None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
-    _assert_project_in_followers([nop_follower], project_name, project_description)
+    nop_follower.create_project(
+        None, project,
+    )
+    _assert_project_in_followers([nop_follower], project, enriched=False)
     _assert_no_projects_in_followers([leader_follower, second_nop_follower])
 
     projects_leader._sync_projects()
     _assert_project_in_followers(
-        [leader_follower, nop_follower, second_nop_follower],
-        project_name,
-        project_description,
+        [leader_follower, nop_follower, second_nop_follower], project
     )
 
 
@@ -81,18 +82,28 @@ def test_projects_sync_leader_project_syncing(
 ):
     project_name = "project-name"
     project_description = "some description"
-    leader_follower.create_project(
-        None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
-    _assert_project_in_followers([leader_follower], project_name, project_description)
+    leader_follower.create_project(None, project)
+    invalid_project_name = "invalid_name"
+    invalid_project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=invalid_project_name),
+    )
+    leader_follower.create_project(
+        None, invalid_project,
+    )
+    _assert_project_in_followers([leader_follower], project, enriched=False)
+    _assert_project_in_followers([leader_follower], invalid_project, enriched=False)
     _assert_no_projects_in_followers([nop_follower, second_nop_follower])
 
     projects_leader._sync_projects()
     _assert_project_in_followers(
-        [leader_follower, nop_follower, second_nop_follower],
-        project_name,
-        project_description,
+        [leader_follower, nop_follower, second_nop_follower], project
+    )
+    _assert_project_not_in_followers(
+        [nop_follower, second_nop_follower], invalid_project_name,
     )
 
 
@@ -105,55 +116,47 @@ def test_projects_sync_multiple_follower_project_adoption(
 ):
     second_follower_project_name = "project-name-2"
     second_follower_project_description = "some description 2"
+    second_follower_project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=second_follower_project_name),
+        spec=mlrun.api.schemas.ProjectSpec(
+            description=second_follower_project_description
+        ),
+    )
     both_followers_project_name = "project-name"
     both_followers_project_description = "some description"
+    both_followers_project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=both_followers_project_name),
+        spec=mlrun.api.schemas.ProjectSpec(
+            description=both_followers_project_description
+        ),
+    )
     nop_follower.create_project(
-        None,
-        mlrun.api.schemas.Project(
-            name=both_followers_project_name,
-            description=both_followers_project_description,
-        ),
+        None, both_followers_project,
     )
     second_nop_follower.create_project(
-        None,
-        mlrun.api.schemas.Project(
-            name=both_followers_project_name,
-            description=both_followers_project_description,
-        ),
+        None, both_followers_project,
     )
     second_nop_follower.create_project(
-        None,
-        mlrun.api.schemas.Project(
-            name=second_follower_project_name,
-            description=second_follower_project_description,
-        ),
+        None, second_follower_project,
     )
     leader_follower.create_project = unittest.mock.Mock(
         wraps=leader_follower.create_project
     )
     _assert_project_in_followers(
-        [nop_follower, second_nop_follower],
-        both_followers_project_name,
-        both_followers_project_description,
+        [nop_follower, second_nop_follower], both_followers_project, enriched=False
     )
     _assert_project_in_followers(
-        [second_nop_follower],
-        second_follower_project_name,
-        second_follower_project_description,
+        [second_nop_follower], second_follower_project, enriched=False
     )
     _assert_no_projects_in_followers([leader_follower])
 
     projects_leader._sync_projects()
     _assert_project_in_followers(
-        [leader_follower, nop_follower, second_nop_follower],
-        both_followers_project_name,
-        both_followers_project_description,
+        [leader_follower, nop_follower, second_nop_follower], both_followers_project
     )
 
     _assert_project_in_followers(
-        [leader_follower, nop_follower, second_nop_follower],
-        second_follower_project_name,
-        second_follower_project_description,
+        [leader_follower, nop_follower, second_nop_follower], second_follower_project
     )
 
     # assert not tried to create project in leader twice
@@ -168,16 +171,20 @@ def test_create_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(
+            description=project_description,
+            desired_state=mlrun.api.schemas.ProjectState.archived,
+        ),
+    )
     projects_leader.create_project(
-        None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        None, project,
     )
-    _assert_project_in_followers(
-        [leader_follower, nop_follower], project_name, project_description
-    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
 
-def test_create_project_failure_invalid_name(
+def test_create_and_store_project_failure_invalid_name(
     db: sqlalchemy.orm.Session,
     projects_leader: mlrun.api.utils.projects.leader.Member,
     leader_follower: mlrun.api.utils.projects.remotes.member.Member,
@@ -186,47 +193,56 @@ def test_create_project_failure_invalid_name(
         {"name": "asd3", "valid": True},
         {"name": "asd-asd", "valid": True},
         {"name": "333", "valid": True},
-        {"name": "3.a-b", "valid": True},
-        {"name": "5.a-a.5", "valid": True},
+        {"name": "3-a-b", "valid": True},
+        {"name": "5-a-a-5", "valid": True},
         {
             # Invalid because the first letter is -
-            "name": "-as-123_2.8a",
+            "name": "-as-123-2-8a",
             "valid": False,
         },
         {
-            # Invalid because the last letter is .
-            "name": "as-123_2.8a.",
+            # Invalid because there is .
+            "name": "as-123-2.a",
             "valid": False,
         },
         {
             # Invalid because A is not allowed
-            "name": "As-123_2.8Aa",
+            "name": "As-123-2-8Aa",
             "valid": False,
         },
         {
             # Invalid because _ is not allowed
-            "name": "as-123_2.8Aa",
+            "name": "as-123_2-8aa",
             "valid": False,
         },
         {
-            # Invalid because it's more than 253 characters
-            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-"
-            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-"
-            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            # Invalid because it's more than 63 characters
+            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
             "valid": False,
         },
     ]
     for case in cases:
         project_name = case["name"]
+        project = mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        )
         if case["valid"]:
             projects_leader.create_project(
-                None, mlrun.api.schemas.Project(name=project_name),
+                None, project,
             )
-            _assert_project_in_followers([leader_follower], project_name)
+            _assert_project_in_followers([leader_follower], project)
+            projects_leader.store_project(
+                None, project_name, project,
+            )
+            _assert_project_in_followers([leader_follower], project)
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 projects_leader.create_project(
-                    None, mlrun.api.schemas.Project(name=project_name),
+                    None, project,
+                )
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                projects_leader.store_project(
+                    None, project_name, project,
                 )
             _assert_project_not_in_followers([leader_follower], project_name)
 
@@ -241,7 +257,10 @@ def test_ensure_project(
     projects_leader.ensure_project(
         None, project_name,
     )
-    _assert_project_in_followers([leader_follower, nop_follower], project_name)
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
     # further calls should do nothing
     projects_leader.ensure_project(
@@ -260,16 +279,16 @@ def test_store_project_creation(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+    )
     _assert_no_projects_in_followers([leader_follower, nop_follower])
 
     projects_leader.store_project(
-        None,
-        project_name,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        None, project_name, project,
     )
-    _assert_project_in_followers(
-        [leader_follower, nop_follower], project_name, project_description
-    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
 
 def test_store_project_update(
@@ -280,19 +299,27 @@ def test_store_project_update(
 ):
     project_name = "project-name"
     project_description = "some description"
-    projects_leader.create_project(
-        None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
-    _assert_project_in_followers(
-        [leader_follower, nop_follower], project_name, project_description
+    projects_leader.create_project(
+        None, project,
+    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
+
+    # removing description from the projects and changing desired state
+    updated_project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(
+            desired_state=mlrun.api.schemas.ProjectState.archived
+        ),
     )
 
-    # removing description from the projects
     projects_leader.store_project(
-        None, project_name, mlrun.api.schemas.Project(name=project_name),
+        None, project_name, updated_project,
     )
-    _assert_project_in_followers([leader_follower, nop_follower], project_name)
+    _assert_project_in_followers([leader_follower, nop_follower], updated_project)
 
 
 def test_patch_project(
@@ -302,21 +329,32 @@ def test_patch_project(
     leader_follower: mlrun.api.utils.projects.remotes.member.Member,
 ):
     project_name = "project-name"
-    projects_leader.create_project(
-        None, mlrun.api.schemas.Project(name=project_name),
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
-    _assert_project_in_followers([leader_follower, nop_follower], project_name)
+    projects_leader.create_project(
+        None, project,
+    )
+    _assert_project_in_followers(
+        [leader_follower, nop_follower], project, enriched=False
+    )
 
-    # Adding description to the projects
+    # Adding description to the project and changing state
     project_description = "some description"
+    project_desired_state = mlrun.api.schemas.ProjectState.archived
     projects_leader.patch_project(
         None,
         project_name,
-        mlrun.api.schemas.ProjectPatch(description=project_description),
+        {
+            "spec": {
+                "description": project_description,
+                "desired_state": project_desired_state,
+            }
+        },
     )
-    _assert_project_in_followers(
-        [leader_follower, nop_follower], project_name, project_description
-    )
+    project.spec.description = project_description
+    project.spec.desired_state = project_desired_state
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
 
 def test_store_and_patch_project_failure_conflict_body_path_name(
@@ -326,20 +364,27 @@ def test_store_and_patch_project_failure_conflict_body_path_name(
     leader_follower: mlrun.api.utils.projects.remotes.member.Member,
 ):
     project_name = "project-name"
-    projects_leader.create_project(
-        None, mlrun.api.schemas.Project(name=project_name),
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
-    _assert_project_in_followers([leader_follower, nop_follower], project_name)
+    projects_leader.create_project(
+        None, project,
+    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
     with pytest.raises(mlrun.errors.MLRunConflictError):
         projects_leader.store_project(
-            None, project_name, mlrun.api.schemas.Project(name="different-name"),
+            None,
+            project_name,
+            mlrun.api.schemas.Project(
+                metadata=mlrun.api.schemas.ProjectMetadata(name="different-name"),
+            ),
         )
     with pytest.raises(mlrun.errors.MLRunConflictError):
         projects_leader.patch_project(
-            None, project_name, mlrun.api.schemas.ProjectPatch(name="different-name"),
+            None, project_name, {"metadata": {"name": "different-name"}},
         )
-    _assert_project_in_followers([leader_follower, nop_follower], project_name)
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
 
 def test_delete_project(
@@ -349,10 +394,13 @@ def test_delete_project(
     leader_follower: mlrun.api.utils.projects.remotes.member.Member,
 ):
     project_name = "project-name"
-    projects_leader.create_project(
-        None, mlrun.api.schemas.Project(name=project_name),
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
-    _assert_project_in_followers([leader_follower, nop_follower], project_name)
+    projects_leader.create_project(
+        None, project,
+    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
     projects_leader.delete_project(None, project_name)
     _assert_no_projects_in_followers([leader_follower, nop_follower])
@@ -365,20 +413,26 @@ def test_list_projects(
     leader_follower: mlrun.api.utils.projects.remotes.member.Member,
 ):
     project_name = "project-name"
-    projects_leader.create_project(
-        None, mlrun.api.schemas.Project(name=project_name),
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
-    _assert_project_in_followers([leader_follower, nop_follower], project_name)
+    projects_leader.create_project(
+        None, project,
+    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
     # add some project to follower
     nop_follower.create_project(
-        None, mlrun.api.schemas.Project(name="some-other-project")
+        None,
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name="some-other-project"),
+        ),
     )
 
     # assert list considers only the leader
     projects = projects_leader.list_projects(None)
     assert len(projects.projects) == 1
-    assert projects.projects[0].name == project_name
+    assert projects.projects[0].metadata.name == project_name
 
 
 def test_get_project(
@@ -389,25 +443,24 @@ def test_get_project(
 ):
     project_name = "project-name"
     project_description = "some description"
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+    )
     projects_leader.create_project(
-        None,
-        mlrun.api.schemas.Project(name=project_name, description=project_description),
+        None, project,
     )
-    _assert_project_in_followers(
-        [leader_follower, nop_follower], project_name, project_description
-    )
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
     # change project description in follower
     nop_follower.patch_project(
-        None,
-        project_name,
-        mlrun.api.schemas.ProjectPatch(description="updated description"),
+        None, project_name, {"spec": {"description": "updated description"}},
     )
 
-    # assert list considers only the leader
+    # assert get considers only the leader
     project = projects_leader.get_project(None, project_name)
-    assert project.name == project_name
-    assert project.description == project_description
+    assert project.metadata.name == project_name
+    assert project.spec.description == project_description
 
 
 def _assert_project_not_in_followers(followers, name):
@@ -420,7 +473,24 @@ def _assert_no_projects_in_followers(followers):
         assert follower._projects == {}
 
 
-def _assert_project_in_followers(followers, name, description=None):
+def _assert_project_in_followers(
+    followers, project: mlrun.api.schemas.Project, enriched=True
+):
     for follower in followers:
-        assert follower._projects[name].name == name
-        assert follower._projects[name].description == description
+        assert (
+            follower._projects[project.metadata.name].metadata.name
+            == project.metadata.name
+        )
+        assert (
+            follower._projects[project.metadata.name].spec.description
+            == project.spec.description
+        )
+        assert (
+            follower._projects[project.metadata.name].spec.desired_state
+            == project.spec.desired_state
+        )
+        if enriched:
+            assert (
+                follower._projects[project.metadata.name].status.state
+                == project.spec.desired_state
+            )

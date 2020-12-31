@@ -18,6 +18,7 @@ from os.path import expanduser
 import json
 from .helpers import logger
 from ..config import config as mlconf
+from ..k8s_utils import get_k8s_helper
 
 vault_default_prefix = "v1/secret/data"
 vault_users_prefix = "users"
@@ -47,7 +48,7 @@ class VaultStore:
             role_type, role_val = role_env.split(":", 1)
             vault_role = "role_{}_{}".format(role_type, role_val)
 
-        self._login_with_token(vault_role)
+        self._login_with_jwt_token(vault_role)
         if self._token is None:
             logger.warning(
                 "warning: get_vault_params: no vault token is available. No secrets will be accessible"
@@ -61,7 +62,7 @@ class VaultStore:
         user_prefix=vault_users_prefix,
         project_prefix=vault_projects_prefix,
     ):
-        full_path = prefix + "/{}/{}"
+        full_path = prefix + "/mlrun/{}/{}"
         if user:
             return full_path.format(user_prefix, user)
         elif project:
@@ -71,7 +72,8 @@ class VaultStore:
                 "error: to generate a vault secret path, either user or project must be specified"
             )
 
-    def _read_jwt_token(self):
+    @staticmethod
+    def _read_jwt_token():
         # if for some reason the path to the token is not in conf, then attempt to get the SA token (works on k8s pods)
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         if mlconf.vault_token_path:
@@ -85,9 +87,27 @@ class VaultStore:
 
         return jwt_token
 
+    def _vault_api_call(self, method, url, data=None):
+        self._login()
+
+        headers = {"X-Vault-Token": self._token}
+        full_url = self.url + "/" + url
+        if data:
+            data = json.dumps(data)
+
+        response = requests.request(method, full_url, headers=headers, data=data)
+
+        if not response:
+            logger.error(
+                "warning: Vault failed the API call. Response code: ({}) - {}".format(
+                    response.status_code, response.reason
+                )
+            )
+        return response
+
     # This method logins to the vault, assuming the container has a JWT token mounted as part of its assigned service
     # account.
-    def _login_with_token(self, role):
+    def _login_with_jwt_token(self, role):
 
         if role is None:
             logger.warning(
@@ -103,7 +123,7 @@ class VaultStore:
         response = requests.post(login_url, data=json.dumps(data))
         if not response:
             logger.error(
-                "error: login_with_sa: Vault failed the login request. Response code: ({}) - {}".format(
+                "error: login_with_token: Vault failed the login request. Response code: ({}) - {}".format(
                     response.status_code, response.reason
                 )
             )
@@ -111,22 +131,13 @@ class VaultStore:
         self._token = response.json()["auth"]["client_token"]
 
     def get_secrets(self, keys, user=None, project=None):
-        self._login()
-
-        headers = {"X-Vault-Token": self._token}
         secret_path = VaultStore._generate_vault_path(user=user, project=project)
+        secrets = {}
+        response = self._vault_api_call("GET", secret_path)
 
-        resp = {}
-
-        query_url = self.url + "/" + secret_path
-        response = requests.get(query_url, headers=headers)
         if not response:
-            logger.error(
-                "warning: Vault failed the API call to retrieve secrets. Response code: ({}) - {}".format(
-                    response.status_code, response.reason
-                )
-            )
-            return resp
+            return secrets
+
         values = response.json()["data"]["data"]
 
         # if no specific keys were asked for, return all the values available
@@ -135,48 +146,47 @@ class VaultStore:
 
         for key in keys:
             if key in values:
-                resp[key] = values[key]
-        return resp
+                secrets[key] = values[key]
+        return secrets
 
-    def add_vault_secret(self, items, project=None, user=None):
-        self._login()
-        headers = {"X-Vault-Token": self._token}
+    def add_vault_secrets(self, items, project=None, user=None):
+        data_object = {"data": items}
+        url = VaultStore._generate_vault_path(project=project, user=user)
 
-        data_obj = {"data": items}
-        payload = json.dumps(data_obj)
-
-        url = (
-            self.url + "/" + VaultStore._generate_vault_path(project=project, user=user)
-        )
-        response = requests.post(url, data=payload, headers=headers)
+        response = self._vault_api_call("POST", url, data_object)
         if not response:
             raise ValueError(
-                "Vault failed the API call to create secrets. Response code: ({}) - {}".format(
-                    response.status_code, response.reason
-                )
+                f"Vault failed the API call to create secrets. project={project}/user={user}"
+            )
+
+    def delete_vault_secrets(self, project=None, user=None):
+        self._login()
+        # Using the API to delete all versions + metadata of the given secret.
+        url = "v1/secret/metadata/" + VaultStore._generate_vault_path(prefix="", project=project, user=user)
+
+        response = self._vault_api_call("DELETE", url)
+        if not response:
+            raise ValueError(
+                f"Vault failed the API call to delete secrets. project={project}/user={user}"
             )
 
     def create_project_policy(self, project):
-        self._login()
-        headers = {"X-Vault-Token": self._token}
-
-        policy_name = "proj_{}".format(project)
+        policy_name = "mlrun-proj-{}".format(project)
         # TODO - need to make sure name is escaped properly and invalid chars are stripped
-        url = self.url + "/v1/sys/policies/acl/" + policy_name
+        url = "v1/sys/policies/acl/" + policy_name
 
         policy_str = (
-            'path "secret/data/projects/{0}" {{\n'
+            'path "secret/data/mlrun/projects/{0}" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
             + "}}\n"
-            + 'path "secret/data/projects/{0}/*" {{\n'
+            + 'path "secret/data/mlrun/projects/{0}/*" {{\n'
             + '  capabilities = ["read", "list", "create", "delete", "update"]\n'
             + "}}"
         ).format(project)
 
-        data_obj = {"policy": policy_str}
-        payload = json.dumps(data_obj)
+        data_object = {"policy": policy_str}
 
-        response = requests.put(url, data=payload, headers=headers)
+        response = self._vault_api_call("PUT", url, data_object)
         if not response:
             raise ValueError(
                 "Vault failed the API call to create a policy. Response code: ({}) - {}".format(
@@ -186,21 +196,18 @@ class VaultStore:
         return policy_name
 
     def create_project_role(self, project, sa, policy, namespace="default-tenant"):
-        self._login()
-        headers = {"X-Vault-Token": self._token}
-        role_name = "role_proj_{}".format(project)
+        role_name = "mlrun-role-proj-{}".format(project)
         # TODO - need to make sure name is escaped properly and invalid chars are stripped
-        url = self.url + "/v1/auth/kubernetes/role/" + role_name
+        url = "v1/auth/kubernetes/role/" + role_name
 
-        role_obj = {
+        role_object = {
             "bound_service_account_names": sa,
             "bound_service_account_namespaces": namespace,
             "policies": [policy],
             "token_ttl": 1800000,
         }
-        payload = json.dumps(role_obj)
 
-        response = requests.post(url, data=payload, headers=headers)
+        response = self._vault_api_call("POST", url, role_object)
         if not response:
             raise ValueError(
                 "Vault failed the API call to create a secret. Response code: ({}) - {}".format(
@@ -210,9 +217,39 @@ class VaultStore:
         return role_name
 
 
-def add_vault_project_secret(project, items):
-    return VaultStore().add_vault_secret(items, project=project)
+def add_vault_project_secrets(project, items):
+    return VaultStore().add_vault_secrets(items, project=project)
 
 
-def add_vault_user_secret(user, items):
-    return VaultStore().add_vault_secret(items, user=user)
+def add_vault_user_secrets(user, items):
+    return VaultStore().add_vault_secrets(items, user=user)
+
+
+def init_project_vault_configuration(project):
+    """Create needed configurations for this new project:
+    - Create a k8s service account with the name sa_vault_{proj name}
+    - Create a Vault policy with the name proj_{proj name}
+    - Create a Vault k8s auth role with the name role_proj_{proj name}
+    These constructs will enable any pod created as part of this project to access the project's secrets
+    in Vault, assuming that the secret which is part of the SA created is mounted to the pod.
+
+    :param project: Project name
+    """
+    logger.info(f"init_project_vault_configuration called, project name: {project}")
+
+    namespace = mlconf.namespace
+    k8s = get_k8s_helper(silent=True)
+    sa_name = "sa-vault-{}".format(project)
+
+    secret_name = k8s.get_project_vault_secret_name(project, namespace=namespace)
+
+    if not secret_name:
+        k8s.create_project_service_account(project, namespace=namespace)
+
+    vault = VaultStore()
+    policy_name = vault.create_project_policy(project)
+    role_name = vault.create_project_role(
+        project, namespace=namespace, sa=sa_name, policy=policy_name
+    )
+
+    logger.info("Created Vault policy: {}, role: {}".format(policy_name, role_name))

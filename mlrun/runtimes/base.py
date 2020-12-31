@@ -17,12 +17,12 @@ import traceback
 import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
+from base64 import b64encode
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Tuple, Union, Optional
 
-from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import verify_field_regex, generate_object_uri
 from .constants import PodPhases, RunStates
+from .funcdoc import update_function_entry_points
 from .generators import get_generator
 from .utils import calc_hash, RunError, results_to_iter
 from ..config import config
@@ -54,6 +55,7 @@ from ..utils import (
     enrich_image_url,
     dict_to_yaml,
     dict_to_json,
+    get_parsed_docker_registry,
 )
 
 
@@ -61,23 +63,6 @@ class FunctionStatus(ModelObj):
     def __init__(self, state=None, build_pod=None):
         self.state = state
         self.build_pod = build_pod
-
-
-class EntrypointParam(ModelObj):
-    def __init__(self, name="", type=None, default=None, doc=""):
-        self.name = name
-        self.type = type
-        self.default = default
-        self.doc = doc
-
-
-class FunctionEntrypoint(ModelObj):
-    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
-        self.name = name
-        self.doc = doc
-        self.parameters = [] if parameters is None else parameters
-        self.outputs = [] if outputs is None else outputs
-        self.lineno = lineno
 
 
 class FunctionSpec(ModelObj):
@@ -93,14 +78,13 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
-        rundb=None,
     ):
 
         self.command = command or ""
         self.image = image or ""
         self.mode = mode
         self.args = args or []
-        self.rundb = rundb
+        self.rundb = None
         self.description = description or ""
         self.workdir = workdir
         self.pythonpath = pythonpath
@@ -124,7 +108,7 @@ class BaseRuntime(ModelObj):
     kind = "base"
     _is_nested = False
     _is_remote = False
-    _dict_fields = ["kind", "metadata", "spec", "status"]
+    _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -213,7 +197,7 @@ class BaseRuntime(ModelObj):
         self._ensure_run_db()
         if not self._db_conn:
             if self.spec.rundb:
-                self._db_conn = get_run_db(self.spec.rundb).connect(self._secrets)
+                self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
         return self._db_conn
 
     def run(
@@ -504,9 +488,9 @@ class BaseRuntime(ModelObj):
     def _generate_runtime_env(self, runobj: RunObject):
         runtime_env = {"MLRUN_EXEC_CONFIG": runobj.to_json()}
         if runobj.spec.verbose:
-            runtime_env["MLRUN_LOG_LEVEL"] = "debug"
-        if self.spec.rundb:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb
+            runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
+        if config.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
@@ -624,8 +608,9 @@ class BaseRuntime(ModelObj):
         image = enrich_image_url(image)
         if not image.startswith("."):
             return image
-        if "DEFAULT_DOCKER_REGISTRY" in environ:
-            return "{}/{}".format(environ.get("DEFAULT_DOCKER_REGISTRY"), image[1:])
+        registry, _ = get_parsed_docker_registry()
+        if registry:
+            return "{}/{}".format(registry, image[1:])
         if "IGZ_NAMESPACE_DOMAIN" in environ:
             return "docker-registry.{}:80/{}".format(
                 environ.get("IGZ_NAMESPACE_DOMAIN"), image[1:]
@@ -706,6 +691,46 @@ class BaseRuntime(ModelObj):
             verbose=verbose,
             scrape_metrics=scrape_metrics,
         )
+
+    def with_code(self, from_file="", body=None, with_doc=True):
+        """Update the function code
+        This function eliminates the need to build container images every time we edit the code
+
+        :param from_file:   blank for current notebook, or path to .py/.ipynb file
+        :param body:        will use the body as the function code
+        :param with_doc:    update the document of the function parameters
+
+        :return: function object
+        """
+        if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
+            from nuclio import build_file
+
+            _, _, body = build_file(from_file)
+
+        if from_file:
+            with open(from_file) as fp:
+                body = fp.read()
+        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
+            "utf-8"
+        )
+        if with_doc:
+            update_function_entry_points(self, body)
+        return self
+
+    def with_requirements(self, requirements: Union[str, List[str]]):
+        """add package requirements from file or list to build spec.
+
+        :param requirements:  python requirements file path or list of packages
+
+        :return: function object
+        """
+        if isinstance(requirements, str):
+            with open(requirements, "r") as fp:
+                requirements = fp.readlines()
+        commands = self.spec.build.commands or []
+        commands.append("python -m pip install " + " ".join(requirements))
+        self.spec.build.commands = commands
+        return self
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to
@@ -1391,12 +1416,7 @@ class BaseRuntimeHandler(ABC):
         name = crd_object["metadata"]["name"]
         try:
             k8s_helper.crdapi.delete_namespaced_custom_object(
-                crd_group,
-                crd_version,
-                namespace,
-                crd_plural,
-                name,
-                client.V1DeleteOptions(),
+                crd_group, crd_version, namespace, crd_plural, name,
             )
             logger.info(
                 "Deleted crd object",

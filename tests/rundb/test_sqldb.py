@@ -85,7 +85,7 @@ def test_list_projects(db: SQLDB, db_session: Session):
     projects_output = db.list_projects(db_session)
 
     assert {"prj0", "prj1", "prj2"} == {
-        project.name for project in projects_output.projects
+        project.metadata.name for project in projects_output.projects
     }
 
 
@@ -160,10 +160,12 @@ def test_list_tags(db: SQLDB, db_session: Session):
 
 def test_projects_crud(db: SQLDB, db_session: Session):
     project = mlrun.api.schemas.Project(
-        name="p1", description="banana", spec={"other_field": "value"}, state="active"
+        metadata=mlrun.api.schemas.ProjectMetadata(name="p1"),
+        spec=mlrun.api.schemas.ProjectSpec(description="banana", other_field="value"),
+        status=mlrun.api.schemas.ObjectStatus(state="active"),
     )
     db.create_project(db_session, project)
-    project_output = db.get_project(db_session, name=project.name)
+    project_output = db.get_project(db_session, name=project.metadata.name)
     assert (
         deepdiff.DeepDiff(
             project.dict(), project_output.dict(exclude={"id"}), ignore_order=True,
@@ -171,17 +173,19 @@ def test_projects_crud(db: SQLDB, db_session: Session):
         == {}
     )
 
-    project_update = mlrun.api.schemas.ProjectPatch(description="lemon")
-    db.patch_project(db_session, project.name, project_update)
-    project_output = db.get_project(db_session, name=project.name)
-    assert project_output.description == project_update.description
+    project_patch = {"spec": {"description": "lemon"}}
+    db.patch_project(db_session, project.metadata.name, project_patch)
+    project_output = db.get_project(db_session, name=project.metadata.name)
+    assert project_output.spec.description == project_patch["spec"]["description"]
 
-    project_2 = mlrun.api.schemas.Project(name="p2")
+    project_2 = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="p2"),
+    )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
         db_session, format_=mlrun.api.schemas.Format.name_only
     )
-    assert [project.name, project_2.name] == projects_output.projects
+    assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 
 
 # def test_function_latest(db: SQLDB, db_session: Session):

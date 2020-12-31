@@ -16,7 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import makedirs, path, remove, scandir, listdir
-from typing import List
+from typing import List, Union
 
 import yaml
 from dateutil.parser import parse as parse_time
@@ -416,8 +416,10 @@ class FileRunDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        labels: List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        if owner or format_ == mlrun.api.schemas.Format.full:
+        if owner or format_ == mlrun.api.schemas.Format.full or labels or state:
             raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
@@ -430,7 +432,11 @@ class FileRunDB(RunDBInterface):
     def get_project(self, name: str) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
-    def delete_project(self, name: str):
+    def delete_project(
+        self,
+        name: str,
+        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+    ):
         raise NotImplementedError()
 
     def store_project(
@@ -441,7 +447,7 @@ class FileRunDB(RunDBInterface):
     def patch_project(
         self,
         name: str,
-        project: mlrun.api.schemas.ProjectPatch,
+        project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
@@ -524,6 +530,11 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def list_entities(
+        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+    ):
+        raise NotImplementedError()
+
     def list_feature_sets(
         self,
         project: str = "",
@@ -584,6 +595,26 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def delete_feature_vector(self, name, project=""):
+        raise NotImplementedError()
+
+    def list_pipelines(
+        self,
+        project: str,
+        namespace: str = None,
+        sort_by: str = "",
+        page_token: str = "",
+        filter_: str = "",
+        format_: Union[
+            str, mlrun.api.schemas.Format
+        ] = mlrun.api.schemas.Format.metadata_only,
+        page_size: int = None,
+    ) -> mlrun.api.schemas.PipelinesOutput:
+        raise NotImplementedError()
+
+    def create_project_secrets(self, project: str, provider: str = "vault", secrets: dict = None):
+        raise NotImplementedError()
+
+    def create_user_secrets(self, user: str, provider: str = "vault", secrets: dict = None):
         raise NotImplementedError()
 
 

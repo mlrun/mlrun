@@ -182,7 +182,12 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_projects(
-        self, session, owner: str = None, format_: schemas.Format = schemas.Format.full,
+        self,
+        session,
+        owner: str = None,
+        format_: schemas.Format = schemas.Format.full,
+        labels: List[str] = None,
+        state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
         pass
 
@@ -205,13 +210,18 @@ class DBInterface(ABC):
         self,
         session,
         name: str,
-        project: schemas.ProjectPatch,
+        project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
         pass
 
     @abstractmethod
-    def delete_project(self, session, name: str):
+    def delete_project(
+        self,
+        session,
+        name: str,
+        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+    ):
         pass
 
     @abstractmethod
@@ -250,6 +260,17 @@ class DBInterface(ABC):
         entities: List[str] = None,
         labels: List[str] = None,
     ) -> schemas.FeaturesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+    ) -> schemas.EntitiesOutput:
         pass
 
     @abstractmethod

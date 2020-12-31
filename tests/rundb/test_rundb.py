@@ -18,7 +18,7 @@ import pytest
 
 
 def get_db():
-    return mlrun.get_run_db(rundb_path).connect()
+    return mlrun.get_run_db(rundb_path)
 
 
 #

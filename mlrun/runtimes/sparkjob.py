@@ -114,6 +114,8 @@ class SparkJobSpec(KubeResourceSpec):
         description=None,
         workdir=None,
         build=None,
+        spark_conf=None,
+        hadoop_conf=None,
     ):
 
         super().__init__(
@@ -138,6 +140,8 @@ class SparkJobSpec(KubeResourceSpec):
 
         self.driver_resources = driver_resources or {}
         self.executor_resources = executor_resources or {}
+        self.spark_conf = spark_conf or {}
+        self.hadoop_conf = hadoop_conf or {}
         self.job_type = job_type
         self.python_version = python_version
         self.spark_version = spark_version
@@ -230,6 +234,19 @@ class SparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.executor.volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.deps", self.spec.deps)
+
+        if self.spec.spark_conf:
+            job["spec"]["sparkConf"] = {}
+            for k, v in self.spec.spark_conf.items():
+                job["spec"]["sparkConf"]['"{}"'.format(k)] = '"{}"'.format(v)
+        #                update_in(job, 'spec.sparkConf."' + k + '"', '"' + v + '"')
+
+        if self.spec.hadoop_conf:
+            job["spec"]["hadoopConf"] = {}
+            for k, v in self.spec.hadoop_conf.items():
+                job["spec"]["hadoopConf"]['"{}"'.format(k)] = '"{}"'.format(v)
+        #                update_in(job, 'spec.hadoopConf."' + k + '"', '"' + v + '"')
+
         if "limits" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["limits"]:
                 update_in(

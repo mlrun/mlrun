@@ -99,7 +99,6 @@ setup(
         "mlrun.featurestore",
         "mlrun.featurestore.model",
         "mlrun.featurestore.retrieval",
-        "mlrun.featurestore.ingestion",
         "mlrun.api",
         "mlrun.api.api",
         "mlrun.api.api.endpoints",

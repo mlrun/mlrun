@@ -1,3 +1,18 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from mlrun.utils import now_date
+
 from mlrun.run import get_dataitem
 from mlrun.config import config as mlconf
 
@@ -102,11 +117,14 @@ class BaseStoreDriver:
         self.target = None
 
     def get_table_object(self):
+        """get storey Table object"""
         return None
 
     def update_resource_status(self, resource, status="", producer=None):
+        """update the data target status"""
         self.target = self.target or DataTarget(self.kind, self.name, self.target_path)
         self.target.status = status or self.target.status
+        self.target.updated = now_date().isoformat()
         self.target.producer = producer or self.target.producer
         resource.status.update_target(self.target)
 
@@ -114,9 +132,6 @@ class BaseStoreDriver:
         self, graph, after, features, key_column=None, timestamp_key=None
     ):
         pass
-
-    def source_to_step(self, source):
-        return None
 
     def as_df(self, columns=None, df_module=None):
         return get_dataitem(self.target_path).as_df(
@@ -205,11 +220,18 @@ class NoSqlStore(BaseStoreDriver):
             table=table,
         )
 
+    def as_df(self, columns=None, df_module=None):
+        raise NotImplementedError()
+
 
 class DFStore(BaseStoreDriver):
     def __init__(self, resource, target_spec: DataTargetSpec = None):
         self.name = "dataframe"
         self.target = None
+        self._df = None
+
+    def set_df(self, df):
+        self._df = df
 
     def update_resource_status(self, resource, status="", producer=None):
         pass
@@ -227,6 +249,9 @@ class DFStore(BaseStoreDriver):
             insert_key_column_as=key_column,
             insert_time_column_as=timestamp_key,
         )
+
+    def as_df(self, columns=None, df_module=None):
+        return self._df
 
 
 kind_to_driver = {

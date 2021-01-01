@@ -12,16 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .model import (
-    FeatureSet,
-    FeatureVector,
-    Feature,
-    Entity,
-    store_config,
-    ValueType,
-)  # noqa
+from .model import FeatureSet, FeatureVector  # noqa
+from .model.base import Feature, Entity, store_config, ValueType  # noqa
 from .steps import FeaturesetValidator  # noqa
 from .model.validators import MinMaxValidator  # noqa
 from .api import *  # noqa
-from .targets import TargetTypes
-from .infer import InferOptions
+from .targets import TargetTypes  # noqa
+from .infer import InferOptions  # noqa

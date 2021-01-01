@@ -14,9 +14,6 @@
 from typing import List, Union
 import mlrun
 from .infer import (
-    get_df_stats,
-    get_df_preview,
-    infer_schema_from_df,
     InferOptions,
     infer_from_source,
 )
@@ -40,7 +37,6 @@ except Exception:
 
 def get_feature_set(uri):
     """get feature set from db"""
-
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_function_uri(uri, config.default_project)
     obj = db.get_feature_set(name, project, tag, uid)
@@ -49,7 +45,6 @@ def get_feature_set(uri):
 
 def get_feature_vector(uri):
     """get feature vector from db"""
-
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_function_uri(uri, config.default_project)
     obj = db.get_feature_vector(name, project, tag, uid)
@@ -64,7 +59,6 @@ def list_feature_sets(
     labels: List[str] = None,
 ):
     """list feature sets with optional filter"""
-
     project = project or config.default_project
     db = mlrun.get_run_db()
     resp = db.list_feature_sets(project, name, tag, state, labels=labels)
@@ -80,7 +74,6 @@ def list_feature_vectors(
     labels: List[str] = None,
 ):
     """list feature vectors with optional filter"""
-
     project = project or config.default_project
     db = mlrun.get_run_db()
     resp = db.list_feature_vectors(project, name, tag, state, labels=labels)

@@ -1,7 +1,7 @@
 # see main requirements.txt for reasoning the resrictions
 urllib3>=1.25.4, <1.27
 blosc~=1.7
-cloudpickle~=1.1
+cloudpickle~=1.5
 dask-kubernetes~=0.11.0
 dask-ml~=1.4
 dask[complete]~=2.12

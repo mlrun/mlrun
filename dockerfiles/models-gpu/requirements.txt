@@ -1,3 +1,5 @@
+# see main requirements.txt for reasoning the resrictions
+urllib3>=1.25.4, <1.27
 blosc~=1.7
 cloudpickle~=1.1
 dask-kubernetes~=0.11.0
@@ -18,4 +20,3 @@ opencv-contrib-python>=4.2.0.34
 pyod~=0.8.1
 tornado~=6.0
 transformers~=3.0
-urllib3~=1.25

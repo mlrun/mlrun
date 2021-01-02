@@ -1,3 +1,5 @@
+# see main requirements.txt for reasoning the resrictions
+urllib3>=1.25.4, <1.27
 blosc~=1.7
 cloudpickle~=1.1
 dask-kubernetes~=0.11.0
@@ -12,7 +14,6 @@ numpy~=1.18
 scikit-learn~=0.23.0
 scikit-plot~=0.3.7
 tornado~=6.0
-urllib3~=1.25
 vaex~=2.6
 xgboost~=1.1
 yellowbrick~=1.1

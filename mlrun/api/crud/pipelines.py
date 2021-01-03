@@ -11,6 +11,7 @@ import mlrun.utils.helpers
 from mlrun.utils import logger
 
 
+# TODO: changed to be under a singleton like projects and runtimes
 def list_pipelines(
     project: str,
     namespace: str = "",

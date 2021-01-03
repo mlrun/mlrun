@@ -10,6 +10,7 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes.constants import PodPhases
 
 
+# TODO: changed to be under a singleton like projects and runtimes
 class Logs:
     @staticmethod
     def store_log(body: bytes, project: str, uid: str, append: bool = True):

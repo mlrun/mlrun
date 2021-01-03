@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import tempfile
 import time
 from datetime import datetime
@@ -347,6 +346,14 @@ class HTTPRunDB(RunDBInterface):
         error = "del artifacts"
         self.api_call("DELETE", "artifacts", error, params=params)
 
+    def list_artifact_tags(self, project=None):
+        project = project or default_project
+        error_message = f"Failed listing artifact tags. project={project}"
+        response = self.api_call(
+            "GET", f"/projects/{project}/artifact-tags", error_message
+        )
+        return response.json()
+
     def store_function(self, function, name, project="", tag=None, versioned=False):
         params = {"tag": tag, "versioned": versioned}
         project = project or default_project
@@ -354,7 +361,7 @@ class HTTPRunDB(RunDBInterface):
 
         error = f"store function {project}/{name}"
         resp = self.api_call(
-            "POST", path, error, params=params, body=json.dumps(function)
+            "POST", path, error, params=params, body=dict_to_json(function)
         )
 
         # hash key optional to be backwards compatible to API v<0.4.10 in which it wasn't in the response
@@ -450,7 +457,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/schedules"
 
         error_message = f"Failed creating schedule {project}/{schedule.name}"
-        self.api_call("POST", path, error_message, body=json.dumps(schedule.dict()))
+        self.api_call("POST", path, error_message, body=dict_to_json(schedule.dict()))
 
     def update_schedule(
         self, project: str, name: str, schedule: schemas.ScheduleUpdate
@@ -459,7 +466,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/schedules/{name}"
 
         error_message = f"Failed updating schedule {project}/{name}"
-        self.api_call("PUT", path, error_message, body=json.dumps(schedule.dict()))
+        self.api_call("PUT", path, error_message, body=dict_to_json(schedule.dict()))
 
     def get_schedule(
         self, project: str, name: str, include_last_run: bool = False
@@ -751,7 +758,7 @@ class HTTPRunDB(RunDBInterface):
         name = feature_set["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=json.dumps(feature_set),
+            "POST", path, error_message, params=params, body=dict_to_json(feature_set),
         )
         return resp.json()
 
@@ -851,7 +858,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
         resp = self.api_call(
-            "PUT", path, error_message, params=params, body=json.dumps(feature_set)
+            "PUT", path, error_message, params=params, body=dict_to_json(feature_set)
         )
         return resp.json()
 
@@ -875,7 +882,7 @@ class HTTPRunDB(RunDBInterface):
             "PATCH",
             path,
             error_message,
-            body=json.dumps(feature_set_update),
+            body=dict_to_json(feature_set_update),
             headers=headers,
         )
 
@@ -905,7 +912,11 @@ class HTTPRunDB(RunDBInterface):
         name = feature_vector["metadata"]["name"]
         error_message = f"Failed creating feature-vector {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=json.dumps(feature_vector),
+            "POST",
+            path,
+            error_message,
+            params=params,
+            body=dict_to_json(feature_vector),
         )
         return resp.json()
 
@@ -965,7 +976,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed storing feature-vector {project}/{name}"
         resp = self.api_call(
-            "PUT", path, error_message, params=params, body=json.dumps(feature_vector)
+            "PUT", path, error_message, params=params, body=dict_to_json(feature_vector)
         )
         return resp.json()
 
@@ -989,7 +1000,7 @@ class HTTPRunDB(RunDBInterface):
             "PATCH",
             path,
             error_message,
-            body=json.dumps(feature_vector_update),
+            body=dict_to_json(feature_vector_update),
             headers=headers,
         )
 
@@ -1058,17 +1069,15 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
-        use_vault=False,
     ) -> mlrun.projects.MlrunProject:
         path = f"projects/{name}"
-        params = {"use-vault": use_vault}
         error_message = f"Failed storing project {name}"
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
         response = self.api_call(
-            "PUT", path, error_message, body=json.dumps(project), params=params
+            "PUT", path, error_message, body=dict_to_json(project),
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
@@ -1084,14 +1093,13 @@ class HTTPRunDB(RunDBInterface):
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
         response = self.api_call(
-            "PATCH", path, error_message, body=json.dumps(project), headers=headers
+            "PATCH", path, error_message, body=dict_to_json(project), headers=headers
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
     def create_project(
         self,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
-        use_vault=False,
     ) -> mlrun.projects.MlrunProject:
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
@@ -1099,7 +1107,7 @@ class HTTPRunDB(RunDBInterface):
             project = project.to_dict()
         error_message = f"Failed creating project {project['metadata']['name']}"
         response = self.api_call(
-            "POST", "projects", error_message, body=json.dumps(project)
+            "POST", "projects", error_message, body=dict_to_json(project),
         )
         return mlrun.projects.MlrunProject.from_dict(response.json())
 
@@ -1117,7 +1125,7 @@ class HTTPRunDB(RunDBInterface):
         body = {"provider": provider, "secrets": secrets}
         error_message = f"Failed creating secret provider {project}/{provider}"
         self.api_call(
-            "POST", path, error_message, body=json.dumps(body),
+            "POST", path, error_message, body=dict_to_json(body),
         )
 
     def create_user_secrets(
@@ -1134,7 +1142,7 @@ class HTTPRunDB(RunDBInterface):
         body = {"user": user, "provider": provider, "secrets": secrets}
         error_message = f"Failed creating user secrets - {user}"
         self.api_call(
-            "POST", path, error_message, body=json.dumps(body),
+            "POST", path, error_message, body=dict_to_json(body),
         )
 
     @staticmethod

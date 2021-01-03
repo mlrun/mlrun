@@ -440,7 +440,7 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project, use_vault=False
+        self, name: str, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -453,7 +453,7 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project, use_vault=False
+        self, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -619,6 +619,9 @@ class FileRunDB(RunDBInterface):
     def create_user_secrets(
         self, user: str, provider: str = "vault", secrets: dict = None
     ):
+        raise NotImplementedError()
+
+    def list_artifact_tags(self, project=None):
         raise NotImplementedError()
 
 

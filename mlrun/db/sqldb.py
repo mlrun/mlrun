@@ -160,7 +160,7 @@ class SQLDB(RunDBInterface):
             self.db.list_functions, self.session, name, project, tag, labels
         )
 
-    def list_artifact_tags(self, project):
+    def list_artifact_tags(self, project=None):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
         )
@@ -188,7 +188,7 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(self.db.list_tags, self.session, project)
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project, use_vault=False
+        self, name: str, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -201,7 +201,7 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project, use_vault=False
+        self, project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 

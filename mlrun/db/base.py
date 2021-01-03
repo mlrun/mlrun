@@ -126,9 +126,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(
-        self, name: str, project: schemas.Project, use_vault=False
-    ) -> schemas.Project:
+    def store_project(self, name: str, project: schemas.Project,) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -141,9 +139,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(
-        self, project: schemas.Project, use_vault=False
-    ) -> schemas.Project:
+    def create_project(self, project: schemas.Project,) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -160,8 +156,9 @@ class RunDBInterface(ABC):
     def get_project(self, name: str) -> schemas.Project:
         pass
 
-    def list_artifact_tags(self, project):
-        return []
+    @abstractmethod
+    def list_artifact_tags(self, project=None):
+        pass
 
     @abstractmethod
     def create_feature_set(

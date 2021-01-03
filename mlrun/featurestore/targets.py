@@ -26,28 +26,12 @@ from .model.base import (
 from mlrun.datastore.v3io import v3io_path
 
 
-def init_store_driver(resource, target):
-    """initialize the store driver and update the target"""
-    driver = kind_to_driver[target.kind](resource, target)
-    table = driver.get_table_object()
-    driver.update_resource_status(resource)
-    target.driver = driver
-    return table
-
-
-def init_featureset_targets(featureset):
-    """initialize the feature set targets list"""
-    targets = featureset.spec.targets
-    table = None
-
-    if not targets:
-        for target in store_config.default_targets:
-            target_obj = targets.update(DataTargetSpec(target), str(target))
-            table = init_store_driver(featureset, target_obj) or table
-    else:
-        for target in targets:
-            table = init_store_driver(featureset, target) or table
-    return table
+def get_default_targets():
+    """initialize the default feature set targets list"""
+    return [
+        DataTargetSpec(target, name=str(target))
+        for target in store_config.default_targets
+    ]
 
 
 def add_target_states(graph, resource, targets, to_df=False, final_state=None):
@@ -56,9 +40,13 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
     key_column = resource.spec.entities[0].name
     timestamp_key = resource.spec.timestamp_key
     features = resource.spec.features
+    table = None
 
     for target in targets:
-        target.driver.add_writer_state(
+        driver = kind_to_driver[target.kind](resource, target)
+        table = driver.get_table_object() or table
+        driver.update_resource_status()
+        driver.add_writer_state(
             graph,
             target.after_state or final_state,
             features=features,
@@ -74,6 +62,8 @@ def add_target_states(graph, resource, targets, to_df=False, final_state=None):
             key_column=key_column,
             timestamp_key=timestamp_key,
         )
+
+    return table
 
 
 def update_target_status(featureset, status, producer):
@@ -115,18 +105,19 @@ class BaseStoreDriver:
         self.target_path = target_spec.path or _get_target_path(self, resource)
         self.attributes = target_spec.attributes
         self.target = None
+        self.resource = resource
 
     def get_table_object(self):
         """get storey Table object"""
         return None
 
-    def update_resource_status(self, resource, status="", producer=None):
+    def update_resource_status(self, status="", producer=None):
         """update the data target status"""
         self.target = self.target or DataTarget(self.kind, self.name, self.target_path)
         self.target.status = status or self.target.status
         self.target.updated = now_date().isoformat()
         self.target.producer = producer or self.target.producer
-        resource.status.update_target(self.target)
+        self.resource.status.update_target(self.target)
 
     def add_writer_state(
         self, graph, after, features, key_column=None, timestamp_key=None
@@ -181,6 +172,7 @@ class CSVStore(BaseStoreDriver):
             class_name="storey.WriteToCSV",
             path=self.target_path,
             columns=column_list,
+            header=True,
             index_cols=key_column,
         )
 
@@ -233,7 +225,7 @@ class DFStore(BaseStoreDriver):
     def set_df(self, df):
         self._df = df
 
-    def update_resource_status(self, resource, status="", producer=None):
+    def update_resource_status(self, status="", producer=None):
         pass
 
     def add_writer_state(

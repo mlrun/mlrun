@@ -213,19 +213,19 @@ class FeatureSet(ModelObj):
 
     def uri(self):
         """fully qualified feature set uri"""
-        uri = f'{self._metadata.project or ""}/{self._metadata.name}'
+        uri = f'{self._metadata.project or ""}/{self._metadata.name}:{self._metadata.tag or "latest"}'
         uri = get_store_uri(StorePrefix.FeatureSet, uri)
-        if self._metadata.tag:
-            uri += ":" + self._metadata.tag
         return uri
 
-    def set_targets(self, targets=None):
+    def set_targets(self, targets=None, with_defaults=True):
         """set the desired target list"""
         if targets is not None and not isinstance(targets, list):
             raise ValueError(
                 "targets can only be None or a list of kinds/DataTargetSpec"
             )
-        targets = targets or copy(store_config.default_targets)
+        targets = targets or []
+        if with_defaults:
+            targets.extend(copy(store_config.default_targets))
         for target in targets:
             if not isinstance(target, DataTargetSpec):
                 target = DataTargetSpec(target, name=str(target))

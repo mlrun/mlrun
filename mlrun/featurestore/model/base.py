@@ -134,8 +134,8 @@ class FeatureSetProducer(ModelObj):
 
 
 class SourceTypes:
-    offline = "offline"
-    realtime = "realtime"
+    csv = "csv"
+    dataframe = "dataframe"
 
 
 class DataTargetSpec(ModelObj):
@@ -149,7 +149,6 @@ class DataTargetSpec(ModelObj):
         self.path = path
         self.after_state = after_state
         self.attributes = None
-        self.driver = None
         self._table = None
 
     def set_table(self, table):

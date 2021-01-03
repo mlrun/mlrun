@@ -15,14 +15,19 @@
 from .model.base import DataSource
 
 
-def get_source_driver(source):
+def get_source_step(source, key_column=None, time_column=None):
     """initialize the source driver"""
-    return source_kind_to_driver[source.kind](source)
+    if isinstance(source, dict):
+        source = DataSource.from_dict(source)
+    kind = "dataframe" if hasattr(source, 'to_csv') else source.kind
+    return source_kind_to_driver[kind](source, key_column, time_column).to_step()
 
 
 class BaseSourceDriver:
-    def __init__(self, source: DataSource):
+    def __init__(self, source: DataSource, key_column=None, time_column=None):
         self._source = source
+        self._key_column = key_column
+        self._time_column = time_column
 
     def to_step(self):
         import storey
@@ -39,7 +44,14 @@ class CSVSourceDriver(BaseSourceDriver):
         import storey
 
         attributes = self._source.attributes or {}
-        return storey.ReadCSV(paths=self._source.path, header=True, **attributes,)
+        return storey.ReadCSV(
+            paths=self._source.path,
+            header=True,
+            build_dict=True,
+            key_field=self._key_column,
+            timestamp_field=self._time_column,
+            **attributes,
+        )
 
 
 class DFSourceDriver(BaseSourceDriver):

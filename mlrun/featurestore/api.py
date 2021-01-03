@@ -20,6 +20,7 @@ from .infer import (
 from .retrieval import LocalFeatureMerger, init_feature_vector_graph
 from .ingestion import init_featureset_graph
 from .model import FeatureVector, FeatureSet, OnlineVectorService
+from .targets import get_default_targets
 from ..config import config
 from ..utils import parse_function_uri, get_caller_globals
 
@@ -145,8 +146,9 @@ def ingest(
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
+    targets = targets or featureset.spec.targets or get_default_targets()
     controller = init_featureset_graph(
-        source, featureset, namespace, with_targets=True, return_df=return_df
+        source, featureset, namespace, targets=targets, return_df=return_df
     )
     df = controller.await_termination()
     infer_from_source(df, featureset, options=infer_stats)
@@ -159,9 +161,8 @@ def infer_metadata(
     source,
     entity_columns=None,
     timestamp_key=None,
-    label_column=None,
     namespace=None,
-    options: InferOptions = InferOptions.Null,
+    options: InferOptions = None,
 ):
     """Infer features schema and stats from a local DataFrame"""
     options = options if options is not None else InferOptions.default()
@@ -179,13 +180,11 @@ def infer_metadata(
             source, featureset, entity_columns, options & InferOptions.Schema
         )
         controller = init_featureset_graph(
-            source, featureset, namespace, with_targets=False, return_df=True
+            source, featureset, namespace, return_df=True
         )
         source = controller.await_termination()
 
     infer_from_source(source, featureset, entity_columns, options)
-    if label_column:
-        featureset.spec.label_column = label_column
     return source
 
 

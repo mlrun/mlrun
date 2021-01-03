@@ -54,9 +54,9 @@ class GraphServer(ModelObj):
     def __init__(
         self,
         graph=None,
-        function_uri=None,
         parameters=None,
         load_mode=None,
+        function_uri=None,
         verbose=False,
         version=None,
         functions=None,
@@ -64,7 +64,7 @@ class GraphServer(ModelObj):
         error_stream=None,
     ):
         self._graph = None
-        self.graph: RouterState = graph
+        self.graph: Union[RouterState, RootFlowState] = graph
         self.function_uri = function_uri
         self.parameters = parameters or {}
         self.verbose = verbose
@@ -120,16 +120,16 @@ class GraphServer(ModelObj):
         )
         context.get_table = self.resource_cache.get_table
         context.verbose = self.verbose
-        context.root = self.graph
         self.context = context
 
         if self.graph_initializer:
             if callable(self.graph_initializer):
                 handler = self.graph_initializer
             else:
-                handler = get_function(self.graph_initializer, namespace)
+                handler = get_function(self.graph_initializer, namespace or [])
             handler(self)
 
+        context.root = self.graph
         self.graph.init_object(context, namespace, self.load_mode)
         return v2_serving_handler
 
@@ -316,7 +316,7 @@ class GraphContext:
 
     def get_param(self, key: str, default=None):
         if self._server and self._server.parameters:
-            return self.parameters.get(key, default)
+            return self._server.parameters.get(key, default)
         return default
 
     def get_secret(self, key: str):

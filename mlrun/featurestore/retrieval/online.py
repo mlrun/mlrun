@@ -16,7 +16,7 @@ from storey import Source
 from mlrun.datastore.data_resources import ResourceCache
 from mlrun.serving.server import create_graph_server
 from .common import parse_features
-from mlrun.featurestore.targets import get_online_target
+from ..targets import get_online_target
 
 
 def _build_feature_vector_graph(

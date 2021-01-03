@@ -1,5 +1,8 @@
 import os
+import pandas as pd
 
+from mlrun.featurestore.ingestion import run_ingestion_function
+from mlrun.featurestore.model.base import DataSource, DataTargetSpec
 from mlrun.featurestore.steps import FeaturesetValidator
 
 from data_sample import quotes, stocks, trades
@@ -44,10 +47,6 @@ class MyMap(MapClass):
         event["xx"] = event["bid"] * self._mul
         event["zz"] = 9
         return event
-
-
-def my_filter(event):
-    return event["bid"] > 51.96
 
 
 def test_advanced_featureset():
@@ -123,3 +122,21 @@ def test_feature_set_db():
 
     fset = fs.get_feature_set(name)
     print(fset)
+
+
+def test_serverless_ingest():
+    init_store()
+
+    measurements = fs.FeatureSet("measurements1", entities=[Entity("patient_id")])
+    src_df = pd.read_csv("measurements1.csv")
+    df = fs.infer_metadata(
+        measurements,
+        src_df,
+        timestamp_key="timestamp",
+        options=fs.InferOptions.default(),
+    )
+    print(df.head(5))
+    source = DataSource("csv", "csv", path="measurements1.csv")
+    run_ingestion_function(
+        measurements, source, [DataTargetSpec("csv", "mycsv", path="./mycsv.csv")]
+    )

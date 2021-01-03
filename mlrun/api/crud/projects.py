@@ -2,6 +2,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.member
 import mlrun.api.utils.singletons.db
@@ -49,6 +50,10 @@ class Projects(
         logger.debug(
             "Deleting project", name=name, deletion_strategy=deletion_strategy
         )
+        if deletion_strategy == mlrun.api.schemas.DeletionStrategy.cascade:
+            # delete runtime resources
+            mlrun.api.crud.Runtimes().delete_runtimes(session, label_selector=f'mlrun/project={name}', force=True)
+        mlrun.api.utils.singletons.db.get_db().delete_project(session, name, deletion_strategy)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

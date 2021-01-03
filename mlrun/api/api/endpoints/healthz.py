@@ -1,5 +1,3 @@
-from os import environ
-
 from fastapi import APIRouter
 
 from mlrun.config import config
@@ -14,9 +12,11 @@ def health():
     return {
         "version": config.version,
         "namespace": config.namespace,
-        "docker_registry": environ.get('DEFAULT_DOCKER_REGISTRY', ''),
+        "docker_registry": config.httpdb.builder.docker_registry,
         "remote_host": config.remote_host,
         "mpijob_crd_version": mpijob_crd_version,
         "ui_url": config.ui_url,
         "artifact_path": config.artifact_path,
+        "spark_app_image": config.spark_app_image,
+        "spark_app_image_tag": config.spark_app_image_tag,
     }

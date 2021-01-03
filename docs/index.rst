@@ -6,13 +6,31 @@
 MLRun Package Documentation
 ============================
 
+*The fastest way to develop and deploy your AI application today.*
+
 Introduction
-============
+************
 
-MLRun is a generic and convenient mechanism for data scientists and software developers to describe and run tasks related to machine learning (ML) in various, scalable runtime environments and ML pipelines while automatically tracking executed code, metadata, inputs, and outputs.
-MLRun integrates with the `Nuclio <https://nuclio.io/>`_ serverless project and with `Kubeflow Pipelines <https://github.com/kubeflow/pipelines>`_.
+**MLRun** is the first end-to-end open-source MLOps solution for managing and automating your entire analytics and machine-learning life cycle, from data ingestion through model development to full pipeline deployment in production.
 
-MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``), and a graphical user interface (the MLRun dashboard).
+Key Benefits
+------------
+
+MLRun provides the following key benefits:
+
+- Develop your training pipeline on any framework, locally and/or on a cluster.
+- Leverage the power of the open-source functions marketplace to focus on your research.
+- Deploy your pipeline at scale in a single click.
+- Monitor your model performance and automate your actions.
+
+Key Features
+--------------
+
+MLRun includes the following key features:
+
+- **Project life-cycle management** &mdash; experiment management and tracking of jobs, functions, and artifacts.
+- **Scalable functions** &mdash; turn code to scalable microservices in a single command.
+- **Managed pipelines** &mdash; deploy, run, and monitor your machine-learning execution plan.
 
 .. toctree::
    :maxdepth: 1
@@ -21,19 +39,14 @@ MLRun features a Python package (``mlrun``), a command-line interface (``mlrun``
    quick-start
    general
    install
-   external/remote.md
+   remote
    end-to-end-pipeline
    data-management-and-versioning
    projects
+   load-from-marketplace
    job-submission-and-tracking
    model-management-and-serving
    examples
-   api
+   cli
+   api/index
 
-
-Indices and Tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

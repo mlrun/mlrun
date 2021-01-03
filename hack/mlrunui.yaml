@@ -16,8 +16,7 @@ spec:
     spec:
       containers:
       - name: mlrun-ui
-        image:  quay.io/iguazio/mlrun-ui:latest
-        imagePullPolicy: Always
+        image: mlrun/mlrun-ui:0.5.4
         env:
         - name: MLRUN_API_PROXY_URL
           value: http://mlrun-api:8080

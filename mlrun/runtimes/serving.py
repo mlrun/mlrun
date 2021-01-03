@@ -13,287 +13,381 @@
 # limitations under the License.
 
 import json
-import os
-import socket
-from copy import deepcopy
-from io import BytesIO
-from typing import Dict
-from urllib.request import urlopen
-from datetime import datetime
+from typing import List, Union
+import mlrun
+import nuclio
 
-from ..artifacts import get_model, ModelArtifact
-from ..datastore import StoreManager
-from ..platforms.iguazio import OutputStream
+from ..model import ObjectList
+from .function import RemoteRuntime, NuclioSpec
+from .function_reference import FunctionReference
+from ..utils import logger, get_caller_globals
+from ..serving.server import create_graph_server, GraphServer
+from ..serving.states import (
+    RouterState,
+    StateKinds,
+    RootFlowState,
+    graph_root_setter,
+    new_remote_endpoint,
+    new_model_endpoint,
+)
 
-
-class MLModelServer:
-
-    def __init__(self, name: str, model_dir: str = None, model=None):
-        self.name = name
-        self.ready = False
-        self.model_dir = model_dir
-        self.model_spec: ModelArtifact = None
-        self._params = {}
-        self.metrics = {}
-        self.labels = {}
-        self._stores = StoreManager()
-        if model:
-            self.model = model
-            self.ready = True
-
-    def get_param(self, key: str, default=None):
-        return self._params.get(key, default)
-
-    def get_model(self, suffix=''):
-        model_file, self.model_spec, extra_dataitems = get_model(
-            self.model_dir, suffix, self._stores)
-        if self.model_spec and self.model_spec.parameters:
-            for key, value in self.model_spec.parameters.items():
-                self._params[key] = value
-        return model_file, extra_dataitems
-
-    def load(self):
-        if not self.ready and not self.model:
-            raise ValueError('please specify a load method or a model object')
-
-    def preprocess(self, request: Dict) -> Dict:
-        return request
-
-    def postprocess(self, request: Dict) -> Dict:
-        return request
-
-    def predict(self, request: Dict) -> Dict:
-        raise NotImplementedError
-
-    def explain(self, request: Dict) -> Dict:
-        raise NotImplementedError
+serving_subkind = "serving_v2"
 
 
-def nuclio_serving_init(context, data):
-    model_prefix = 'SERVING_MODEL_'
-    params_prefix = 'SERVING_PARAMS'
+def new_v2_model_server(
+    name,
+    model_class: str,
+    models: dict = None,
+    filename="",
+    protocol="",
+    image="",
+    endpoint="",
+    workers=8,
+    canary=None,
+):
+    f = ServingRuntime()
+    if not image:
+        name, spec, code = nuclio.build_file(
+            filename, name=name, handler="handler", kind=serving_subkind
+        )
+        f.spec.base_spec = spec
 
-    # Initialize models from environment variables
-    # Using the {model_prefix}_{model_name} = {model_path} syntax
-    model_paths = {k[len(model_prefix):]: v for k, v in os.environ.items() if
-                   k.startswith(model_prefix)}
-    model_class = os.environ.get('MODEL_CLASS', 'MLModelServer')
-    fhandler = data[model_class]
-    models = {name: fhandler(name=name, model_dir=path) for name, path in
-              model_paths.items()}
+    f.metadata.name = name
+    f.spec.default_class = model_class
+    params = None
+    if protocol:
+        params = {"protocol": protocol}
+    if models:
+        for name, model_path in models.items():
+            f.add_model(name, model_path=model_path, parameters=params)
 
-    params = os.environ.get(params_prefix)
-    if params:
-        params = json.loads(params)
+    f.with_http(workers, host=endpoint, canary=canary)
+    if image:
+        f.from_image(image)
 
-    for name, model in models.items():
-        if params:
-            setattr(model, '_params', deepcopy(params))
-        if not model.ready:
-            model.load()
-            model.ready = True
-
-    # Verify that models are loaded
-    assert len(
-        models) > 0, "No models were loaded!\n Please load a model by using the environment variable SERVING_MODEL_{model_name} = model_path"
-    context.logger.info(f'Loaded {list(models.keys())}')
-
-    # Initialize route handlers
-    hostname = socket.gethostname()
-    server_context = _ServerInfo(context, hostname, model_class)
-    predictor = PredictHandler(models).with_context(server_context)
-    explainer = ExplainHandler(models).with_context(server_context)
-    router = {
-        'predict': predictor.post,
-        'explain': explainer.post
-    }
-
-    ## Define handle
-    setattr(context, 'mlrun_handler', nuclio_serving_handler)
-    setattr(context, 'models', models)
-    setattr(context, 'router', router)
+    return f
 
 
-err_string = 'Got path: {} \n Path must be <model-name>/<action> \nactions: {} \nmodels: {}'
+class ServingSpec(NuclioSpec):
+    def __init__(
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        entry_points=None,
+        description=None,
+        replicas=None,
+        min_replicas=None,
+        max_replicas=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        config=None,
+        base_spec=None,
+        no_cache=None,
+        source=None,
+        image_pull_policy=None,
+        function_kind=None,
+        service_account=None,
+        readiness_timeout=None,
+        models=None,
+        graph=None,
+        parameters=None,
+        default_class=None,
+        load_mode=None,
+        build=None,
+        function_refs=None,
+        graph_initializer=None,
+        error_stream=None,
+    ):
+
+        super().__init__(
+            command=command,
+            args=args,
+            image=image,
+            mode=mode,
+            entry_points=entry_points,
+            description=description,
+            replicas=replicas,
+            min_replicas=min_replicas,
+            max_replicas=max_replicas,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+            env=env,
+            resources=resources,
+            config=config,
+            base_spec=base_spec,
+            no_cache=no_cache,
+            source=source,
+            image_pull_policy=image_pull_policy,
+            function_kind=serving_subkind,
+            service_account=service_account,
+            readiness_timeout=readiness_timeout,
+            build=build,
+        )
+
+        self.models = models or {}
+        self._graph = None
+        self.graph: Union[RouterState, RootFlowState] = graph
+        self.parameters = parameters or {}
+        self.default_class = default_class
+        self.load_mode = load_mode
+        self._function_refs: ObjectList = None
+        self.function_refs = function_refs or []
+        self.graph_initializer = graph_initializer
+        self.error_stream = error_stream
+
+    @property
+    def graph(self) -> Union[RouterState, RootFlowState]:
+        """states graph, holding the serving workflow/DAG topology"""
+        return self._graph
+
+    @graph.setter
+    def graph(self, graph):
+        graph_root_setter(self, graph)
+
+    @property
+    def function_refs(self) -> List[FunctionReference]:
+        """function references, list of optional child function refs"""
+        return self._function_refs
+
+    @function_refs.setter
+    def function_refs(self, function_refs: List[FunctionReference]):
+        self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 
-def nuclio_serving_handler(context, event):
-    # check if valid route & model
-    try:
-        model_name, route = event.path.strip('/').split('/')
-        route = context.router[route]
-    except:
-        return context.Response(
-            body=err_string.format(event.path, '|'.join(context.router.keys()), '|'.join(context.models.keys())),
-            content_type='text/plain',
-            status_code=404)
+class ServingRuntime(RemoteRuntime):
+    kind = "serving"
 
-    return route(context, model_name, event)
+    @property
+    def spec(self) -> ServingSpec:
+        return self._spec
 
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
-class _ServerInfo:
-    def __init__(self, context, hostname, model_class):
-        self.context = context
-        self.worker = context.worker_id
-        self.model_class = model_class
-        self.hostname = hostname
-        self.output_stream = None
-        out_stream = os.environ.get('INFERENCE_STREAM', '')
-        self.stream_sample = int(os.environ.get('INFERENCE_STREAM_SAMPLE', '1'))
-        self.stream_batch = int(os.environ.get('INFERENCE_STREAM_BATCH', '1'))
-        if out_stream:
-            self.output_stream = OutputStream(out_stream)
+    def set_topology(
+        self, topology=None, class_name=None, engine=None, exist_ok=False, **class_args,
+    ) -> Union[RootFlowState, RouterState]:
+        """set the serving graph topology (router/flow) and root class or params
 
+        e.g.:
+            graph = fn.set_topology("flow", engine="async")
+            graph.to("MyClass").to(name="to_json", handler="json.dumps").respond()
 
-class HTTPHandler:
-    kind = ''
+        topology can be:
+          router - root router + multiple child route states/models
+                   route is usually determined by the path (route key/name)
+                   can specify special router class and router arguments
 
-    def __init__(self, models: Dict, server: _ServerInfo = None):
-        self.models = models
-        self.srvinfo = server
-        self.context = None
-        self._sample_iter = 0
-        self._batch_iter = 0
-        self._batch = []
+          flow   - workflow (DAG) with a chain of states
+                   flow support "sync" and "async" engines, branches are not allowed in sync mode
+                   when using async mode calling state.respond() will mark the state as the
+                   one which generates the (REST) call response
 
-    def with_context(self, server: _ServerInfo):
-        self.srvinfo = server
-        self.context = server.context
-        return self
+        :param topology:     - graph topology, router or flow
+        :param class_name:   - optional for router, router class name/path
+        :param engine:       - optional for flow, sync or async engine (default to async)
+        :param exist_ok:     - allow overriding existing topology
+        :param class_args:   - optional, router/flow class init args
 
-    def get_model_class(self, name: str):
-        model = self.models[name]
-        if not model.ready:
-            model.load()
-            model.ready = True
-        setattr(model, 'context', self.srvinfo.context)
-        return model
+        :return graph object (fn.spec.graph)
+        """
+        topology = topology or StateKinds.router
+        if self.spec.graph and not exist_ok:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "graph topology is already set, cannot be overwritten"
+            )
 
-    def parse_event(self, event):
-        parsed_event = {'instances': []}
-        try:
-            if not isinstance(event.body, dict):
-                body = json.loads(event.body)
-            else:
-                body = event.body
-            self.context.logger.info(f'event.body: {event.body}')
-            if 'data_url' in body:
-                # Get data from URL
-                url = body['data_url']
-                self.context.logger.debug_with('downloading data', url=url)
-                data = urlopen(url).read()
-                sample = BytesIO(data)
-                parsed_event['instances'].append(sample)
-            else:
-                parsed_event = body
+        if topology == StateKinds.router:
+            self.spec.graph = RouterState(class_name=class_name, class_args=class_args)
+        elif topology == StateKinds.flow:
+            self.spec.graph = RootFlowState(engine=engine)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"unsupported topology {topology}, use 'router' or 'flow'"
+            )
+        return self.spec.graph
 
-        except Exception as e:
-            if event.content_type.startswith('image/'):
-                sample = BytesIO(event.body)
-                parsed_event['instances'].append(sample)
-                parsed_event['content_type'] = event.content_type
-            else:
-                raise Exception("Unrecognized request format: %s" % e)
-                
-        return parsed_event
+    def set_tracking(self, stream_path, batch=None, sample=None):
+        """set tracking log stream parameters"""
+        self.spec.parameters["log_stream"] = stream_path
+        if batch:
+            self.spec.parameters["log_stream_batch"] = batch
+        if sample:
+            self.spec.parameters["log_stream_sample"] = sample
 
-    def validate(self, request):
-        if "instances" not in request:
-            raise Exception("Expected key \"instances\" in request body")
+    def add_model(
+        self,
+        key,
+        model_path=None,
+        class_name=None,
+        model_url=None,
+        handler=None,
+        **class_args,
+    ):
+        """add ml model and/or route to the function.
 
-        if not isinstance(request["instances"], list):
-            raise Exception("Expected \"instances\" to be a list")
+        Example, create a function (from the notebook), add a model class, and deploy:
 
-        return request
+            fn = code_to_function(kind='serving')
+            fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
+            fn.deploy()
 
-    def push_to_stream(self, start, request, resp, model):
+        only works with router topology, for nested topologies (model under router under flow)
+        need to add router to flow and use router.add_route()
 
-        def base_data():
-            data = {'op': self.kind,
-                    'class': self.srvinfo.model_class,
-                    'worker': self.srvinfo.worker,
-                    'model': model.name,
-                    'host': self.srvinfo.hostname}
-            if getattr(model, 'labels', None):
-                data['labels'] = model.labels
-            return data
+        :param key:         model api key (or name:version), will determine the relative url/path
+        :param model_path:  path to mlrun model artifact or model directory file/object path
+        :param class_name:  V2 Model python class name
+                            (can also module.submodule.class and it will be imported automatically)
+        :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
+        :param handler:     for advanced users!, override default class handler name (do_event)
+        :param class_args:  extra kwargs to pass to the model serving class __init__
+                            (can be read in the model using .get_param(key) method)
+        """
+        graph = self.spec.graph
+        if not graph:
+            self.set_topology()
 
-        self._sample_iter = (self._sample_iter + 1) % self.srvinfo.stream_sample
-        if self.srvinfo.output_stream and self._sample_iter == 0:
-            microsec = (datetime.now() - start).microseconds
+        if graph.kind != StateKinds.router:
+            raise ValueError("models can only be added under router state")
 
-            if self.srvinfo.stream_batch > 1:
-                if self._batch_iter == 0:
-                    self._batch = []
-                self._batch.append([request, resp, str(start), microsec, model.metrics])
-                self._batch_iter = (self._batch_iter + 1) % self.srvinfo.stream_batch
+        if not model_path and not model_url:
+            raise ValueError("model_path or model_url must be provided")
+        class_name = class_name or self.spec.default_class
+        if class_name and not isinstance(class_name, str):
+            raise ValueError(
+                "class name must be a string (name ot module.submodule.name)"
+            )
+        if model_path and not class_name:
+            raise ValueError("model_path must be provided with class_name")
+        if model_path:
+            model_path = str(model_path)
 
-                if self._batch_iter == 0:
-                    data = base_data()
-                    data['headers'] = ['request', 'resp', 'when', 'microsec', 'metrics']
-                    data['values'] = self._batch
-                    self.srvinfo.output_stream.push([data])
-            else:
-                data = base_data()
-                data['request'] = request
-                data['resp'] = resp
-                data['when'] = str(start)
-                data['microsec'] = microsec
-                if getattr(model, 'metrics', None):
-                    data['metrics'] = model.metrics
-                self.srvinfo.output_stream.push([data])
+        if model_url:
+            state = new_remote_endpoint(model_url, **class_args)
+        else:
+            state = new_model_endpoint(class_name, model_path, handler, **class_args)
 
+        return graph.add_route(key, state)
 
-class PredictHandler(HTTPHandler):
-    kind = 'predict'
+    def add_child_function(
+        self, name, url=None, image=None, requirements=None, kind=None
+    ):
+        """in a multi-function pipeline add child function
 
-    def post(self, context, name: str, event):
-        if name not in self.models:
-            return context.Response(
-                body=f'Model with name {name} does not exist, please try to list the models',
-                content_type='text/plain',
-                status_code=404)
+        example:
+            fn.add_child_function('enrich', './enrich.ipynb', 'mlrun/mlrun')
 
-        model = self.get_model_class(name)
-        context.logger.debug('event: {}'.format(type(event.body)))
-        start = datetime.now()
-        body = self.parse_event(event)
-        request = model.preprocess(body)
-        request = self.validate(request)
-        response = model.predict(request)
-        response = model.postprocess(response)
-        self.push_to_stream(start, request, response, model)
+        :param name:   - child function name
+        :param url:    - function/code url, support .py, .ipynb, .yaml extensions
+        :param image:  - base docker image for the function
+        :param requirements - py package requirements file path OR list of packages
+        :param kind:   - mlrun function/runtime kind
 
-        return context.Response(body=json.dumps(response),
-                                content_type='application/json',
-                                status_code=200)
+        :return function object
+        """
+        function_reference = FunctionReference(
+            url, image, requirements=requirements, kind=kind or "serving"
+        )
+        self._spec.function_refs.update(function_reference, name)
+        func = function_reference.to_function(self.kind)
+        func.set_env("SERVING_CURRENT_FUNCTION", function_reference.name)
+        return func
 
+    def _add_ref_triggers(self):
+        """add stream trigger to downstream child functions"""
+        for function_name, stream in self.spec.graph.get_queue_links().items():
+            if stream.path:
+                if function_name not in self._spec.function_refs.keys():
+                    raise ValueError(f"function reference {function_name} not present")
+                group = stream.options.get("group", "serving")
 
-class ExplainHandler(HTTPHandler):
-    kind = 'explain'
+                child_function = self._spec.function_refs[function_name]
+                child_function.function_object().add_stream_trigger(
+                    stream.path, group=group, shards=stream.shards
+                )
 
-    def post(self, context, name: str, event):
-        if name not in self.models:
-            return context.Response(
-                body=f'Model with name {name} does not exist, please try to list the models',
-                content_type='text/plain',
-                status_code=404)
+    def _deploy_function_refs(self):
+        """set metadata and deploy child functions"""
+        for function_ref in self._spec.function_refs.values():
+            logger.info(f"deploy child function {function_ref.name} ...")
+            function_object = function_ref.function_object
+            function_object.metadata.name = function_ref.fullname(self)
+            function_object.metadata.project = self.metadata.project
+            function_object.metadata.tag = self.metadata.tag
+            function_object.spec.graph = self.spec.graph
+            # todo: may want to copy parent volumes to child functions
+            function_object.apply(mlrun.v3io_cred())
+            function_ref.db_uri = function_object._function_uri()
+            function_object.verbose = self.verbose
+            function_object.deploy()
 
-        model = self.get_model_class(name)
-        try:
-            body = json.loads(event.body)
-        except json.decoder.JSONDecodeError as e:
-            return context.Response(body="Unrecognized request format: %s" % e,
-                                    content_type='text/plain',
-                                    status_code=400)
+    def remove_states(self, keys: list):
+        """remove one, multiple, or all states/models from the spec (blank list for all)"""
+        if self.spec.graph:
+            self.spec.graph.clear_children(keys)
 
-        start = datetime.now()
-        request = model.preprocess(body)
-        request = self.validate(request)
-        response = model.explain(request)
-        response = model.postprocess(response)
-        self.push_to_stream(start, request, response, model)
+    def deploy(self, dashboard="", project="", tag="", verbose=False):
+        """deploy model serving function to a local/remote cluster
 
-        return context.Response(body=json.dumps(response),
-                                content_type='application/json',
-                                status_code=200)
+        :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
+        :param project:   optional, overide function specified project name
+        :param tag:       specify unique function tag (a different function service is created for every tag)
+        :param verbose:   verbose logging
+        """
+        load_mode = self.spec.load_mode
+        if load_mode and load_mode not in ["sync", "async"]:
+            raise ValueError(f"illegal model loading mode {load_mode}")
+        if not self.spec.graph:
+            raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
+
+        if self.spec.graph.kind != StateKinds.router:
+            # initialize or create required streams/queues
+            self.spec.graph.check_and_process_graph()
+            self.spec.graph.init_queues()
+        if self._spec.function_refs:
+            # deploy child functions
+            self._add_ref_triggers()
+            self._deploy_function_refs()
+            logger.info(f"deploy root function {self.metadata.name} ...")
+        return super().deploy(dashboard, project, tag, verbose=verbose)
+
+    def _get_runtime_env(self):
+
+        function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
+        serving_spec = {
+            "function_uri": self._function_uri(),
+            "version": "v2",
+            "parameters": self.spec.parameters,
+            "graph": self.spec.graph.to_dict(),
+            "load_mode": self.spec.load_mode,
+            "functions": function_name_uri_map,
+            "graph_initializer": self.spec.graph_initializer,
+            "error_stream": self.spec.error_stream,
+        }
+        return {"SERVING_SPEC_ENV": json.dumps(serving_spec)}
+
+    def to_mock_server(
+        self, namespace=None, current_function=None, **kwargs
+    ) -> GraphServer:
+        """create mock server object for local testing/emulation
+
+        :param namespace: classes search namespace, use globals() for current notebook
+        :param log_level: log level (error | info | debug)
+        :param current_function: specify if you want to simulate a child function
+        """
+        server = create_graph_server(
+            parameters=self.spec.parameters,
+            load_mode=self.spec.load_mode,
+            graph=self.spec.graph,
+            verbose=self.verbose,
+            current_function=current_function,
+            **kwargs,
+        )
+        server.init(None, namespace or get_caller_globals(), logger=logger)
+        return server

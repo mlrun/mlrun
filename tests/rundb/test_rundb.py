@@ -18,10 +18,11 @@ import pytest
 
 
 def get_db():
-    return mlrun.get_run_db(rundb_path).connect()
+    return mlrun.get_run_db(rundb_path)
+
 
 #
-#pprint.pprint(db.list_runs()[:2])
+# pprint.pprint(db.list_runs()[:2])
 
 # FIXME: this test was counting on the fact it's running after some test (I think test_httpdb) which leaves runs and
 #  artifacts in the `results` dir, it should generate its own stuff, skipping for now
@@ -30,12 +31,13 @@ def test_list_runs():
 
     db = get_db()
     runs = db.list_runs()
-    assert runs, 'empty runs result'
+    assert runs, "empty runs result"
 
     html = runs.show(display=False)
 
-    with open(f'{results}/runs.html', 'w') as fp:
+    with open(f"{results}/runs.html", "w") as fp:
         fp.write(html)
+
 
 # FIXME: this test was counting on the fact it's running after some test (I think test_httpdb) which leaves runs and
 #  artifacts in the `results` dir, it should generate its own stuff, skipping for now
@@ -44,13 +46,9 @@ def test_list_artifacts():
 
     db = get_db()
     artifacts = db.list_artifacts()
-    assert artifacts, 'empty artifacts result'
+    assert artifacts, "empty artifacts result"
 
     html = artifacts.show(display=False)
 
-    with open('{}/artifacts.html'.format(results), 'w') as fp:
+    with open("{}/artifacts.html".format(results), "w") as fp:
         fp.write(html)
-
-
-
-

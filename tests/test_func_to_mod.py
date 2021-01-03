@@ -12,18 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-import pandas as pd
-from tests.conftest import (
-    examples_path, has_secrets, here, out_path, tag_test, verify_state
-)
-from mlrun import function_to_module, NewTask, get_or_create_ctx
+from tests.conftest import examples_path
+from mlrun import function_to_module, new_task, get_or_create_ctx
 
 
 def test_local_py():
-    file_path = f'{examples_path}/training.py'
+    file_path = f"{examples_path}/training.py"
     mod = function_to_module(file_path)
-    task = NewTask(inputs={'infile.txt': f'{examples_path}/infile.txt'})
-    context = get_or_create_ctx('myfunc', spec=task)
-    mod.my_job(context, p1=2, p2='x')
-    assert context.results['accuracy'] == 4, 'failed to run'
+    task = new_task(inputs={"infile.txt": f"{examples_path}/infile.txt"})
+    context = get_or_create_ctx("myfunc", spec=task)
+    mod.my_job(context, p1=2, p2="x")
+    assert context.results["accuracy"] == 4, "failed to run"

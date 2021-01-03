@@ -1,16 +1,17 @@
 *.pyc
 .aws-secrets
+.idea/
 .ipynb_checkpoints
+.pytest_cache/
 .vscode/
-Dockerfile.mlrun-test-nb
 build
 chart
 chart.html
 dask-worker-space
 dask-worker-space/
 dataset.csv
-docs/_build
 dist
+Dockerfile.mlrun-test-nb
 docs/_build
 docs/external/*.html
 docs/external/*.md
@@ -19,5 +20,6 @@ mlrun.egg-info/
 model.txt
 result*.html
 tests/test_results/
-.idea/
 venv
+mlrun/utils/version/version.json
+mlrun/api/migrations/mlrun.db

@@ -1,11 +1,13 @@
-distributed>=2.3.0
-kfp>=0.1.29
-msgpack<1.0.0
-numpydoc==0.9.1
-pytest==5.3.1
-recommonmark==0.6.0
-sphinx==2.2.2
-sphinx_rtd_theme==0.4.3
-twine==3.1.1
-xgboost
-sphinx-copybutton
+pytest~=5.4
+twine~=3.1
+# from 20.8 (the next version) it requires click>=7.1.2 which conflicts with kfp - TODO: bump black (kfp bumped, this is not a problem anymore)
+black<=19.10b0
+flake8~=3.8
+pytest-asyncio~=0.14
+deepdiff~=5.0
+pytest-alembic~=0.2
+requests-mock~=1.8
+# needed for system tests
+matplotlib~=3.0
+graphviz~=0.16.0
+storey~=0.3; python_version >= '3.7'

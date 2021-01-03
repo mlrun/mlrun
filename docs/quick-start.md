@@ -1,13 +1,15 @@
 # Quick-Start <a id="top"/></a> <!-- omit in toc -->
 
 - [Installation](#installation)
-- [MLRun Setup](#mlrun-setup)
+  - [Installation on Kubernetes](#installation-on-kubernetes)
+  - [Alternative: Installation on a Local Docker Registry](#alternative-installation-on-a-local-docker-registry)
+- [Usage](#usage)
 - [Projects](#projects)
 - [Experiment Tracking](#experiment-tracking)
 - [Run Local Code](#run-local-code)
 - [Experiment Tracking UI](#experiment-tracking-ui)
 - [Functions marketplace](#functions-marketplace)
-- [Running functions on different runtimes](#running-functions-on-different-runtimes)
+- [Running Functions on Different Runtimes](#running-functions-on-different-runtimes)
   - [Accessing shared storage on Kubernetes](#accessing-shared-storage-on-kubernetes)
   - [Run the function from the marketplace](#run-the-function-from-the-marketplace)
   - [Convert python code to a function](#convert-python-code-to-a-function)
@@ -17,58 +19,76 @@
 <a id="installation"></a>
 ## Installation
 
+For detailed information regarding MLRun installation, refer to the [Installation Guide](install.md).
+
+### Installation on Kubernetes
+
+The following prerequisites are required to install MLRun on Kubernetes:
+
+1. Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. For local installation on Windows or Mac, we recommend [Docker Desktop](https://www.docker.com/products/docker-desktop)
+2. The Kubernetes command-line too (kubectl) compatible with your Kubernetes cluster installed. Refer to the [kubectl installation instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
+3. Helm CLI installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+4. You must have an accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret
+
+Replace the `<...>` placeholders with the information for your docker-registry and run the following commands:
+
+``` sh
+kubectl create namespace mlrun
+helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
+
+kubectl --namespace mlrun create secret docker-registry registry-credentials \
+    --docker-server <server-url, e.g. https://index.docker.io/v1/ > \
+    --docker-username <your-username> \
+    --docker-password <your-password> \
+    --docker-email <your-email>
+
+helm --namespace mlrun \
+    install my-mlrun \
+    --wait \
+    --set global.registry.url=<registry-url, e.g. index.docker.io/iguazio > \
+    --set global.registry.secretName=registry-credentials \
+    v3io-stable/mlrun-kit
+```
+
+### Alternative: Installation on a Local Docker Registry
+
 MLRun requires separate containers for the API and the dashboard (UI).
 
 To install and run MLRun locally using Docker:
 ``` sh
-MLRUN_IP=localhost
-SHARED_DIR=/home/me/data
-# On Windows, use host.docker.internal for MLRUN_IP
+SHARED_DIR=~/mlrun-data
 
-docker pull quay.io/iguazio/mlrun-ui:latest
-docker pull mlrun/jupy:latest
+docker pull mlrun/jupyter:0.5.4
+docker pull mlrun/mlrun-ui:0.5.4
 
-docker run -it -p 4000:80 --rm -d --name mlrun-ui -e MLRUN_API_PROXY_URL=http://${MLRUN_IP}:8080 quay.io/iguazio/mlrun-ui:latest
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --name jupy -v $(SHARED_DIR}:/home/jovyan/data mlrun/jupy:latest
+docker network create mlrun-network
+docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.5.4
+docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.5.4
 ```
 
 When using Docker MLRun can only use local runs.
 
-To install MLRun on a Kubernetes cluster (e.g., on minikube) and support additional runtimes, run the following commands:
+## Usage
 
-``` sh
-kubectl create namespace mlrun
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-helm install -n mlrun nfsprov stable/nfs-server-provisioner
-kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/nfs-pvc.yaml
-kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mlrun-local.yaml
-kubectl apply -n mlrun -f https://raw.githubusercontent.com/mlrun/mlrun/master/hack/local/mljupy.yaml
+Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and create a new notebook.
 
-```
-
-For more details regarding MLRun installation, refer to the [Installation Guide](install.html).
-
-<a id="setup"></a>
-## MLRun Setup
-
-Run the following command from your Python development environment (such as Jupyter Notebook) to install the MLRun package (`mlrun`), which includes a Python API library and the `mlrun` command-line interface (CLI):
-```sh
-pip install mlrun
-```
-
-Set-up an artifacts path and the MLRun Database path
-
+Set-up an artifacts path and the MLRun Database path:
 
 ```python
-from os import path
+from os import path, getenv
 from mlrun import mlconf
 
 # Target location for storing pipeline artifacts
-artifact_path = path.abspath('jobs')
+if not mlconf.artifact_path:
+    base_path = getenv('HOME', default=path.abspath('.'))
+    mlconf.artifact_path = path.join(base_path, 'data')
+
+mlconf.artifact_path = path.join(mlconf.artifact_path, 'quickstart')
+    
 # MLRun DB path or API service URL
 mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
 
-print(f'Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}')
+print(f'Artifacts path: {mlconf.artifact_path}\nMLRun DB path: {mlconf.dbpath}')
 ```
 
 <a id="projects"></a>
@@ -122,7 +142,10 @@ For this purpose, we'll add a `context` parameter which will be used to log our 
 
 ```python
 from os import path
-def get_data(context, source_url, format='csv'):
+from mlrun.execution import MLClientCtx
+from mlrun.datastore import DataItem
+
+def get_data(context: MLClientCtx, source_url: DataItem, format: str = 'csv'):
 
     df = source_url.as_df()
 
@@ -140,7 +163,7 @@ As input, we will provide a CSV file from S3:
 
 ```python
 # Set the source-data URL
-source_url = 'http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'
+source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
 ```
 
 Next call this function locally, using the `run_local` method. This is a wrapper that will store the execution results in the MLRun database.
@@ -149,10 +172,10 @@ Next call this function locally, using the `run_local` method. This is a wrapper
 ```python
 from mlrun import run_local
 get_data_run = run_local(name='get_data',
-                         handler=get_data,
+                         command='get_data.py',
+                         handler='get_data',
                          inputs={'source_url': source_url},
-                         project=project_name,
-                         artifact_path=artifact_path)
+                         project=project_name)
 ```
 
 When called from python, the output will similar to the following:
@@ -209,16 +232,17 @@ describe and visualizes dataset stats
 default handler: summarize
 entry points:
   summarize: Summarize a table
-    context(MLClientCtx)     - the function context
-    table(DataItem)          - MLRun input pointing to pandas dataframe (csv/parquet file path)
-    label_column(str)        - ground truth column label, default=labels
-    class_labels(List[str])  - label for each class in tables and plots
-    plot_hist(bool)          - (True) set this to False for large tables, default=True
-    plots_dest(str)          - destination folder of summary plots (relative to artifact_path), default=plots
+    context(MLClientCtx)  - the function context, default=
+    table(DataItem)  - MLRun input pointing to pandas dataframe (csv/parquet file path), default=
+    label_column(str)  - ground truth column label, default=None
+    class_labels(List[str])  - label for each class in tables and plots, default=[]
+    plot_hist(bool)  - (True) set this to False for large tables, default=True
+    plots_dest(str)  - destination folder of summary plots (relative to artifact_path), default=plots
+    update_dataset  - when the table is a registered dataset update the charts in-place, default=False
 ```
 
 <a id="running-functions-on-different-runtimes"></a>
-## Running functions on different runtimes
+## Running Functions on Different Runtimes
 
 One of the key advantages of MLRun is the ability to seamlessly run your code on different runtimes. MLRun can run your code locally, jobs on Kubernetes, on Dask or MPI (Horovod). In this quick-start guide we'll show how to run on Kubernetes.
 
@@ -226,28 +250,22 @@ One of the key advantages of MLRun is the ability to seamlessly run your code on
 
 The functions need shared storage (file or object) media to pass and store artifacts.
 
-If your are using [Iguazio data science platform](https://www.iguazio.com/) use the `mount_v3io()` auto-mount modifier. If you use other k8s PVC volumes you can use the `mlrun.platforms.mount_pvc(..)` modifier with the required params.
-
+We'll use `auto_mount(...)` to choose the mount method that is applicable to your envionment. The volume will be selected by the following order:
+- Kubernetes PVC volume when both `pvc_name` and `volume_mount_path` input parameters are set.
+- Iguazio V3IO volume when `V3IO_ACCESS_KEY` and `V3IO_USERNAME` environment variables are set.
+- Kubernetes PVC volume when `MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>` environment variable is set.
 
 ```python
-from os import environ
-from pathlib import Path
-from mlrun.platforms import mount_v3io, mount_pvc
-
-# mount_v3io if using Iguazio data science platform, else mount to k8s PVC 'data' directory in the home folder
-extra_volume = mount_v3io() if 'V3IO_HOME' in environ \
-                            else mount_pvc(pvc_name='nfsvol', volume_name='nfsvol', volume_mount_path=path.join(Path.home(), 'data'))
+from mlrun.platforms import auto_mount
 ```
 
 ### Run the function from the marketplace
 
-
 ```python
-describe = project.func('describe').apply(extra_volume)
+describe = project.func('describe').apply(auto_mount())
 
 describe_run = describe.run(params={'label_column': 'label'},
-                            inputs={"table": get_data_run.outputs['source_data']},
-                            artifact_path=artifact_path)
+                            inputs={"table": get_data_run.outputs['source_data']})
 ```
 
 The expected output is:
@@ -266,27 +284,23 @@ The expected output is:
 
 Place the previously defined `get_data` code in a file called `get_data.py`. We can then use MLRun's `code_to_function` to run that python code as an MLRun function on other runtimes: 
 
-
 ```python
 from mlrun import code_to_function
 ```
 
-
 ```python
 get_data_func = code_to_function(name='get-data',
-                                 handler='get_data',
                                  filename='get_data.py',
+                                 handler='get_data',
                                  kind='job',
                                  image='mlrun/ml-models')
-get_data = project.set_function(get_data_func).apply(extra_volume)
+get_data = project.set_function(get_data_func).apply(auto_mount())
 ```
 
 Similar to before, we can run this function, but this time, as a job
 
-
 ```python
-get_data_run = get_data.run(inputs={'source_url': source_url},
-                            artifact_path=artifact_path)
+get_data_run = get_data.run(inputs={'source_url': source_url}
 ```
 
 ## Create a machine-learning training function
@@ -361,15 +375,14 @@ Copy the code above to `train.py` file and execute the following command to run 
 
 
 ```python
-train_func = code_to_function(name='train',
-                              handler='train',
-                              filename='train.py',
-                              kind='job',
-                              image='mlrun/ml-models')
-train_func = project.set_function(train_func_gen).apply(extra_volume)
-train_func.apply(mount_v3io()).run(inputs={'dataset': get_data_run.output('source_data')},
-                                   params={'label_column': 'label'},
-                                   artifact_path=artifact_path)
+train_func_gen = code_to_function(name='train',
+                                  handler='train',
+                                  filename='train.py',
+                                  kind='job',
+                                  image='mlrun/ml-models')
+train_func = project.set_function(train_func_gen).apply(auto_mount())
+train_func.run(inputs={'dataset': get_data_run.output('source_data')},
+               params={'label_column': 'label'})
 ```
 
 The expected output is:
@@ -393,27 +406,22 @@ Once you have Kubeflow installed, copy the following code to **workflow.py** in 
 
 ```python
 from kfp import dsl
-from os import environ
-from pathlib import Path
-from mlrun.platforms import mount_v3io, mount_pvc
+from mlrun.platforms import auto_mount
 
 funcs = {}
 LABELS = "label"
 
-
 # Configure function resources and local settings
 def init_functions(functions: dict, project=None, secrets=None):
-    extra_volume = mount_v3io() if 'V3IO_HOME' in environ \
-                            else mount_pvc(pvc_name='nfsvol', volume_name='nfsvol', volume_mount_path=path.join(Path.home(), 'data'))
     for f in functions.values():
-        f.apply(extra_volume)
+        f.apply(auto_mount())
 
 # Create a Kubeflow Pipelines pipeline
 @dsl.pipeline(
     name="Quick-start",
     description="This is  simple workflow"
 )
-def kfpipeline(source_url='http://iguazio-sample-data.s3.amazonaws.com/iris_dataset.csv'):
+def kfpipeline(source_url='https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'):
 
     # Ingest the data set
     ingest = funcs['get-data'].as_step(
@@ -432,6 +440,7 @@ def kfpipeline(source_url='http://iguazio-sample-data.s3.amazonaws.com/iris_data
     # Train a model
     train = funcs["train"].as_step(
         name="train",
+        handler='train',
         params={"label_column": LABELS},
         inputs={"dataset": ingest.outputs['source_data']},
         outputs=['model', 'test_set'])
@@ -449,7 +458,8 @@ run_id = project.run(
     'main',
     arguments={}, 
     artifact_path=path.abspath(path.join('pipeline','{{workflow.uid}}')), 
-    dirty=True)
+    dirty=True,
+    watch=True)
 ```
 
 The pipeline created would look as follows

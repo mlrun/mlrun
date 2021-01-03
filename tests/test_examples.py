@@ -23,11 +23,11 @@ from tests.conftest import examples_path
 
 
 example_files = [
-    'training.py',
+    "training.py",
 ]
 
-db_file = Path('/tmp/mlrun-test-examples.sqlite3')
-dsn = f'sqlite:///{db_file}?check_same_thread=false'
+db_file = Path("/tmp/mlrun-test-examples.sqlite3")
+dsn = f"sqlite:///{db_file}?check_same_thread=false"
 
 
 @pytest.fixture
@@ -36,14 +36,17 @@ def db():
         db_file.unlink()
 
 
-@pytest.mark.parametrize('fname', example_files)
+@pytest.mark.parametrize("fname", example_files)
 def test_example(db, fname):
     path = examples_path / fname
     env = environ.copy()
-    env['MLRUN_httpdb__dsn'] = dsn
+    env["MLRUN_httpdb__dsn"] = dsn
     cmd = [
-        executable, '-m', 'mlrun', 'run',
+        executable,
+        "-m",
+        "mlrun",
+        "run",
         path,
     ]
     out = run(cmd, env=env)
-    assert out.returncode == 0, 'bad run'
+    assert out.returncode == 0, "bad run"

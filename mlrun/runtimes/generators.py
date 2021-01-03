@@ -13,17 +13,14 @@
 # limitations under the License.
 import json
 import random
-from io import BytesIO
 import pandas as pd
 import sys
 from copy import deepcopy
 from ..model import RunObject
 from ..utils import get_in, logger
 
-import mlrun
 
-
-hyper_types = ['list', 'grid', 'random']
+hyper_types = ["list", "grid", "random"]
 default_max_evals = 10
 
 
@@ -34,24 +31,23 @@ def get_generator(spec, execution):
         return None
 
     if tuning_strategy and tuning_strategy not in hyper_types:
-        raise ValueError('unsupported hyperparams type ({})'.format(
-            tuning_strategy))
+        raise ValueError("unsupported hyperparams type ({})".format(tuning_strategy))
 
     if spec.param_file and hyperparams:
-        raise ValueError('hyperparams and param_file cannot be used together')
+        raise ValueError("hyperparams and param_file cannot be used together")
 
     obj = None
     if spec.param_file:
         obj = execution.get_dataitem(spec.param_file)
-        if not tuning_strategy and obj.suffix == '.csv':
-            tuning_strategy = 'list'
-        if not tuning_strategy or tuning_strategy in ['grid', 'random']:
+        if not tuning_strategy and obj.suffix == ".csv":
+            tuning_strategy = "list"
+        if not tuning_strategy or tuning_strategy in ["grid", "random"]:
             hyperparams = json.loads(obj.get())
 
-    if not tuning_strategy or tuning_strategy == 'grid':
+    if not tuning_strategy or tuning_strategy == "grid":
         return GridGenerator(hyperparams)
 
-    if tuning_strategy == 'random':
+    if tuning_strategy == "random":
         return RandomGenerator(hyperparams)
 
     if obj:
@@ -106,8 +102,8 @@ class RandomGenerator(TaskGenerator):
     def __init__(self, hyperparams: dict):
         self.hyperparams = hyperparams
         self.max_evals = default_max_evals
-        if 'MAX_EVALS' in hyperparams:
-            self.max_evals = hyperparams.pop('MAX_EVALS')
+        if "MAX_EVALS" in hyperparams:
+            self.max_evals = hyperparams.pop("MAX_EVALS")
 
     def generate(self, run: RunObject):
         i = 0
@@ -151,36 +147,35 @@ def selector(results: list, criteria):
     if not criteria:
         return 0, 0
 
-    idx = criteria.find('.')
+    idx = criteria.find(".")
     if idx < 0:
-        op = 'max'
+        op = "max"
     else:
         op = criteria[:idx]
-        criteria = criteria[idx + 1:]
+        criteria = criteria[idx + 1 :]
 
     best_id = 0
     best_item = 0
-    if op == 'max':
+    if op == "max":
         best_val = sys.float_info.min
-    elif op == 'min':
+    elif op == "min":
         best_val = sys.float_info.max
     else:
-        logger.error('unsupported selector {}.{}'.format(op, criteria))
+        logger.error("unsupported selector {}.{}".format(op, criteria))
         return 0, 0
 
     i = 0
     for task in results:
-        state = get_in(task, ['status', 'state'])
-        id = get_in(task, ['metadata', 'iteration'])
-        val = get_in(task, ['status', 'results', criteria])
+        state = get_in(task, ["status", "state"])
+        id = get_in(task, ["metadata", "iteration"])
+        val = get_in(task, ["status", "results", criteria])
         if isinstance(val, str):
             try:
                 val = float(val)
             except Exception:
                 val = None
-        if state != 'error' and val is not None:
-            if (op == 'max' and val > best_val) \
-                    or (op == 'min' and val < best_val):
+        if state != "error" and val is not None:
+            if (op == "max" and val > best_val) or (op == "min" and val < best_val):
                 best_id, best_item, best_val = id, i, val
         i += 1
 

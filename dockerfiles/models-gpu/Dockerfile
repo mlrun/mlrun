@@ -15,16 +15,10 @@ ARG CUDA_VER=10.1
 
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
-
-ARG OMPI=4.0.3
-ARG MLRUN_GITHUB_REPO=mlrun
-
-ARG MLRUN_PACKAGE_TAG=development
-LABEL MLRUN_PACKAGE_TAG=$MLRUN_PACKAGE_TAG
-
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
@@ -33,6 +27,7 @@ ENV PATH /opt/conda/bin:$PATH
 SHELL ["/bin/bash", "-cu"]
 
 RUN apt-get update && \
+    apt-mark hold libcublas-dev libcublas10 && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         build-essential \
@@ -75,6 +70,8 @@ RUN mkdir -p /var/run/sshd && \
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
     mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
+
+ARG OMPI=4.0.3
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -124,24 +121,32 @@ RUN conda config --add channels conda-forge && \
         wrapt
 
 RUN conda install -n base -c rapidsai -c nvidia \
-    -c anaconda -c conda-forge -c defaults rapids=0.12
+    -c anaconda -c conda-forge -c defaults rapids=0.12 python=3.7
 
 RUN conda install -n base -c pytorch pytorch torchvision cudatoolkit=10.1
 
+RUN python -m pip install --upgrade pip~=20.2.0
+
+# TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
+    #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-10.1/targets/x86_64-linux/lib/stubs && \
-    HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-        python -m pip install horovod && \
+    MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
+        python -m pip install 'horovod~=0.20.0' && \
     ldconfig
 
 RUN conda clean -aqy
+
+WORKDIR /mlrun
 
 # do the dask package pinning with pip / faster
 COPY ./dockerfiles/models-gpu/requirements.txt ./
 
 RUN python -m pip install -r requirements.txt
 
-RUN python -m pip install \
-    git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+COPY . .
+RUN python -m pip install .[complete]
 
+ARG MLRUN_MLUTILS_GITHUB_TAG=development
+ARG MLRUN_MLUTILS_CACHE_DATE=initial
 RUN python -m pip install \
     git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

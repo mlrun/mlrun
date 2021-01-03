@@ -1,12 +1,13 @@
 import asyncio
 import traceback
-from typing import List
+import typing
 
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.errors
 from mlrun.utils import logger
 
-tasks: List = []
+tasks: typing.Dict = {}
 
 
 # This module is different from mlrun.db.periodic in that this module's functions aren't supposed to persist
@@ -19,22 +20,42 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
                 await function(*args, **kwargs)
             else:
                 await run_in_threadpool(function, *args, **kwargs)
-        except Exception as exc:
+        except Exception:
             logger.warning(
-                f'Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}')
+                f"Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}"
+            )
         await asyncio.sleep(interval)
 
 
-def run_function_periodically(interval: int, function, *args, **kwargs):
+def run_function_periodically(
+    interval: int, name: str, replace: bool, function, *args, **kwargs
+):
     global tasks
-    logger.debug(f'Submitting function to run periodically: {function.__name__}')
+    logger.debug("Submitting function to run periodically", name=name)
+    if name in tasks:
+        if not replace:
+            message = "Task with that name already exists"
+            logger.warning(message, name=name)
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
+        cancel_periodic_function(name)
     loop = asyncio.get_running_loop()
-    task = loop.create_task(_periodic_function_wrapper(interval, function, *args, **kwargs))
-    tasks.append(task)
+    task = loop.create_task(
+        _periodic_function_wrapper(interval, function, *args, **kwargs)
+    )
+    tasks[name] = task
 
 
-def cancel_periodic_functions():
-    logger.debug('Canceling periodic functions')
+def cancel_periodic_function(name: str):
     global tasks
-    for task in tasks:
+    logger.debug("Canceling periodic function", name=name)
+    if name in tasks:
+        tasks[name].cancel()
+        del tasks[name]
+
+
+def cancel_all_periodic_functions():
+    global tasks
+    logger.debug("Canceling periodic functions", functions=tasks.keys())
+    for task in tasks.values():
         task.cancel()
+    tasks = {}

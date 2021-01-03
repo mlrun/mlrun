@@ -12,87 +12,82 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from os import path
 
-from tests.conftest import (
-    examples_path, results
-)
+from tests.conftest import examples_path, results
 from mlrun import code_to_function, new_model_server
 
+
 def test_job_nb():
-    fn = code_to_function(filename='{}/mlrun_jobs.ipynb'.format(
-        examples_path), kind='job')
-    assert fn.kind == 'job', 'kind not set, test failed'
-    assert fn.spec.build.functionSourceCode, 'code not embedded'
+    fn = code_to_function(
+        filename="{}/mlrun_jobs.ipynb".format(examples_path), kind="job"
+    )
+    assert fn.kind == "job", "kind not set, test failed"
+    assert fn.spec.build.functionSourceCode, "code not embedded"
 
 
 def test_nuclio_nb():
-    fn = new_model_server('iris-srv',
-                          filename='{}/xgb_serving.ipynb'.format(examples_path),
-                          models={'iris_v1': 'xyz'},
-                          model_class='XGBoostModel')
-    assert fn.kind == 'remote', 'kind not set, test failed'
-    assert fn.spec.base_spec, 'base_spec not found'
+    fn = new_model_server(
+        "iris-srv",
+        filename="{}/xgb_serving.ipynb".format(examples_path),
+        models={"iris_v1": "xyz"},
+        model_class="XGBoostModel",
+    )
+    assert fn.kind == "remote", "kind not set, test failed"
+    assert fn.spec.base_spec, "base_spec not found"
 
 
 def test_nuclio_nb_serving():
-    fn = code_to_function(filename='https://raw.githubusercontent.com/mlrun/mlrun/master/examples/xgb_serving.ipynb')
-    assert fn.kind == 'remote', 'kind not set, test failed'
-    assert fn.spec.function_kind == 'serving', 'code not embedded'
+    fn = code_to_function(
+        filename="https://raw.githubusercontent.com/mlrun/mlrun/master/examples/xgb_serving.ipynb"
+    )
+    assert fn.kind == "remote", "kind not set, test failed"
+    assert fn.spec.function_kind == "serving", "code not embedded"
 
 
 def test_job_file():
-    fn = code_to_function(filename='{}/training.py'.format(
-        examples_path), kind='job')
-    assert fn.kind == 'job', 'kind not set, test failed'
-    assert fn.spec.build.functionSourceCode, 'code not embedded'
+    fn = code_to_function(filename="{}/training.py".format(examples_path), kind="job")
+    assert fn.kind == "job", "kind not set, test failed"
+    assert fn.spec.build.functionSourceCode, "code not embedded"
 
 
 def test_job_file_noembed():
-    name = '{}/training.py'.format(examples_path)
-    fn = code_to_function(filename=name, kind='job', embed_code=False)
-    assert fn.kind == 'job', 'kind not set, test failed'
+    name = "{}/training.py".format(examples_path)
+    fn = code_to_function(filename=name, kind="job", embed_code=False)
+    assert fn.kind == "job", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
-    assert fn.spec.command == name, 'filename not set in command'
+    assert fn.spec.command == name, "filename not set in command"
 
 
 def test_local_file_noembed():
-    name = '{}/training.py'.format(examples_path)
-    fn = code_to_function(filename=name, kind='local', embed_code=False)
-    assert fn.kind == 'local', 'kind not set, test failed'
+    name = "{}/training.py".format(examples_path)
+    fn = code_to_function(filename=name, kind="local", embed_code=False)
+    assert fn.kind == "local", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
-    assert fn.spec.command == name, 'filename not set in command'
+    assert fn.spec.command == name, "filename not set in command"
 
     fn.run(workdir=str(examples_path))
 
 
 def test_job_file_codeout():
-    name = '{}/mlrun_jobs.ipynb'.format(examples_path)
-    out = '{}/ctf_tst.py'.format(results)
-    fn = code_to_function(filename=name, kind='job', code_output=out,
-                          embed_code=False)
-    assert fn.kind == 'job', 'kind not set, test failed'
+    name = "{}/mlrun_jobs.ipynb".format(examples_path)
+    out = "{}/ctf_tst.py".format(results)
+    fn = code_to_function(filename=name, kind="job", code_output=out, embed_code=False)
+    assert fn.kind == "job", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
-    assert fn.spec.command == out, 'filename not set to out in command'
-    assert path.isfile(out), 'output not generated'
+    assert fn.spec.command == out, "filename not set to out in command"
+    assert path.isfile(out), "output not generated"
 
 
 def test_local_file_codeout():
-    name = '{}/mlrun_jobs.ipynb'.format(examples_path)
-    out = '{}/ctf_tst.py'.format(results)
-    fn = code_to_function(filename=name, kind='local', code_output=out,
-                          embed_code=False)
-    assert fn.kind == 'local', 'kind not set, test failed'
+    name = "{}/mlrun_jobs.ipynb".format(examples_path)
+    out = "{}/ctf_tst.py".format(results)
+    fn = code_to_function(
+        filename=name, kind="local", code_output=out, embed_code=False
+    )
+    assert fn.kind == "local", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
-    assert fn.spec.command == out, 'filename not set to out in command'
-    assert path.isfile(out), 'output not generated'
+    assert fn.spec.command == out, "filename not set to out in command"
+    assert path.isfile(out), "output not generated"
 
-    fn.run(handler='training', params={'p1': 5})
-
-
-
-
-
-
-
+    fn.run(handler="training", params={"p1": 5})

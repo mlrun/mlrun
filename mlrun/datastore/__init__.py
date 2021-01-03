@@ -12,5 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .datastore import StoreManager, uri_to_ipython, get_object_stat
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
+from .datastore import StoreManager, uri_to_ipython, in_memory_store
 from .base import DataItem
+
+
+store_manager = StoreManager()
+
+
+def set_in_memory_item(key, value):
+    item = store_manager.object(f"memory://{key}")
+    item.put(value)
+    return item
+
+
+def get_in_memory_items():
+    return in_memory_store._items

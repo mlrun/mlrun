@@ -1,15 +1,9 @@
 FROM continuumio/anaconda3:2020.02
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yashab@iguazio.com"
 LABEL org="iguazio.com"
-
-ARG OMPI=4.0.3
-ARG MLRUN_GITHUB_REPO=mlrun
-
-ARG MLRUN_PACKAGE_TAG=development
-LABEL MLRUN_PACKAGE_TAG=$MLRUN_PACKAGE_TAG
-
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
 
 RUN apt update -qqq \
     && apt -y upgrade \
@@ -32,6 +26,8 @@ RUN apt update -qqq \
     && apt autoremove \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python -m pip install --upgrade pip~=20.2.0
+
 ENV SSL_CERT_DIR /etc/ssl/certs
 
 RUN mkdir -p /var/run/sshd && \
@@ -39,6 +35,8 @@ RUN mkdir -p /var/run/sshd && \
     cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
     echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
     mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
+
+ARG OMPI=4.0.3
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -63,21 +61,21 @@ RUN conda clean -ayq
 RUN python -m pip install torch==1.4.0+cpu torchvision==0.5.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-# plain vanilla tensorflow isn't compiled optimaly for the architectures
-# we are likely to encounter.  this should become an option:
-RUN python -m pip install -U intel-tensorflow
+RUN python -m pip install -U intel-tensorflow mxnet
 
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-    python -m pip install horovod
+    python -m pip install 'horovod~=0.20.0'
 
-# dask, sklearn, etc...
+WORKDIR /mlrun
 
 COPY ./dockerfiles/models/requirements.txt ./
 
 RUN python -m pip install -r requirements.txt
 
-RUN python -m pip install \
-    git+https://github.com/${MLRUN_GITHUB_REPO}/mlrun.git@${MLRUN_PACKAGE_TAG}
+COPY . .
+RUN python -m pip install .[complete]
 
+ARG MLRUN_MLUTILS_GITHUB_TAG=development
+ARG MLRUN_MLUTILS_CACHE_DATE=initial
 RUN python -m pip install \
     git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

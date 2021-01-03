@@ -1,29 +1,63 @@
 <a id="top"></a>
-# MLRun
-
-[![CircleCI](https://circleci.com/gh/mlrun/mlrun/tree/development.svg?style=svg)](https://circleci.com/gh/mlrun/mlrun/tree/development)
+[![Build Status](https://github.com/mlrun/mlrun/workflows/CI/badge.svg)](https://github.com/mlrun/mlrun/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-MLRun is a generic and convenient mechanism for data scientists and software developers to build, run, and monitor 
-machine learning (ML) tasks and pipelines on a scalable cluster while automatically tracking executed code, metadata, inputs, and outputs.
-MLRun integrates with the [Nuclio](https://nuclio.io/) serverless project and with [Kubeflow Pipelines](https://github.com/kubeflow/pipelines).
+<p align="left"><img src="docs/_static/images/MLRun-logo.png" width="150"/></p>
+
+*The fastest way to develop and deploy your AI application today.*
+
+**MLRun** is the first end-to-end open-source MLOps solution for managing and automating your entire analytics and machine-learning life cycle, from data ingestion through model development to full pipeline deployment in production.
+
+<a id="key-benefits"></a>
+#### Key Benefits <!-- omit in toc -->
+
+- Develop your training pipeline on any framework, locally and/or on a cluster.
+- Leverage the power of the open-source functions marketplace to focus on your research.
+- Deploy your pipeline at scale in a single click.
+- Monitor your model performance and automate your actions.
+
+<a id="key-features"></a>
+#### Key Features <!-- omit in toc -->
+
+- **Project life-cycle management** &mdash; experiment management and tracking of jobs, functions, and artifacts.
+- **Scalable functions** &mdash; turn code to scalable microservices in a single command.
+- **Managed pipelines** &mdash; deploy, run, and monitor your machine-learning execution plan.
 
 MLRun features a Python package (`mlrun`), a command-line interface (`mlrun`), and a graphical user interface (the MLRun dashboard).
 
-Read more [**detailed documentation here**](https://mlrun.readthedocs.io/en/latest/)
+&#x25B6; For more information, see the [MLRun Python package documentation](https://mlrun.readthedocs.io).
 
-#### In This Document
-- [General Concept and Motivation](#concepts-n-motivation)
+#### In This Document <!-- omit in toc -->
+- [General Concept and Motivation](#general-concept-and-motivation)
+  - [The Challenge](#the-challenge)
+  - [The MLRun Vision](#the-mlrun-vision)
 - [Installation](#installation)
-- [Examples and Tutorial Notebooks](#examples-n-tutorial-notebooks)
-- [Quick-Start Tutorial &mdash; Architecture and Usage Guidelines](#qs-tutorial)
+  - [Installation on the Iguazio Data Science Platform](#installation-on-the-iguazio-data-science-platform)
+- [Examples and Tutorial Notebooks](#examples-and-tutorial-notebooks)
+  - [Additional Examples](#additional-examples)
+- [Quick-Start Tutorial &mdash; Architecture and Usage Guidelines](#quick-start-tutorial--architecture-and-usage-guidelines)
+  - [Basic Components](#basic-components)
+  - [Managed and Portable Execution](#managed-and-portable-execution)
+  - [Automated Parameterization, Artifact Tracking, and Logging](#automated-parameterization-artifact-tracking-and-logging)
+    - [Example](#example)
+  - [Using Hyperparameters for Job Scaling](#using-hyperparameters-for-job-scaling)
+  - [Automated Code Deployment and Containerization](#automated-code-deployment-and-containerization)
+  - [Running an ML Workflow with Kubeflow Pipelines](#running-an-ml-workflow-with-kubeflow-pipelines)
+  - [Viewing Run Data and Performing Database Operations](#viewing-run-data-and-performing-database-operations)
+    - [The MLRun Dashboard](#the-mlrun-dashboard)
+    - [MLRun Database Methods](#mlrun-database-methods)
+  - [Additional Information and Examples](#additional-information-and-examples)
+    - [Replacing Runtime Context Parameters from the CLI](#replacing-runtime-context-parameters-from-the-cli)
+    - [Remote Execution](#remote-execution)
+      - [Nuclio Example](#nuclio-example)
+  - [Running an MLRun Service](#running-an-mlrun-service)
+    - [Using the MLRun CLI to Run an MLRun Service](#using-the-mlrun-cli-to-run-an-mlrun-service)
 
 <a id="concepts-n-motivation"></a>
 ## General Concept and Motivation
-- [The Challenge](#the-challenge)
-- [The MLRun Vision](#the-vision)
 
 <a id="the-challenge"></a>
 ### The Challenge
@@ -70,7 +104,7 @@ pip install mlrun
 MLRun requires separate containers for the API and the dashboard (UI).
 You can also select to use the pre-baked JupyterLab image.
 
-To install and run MLRun locally using Docker or Kubernetes, see the instructions in [**hack/local/README.md**](hack/local/README.md).
+To install and run MLRun locally using Docker or Kubernetes, see the instructions in the [**MLRun documentation**](https://mlrun.readthedocs.io/en/latest/install.html)).
 
 <a id="installation-iguazio-platform"></a>
 ### Installation on the Iguazio Data Science Platform
@@ -78,7 +112,6 @@ To install and run MLRun locally using Docker or Kubernetes, see the instruction
 MLRun runs as a service on the [Iguazio Data Science Platform](https://www.iguazio.com) (version 2.8 and above) &mdash;
 
 To access MLRun UI select it from the services screen, consult with Iguazio support for further details.
-
 
 [Back to top](#top)
 
@@ -92,17 +125,17 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
   - build and end to end pipeline in a single notebook
   - build custom containers and work with shared files and objects
   - use model management APIs (log_model, get_model, update_model)
-- End-to-end ML pipeline&mdash; [**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe), including:
+- End-to-end ML pipeline&mdash; [**demos/scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline), including:
   - Data ingestion and analysis 
   - Model training
   - Verification
   - Model deployment
 - MLRun with scale-out runtimes &mdash;
-  - Distributed TensorFlow with Horovod and MPIJob &mdash; [**horovod-project.ipynb**](https://github.com/mlrun/demos/blob/master/horovod-pipe/horovod-project.ipynb)
+  - Distributed TensorFlow with Horovod and MPIJob, including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [**demos/image-classification-with-distributed-training**](https://github.com/mlrun/demos/tree/master/image-classification-with-distributed-training)
   - Serverless model serving with Nuclio &mdash; [**examples/xgb_serving.ipynb**](examples/xgb_serving.ipynb)
   - Dask &mdash; [**examples/mlrun_dask.ipynb**](examples/mlrun_dask.ipynb)
   - Spark &mdash; [**examples/mlrun_sparkk8s.ipynb**](examples/mlrun_sparkk8s.ipynb)
-- MLRun project and Git lifecycle &mdash;
+- MLRun project and Git life cycle &mdash;
   - Load a project from a remote Git location and run pipelines &mdash; [**examples/load-project.ipynb**](examples/load-project.ipynb)
   - Create a new project, functions, and pipelines, and upload to Git &mdash; [**examples/new-project.ipynb**](examples/new-project.ipynb)
 - Import and export functions using different modes &mdash; [**examples/mlrun_export_import.ipynb**](examples/mlrun_export_import.ipynb)
@@ -113,7 +146,6 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 <a id="additional-examples"></a>
 ### Additional Examples
 
-- Deep-learning pipeline (full end-to-end application), including data collection and labeling, model training and serving, and implementation of an automated workflow &mdash; [mlrun/demo-image-classification](https://github.com/mlrun/demo-image-classification) repo
 - Additional end-to-end use-case applications &mdash; [mlrun/demos](https://github.com/mlrun/demos) repo
 - MLRun functions Library &mdash; [mlrun/functions](https://github.com/mlrun/functions) repo 
 
@@ -124,22 +156,6 @@ MLRun has many code examples and tutorial Jupyter notebooks with embedded docume
 <!-- TODO: Move this to a separate docs/quick-start.md file, add an opening
   paragraph, update the heading levels, add a `top` anchor, and remove the
   "Back to quick-start TOC" links (leaving only the "Back to top" links). -->
-
-- [Basic Components](#basic-components)
-- [Managed and Portable Execution ](#managed-and-portable-execution)
-- [Automated Code Deployment and Containerization](#auto-parameterization-artifact-tracking-n-logging)
-- [Using Hyperparameters for Job Scaling](#using-hyperparameters-for-job-scaling)
-- [Automated Code Deployment and Containerization](#auto-code-deployment-n-containerization)
-- [Build and run function from a remote IDE using the CLI](examples/remote.md)
-- [Running an ML Workflow with Kubeflow Pipelines](#run-ml-workflow-w-kubeflow-pipelines)
-- [Viewing Run Data and Performing Database Operations](#db-operations)
-  - [The MLRun Dashboard](#mlrun-ui)
-  - [MLRun Database Methods](#mlrun-db-methods)
-- [Additional Information and Examples](#additional-info-n-examples)
-  - [Replacing Runtime Context Parameters from the CLI](#replace-runtime-context-param-from-cli)
-  - [Remote Execution](#remote-execution)
-- [Running an MLRun Service](#run-mlrun-service)
-  - [Using the MLRun CLI](#run-mlrun-service-cli)
 
 <a id="basic-components"></a>
 ### Basic Components
@@ -211,7 +227,7 @@ from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 import numpy as np
 from sklearn.metrics import accuracy_score
-from mlrun.artifacts import TableArtifact, PlotArtifact
+from mlrun.artifacts import PlotArtifact
 import pandas as pd
 
 
@@ -274,7 +290,7 @@ The code also demonstrates how you can use the context object to read and write 
 
 ```python
 from mlrun import get_or_create_ctx
-from mlrun.artifacts import ChartArtifact, TableArtifact
+from mlrun.artifacts import ChartArtifact
 import pandas as pd
 
 
@@ -299,8 +315,6 @@ def my_job(context, p1=1, p2='x'):
     # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
     context.log_artifact('model', body=b'abc is 123', local_path='model.txt', labels={'framework': 'xgboost'})
     context.log_artifact('html_result', body=b'<b> Some HTML <b>', local_path='result.html')
-    context.log_artifact(TableArtifact('dataset', '1,2,3\n4,5,6\n', visible=True,
-                                        header=['A', 'B', 'C']), local_path='dataset.csv')
 
     # create a chart output (will show in the pipelines UI)
     chart = ChartArtifact('chart')
@@ -444,8 +458,8 @@ ML pipeline execution with MLRun is similar to CLI execution.
 A pipeline is created by running an MLRun workflow.
 MLRun automatically saves outputs and artifacts in a way that is visible to [Kubeflow Pipelines](https://github.com/kubeflow/pipelines), and allows interconnecting steps.
 
-For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demo-sklearn-project**](https://github.com/mlrun/demos/tree/master/sklearn-pipe)).
-The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/tree/master/sklearn-pipe/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
+For an example of a full ML pipeline that's implemented in a web notebook, see the Sklearn MLRun demo ([**demos/scikit-learn**](https://github.com/mlrun/demos/tree/master/scikit-learn-pipeline)).
+The  [**sklearn-project.ipynb**](https://github.com/mlrun/demos/blob/master/scikit-learn-pipeline/sklearn-project.ipynb) demo notebook includes the following code for implementing an ML-training pipeline:
 ```python
 from kfp import dsl
 from mlrun import mount_v3io
@@ -539,7 +553,7 @@ from mlrun import get_run_db
 # Get an MLRun DB object and connect to an MLRun database/API service.
 # Specify the DB path (for example, './' for the current directory) or
 # the API URL ('http://mlrun-api:8080' for the default configuration).
-db = get_run_db('./').connect()
+db = get_run_db('./')
 
 # List all runs
 db.list_runs('').show()

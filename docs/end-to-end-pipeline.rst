@@ -51,7 +51,7 @@ Generate the iris dataset and log the dataframe (as csv or parquet file)
     from sklearn.model_selection import train_test_split
     import numpy as np
     from sklearn.metrics import accuracy_score
-    from mlrun.artifacts import TableArtifact, PlotArtifact
+    from mlrun.artifacts import PlotArtifact
     import pandas as pd
     
     def iris_generator(context, format='csv'):
@@ -85,7 +85,7 @@ git tracking on that
 .. code:: ipython3
 
     from os import path
-    from mlrun import run_local, NewTask, mlconf, import_function, mount_v3io
+    from mlrun import run_local, mlconf, import_function, mount_v3io
     mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
     
     # specify artifacts target location

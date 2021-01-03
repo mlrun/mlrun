@@ -15,6 +15,8 @@ ARG MLRUN_PYTHON_VERSION=3.7
 
 FROM python:${MLRUN_PYTHON_VERSION}-slim
 
+ENV PIP_NO_CACHE_DIR=1
+
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
@@ -26,7 +28,8 @@ RUN apt-get update && apt-get install -y \
         git-core \
         gnupg2 \
         make \
-        software-properties-common
+        software-properties-common \
+        graphviz
 
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 
@@ -34,17 +37,21 @@ RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debia
 
 RUN apt update && apt-get install -y docker-ce-cli
 
-RUN python -m pip install --upgrade --no-cache pip
+RUN python -m pip install --upgrade pip~=20.2.0
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/*requirements.txt ./
-
 COPY ./requirements.txt ./
+COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
+COPY ./dev-requirements.txt ./
+COPY ./docs/requirements.txt ./docs-requirements.txt
 
 RUN pip install \
+    -r requirements.txt \
+    -r mlrun-api-requirements.txt \
     -r dev-requirements.txt \
-    -r api-requirements.txt \
-    -r requirements.txt
+    -r docs-requirements.txt
 
 COPY . .
+
+RUN pip install -e .[complete]

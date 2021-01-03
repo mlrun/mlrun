@@ -17,15 +17,14 @@ from ..config import config
 from ..platforms import add_or_refresh_credentials
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
-from .httpdb import HTTPRunDB
 from .sqldb import SQLDB
 from os import environ
 
 
-def get_or_set_dburl(default=''):
+def get_or_set_dburl(default=""):
     if not config.dbpath and default:
         config.dbpath = default
-        environ['MLRUN_DBPATH'] = default
+        environ["MLRUN_DBPATH"] = default
     return config.dbpath
 
 
@@ -34,33 +33,56 @@ def get_httpdb_kwargs(host, username, password):
     password = password or config.httpdb.password
 
     username, password, token = add_or_refresh_credentials(
-        host, username, password, config.httpdb.token)
+        host, username, password, config.httpdb.token
+    )
 
     return {
-        'user': username,
-        'password': password,
-        'token': token,
+        "user": username,
+        "password": password,
+        "token": token,
     }
 
 
-def get_run_db(url=''):
+_run_db = None
+_last_db_url = None
+
+
+def get_run_db(url="", secrets=None, force_reconnect=False):
     """Returns the runtime database"""
+    global _run_db, _last_db_url
+
     if not url:
-        url = get_or_set_dburl('./')
+        url = get_or_set_dburl("./")
+
+    if (
+        _last_db_url is not None
+        and url == _last_db_url
+        and _run_db
+        and not force_reconnect
+    ):
+        return _run_db
+    _last_db_url = url
 
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme.lower()
     kwargs = {}
-    if '://' not in url or scheme in ['file', 's3', 'v3io', 'v3ios']:
+    if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
         cls = FileRunDB
-    elif scheme in ('http', 'https'):
+    elif scheme in ("http", "https"):
+        # import here to avoid circular imports
+        from .httpdb import HTTPRunDB
+
         cls = HTTPRunDB
-        kwargs = get_httpdb_kwargs(parsed_url.hostname, parsed_url.username, parsed_url.password)
+        kwargs = get_httpdb_kwargs(
+            parsed_url.hostname, parsed_url.username, parsed_url.password
+        )
         endpoint = parsed_url.hostname
         if parsed_url.port:
-            endpoint += ':{}'.format(parsed_url.port)
-        url = f'{parsed_url.scheme}://{endpoint}{parsed_url.path}'
+            endpoint += ":{}".format(parsed_url.port)
+        url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
     else:
         cls = SQLDB
 
-    return cls(url, **kwargs)
+    _run_db = cls(url, **kwargs)
+    _run_db.connect(secrets=secrets)
+    return _run_db

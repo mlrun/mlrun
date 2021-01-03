@@ -15,6 +15,10 @@ def label_set(labels):
     return set(labels or [])
 
 
+def transform_label_list_to_dict(label_list):
+    return {label.name: label.value for label in label_list}
+
+
 def run_start_time(run):
     ts = get_in(run, "status.start_time", "")
     if not ts:
@@ -35,6 +39,7 @@ def update_labels(obj, labels: dict):
     obj.labels.clear()
     for name, value in labels.items():
         if name in old:
+            old[name].value = value
             obj.labels.append(old[name])
         else:
             obj.labels.append(obj.Label(name=name, value=value, parent=obj.id))
@@ -43,9 +48,7 @@ def update_labels(obj, labels: dict):
 def to_dict(obj):
     if isinstance(obj, Base):
         return {
-            attr: to_dict(getattr(obj, attr))
-            for attr in dir(obj)
-            if is_field(attr)
+            attr: to_dict(getattr(obj, attr)) for attr in dir(obj) if is_field(attr)
         }
 
     if isinstance(obj, (list, tuple)):

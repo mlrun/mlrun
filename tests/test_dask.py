@@ -12,40 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pprint import pprint
-
 import pytest
 
-from tests.conftest import rundb_path, tag_test, verify_state
-from mlrun import NewTask, new_function
+from tests.conftest import tag_test, verify_state
+from mlrun import new_task, new_function
 
 has_dask = False
 try:
     import dask  # noqa
+
     has_dask = True
 except ImportError:
     pass
 
-def inc(x):
-    return x+2
 
-def my_func(context, p1=1, p2='a-string'):
-    print(f'Run: {context.name} (uid={context.uid})')
-    print(f'Params: p1={p1}, p2={p2}\n')
+def inc(x):
+    return x + 2
+
+
+def my_func(context, p1=1, p2="a-string"):
+    print(f"Run: {context.name} (uid={context.uid})")
+    print(f"Params: p1={p1}, p2={p2}\n")
 
     x = context.dask_client.submit(inc, p1)
 
-    context.log_result('accuracy', x.result())
-    context.log_metric('loss', 7)
-    context.log_artifact('chart', body='abc')
-    return 'tst-me-{}'.format(context.iteration)
+    context.log_result("accuracy", x.result())
+    context.log_metric("loss", 7)
+    context.log_artifact("chart", body="abc")
+    return "tst-me-{}".format(context.iteration)
 
 
-@pytest.mark.skipif(not has_dask, reason='missing dask')
+@pytest.mark.skipif(not has_dask, reason="missing dask")
 def test_dask_local():
-    spec = tag_test(NewTask(params={'p1': 3, 'p2': 'vv'}), 'test_dask_local')
-    run = new_function(kind='dask').run(
-        spec, handler=my_func)
+    spec = tag_test(new_task(params={"p1": 3, "p2": "vv"}), "test_dask_local")
+    run = new_function(kind="dask").run(spec, handler=my_func)
     verify_state(run)
-
-

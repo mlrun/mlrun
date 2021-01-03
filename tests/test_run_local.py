@@ -11,59 +11,96 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from os import path
+import getpass
+from os import path, environ
 
-import pytest
-
+from mlrun import new_task, run_local, code_to_function
 from tests.conftest import (
-    examples_path, has_secrets, here, out_path, tag_test, verify_state
+    examples_path,
+    out_path,
+    tag_test,
+    verify_state,
 )
-from mlrun import NewTask, run_local, code_to_function
 
-base_spec = NewTask(params={'p1': 8}, out_path=out_path)
-base_spec.spec.inputs = {'infile.txt': 'infile.txt'}
+base_spec = new_task(params={"p1": 8}, out_path=out_path)
+base_spec.spec.inputs = {"infile.txt": "infile.txt"}
 
 
 def test_run_local():
-    spec = tag_test(base_spec, 'test_run_local')
-    result = run_local(spec, command='{}/training.py'.format(
-        examples_path), workdir=examples_path)
+    spec = tag_test(base_spec, "test_run_local")
+    result = run_local(
+        spec, command="{}/training.py".format(examples_path), workdir=examples_path
+    )
+    verify_state(result)
+
+
+def test_run_local_with_uid_does_not_exist(monkeypatch):
+    """
+    Mocking a scenario that happened in field in which getuser raised the same error as the mock
+    The problem was basically that the code was
+    environ.get("V3IO_USERNAME", getpass.getuser())
+    instead of
+    environ.get("V3IO_USERNAME") or getpass.getuser()
+    """
+
+    def mock_getpwuid_raise(*args, **kwargs):
+        raise KeyError("getpwuid(): uid not found: 400")
+
+    environ["V3IO_USERNAME"] = "some_user"
+    monkeypatch.setattr(getpass, "getuser", mock_getpwuid_raise)
+    spec = tag_test(base_spec, "test_run_local")
+    result = run_local(
+        spec, command="{}/training.py".format(examples_path), workdir=examples_path
+    )
     verify_state(result)
 
 
 def test_run_local_handler():
-    spec = tag_test(base_spec, 'test_run_local_handler')
-    spec.spec.handler = 'my_func'
-    result = run_local(spec, command='{}/handler.py'.format(
-        examples_path), workdir=examples_path)
+    spec = tag_test(base_spec, "test_run_local_handler")
+    spec.spec.handler = "my_func"
+    result = run_local(
+        spec, command="{}/handler.py".format(examples_path), workdir=examples_path
+    )
     verify_state(result)
 
 
 def test_run_local_nb():
-    spec = tag_test(base_spec, 'test_run_local_handler')
-    spec.spec.handler = 'training'
-    result = run_local(spec, command='{}/mlrun_jobs.ipynb'.format(
-        examples_path), workdir=examples_path)
+    spec = tag_test(base_spec, "test_run_local_nb")
+    spec.spec.handler = "training"
+    result = run_local(
+        spec, command="{}/mlrun_jobs.ipynb".format(examples_path), workdir=examples_path
+    )
     verify_state(result)
 
 
 def test_run_local_yaml():
-    spec = tag_test(base_spec, 'test_run_local_handler')
-    spec.spec.handler = 'training'
-    nbpath = '{}/mlrun_jobs.ipynb'.format(examples_path)
-    ymlpath = path.join(out_path, 'nbyaml.yaml')
-    print('out path:', out_path, ymlpath)
-    code_to_function(filename=nbpath, kind='job').export(ymlpath)
+    spec = tag_test(base_spec, "test_run_local_yaml")
+    spec.spec.handler = "training"
+    nbpath = "{}/mlrun_jobs.ipynb".format(examples_path)
+    ymlpath = path.join(out_path, "nbyaml.yaml")
+    print("out path:", out_path, ymlpath)
+    code_to_function(filename=nbpath, kind="job").export(ymlpath)
     result = run_local(spec, command=ymlpath, workdir=out_path)
     verify_state(result)
 
 
 def test_run_local_obj():
-    spec = tag_test(base_spec, 'test_run_local_handler')
-    spec.spec.handler = 'training'
-    nbpath = '{}/mlrun_jobs.ipynb'.format(examples_path)
-    ymlpath = path.join(out_path, 'nbyaml.yaml')
-    print('out path:', out_path, ymlpath)
-    fn = code_to_function(filename=nbpath, kind='job').export(ymlpath)
+    spec = tag_test(base_spec, "test_run_local_obj")
+    spec.spec.handler = "training"
+    nbpath = "{}/mlrun_jobs.ipynb".format(examples_path)
+    ymlpath = path.join(out_path, "nbyaml.yaml")
+    print("out path:", out_path, ymlpath)
+    fn = code_to_function(filename=nbpath, kind="job").export(ymlpath)
     result = run_local(spec, command=fn, workdir=out_path)
+    verify_state(result)
+
+
+def test_run_local_from_func():
+    spec = tag_test(base_spec, "test_run_local_from_func")
+    spec.spec.handler = "training"
+    nbpath = "{}/mlrun_jobs.ipynb".format(examples_path)
+    ymlpath = path.join(out_path, "nbyaml.yaml")
+    print("out path:", out_path, ymlpath)
+    fn = code_to_function(filename=nbpath, kind="job").export(ymlpath)
+    result = fn.run(spec, workdir=out_path, local=True)
     verify_state(result)
